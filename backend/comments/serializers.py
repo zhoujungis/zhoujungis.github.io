@@ -18,7 +18,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "created_at",
             "replies",
         ]
-        read_only_fields = ["is_approved", "created_at"]
+        read_only_fields = ["article", "is_approved", "created_at"]
 
     def get_replies(self, obj):
         replies = obj.replies.filter(is_approved=True)
