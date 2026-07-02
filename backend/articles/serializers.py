@@ -8,7 +8,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ["id", "name", "slug", "description", "article_count", "created_at"]
+        fields = ["id", "name", "slug", "article_count"]
 
     def get_article_count(self, obj):
         return obj.article_set.filter(status=Article.Status.PUBLISHED).count()
@@ -19,7 +19,8 @@ class TagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tag
-        fields = ["id", "name", "slug", "article_count", "created_at"]
+        fields = ["id", "name", "slug", "article_count"]
+
 
     def get_article_count(self, obj):
         return obj.article_set.filter(status=Article.Status.PUBLISHED).count()
