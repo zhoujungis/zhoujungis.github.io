@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
@@ -24,9 +25,8 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
-    // TODO: replace with actual auth check
-    const isAuthenticated = false
-    if (!isAuthenticated) {
+    const authStore = useAuthStore()
+    if (!authStore.isAuthenticated) {
       next({ name: 'AdminLogin' })
     } else {
       next()
