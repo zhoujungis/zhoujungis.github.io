@@ -115,6 +115,10 @@ AUTH_PASSWORD_VALIDATORS = [
 
 STATIC_URL = 'static/'
 
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
 
