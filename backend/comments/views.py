@@ -19,4 +19,4 @@ class ArticleCommentList(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         article = get_object_or_404(Article, slug=self.kwargs["article_slug"])
-        serializer.save(article=article, is_approved=False)
+        serializer.save(article=article, parent=None, is_approved=False)
