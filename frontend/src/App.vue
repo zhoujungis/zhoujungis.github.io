@@ -1,5 +1,6 @@
 <script setup>
 import AppHeader from './components/AppHeader.vue'
+import ParticleBg from './components/ParticleBg.vue'
 import Live2DWidget from './components/Live2DWidget.vue'
 import BackToTop from './components/BackToTop.vue'
 import LoadingScreen from './components/LoadingScreen.vue'
@@ -7,6 +8,7 @@ import LoadingScreen from './components/LoadingScreen.vue'
 
 <template>
   <LoadingScreen />
+  <ParticleBg />
   <AppHeader />
   <main class="main-content">
     <router-view v-slot="{ Component }">
