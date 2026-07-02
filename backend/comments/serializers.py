@@ -13,6 +13,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "article",
             "parent",
             "author_name",
+            "author_email",
             "content",
             "is_approved",
             "created_at",

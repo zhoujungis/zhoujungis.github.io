@@ -16,6 +16,7 @@ const routes = [
   { path: '/admin/editor/:id?', name: 'ArticleEditor', meta: { requiresAuth: true }, component: () => import('../pages/admin/ArticleEditor.vue') },
   { path: '/admin/articles', name: 'ArticleList', meta: { requiresAuth: true }, component: () => import('../pages/admin/ArticleList.vue') },
   { path: '/admin/comments', name: 'CommentManage', meta: { requiresAuth: true }, component: () => import('../pages/admin/CommentManage.vue') },
+  { path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../pages/NotFound.vue') },
 ]
 
 const router = createRouter({

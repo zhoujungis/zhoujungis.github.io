@@ -209,8 +209,8 @@ async function saveArticle(publishStatus) {
   const formData = {
     title: title.value.trim(),
     slug: slug.value.trim() || generateSlug(title.value.trim()),
-    category: category.value,
-    tags: tags.value,
+    category_id: category.value,
+    tags_ids: tags.value,
     cover_image: coverImage.value || '',
     status: publishStatus || status.value,
     is_top: isTop.value,
