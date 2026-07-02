@@ -15,3 +15,11 @@ export function getCategories() {
 export function getTags() {
   return client.get('/tags/')
 }
+
+export function getPhotos() {
+  return client.get('/photos/')
+}
+
+export function getFriends() {
+  return client.get('/friends/')
+}
