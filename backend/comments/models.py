@@ -16,8 +16,8 @@ class Comment(models.Model):
         related_name="replies",
         verbose_name="父评论",
     )
-    name = models.CharField(max_length=64, verbose_name="昵称")
-    email = models.EmailField(verbose_name="邮箱")
+    author_name = models.CharField(max_length=64, verbose_name="昵称")
+    author_email = models.EmailField(verbose_name="邮箱")
     content = models.TextField(verbose_name="评论内容")
     is_approved = models.BooleanField(default=False, verbose_name="是否通过")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
@@ -28,4 +28,4 @@ class Comment(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.name} @ {self.article.title}"
+        return f"{self.author_name} @ {self.article.title}"

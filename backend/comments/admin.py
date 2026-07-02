@@ -5,7 +5,7 @@ from .models import Comment
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
-    list_display = ["name", "article", "is_approved", "created_at"]
+    list_display = ["author_name", "article", "is_approved", "created_at"]
     list_filter = ["is_approved", "article"]
-    search_fields = ["name", "email", "content"]
+    search_fields = ["author_name", "author_email", "content"]
     date_hierarchy = "created_at"

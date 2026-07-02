@@ -65,6 +65,7 @@ class Article(models.Model):
     )
     is_top = models.BooleanField(default=False, verbose_name="置顶")
     views_count = models.PositiveIntegerField(default=0, editable=False, verbose_name="阅读数")
+    cover_image = models.URLField(blank=True, verbose_name="cover image")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
 
