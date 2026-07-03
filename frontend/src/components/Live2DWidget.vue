@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref, nextTick } from 'vue'
 
 const live2dContainer = ref(null)
 
@@ -19,19 +19,31 @@ onMounted(() => {
         },
         display: {
           position: 'right',
-          width: 150,
-          height: 300,
-          hOffset: 0,
-          vOffset: -20,
+          width: 100,
+          height: 220,
+          hOffset: -30,
+          vOffset: -10,
         },
         mobile: {
-          show: true,
-          scale: 0.5,
+          show: false,
         },
         react: {
-          opacityDefault: 0.3,
-          opacityOnHover: 0.7,
+          opacityDefault: 0.25,
+          opacityOnHover: 0.8,
         },
+      })
+
+      // After init, make the L2Dwidget canvas not block clicks
+      nextTick(() => {
+        const canvases = document.querySelectorAll('#live2d-widget-model-shizuku-tororo canvas, #live2d-widget-model-shizuku-tororo')
+        canvases.forEach(el => {
+          el.style.pointerEvents = 'none'
+        })
+        // Also set pointer-events on any L2Dwidget generated elements
+        const widgetEls = document.querySelectorAll('[id^="live2d-widget"]')
+        widgetEls.forEach(el => {
+          el.style.pointerEvents = 'none'
+        })
       })
     }
   }
@@ -41,6 +53,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   const scripts = document.querySelectorAll('script[src*="L2Dwidget"]')
   scripts.forEach(s => s.remove())
+  // Clean up widget elements
+  const widgetEls = document.querySelectorAll('[id^="live2d-widget"]')
+  widgetEls.forEach(el => el.remove())
 })
 </script>
 
@@ -49,7 +64,18 @@ onBeforeUnmount(() => {
   position: fixed;
   bottom: 0;
   right: 0;
-  z-index: 999;
+  z-index: 1;
   pointer-events: none;
+}
+</style>
+
+<style>
+/* Global styles for L2Dwidget canvas after it's created */
+[id^="live2d-widget"] {
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+[id^="live2d-widget"] canvas {
+  pointer-events: none !important;
 }
 </style>
