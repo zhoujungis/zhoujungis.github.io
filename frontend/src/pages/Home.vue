@@ -175,10 +175,9 @@ function clearFilter() {
 watch(() => route.query, () => {
   currentPage.value = 1
   loadArticles()
-})
+}, { immediate: true })
 
 onMounted(() => {
-  loadArticles()
   articleStore.fetchCategories()
   articleStore.fetchTags()
 })
