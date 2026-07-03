@@ -99,8 +99,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, onBeforeRouteUpdate } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import ArticleCard from '@/components/ArticleCard.vue'
 import SidePanel from '@/components/SidePanel.vue'
@@ -172,12 +172,13 @@ function clearFilter() {
   articleStore.fetchArticles({ page: 1 })
 }
 
-watch(() => route.query, () => {
+onBeforeRouteUpdate((to) => {
   currentPage.value = 1
   loadArticles()
-}, { immediate: true })
+})
 
 onMounted(() => {
+  loadArticles()
   articleStore.fetchCategories()
   articleStore.fetchTags()
 })
