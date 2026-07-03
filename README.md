@@ -1,193 +1,135 @@
-# ZhouJun's Blog
+# 🌸 ZhouJun's Blog
 
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js)](https://vuejs.org/)
-[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite)](https://vite.dev/)
 [![Django](https://img.shields.io/badge/Django-6.0-092E20?logo=django)](https://www.djangoproject.com/)
-[![DRF](https://img.shields.io/badge/DRF-3.17-A30000?logo=django)](https://www.django-rest-framework.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A personal blog built with **Vue 3** frontend and **Django REST Framework** backend. Features include article management, Markdown editing with Vditor, comment system, photo gallery, friend links, Live2D widget, and a full admin dashboard.
+> 一个可爱风的个人技术博客，樱花粉主题 🎀，前后端分离架构。
+
+🔗 **在线访问：** [zhoujungis.github.io](https://zhoujungis.github.io)
 
 ---
 
-## Architecture
+## ✨ 功能
 
-```
-┌─────────────────────────────────────────────────┐
-│                  GitHub Pages                    │
-│         (Static hosting via repo root)           │
-│  ┌───────────────────────────────────────────┐  │
-│  │         Vue 3 + Vite Frontend             │  │
-│  │  (SPA with Vue Router, Pinia, Axios)       │  │
-│  └──────────────────────┬────────────────────┘  │
-│                         │ REST API               │
-│                         │ (JSON over HTTP)       │
-│  ┌──────────────────────▼────────────────────┐  │
-│  │       PythonAnywhere (or local)           │  │
-│  │   Django REST Framework Backend           │  │
-│  │   (JWT auth, SQLite/PostgreSQL, etc.)     │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-```
-
-| Layer    | Technology                        | Hosting           |
-|----------|-----------------------------------|-------------------|
-| Frontend | Vue 3, Vite, Vue Router, Pinia    | GitHub Pages      |
-| Backend  | Django 6.0, DRF, SimpleJWT, SQLite | PythonAnywhere    |
-| Admin    | Django Admin + custom Vue pages   | PythonAnywhere    |
+- 📝 **文章管理** — Markdown 写作 + Vditor 在线编辑器，支持草稿/发布/置顶
+- 🏷️ **分类 & 标签** — 文章归类，标签云
+- 💬 **评论系统** — 支持回复、审核，JWT 认证
+- 🔍 **全文搜索** — 后端 Django 搜索
+- 🖼️ **照片墙** — 图片展示 + 灯箱预览
+- 🔗 **友情链接** — 独立友链页面
+- 📡 **RSS 订阅** — Atom Feed
+- 📊 **管理后台** — 仪表盘、文章管理、评论审核
+- 🦊 **Live2D 看板娘** — 右下角可爱角色
+- 🎀 **樱花粉萌系 UI** — 花瓣粒子、软阴影、弹跳动效
 
 ---
 
-## Getting Started
+## 🏗️ 架构
 
-### Prerequisites
+```
+┌─────────────────────────────────────┐
+│          GitHub Pages (前端)          │
+│      Vue 3 + Vite SPA               │
+│          ↕ REST API                  │
+│    PythonAnywhere (后端)             │
+│      Django + DRF + SQLite          │
+└─────────────────────────────────────┘
+```
+
+| 层 | 技术栈 | 部署位置 |
+|----|--------|----------|
+| 前端 | Vue 3 + Vite + Vue Router + Pinia + Axios + Vditor + SCSS | GitHub Pages |
+| 后端 | Django 6.0 + DRF + SimpleJWT + SQLite | PythonAnywhere |
+
+---
+
+## 🚀 本地开发
+
+### 环境要求
 
 - Node.js >= 18
 - Python >= 3.10
-- Git
 
-### Frontend Setup
+### 前端
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev          # http://localhost:5173
 ```
 
-The dev server starts at `http://localhost:5173`.
-
-### Backend Setup
+### 后端
 
 ```bash
 cd backend
-
-# Create and activate a virtual environment
 python -m venv venv
-source venv/bin/activate   # Linux/macOS
-# venv\Scripts\activate    # Windows
-
-# Install dependencies
+source venv/bin/activate    # Linux/macOS
+# venv\Scripts\activate     # Windows
 pip install -r requirements.txt
-
-# Run migrations
 python manage.py migrate
-
-# Create a superuser (admin)
 python manage.py createsuperuser
-
-# Start the development server
-python manage.py runserver
+python manage.py runserver  # http://localhost:8000
 ```
 
-The API server starts at `http://localhost:8000`.
+### 环境变量
 
-### Environment Variables
-
-Copy or set the following environment variables as needed:
-
-| Variable               | Default                        | Description                      |
-|------------------------|--------------------------------|----------------------------------|
-| `VITE_API_BASE_URL`    | `http://localhost:8000/api/`  | Frontend API base URL (`.env`)   |
-| `DEBUG`                | `True`                         | Django debug mode                |
-| `ALLOWED_HOSTS`        | `*`                            | Django allowed hosts             |
-| `DJANGO_SECRET_KEY`    | (dev key in settings.py)       | Django secret key (production)   |
-| `CORS_ALLOWED_ORIGINS` | (all allowed in dev)           | CORS origins for production      |
-
-For the frontend, create `frontend/.env`:
+前端 `frontend/.env`：
 
 ```
 VITE_API_BASE_URL=http://localhost:8000/api/
 ```
 
+后端通过 `blog_api/settings.py` 中的 `os.environ` 读取。
+
 ---
 
-## Deployment
+## 📦 部署
 
-### Frontend — GitHub Pages
-
-1. Update `VITE_API_BASE_URL` in `frontend/.env` to point to your production API.
-2. Run the deployment script:
+### 前端 → GitHub Pages
 
 ```bash
 cd frontend
-bash deploy.sh
+npm run build
+cp -r dist/* ../ && git add -A && git commit -m "deploy" && git push
 ```
 
-This builds the app and pushes the output to the repository root (where GitHub Pages serves from).
+### 后端 → PythonAnywhere
 
-### Backend — PythonAnywhere
-
-See [backend/pythonanywhere_deploy.md](backend/pythonanywhere_deploy.md) for detailed instructions.
-
-Quick steps:
-
-1. Upload code to PythonAnywhere (git clone or file upload).
-2. Create a virtual environment and install dependencies.
-3. Configure the WSGI file to point to your Django app.
-4. Set environment variables (`DEBUG=False`, `ALLOWED_HOSTS`, etc.).
-5. Run `migrate` and `collectstatic`.
-6. Create a superuser.
-7. Reload the web app.
-
-### CORS Configuration
-
-Add your GitHub Pages domain to Django's `CORS_ALLOWED_ORIGINS`:
-
-```python
-CORS_ALLOWED_ORIGINS = [
-    'https://yourusername.github.io',
-    'http://localhost:5173',
-]
-```
+详见 [backend/pythonanywhere_deploy.md](backend/pythonanywhere_deploy.md)
 
 ---
 
-## Tech Stack
-
-| Category     | Technology                                                    |
-|-------------|---------------------------------------------------------------|
-| Frontend    | Vue 3, Vue Router, Pinia, Axios, Vditor, Highlight.js, SCSS   |
-| Backend     | Django 6.0, Django REST Framework, SimpleJWT, django-filter   |
-| Build       | Vite 8                                                        |
-| Database    | SQLite (dev), MySQL/PostgreSQL (production via PythonAnywhere)|
-| Hosting     | GitHub Pages (frontend), PythonAnywhere (backend)             |
-| Live2D      | Live2D Cubism widget for character display                   |
-
----
-
-## Project Structure
+## 📂 项目结构
 
 ```
-/
-├── frontend/           # Vue 3 SPA
+├── frontend/           # Vue 3 前端源码
 │   ├── src/
-│   │   ├── api/        # API client (Axios)
-│   │   ├── components/ # Reusable Vue components
-│   │   ├── pages/      # Route pages
-│   │   │   └── admin/  # Admin dashboard pages
-│   │   ├── App.vue
-│   │   └── main.js
-│   ├── public/
-│   ├── index.html
-│   ├── vite.config.js
-│   └── deploy.sh       # GitHub Pages deploy script
-├── backend/            # Django REST API
-│   ├── blog_api/       # Django project config
-│   ├── articles/       # Article app
-│   ├── comments/       # Comment app
-│   ├── photos/         # Photo gallery app
-│   ├── friends/        # Friend links app
-│   ├── accounts/       # User accounts
-│   ├── manage.py
-│   └── requirements.txt
-├── docs/               # Additional docs
-├── live2dw/            # Live2D widget assets
-├── public-live2d/      # Live2D source assets
-└── README.md
+│   │   ├── api/        # Axios 封装
+│   │   ├── components/ # 全局组件
+│   │   ├── pages/      # 页面组件
+│   │   │   └── admin/  # 管理后台
+│   │   ├── stores/     # Pinia 状态
+│   │   ├── styles/     # SCSS 主题
+│   │   └── router/     # 路由配置
+│   └── deploy.sh
+├── backend/            # Django 后端
+│   ├── blog_api/       # Django 配置
+│   ├── articles/       # 文章 App
+│   ├── comments/       # 评论 App
+│   ├── photos/         # 照片 App
+│   ├── friends/        # 友链 App
+│   └── accounts/       # 账户 App
+├── docs/               # 文档
+└── assets/             # 构建产物（前端）
 ```
 
 ---
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT © Zhou Jun
+
+---
+
+<p align="center">🌸 用爱发电，用心写作 🌸</p>

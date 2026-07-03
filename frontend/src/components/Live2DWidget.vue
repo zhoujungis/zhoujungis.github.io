@@ -29,8 +29,8 @@ onMounted(() => {
           scale: 0.5,
         },
         react: {
-          opacityDefault: 0.7,
-          opacityOnHover: 0.2,
+          opacityDefault: 0.3,
+          opacityOnHover: 0.7,
         },
       })
     }
