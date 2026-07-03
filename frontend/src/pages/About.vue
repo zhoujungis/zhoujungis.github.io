@@ -22,6 +22,13 @@
             工作之余，我喜欢摄影、旅行和探索新技术。
           </p>
         </div>
+
+        <div class="skills-section glass-card">
+          <h3 class="section-title">技能</h3>
+          <div class="skills-tags">
+            <span v-for="s in skills" :key="s" class="skill-tag">{{ s }}</span>
+          </div>
+        </div>
       </div>
 
       <aside class="about-sidebar">
@@ -41,7 +48,11 @@
 </template>
 
 <script setup>
-// 页面内容为静态模板，你可以根据需要修改
+const skills = [
+  'Python', 'Java', 'JavaScript', 'TypeScript',
+  'Vue.js', 'Django',
+  'C/C++', 'NPM', 'GIS', 'Remote Sensing',
+]
 </script>
 
 <style lang="scss" scoped>
@@ -129,6 +140,42 @@
 
   &:last-child {
     margin-bottom: 0;
+  }
+}
+
+.skills-section {
+  max-width: 600px;
+  margin: 0 auto 24px;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: $accent-pink;
+  margin-bottom: 16px;
+}
+
+.skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.skill-tag {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(255, 133, 162, 0.08);
+  border: 1px solid rgba(255, 133, 162, 0.2);
+  color: $accent-pink;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 133, 162, 0.15);
+    border-color: $accent-pink;
+    transform: translateY(-2px);
   }
 }
 
