@@ -35,7 +35,10 @@
 
     <!-- Categories -->
     <section class="panel-section">
-      <h4 class="section-title">分类</h4>
+      <router-link to="/categories" class="section-title section-title-link">
+        分类
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </router-link>
       <div v-if="categories.length" class="category-list">
         <router-link
           v-for="cat in categories"
@@ -54,7 +57,10 @@
 
     <!-- Tags -->
     <section class="panel-section">
-      <h4 class="section-title">标签</h4>
+      <router-link to="/tags" class="section-title section-title-link">
+        标签
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </router-link>
       <div v-if="tags.length" class="tag-cloud">
         <router-link
           v-for="(tag, idx) in tags"
@@ -153,6 +159,18 @@ const friendLinks = []
   margin-bottom: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+
+.section-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $neon-cyan;
+  }
 }
 
 .section-divider {

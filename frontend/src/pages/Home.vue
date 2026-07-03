@@ -147,11 +147,11 @@ const visiblePages = computed(() => {
   return pages
 })
 
-async function loadArticles() {
+async function loadArticles(queryOverride) {
   error.value = null
   try {
     const params = { page: currentPage.value }
-    const q = route.query
+    const q = queryOverride || route.query
     if (q.category) params.category__slug = q.category
     else if (q.tag) params.tags__slug = q.tag
     await articleStore.fetchArticles(params)
@@ -174,7 +174,7 @@ function clearFilter() {
 
 onBeforeRouteUpdate((to) => {
   currentPage.value = 1
-  loadArticles()
+  loadArticles(to.query)
 })
 
 onMounted(() => {
