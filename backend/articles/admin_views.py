@@ -100,6 +100,25 @@ class ArticleAdminViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+class CategoryAdminViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = serializers.Serializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        from .serializers import CategorySerializer
+        return CategorySerializer
+
+
+class TagAdminViewSet(viewsets.ModelViewSet):
+    queryset = Tag.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        from .serializers import TagSerializer
+        return TagSerializer
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def upload_image(request):
