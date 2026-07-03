@@ -19,6 +19,14 @@
           </div>
         </div>
 
+        <!-- Active filter bar -->
+        <div v-if="activeFilter" class="filter-bar">
+          <span class="filter-badge">
+            {{ filterType === 'category' ? '分类' : '标签' }}: {{ activeFilter }}
+          </span>
+          <router-link to="/" class="filter-clear" @click="clearFilter">✕ 清除筛选</router-link>
+        </div>
+
         <!-- Loading state -->
         <div v-if="articleStore.loading && !articleStore.articles.length" class="skeleton-grid">
           <div v-for="i in 3" :key="i" class="skeleton-card">
@@ -91,15 +99,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import ArticleCard from '@/components/ArticleCard.vue'
 import SidePanel from '@/components/SidePanel.vue'
 
+const route = useRoute()
 const articleStore = useArticleStore()
 
 const currentPage = ref(1)
 const error = ref(null)
+const activeFilter = computed(() => route.query.category || route.query.tag || null)
+const filterType = computed(() => route.query.category ? 'category' : route.query.tag ? 'tag' : null)
 
 const pinnedArticles = computed(() =>
   articleStore.articles.filter((a) => a.is_top)
@@ -138,7 +150,11 @@ const visiblePages = computed(() => {
 async function loadArticles() {
   error.value = null
   try {
-    await articleStore.fetchArticles({ page: currentPage.value })
+    const params = { page: currentPage.value }
+    const q = route.query
+    if (q.category) params.category = q.category
+    else if (q.tag) params.tags__slug = q.tag
+    await articleStore.fetchArticles(params)
   } catch (e) {
     error.value = e?.response?.data?.detail || e.message || '加载文章失败'
   }
@@ -150,6 +166,16 @@ function goToPage(page) {
   loadArticles()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+
+function clearFilter() {
+  currentPage.value = 1
+  articleStore.fetchArticles({ page: 1 })
+}
+
+watch(() => route.query, () => {
+  currentPage.value = 1
+  loadArticles()
+})
 
 onMounted(() => {
   loadArticles()
@@ -176,6 +202,34 @@ onMounted(() => {
 .home-main {
   flex: 1;
   min-width: 0;
+}
+
+// ---- Filter Bar ----
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 10px 16px;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
+  border-radius: $radius-md;
+}
+
+.filter-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: $accent-pink;
+  padding: 4px 12px;
+  background: rgba(255,133,162,0.1);
+  border-radius: 999px;
+}
+
+.filter-clear {
+  font-size: 0.8rem;
+  color: $text-secondary;
+  text-decoration: none;
+  &:hover { color: $accent-pink; }
 }
 
 // ---- Pinned Section ----

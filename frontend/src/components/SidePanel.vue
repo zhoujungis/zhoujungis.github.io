@@ -40,7 +40,7 @@
         <router-link
           v-for="cat in categories"
           :key="catLabel(cat)"
-          :to="{ path: '/categories', query: { name: catLabel(cat) } }"
+          :to="{ path: '/', query: { category: catSlug(cat) || catLabel(cat) } }"
           class="category-item"
         >
           <span class="category-name">{{ catLabel(cat) }}</span>
@@ -59,7 +59,7 @@
         <router-link
           v-for="(tag, idx) in tags"
           :key="tagLabel(tag)"
-          :to="{ path: '/tags', query: { name: tagLabel(tag) } }"
+          :to="{ path: '/', query: { tag: tagSlug(tag) || tagLabel(tag) } }"
           class="tag-item"
           :style="{ borderColor: neonColors[idx % neonColors.length], color: neonColors[idx % neonColors.length] }"
         >
@@ -111,17 +111,23 @@ function tagLabel(tag) {
   return typeof tag === 'object' ? tag.name || '' : tag
 }
 
+function catSlug(cat) {
+  if (!cat) return ''
+  return typeof cat === 'object' ? cat.slug || '' : ''
+}
+
+function tagSlug(tag) {
+  if (!tag) return ''
+  return typeof tag === 'object' ? tag.slug || '' : ''
+}
+
 function catCount(cat) {
   if (typeof cat === 'object' && cat.article_count !== undefined) return cat.article_count
   if (typeof cat === 'object' && cat.count !== undefined) return cat.count
   return 0
 }
 
-const friendLinks = [
-  { name: '示例友链 1', url: 'https://example1.com' },
-  { name: '示例友链 2', url: 'https://example2.com' },
-  { name: '示例友链 3', url: 'https://example3.com' },
-]
+const friendLinks = []
 </script>
 
 <style lang="scss" scoped>
