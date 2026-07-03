@@ -152,7 +152,7 @@ async function loadArticles() {
   try {
     const params = { page: currentPage.value }
     const q = route.query
-    if (q.category) params.category = q.category
+    if (q.category) params.category__slug = q.category
     else if (q.tag) params.tags__slug = q.tag
     await articleStore.fetchArticles(params)
   } catch (e) {
