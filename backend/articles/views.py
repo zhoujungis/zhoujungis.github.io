@@ -12,6 +12,7 @@ from .serializers import (
 
 class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Article.objects.filter(status=Article.Status.PUBLISHED)
+    lookup_field = 'slug'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = {
         "category__slug": ["exact"],
