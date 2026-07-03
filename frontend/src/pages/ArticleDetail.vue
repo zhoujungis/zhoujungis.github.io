@@ -26,7 +26,7 @@
         <line x1="12" y1="8" x2="12" y2="12"/>
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
-      <h2>文章不存在</h2>
+      <h2>{{ status === 404 ? '文章不存在' : '加载失败' }}</h2>
       <p>{{ error }}</p>
       <router-link to="/" class="back-link">返回首页</router-link>
     </div>

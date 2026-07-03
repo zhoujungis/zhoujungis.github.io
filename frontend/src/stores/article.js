@@ -39,6 +39,12 @@ export const useArticleStore = defineStore('article', {
       try {
         const response = await getArticleBySlug(slug)
         this.currentArticle = response.data
+        if (!this.currentArticle) {
+          console.error('fetchArticleBySlug: response.data is empty', response)
+        }
+      } catch (e) {
+        console.error('fetchArticleBySlug error:', slug, e?.message, e?.response?.status, e?.response?.data)
+        throw e
       } finally {
         this.loading = false
       }
