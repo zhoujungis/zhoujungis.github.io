@@ -69,6 +69,11 @@
 import { ref, onMounted } from 'vue'
 import { getFriends } from '@/api/articles'
 
+const DEFAULT_FRIENDS = [
+  { name: 'GitHub', url: 'https://github.com' },
+  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
+]
+
 const friends = ref([])
 const loading = ref(false)
 const error = ref(null)
@@ -78,9 +83,15 @@ async function loadFriends() {
   error.value = null
   try {
     const response = await getFriends()
-    friends.value = response.data.results || response.data || []
+    const apiFriends = response.data.results || response.data || []
+    if (apiFriends.length) {
+      friends.value = apiFriends
+    } else {
+      friends.value = DEFAULT_FRIENDS
+    }
   } catch (e) {
-    error.value = e?.response?.data?.detail || e.message || '加载友情链接失败'
+    // API unavailable (e.g. on GitHub Pages), use default links
+    friends.value = DEFAULT_FRIENDS
   } finally {
     loading.value = false
   }
