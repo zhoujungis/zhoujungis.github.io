@@ -74,30 +74,21 @@ const DEFAULT_FRIENDS = [
   { name: 'ChatGPT', url: 'https://chatgpt.com/' },
 ]
 
-const friends = ref([])
+const friends = ref([...DEFAULT_FRIENDS])
 const loading = ref(false)
 const error = ref(null)
 
-async function loadFriends() {
-  loading.value = true
-  error.value = null
+onMounted(async () => {
   try {
     const response = await getFriends()
     const apiFriends = response.data.results || response.data || []
     if (apiFriends.length) {
       friends.value = apiFriends
-    } else {
-      friends.value = DEFAULT_FRIENDS
     }
   } catch (e) {
-    // API unavailable (e.g. on GitHub Pages), use default links
-    friends.value = DEFAULT_FRIENDS
-  } finally {
-    loading.value = false
+    // API unavailable, keep default links
   }
-}
-
-onMounted(loadFriends)
+})
 </script>
 
 <style lang="scss" scoped>
