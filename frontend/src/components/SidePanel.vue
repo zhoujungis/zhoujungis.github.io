@@ -133,7 +133,10 @@ function catCount(cat) {
   return 0
 }
 
-const friendLinks = []
+const friendLinks = [
+  { name: 'GitHub', url: 'https://github.com' },
+  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
+]
 </script>
 
 <style lang="scss" scoped>

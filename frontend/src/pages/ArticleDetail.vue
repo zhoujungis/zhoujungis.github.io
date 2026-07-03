@@ -76,6 +76,14 @@
                 </svg>
                 {{ article.views_count || 0 }}
               </span>
+
+              <!-- Share to WeChat -->
+              <button class="share-wechat-btn" @click.stop="showWechatQr = true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.045c.134 0 .24-.11.24-.245 0-.06-.024-.12-.04-.178l-.325-1.233a.49.49 0 0 1 .178-.554C23.028 18.48 24 16.82 24 14.98c0-3.21-2.931-5.952-7.062-6.122zm-2.18 2.769c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/>
+                </svg>
+                分享到微信
+              </button>
             </div>
 
             <!-- Tags -->
@@ -139,6 +147,21 @@
           <TocNav :html="article.html_content || article.content || ''" />
         </aside>
       </div>
+
+      <!-- WeChat share modal -->
+      <div v-if="showWechatQr" class="wechat-share-overlay" @click.self="showWechatQr = false">
+        <div class="wechat-share-modal">
+          <h3 class="modal-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.045c.134 0 .24-.11.24-.245 0-.06-.024-.12-.04-.178l-.325-1.233a.49.49 0 0 1 .178-.554C23.028 18.48 24 16.82 24 14.98c0-3.21-2.931-5.952-7.062-6.122zm-2.18 2.769c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/>
+            </svg>
+            分享到微信
+          </h3>
+          <img :src="qrCodeUrl" alt="微信扫码阅读" class="qr-image" />
+          <p class="modal-desc">打开微信"扫一扫"，即可在微信中阅读并转发</p>
+          <button class="modal-close-btn" @click="showWechatQr = false">关闭</button>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -159,6 +182,11 @@ const articleStore = useArticleStore()
 const article = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const showWechatQr = ref(false)
+
+const qrCodeUrl = computed(() => {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`
+})
 
 const formattedDate = computed(() => {
   if (!article.value?.created_at) return ''
@@ -505,6 +533,94 @@ onMounted(fetchArticle)
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+// ============ WeChat share ============
+.share-wechat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  color: #07c160;
+  background: rgba(7, 193, 96, 0.06);
+  border: 1px solid rgba(7, 193, 96, 0.25);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background $transition-fast, border-color $transition-fast, box-shadow $transition-fast;
+
+  &:hover {
+    background: rgba(7, 193, 96, 0.12);
+    border-color: rgba(7, 193, 96, 0.45);
+    box-shadow: 0 0 8px rgba(7, 193, 96, 0.15);
+  }
+}
+
+.wechat-share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.wechat-share-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 40px 24px;
+  text-align: center;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #07c160;
+  margin-bottom: 20px;
+}
+
+.qr-image {
+  width: 200px;
+  height: 200px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.modal-desc {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.modal-close-btn {
+  display: inline-block;
+  padding: 8px 32px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #999;
+  background: #f5f5f5;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background $transition-fast, color $transition-fast;
+
+  &:hover {
+    background: #e8e8e8;
+    color: #666;
+  }
 }
 
 // ============ Mobile ============
