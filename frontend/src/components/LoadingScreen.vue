@@ -2,9 +2,10 @@
   <transition name="fade-out">
     <div v-if="loading" class="loading-screen">
       <div class="loading-content">
-        <h1 class="logo-neon">ZhouJun</h1>
-        <div class="progress-track">
-          <div class="progress-bar"></div>
+        <div class="heart-icon">🌸</div>
+        <h1 class="logo-text">ZhouJun</h1>
+        <div class="dots">
+          <span class="dot" v-for="i in 3" :key="i" :style="{ animationDelay: i * 0.15 + 's' }"></span>
         </div>
       </div>
     </div>
@@ -17,21 +18,12 @@ import { ref, onMounted } from 'vue'
 const loading = ref(true)
 
 onMounted(() => {
-  // Wait for the next tick to ensure everything is rendered,
-  // then fade out after a short minimum display time.
   const MIN_DISPLAY_MS = 600
   const startTime = Date.now()
-
   const hide = () => {
-    const elapsed = Date.now() - startTime
-    const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed)
-
-    setTimeout(() => {
-      loading.value = false
-    }, remaining)
+    const remaining = Math.max(0, MIN_DISPLAY_MS - (Date.now() - startTime))
+    setTimeout(() => { loading.value = false }, remaining)
   }
-
-  // Use requestIdleCallback if available, else fallback to setTimeout
   if (window.requestIdleCallback) {
     window.requestIdleCallback(hide, { timeout: 200 })
   } else {
@@ -44,104 +36,54 @@ onMounted(() => {
 @use '@/styles/variables' as *;
 
 .loading-screen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: $bg-primary;
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #fff5f7 0%, #ffeef2 50%, #fef0ff 100%);
 }
 
 .loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
+  display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
 }
 
-// ---- Neon logo ----
-.logo-neon {
-  font-family: $font-mono;
+.heart-icon {
   font-size: 3rem;
-  font-weight: 700;
-  letter-spacing: 4px;
-  color: $neon-pink;
-  text-shadow:
-    0 0 7px $neon-pink,
-    0 0 10px $neon-pink,
-    0 0 21px $neon-pink,
-    0 0 42px rgba($neon-pink, 0.5),
-    0 0 82px rgba($neon-pink, 0.3);
-  animation: pulse-glow 1.8s ease-in-out infinite;
-  margin: 0;
-
-  @media (max-width: 480px) {
-    font-size: 2.2rem;
-  }
+  animation: heart-beat 1.2s ease-in-out infinite;
 }
 
-@keyframes pulse-glow {
-  0%, 100% {
-    text-shadow:
-      0 0 7px $neon-pink,
-      0 0 10px $neon-pink,
-      0 0 21px $neon-pink,
-      0 0 42px rgba($neon-pink, 0.5);
-    opacity: 1;
-  }
-  50% {
-    text-shadow:
-      0 0 10px $neon-pink,
-      0 0 20px $neon-pink,
-      0 0 40px $neon-pink,
-      0 0 80px rgba($neon-pink, 0.6),
-      0 0 120px rgba($neon-pink, 0.3);
-    opacity: 1;
-  }
+.logo-text {
+  font-size: 2.8rem; font-weight: 700;
+  color: $accent-pink; margin: 0; letter-spacing: 2px;
+  @media (max-width: 480px) { font-size: 2rem; }
 }
 
-// ---- Progress bar ----
-.progress-track {
-  width: 200px;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
-  overflow: hidden;
+.dots {
+  display: flex; gap: 8px;
 }
 
-.progress-bar {
-  height: 100%;
-  width: 40%;
-  background: $neon-cyan;
-  border-radius: 2px;
-  box-shadow:
-    0 0 6px $neon-cyan,
-    0 0 12px rgba($neon-cyan, 0.4);
-  animation: scan-line 1.4s ease-in-out infinite;
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: $accent-pink;
+  animation: bounce-dot 0.8s ease-in-out infinite;
 }
 
-@keyframes scan-line {
-  0% {
-    transform: translateX(-100%);
-  }
-  50% {
-    transform: translateX(150%);
-  }
-  100% {
-    transform: translateX(350%);
-  }
+.dot:nth-child(1) { background: $accent-pink; }
+.dot:nth-child(2) { background: $accent-purple; }
+.dot:nth-child(3) { background: $accent-mint; }
+
+@keyframes bounce-dot {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(-12px); opacity: 0.5; }
 }
 
-// ---- Fade out transition ----
-.fade-out-leave-active {
-  transition: opacity 0.5s ease;
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.2); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.15); }
 }
 
-.fade-out-leave-to {
-  opacity: 0;
-}
+.fade-out-leave-active { transition: opacity 0.5s ease; }
+.fade-out-leave-to { opacity: 0; }
 </style>

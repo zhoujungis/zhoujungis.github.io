@@ -7,15 +7,12 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 const canvasRef = ref(null)
 
-// Neon color palette matching design tokens
-const NEON_COLORS = ['#00e5ff', '#ff0080', '#7b2fff']
+// Cute pastel palette
+const COLORS = ['#ffb3c6', '#ffd1dc', '#ffe0ec', '#c9b1ff', '#b8e8d0', '#ffe0a0', '#ffc2d9']
+const HEART_COLORS = ['#ff85a2', '#ffb3c6', '#ffd1dc', '#ff9eb5']
 
-let animationId = null
-let particles = []
-let mouseX = -9999
-let mouseY = -9999
+let animationId, particles = [], mouseX = -9999, mouseY = -9999
 
-// Particle definition
 class Particle {
   constructor(w, h) {
     this.reset(w, h, true)
@@ -23,72 +20,67 @@ class Particle {
 
   reset(w, h, initial = false) {
     this.x = Math.random() * w
-    this.y = initial
-      ? Math.random() * h
-      : -4 // spawn just above canvas when recycling
-    this.radius = 1 + Math.random() * 2 // 1-3px
-    this.speedY = -(0.15 + Math.random() * 0.35) // upward drift
-    this.speedX = (Math.random() - 0.5) * 0.3 // slight horizontal drift
-    this.opacity = 0.4 + Math.random() * 0.6
-
-    // ~10% chance of being a neon star
-    this.isNeon = Math.random() < 0.1
-    this.color = this.isNeon
-      ? NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)]
-      : '#ffffff'
+    this.y = initial ? Math.random() * h : -10
+    this.radius = 2 + Math.random() * 5
+    this.speedY = -(0.2 + Math.random() * 0.5)
+    this.speedX = (Math.random() - 0.5) * 0.4
+    this.opacity = 0.3 + Math.random() * 0.5
+    this.color = COLORS[Math.floor(Math.random() * COLORS.length)]
+    this.isHeart = Math.random() < 0.25
+    this.rotation = Math.random() * Math.PI * 2
+    this.rotSpeed = (Math.random() - 0.5) * 0.02
   }
 
   update(w, h, dt) {
-    // Frame-rate independent movement
     this.x += this.speedX * dt
     this.y += this.speedY * dt
+    this.rotation += this.rotSpeed * dt
 
-    // Mouse repulsion: particles within 150px are gently pushed away
-    const dx = this.x - mouseX
-    const dy = this.y - mouseY
+    const dx = this.x - mouseX, dy = this.y - mouseY
     const dist = Math.sqrt(dx * dx + dy * dy)
-    if (dist < 150 && dist > 0) {
-      const force = (150 - dist) / 150
-      const pushX = (dx / dist) * force * 2 * dt
-      const pushY = (dy / dist) * force * 2 * dt
-      this.x += pushX
-      this.y += pushY
+    if (dist < 120 && dist > 0) {
+      const force = (120 - dist) / 120
+      this.x += (dx / dist) * force * 1.5 * dt
+      this.y += (dy / dist) * force * 1.5 * dt
     }
 
-    // Recycle off-screen
-    if (this.y < -10 || this.x < -10 || this.x > w + 10) {
+    if (this.y < -50 || this.x < -50 || this.x > w + 50 || this.y > h + 50) {
       this.reset(w, h)
-    }
-    if (this.y > h + 10) {
-      this.y = -4
     }
   }
 
   draw(ctx) {
-    ctx.beginPath()
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2)
-    ctx.fillStyle = this.color
+    ctx.save()
     ctx.globalAlpha = this.opacity
-    ctx.fill()
+    ctx.translate(this.x, this.y)
+    ctx.rotate(this.rotation)
+    ctx.fillStyle = this.color
 
-    // Neon glow for special particles
-    if (this.isNeon) {
-      ctx.shadowBlur = 12
-      ctx.shadowColor = this.color
+    if (this.isHeart) {
+      // Draw a small heart
+      ctx.beginPath()
+      const s = this.radius * 0.4
+      ctx.moveTo(0, s * 0.3)
+      ctx.bezierCurveTo(0, 0, -s, 0, -s, s * 0.6)
+      ctx.bezierCurveTo(-s, s * 1.2, 0, s * 1.5, 0, s * 2)
+      ctx.bezierCurveTo(0, s * 1.5, s, s * 1.2, s, s * 0.6)
+      ctx.bezierCurveTo(s, 0, 0, 0, 0, s * 0.3)
       ctx.fill()
-      ctx.shadowBlur = 0
+    } else {
+      // Draw a soft circle
+      ctx.beginPath()
+      ctx.arc(0, 0, this.radius, 0, Math.PI * 2)
+      ctx.fill()
     }
 
-    ctx.globalAlpha = 1
+    ctx.restore()
   }
 }
 
 function initParticles(w, h) {
-  const count = 80 + Math.floor(Math.random() * 41) // 80-120
   particles = []
-  for (let i = 0; i < count; i++) {
-    particles.push(new Particle(w, h))
-  }
+  const count = 60 + Math.floor(Math.random() * 41)
+  for (let i = 0; i < count; i++) particles.push(new Particle(w, h))
 }
 
 function resizeCanvas() {
@@ -101,54 +93,32 @@ function resizeCanvas() {
 function animate(timestamp) {
   const canvas = canvasRef.value
   if (!canvas) return
-
   const ctx = canvas.getContext('2d')
-  const w = canvas.width
-  const h = canvas.height
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  // Clear canvas
-  ctx.clearRect(0, 0, w, h)
-
-  // Calculate dt in frames (at 60fps, 1 frame = 1)
-  // Using a baseline of 16.67ms per frame
   if (!animate._lastTime) animate._lastTime = timestamp
-  const dt = Math.min((timestamp - animate._lastTime) / 16.667, 4) // cap dt to prevent large jumps
+  const dt = Math.min((timestamp - animate._lastTime) / 16.667, 4)
   animate._lastTime = timestamp
 
-  // Update and draw each particle
-  for (const p of particles) {
-    p.update(w, h, dt)
-    p.draw(ctx)
-  }
-
+  for (const p of particles) { p.update(canvas.width, canvas.height, dt); p.draw(ctx) }
   animationId = requestAnimationFrame(animate)
 }
 
-function onMouseMove(e) {
-  mouseX = e.clientX
-  mouseY = e.clientY
-}
-
-function onMouseLeave() {
-  mouseX = -9999
-  mouseY = -9999
-}
+function onMouseMove(e) { mouseX = e.clientX; mouseY = e.clientY }
+function onMouseLeave() { mouseX = -9999; mouseY = -9999 }
 
 onMounted(() => {
   resizeCanvas()
   initParticles(canvasRef.value.width, canvasRef.value.height)
   animate._lastTime = 0
   animationId = requestAnimationFrame(animate)
-
   window.addEventListener('resize', resizeCanvas)
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseleave', onMouseLeave)
 })
 
 onUnmounted(() => {
-  if (animationId) {
-    cancelAnimationFrame(animationId)
-  }
+  if (animationId) cancelAnimationFrame(animationId)
   window.removeEventListener('resize', resizeCanvas)
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseleave', onMouseLeave)
@@ -158,12 +128,8 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .particle-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-  pointer-events: none;
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: -1; pointer-events: none;
 }
 </style>
