@@ -23,6 +23,7 @@ export const useArticleStore = defineStore('article', {
   actions: {
     async fetchArticles(params = {}) {
       this.loading = true
+      this.articles = []
       try {
         const response = await getArticles(params)
         this.articles = response.data.results || response.data
