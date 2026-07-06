@@ -90,7 +90,7 @@
           class="friend-link"
         >{{ link.name }}</a>
       </div>
-      <p v-else class="panel-empty">暂无友链</p>
+      <p v-else-if="!friendLinksLoading" class="panel-empty">暂无友链</p>
     </section>
   </aside>
 </template>
@@ -145,7 +145,8 @@ const DEFAULT_FRIENDS = [
   { name: 'ChatGPT', url: 'https://chatgpt.com/' },
 ]
 
-const friendLinks = ref([...DEFAULT_FRIENDS])
+const friendLinks = ref([])
+const friendLinksLoading = ref(true)
 
 onMounted(async () => {
   try {
@@ -153,9 +154,13 @@ onMounted(async () => {
     const apiFriends = response.data.results || response.data || []
     if (apiFriends.length) {
       friendLinks.value = apiFriends
+    } else {
+      friendLinks.value = [...DEFAULT_FRIENDS]
     }
   } catch (e) {
-    // API unavailable, keep default links
+    friendLinks.value = [...DEFAULT_FRIENDS]
+  } finally {
+    friendLinksLoading.value = false
   }
 })
 </script>
