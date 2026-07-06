@@ -10,7 +10,7 @@
         <p class="about-bio">热爱技术与科学</p>
         <div class="social-links">
           <a
-            href="https://github.com/zhoujun"
+            href="https://github.com/zhoujungis"
             target="_blank"
             rel="noopener noreferrer"
             class="social-link"
