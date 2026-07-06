@@ -105,7 +105,13 @@ const neonColors = ['#00e5ff', '#ff0080', '#7b2fff', '#00e5ff', '#ff0080']
 
 const categories = computed(() => articleStore.categories || [])
 
-const tags = computed(() => articleStore.tags || [])
+const tags = computed(() => {
+  const raw = articleStore.tags || []
+  return raw.filter(t => {
+    const name = tagLabel(t)
+    return !name.includes('测试')
+  })
+})
 
 function catLabel(cat) {
   if (!cat) return ''

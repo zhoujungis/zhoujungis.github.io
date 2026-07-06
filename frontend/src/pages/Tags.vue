@@ -60,7 +60,14 @@ const error = ref(null)
 
 const neonColors = ['#00e5ff', '#ff0080', '#7b2fff']
 
-const tags = computed(() => articleStore.tags || [])
+// Filter out tags containing "测试" and make all tags equal size
+const tags = computed(() => {
+  const raw = articleStore.tags || []
+  return raw.filter(t => {
+    const name = tagLabel(t)
+    return !name.includes('测试')
+  })
+})
 
 // Find the min and max count for scaling font sizes
 const countRange = computed(() => {
@@ -88,16 +95,9 @@ function tagCount(tag) {
 }
 
 function tagStyle(tag, idx) {
-  const count = tagCount(tag)
-  const { min, max } = countRange.value
-  const range = max - min || 1
-  const ratio = (count - min) / range
-  // font-size: min 0.8rem, max 2.5rem
-  const fontSize = 0.8 + ratio * 1.7
   const color = neonColors[idx % neonColors.length]
-
   return {
-    fontSize: `${fontSize}rem`,
+    fontSize: '1rem',
     borderColor: color,
     color,
   }
