@@ -96,8 +96,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useArticleStore } from '@/stores/article'
+import { getFriends } from '@/api/articles'
 
 const articleStore = useArticleStore()
 
@@ -139,10 +140,24 @@ function catCount(cat) {
   return 0
 }
 
-const friendLinks = [
+const DEFAULT_FRIENDS = [
   { name: 'GitHub', url: 'https://github.com' },
   { name: 'ChatGPT', url: 'https://chatgpt.com/' },
 ]
+
+const friendLinks = ref([...DEFAULT_FRIENDS])
+
+onMounted(async () => {
+  try {
+    const response = await getFriends()
+    const apiFriends = response.data.results || response.data || []
+    if (apiFriends.length) {
+      friendLinks.value = apiFriends
+    }
+  } catch (e) {
+    // API unavailable, keep default links
+  }
+})
 </script>
 
 <style lang="scss" scoped>
