@@ -17,6 +17,10 @@
         <span v-if="article.category" class="meta-category neon-text-pink">
           {{ categoryName }}
         </span>
+        <span v-if="article.reading_time" class="meta-reading-time">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          {{ article.reading_time }} 分钟
+        </span>
         <span class="meta-views">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           {{ article.views_count || 0 }}
@@ -38,6 +42,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 
 const props = defineProps({
   article: {
@@ -193,6 +198,18 @@ function tagLabel(tag) {
 
   svg {
     opacity: 0.6;
+  }
+}
+
+.meta-reading-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  color: $accent-mint;
+
+  svg {
+    opacity: 0.7;
   }
 }
 

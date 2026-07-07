@@ -68,6 +68,14 @@
                 {{ categoryName }}
               </span>
 
+              <!-- Reading time -->
+              <span class="meta-item meta-reading-time">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                约 {{ readingTime }} 分钟
+              </span>
+
               <!-- Views -->
               <span class="meta-item meta-views">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -144,13 +152,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import MarkdownView from '@/components/MarkdownView.vue'
 import CommentList from '@/components/CommentList.vue'
 import CommentForm from '@/components/CommentForm.vue'
 import TocNav from '@/components/TocNav.vue'
+import { useSEO } from '@/utils/seo'
+import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 
 const route = useRoute()
 const router = useRouter()
@@ -189,6 +199,12 @@ const tagList = computed(() => {
   return tags.map((t) => (typeof t === 'object' ? t.name || '' : t)).filter(Boolean)
 })
 
+const readingTime = computed(() => {
+  if (!article.value) return 1
+  const text = stripMarkdown(article.value.content || '')
+  return getReadingTime(text)
+})
+
 async function fetchArticle() {
   const slug = route.params.slug
   if (!slug) {
@@ -214,7 +230,12 @@ async function fetchArticle() {
     if (!article.value) {
       error.value = '文章不存在'
     } else {
-      document.title = article.value.title || '文章详情'
+      useSEO({
+        title: article.value.title,
+        description: article.value.excerpt || '',
+        image: article.value.cover_image || '',
+        url: window.location.href,
+      })
     }
   } catch (e) {
     const status = e?.response?.status
@@ -303,6 +324,10 @@ onMounted(fetchArticle)
     opacity: 0.5;
     flex-shrink: 0;
   }
+}
+
+.meta-reading-time {
+  color: $accent-mint;
 }
 
 .meta-category {

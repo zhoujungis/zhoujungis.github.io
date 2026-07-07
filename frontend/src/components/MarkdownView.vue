@@ -1,12 +1,75 @@
 <template>
-  <div class="markdown-body" v-html="html" />
+  <div ref="bodyRef" class="markdown-body" v-html="html" />
 </template>
 
 <script setup>
+import { ref, watch, onMounted, nextTick } from 'vue'
 import 'highlight.js/styles/github.css'
 
-defineProps({
+const props = defineProps({
   html: { type: String, default: '' },
+})
+
+const bodyRef = ref(null)
+
+function attachCopyButtons() {
+  if (!bodyRef.value) return
+  const blocks = bodyRef.value.querySelectorAll('pre')
+  blocks.forEach((pre) => {
+    // Skip if already has a copy wrapper
+    if (pre.parentElement?.classList.contains('code-block-wrapper')) return
+
+    // Wrap pre in a container
+    const wrapper = document.createElement('div')
+    wrapper.className = 'code-block-wrapper'
+    pre.parentNode.insertBefore(wrapper, pre)
+    wrapper.appendChild(pre)
+
+    // Create copy button
+    const btn = document.createElement('button')
+    btn.className = 'copy-btn'
+    btn.title = '复制代码'
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+
+    btn.addEventListener('click', () => {
+      const code = pre.querySelector('code') || pre
+      const text = code.textContent || ''
+      navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied')
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        setTimeout(() => {
+          btn.classList.remove('copied')
+          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+        }, 2000)
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        btn.classList.add('copied')
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        setTimeout(() => {
+          btn.classList.remove('copied')
+          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+        }, 2000)
+      })
+    })
+
+    wrapper.appendChild(btn)
+  })
+}
+
+onMounted(() => {
+  nextTick(attachCopyButtons)
+})
+
+watch(() => props.html, () => {
+  nextTick(attachCopyButtons)
 })
 </script>
 
@@ -20,7 +83,7 @@ defineProps({
   color: $text-primary;
   word-wrap: break-word;
 
-  // Headings — no ::before (Django already renders # prefix)
+  // Headings
   :deep(h1), :deep(h2), :deep(h3), :deep(h4), :deep(h5), :deep(h6) {
     color: $accent-pink;
     margin-top: 1.5em; margin-bottom: 0.6em;
@@ -33,15 +96,59 @@ defineProps({
   :deep(h5) { font-size: 1.05rem; }
   :deep(h6) { font-size: 0.95rem; }
 
-  // Paragraphs
   :deep(p) { margin: 0.8em 0; }
 
-  // Code blocks — light theme
+  // Code block wrapper
+  :deep(.code-block-wrapper) {
+    position: relative;
+    margin: 1.2em 0;
+
+    pre {
+      margin: 0;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 6px;
+      cursor: pointer;
+      color: #888;
+      opacity: 0;
+      transition: opacity 0.2s, color 0.2s, background 0.2s;
+
+      &:hover {
+        color: $accent-pink;
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      &.copied {
+        color: #00c853;
+        background: rgba(0, 200, 83, 0.08);
+        border-color: rgba(0, 200, 83, 0.3);
+      }
+    }
+
+    &:hover .copy-btn {
+      opacity: 1;
+    }
+  }
+
+  // Code blocks
   :deep(pre) {
     background: #faf5f7;
     border-left: 3px solid $accent-pink;
     border-radius: $radius-md;
     padding: 16px 20px;
+    padding-right: 48px;
     overflow-x: auto;
     margin: 1.2em 0;
     font-family: $font-mono;
@@ -137,7 +244,7 @@ defineProps({
     :deep(h1) { font-size: 1.5rem; }
     :deep(h2) { font-size: 1.3rem; }
     :deep(h3) { font-size: 1.15rem; }
-    :deep(pre) { padding: 12px 14px; font-size: 0.8rem; }
+    :deep(pre) { padding: 12px 14px; padding-right: 40px; font-size: 0.8rem; }
   }
 }
 </style>
