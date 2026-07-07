@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+    'django.contrib.sitemaps',
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
@@ -50,6 +52,8 @@ INSTALLED_APPS = [
     'friends',
     'accounts',
 ]
+
+SITE_ID = 1
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',

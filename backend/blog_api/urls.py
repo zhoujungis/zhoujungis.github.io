@@ -15,8 +15,17 @@ sitemaps = {
 
 
 def sitemap_view(request):
-    """Sitemap view that always uses GitHub Pages domain."""
-    request.META["HTTP_HOST"] = "zhoujungis.github.io"
+    """Sitemap view — ensures Site exists and sets correct domain."""
+    from django.contrib.sites.models import Site
+
+    site, _ = Site.objects.get_or_create(
+        id=1,
+        defaults={"domain": "zhoujungis.github.io", "name": "ZhouJun's Blog"},
+    )
+    if site.domain != "zhoujungis.github.io":
+        site.domain = "zhoujungis.github.io"
+        site.name = "ZhouJun's Blog"
+        site.save(update_fields=["domain", "name"])
     return sitemap(request, sitemaps=sitemaps)
 
 

@@ -1,10 +1,23 @@
 from django.contrib.sitemaps import Sitemap
-from django.urls import reverse
 
 from .models import Article
 
+FRONTEND_DOMAIN = "zhoujungis.github.io"
 
-class BlogSitemap(Sitemap):
+
+class BaseSitemap(Sitemap):
+    protocol = "https"
+
+    def get_urls(self, page=1, site=None, protocol=None):
+        # Override to always use the GitHub Pages domain
+        return super().get_urls(page=page, site=site, protocol=self.protocol)
+
+    def _urls(self, page, protocol, domain):
+        # Force the correct domain instead of site.domain
+        return super()._urls(page, protocol, FRONTEND_DOMAIN)
+
+
+class BlogSitemap(BaseSitemap):
     changefreq = "weekly"
     priority = 0.8
 
@@ -18,7 +31,7 @@ class BlogSitemap(Sitemap):
         return f"/article/{obj.slug}/"
 
 
-class StaticViewSitemap(Sitemap):
+class StaticViewSitemap(BaseSitemap):
     """Static pages sitemap."""
     changefreq = "monthly"
     priority = 0.5
