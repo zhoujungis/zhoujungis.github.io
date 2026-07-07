@@ -10,6 +10,7 @@ const routes = [
   { path: '/about', name: 'About', component: () => import('../pages/About.vue') },
   { path: '/photos', name: 'PhotoWall', component: () => import('../pages/PhotoWall.vue') },
   { path: '/friends', name: 'FriendLinks', component: () => import('../pages/FriendLinks.vue') },
+  { path: '/footprints', name: 'Footprints', component: () => import('../pages/Footprints.vue') },
   { path: '/archives', name: 'Archives', component: () => import('../pages/Archives.vue') },
   { path: '/admin', name: 'AdminLogin', component: () => import('../pages/admin/AdminLogin.vue') },
   { path: '/admin/dashboard', name: 'AdminDashboard', meta: { requiresAuth: true }, component: () => import('../pages/admin/AdminDashboard.vue') },
