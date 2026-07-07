@@ -151,6 +151,7 @@ REST_FRAMEWORK = {
         'anon': '30/minute',     # 30 requests/min for anonymous users
         'user': '100/minute',    # 100 requests/min for authenticated users
         'comment': '3/minute',   # 3 comments per minute per IP
+        'subscribe': '5/hour',   # 5 subscriptions per hour per IP
     },
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',

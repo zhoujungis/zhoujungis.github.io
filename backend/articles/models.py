@@ -90,6 +90,7 @@ class Article(models.Model):
                 "codehilite",
                 "tables",
                 "extra",
+                "toc",
             ]
         )
         self.html_content = md.convert(self.content)

@@ -87,7 +87,7 @@ def like_article(request, slug):
 # ── Newsletter Subscription ────────────────────────────────────
 
 class SubscribeThrottle(AnonRateThrottle):
-    rate = "3/hour"
+    scope = "subscribe"
 
 
 @api_view(["POST"])
