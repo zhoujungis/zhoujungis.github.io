@@ -135,6 +135,21 @@
             </router-link>
           </nav>
 
+          <!-- Share + Like -->
+          <div class="article-actions">
+            <ShareButtons :title="article.title" :url="currentUrl" />
+            <button class="like-btn" :class="{ liked }" @click="handleLike">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <span>{{ article.likes_count || 0 }}</span>
+            </button>
+          </div>
+
+          <!-- Related Articles -->
+          <RelatedArticles :articles="article.related_articles || []" />
+
+          <!-- Newsletter in-article -->
+          <NewsletterForm />
+
           <!-- Comment section -->
           <section class="comment-section">
             <CommentList :article-slug="article.slug" :key="commentKey" />
@@ -148,6 +163,9 @@
         </aside>
       </div>
     </template>
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json" v-if="article" v-text="jsonLd"></script>
   </div>
 </template>
 
@@ -159,8 +177,12 @@ import MarkdownView from '@/components/MarkdownView.vue'
 import CommentList from '@/components/CommentList.vue'
 import CommentForm from '@/components/CommentForm.vue'
 import TocNav from '@/components/TocNav.vue'
+import ShareButtons from '@/components/ShareButtons.vue'
+import RelatedArticles from '@/components/RelatedArticles.vue'
+import NewsletterForm from '@/components/NewsletterForm.vue'
 import { useSEO } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
+import client from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -199,11 +221,39 @@ const tagList = computed(() => {
   return tags.map((t) => (typeof t === 'object' ? t.name || '' : t)).filter(Boolean)
 })
 
+const liked = ref(false)
+const currentUrl = computed(() => window.location.href)
+
 const readingTime = computed(() => {
   if (!article.value) return 1
   const text = stripMarkdown(article.value.content || '')
   return getReadingTime(text)
 })
+
+// JSON-LD structured data
+const jsonLd = computed(() => {
+  if (!article.value) return ''
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.value.title,
+    description: article.value.excerpt || '',
+    image: article.value.cover_image || undefined,
+    datePublished: article.value.created_at,
+    dateModified: article.value.updated_at,
+    author: { '@type': 'Person', name: 'Zhou Jun' },
+    publisher: { '@type': 'Person', name: 'Zhou Jun' },
+  })
+})
+
+async function handleLike() {
+  if (liked.value) return
+  try {
+    const res = await client.post(`/articles/${article.value.slug}/like/`)
+    if (article.value) article.value.likes_count = res.data.likes_count
+    liked.value = true
+  } catch { /* silently ignore */ }
+}
 
 async function fetchArticle() {
   const slug = route.params.slug
@@ -328,6 +378,44 @@ onMounted(fetchArticle)
 
 .meta-reading-time {
   color: $accent-mint;
+}
+
+// ---- Article Actions (share + like) ----
+.article-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid $glass-border;
+  flex-wrap: wrap;
+}
+
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  font-size: 0.9rem;
+  font-family: $font-mono;
+  font-weight: 600;
+  color: $neon-pink;
+  background: rgba($neon-pink, 0.08);
+  border: 1px solid rgba($neon-pink, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background $transition-fast, box-shadow $transition-fast, transform $transition-fast;
+
+  &:hover { background: rgba($neon-pink, 0.15); box-shadow: 0 0 10px rgba($neon-pink, 0.2); }
+  &:active { transform: scale(0.95); }
+  &.liked {
+    color: #fff;
+    background: rgba($neon-pink, 0.3);
+    border-color: $neon-pink;
+    box-shadow: 0 0 12px rgba($neon-pink, 0.3);
+    pointer-events: none;
+  }
 }
 
 .meta-category {

@@ -30,6 +30,11 @@
         <p v-if="errors.author_email" class="field-error">{{ errors.author_email }}</p>
       </div>
 
+      <!-- Honeypot (hidden from humans, filled by bots) -->
+      <div class="hp-field" aria-hidden="true">
+        <input v-model="form.website" type="text" tabindex="-1" autocomplete="off" />
+      </div>
+
       <!-- Content -->
       <div class="form-field">
         <textarea
@@ -93,6 +98,7 @@ const form = reactive({
   author_name: '',
   author_email: '',
   content: '',
+  website: '',  // honeypot — must stay empty
 })
 
 const errors = reactive({
@@ -150,6 +156,7 @@ async function submitForm() {
       author_name: form.author_name.trim(),
       author_email: form.author_email.trim(),
       content: form.content.trim(),
+      website: form.website,  // honeypot
     }
     if (props.parentId) {
       data.parent = props.parentId
@@ -347,6 +354,15 @@ async function submitForm() {
     color: $text-primary;
     border-color: rgba(255, 255, 255, 0.15);
   }
+}
+
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  opacity: 0;
+  height: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 .spinner {

@@ -54,6 +54,7 @@ class ArticleListSerializer(serializers.ModelSerializer):
             "status",
             "is_top",
             "views_count",
+            "likes_count",
             "reading_time",
             "created_at",
             "updated_at",
@@ -72,6 +73,7 @@ class ArticleDetailSerializer(serializers.ModelSerializer):
     tags = TagNestedField(many=True, read_only=True)
     prev_article = serializers.SerializerMethodField()
     next_article = serializers.SerializerMethodField()
+    related_articles = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
@@ -88,10 +90,12 @@ class ArticleDetailSerializer(serializers.ModelSerializer):
             "status",
             "is_top",
             "views_count",
+            "likes_count",
             "created_at",
             "updated_at",
             "prev_article",
             "next_article",
+            "related_articles",
         ]
 
     def get_prev_article(self, obj):
@@ -117,3 +121,21 @@ class ArticleDetailSerializer(serializers.ModelSerializer):
         if next_:
             return {"id": next_.id, "title": next_.title, "slug": next_.slug}
         return None
+
+    def get_related_articles(self, obj):
+        """Find 3 related articles based on shared tags."""
+        tags = obj.tags.all()
+        if not tags:
+            return []
+        related = (
+            Article.objects.filter(
+                status=Article.Status.PUBLISHED, tags__in=tags
+            )
+            .exclude(id=obj.id)
+            .distinct()
+            .order_by("-created_at")[:3]
+        )
+        return [
+            {"id": a.id, "title": a.title, "slug": a.slug, "cover_image": a.cover_image or ""}
+            for a in related
+        ]

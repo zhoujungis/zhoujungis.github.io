@@ -10,4 +10,6 @@ router.register(r"tags", views.TagViewSet, basename="tag")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("articles/<slug:slug>/like/", views.like_article, name="article-like"),
+    path("subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"),
 ]

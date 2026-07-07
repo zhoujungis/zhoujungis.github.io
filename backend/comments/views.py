@@ -23,6 +23,11 @@ class ArticleCommentList(generics.ListCreateAPIView):
         parent = None
         if parent_id:
             parent = get_object_or_404(Comment, pk=parent_id, article=article)
-        # Auto-approve comments; switch to is_approved=False + moderation
-        # if spam becomes a problem.
+
+        # Honeypot spam check — hidden field only bots fill
+        honeypot = self.request.data.get("website", "")
+        if honeypot:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"detail": "检测到垃圾评论"})
+
         serializer.save(article=article, parent=parent, is_approved=True)

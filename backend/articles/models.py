@@ -47,6 +47,7 @@ class Article(models.Model):
         DRAFT = "draft", "草稿"
         PUBLISHED = "published", "已发布"
         ARCHIVED = "archived", "已归档"
+        SCHEDULED = "scheduled", "定时发布"
 
     title = models.CharField(max_length=200, verbose_name="标题")
     slug = models.SlugField(max_length=200, unique=True, verbose_name="Slug")
@@ -65,7 +66,9 @@ class Article(models.Model):
     )
     is_top = models.BooleanField(default=False, verbose_name="置顶")
     views_count = models.PositiveIntegerField(default=0, editable=False, verbose_name="阅读数")
+    likes_count = models.PositiveIntegerField(default=0, editable=False, verbose_name="点赞数")
     cover_image = models.URLField(blank=True, verbose_name="cover image")
+    scheduled_at = models.DateTimeField(null=True, blank=True, verbose_name="定时发布时间")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
 
@@ -102,4 +105,25 @@ class Article(models.Model):
         words = plain_text.split()
         self.excerpt = " ".join(words[:50]) if len(words) > 50 else plain_text
 
+        # Auto-publish scheduled articles whose time has come
+        from django.utils import timezone
+
+        if self.status == self.Status.SCHEDULED and self.scheduled_at and self.scheduled_at <= timezone.now():
+            self.status = self.Status.PUBLISHED
+
         super().save(*args, **kwargs)
+
+
+class Subscriber(models.Model):
+    """Email newsletter subscriber."""
+    email = models.EmailField(unique=True, verbose_name="邮箱")
+    is_active = models.BooleanField(default=True, verbose_name="是否活跃")
+    subscribed_at = models.DateTimeField(auto_now_add=True, verbose_name="订阅时间")
+
+    class Meta:
+        verbose_name = "订阅者"
+        verbose_name_plural = "订阅者"
+        ordering = ["-subscribed_at"]
+
+    def __str__(self):
+        return self.email

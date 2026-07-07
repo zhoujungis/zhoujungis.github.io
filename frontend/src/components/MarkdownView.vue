@@ -64,12 +64,76 @@ function attachCopyButtons() {
   })
 }
 
+// ── Content enhancements: Mermaid, video embeds, KaTeX ──
+function processEnhancements() {
+  if (!bodyRef.value) return
+
+  // Mermaid diagrams: <code class="language-mermaid"> → render with mermaid
+  const mermaidBlocks = bodyRef.value.querySelectorAll('code.language-mermaid')
+  if (mermaidBlocks.length && window.mermaid) {
+    mermaidBlocks.forEach((block, i) => {
+      const pre = block.closest('pre')
+      if (!pre || pre.dataset.mermaidRendered) return
+      pre.dataset.mermaidRendered = '1'
+      const container = document.createElement('div')
+      container.className = 'mermaid-container'
+      container.textContent = block.textContent
+      pre.parentNode.replaceChild(container, pre)
+      window.mermaid.run({ nodes: [container] })
+    })
+  }
+
+  // Video embeds: convert image links ending in .mp4/.webm or youtube/bilibili URLs
+  const imgs = bodyRef.value.querySelectorAll('img')
+  imgs.forEach((img) => {
+    const src = img.getAttribute('src') || ''
+    const alt = img.getAttribute('alt') || 'video'
+
+    // YouTube: ![video](https://www.youtube.com/watch?v=XXX)
+    const yt = src.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/)
+    if (yt) {
+      const wrapper = document.createElement('div')
+      wrapper.className = 'video-wrapper'
+      wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${yt[1]}" frameborder="0" allowfullscreen></iframe>`
+      img.parentNode.replaceChild(wrapper, img)
+      return
+    }
+
+    // Bilibili: ![video](https://www.bilibili.com/video/BVXXX)
+    const bili = src.match(/bilibili\.com\/video\/(BV[\w]+)/)
+    if (bili) {
+      const wrapper = document.createElement('div')
+      wrapper.className = 'video-wrapper'
+      wrapper.innerHTML = `<iframe src="https://player.bilibili.com/player.html?bvid=${bili[1]}" frameborder="0" allowfullscreen></iframe>`
+      img.parentNode.replaceChild(wrapper, img)
+      return
+    }
+  })
+
+  // KaTeX: render $$...$$ blocks
+  const text = bodyRef.value.innerHTML
+  if (text.includes('$$') && window.katex) {
+    // Replace display math $$...$$
+    bodyRef.value.innerHTML = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
+      try {
+        return window.katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false })
+      } catch { return _ }
+    })
+    // Replace inline math $...$
+    bodyRef.value.innerHTML = bodyRef.value.innerHTML.replace(/\$(.+?)\$/g, (_, formula) => {
+      try {
+        return window.katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false })
+      } catch { return _ }
+    })
+  }
+}
+
 onMounted(() => {
-  nextTick(attachCopyButtons)
+  nextTick(() => { attachCopyButtons(); processEnhancements() })
 })
 
 watch(() => props.html, () => {
-  nextTick(attachCopyButtons)
+  nextTick(() => { attachCopyButtons(); processEnhancements() })
 })
 </script>
 
@@ -237,6 +301,29 @@ watch(() => props.html, () => {
   :deep(strong) { font-weight: 700; color: $accent-pink; }
   :deep(em) { font-style: italic; }
   :deep(del) { text-decoration: line-through; opacity: 0.7; }
+
+  // Video embed
+  :deep(.video-wrapper) {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    margin: 1.5em 0;
+    border-radius: $radius-md;
+    overflow: hidden;
+    iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  }
+
+  // Mermaid diagrams
+  :deep(.mermaid-container) {
+    margin: 1.5em 0;
+    padding: 20px;
+    background: #faf5f7;
+    border-radius: $radius-md;
+    border: 1px solid $glass-border;
+    overflow-x: auto;
+    text-align: center;
+    svg { max-width: 100%; }
+  }
 
   // Responsive
   @media (max-width: 767px) {
