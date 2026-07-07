@@ -7,6 +7,7 @@
 
     <div class="map-card glass-card">
       <div ref="chartRef" class="chart-container"></div>
+      <p v-if="error" class="map-error">{{ error }}</p>
     </div>
 
     <div class="stats-card glass-card">
@@ -23,6 +24,7 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 
 const chartRef = ref(null)
+const error = ref('')
 let chart = null
 let themeObserver = null
 
@@ -49,7 +51,6 @@ function isDark() {
 function getChartOption() {
   const dark = isDark()
   const textColor = dark ? '#aaa' : '#4a3040'
-  const mapBg = dark ? '#1a1a2e' : '#fff5f7'
   const borderColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,133,162,0.2)'
   const emphasisBg = dark ? 'rgba(255,133,162,0.15)' : 'rgba(255,133,162,0.1)'
 
@@ -115,15 +116,21 @@ function getChartOption() {
 async function initChart() {
   if (!chartRef.value) return
 
-  // Fetch GeoJSON
-  const resp = await fetch('/china-geo.json')
-  const geoJson = await resp.json()
-  echarts.registerMap('china', geoJson)
+  try {
+    // Fetch GeoJSON
+    const resp = await fetch('/china-geo.json')
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const geoJson = await resp.json()
+    echarts.registerMap('china', geoJson)
 
-  chart = echarts.init(chartRef.value)
-  chart.setOption(getChartOption())
+    chart = echarts.init(chartRef.value)
+    chart.setOption(getChartOption())
 
-  window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', handleResize)
+  } catch (e) {
+    console.error('地图加载失败:', e)
+    error.value = '地图加载失败，请稍后重试'
+  }
 }
 
 function handleResize() {
@@ -240,5 +247,12 @@ onBeforeUnmount(() => {
     border-color: $accent-pink;
     transform: translateY(-2px);
   }
+}
+
+.map-error {
+  text-align: center;
+  padding: 16px;
+  color: #e74c3c;
+  font-size: 0.9rem;
 }
 </style>
