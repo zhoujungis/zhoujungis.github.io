@@ -41,6 +41,7 @@ const navLinks = [
   { path: '/tags', label: '标签' },
   { path: '/photos', label: '照片墙' },
   { path: '/friends', label: '友链' },
+  { path: '/footprints', label: '足迹' },
   { path: '/about', label: '关于' },
   { path: '/search', label: '搜索' },
 ]
