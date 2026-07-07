@@ -65,7 +65,7 @@ function getChartOption() {
     },
     geo: {
       map: 'china',
-      roam: false,
+      roam: true,
       zoom: 1.15,
       center: [108, 34],
       label: { show: false },
