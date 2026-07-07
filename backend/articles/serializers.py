@@ -39,6 +39,7 @@ class TagNestedField(serializers.RelatedField):
 class ArticleListSerializer(serializers.ModelSerializer):
     category = CategoryNestedField(read_only=True)
     tags = TagNestedField(many=True, read_only=True)
+    reading_time = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
@@ -53,9 +54,17 @@ class ArticleListSerializer(serializers.ModelSerializer):
             "status",
             "is_top",
             "views_count",
+            "reading_time",
             "created_at",
             "updated_at",
         ]
+
+    def get_reading_time(self, obj):
+        import re
+        text = obj.content or ""
+        chinese = len(re.findall(r"[一-鿿㐀-䶿]", text))
+        english = len(re.findall(r"[a-zA-Z]+", text))
+        return max(1, (chinese + english) // 250 + 1)
 
 
 class ArticleDetailSerializer(serializers.ModelSerializer):

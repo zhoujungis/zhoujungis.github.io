@@ -1,8 +1,24 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+from articles.feeds import LatestArticlesFeed
+from articles.sitemaps import BlogSitemap, StaticViewSitemap
+
+sitemaps = {
+    "blog": BlogSitemap,
+    "pages": StaticViewSitemap,
+}
+
+
+def sitemap_view(request):
+    """Sitemap view that always uses GitHub Pages domain."""
+    request.META["HTTP_HOST"] = "zhoujungis.github.io"
+    return sitemap(request, sitemaps=sitemaps)
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -15,6 +31,8 @@ urlpatterns = [
     path("api/", include("comments.urls")),
     path("api/", include("photos.urls")),
     path("api/", include("friends.urls")),
+    path("rss.xml", LatestArticlesFeed(), name="rss-feed"),
+    path("sitemap.xml", sitemap_view, name="sitemap"),
 ]
 
 if settings.DEBUG:
