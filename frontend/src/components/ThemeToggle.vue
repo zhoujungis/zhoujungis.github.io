@@ -39,7 +39,7 @@ onMounted(() => {
   transition: color 0.2s, background 0.2s;
   position: fixed;
   bottom: 24px;
-  left: 24px;
+  right: 24px;
   z-index: 999;
 }
 .theme-toggle:hover {

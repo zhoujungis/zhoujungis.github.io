@@ -157,6 +157,15 @@
           </section>
         </article>
 
+        <!-- Mobile TOC (collapsible, hidden on desktop) -->
+        <details class="mobile-toc">
+          <summary class="mobile-toc-toggle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            目录
+          </summary>
+          <TocNav :html="article.html_content || article.content || ''" />
+        </details>
+
         <!-- Desktop TOC sidebar -->
         <aside class="detail-sidebar">
           <TocNav :html="article.html_content || article.content || ''" />
@@ -329,10 +338,43 @@ onMounted(fetchArticle)
   top: 80px;
   width: 240px;
   flex-shrink: 0;
+  align-self: flex-start;
 
   @media (max-width: 1023px) {
     display: none;
   }
+}
+
+// Mobile TOC (visible only on small screens)
+.mobile-toc {
+  display: none;
+  margin-bottom: 20px;
+  border: 1px solid $glass-border;
+  border-radius: $glass-radius;
+  background: $bg-card;
+
+  @media (max-width: 1023px) {
+    display: block;
+  }
+}
+
+.mobile-toc-toggle {
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: $neon-cyan;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  &::-webkit-details-marker { display: none; }
+}
+
+.mobile-toc .toc-nav {
+  width: 100%;
+  padding: 0 16px 16px;
 }
 
 // ============ Article header ============

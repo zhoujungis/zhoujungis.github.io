@@ -140,25 +140,15 @@ function catCount(cat) {
   return 0
 }
 
-const DEFAULT_FRIENDS = [
-  { name: 'GitHub', url: 'https://github.com' },
-  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
-]
-
 const friendLinks = ref([])
 const friendLinksLoading = ref(true)
 
 onMounted(async () => {
   try {
     const response = await getFriends()
-    const apiFriends = response.data.results || response.data || []
-    if (apiFriends.length) {
-      friendLinks.value = apiFriends
-    } else {
-      friendLinks.value = [...DEFAULT_FRIENDS]
-    }
-  } catch (e) {
-    friendLinks.value = [...DEFAULT_FRIENDS]
+    friendLinks.value = response.data.results || response.data || []
+  } catch {
+    friendLinks.value = []
   } finally {
     friendLinksLoading.value = false
   }

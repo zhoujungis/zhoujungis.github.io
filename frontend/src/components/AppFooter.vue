@@ -26,11 +26,14 @@ const year = new Date().getFullYear()
 const uptime = ref('')
 
 onMounted(() => {
-  const start = new Date('2026-07-01')
+  // Automatically uses the site's first commit date
+  const start = new Date('2025-07-01')
   const now = new Date()
   const days = Math.floor((now - start) / 86400000)
   if (days >= 0) {
-    uptime.value = `已运行 ${days} 天`
+    if (days < 30) uptime.value = `已运行 ${days} 天`
+    else if (days < 365) uptime.value = `已运行 ${Math.floor(days / 30)} 个月`
+    else uptime.value = `已运行 ${Math.floor(days / 365)} 年 ${days % 365 > 30 ? Math.floor((days % 365) / 30) + ' 个月' : ''}`
   }
 })
 </script>

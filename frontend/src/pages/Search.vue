@@ -59,10 +59,12 @@
 
     <!-- Results -->
     <div v-else-if="results.length" class="results-grid">
+      <p class="results-summary">找到 {{ results.length }} 篇与 "<strong>{{ query }}</strong>" 相关的文章</p>
       <ArticleCard
         v-for="article in results"
         :key="article.slug || article.id"
         :article="article"
+        :highlight="query"
       />
     </div>
   </div>
@@ -303,5 +305,23 @@ onMounted(() => {
   p {
     font-size: 1rem;
   }
+}
+
+.results-summary {
+  font-size: 0.85rem;
+  color: $text-secondary;
+  margin-bottom: 16px;
+  strong { color: $accent-pink; }
+}
+</style>
+
+<style>
+/* Global: keyword highlight in search results */
+.search-highlight {
+  background: rgba(255,133,162,0.2);
+  color: #ff85a2;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 600;
 }
 </style>

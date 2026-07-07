@@ -64,6 +64,7 @@
 
         <!-- Pagination -->
         <div v-if="totalPages > 1" class="pagination">
+          <span class="page-info">第 {{ currentPage }}/{{ totalPages }} 页</span>
           <button
             class="page-btn"
             :disabled="currentPage <= 1"
@@ -404,6 +405,13 @@ onMounted(() => {
   padding-bottom: 24px;
 }
 
+.page-info {
+  font-size: 0.8rem;
+  color: $text-secondary;
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
 .page-btn {
   display: inline-flex;
   align-items: center;
@@ -447,6 +455,13 @@ onMounted(() => {
 }
 
 // ---- Mobile adjustments ----
+// Tablet: hide sidebar, single column
+@media (max-width: 1023px) {
+  .home-layout {
+    gap: 0;
+  }
+}
+
 @media (max-width: 767px) {
   .page-home {
     padding: 16px 12px;

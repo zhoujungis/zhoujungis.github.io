@@ -33,7 +33,7 @@
         <circle cx="8.5" cy="8.5" r="1.5"/>
         <polyline points="21 15 16 10 5 21"/>
       </svg>
-      <p>暂无照片</p>
+      <p>照片墙即将上线，敬请期待 📸</p>
     </div>
 
     <!-- Photo grid -->

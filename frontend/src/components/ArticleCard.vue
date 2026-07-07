@@ -10,7 +10,8 @@
     <div v-if="article.is_top" class="top-badge">置顶</div>
 
     <div class="card-body">
-      <h2 class="card-title">{{ article.title }}</h2>
+      <h2 v-if="highlight" class="card-title" v-html="displayTitle"></h2>
+      <h2 v-else class="card-title">{{ article.title }}</h2>
 
       <div class="card-meta">
         <span class="meta-date">{{ formattedDate }}</span>
@@ -49,6 +50,21 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  highlight: {
+    type: String,
+    default: '',
+  },
+})
+
+function highlightText(text) {
+  if (!text || !props.highlight) return text
+  const escaped = props.highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(${escaped})`, 'gi')
+  return text.replace(re, '<mark class="search-highlight">$1</mark>')
+}
+
+const displayTitle = computed(() => {
+  return highlightText(props.article.title)
 })
 
 const formattedDate = computed(() => {

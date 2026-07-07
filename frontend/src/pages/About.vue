@@ -13,20 +13,30 @@
 
         <div class="bio-card glass-card">
           <p class="bio-text">
-            你好！我是 Zhou Jun，一个热爱技术与科学的人。
+            你好！我是 Zhou Jun，一个热爱技术与科学的开发者。喜欢旅行和摄影，对遥感与地理信息系统充满热情。
           </p>
           <p class="bio-text">
-            这个博客是我分享技术心得、项目经验和学习笔记的地方。
-          </p>
-          <p class="bio-text">
-            工作之余，我喜欢摄影、旅行和探索新技术。
+            这个博客是我分享技术心得、项目经验和学习笔记的地方。内容涵盖 AI 编程、大模型评测、全栈开发等领域。
           </p>
         </div>
 
         <div class="skills-section glass-card">
-          <h3 class="section-title">技能</h3>
+          <h3 class="section-title">技术栈</h3>
           <div class="skills-tags">
             <span v-for="s in skills" :key="s" class="skill-tag">{{ s }}</span>
+          </div>
+        </div>
+
+        <div class="interests-section glass-card">
+          <h3 class="section-title">技术兴趣</h3>
+          <div class="interest-grid">
+            <div class="interest-item" v-for="item in interests" :key="item.field">
+              <span class="interest-icon">{{ item.icon }}</span>
+              <div>
+                <strong class="interest-field">{{ item.field }}</strong>
+                <p class="interest-desc">{{ item.desc }}</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -49,9 +59,16 @@
 
 <script setup>
 const skills = [
-  'Python', 'Java', 'JavaScript', 'TypeScript',
-  'Vue.js', 'Django',
-  'C/C++', 'NPM', 'GIS', 'Remote Sensing',
+  'Python', 'JavaScript', 'TypeScript', 'Vue 3',
+  'Django', 'Django REST', 'PostgreSQL', 'SQLite',
+  'Docker', 'Git', 'GIS', 'Remote Sensing',
+]
+
+const interests = [
+  { icon: '🛰️', field: '遥感', desc: '图像分类、变化检测、大模型遥感应用' },
+  { icon: '🗺️', field: 'GIS', desc: '空间分析、地图可视化、WebGIS' },
+  { icon: '🤖', field: 'AI / 大模型', desc: 'LLM 应用、Agent 开发、模型评测' },
+  { icon: '💻', field: '全栈开发', desc: 'Vue 3 + Django 前后端分离架构' },
 ]
 </script>
 
@@ -178,6 +195,25 @@ const skills = [
     transform: translateY(-2px);
   }
 }
+
+.interests-section { margin-top: 20px; }
+.interest-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.interest-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border-radius: $radius-md;
+  border: 1px solid $glass-border;
+}
+.interest-icon { font-size: 1.3rem; flex-shrink: 0; }
+.interest-field { font-size: 0.9rem; color: $text-primary; }
+.interest-desc { font-size: 0.8rem; color: $text-secondary; margin: 2px 0 0; }
 
 .contact-card {
   position: sticky;
