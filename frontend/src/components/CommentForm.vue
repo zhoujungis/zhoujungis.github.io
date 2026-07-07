@@ -46,6 +46,9 @@
       <!-- Submit error -->
       <p v-if="submitError" class="submit-error">{{ submitError }}</p>
 
+      <!-- Submit success -->
+      <p v-if="submitted" class="submit-success">评论已提交！</p>
+
       <!-- Actions -->
       <div class="form-actions">
         <button
@@ -100,6 +103,7 @@ const errors = reactive({
 
 const submitting = ref(false)
 const submitError = ref(null)
+const submitted = ref(false)
 
 function validate() {
   let valid = true
@@ -151,6 +155,8 @@ async function submitForm() {
       data.parent = props.parentId
     }
     await postComment(props.articleSlug, data)
+    submitted.value = true
+    setTimeout(() => { submitted.value = false }, 3000)
     emit('submitted')
     form.author_name = ''
     form.author_email = ''
@@ -280,6 +286,16 @@ async function submitForm() {
   background: rgba(255, 0, 128, 0.06);
   border-radius: 6px;
   border: 1px solid rgba(255, 0, 128, 0.15);
+}
+
+.submit-success {
+  font-size: 0.85rem;
+  color: #00e676;
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(0, 230, 118, 0.06);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 230, 118, 0.15);
 }
 
 .form-actions {

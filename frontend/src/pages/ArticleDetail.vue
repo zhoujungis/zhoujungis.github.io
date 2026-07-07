@@ -129,8 +129,8 @@
 
           <!-- Comment section -->
           <section class="comment-section">
-            <CommentList :article-slug="article.slug" />
-            <CommentForm :article-slug="article.slug" />
+            <CommentList :article-slug="article.slug" :key="commentKey" />
+            <CommentForm :article-slug="article.slug" @submitted="commentKey++" />
           </section>
         </article>
 
@@ -159,6 +159,7 @@ const articleStore = useArticleStore()
 const article = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const commentKey = ref(0)
 
 const formattedDate = computed(() => {
   if (!article.value?.created_at) return ''
