@@ -11,10 +11,10 @@ This blog uses: **Vue 3 frontend** → GitHub Pages | **Django backend** → Pyt
 
 | Change type | Deploy command |
 |-------------|---------------|
-| Frontend only (UI, pages, styles) | `cd frontend && bash deploy.sh` |
-| Backend only (API, models, admin) | Push code → PythonAnywhere web reload |
+| Frontend only | 1. `git push` source → 2. `cd frontend && bash deploy.sh` |
+| Backend only | 1. `git push` source → 2. PythonAnywhere `git pull` + Reload |
 | New article | Admin panel or CLI script → no deploy needed |
-| Both frontend + backend | Deploy frontend first, then backend |
+| Both frontend + backend | Push source once → deploy frontend → deploy backend |
 
 ## 1. Writing & Publishing Articles
 
@@ -33,13 +33,25 @@ Articles live in the backend database. Publishing does NOT require frontend/back
 
 ## 2. Frontend Deploy (GitHub Pages)
 
-After ANY frontend code change (Vue components, styles, router, dependencies):
+After ANY frontend code change, deploy is a TWO-STEP process:
 
+**Step 1: Push source code to GitHub**
+```bash
+git add -A
+git commit -m "<description>"
+git push origin master
+```
+
+**Step 2: Build and deploy**
 ```bash
 cd frontend && bash deploy.sh
 ```
 
-This single command: builds → copies dist/* to repo root → commits → pushes to origin/master. GitHub Pages serves from repo root. Wait 1-2 minutes for CDN propagation, then hard-refresh (Ctrl+Shift+R).
+`deploy.sh` does: builds → copies dist/* to repo root → commits deploy → pushes to origin/master.
+
+> **Why two steps?** `deploy.sh` only pushes the built output (dist/*). Source code changes must be pushed separately first, or they stay local and won't be on GitHub.
+
+Wait 1-2 minutes for CDN propagation, then hard-refresh (Ctrl+Shift+R).
 
 **Common frontend changes that need deploy:**
 - New pages, components, routes
@@ -49,14 +61,12 @@ This single command: builds → copies dist/* to repo root → commits → pushe
 
 ## 3. Backend Deploy (PythonAnywhere)
 
-After backend code changes (models, views, serializers, settings, new dependencies):
-
-**Step 1: Push code to GitHub**
+**Step 1: Push source code to GitHub** (same as frontend Step 1)
 ```bash
 git add -A && git commit -m "backend: <description>" && git push origin master
 ```
 
-**Step 2: PythonAnywhere web console**
+**Step 2: PythonAnywhere 网页控制台**
 1. Open [pythonanywhere.com](https://www.pythonanywhere.com) → **Consoles** → **Bash**
 2. Run:
 ```bash
