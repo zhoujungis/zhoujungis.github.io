@@ -102,6 +102,8 @@ import { getFriends } from '@/api/articles'
 
 const articleStore = useArticleStore()
 
+import { catLabel, catSlug, catCount, tagLabel, tagSlug } from '@/utils/labels'
+
 const neonColors = ['#00e5ff', '#ff0080', '#7b2fff', '#00e5ff', '#ff0080']
 
 const categories = computed(() => articleStore.categories || [])
@@ -113,32 +115,6 @@ const tags = computed(() => {
     return !name.includes('测试')
   })
 })
-
-function catLabel(cat) {
-  if (!cat) return ''
-  return typeof cat === 'object' ? cat.name || '' : cat
-}
-
-function tagLabel(tag) {
-  if (!tag) return ''
-  return typeof tag === 'object' ? tag.name || '' : tag
-}
-
-function catSlug(cat) {
-  if (!cat) return ''
-  return typeof cat === 'object' ? cat.slug || '' : ''
-}
-
-function tagSlug(tag) {
-  if (!tag) return ''
-  return typeof tag === 'object' ? tag.slug || '' : ''
-}
-
-function catCount(cat) {
-  if (typeof cat === 'object' && cat.article_count !== undefined) return cat.article_count
-  if (typeof cat === 'object' && cat.count !== undefined) return cat.count
-  return 0
-}
 
 const friendLinks = ref([])
 const friendLinksLoading = ref(true)

@@ -3,18 +3,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
+import { useScroll } from '@/composables/useScroll'
 
-const progress = ref(0)
+const { scrollY } = useScroll()
 
-function update() {
+const progress = computed(() => {
   const h = document.documentElement
   const total = h.scrollHeight - h.clientHeight
-  progress.value = total > 0 ? Math.min(100, (h.scrollTop / total) * 100) : 0
-}
-
-onMounted(() => window.addEventListener('scroll', update, { passive: true }))
-onUnmounted(() => window.removeEventListener('scroll', update))
+  return total > 0 ? Math.min(100, (scrollY.value / total) * 100) : 0
+})
 </script>
 
 <style scoped>

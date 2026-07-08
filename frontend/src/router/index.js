@@ -28,6 +28,8 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
     const authStore = useAuthStore()
+    // Re-check auth state (includes JWT expiry check)
+    authStore.checkAuth()
     if (!authStore.isAuthenticated) {
       next({ name: 'AdminLogin' })
     } else {

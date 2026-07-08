@@ -43,7 +43,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
+import { catLabel, tagLabel } from '@/utils/labels'
 
 const props = defineProps({
   article: {
@@ -77,16 +77,7 @@ const formattedDate = computed(() => {
   })
 })
 
-const categoryName = computed(() => {
-  const cat = props.article.category
-  if (!cat) return ''
-  return typeof cat === 'object' ? cat.name || '' : cat
-})
-
-function tagLabel(tag) {
-  if (!tag) return ''
-  return typeof tag === 'object' ? tag.name || '' : tag
-}
+const categoryName = computed(() => catLabel(props.article.category))
 </script>
 
 <style lang="scss" scoped>

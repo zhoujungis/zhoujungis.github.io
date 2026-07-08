@@ -52,13 +52,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { useTheme } from '@/composables/useTheme'
+
+const { isDark } = useTheme()
 
 const chartRef = ref(null)
 const error = ref('')
 let chart = null
-let themeObserver = null
+let echartsModule = null
 
 // ========================================
 // City data — 26 cities across 13 provinces
@@ -124,17 +126,10 @@ const coveragePercent = computed(() => {
 })
 
 // ========================================
-// Theme helpers
-// ========================================
-function isDark() {
-  return document.documentElement.classList.contains('theme-dark')
-}
-
-// ========================================
 // ECharts option
 // ========================================
 function getChartOption() {
-  const dark = isDark()
+  const dark = isDark.value
 
   // ---- colour tokens ----
   const textColor = dark ? '#ccc' : '#4a3040'
@@ -274,17 +269,21 @@ async function initChart() {
   if (!chartRef.value) return
 
   try {
+    // Dynamic import — echarts is only loaded when user visits this page
+    if (!echartsModule) {
+      echartsModule = await import('echarts')
+    }
+
     const resp = await fetch('/china-geo.json')
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const geoJson = await resp.json()
-    echarts.registerMap('china', geoJson)
+    echartsModule.registerMap('china', geoJson)
 
-    chart = echarts.init(chartRef.value)
+    chart = echartsModule.init(chartRef.value)
     chart.setOption(getChartOption())
 
     window.addEventListener('resize', handleResize)
   } catch (e) {
-    console.error('地图加载失败:', e)
     error.value = '地图加载失败，请稍后重试'
   }
 }
@@ -293,29 +292,20 @@ function handleResize() {
   chart?.resize()
 }
 
-function updateTheme() {
+// Reactively update chart when theme changes
+watch(isDark, () => {
   if (chart && !chart.isDisposed()) {
     chart.setOption(getChartOption(), true)
   }
-}
+})
 
 onMounted(async () => {
   await nextTick()
   await initChart()
-
-  themeObserver = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      if (m.attributeName === 'class') {
-        updateTheme()
-      }
-    }
-  })
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  themeObserver?.disconnect()
   chart?.dispose()
   chart = null
 })

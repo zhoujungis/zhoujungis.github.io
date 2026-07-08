@@ -187,6 +187,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 @use '@/styles/variables' as *;
+@use '@/styles/skeleton' as *;
 
 .page-home {
   max-width: 1200px;
@@ -296,14 +297,7 @@ onMounted(() => {
 .skeleton-image {
   width: 100%;
   height: 180px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  @include skeleton-shimmer;
 }
 
 .skeleton-body {
@@ -314,52 +308,17 @@ onMounted(() => {
 }
 
 .skeleton-line {
-  height: 14px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  @include skeleton-line;
 
-  &:nth-child(2) {
-    animation-delay: 0.1s;
-  }
-  &:nth-child(3) {
-    animation-delay: 0.2s;
-  }
-  &:nth-child(4) {
-    animation-delay: 0.3s;
-  }
+  &:nth-child(2) { animation-delay: 0.1s; }
+  &:nth-child(3) { animation-delay: 0.2s; }
+  &:nth-child(4) { animation-delay: 0.3s; }
 }
 
-.w-75 {
-  width: 75%;
-}
-
-.w-50 {
-  width: 50%;
-}
-
-.w-100 {
-  width: 100%;
-}
-
-.w-60 {
-  width: 60%;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
+.w-75 { width: 75%; }
+.w-50 { width: 50%; }
+.w-100 { width: 100%; }
+.w-60 { width: 60%; }
 
 // ---- States (error, empty) ----
 .state-message {

@@ -5,26 +5,44 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Send cookies for cross-origin requests (httpOnly JWT support)
+  withCredentials: true,
 })
 
-// Request interceptor: attach JWT token if present
+// Helper: read CSRF token from cookie (Django sets this on auth)
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/)
+  return match ? match[1] : null
+}
+
+// Request interceptor: attach JWT (if stored in localStorage) + CSRF token
 client.interceptors.request.use(
   (config) => {
+    // JWT — fallback for localStorage-based auth (legacy compatibility)
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    // CSRF — required for cookie-based session auth
+    const csrf = getCsrfToken()
+    if (csrf) {
+      config.headers['X-CSRFToken'] = csrf
+    }
+
     return config
   },
   (error) => Promise.reject(error),
 )
 
-// Response interceptor: handle 401 — clear token and redirect to login
+// Response interceptor: handle 401 — clear credentials and redirect
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token')
+      localStorage.removeItem('token_expiry')
+      localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       window.location.href = '/admin'
     }

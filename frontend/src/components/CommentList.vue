@@ -179,6 +179,7 @@ onMounted(fetchComments)
 
 <style lang="scss" scoped>
 @use '@/styles/variables' as *;
+@use '@/styles/skeleton' as *;
 
 .comment-list {
   margin-top: 8px;
@@ -221,14 +222,7 @@ onMounted(fetchComments)
   height: 40px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  @include skeleton-shimmer;
 }
 
 .skeleton-body {
@@ -241,24 +235,12 @@ onMounted(fetchComments)
 .skeleton-line {
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  @include skeleton-shimmer;
 }
 
 .w-30 { width: 30%; }
 .w-50 { width: 50%; }
 .w-80 { width: 80%; }
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
 
 // ============ Empty state ============
 .empty-comments {

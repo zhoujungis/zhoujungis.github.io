@@ -179,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import MarkdownView from '@/components/MarkdownView.vue'
@@ -191,6 +191,7 @@ import RelatedArticles from '@/components/RelatedArticles.vue'
 import NewsletterForm from '@/components/NewsletterForm.vue'
 import { useSEO } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
+import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
 import client from '@/api/client'
 
 const route = useRoute()
@@ -212,22 +213,14 @@ const formattedDate = computed(() => {
   })
 })
 
-const authorName = computed(() => {
-  const author = article.value?.author
-  if (!author) return '匿名'
-  return typeof author === 'object' ? author.name || author.username || '' : author
-})
+const authorName = computed(() => getAuthorName(article.value?.author))
 
-const categoryName = computed(() => {
-  const cat = article.value?.category
-  if (!cat) return ''
-  return typeof cat === 'object' ? cat.name || '' : cat
-})
+const categoryName = computed(() => catLabel(article.value?.category))
 
 const tagList = computed(() => {
   const tags = article.value?.tags
   if (!tags || !Array.isArray(tags)) return []
-  return tags.map((t) => (typeof t === 'object' ? t.name || '' : t)).filter(Boolean)
+  return tags.map(tagLabel).filter(Boolean)
 })
 
 const liked = ref(false)
@@ -309,10 +302,22 @@ async function fetchArticle() {
 }
 
 onMounted(fetchArticle)
+
+// Re-fetch when navigating between articles (same component, different slug)
+watch(() => route.params.slug, () => {
+  window.scrollTo({ top: 0, behavior: 'instant' })
+  commentKey.value++
+  fetchArticle()
+})
+
+onUnmounted(() => {
+  articleStore.currentArticle = null
+})
 </script>
 
 <style lang="scss" scoped>
 @use '@/styles/variables' as *;
+@use '@/styles/skeleton' as *;
 
 .page-article-detail {
   max-width: 1200px;
@@ -617,13 +622,13 @@ onMounted(fetchArticle)
   margin: 0 auto;
 }
 
-.skeleton-header {
-  margin-bottom: 32px;
-}
+.skeleton-line {
+  @include skeleton-line;
 
-.skeleton-lg {
-  height: 36px !important;
-  margin-bottom: 20px;
+  &.skeleton-lg {
+    height: 36px !important;
+    margin-bottom: 20px;
+  }
 }
 
 .skeleton-meta-row {
@@ -637,19 +642,6 @@ onMounted(fetchArticle)
   gap: 12px;
 }
 
-.skeleton-line {
-  height: 14px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
 .w-10 { width: 10%; }
 .w-15 { width: 15%; }
 .w-20 { width: 20%; }
@@ -657,11 +649,6 @@ onMounted(fetchArticle)
 .w-80 { width: 80%; }
 .w-90 { width: 90%; }
 .w-100 { width: 100%; }
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
 
 // ============ Mobile ============
 @media (max-width: 767px) {

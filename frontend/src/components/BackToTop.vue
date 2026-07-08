@@ -9,14 +9,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
+import { useScroll } from '@/composables/useScroll'
 
-const visible = ref(false)
-function onScroll() { visible.value = window.scrollY > 300 }
+const { scrollY } = useScroll()
+const visible = computed(() => scrollY.value > 300)
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
-
-onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }))
-onUnmounted(() => window.removeEventListener('scroll', onScroll))
 </script>
 
 <style lang="scss" scoped>
