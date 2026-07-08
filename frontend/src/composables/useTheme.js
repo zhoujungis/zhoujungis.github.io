@@ -1,30 +1,26 @@
 /**
  * Centralised theme state — components can reactively read/write
  * the current theme without MutationObserver hacks.
+ *
+ * IMPORTANT: Do NOT call watch / watchEffect at module level —
+ * Vue requires an active component instance for those.
  */
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
 const isDark = ref(false)
 
-// Initialise from localStorage or system preference
+// Initialise once from localStorage
 const saved = localStorage.getItem('theme')
 if (saved === 'dark') {
   isDark.value = true
   document.documentElement.classList.add('theme-dark')
-} else if (!saved) {
-  // Default to light (sakura)
-  isDark.value = false
 }
-
-// Keep DOM in sync
-watch(isDark, (val) => {
-  document.documentElement.classList.toggle('theme-dark', val)
-  localStorage.setItem('theme', val ? 'dark' : 'light')
-})
 
 export function useTheme() {
   function toggle() {
     isDark.value = !isDark.value
+    document.documentElement.classList.toggle('theme-dark', isDark.value)
+    localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
   }
 
   return { isDark, toggle }
