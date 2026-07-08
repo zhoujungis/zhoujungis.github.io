@@ -185,22 +185,23 @@ SIMPLE_JWT = {
 }
 
 # ── Email (SMTP) ────────────────────────────────────────────────
-# PythonAnywhere free accounts can only connect to whitelisted SMTP
-# providers. Gmail is whitelisted. Use an App Password (not your
-# regular Gmail password).  Generate one at:
-#   https://myaccount.google.com/apppasswords
+# Supported providers (set EMAIL_HOST / EMAIL_PORT / EMAIL_USE_SSL
+# accordingly in your .env file):
 #
-# Set these env vars on PythonAnywhere (Web tab → .env or WSGI file):
-#   EMAIL_HOST_USER = your@gmail.com
-#   EMAIL_HOST_PASSWORD = your-16-char-app-password
+#   163 邮箱:  smtp.163.com    465  SSL=True   需开启 SMTP 并获取授权码
+#   QQ 邮箱:  smtp.qq.com      587  TLS=True   需开启 SMTP 并获取授权码
+#   Gmail:    smtp.gmail.com   587  TLS=True   需两步验证 + 应用密码
+#
+# 授权码不是登录密码！在邮箱设置 → POP3/SMTP/IMAP 中开启并获取。
 
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",
     "django.core.mail.backends.smtp.EmailBackend" if os.environ.get("EMAIL_HOST_USER") else "django.core.mail.backends.console.EmailBackend",
 )
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
