@@ -63,6 +63,8 @@ let themeObserver = null
 // ========================================
 // City data — 26 cities across 13 provinces
 // ========================================
+// labelPos: custom label position to avoid overlap in dense clusters.
+// Omitted → defaults to 'right'.
 const cities = [
   // 京津冀
   { name: '北京', lng: 116.4074, lat: 39.9042, province: '北京市' },
@@ -72,16 +74,16 @@ const cities = [
   { name: '苏州', lng: 120.5954, lat: 31.2990, province: '江苏省' },
   { name: '合肥', lng: 117.2273, lat: 31.8206, province: '安徽省' },
   { name: '安庆', lng: 117.0510, lat: 30.5319, province: '安徽省' },
-  // 珠三角
-  { name: '广州', lng: 113.2644, lat: 23.1291, province: '广东省' },
-  { name: '深圳', lng: 114.0579, lat: 22.5431, province: '广东省' },
-  { name: '香港', lng: 114.1657, lat: 22.2793, province: '香港特别行政区' },
-  { name: '澳门', lng: 113.5491, lat: 22.1987, province: '澳门特别行政区' },
-  { name: '中山', lng: 113.3824, lat: 22.5159, province: '广东省' },
-  { name: '珠海', lng: 113.5767, lat: 22.2707, province: '广东省' },
-  // 潮汕
-  { name: '潮州', lng: 116.6224, lat: 23.6581, province: '广东省' },
-  { name: '汕头', lng: 116.6821, lat: 23.3535, province: '广东省' },
+  // 珠三角 (dense — custom label positions spread around markers)
+  { name: '广州', lng: 113.2644, lat: 23.1291, province: '广东省', labelPos: 'top' },
+  { name: '深圳', lng: 114.0579, lat: 22.5431, province: '广东省', labelPos: 'right' },
+  { name: '香港', lng: 114.1657, lat: 22.2793, province: '香港特别行政区', labelPos: 'bottom' },
+  { name: '澳门', lng: 113.5491, lat: 22.1987, province: '澳门特别行政区', labelPos: 'left' },
+  { name: '中山', lng: 113.3824, lat: 22.5159, province: '广东省', labelPos: 'left' },
+  { name: '珠海', lng: 113.5767, lat: 22.2707, province: '广东省', labelPos: 'bottom' },
+  // 潮汕 (close pair — split up/down)
+  { name: '潮州', lng: 116.6224, lat: 23.6581, province: '广东省', labelPos: 'top' },
+  { name: '汕头', lng: 116.6821, lat: 23.3535, province: '广东省', labelPos: 'bottom' },
   // 中部
   { name: '武汉', lng: 114.3054, lat: 30.5931, province: '湖北省' },
   { name: '长沙', lng: 112.9388, lat: 28.2278, province: '湖南省' },
@@ -90,8 +92,8 @@ const cities = [
   { name: '赣州', lng: 114.9350, lat: 25.8318, province: '江西省' },
   // 西南
   { name: '重庆', lng: 106.5516, lat: 29.5630, province: '重庆市' },
-  { name: '内江', lng: 105.0584, lat: 29.5801, province: '四川省' },
-  { name: '泸州', lng: 105.4423, lat: 28.8718, province: '四川省' },
+  { name: '内江', lng: 105.0584, lat: 29.5801, province: '四川省', labelPos: 'top' },
+  { name: '泸州', lng: 105.4423, lat: 28.8718, province: '四川省', labelPos: 'bottom' },
   { name: '昆明', lng: 102.8329, lat: 24.8801, province: '云南省' },
   { name: '丽江', lng: 100.2299, lat: 26.8550, province: '云南省' },
   { name: '大理', lng: 100.2299, lat: 25.6065, province: '云南省' },
@@ -133,38 +135,51 @@ function isDark() {
 // ========================================
 function getChartOption() {
   const dark = isDark()
-  const textColor = dark ? '#bbb' : '#4a3040'
-  const mapBg = dark ? '#1a1a2e' : '#fef0f3'
-  const borderColor = dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,133,162,0.18)'
-  const visitedColor = dark ? '#3d2030' : '#ffe0e8'
-  const visitedBorder = dark ? 'rgba(255,133,162,0.3)' : 'rgba(255,133,162,0.4)'
-  const emphasisBg = dark ? 'rgba(255,133,162,0.12)' : 'rgba(255,133,162,0.08)'
 
-  // Build geo regions for visited provinces
+  // ---- colour tokens ----
+  const textColor = dark ? '#ccc' : '#4a3040'
+  const mapBg = dark ? '#16162a' : '#faf0f4'
+  const mapBorder = dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,133,162,0.15)'
+  const visitedFill = dark ? '#3a1e2c' : '#fce4ec'
+  const visitedStroke = dark ? 'rgba(255,133,162,0.35)' : 'rgba(255,133,162,0.45)'
+  const unvisitedEmphasis = dark ? 'rgba(255,133,162,0.08)' : 'rgba(255,133,162,0.06)'
+  const visitedEmphasis = dark ? '#4d2840' : '#ffd6e0'
+
+  // ---- geo regions: highlight visited provinces ----
   const geoRegions = visitedProvinces.value
-    .filter(p => p) // filter out empty names
+    .filter(p => p)
     .map(p => ({
       name: p,
       itemStyle: {
-        areaColor: visitedColor,
-        borderColor: visitedBorder,
+        areaColor: visitedFill,
+        borderColor: visitedStroke,
         borderWidth: 1.5,
       },
       label: { show: false },
       emphasis: {
-        itemStyle: { areaColor: dark ? '#4d2840' : '#ffd0dc' },
+        itemStyle: { areaColor: visitedEmphasis },
+        label: { show: true, color: textColor, fontSize: 12 },
       },
     }))
 
+  // ---- series data: per-item label position for dense clusters ----
+  const scatterData = cities.map(c => {
+    const item = { name: c.name, value: [c.lng, c.lat] }
+    if (c.labelPos) item.label = { position: c.labelPos, distance: 8 }
+    return item
+  })
+
   return {
     backgroundColor: 'transparent',
+
+    // ----- tooltip -----
     tooltip: {
       trigger: 'item',
       formatter: (params) => {
         if (params.seriesType === 'effectScatter') {
           const city = cities.find(c => c.name === params.name)
           const prov = city ? city.province : ''
-          return `<strong>${params.name}</strong><br/>📍 ${prov}`
+          return `<strong>${params.name}</strong><br/><span style="opacity:.7">📍 ${prov}</span>`
         }
         return params.name
       },
@@ -172,46 +187,63 @@ function getChartOption() {
       borderColor: '#ff85a2',
       borderWidth: 1,
       textStyle: { color: dark ? '#e0e0e0' : '#4a3040', fontSize: 13 },
-      extraCssText: 'border-radius: 10px; padding: 8px 12px; box-shadow: 0 4px 16px rgba(255,133,162,0.15);',
+      extraCssText: 'border-radius: 10px; padding: 8px 12px; box-shadow: 0 4px 20px rgba(255,133,162,0.18);',
     },
+
+    // ----- base map -----
     geo: {
       map: 'china',
       roam: true,
       zoom: 1.15,
-      center: [108, 34],
+      center: [107, 35],
       scaleLimit: { min: 0.8, max: 8 },
+      silent: false,
       label: { show: false },
       itemStyle: {
         areaColor: mapBg,
-        borderColor: borderColor,
+        borderColor: mapBorder,
         borderWidth: 1,
-        shadowBlur: 0,
       },
       emphasis: {
         label: { show: true, color: textColor, fontSize: 12 },
-        itemStyle: { areaColor: emphasisBg },
+        itemStyle: { areaColor: unvisitedEmphasis },
       },
       regions: geoRegions,
     },
+
+    // ----- series -----
     series: [
+      // Layer 1 — soft glow ring behind each marker
+      {
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        data: scatterData,
+        symbolSize: 18,
+        silent: true,
+        itemStyle: {
+          color: dark ? 'rgba(255,133,162,0.18)' : 'rgba(255,133,162,0.2)',
+        },
+        label: { show: false },
+      },
+      // Layer 2 — ripple markers
       {
         type: 'effectScatter',
         coordinateSystem: 'geo',
-        data: cities.map(c => ({ name: c.name, value: [c.lng, c.lat] })),
-        symbolSize: 12,
+        data: scatterData,
+        symbolSize: 11,
         showEffectOn: 'render',
         rippleEffect: {
           brushType: 'stroke',
-          scale: 5,
-          period: 4.5,
+          scale: 5.5,
+          period: 5,
           color: '#ff85a2',
         },
         itemStyle: {
           color: '#ff85a2',
-          shadowBlur: 14,
-          shadowColor: '#ff85a2',
-          borderColor: '#fff',
-          borderWidth: 1.5,
+          shadowBlur: 12,
+          shadowColor: 'rgba(255,133,162,0.5)',
+          borderColor: dark ? '#2a2a3e' : '#fff',
+          borderWidth: 1.8,
         },
         label: {
           show: true,
@@ -222,10 +254,11 @@ function getChartOption() {
           fontSize: 11,
           fontWeight: 500,
         },
+        labelLayout: { hideOverlap: true },
         emphasis: {
-          scale: 2.2,
+          scale: 2.5,
           itemStyle: {
-            shadowBlur: 20,
+            shadowBlur: 24,
             shadowColor: '#ff85a2',
           },
         },
