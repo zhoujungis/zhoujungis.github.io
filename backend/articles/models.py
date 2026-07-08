@@ -69,6 +69,7 @@ class Article(models.Model):
     likes_count = models.PositiveIntegerField(default=0, editable=False, verbose_name="点赞数")
     cover_image = models.URLField(blank=True, verbose_name="cover image")
     scheduled_at = models.DateTimeField(null=True, blank=True, verbose_name="定时发布时间")
+    notification_sent = models.BooleanField(default=False, verbose_name="已发送通知")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
 

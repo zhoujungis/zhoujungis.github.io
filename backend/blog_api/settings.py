@@ -167,6 +167,31 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+# ── Email (SMTP) ────────────────────────────────────────────────
+# PythonAnywhere free accounts can only connect to whitelisted SMTP
+# providers. Gmail is whitelisted. Use an App Password (not your
+# regular Gmail password).  Generate one at:
+#   https://myaccount.google.com/apppasswords
+#
+# Set these env vars on PythonAnywhere (Web tab → .env or WSGI file):
+#   EMAIL_HOST_USER = your@gmail.com
+#   EMAIL_HOST_PASSWORD = your-16-char-app-password
+
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend" if os.environ.get("EMAIL_HOST_USER") else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Site URL (used in email templates)
+SITE_URL = os.environ.get("SITE_URL", "https://zhoujungis.github.io")
+
 # Internationalization
 LANGUAGE_CODE = 'zh-hans'
 TIME_ZONE = 'Asia/Shanghai'
