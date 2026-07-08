@@ -5,8 +5,6 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // Send cookies for cross-origin requests (httpOnly JWT support)
-  withCredentials: true,
 })
 
 // Helper: read CSRF token from cookie (Django sets this on auth)

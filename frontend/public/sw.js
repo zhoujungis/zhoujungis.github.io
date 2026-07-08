@@ -1,61 +1,48 @@
-// ========================================
-// Service Worker — Network-first for content, cache for shell
-// ========================================
-const CACHE = 'zhoujun-blog-v2'
+// Service Worker — caches app shell, network-first for HTML
+const CACHE = 'zhoujun-blog-v3'
 const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.json']
 
-// ---- Install: pre-cache app shell ----
 self.addEventListener('install', (e) => {
   self.skipWaiting()
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL))
-  )
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)))
 })
 
-// ---- Activate: clean old caches ----
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
-      )
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     )
   )
   self.clients.claim()
 })
 
-// ---- Fetch: stale-while-revalidate for static, network-first for nav ----
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url)
 
-  // Never cache API calls
+  // Don't touch API / admin / non-GET requests
   if (url.pathname.startsWith('/api/')) return
-
-  // Never cache admin routes
   if (url.pathname.startsWith('/admin')) return
+  if (e.request.method !== 'GET') return
 
-  // For navigation requests (HTML) — network-first with cache fallback
+  // Navigation: network-first, fallback to cache
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          const clone = res.clone()
-          caches.open(CACHE).then((c) => c.put(e.request, clone))
-          return res
-        })
-        .catch(() => caches.match(e.request))
+      fetch(e.request).then((res) => {
+        try { caches.open(CACHE).then((c) => c.put(e.request, res.clone())) } catch (_) {}
+        return res
+      }).catch(() => caches.match(e.request))
     )
     return
   }
 
-  // For static assets — stale-while-revalidate
+  // Static assets: cache-first, fallback to network
   e.respondWith(
     caches.match(e.request).then((cached) => {
-      const fetched = fetch(e.request).then((res) => {
-        caches.open(CACHE).then((c) => c.put(e.request, res.clone()))
+      if (cached) return cached
+      return fetch(e.request).then((res) => {
+        try { caches.open(CACHE).then((c) => c.put(e.request, res.clone())) } catch (_) {}
         return res
       })
-      return cached || fetched
     })
   )
 })
