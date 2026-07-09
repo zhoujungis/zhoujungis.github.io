@@ -38,12 +38,21 @@ if _env_path.exists():
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-rpcur@2#t5bqllm8t8cgm9q&des#hzkj3bqb35fe9(os+&n#vj')
+_default_secret = 'django-insecure-dev-only'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', _default_secret)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'zhoujungis.github.io,localhost,127.0.0.1').split(',')
+
+# Fail hard in production if SECRET_KEY is still the default
+if not DEBUG and SECRET_KEY == _default_secret:
+    raise RuntimeError(
+        "DJANGO_SECRET_KEY environment variable is not set!\n"
+        "Run:  export DJANGO_SECRET_KEY='...a-long-random-string...'\n"
+        "Or create a .env file next to manage.py with this value."
+    )
 
 
 # Application definition
@@ -142,13 +151,13 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# CORS
-_cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
-if _cors_origins:
-    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
-    CORS_ALLOW_ALL_ORIGINS = False
-else:
-    CORS_ALLOW_ALL_ORIGINS = True
+# CORS — explicit allowlist; never fall back to allow-all.
+# Override CORS_ALLOWED_ORIGINS in .env to add more origins (comma-separated).
+_DEFAULT_CORS = "https://zhoujungis.github.io"
+_cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', _DEFAULT_CORS)
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -169,6 +178,7 @@ REST_FRAMEWORK = {
         'user': '100/minute',    # 100 requests/min for authenticated users
         'comment': '3/minute',   # 3 comments per minute per IP
         'subscribe': '5/hour',   # 5 subscriptions per hour per IP
+        'upload': '100/hour',    # 100 image uploads per hour per user
     },
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',

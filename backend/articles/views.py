@@ -1,5 +1,5 @@
+from django.db.models import F
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
@@ -32,25 +32,18 @@ class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
             return ArticleDetailSerializer
         return ArticleListSerializer
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        # Auto-publish any scheduled articles whose time has come
-        from django.db.models import Q
-
-        now = timezone.now()
-        scheduled = Article.objects.filter(
-            Q(status=Article.Status.SCHEDULED) | Q(status=Article.Status.DRAFT),
-            scheduled_at__lte=now,
-        )
-        for article in scheduled:
-            article.status = Article.Status.PUBLISHED
-            article.save(update_fields=["status"])
-        return qs
+    # NOTE: scheduled-article publishing used to happen here as a side effect
+    # of get_queryset(), which wrote to the DB on every read (home page,
+    # category page, tag page, search — all hot). That was a write-amplification
+    # bug. It now runs as a periodic management command:
+    #     python manage.py publish_scheduled
+    # Configure that as an hourly task on PythonAnywhere.
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.views_count += 1
-        instance.save(update_fields=["views_count"])
+        # Atomic increment — avoids race condition
+        Article.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
+        instance.refresh_from_db(fields=["views_count"])
         return super().retrieve(request, *args, **kwargs)
 
 
@@ -77,8 +70,9 @@ def like_article(request, slug):
     cookie_key = f"liked_{article.slug}"
     if request.COOKIES.get(cookie_key):
         return Response({"detail": "已点赞"}, status=status.HTTP_200_OK)
-    article.likes_count += 1
-    article.save(update_fields=["likes_count"])
+    # Atomic increment — avoids race condition
+    Article.objects.filter(pk=article.pk).update(likes_count=F("likes_count") + 1)
+    article.refresh_from_db(fields=["likes_count"])
     resp = Response({"likes_count": article.likes_count}, status=status.HTTP_200_OK)
     resp.set_cookie(cookie_key, "1", max_age=86400 * 365, httponly=True, samesite="Lax")
     return resp

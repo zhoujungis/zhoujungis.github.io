@@ -4,21 +4,13 @@ import uuid
 from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework import serializers, status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Article, Category, Tag
-
-
-class CategoryNestedField(serializers.RelatedField):
-    def to_representation(self, value):
-        return {"id": value.id, "name": value.name, "slug": value.slug}
-
-
-class TagNestedField(serializers.RelatedField):
-    def to_representation(self, value):
-        return {"id": value.id, "name": value.name, "slug": value.slug}
+from .serializers import CategorySerializer, CategoryNestedField, TagSerializer, TagNestedField
 
 
 class ArticleAdminSerializer(serializers.ModelSerializer):
@@ -102,42 +94,81 @@ class ArticleAdminViewSet(viewsets.ModelViewSet):
 
 class CategoryAdminViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
-    serializer_class = serializers.Serializer
+    serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
-
-    def get_serializer_class(self):
-        from .serializers import CategorySerializer
-        return CategorySerializer
 
 
 class TagAdminViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
+    serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_serializer_class(self):
-        from .serializers import TagSerializer
-        return TagSerializer
+
+# Map allowed MIME → extension. SVG intentionally excluded (XSS risk).
+_ALLOWED_IMAGE_MIMES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+class _UploadThrottle(ScopedRateThrottle):
+    scope = "upload"
+
+
+def _sniff_image_mime(data: bytes) -> str | None:
+    """Detect real MIME from file header bytes. No external deps.
+
+    Returns the canonical MIME type (e.g. 'image/png') or None.
+    Trusts the byte signature, not the user-supplied extension or Content-Type.
+    """
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@throttle_classes([_UploadThrottle])
 def upload_image(request):
-    """Upload an image file and return its URL."""
-    if "file" not in request.FILES:
+    """Upload an image and return its URL.
+
+    Security:
+      * Trusts byte signature (not extension or Content-Type) — defeats SVG/script polyglots.
+      * SVG is never accepted (XSS surface).
+      * Hard size limit (10 MB) prevents DoS via disk fill.
+      * Filename rewritten to UUID — no user-controlled path component.
+      * Throttled to 100 uploads/hour per authenticated user.
+    """
+    file = request.FILES.get("file") or request.FILES.get("image")
+    if not file:
         return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-    file = request.FILES["file"]
-
-    # Validate file type
-    ext = os.path.splitext(file.name)[1].lower()
-    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"}
-    if ext not in allowed_extensions:
+    if file.size > _MAX_UPLOAD_BYTES:
         return Response(
-            {"error": f"Unsupported file type: {ext}"},
+            {"error": f"File too large (max {_MAX_UPLOAD_BYTES // (1024*1024)} MB)"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Generate unique filename and save
+    # Read first 16 bytes (enough for all four supported signatures) to sniff.
+    head = file.read(16)
+    file.seek(0)
+    mime = _sniff_image_mime(head)
+    if mime is None:
+        return Response(
+            {"error": "Unsupported file type — only JPEG, PNG, GIF, WEBP are accepted"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    ext = _ALLOWED_IMAGE_MIMES[mime]
     filename = f"uploads/{uuid.uuid4().hex}{ext}"
     saved_path = default_storage.save(filename, file)
     file_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
