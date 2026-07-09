@@ -1,7 +1,8 @@
-import json, urllib.request
-API = 'https://zhoujun123.pythonanywhere.com/api'
-req = urllib.request.Request(f'{API}/token/', data=b'{"username":"zhoujun","password":"admin"}', headers={'Content-Type': 'application/json'})
-t = json.loads(urllib.request.urlopen(req).read())['access']
+import json, urllib.request, urllib.error
+from _auth import get_token, API_URL
+
+API = API_URL
+t = get_token()
 
 mapping = {8: 3, 9: 2, 10: 2}  # article_id -> category_id
 for aid, cid in mapping.items():

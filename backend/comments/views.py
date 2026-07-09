@@ -30,4 +30,4 @@ class ArticleCommentList(generics.ListCreateAPIView):
             from rest_framework.exceptions import ValidationError
             raise ValidationError({"detail": "检测到垃圾评论"})
 
-        serializer.save(article=article, parent=parent, is_approved=True)
+        serializer.save(article=article, parent=parent, is_approved=False)  # requires admin review

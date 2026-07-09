@@ -1,15 +1,14 @@
-import json, urllib.request
+import json, urllib.request, urllib.error
+from _auth import get_token, API_URL
 
-API = 'https://zhoujun123.pythonanywhere.com/api'
+API = API_URL
 
 def api(method, path, data=None):
     url = f'{API}{path}'
     req = urllib.request.Request(url, method=method)
     req.add_header('Content-Type', 'application/json')
-    if '/token/' not in path:
-        tr = urllib.request.Request(f'{API}/token/', data=b'{"username":"zhoujun","password":"admin"}', headers={'Content-Type':'application/json'})
-        token = json.loads(urllib.request.urlopen(tr).read())['access']
-        req.add_header('Authorization', f'Bearer {token}')
+    token = get_token()
+    req.add_header('Authorization', f'Bearer {token}')
     if data is not None:
         req.data = json.dumps(data).encode()
     resp = urllib.request.urlopen(req)

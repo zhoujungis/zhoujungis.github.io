@@ -1,28 +1,10 @@
 import json, urllib.request, urllib.error
+from _auth import api_request, API_URL
 
-API = 'https://zhoujun123.pythonanywhere.com/api'
-UN, PW = 'zhoujun', 'admin'
+API = API_URL
 
 def api(method, path, data=None):
-    url = f'{API}{path}'
-    req = urllib.request.Request(url, method=method)
-    req.add_header('Content-Type', 'application/json')
-    if data is not None:
-        req.data = json.dumps(data).encode('utf-8')
-    if '/token/' not in path:
-        tr = urllib.request.Request(f'{API}/token/',
-            data=json.dumps({'username': UN, 'password': PW}).encode(),
-            headers={'Content-Type': 'application/json'})
-        token = json.loads(urllib.request.urlopen(tr).read())['access']
-        req.add_header('Authorization', f'Bearer {token}')
-    try:
-        resp = urllib.request.urlopen(req)
-        if method == 'DELETE': return True
-        return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        print(f'{method} {path} -> {e.code}: {body[:250]}')
-        return None
+    return api_request(method, path, data)
 
 # Step 1: List all existing tags
 print("=== All existing tags ===")

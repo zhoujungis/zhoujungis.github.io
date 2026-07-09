@@ -111,15 +111,25 @@ def authenticated_request(method: str, url: str, api_url: str, **kwargs) -> requ
     return response
 
 
-def fetch_all(url: str, api_url: str | None = None) -> list[dict]:
-    """Walk paginated results and return all items."""
+def fetch_all(url: str, api_url: str | None = None, params: dict | None = None) -> list[dict]:
+    """Walk paginated results and return all items.
+
+    ``params`` are included in the first request only (paginated
+    ``next`` URLs already encode any filters applied by the server).
+    """
     items: list[dict] = []
     next_url: str | None = url
+    first = True
     while next_url:
         if api_url:
-            resp = authenticated_request("GET", next_url, api_url, timeout=30)
+            resp = authenticated_request(
+                "GET", next_url, api_url,
+                params=params if first else None,
+                timeout=30,
+            )
         else:
-            resp = requests.get(next_url, timeout=30)
+            resp = requests.get(next_url, params=params if first else None, timeout=30)
+        first = False
         if resp.status_code != 200:
             break
         data = resp.json()
@@ -274,25 +284,20 @@ def cmd_list(args: argparse.Namespace) -> None:
     """
     api_url = args.api_url.rstrip("/")
     token = get_token()
+    params = {}
+    if args.status:
+        params["status"] = args.status
 
     # Determine endpoint and fetch strategy
     if token:
         url = f"{api_url}/admin/articles/"
         articles = fetch_all(url, api_url=api_url)
-        # Client-side status filter for admin endpoint
+        # Admin endpoint does not support server-side status filter
         if args.status and articles:
             articles = [a for a in articles if a.get("status") == args.status]
     else:
         url = f"{api_url}/articles/"
-        params = {}
-        if args.status:
-            params["status"] = args.status
-        articles = fetch_all(url)
-        if params:
-            # Re-fetch with filter if params were specified
-            articles = fetch_all(url)
-            if args.status:
-                articles = [a for a in articles if a.get("status") == args.status]
+        articles = fetch_all(url, params=params)  # server-side status filter
 
     if not articles:
         print("No articles found.")

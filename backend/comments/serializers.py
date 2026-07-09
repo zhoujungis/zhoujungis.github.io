@@ -20,6 +20,10 @@ class CommentSerializer(serializers.ModelSerializer):
             "replies",
         ]
         read_only_fields = ["article", "is_approved", "created_at"]
+        extra_kwargs = {
+            # author_email only accepted on write, never exposed in responses
+            "author_email": {"write_only": True},
+        }
 
     def get_replies(self, obj):
         replies = obj.replies.filter(is_approved=True)

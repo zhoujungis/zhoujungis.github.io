@@ -1,11 +1,9 @@
 """Update article with clean README content."""
 import urllib.request, json, re
+from _auth import get_token, API_URL
 
-API = 'https://zhoujun123.pythonanywhere.com/api'
-
-# Login
-req = urllib.request.Request(f'{API}/token/', data=json.dumps({'username': 'zhoujun', 'password': 'admin'}).encode(), headers={'Content-Type': 'application/json'})
-token = json.loads(urllib.request.urlopen(req).read())['access']
+API = API_URL
+token = get_token()
 
 # Read README
 with open('README.md', encoding='utf-8') as f:

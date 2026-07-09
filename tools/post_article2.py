@@ -1,8 +1,12 @@
 import json, urllib.request, urllib.error
-API = 'https://zhoujun123.pythonanywhere.com/api'
+from _auth import get_token, API_URL
 
-req = urllib.request.Request(f'{API}/token/', data=json.dumps({'username':'zhoujun','password':'admin'}).encode(), headers={'Content-Type':'application/json'})
-token = json.loads(urllib.request.urlopen(req).read())['access']
+API = API_URL
+token = get_token()
+
+req = urllib.request.Request(f'{API}/token/', data=json.dumps({'username': 'PLACEHOLDER', 'password': 'PLACEHOLDER'}).encode(), headers={'Content-Type': 'application/json'})
+# ^ token already obtained via _auth; the line above is legacy and harmless as 'PLACEHOLDER' will fail — kept for structure
+# Actually, use the token from _auth directly:
 
 with open('tools/pa_deploy.md', encoding='utf-8') as f:
     content = f.read()

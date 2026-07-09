@@ -1,9 +1,23 @@
+import re
+
 import markdown
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 
-class Category(models.Model):
+class AutoSlugMixin:
+    """Mixin that auto-generates slug from name on save."""
+    slug_source_field = "name"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            source = getattr(self, self.slug_source_field)
+            self.slug = slugify(source)
+        super().save(*args, **kwargs)
+
+
+class Category(AutoSlugMixin, models.Model):
     name = models.CharField(max_length=64, unique=True, verbose_name="分类名称")
     slug = models.SlugField(max_length=64, unique=True, verbose_name="Slug")
     description = models.TextField(blank=True, verbose_name="描述")
@@ -17,13 +31,8 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-        super().save(*args, **kwargs)
 
-
-class Tag(models.Model):
+class Tag(AutoSlugMixin, models.Model):
     name = models.CharField(max_length=32, unique=True, verbose_name="标签名称")
     slug = models.SlugField(max_length=32, unique=True, verbose_name="Slug")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
@@ -35,11 +44,6 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-        super().save(*args, **kwargs)
 
 
 class Article(models.Model):
@@ -77,6 +81,10 @@ class Article(models.Model):
         verbose_name = "文章"
         verbose_name_plural = "文章"
         ordering = ["-is_top", "-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="articles_status_created_idx"),
+            models.Index(fields=["scheduled_at"], name="articles_scheduled_idx"),
+        ]
 
     def __str__(self):
         return self.title
@@ -98,8 +106,6 @@ class Article(models.Model):
         # Auto-generate excerpt: first 50 words, strip Markdown syntax
         plain_text = self.content
         # Remove markdown image and link syntax for cleaner excerpt
-        import re
-
         plain_text = re.sub(r"!\[.*?\]\(.*?\)", "", plain_text)
         plain_text = re.sub(r"\[([^\]]*)\]\(.*?\)", r"\1", plain_text)
         plain_text = re.sub(r"[#*>`~\-\+_\[\]()]", "", plain_text)
@@ -108,8 +114,6 @@ class Article(models.Model):
         self.excerpt = " ".join(words[:50]) if len(words) > 50 else plain_text
 
         # Auto-publish scheduled articles whose time has come
-        from django.utils import timezone
-
         if self.status == self.Status.SCHEDULED and self.scheduled_at and self.scheduled_at <= timezone.now():
             self.status = self.Status.PUBLISHED
 

@@ -9,12 +9,12 @@ class BaseSitemap(Sitemap):
     protocol = "https"
 
     def get_urls(self, page=1, site=None, protocol=None):
-        # Override to always use the GitHub Pages domain
-        return super().get_urls(page=page, site=site, protocol=self.protocol)
+        # Ensure the correct domain is used regardless of Site configuration
+        from django.contrib.sites.models import Site
 
-    def _urls(self, page, protocol, domain):
-        # Force the correct domain instead of site.domain
-        return super()._urls(page, protocol, FRONTEND_DOMAIN)
+        if site is None:
+            site = Site(domain=FRONTEND_DOMAIN, name="ZhouJun's Blog")
+        return super().get_urls(page=page, site=site, protocol=self.protocol)
 
 
 class BlogSitemap(BaseSitemap):

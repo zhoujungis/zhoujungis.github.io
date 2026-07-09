@@ -1,20 +1,17 @@
 import json, urllib.request, urllib.error
+from _auth import get_token, API_URL
 
-API = 'https://zhoujun123.pythonanywhere.com/api'
-UN, PW = 'zhoujun', 'admin'
+API = API_URL
+token = get_token()
 
 def api(method, path, data=None):
     url = f'{API}{path}'
     req = urllib.request.Request(url, method=method)
     req.add_header('Content-Type', 'application/json')
+    if '/token/' not in path:
+        req.add_header('Authorization', f'Bearer {token}')
     if data is not None:
         req.data = json.dumps(data).encode()
-    if '/token/' not in path:
-        tr = urllib.request.Request(f'{API}/token/',
-            data=json.dumps({'username': UN, 'password': PW}).encode(),
-            headers={'Content-Type': 'application/json'})
-        token = json.loads(urllib.request.urlopen(tr).read())['access']
-        req.add_header('Authorization', f'Bearer {token}')
     try:
         resp = urllib.request.urlopen(req)
         if method == 'DELETE': return True
