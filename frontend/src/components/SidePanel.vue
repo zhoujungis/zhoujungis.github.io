@@ -4,7 +4,7 @@
     <section class="panel-section">
       <div class="mini-about">
         <div class="avatar">
-          <span class="avatar-text">ZJ</span>
+          <img src="/PIC.png" alt="Zhou Jun" class="avatar-image" />
         </div>
         <h3 class="about-name neon-text-cyan">Zhou Jun</h3>
         <p class="about-bio">热爱技术与科学</p>
@@ -205,6 +205,13 @@ onMounted(async () => {
   font-weight: 700;
   color: $neon-cyan;
   text-shadow: 0 0 7px rgba($neon-cyan, 0.6);
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .about-name {

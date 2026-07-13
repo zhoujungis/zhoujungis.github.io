@@ -4,7 +4,7 @@
       <div class="about-main">
         <div class="profile-avatar">
           <div class="avatar-circle">
-            <span class="avatar-initials">ZJ</span>
+            <img src="/PIC.png" alt="Zhou Jun" class="avatar-image" />
           </div>
         </div>
 
@@ -121,12 +121,14 @@ const interests = [
   background: $bg-secondary;
   border: 3px solid $accent-pink;
   box-shadow: 0 0 15px rgba(255, 133, 162, 0.3);
+  overflow: hidden;
 }
 
-.avatar-initials {
-  font-size: 3.5rem;
-  font-weight: 800;
-  color: $accent-pink;
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .profile-name {
