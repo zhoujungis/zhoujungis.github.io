@@ -14,6 +14,7 @@ This blog uses: **Vue 3 frontend** → GitHub Pages | **Django backend** → Pyt
 | Frontend only | 1. `git push` source → 2. `cd frontend && bash deploy.sh` |
 | Backend only | 1. `git push` source → 2. PythonAnywhere `git pull` + Reload |
 | New article | Admin panel or CLI script → no deploy needed |
+| Add photo to photo wall | Drop image in `frontend/public/photos/` + edit `PhotoWall.vue` → deploy frontend |
 | Both frontend + backend | Push source once → deploy frontend → deploy backend |
 
 ## 1. Writing & Publishing Articles
@@ -30,6 +31,37 @@ Articles live in the backend database. Publishing does NOT require frontend/back
 - `tools/post_article.py`, `tools/post_article2.py` — post article content
 - `tools/update_article.py` — update existing articles
 - Scripts talk to `https://zhoujun123.pythonanywhere.com/api/` directly
+
+## 1b. Adding Photos to the Photo Wall
+
+Photo-wall images are hosted **inside the site itself** (GitHub Pages), NOT on the
+PythonAnywhere backend. This is deliberate: PA's `/media/` static serving is not
+configured, so images uploaded to the backend `Photo` model 404. Host photos in the
+frontend instead — it always works and needs no PA step.
+
+**Steps:**
+1. Copy the image into `frontend/public/photos/` with an **ASCII filename**
+   (no spaces or Chinese chars — GitHub Pages/PA both 404 on unicode paths):
+   ```bash
+   cp "/path/to/My Photo 照片.png" frontend/public/photos/my-photo.png
+   ```
+2. Add an entry to the `localPhotos` array in
+   `frontend/src/pages/PhotoWall.vue` (path is site-root-relative):
+   ```js
+   const localPhotos = [
+     { id: 'tibet-2026', image: '/photos/tibet-2026.png' },
+     { id: 'my-photo',  image: '/photos/my-photo.png' },  // optional: title: '标题'
+   ]
+   ```
+   `title` is optional — omit it for no caption (no hover/lightbox text).
+3. Deploy the frontend (see section 2): `git push` source → `cd frontend && bash deploy.sh`.
+4. Verify: `curl -o /dev/null -w "%{http_code}" https://zhoujungis.github.io/photos/my-photo.png`
+   should return `200`. Hard-refresh (Ctrl+Shift+R) to clear the service-worker cache.
+
+> **Backend `Photo` model / `/api/admin/photos/` also exists** (authenticated multipart
+> upload, `tools/upload_photo.py`) and `PhotoWall.vue` merges backend photos with
+> `localPhotos`. But it only renders if PA serves `/media/` — currently it does not, so
+> prefer the local approach above.
 
 ## 2. Frontend Deploy (GitHub Pages)
 
