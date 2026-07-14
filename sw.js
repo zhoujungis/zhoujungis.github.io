@@ -1,5 +1,5 @@
 // Service Worker — caches app shell, network-first for HTML
-const CACHE = 'zhoujun-blog-v3'
+const CACHE = 'zhoujun-blog-v4'
 const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.json']
 
 self.addEventListener('install', (e) => {
@@ -28,7 +28,8 @@ self.addEventListener('fetch', (e) => {
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request).then((res) => {
-        try { caches.open(CACHE).then((c) => c.put(e.request, res.clone())) } catch (_) {}
+        const copy = res.clone()
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {})
         return res
       }).catch(() => caches.match(e.request))
     )
@@ -40,7 +41,8 @@ self.addEventListener('fetch', (e) => {
     caches.match(e.request).then((cached) => {
       if (cached) return cached
       return fetch(e.request).then((res) => {
-        try { caches.open(CACHE).then((c) => c.put(e.request, res.clone())) } catch (_) {}
+        const copy = res.clone()
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {})
         return res
       })
     })
