@@ -8,12 +8,24 @@ stores the file under MEDIA (photos/YYYY/MM/) on the backend.
 """
 import mimetypes
 import os
+import re
 import sys
 import urllib.request
 import urllib.error
 import uuid
 
 from _auth import API_URL, get_token
+
+
+def safe_filename(path):
+    """Return an ASCII-only filename (PA static serving 404s on unicode paths)."""
+    base = os.path.basename(path)
+    stem, ext = os.path.splitext(base)
+    ascii_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-")
+    if not ascii_stem:
+        ascii_stem = f"photo-{uuid.uuid4().hex[:8]}"
+    return f"{ascii_stem}{ext.lower()}"
+
 
 
 def build_multipart(fields, file_field, filename, file_bytes, content_type):
@@ -51,7 +63,7 @@ def main():
     with open(path, "rb") as f:
         file_bytes = f.read()
 
-    filename = os.path.basename(path)
+    filename = safe_filename(path)
     content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
 
     body, ct_header = build_multipart(
