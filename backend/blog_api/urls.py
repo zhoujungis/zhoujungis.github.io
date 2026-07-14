@@ -37,6 +37,7 @@ urlpatterns = [
     path("api/admin/", include("articles.admin_urls")),
     path("api/admin/", include("comments.admin_urls")),
     path("api/admin/", include("friends.admin_urls")),
+    path("api/admin/", include("photos.admin_urls")),
     path("api/", include("comments.urls")),
     path("api/", include("photos.urls")),
     path("api/", include("friends.urls")),

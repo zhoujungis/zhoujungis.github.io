@@ -46,7 +46,7 @@
         @click="openLightbox(photo)"
       >
         <img
-          :src="photo.thumbnail_url || photo.image_url || photo.url"
+          :src="photo.image || photo.thumbnail_url || photo.image_url || photo.url"
           :alt="photo.title || photo.alt || 'Photo'"
           loading="lazy"
           class="photo-img"
@@ -66,7 +66,7 @@
           </svg>
         </button>
         <img
-          :src="lightboxPhoto?.image_url || lightboxPhoto?.url"
+          :src="lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url"
           :alt="lightboxPhoto?.title || 'Photo'"
           class="lightbox-img"
         />
