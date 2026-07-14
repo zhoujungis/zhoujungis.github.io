@@ -104,14 +104,23 @@ function handleKeydown(e) {
   if (e.key === 'Escape') closeLightbox()
 }
 
+// Curated photos committed to the site itself (served from GitHub Pages,
+// under /photos/). Shown alongside any dynamic photos from the backend API,
+// so the wall works even if the backend media host is unavailable.
+const localPhotos = [
+  { id: 'tibet-2026', image: '/photos/tibet-2026.png' },
+]
+
 async function loadPhotos() {
   loading.value = true
   error.value = null
   try {
     const response = await getPhotos()
-    photos.value = response.data.results || response.data || []
+    const apiPhotos = response.data.results || response.data || []
+    photos.value = [...localPhotos, ...apiPhotos]
   } catch (e) {
-    error.value = e?.response?.data?.detail || e.message || '加载照片失败'
+    // Backend is optional — still show the curated local photos.
+    photos.value = [...localPhotos]
   } finally {
     loading.value = false
   }
