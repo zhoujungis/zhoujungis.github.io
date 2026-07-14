@@ -37,12 +37,12 @@
     </div>
 
     <!-- Photo grid -->
-    <div v-else class="photo-grid">
+    <div v-else class="photo-grid" :class="{ 'photo-grid--single': isSingle }">
       <div
         v-for="(photo, idx) in photos"
         :key="photo.id || idx"
         class="photo-item"
-        :class="{ 'photo-tall': idx % 5 === 0 || idx % 7 === 0 }"
+        :class="{ 'photo-tall': !isSingle && (idx % 5 === 0 || idx % 7 === 0) }"
         @click="openLightbox(photo)"
       >
         <img
@@ -79,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getPhotos } from '@/api/articles'
 
 const photos = ref([])
@@ -87,6 +87,9 @@ const loading = ref(false)
 const error = ref(null)
 const lightboxVisible = ref(false)
 const lightboxPhoto = ref(null)
+
+// Single photo → show as a full-width banner instead of a lonely left-aligned tile.
+const isSingle = computed(() => photos.value.length === 1)
 
 function openLightbox(photo) {
   lightboxPhoto.value = photo
@@ -193,6 +196,27 @@ onUnmounted(() => {
 
 .photo-tall {
   grid-row: span 2;
+}
+
+// ---- Single photo: full-width banner, natural aspect, no crop ----
+.photo-grid--single {
+  display: block;
+  grid-auto-rows: initial;
+
+  .photo-item {
+    height: auto;
+    max-width: 960px;
+    margin: 0 auto;
+
+    &:hover {
+      transform: none; // no scale — it's already large
+    }
+  }
+
+  .photo-img {
+    height: auto;
+    object-fit: contain;
+  }
 }
 
 .photo-img {
