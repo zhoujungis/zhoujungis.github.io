@@ -45,10 +45,29 @@
         :class="{ 'photo-tall': !isSingle && (idx % 5 === 0 || idx % 7 === 0) }"
         @click="openLightbox(photo)"
       >
+        <picture v-if="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url)">
+          <source
+            :srcset="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url).avif"
+            type="image/avif"
+          />
+          <source
+            :srcset="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url).webp"
+            type="image/webp"
+          />
+          <img
+            :src="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url).fallback"
+            :alt="photo.title || photo.alt || 'Photo'"
+            loading="lazy"
+            decoding="async"
+            class="photo-img"
+          />
+        </picture>
         <img
+          v-else
           :src="photo.image || photo.thumbnail_url || photo.image_url || photo.url"
           :alt="photo.title || photo.alt || 'Photo'"
           loading="lazy"
+          decoding="async"
           class="photo-img"
         />
         <div v-if="photo.title" class="photo-overlay">
@@ -65,9 +84,27 @@
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
+        <picture v-if="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url)">
+          <source
+            :srcset="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url).avif"
+            type="image/avif"
+          />
+          <source
+            :srcset="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url).webp"
+            type="image/webp"
+          />
+          <img
+            :src="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url).fallback"
+            :alt="lightboxPhoto?.title || 'Photo'"
+            decoding="async"
+            class="lightbox-img"
+          />
+        </picture>
         <img
+          v-else
           :src="lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url"
           :alt="lightboxPhoto?.title || 'Photo'"
+          decoding="async"
           class="lightbox-img"
         />
         <p v-if="lightboxPhoto?.title" class="lightbox-caption">
@@ -81,6 +118,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getPhotos } from '@/api/articles'
+import { getPictureSources } from '@/utils/imageSource'
 
 const photos = ref([])
 const loading = ref(false)
