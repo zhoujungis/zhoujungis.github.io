@@ -4,7 +4,27 @@
       <div class="about-main">
         <div class="profile-avatar">
           <div class="avatar-circle">
-            <img src="/PIC.png" alt="Zhou Jun" class="avatar-image" />
+            <picture v-if="getPictureSources('/PIC.png')">
+              <source
+                :srcset="getPictureSources('/PIC.png').avif"
+                type="image/avif"
+              />
+              <source
+                :srcset="getPictureSources('/PIC.png').webp"
+                type="image/webp"
+              />
+              <img
+                :src="getPictureSources('/PIC.png').fallback"
+                alt="Zhou Jun"
+                class="avatar-image"
+              />
+            </picture>
+            <img
+              v-else
+              src="/PIC.png"
+              alt="Zhou Jun"
+              class="avatar-image"
+            />
           </div>
         </div>
 
@@ -58,6 +78,8 @@
 </template>
 
 <script setup>
+import { getPictureSources } from '@/utils/imageSource'
+
 const skills = [
   'Python', 'JavaScript', 'TypeScript', 'Vue 3',
   'Django', 'Django REST', 'PostgreSQL', 'SQLite',
