@@ -2,7 +2,13 @@
   <router-link :to="'/article/' + article.slug" class="article-card">
     <!-- Cover image -->
     <div v-if="article.cover_image" class="card-cover">
-      <img :src="article.cover_image" :alt="article.title" loading="lazy" />
+      <img
+        :src="article.cover_image"
+        :alt="article.title"
+        loading="lazy"
+        decoding="async"
+        :fetchpriority="article.is_top ? 'high' : 'low'"
+      />
       <div class="cover-gradient" />
     </div>
 
