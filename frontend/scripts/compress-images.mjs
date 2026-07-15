@@ -9,7 +9,8 @@ import path from 'node:path'
 
 const ROOT = path.resolve(process.cwd(), '..') // frontend/ 的上一级 = 项目根
 const PUBLIC_DIR = path.join(ROOT, 'frontend', 'public')
-const DIST_DIR = path.join(ROOT, 'dist')
+// vite build 的输出目录是 frontend/dist/,deploy.sh 再把它拷贝到项目根 dist/
+const DIST_DIR = path.join(ROOT, 'frontend', 'dist')
 const ASSETS_DIR = path.join(ROOT, 'frontend', 'src', 'assets')
 
 const WEBP_QUALITY = 80
