@@ -27,7 +27,14 @@ class LatestArticlesFeed(Feed):
     description = "Zhou Jun 的个人博客 — 技术、编程、AI 与科学"
 
     def items(self):
-        return Article.objects.filter(status=Article.Status.PUBLISHED).order_by("-created_at")[:20]
+        # L8: prefetch category + tags so item_categories() doesn't trigger
+        # N extra queries per feed item (20 articles × 2 = 40 saved queries).
+        return (
+            Article.objects.filter(status=Article.Status.PUBLISHED)
+            .select_related("category")
+            .prefetch_related("tags")
+            .order_by("-created_at")[:20]
+        )
 
     def item_title(self, item):
         return item.title

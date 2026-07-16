@@ -9,10 +9,10 @@
     <div v-if="loading" class="loading-state">
       <div class="skeleton-cloud">
         <span
-          v-for="i in 20"
+          v-for="(w, i) in skeletonWidths"
           :key="i"
           class="skeleton-tag"
-          :style="{ width: (40 + Math.random() * 80) + 'px' }"
+          :style="{ width: w + 'px' }"
         />
       </div>
     </div>
@@ -57,6 +57,11 @@ const articleStore = useArticleStore()
 
 const loading = ref(false)
 const error = ref(null)
+
+// L12: precompute skeleton widths once. Previously Math.random() ran in the
+// template on every reactive update, causing visible jitter as widths
+// regenerated and Vue re-painted them.
+const skeletonWidths = Array.from({ length: 20 }, () => 40 + Math.floor(Math.random() * 80))
 
 const neonColors = ['#00e5ff', '#ff0080', '#7b2fff']
 

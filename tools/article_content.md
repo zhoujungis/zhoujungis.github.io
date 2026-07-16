@@ -48,7 +48,7 @@
 - **SCSS** — CSS 预处理器，主题变量系统
 
 **后端**
-- **Django 6.0** — Python Web 框架
+- **Django 5.x** — Python Web 框架
 - **Django REST Framework** — RESTful API 构建
 - **SimpleJWT** — JSON Web Token 认证
 - **SQLite** — 轻量级数据库

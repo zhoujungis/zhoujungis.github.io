@@ -30,10 +30,25 @@ function parseJwtPayload(token) {
   } catch { return null }
 }
 
+// L14: tolerate malformed JSON in localStorage.user. Without this, dirty
+// legacy storage (manual edits, partial migration from older sessions) can
+// throw during Pinia init and white-screen the whole app.
+function safeParseUser() {
+  const raw = localStorage.getItem(USER_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch (err) {
+    console.warn('auth: invalid user JSON in localStorage, clearing', err)
+    localStorage.removeItem(USER_KEY)
+    return null
+  }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: getStoredToken(),
-    user: JSON.parse(localStorage.getItem(USER_KEY) || 'null'),
+    user: safeParseUser(),
     isAuthenticated: !!getStoredToken(),
   }),
 
@@ -74,9 +89,8 @@ export const useAuthStore = defineStore('auth', {
 
     checkAuth() {
       const token = getStoredToken()
-      const user = localStorage.getItem(USER_KEY)
       this.token = token
-      this.user = user ? JSON.parse(user) : null
+      this.user = safeParseUser()
       this.isAuthenticated = !!token
     },
   },

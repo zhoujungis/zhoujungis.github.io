@@ -1,13 +1,14 @@
 <template>
   <router-link :to="'/article/' + article.slug" class="article-card">
     <!-- Cover image -->
-    <div v-if="article.cover_image" class="card-cover">
+    <div v-if="article.cover_image && !coverBroken" class="card-cover">
       <img
         :src="article.cover_image"
         :alt="article.title"
         :loading="article.is_top ? 'eager' : 'lazy'"
         :decoding="article.is_top ? 'sync' : 'async'"
         :fetchpriority="article.is_top ? 'high' : 'auto'"
+        @error="coverBroken = true"
       />
       <div class="cover-gradient" />
     </div>
@@ -53,7 +54,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { catLabel, tagLabel } from '@/utils/labels'
 
 const props = defineProps({
@@ -66,6 +67,10 @@ const props = defineProps({
     default: '',
   },
 })
+
+// L13: hide the cover if the URL 404s or the host is down. Without this,
+// broken-image icons litter the homepage on every stale cover link.
+const coverBroken = ref(false)
 
 function highlightText(text) {
   if (!text || !props.highlight) return [{ text, match: false }]

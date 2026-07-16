@@ -119,7 +119,12 @@ def subscribe_newsletter(request):
     email = request.data.get("email", "").strip().lower()
     if not email or "@" not in email:
         return Response({"error": "请输入有效的邮箱地址"}, status=status.HTTP_400_BAD_REQUEST)
-    _, created = Subscriber.objects.get_or_create(email=email)
+    sub, created = Subscriber.objects.get_or_create(email=email)
+    # L6: re-subscribing a previously unsubscribed user flips them back to active
+    if not created and not sub.is_active:
+        sub.is_active = True
+        sub.save(update_fields=["is_active"])
+        return Response({"detail": "订阅成功！"}, status=status.HTTP_201_CREATED)
     if created:
         return Response({"detail": "订阅成功！"}, status=status.HTTP_201_CREATED)
     return Response({"detail": "该邮箱已订阅"}, status=status.HTTP_200_OK)

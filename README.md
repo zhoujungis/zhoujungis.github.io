@@ -44,7 +44,7 @@
 | 层 | 技术栈 | 部署位置 |
 |----|--------|----------|
 | 前端 | Vue 3 + Vite + Vue Router + Pinia + Axios + SCSS + ECharts | GitHub Pages |
-| 后端 | Django 6.0 + DRF + SimpleJWT + SQLite | PythonAnywhere |
+| 后端 | Django 5.x + DRF + SimpleJWT + SQLite | PythonAnywhere |
 
 ---
 
