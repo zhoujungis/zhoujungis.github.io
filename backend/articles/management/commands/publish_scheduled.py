@@ -9,6 +9,10 @@ Schedule this command on PythonAnywhere:
     python manage.py publish_scheduled
 
 Run hourly (or every 5 minutes if you want tighter scheduling granularity).
+
+Important: must use .save() per article (not .update()) so that the
+post_save signal fires and notify_subscribers_on_publish can mail the
+new-article notification. .update() bypasses signals.
 """
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -21,14 +25,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-        updated = Article.objects.filter(
+        due = Article.objects.filter(
             status=Article.Status.SCHEDULED,
             scheduled_at__lte=now,
-        ).update(status=Article.Status.PUBLISHED)
+        )
+        published = 0
+        for article in due:
+            article.status = Article.Status.PUBLISHED
+            article.save()  # triggers post_save → notify_subscribers_on_publish
+            published += 1
 
-        if updated:
+        if published:
             self.stdout.write(
-                self.style.SUCCESS(f"Published {updated} scheduled article(s).")
+                self.style.SUCCESS(f"Published {published} scheduled article(s).")
             )
         else:
             self.stdout.write("No scheduled articles due for publication.")

@@ -46,6 +46,7 @@ class ArticleAdminSerializer(serializers.ModelSerializer):
             "content",
             "cover_image",
             "status",
+            "scheduled_at",
             "is_top",
             "category",
             "tags",
