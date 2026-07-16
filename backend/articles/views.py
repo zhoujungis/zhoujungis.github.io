@@ -100,9 +100,17 @@ def like_article(request, slug):
     """
     article = get_object_or_404(Article, slug=slug, status=Article.Status.PUBLISHED)
 
-    # Client fingerprint: forwarded IP (PA sits behind a proxy) + UA.
+    # Client fingerprint: trusted-proxy IP (rightmost XFF) + UA.
+    # Using the leftmost XFF (the older approach) lets clients trivially
+    # bypass the dedup by setting XFF to a random IP per request. The
+    # rightmost XFF entry is added by the trusted reverse proxy (PA's
+    # web frontend) and cannot be spoofed by the client.
     xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    ip = (xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", ""))[:64]
+    if xff:
+        ip = xff.split(",")[-1].strip()
+    else:
+        ip = request.META.get("REMOTE_ADDR", "")
+    ip = (ip or "")[:64]
     ua = (request.META.get("HTTP_USER_AGENT", "") or "")[:255]
 
     since = timezone.now() - timezone.timedelta(hours=24)

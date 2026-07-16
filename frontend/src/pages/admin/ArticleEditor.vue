@@ -292,19 +292,13 @@ onMounted(async () => {
     ],
     upload: {
       url: uploadUrl,
-      // Read token fresh on every upload so a refreshed access token
-      // (after the JWT refresh interceptor runs) is used instead of the
-      // stale one captured at editor-mount time.
-      headers: {
-        Authorization: 'Bearer ' + authStore.token,
-      },
-      // Vditor's built-in upload uses xhr.send(formData) — to make sure
-      // each upload uses the latest token, we override the header before
-      // each send via the format hook below.
+      // H-F3: do NOT set a static Authorization header here. Vditor would
+      // bake it in at editor-mount time and (depending on version) either
+      // send duplicate headers (preflight failure) or use the stale one.
+      // The xhr() override below attaches a fresh token on every upload.
       format: (_files, _responseText) => '',
       fieldName: 'image',
       accept: 'image/*',
-      // Override the request builder to refresh Authorization on each call
       xhr: function () {
         const xhr = new XMLHttpRequest()
         const _origOpen = xhr.open.bind(xhr)

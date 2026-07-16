@@ -1,5 +1,7 @@
 from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from django.shortcuts import get_object_or_404
 
 from articles.models import Article
@@ -7,9 +9,20 @@ from .models import Comment
 from .serializers import CommentSerializer
 
 
+class CommentPageNumberPagination(PageNumberPagination):
+    page_size = 20
+    max_page_size = 100
+    page_size_query_param = "page_size"
+
+
 class ArticleCommentList(generics.ListCreateAPIView):
     serializer_class = CommentSerializer
     permission_classes = [AllowAny]
+    # C-S3: actually apply the 'comment' scope (3/min) defined in settings —
+    # was previously falling back to the default anon throttle (30/min).
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "comment"
+    pagination_class = CommentPageNumberPagination
 
     def get_queryset(self):
         # Only allow reads on published articles — draft/archived/scheduled

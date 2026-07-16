@@ -123,6 +123,10 @@ class Article(models.Model):
         raw_html = md.convert(self.content)
         # Sanitize: strip <script>, event attributes, javascript: URIs etc.
         # Allowlist matches what markdown + codehilite + toc actually produce.
+        # C-S2: protocols drop 'data' globally — it was letting
+        #   <a href="data:text/html,<script>..."> through, which Safari /
+        #   WebViews still execute. Inline base64 images aren't used here
+        #   (covers are URLField elsewhere), so the loss is acceptable.
         self.html_content = bleach.clean(
             raw_html,
             tags=bleach.sanitizer.ALLOWED_TAGS
@@ -135,16 +139,25 @@ class Article(models.Model):
             },
             attributes={
                 **bleach.sanitizer.ALLOWED_ATTRIBUTES,
-                "img": ["src", "alt", "title", "loading", "decoding"],
-                "a": ["href", "title", "rel", "target"],
-                "code": ["class"],
-                "pre": ["class"],
-                "span": ["class"],
-                "div": ["class"],
-                "th": ["align"],
-                "td": ["align"],
+                # Merge with bleach defaults (don't clobber colspan/rowspan)
+                "img": list(set(["src", "alt", "title", "loading", "decoding"])
+                           | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("img", []))),
+                "a": list(set(["href", "title", "rel", "target"])
+                           | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("a", []))),
+                "code": list(set(["class"])
+                             | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("code", []))),
+                "pre": list(set(["class"])
+                            | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("pre", []))),
+                "span": list(set(["class"])
+                             | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("span", []))),
+                "div": list(set(["class"])
+                            | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("div", []))),
+                "th": list(set(["align"])
+                           | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("th", []))),
+                "td": list(set(["align"])
+                           | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("td", []))),
             },
-            protocols=["http", "https", "mailto", "data"],
+            protocols=["http", "https", "mailto"],
             strip=True,
         )
         # Force external links to open safely

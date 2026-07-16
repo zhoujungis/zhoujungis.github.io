@@ -39,8 +39,11 @@ async function tryRefresh() {
       { _skipRefresh: true, timeout: 10000 },
     )
     const access = res.data?.access
+    const newRefresh = res.data?.refresh
     if (!access) return false
     localStorage.setItem('token', access)
+    // H-F1: persist the rotated refresh token (if any)
+    if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
     // Update expiry
     try {
       const payload = JSON.parse(

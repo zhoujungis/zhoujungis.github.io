@@ -123,9 +123,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getPhotos } from '@/api/articles'
 import { getPictureSources } from '@/utils/imageSource'
+import { useScrollLock } from '@/composables/useScrollLock'
+
+const scrollLock = useScrollLock()
 
 const photos = ref([])
 const loading = ref(false)
@@ -146,13 +149,13 @@ const hasMore = computed(() => photos.value.filter((p) => !p.local).length < api
 function openLightbox(photo) {
   lightboxPhoto.value = photo
   lightboxVisible.value = true
-  document.body.style.overflow = 'hidden'
+  scrollLock.acquire()
 }
 
 function closeLightbox() {
   lightboxVisible.value = false
   lightboxPhoto.value = null
-  document.body.style.overflow = ''
+  scrollLock.release()
 }
 
 function handleKeydown(e) {

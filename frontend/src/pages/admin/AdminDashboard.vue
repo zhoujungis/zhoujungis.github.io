@@ -96,9 +96,12 @@ onMounted(async () => {
     // Pending comment count comes from /admin/comments/pending/ — count field
     try {
       const pendingRes = await getPendingComments()
-      // response may be paginated or flat; either way take the array length
-      const list = pendingRes.data.results || pendingRes.data || []
-      pendingCount.value = Array.isArray(list) ? list.length : (pendingRes.data.count ?? '--')
+      // H-F2: prefer the backend's reported total count, not the page-1
+      // length. Previously this read `list.length` which was capped at the
+      // page size and made it look like only 10 comments were pending
+      // even when 50+ were waiting.
+      pendingCount.value =
+        pendingRes.data?.count ?? (pendingRes.data?.results?.length ?? '--')
     } catch {
       pendingCount.value = '--'
     }

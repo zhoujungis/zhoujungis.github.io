@@ -44,7 +44,13 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', _default_secret)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'zhoujungis.github.io,localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get(
+    'ALLOWED_HOSTS',
+    # PA hostname MUST be in the default — without it, every request to
+    # the production backend returns 400 when ALLOWED_HOSTS env var
+    # is unset (typo, missed manual deploy step).
+    'zhoujungis.github.io,zhoujun123.pythonanywhere.com,localhost,127.0.0.1',
+).split(',')
 
 # Fail hard in production if SECRET_KEY is still the default
 if not DEBUG and SECRET_KEY == _default_secret:
@@ -53,6 +59,18 @@ if not DEBUG and SECRET_KEY == _default_secret:
         "Run:  export DJANGO_SECRET_KEY='...a-long-random-string...'\n"
         "Or create a .env file next to manage.py with this value."
     )
+
+# H-S1: security headers — defense in depth against XSS and downgrade.
+# These only apply when the request is HTTPS (Django's SECURE_* family).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 
 # Application definition

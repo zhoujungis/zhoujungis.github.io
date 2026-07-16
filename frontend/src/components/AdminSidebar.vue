@@ -36,7 +36,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useScrollLock } from '@/composables/useScrollLock'
 
 const navLinks = [
   { path: '/admin/dashboard', icon: '📊', label: '仪表盘' },
@@ -48,6 +49,7 @@ const navLinks = [
 
 const isOpen = ref(false)
 const isMobile = ref(false)
+const scrollLock = useScrollLock()
 
 function syncIsMobile() {
   isMobile.value = window.innerWidth < 768
@@ -55,14 +57,21 @@ function syncIsMobile() {
 
 function toggleSidebar() {
   isOpen.value = !isOpen.value
-  document.body.style.overflow = isOpen.value ? 'hidden' : ''
+  if (isOpen.value) scrollLock.acquire()
+  else scrollLock.release()
 }
 
 function closeSidebar() {
   if (!isOpen.value) return
   isOpen.value = false
-  document.body.style.overflow = ''
+  scrollLock.release()
 }
+
+// Auto-release if the drawer is closed for any other reason (route change
+// already calls closeSidebar, but this is a safety net for v-if unmounts).
+watch(isOpen, (v) => {
+  if (!v) scrollLock.release()
+})
 
 onMounted(() => {
   syncIsMobile()
@@ -71,7 +80,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncIsMobile)
-  document.body.style.overflow = ''
+  scrollLock.release()
 })
 </script>
 

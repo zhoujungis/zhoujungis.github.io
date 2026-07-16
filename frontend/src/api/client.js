@@ -64,9 +64,13 @@ async function refreshAccessToken() {
       { timeout: 15000, _skipRefresh: true },
     )
     .then((res) => {
-      const { access } = res.data || {}
+      const { access, refresh: newRefresh } = res.data || {}
       if (!access) throw new Error('No access token in refresh response')
       localStorage.setItem('token', access)
+      // H-F1: simplejwt returns a fresh refresh token when ROTATE_REFRESH_TOKENS
+      // is enabled. Persist it so the next access-token expiry doesn't reuse
+      // the (now-blacklisted) old refresh token.
+      if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
       // Update expiry from new JWT
       try {
         const payload = JSON.parse(
