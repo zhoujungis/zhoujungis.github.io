@@ -13,6 +13,7 @@ This blog uses: **Vue 3 frontend** → GitHub Pages | **Django backend** → Pyt
 |-------------|---------------|
 | Frontend only | 1. `git push` source → 2. `cd frontend && bash deploy.sh` |
 | Backend only | 1. `git push` source → 2. PythonAnywhere `git pull` + Reload |
+| **Backend model change** | **Local `makemigrations` → commit → push → PA `migrate` → Reload** (see §3a) |
 | New article | Admin panel or CLI script → no deploy needed |
 | Add photo to photo wall | Drop image in `frontend/public/photos/` + edit `PhotoWall.vue` → deploy frontend |
 | Both frontend + backend | Push source once → deploy frontend → deploy backend |
@@ -112,6 +113,37 @@ python manage.py collectstatic --noinput
 3. Go to **Web** tab → click green **Reload** button
 
 **If no model/settings/dependency changes** (e.g. only view logic): just `git pull` + **Reload**.
+
+### 3a. Backend Model Changes — Read This Before Adding Any Model ⚠️
+
+Editing `models.py` to add a model or field is a **two-commit process**. Forgetting step 1 has caused 500 errors on production (e.g. `ArticleLike` model added without migration → every like request hit "no such table").
+
+**Full workflow for any `models.py` change:**
+
+1. **Local** — generate the migration file:
+   ```bash
+   cd backend
+   export DJANGO_SECRET_KEY='django-insecure-temp'   # bypass prod-only check
+   python manage.py makemigrations <app>
+   ```
+2. **Commit BOTH** `models.py` AND the new `migrations/000X_*.py` file:
+   ```bash
+   git add backend/<app>/models.py backend/<app>/migrations/
+   git commit -m "feat(<app>): <description>"
+   git push origin master
+   ```
+3. **PythonAnywhere** — apply the migration:
+   ```bash
+   cd ~/zhoujungis.github.io/backend
+   git pull origin master
+   source venv/bin/activate
+   python manage.py migrate            # ← applies the new 000X
+   # Web tab → Reload
+   ```
+
+**Sanity check after Reload:** hit any endpoint that touches the new model and confirm a 2xx, not 500. If 500 with "no such table" → the migration file wasn't committed or wasn't pulled.
+
+**If you only changed a field on an existing model**, `makemigrations` still produces a migration — the same workflow applies. Django will not auto-detect your edit.
 
 ## 4. Project Structure
 
