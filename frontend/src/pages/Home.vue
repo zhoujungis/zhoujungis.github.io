@@ -111,11 +111,11 @@ const router = useRouter()
 const articleStore = useArticleStore()
 
 // M13: page is part of the URL — read initial value from query, sync on change
-function parsePageFromQuery() {
-  const p = Number(route.query.page)
+function parsePageFromQuery(query) {
+  const p = Number(query?.page)
   return Number.isFinite(p) && p >= 1 ? Math.floor(p) : 1
 }
-const currentPage = ref(parsePageFromQuery())
+const currentPage = ref(parsePageFromQuery(route.query))
 const error = ref(null)
 const activeFilter = computed(() => route.query.category || route.query.tag || null)
 const filterType = computed(() => route.query.category ? 'category' : route.query.tag ? 'tag' : null)
@@ -161,12 +161,14 @@ async function loadArticles(queryOverride) {
   const seq = ++loadSeq
   error.value = null
   try {
-    const params = { page: currentPage.value }
+    // Pin to the value at call time so concurrent calls don't see a
+    // mid-flight currentPage.value mutation.
+    const page = currentPage.value
+    const params = { page }
     const q = queryOverride || route.query
     if (q.category) params.category__slug = q.category
     else if (q.tag) params.tags__slug = q.tag
-    const promise = articleStore.fetchArticles(params)
-    await promise
+    await articleStore.fetchArticles(params)
     if (seq !== loadSeq) return // superseded by a newer request
   } catch (e) {
     if (seq !== loadSeq) return
@@ -177,11 +179,13 @@ async function loadArticles(queryOverride) {
 function goToPage(page) {
   if (typeof page !== 'number' || page < 1 || page > totalPages.value) return
   currentPage.value = page
-  // Mirror to URL so refresh / back / forward preserves page
+  // Mirror to URL so refresh / back / forward preserves page.
+  // router.replace triggers onBeforeRouteUpdate below, which re-runs
+  // loadArticles with the new query — so we DON'T also call loadArticles
+  // here (that double-call was what made the first click land on page 1).
   router.replace({
     query: { ...route.query, page: page > 1 ? page : undefined },
   })
-  loadArticles()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -192,11 +196,13 @@ function clearFilter() {
 }
 
 onBeforeRouteUpdate((to, from) => {
-  // Category / tag / page change — reset page if filter changed
+  // Category / tag / page change — reset page if filter changed.
+  // Read page from to.query directly, NOT from outer route.query — the
+  // outer reactive `route` hasn't updated yet at this point.
   const filterChanged =
     to.query.category !== from.query.category || to.query.tag !== from.query.tag
   if (filterChanged) currentPage.value = 1
-  else currentPage.value = parsePageFromQuery.call({ route: { query: to.query } })
+  else currentPage.value = parsePageFromQuery(to.query)
   loadArticles(to.query)
 })
 
