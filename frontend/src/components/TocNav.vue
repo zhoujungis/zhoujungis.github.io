@@ -74,6 +74,21 @@ function parseHeadings() {
   }
 }
 
+// M21: when the parsed HTML didn't have explicit IDs, mirror the synthetic
+// IDs onto the actual headings in the live DOM so scrollIntoView + observer
+// can find them.
+function assignIdsToRenderedHeadings() {
+  if (!headings.value.length) return
+  // Walk the article container for h2/h3/h4 in order and pair them up.
+  const container = document.querySelector('.markdown-body')
+  if (!container) return
+  const live = container.querySelectorAll('h2, h3, h4')
+  live.forEach((el, idx) => {
+    const item = headings.value[idx]
+    if (item && !el.id) el.id = item.id
+  })
+}
+
 function setupObserver() {
   // Clean up previous observer
   if (observer) {
@@ -132,13 +147,19 @@ watch(
   () => props.html,
   () => {
     parseHeadings()
-    nextTick(() => setupObserver())
+    nextTick(() => {
+      assignIdsToRenderedHeadings()
+      setupObserver()
+    })
   }
 )
 
 onMounted(() => {
   parseHeadings()
-  nextTick(() => setupObserver())
+  nextTick(() => {
+    assignIdsToRenderedHeadings()
+    setupObserver()
+  })
 })
 
 onBeforeUnmount(() => {

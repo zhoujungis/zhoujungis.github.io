@@ -5,9 +5,9 @@
       <img
         :src="article.cover_image"
         :alt="article.title"
-        loading="lazy"
-        decoding="async"
-        :fetchpriority="article.is_top ? 'high' : 'low'"
+        :loading="article.is_top ? 'eager' : 'lazy'"
+        :decoding="article.is_top ? 'sync' : 'async'"
+        :fetchpriority="article.is_top ? 'high' : 'auto'"
       />
       <div class="cover-gradient" />
     </div>
@@ -16,7 +16,12 @@
     <div v-if="article.is_top" class="top-badge">置顶</div>
 
     <div class="card-body">
-      <h2 v-if="highlight" class="card-title" v-html="displayTitle"></h2>
+      <h2 v-if="highlight" class="card-title">
+        <template v-for="(seg, i) in titleSegments" :key="i">
+          <mark v-if="seg.match" class="search-highlight">{{ seg.text }}</mark>
+          <template v-else>{{ seg.text }}</template>
+        </template>
+      </h2>
       <h2 v-else class="card-title">{{ article.title }}</h2>
 
       <div class="card-meta">
@@ -63,15 +68,28 @@ const props = defineProps({
 })
 
 function highlightText(text) {
-  if (!text || !props.highlight) return text
+  if (!text || !props.highlight) return [{ text, match: false }]
   const escaped = props.highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const re = new RegExp(`(${escaped})`, 'gi')
-  return text.replace(re, '<mark class="search-highlight">$1</mark>')
+  const segments = []
+  let lastIndex = 0
+  for (const m of text.matchAll(re)) {
+    if (m.index > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, m.index), match: false })
+    }
+    segments.push({ text: m[0], match: true })
+    lastIndex = m.index + m[0].length
+  }
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), match: false })
+  }
+  return segments
 }
 
-const displayTitle = computed(() => {
-  return highlightText(props.article.title)
-})
+// M1: split into match/non-match segments so the title can be rendered via
+// Vue text nodes + <mark> wrappers — never concatenated into v-html, which
+// was XSS-vulnerable when article.title contained <script>/onerror payloads.
+const titleSegments = computed(() => highlightText(props.article.title))
 
 const formattedDate = computed(() => {
   if (!props.article.created_at) return ''

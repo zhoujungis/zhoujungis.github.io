@@ -1,14 +1,8 @@
 import urllib.request, json
+from _auth import API_URL, get_token
 
-API = 'https://zhoujun123.pythonanywhere.com/api'
-
-# Step 1: Login
-req = urllib.request.Request(
-    f'{API}/token/',
-    data=json.dumps({'username': 'zhoujun', 'password': 'admin'}).encode(),
-    headers={'Content-Type': 'application/json'}
-)
-token = json.loads(urllib.request.urlopen(req).read())['access']
+API = API_URL
+token = get_token()
 print(f'Token OK: {token[:20]}...')
 
 # Step 2: Create article

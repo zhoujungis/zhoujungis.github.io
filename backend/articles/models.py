@@ -1,4 +1,5 @@
 import re
+import uuid
 
 import bleach
 import markdown
@@ -92,7 +93,23 @@ class Article(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.title)
+            # Auto-generate slug with collision retry: 中文标题 slugify 后经常冲突
+            base = slugify(self.title) or "post"
+            slug = base
+            i = 2
+            qs = Article.objects.filter(slug=slug)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            while qs.exists():
+                slug = f"{base}-{i}"
+                i += 1
+                qs = Article.objects.filter(slug=slug)
+                if self.pk:
+                    qs = qs.exclude(pk=self.pk)
+                if i > 999:  # sanity bound
+                    slug = f"{base}-{uuid.uuid4().hex[:6]}"
+                    break
+            self.slug = slug
         # Render markdown to HTML
         md = markdown.Markdown(
             extensions=[
@@ -166,3 +183,33 @@ class Subscriber(models.Model):
 
     def __str__(self):
         return self.email
+
+
+class ArticleLike(models.Model):
+    """H12: server-side like dedup.
+
+    Cross-origin cookie storage is unreliable (different SameSite rules,
+    browser quirks). Trust a 24h sliding-window IP+UA dedup table instead.
+    Old rows are pruned by a periodic cleanup; unique_together doesn't apply
+    because a single client is allowed to like again after 24h.
+    """
+    article = models.ForeignKey(
+        Article, on_delete=models.CASCADE, related_name="like_records",
+        verbose_name="文章",
+    )
+    ip = models.CharField(max_length=64, verbose_name="客户端 IP")
+    ua = models.CharField(max_length=255, verbose_name="User-Agent")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="点赞时间")
+
+    class Meta:
+        verbose_name = "点赞记录"
+        verbose_name_plural = "点赞记录"
+        indexes = [
+            models.Index(
+                fields=["article", "ip", "ua", "created_at"],
+                name="articlelike_dedup_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.article_id} ← {self.ip}"

@@ -150,6 +150,12 @@ function statusLabel(status) {
   margin-left: 220px;
   padding: 2rem;
   max-width: calc(100vw - 220px);
+
+  @media (max-width: 767px) {
+    margin-left: 0;
+    max-width: 100vw;
+    padding: 60px 16px 24px;
+  }
 }
 
 .dashboard-header {

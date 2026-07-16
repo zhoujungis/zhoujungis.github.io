@@ -1,5 +1,7 @@
-from django.db.models import F
+from django.db import transaction
+from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.pagination import PageNumberPagination
@@ -8,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Article, Category, Tag, Subscriber
+from .models import Article, ArticleLike, Category, Tag, Subscriber
 from .serializers import (
     ArticleListSerializer,
     ArticleDetailSerializer,
@@ -57,15 +59,31 @@ class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Category.objects.all()
     serializer_class = CategorySerializer
     pagination_class = None
 
+    def get_queryset(self):
+        # Annotate published article count in a single query instead of N+1
+        return Category.objects.annotate(
+            article_count=Count(
+                "article",
+                filter=Q(article__status=Article.Status.PUBLISHED),
+            )
+        )
+
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Tag.objects.all()
     serializer_class = TagSerializer
     pagination_class = None
+
+    def get_queryset(self):
+        # Annotate published article count in a single query instead of N+1
+        return Tag.objects.annotate(
+            article_count=Count(
+                "article",
+                filter=Q(article__status=Article.Status.PUBLISHED),
+            )
+        )
 
 
 # ── Article Likes ──────────────────────────────────────────────

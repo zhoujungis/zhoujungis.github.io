@@ -34,6 +34,12 @@
         </div>
       </div>
 
+      <!-- Error state -->
+      <div v-else-if="fetchError" class="glass-card error-card">
+        <p class="error-text">加载失败：{{ fetchError }}</p>
+        <button class="btn-retry" @click="fetchArticles">重试</button>
+      </div>
+
       <!-- Empty state -->
       <div v-else-if="articles.length === 0" class="glass-card empty-card">
         <p class="empty-text">暂无文章</p>
@@ -115,16 +121,18 @@
           &laquo; 上一页
         </button>
 
-        <button
-          v-for="page in visiblePages"
-          :key="page"
-          type="button"
-          class="page-btn"
-          :class="{ active: page === pagination.page }"
-          @click="goToPage(page)"
-        >
-          {{ page }}
-        </button>
+        <template v-for="(page, idx) in visiblePages" :key="`${page}-${idx}`">
+          <span v-if="page === '...'" class="page-ellipsis">…</span>
+          <button
+            v-else
+            type="button"
+            class="page-btn"
+            :class="{ active: page === pagination.page }"
+            @click="goToPage(page)"
+          >
+            {{ page }}
+          </button>
+        </template>
 
         <button
           type="button"
@@ -179,6 +187,7 @@ const router = useRouter()
 // ---- State ----
 const articles = ref([])
 const loading = ref(false)
+const fetchError = ref(null)
 const pagination = ref({
   count: 0,
   page: 1,
@@ -266,7 +275,7 @@ function switchFilter(filter) {
 }
 
 function goToPage(page) {
-  if (page < 1 || page > totalPages.value) return
+  if (typeof page !== 'number' || page < 1 || page > totalPages.value) return
   pagination.value.page = page
 }
 
@@ -291,7 +300,13 @@ async function handleDelete() {
     await deleteArticle(deleteTarget.value.id)
     articles.value = articles.value.filter((a) => a.id !== deleteTarget.value.id)
     pagination.value.count = Math.max(0, pagination.value.count - 1)
+
+    // M11: if we deleted the last item on the last page, step back and refetch
+    if (articles.value.length === 0 && pagination.value.page > 1) {
+      pagination.value.page -= 1
+    }
     closeDeleteModal()
+    await fetchArticles()
   } catch (err) {
     console.error('Failed to delete article:', err)
     alert('删除失败: ' + (err.response?.data?.detail || err.message))
@@ -299,8 +314,12 @@ async function handleDelete() {
   }
 }
 
+let fetchSeq = 0
+
 async function fetchArticles() {
+  const seq = ++fetchSeq
   loading.value = true
+  fetchError.value = null
   try {
     const params = {
       page: pagination.value.page,
@@ -310,13 +329,16 @@ async function fetchArticles() {
       params.status = currentFilter.value
     }
     const res = await client.get('/admin/articles/', { params })
+    if (seq !== fetchSeq) return
     articles.value = res.data.results || []
     pagination.value.count = res.data.count || 0
   } catch (err) {
+    if (seq !== fetchSeq) return
     console.error('Failed to fetch articles:', err)
     articles.value = []
+    fetchError.value = err?.response?.data?.detail || err?.message || '网络错误'
   } finally {
-    loading.value = false
+    if (seq === fetchSeq) loading.value = false
   }
 }
 
@@ -349,6 +371,12 @@ onMounted(() => {
   margin-left: 220px;
   padding: 2rem;
   max-width: calc(100vw - 220px);
+
+  @media (max-width: 767px) {
+    margin-left: 0;
+    max-width: 100vw;
+    padding: 60px 16px 24px;
+  }
 }
 
 // ---- Header ----

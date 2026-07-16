@@ -257,6 +257,11 @@ onMounted(() => {
   flex: 1;
   padding: 32px;
   overflow-y: auto;
+
+  @media (max-width: 767px) {
+    margin-left: 0;
+    padding: 60px 16px 24px; // leave room for hamburger toggle
+  }
 }
 
 .page-title {

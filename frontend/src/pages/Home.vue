@@ -100,16 +100,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, onBeforeRouteUpdate } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import ArticleCard from '@/components/ArticleCard.vue'
 import SidePanel from '@/components/SidePanel.vue'
 
 const route = useRoute()
+const router = useRouter()
 const articleStore = useArticleStore()
 
-const currentPage = ref(1)
+// M13: page is part of the URL — read initial value from query, sync on change
+function parsePageFromQuery() {
+  const p = Number(route.query.page)
+  return Number.isFinite(p) && p >= 1 ? Math.floor(p) : 1
+}
+const currentPage = ref(parsePageFromQuery())
 const error = ref(null)
 const activeFilter = computed(() => route.query.category || route.query.tag || null)
 const filterType = computed(() => route.query.category ? 'category' : route.query.tag ? 'tag' : null)
@@ -148,35 +154,60 @@ const visiblePages = computed(() => {
   return pages
 })
 
+// H3: monotonic guard — only commit if this request is still the latest
+let loadSeq = 0
+
 async function loadArticles(queryOverride) {
+  const seq = ++loadSeq
   error.value = null
   try {
     const params = { page: currentPage.value }
     const q = queryOverride || route.query
     if (q.category) params.category__slug = q.category
     else if (q.tag) params.tags__slug = q.tag
-    await articleStore.fetchArticles(params)
+    const promise = articleStore.fetchArticles(params)
+    await promise
+    if (seq !== loadSeq) return // superseded by a newer request
   } catch (e) {
+    if (seq !== loadSeq) return
     error.value = e?.response?.data?.detail || e.message || '加载文章失败'
   }
 }
 
 function goToPage(page) {
-  if (page < 1 || page > totalPages.value) return
+  if (typeof page !== 'number' || page < 1 || page > totalPages.value) return
   currentPage.value = page
+  // Mirror to URL so refresh / back / forward preserves page
+  router.replace({
+    query: { ...route.query, page: page > 1 ? page : undefined },
+  })
   loadArticles()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function clearFilter() {
-  currentPage.value = 1
-  articleStore.fetchArticles({ page: 1 })
+  // Only navigate; the onBeforeRouteUpdate hook will reset page + fetch
+  const { category: _c, tag: _t, page: _p, ...rest } = route.query
+  router.replace({ query: rest })
 }
 
-onBeforeRouteUpdate((to) => {
-  currentPage.value = 1
+onBeforeRouteUpdate((to, from) => {
+  // Category / tag / page change — reset page if filter changed
+  const filterChanged =
+    to.query.category !== from.query.category || to.query.tag !== from.query.tag
+  if (filterChanged) currentPage.value = 1
+  else currentPage.value = parsePageFromQuery.call({ route: { query: to.query } })
   loadArticles(to.query)
 })
+
+// External query change (e.g. user clicked a tag from sidebar)
+watch(
+  () => [route.query.category, route.query.tag],
+  () => {
+    currentPage.value = 1
+    loadArticles()
+  },
+)
 
 onMounted(() => {
   loadArticles()

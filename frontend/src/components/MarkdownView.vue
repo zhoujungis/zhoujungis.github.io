@@ -77,8 +77,13 @@ function attachCopyButtons() {
 }
 
 // ── Content enhancements: Mermaid, video embeds, KaTeX ──
-function processEnhancements() {
+async function processEnhancements() {
   if (!bodyRef.value) return
+
+  // M19: mermaid/katex are loaded with `defer` from index.html. If this fires
+  // before the CDN script finishes, globals are undefined and we'd silently
+  // skip rendering. Wait briefly (poll once) before bailing.
+  await waitForGlobals(['mermaid', 'katex'], 1500)
 
   // Mermaid diagrams: <code class="language-mermaid"> → render with mermaid
   const mermaidBlocks = bodyRef.value.querySelectorAll('code.language-mermaid')
@@ -122,30 +127,51 @@ function processEnhancements() {
     }
   })
 
-  // KaTeX: render $$...$$ blocks
-  const text = bodyRef.value.innerHTML
-  if (text.includes('$$') && window.katex) {
-    // Replace display math $$...$$
-    bodyRef.value.innerHTML = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
-      try {
-        return window.katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false })
-      } catch { return _ }
-    })
-    // Replace inline math $...$
-    bodyRef.value.innerHTML = bodyRef.value.innerHTML.replace(/\$(.+?)\$/g, (_, formula) => {
-      try {
-        return window.katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false })
-      } catch { return _ }
-    })
+  // KaTeX: render $$...$$ blocks. M20: replaced with text-node walking so the
+  // copy-button wrappers attached afterward aren't wiped by innerHTML rewrite.
+  if (window.katex) {
+    const walker = document.createTreeWalker(bodyRef.value, NodeFilter.SHOW_TEXT)
+    const toProcess = []
+    let node
+    while ((node = walker.nextNode())) {
+      if (node.nodeValue && node.nodeValue.includes('$')) toProcess.push(node)
+    }
+    for (const textNode of toProcess) {
+      const html = window.katex.renderToString(textNode.nodeValue, {
+        displayMode: false,
+        throwOnError: false,
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+        ],
+      })
+      const wrapper = document.createElement('span')
+      wrapper.innerHTML = html
+      textNode.parentNode.replaceChild(wrapper, textNode)
+    }
   }
 }
 
+// M19 helper: poll once for the given window globals to exist
+function waitForGlobals(names, timeoutMs) {
+  if (names.every((n) => window[n])) return Promise.resolve()
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const tick = () => {
+      if (names.every((n) => window[n])) return resolve()
+      if (Date.now() - start > timeoutMs) return resolve()
+      setTimeout(tick, 80)
+    }
+    tick()
+  })
+}
+
 onMounted(() => {
-  nextTick(() => { attachCopyButtons(); processEnhancements() })
+  nextTick(() => { processEnhancements(); attachCopyButtons() })
 })
 
 watch(() => props.html, () => {
-  nextTick(() => { attachCopyButtons(); processEnhancements() })
+  nextTick(() => { processEnhancements(); attachCopyButtons() })
 })
 </script>
 

@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import ParticleBg from './components/ParticleBg.vue'
@@ -7,23 +9,28 @@ import BackToTop from './components/BackToTop.vue'
 import LoadingScreen from './components/LoadingScreen.vue'
 import ReadingProgress from './components/ReadingProgress.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
+
+const route = useRoute()
+// M24: 60fps canvas + Live2D model load add no value on admin pages —
+// they're CPU heavy and make login/dashboard sluggish, especially on phones.
+const isAdmin = computed(() => route.path.startsWith('/admin'))
 </script>
 
 <template>
   <LoadingScreen />
   <ReadingProgress />
-  <ParticleBg />
-  <AppHeader />
-  <main class="main-content">
+  <ParticleBg v-if="!isAdmin" />
+  <AppHeader v-if="!isAdmin" />
+  <main class="main-content" :class="{ 'main-content--admin': isAdmin }">
     <router-view v-slot="{ Component }">
       <transition name="page" mode="out-in">
         <component :is="Component" />
       </transition>
     </router-view>
   </main>
-  <AppFooter />
-  <Live2DWidget />
-  <BackToTop />
+  <AppFooter v-if="!isAdmin" />
+  <Live2DWidget v-if="!isAdmin" />
+  <BackToTop v-if="!isAdmin" />
   <ThemeToggle />
 </template>
 
@@ -31,6 +38,11 @@ import ThemeToggle from './components/ThemeToggle.vue'
 .main-content {
   padding-top: 56px;
   min-height: calc(100vh - 120px);
+}
+
+.main-content--admin {
+  padding-top: 0;
+  min-height: 100vh;
 }
 
 .page-enter-active,

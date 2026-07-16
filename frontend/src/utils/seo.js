@@ -51,3 +51,25 @@ export function useSEO(options = {}) {
   setMeta('twitter:image', image)
   setLink('canonical', url)
 }
+
+/**
+ * Reset SEO meta tags to site defaults.
+ * Call on unmount or when leaving a page that called useSEO().
+ * Prevents the previous page's title/og from leaking onto the next page.
+ */
+export const DEFAULT_SEO = {
+  title: "ZhouJun's Blog",
+  description: 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学',
+  image: '',
+  url: '',
+}
+
+export function resetSEO() {
+  useSEO({ ...DEFAULT_SEO, url: window.location.origin + '/' })
+  // og:type back to website (article → website)
+  let ogType = document.querySelector('meta[property="og:type"]')
+  if (ogType) ogType.setAttribute('content', 'website')
+  // Drop canonical — let pages set their own
+  const canonical = document.querySelector('link[rel="canonical"]')
+  if (canonical) canonical.setAttribute('href', window.location.origin + '/')
+}

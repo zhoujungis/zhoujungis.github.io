@@ -91,15 +91,30 @@ const groupedArchives = computed(() => {
   const articles = articleStore.articles || []
   if (!articles.length) return []
 
-  // Sort by created_at descending
-  const sorted = [...articles].sort((a, b) => {
-    return new Date(b.created_at) - new Date(a.created_at)
-  })
-
+  // M15: missing/invalid timestamps get a fallback bucket so the page doesn't
+  // render NaN year/month labels. Unknown-date items sort to the end.
+  const unknownBucket = { year: '未知日期', count: 0, months: [{ month: '—', articles: [] }] }
   const yearsMap = new Map()
 
+  const sorted = [...articles].sort((a, b) => {
+    const ta = a?.created_at ? new Date(a.created_at).getTime() : NaN
+    const tb = b?.created_at ? new Date(b.created_at).getTime() : NaN
+    // Valid dates first (desc), unknowns last
+    const va = Number.isFinite(ta)
+    const vb = Number.isFinite(tb)
+    if (va && vb) return tb - ta
+    if (va) return -1
+    if (vb) return 1
+    return 0
+  })
+
   for (const article of sorted) {
-    const date = new Date(article.created_at)
+    const date = article?.created_at ? new Date(article.created_at) : null
+    if (!date || isNaN(date.getTime())) {
+      unknownBucket.months[0].articles.push(article)
+      unknownBucket.count++
+      continue
+    }
     const year = date.getFullYear()
     const month = date.getMonth() + 1
 
@@ -132,12 +147,14 @@ const groupedArchives = computed(() => {
     result.push({ year, count, months })
   }
 
+  if (unknownBucket.count > 0) result.push(unknownBucket)
   return result
 })
 
 function formatDate(dateStr) {
-  if (!dateStr) return ''
+  if (!dateStr) return '未知日期'
   const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '未知日期'
   return d.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: '2-digit',

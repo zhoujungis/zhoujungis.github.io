@@ -3,12 +3,14 @@ import uuid
 
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.validators import UniqueValidator
 
 from .models import Article, Category, Tag
 from .serializers import CategorySerializer, CategoryNestedField, TagSerializer, TagNestedField
@@ -17,7 +19,17 @@ from .serializers import CategorySerializer, CategoryNestedField, TagSerializer,
 class ArticleAdminSerializer(serializers.ModelSerializer):
     category = CategoryNestedField(read_only=True)
     tags = TagNestedField(many=True, read_only=True)
-    slug = serializers.SlugField(required=False, allow_blank=True)
+    slug = serializers.SlugField(
+        required=False,
+        allow_blank=True,
+        max_length=200,
+        validators=[
+            UniqueValidator(
+                queryset=Article.objects.all(),
+                message="该 slug 已存在，请换一个",
+            )
+        ],
+    )
     category_id = serializers.IntegerField(
         required=False, allow_null=True, write_only=True
     )
@@ -59,31 +71,33 @@ class ArticleAdminSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        tags_ids = validated_data.pop("tags_ids", [])
-        category_id = validated_data.pop("category_id", None)
-        if category_id is not None:
-            validated_data["category"] = Category.objects.get(id=category_id)
-        article = Article.objects.create(**validated_data)
-        if tags_ids:
-            article.tags.set(Tag.objects.filter(id__in=tags_ids))
+        with transaction.atomic():
+            tags_ids = validated_data.pop("tags_ids", [])
+            category_id = validated_data.pop("category_id", None)
+            if category_id is not None:
+                validated_data["category"] = Category.objects.get(id=category_id)
+            article = Article.objects.create(**validated_data)
+            if tags_ids:
+                article.tags.set(Tag.objects.filter(id__in=tags_ids))
         return article
 
     def update(self, instance, validated_data):
-        tags_ids = validated_data.pop("tags_ids", None)
+        with transaction.atomic():
+            tags_ids = validated_data.pop("tags_ids", None)
 
-        if "category_id" in validated_data:
-            category_id = validated_data.pop("category_id")
-            if category_id is not None:
-                validated_data["category"] = Category.objects.get(id=category_id)
-            else:
-                validated_data["category"] = None
+            if "category_id" in validated_data:
+                category_id = validated_data.pop("category_id")
+                if category_id is not None:
+                    validated_data["category"] = Category.objects.get(id=category_id)
+                else:
+                    validated_data["category"] = None
 
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
 
-        if tags_ids is not None:
-            instance.tags.set(Tag.objects.filter(id__in=tags_ids))
+            if tags_ids is not None:
+                instance.tags.set(Tag.objects.filter(id__in=tags_ids))
         return instance
 
 

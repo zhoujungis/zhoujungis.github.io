@@ -1,7 +1,7 @@
 <template>
-  <aside class="admin-sidebar">
+  <aside class="admin-sidebar" :class="{ 'is-open': isOpen }">
     <div class="sidebar-header">
-      <router-link to="/admin/dashboard" class="sidebar-logo neon-text-purple">
+      <router-link to="/admin/dashboard" class="sidebar-logo neon-text-purple" @click="closeSidebar">
         管理后台
       </router-link>
     </div>
@@ -12,15 +12,32 @@
         :key="link.path"
         :to="link.path"
         class="nav-link"
+        @click="closeSidebar"
       >
         <span class="nav-icon">{{ link.icon }}</span>
         <span class="nav-label">{{ link.label }}</span>
       </router-link>
     </nav>
   </aside>
+
+  <!-- Mobile-only backdrop + hamburger. Hidden on desktop via CSS. -->
+  <button
+    v-if="isMobile"
+    class="admin-sidebar-toggle"
+    :class="{ 'is-open': isOpen }"
+    :aria-label="isOpen ? '关闭菜单' : '打开菜单'"
+    @click="toggleSidebar"
+  >
+    <span class="toggle-bar" />
+    <span class="toggle-bar" />
+    <span class="toggle-bar" />
+  </button>
+  <div v-if="isMobile && isOpen" class="admin-sidebar-backdrop" @click="closeSidebar" />
 </template>
 
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+
 const navLinks = [
   { path: '/admin/dashboard', icon: '📊', label: '仪表盘' },
   { path: '/admin/articles', icon: '📝', label: '文章管理' },
@@ -28,6 +45,34 @@ const navLinks = [
   { path: '/admin/comments', icon: '💬', label: '评论审核' },
   { path: '/', icon: '🏠', label: '返回站点' },
 ]
+
+const isOpen = ref(false)
+const isMobile = ref(false)
+
+function syncIsMobile() {
+  isMobile.value = window.innerWidth < 768
+}
+
+function toggleSidebar() {
+  isOpen.value = !isOpen.value
+  document.body.style.overflow = isOpen.value ? 'hidden' : ''
+}
+
+function closeSidebar() {
+  if (!isOpen.value) return
+  isOpen.value = false
+  document.body.style.overflow = ''
+}
+
+onMounted(() => {
+  syncIsMobile()
+  window.addEventListener('resize', syncIsMobile)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncIsMobile)
+  document.body.style.overflow = ''
+})
 </script>
 
 <style lang="scss" scoped>
@@ -47,6 +92,68 @@ const navLinks = [
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  transition: transform 0.25s ease;
+
+  @media (max-width: 767px) {
+    transform: translateX(-100%);
+    z-index: 1000;
+    width: 260px;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+
+    &.is-open {
+      transform: translateX(0);
+    }
+  }
+}
+
+.admin-sidebar-toggle {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1001;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid $glass-border;
+  border-radius: 8px;
+  cursor: pointer;
+
+  @media (max-width: 767px) {
+    display: flex;
+  }
+}
+
+.toggle-bar {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+
+  .admin-sidebar-toggle.is-open & {
+    &:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    &:nth-child(2) { opacity: 0; }
+    &:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  }
+}
+
+.admin-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  display: none;
+
+  @media (max-width: 767px) {
+    display: block;
+  }
 }
 
 .sidebar-header {

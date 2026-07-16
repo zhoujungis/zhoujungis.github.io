@@ -9,7 +9,10 @@ import {
 export const useArticleStore = defineStore('article', {
   state: () => ({
     articles: [],
+    // M26: per-slug cache so failures don't poison subsequent loads
+    articlesBySlug: {},
     currentArticle: null,
+    currentArticleSlug: null,
     categories: [],
     tags: [],
     loading: false,
@@ -35,14 +38,23 @@ export const useArticleStore = defineStore('article', {
       }
     },
 
+    getArticleBySlug(slug) {
+      return this.articlesBySlug[slug] || null
+    },
+
     async fetchArticleBySlug(slug) {
       this.loading = true
       try {
         const response = await getArticleBySlug(slug)
-        this.currentArticle = response.data
-        if (!this.currentArticle) {
+        const article = response.data
+        if (article) {
+          this.articlesBySlug = { ...this.articlesBySlug, [slug]: article }
+          this.currentArticle = article
+          this.currentArticleSlug = slug
+        } else {
           console.error('fetchArticleBySlug: response.data is empty', response)
         }
+        return article
       } catch (e) {
         console.error('fetchArticleBySlug error:', slug, e?.message, e?.response?.status, e?.response?.data)
         throw e
@@ -55,8 +67,9 @@ export const useArticleStore = defineStore('article', {
       try {
         const response = await getCategories()
         this.categories = response.data.results || response.data
-      } catch {
-        // silently handle
+      } catch (err) {
+        console.error('fetchCategories failed:', err?.message || err)
+        throw err
       }
     },
 
@@ -64,8 +77,9 @@ export const useArticleStore = defineStore('article', {
       try {
         const response = await getTags()
         this.tags = response.data.results || response.data
-      } catch {
-        // silently handle
+      } catch (err) {
+        console.error('fetchTags failed:', err?.message || err)
+        throw err
       }
     },
   },

@@ -45,17 +45,17 @@
         :class="{ 'photo-tall': !isSingle && (idx % 5 === 0 || idx % 7 === 0) }"
         @click="openLightbox(photo)"
       >
-        <picture v-if="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url)">
+        <picture v-if="resolveImageUrl(photo)">
           <source
-            :srcset="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url).avif"
+            :srcset="resolveImageUrl(photo).avif"
             type="image/avif"
           />
           <source
-            :srcset="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url).webp"
+            :srcset="resolveImageUrl(photo).webp"
             type="image/webp"
           />
           <img
-            :src="getPictureSources(photo.image || photo.thumbnail_url || photo.image_url || photo.url).fallback"
+            :src="resolveImageUrl(photo).fallback"
             :alt="photo.title || photo.alt || 'Photo'"
             loading="lazy"
             decoding="async"
@@ -64,7 +64,7 @@
         </picture>
         <img
           v-else
-          :src="photo.image || photo.thumbnail_url || photo.image_url || photo.url"
+          :src="resolveImageUrl(photo, true)"
           :alt="photo.title || photo.alt || 'Photo'"
           loading="lazy"
           decoding="async"
@@ -84,25 +84,25 @@
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
-        <picture v-if="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url)">
+        <picture v-if="resolveImageUrl(lightboxPhoto)">
           <source
-            :srcset="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url).avif"
+            :srcset="resolveImageUrl(lightboxPhoto).avif"
             type="image/avif"
           />
           <source
-            :srcset="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url).webp"
+            :srcset="resolveImageUrl(lightboxPhoto).webp"
             type="image/webp"
           />
           <img
-            :src="getPictureSources(lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url).fallback"
+            :src="resolveImageUrl(lightboxPhoto).fallback"
             :alt="lightboxPhoto?.title || 'Photo'"
             decoding="async"
             class="lightbox-img"
           />
         </picture>
         <img
-          v-else
-          :src="lightboxPhoto?.image || lightboxPhoto?.image_url || lightboxPhoto?.url"
+          v-else-if="resolveImageUrl(lightboxPhoto, true)"
+          :src="resolveImageUrl(lightboxPhoto, true)"
           :alt="lightboxPhoto?.title || 'Photo'"
           decoding="async"
           class="lightbox-img"
@@ -112,6 +112,13 @@
         </p>
       </div>
     </transition>
+
+    <!-- Load-more for API photos (M22) -->
+    <div v-if="hasMore" class="load-more-wrap">
+      <button class="load-more-btn" :disabled="loadingMore" @click="loadMore">
+        {{ loadingMore ? '加载中...' : '加载更多' }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -122,12 +129,19 @@ import { getPictureSources } from '@/utils/imageSource'
 
 const photos = ref([])
 const loading = ref(false)
+const loadingMore = ref(false)
 const error = ref(null)
 const lightboxVisible = ref(false)
 const lightboxPhoto = ref(null)
 
 // Single photo → show as a full-width banner instead of a lonely left-aligned tile.
 const isSingle = computed(() => photos.value.length === 1)
+
+// M22: pagination state for API photos (default 10 per page)
+const apiPage = ref(1)
+const apiTotal = ref(0)
+const apiPageSize = 10
+const hasMore = computed(() => photos.value.filter((p) => !p.local).length < apiTotal.value)
 
 function openLightbox(photo) {
   lightboxPhoto.value = photo
@@ -145,26 +159,55 @@ function handleKeydown(e) {
   if (e.key === 'Escape') closeLightbox()
 }
 
+// M12: single source of truth for image URL resolution — handles all known
+// field names so grid and lightbox never disagree on what to display.
+function pickUrl(photo) {
+  if (!photo) return null
+  return photo.image || photo.image_url || photo.thumbnail_url || photo.url || null
+}
+
+function resolveImageUrl(photo, rawOnly = false) {
+  const url = pickUrl(photo)
+  if (!url) return rawOnly ? '' : null
+  if (rawOnly) return url
+  return getPictureSources(url)
+}
+
 // Curated photos committed to the site itself (served from GitHub Pages,
 // under /photos/). Shown alongside any dynamic photos from the backend API,
 // so the wall works even if the backend media host is unavailable.
 const localPhotos = [
-  { id: 'tibet-2026', image: '/photos/tibet-2026.png' },
+  { id: 'tibet-2026', image: '/photos/tibet-2026.png', local: true },
 ]
 
-async function loadPhotos() {
-  loading.value = true
-  error.value = null
+async function fetchApiPhotos(page, append = false) {
+  if (append) loadingMore.value = true
+  else loading.value = true
   try {
-    const response = await getPhotos()
-    const apiPhotos = response.data.results || response.data || []
-    photos.value = [...localPhotos, ...apiPhotos]
+    const response = await getPhotos({ page, page_size: apiPageSize })
+    const list = (response.data.results || response.data || []).map((p) => ({
+      ...p,
+      local: false,
+    }))
+    if (append) photos.value = [...photos.value, ...list]
+    else photos.value = [...localPhotos, ...list]
+    apiTotal.value = response.data.count ?? list.length
+    apiPage.value = page
   } catch (e) {
     // Backend is optional — still show the curated local photos.
-    photos.value = [...localPhotos]
+    if (!append) photos.value = [...localPhotos]
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
+}
+
+function loadPhotos() {
+  fetchApiPhotos(1, false)
+}
+
+function loadMore() {
+  fetchApiPhotos(apiPage.value + 1, true)
 }
 
 onMounted(() => {

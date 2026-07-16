@@ -11,7 +11,11 @@ export function getPictureSources(originalUrl) {
   if (!originalUrl) return null
   // 跳过 data URL、远程 URL(无法预生成 .avif/.webp)
   if (originalUrl.startsWith('data:')) return null
+  if (originalUrl.startsWith('blob:')) return null
+  // M16: protocol-relative URLs (//cdn.example.com/foo.png) point at remote
+  // assets where there's no pre-generated .avif/.webp — also skip.
   if (/^https?:\/\//.test(originalUrl)) return null
+  if (originalUrl.startsWith('//')) return null
 
   const dotIdx = originalUrl.lastIndexOf('.')
   if (dotIdx < 0) return null

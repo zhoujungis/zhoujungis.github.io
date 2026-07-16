@@ -69,9 +69,9 @@
         />
 
         <!-- Replies -->
-        <div v-if="getReplies(comment.id).length" class="replies">
+        <div v-if="comment.replies && comment.replies.length" class="replies">
           <div
-            v-for="reply in getReplies(comment.id)"
+            v-for="reply in comment.replies"
             :key="reply.id"
             class="comment-item reply-item"
           >
@@ -117,9 +117,8 @@ const topLevelComments = computed(() =>
   comments.value.filter((c) => !c.parent)
 )
 
-function getReplies(parentId) {
-  return comments.value.filter((c) => String(c.parent) === String(parentId))
-}
+// Replies live in comment.replies (nested by backend serializer), not in the
+// flat top-level array. The template renders them inline per-comment above.
 
 function toggleReply(commentId) {
   replyToId.value = replyToId.value === commentId ? null : commentId

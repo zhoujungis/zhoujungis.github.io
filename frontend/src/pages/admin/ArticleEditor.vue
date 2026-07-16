@@ -127,20 +127,23 @@
               <button
                 type="button"
                 class="btn btn-save"
+                :disabled="saving"
                 @click="saveArticle('draft')"
               >
-                保存草稿
+                {{ saving ? '保存中...' : '保存草稿' }}
               </button>
               <button
                 type="button"
                 class="btn btn-publish"
+                :disabled="saving"
                 @click="saveArticle('published')"
               >
-                发布
+                {{ saving ? '发布中...' : '发布' }}
               </button>
               <button
                 type="button"
                 class="btn btn-cancel"
+                :disabled="saving"
                 @click="handleCancel"
               >
                 取消
@@ -181,6 +184,7 @@ const coverImage = ref('')
 const status = ref('draft')
 const isTop = ref(false)
 const coverError = ref(false)
+const saving = ref(false) // M14: prevent double-submit on save
 
 let vditorInstance = null
 let vditorReady = null
@@ -201,6 +205,7 @@ function handleTitleInput() {
 }
 
 async function saveArticle(publishStatus) {
+  if (saving.value) return // M14: ignore repeat clicks
   if (!title.value.trim()) {
     alert('请输入文章标题')
     return
@@ -217,6 +222,7 @@ async function saveArticle(publishStatus) {
     content: vditorInstance ? vditorInstance.getValue() : '',
   }
 
+  saving.value = true
   try {
     if (isEdit.value) {
       await updateArticle(articleId.value, formData)
@@ -229,6 +235,8 @@ async function saveArticle(publishStatus) {
     const detail =
       err.response?.data?.detail || err.message || '保存失败，请重试'
     alert('保存失败: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)))
+  } finally {
+    saving.value = false
   }
 }
 
@@ -359,6 +367,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   max-width: calc(100vw - 220px);
+
+  @media (max-width: 767px) {
+    margin-left: 0;
+    max-width: 100vw;
+  }
 }
 
 .editor-header {

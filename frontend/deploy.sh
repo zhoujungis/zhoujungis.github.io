@@ -16,8 +16,13 @@ cd "$(dirname "$0")"
 echo "==> Building frontend..."
 npm run build
 
-echo "==> Copying build output to repo root..."
-cp -r dist/* ../
+echo "==> Cleaning stale build artifacts in repo root..."
+# M9: rsync --delete ensures removed chunks/files actually go away from the
+# repo root, otherwise old hashed assets accumulate forever.
+rsync -a --delete --exclude='.git' --exclude='.gitignore' --exclude='README.md' \
+      --exclude='backend' --exclude='frontend' --exclude='tools' --exclude='docs' \
+      --exclude='.claude' --exclude='_articles.json' --exclude='_*.json' \
+      dist/ ../
 
 # Copy live2d files if they exist
 if [ -d "../public-live2d" ]; then

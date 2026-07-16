@@ -26,7 +26,7 @@
         <line x1="12" y1="8" x2="12" y2="12"/>
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
-      <h2>{{ status === 404 ? '文章不存在' : '加载失败' }}</h2>
+      <h2>{{ httpStatus === 404 ? '文章不存在' : '加载失败' }}</h2>
       <p>{{ error }}</p>
       <router-link to="/" class="back-link">返回首页</router-link>
     </div>
@@ -138,7 +138,12 @@
           <!-- Share + Like -->
           <div class="article-actions">
             <ShareButtons :title="article.title" :url="currentUrl" />
-            <button class="like-btn" :class="{ liked }" @click="handleLike">
+            <button
+              class="like-btn"
+              :class="{ liked }"
+              :disabled="liking"
+              @click="handleLike"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               <span>{{ article.likes_count || 0 }}</span>
             </button>
@@ -189,7 +194,7 @@ import TocNav from '@/components/TocNav.vue'
 import ShareButtons from '@/components/ShareButtons.vue'
 import RelatedArticles from '@/components/RelatedArticles.vue'
 import NewsletterForm from '@/components/NewsletterForm.vue'
-import { useSEO } from '@/utils/seo'
+import { useSEO, resetSEO } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
 import client from '@/api/client'
@@ -201,7 +206,12 @@ const articleStore = useArticleStore()
 const article = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const httpStatus = ref(null) // 404 vs generic error
 const commentKey = ref(0)
+
+// Monotonic request id — only commit if it's still the latest when the
+// response arrives. Prevents A→B fast-switch from binding A to B's URL.
+let fetchSeq = 0
 
 const formattedDate = computed(() => {
   if (!article.value?.created_at) return ''
@@ -224,7 +234,10 @@ const tagList = computed(() => {
 })
 
 const liked = ref(false)
-const currentUrl = computed(() => window.location.href)
+const liking = ref(false) // M2: like button double-click guard
+
+// M2: currentUrl derived from reactive route, not stale window.location
+const currentUrl = computed(() => window.location.origin + route.fullPath)
 
 const readingTime = computed(() => {
   if (!article.value) return 1
@@ -249,56 +262,77 @@ const jsonLd = computed(() => {
 })
 
 async function handleLike() {
-  if (liked.value) return
+  if (liked.value || liking.value) return
+  liking.value = true
   try {
     const res = await client.post(`/articles/${article.value.slug}/like/`)
     if (article.value) article.value.likes_count = res.data.likes_count
     liked.value = true
   } catch { /* silently ignore */ }
+  finally {
+    liking.value = false
+  }
 }
 
 async function fetchArticle() {
   const slug = route.params.slug
+  const seq = ++fetchSeq
+
   if (!slug) {
     error.value = '缺少文章标识'
+    httpStatus.value = null
     loading.value = false
     return
   }
 
   loading.value = true
   error.value = null
+  httpStatus.value = null
   article.value = null
+  // M2: reset per-slug state so a quick A→B doesn't carry A's liked state
+  liked.value = false
 
   try {
-    // Try to use the store first if already loaded
-    if (articleStore.currentArticle && articleStore.currentArticle.slug === slug) {
-      article.value = articleStore.currentArticle
+    // Try the store's slug-keyed cache first
+    const cached = articleStore.getArticleBySlug(slug)
+    if (cached) {
+      if (seq !== fetchSeq) return // newer request already started
+      article.value = cached
       loading.value = false
-    } else {
-      await articleStore.fetchArticleBySlug(slug)
-      article.value = articleStore.currentArticle
+      applySeo()
+      return
     }
+
+    const fetched = await articleStore.fetchArticleBySlug(slug)
+    if (seq !== fetchSeq) return // a newer fetch superseded this one
+    article.value = fetched
 
     if (!article.value) {
       error.value = '文章不存在'
     } else {
-      useSEO({
-        title: article.value.title,
-        description: article.value.excerpt || '',
-        image: article.value.cover_image || '',
-        url: window.location.href,
-      })
+      applySeo()
     }
   } catch (e) {
-    const status = e?.response?.status
-    if (status === 404) {
+    if (seq !== fetchSeq) return
+    httpStatus.value = e?.response?.status ?? null
+    if (httpStatus.value === 404) {
       error.value = '文章不存在'
     } else {
       error.value = e?.response?.data?.detail || e.message || '加载文章失败'
     }
   } finally {
-    loading.value = false
+    if (seq === fetchSeq) loading.value = false
   }
+}
+
+function applySeo() {
+  if (!article.value) return
+  useSEO({
+    title: article.value.title,
+    description: article.value.excerpt || '',
+    image: article.value.cover_image || '',
+    url: window.location.origin + route.fullPath,
+  })
 }
 
 onMounted(fetchArticle)
@@ -310,8 +344,10 @@ watch(() => route.params.slug, () => {
   fetchArticle()
 })
 
+// M17: reset SEO on unmount so the article's title/og doesn't leak onto
+// Home / Archives / Search after the user navigates away
 onUnmounted(() => {
-  articleStore.currentArticle = null
+  resetSEO()
 })
 </script>
 
