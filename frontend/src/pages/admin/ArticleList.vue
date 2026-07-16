@@ -233,15 +233,21 @@ const visiblePages = computed(() => {
 
 // ---- Methods ----
 function getStatusClass(article) {
-  if (article.status === 'archived') return 'archived'
-  if (article.is_published || article.status === 'published') return 'published'
-  return 'draft'
+  return {
+    published: 'published',
+    archived: 'archived',
+    scheduled: 'scheduled',
+    draft: 'draft',
+  }[article.status] || 'draft'
 }
 
 function getStatusLabel(article) {
-  if (article.status === 'archived') return '已归档'
-  if (article.is_published || article.status === 'published') return '已发布'
-  return '草稿'
+  return {
+    published: '已发布',
+    archived: '已归档',
+    scheduled: '定时',
+    draft: '草稿',
+  }[article.status] || '草稿'
 }
 
 function formatDate(dateStr) {

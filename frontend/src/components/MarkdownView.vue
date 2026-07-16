@@ -1,9 +1,10 @@
 <template>
-  <div ref="bodyRef" class="markdown-body" v-html="html" />
+  <div ref="bodyRef" class="markdown-body" v-html="sanitizedHtml" />
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import DOMPurify from 'dompurify'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -11,6 +12,17 @@ const props = defineProps({
 })
 
 const bodyRef = ref(null)
+
+// Defense-in-depth: backend already sanitizes html_content via bleach, but
+// any existing article in the DB was stored before that. Sanitize again on
+// render to neutralize any leftover <script>/onclick= before v-html executes.
+const sanitizedHtml = computed(() =>
+  DOMPurify.sanitize(props.html, {
+    ADD_ATTR: ['target', 'rel'],
+    FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick'],
+  })
+)
 
 function attachCopyButtons() {
   if (!bodyRef.value) return

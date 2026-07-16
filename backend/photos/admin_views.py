@@ -1,5 +1,5 @@
 from rest_framework import serializers, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser
 
 from .models import Photo
 
@@ -21,4 +21,4 @@ class PhotoAdminViewSet(viewsets.ModelViewSet):
 
     queryset = Photo.objects.all()
     serializer_class = PhotoAdminSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]

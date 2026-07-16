@@ -1,5 +1,6 @@
 import re
 
+import bleach
 import markdown
 from django.db import models
 from django.utils import timezone
@@ -102,7 +103,39 @@ class Article(models.Model):
                 "toc",
             ]
         )
-        self.html_content = md.convert(self.content)
+        raw_html = md.convert(self.content)
+        # Sanitize: strip <script>, event attributes, javascript: URIs etc.
+        # Allowlist matches what markdown + codehilite + toc actually produce.
+        self.html_content = bleach.clean(
+            raw_html,
+            tags=bleach.sanitizer.ALLOWED_TAGS
+            | {
+                "h1", "h2", "h3", "h4", "h5", "h6",
+                "img", "pre", "code", "span", "div",
+                "table", "thead", "tbody", "tr", "th", "td",
+                "hr", "br", "sup", "sub",
+                "figure", "figcaption",
+            },
+            attributes={
+                **bleach.sanitizer.ALLOWED_ATTRIBUTES,
+                "img": ["src", "alt", "title", "loading", "decoding"],
+                "a": ["href", "title", "rel", "target"],
+                "code": ["class"],
+                "pre": ["class"],
+                "span": ["class"],
+                "div": ["class"],
+                "th": ["align"],
+                "td": ["align"],
+            },
+            protocols=["http", "https", "mailto", "data"],
+            strip=True,
+        )
+        # Force external links to open safely
+        self.html_content = re.sub(
+            r'<a ([^>]*?)href="(https?://[^"]+)"',
+            r'<a \1href="\2" rel="noopener noreferrer" target="_blank"',
+            self.html_content,
+        )
         # Auto-generate excerpt: first 50 words, strip Markdown syntax
         plain_text = self.content
         # Remove markdown image and link syntax for cleaner excerpt

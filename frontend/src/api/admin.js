@@ -28,6 +28,10 @@ export function getPendingComments() {
   return client.get('/admin/comments/pending/')
 }
 
+export function getApprovedComments() {
+  return client.get('/admin/comments/approved/')
+}
+
 export function approveComment(id) {
   return client.put(`/admin/comments/${id}/approve/`)
 }

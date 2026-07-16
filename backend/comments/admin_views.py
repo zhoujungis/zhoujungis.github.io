@@ -37,6 +37,22 @@ class CommentAdminViewSet(
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=["get"], url_path="approved")
+    def approved(self, request):
+        """List all approved comments (top-level only)."""
+        queryset = (
+            self.filter_queryset(self.get_queryset())
+            .filter(is_approved=True, parent__isnull=True)
+            .select_related("article")
+            .order_by("-created_at")
+        )
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=["put"])
     def approve(self, request, pk=None):
         """Approve a single comment by setting is_approved=True."""

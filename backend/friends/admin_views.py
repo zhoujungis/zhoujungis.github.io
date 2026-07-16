@@ -1,5 +1,5 @@
 from rest_framework import serializers, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser
 
 from .models import FriendLink
 
@@ -13,4 +13,4 @@ class FriendLinkAdminSerializer(serializers.ModelSerializer):
 class FriendLinkAdminViewSet(viewsets.ModelViewSet):
     queryset = FriendLink.objects.all()
     serializer_class = FriendLinkAdminSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]

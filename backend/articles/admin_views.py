@@ -3,9 +3,10 @@ import uuid
 
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
@@ -89,19 +90,21 @@ class ArticleAdminSerializer(serializers.ModelSerializer):
 class ArticleAdminViewSet(viewsets.ModelViewSet):
     queryset = Article.objects.all()
     serializer_class = ArticleAdminSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["status", "is_top"]
 
 
 class CategoryAdminViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
 
 class TagAdminViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
 
 # Map allowed MIME → extension. SVG intentionally excluded (XSS risk).
@@ -136,7 +139,7 @@ def _sniff_image_mime(data: bytes) -> str | None:
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminUser])
 @throttle_classes([_UploadThrottle])
 def upload_image(request):
     """Upload an image and return its URL.

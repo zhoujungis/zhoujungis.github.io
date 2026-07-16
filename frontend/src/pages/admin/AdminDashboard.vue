@@ -10,7 +10,7 @@
       <!-- Stats row -->
       <section class="stats-row">
         <div class="stat-card glass-card">
-          <div class="stat-value neon-text-cyan">{{ stats.article_count ?? '--' }}</div>
+          <div class="stat-value neon-text-cyan">{{ stats.total_articles ?? '--' }}</div>
           <div class="stat-label">文章总数</div>
         </div>
         <div class="stat-card glass-card">
@@ -18,11 +18,11 @@
           <div class="stat-label">总浏览量</div>
         </div>
         <div class="stat-card glass-card">
-          <div class="stat-value neon-text-purple">{{ stats.comment_count ?? '--' }}</div>
+          <div class="stat-value neon-text-purple">{{ stats.total_comments ?? '--' }}</div>
           <div class="stat-label">评论总数</div>
         </div>
         <div class="stat-card glass-card">
-          <div class="stat-value neon-warning">{{ stats.pending_comments ?? '--' }}</div>
+          <div class="stat-value neon-warning">{{ pendingCount }}</div>
           <div class="stat-label">待审核</div>
         </div>
       </section>
@@ -60,9 +60,9 @@
               <td class="col-status">
                 <span
                   class="status-badge"
-                  :class="article.is_published ? 'published' : 'draft'"
+                  :class="statusBadgeClass(article.status)"
                 >
-                  {{ article.is_published ? '已发布' : '草稿' }}
+                  {{ statusLabel(article.status) }}
                 </span>
               </td>
               <td class="col-date">{{ formatDate(article.created_at) }}</td>
@@ -76,21 +76,32 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AdminSidebar from '@/components/AdminSidebar.vue'
-import { getStats } from '@/api/admin'
+import { getStats, getPendingComments } from '@/api/admin'
 import client from '@/api/client'
 
 const stats = ref({})
 const recentArticles = ref([])
+const pendingCount = ref('--')
 
 onMounted(async () => {
   try {
     const statsRes = await getStats()
     stats.value = statsRes.data
 
-    const articlesRes = await client.get('/admin/articles/?limit=5')
-    recentArticles.value = articlesRes.data.results || articlesRes.data
+    const articlesRes = await client.get('/admin/articles/', { params: { page_size: 5 } })
+    recentArticles.value = articlesRes.data.results || []
+
+    // Pending comment count comes from /admin/comments/pending/ — count field
+    try {
+      const pendingRes = await getPendingComments()
+      // response may be paginated or flat; either way take the array length
+      const list = pendingRes.data.results || pendingRes.data || []
+      pendingCount.value = Array.isArray(list) ? list.length : (pendingRes.data.count ?? '--')
+    } catch {
+      pendingCount.value = '--'
+    }
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
   }
@@ -104,6 +115,24 @@ function formatDate(dateStr) {
     month: '2-digit',
     day: '2-digit',
   })
+}
+
+function statusBadgeClass(status) {
+  return {
+    published: 'published',
+    draft: 'draft',
+    archived: 'archived',
+    scheduled: 'scheduled',
+  }[status] || 'draft'
+}
+
+function statusLabel(status) {
+  return {
+    published: '已发布',
+    draft: '草稿',
+    archived: '已归档',
+    scheduled: '定时',
+  }[status] || '草稿'
 }
 </script>
 

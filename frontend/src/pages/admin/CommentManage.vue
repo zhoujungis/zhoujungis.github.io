@@ -54,7 +54,7 @@
               </div>
               <div class="comment-card-body">
                 <div class="comment-meta">
-                  <span class="author">{{ comment.author }}</span>
+                  <span class="author">{{ comment.author_name }}</span>
                   <span class="date">{{ formatDate(comment.created_at) }}</span>
                 </div>
                 <p class="comment-content">{{ comment.content }}</p>
@@ -101,7 +101,7 @@
               </div>
               <div class="comment-card-body">
                 <div class="comment-meta">
-                  <span class="author">{{ comment.author }}</span>
+                  <span class="author">{{ comment.author_name }}</span>
                   <span class="date">{{ formatDate(comment.created_at) }}</span>
                 </div>
                 <p class="comment-content">{{ comment.content }}</p>
@@ -130,9 +130,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import AdminSidebar from '@/components/AdminSidebar.vue'
-import { getPendingComments, approveComment, deleteComment } from '@/api/admin'
+import {
+  getPendingComments,
+  getApprovedComments,
+  approveComment,
+  deleteComment,
+} from '@/api/admin'
 
 const activeTab = ref('pending')
 const pendingComments = ref([])
@@ -166,15 +171,30 @@ async function loadPendingComments() {
   }
 }
 
+async function loadApprovedComments() {
+  loading.value = true
+  try {
+    const response = await getApprovedComments()
+    approvedComments.value = response.data.results || response.data || []
+  } catch (err) {
+    console.error('Failed to load approved comments:', err)
+    approvedComments.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 async function handleApprove(id) {
   if (approvingIds.value.has(id)) return
   approvingIds.value.add(id)
   try {
-    await approveComment(id)
+    const res = await approveComment(id)
+    // Use the server's updated comment so article_slug/title stay consistent
+    const updated = res.data
     const idx = pendingComments.value.findIndex((c) => c.id === id)
     if (idx !== -1) {
-      const [comment] = pendingComments.value.splice(idx, 1)
-      approvedComments.value.push(comment)
+      pendingComments.value.splice(idx, 1)
+      approvedComments.value.unshift(updated || { id })
     }
   } catch (err) {
     console.error('Failed to approve comment:', err)
@@ -198,6 +218,7 @@ async function handleDelete() {
   try {
     await deleteComment(id)
     pendingComments.value = pendingComments.value.filter((c) => c.id !== id)
+    approvedComments.value = approvedComments.value.filter((c) => c.id !== id)
     deleteTargetId.value = null
   } catch (err) {
     console.error('Failed to delete comment:', err)
@@ -205,6 +226,16 @@ async function handleDelete() {
     deletingIds.value.delete(id)
   }
 }
+
+// Lazy-load the approved tab only on first switch to it (avoid hitting
+// /admin/comments/approved/ on every page mount when user might never click it)
+let approvedLoaded = false
+watch(activeTab, async (tab) => {
+  if (tab === 'approved' && !approvedLoaded) {
+    approvedLoaded = true
+    await loadApprovedComments()
+  }
+})
 
 onMounted(() => {
   loadPendingComments()

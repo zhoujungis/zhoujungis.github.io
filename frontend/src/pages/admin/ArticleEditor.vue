@@ -312,10 +312,12 @@ onMounted(async () => {
       const article = res.data
       title.value = article.title || ''
       slug.value = article.slug || ''
-      category.value = article.category || null
-      tags.value = article.tags || []
+      // Backend returns nested objects {id,name,slug} for category/tags, but the
+      // <select>/checkbox :value bindings expect raw integers — coerce here.
+      category.value = article.category?.id ?? null
+      tags.value = (article.tags || []).map((t) => t.id)
       coverImage.value = article.cover_image || ''
-      status.value = article.status || (article.is_published ? 'published' : 'draft')
+      status.value = article.status || 'draft'
       isTop.value = article.is_top || false
 
       // Wait for Vditor to be ready, then set content
