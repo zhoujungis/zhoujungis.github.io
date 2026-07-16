@@ -101,7 +101,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import ArticleCard from '@/components/ArticleCard.vue'
 import SidePanel from '@/components/SidePanel.vue'
@@ -178,11 +178,11 @@ async function loadArticles(queryOverride) {
 
 function goToPage(page) {
   if (typeof page !== 'number' || page < 1 || page > totalPages.value) return
+  // Update URL — the route.query watcher below is the single source of
+  // truth for fetching, so we don't call loadArticles here. Setting
+  // currentPage.value is purely cosmetic (button highlight + initial state
+  // before the watcher fires).
   currentPage.value = page
-  // Mirror to URL so refresh / back / forward preserves page.
-  // router.replace triggers onBeforeRouteUpdate below, which re-runs
-  // loadArticles with the new query — so we DON'T also call loadArticles
-  // here (that double-call was what made the first click land on page 1).
   router.replace({
     query: { ...route.query, page: page > 1 ? page : undefined },
   })
@@ -190,28 +190,28 @@ function goToPage(page) {
 }
 
 function clearFilter() {
-  // Only navigate; the onBeforeRouteUpdate hook will reset page + fetch
   const { category: _c, tag: _t, page: _p, ...rest } = route.query
   router.replace({ query: rest })
 }
 
-onBeforeRouteUpdate((to, from) => {
-  // Category / tag / page change — reset page if filter changed.
-  // Read page from to.query directly, NOT from outer route.query — the
-  // outer reactive `route` hasn't updated yet at this point.
-  const filterChanged =
-    to.query.category !== from.query.category || to.query.tag !== from.query.tag
-  if (filterChanged) currentPage.value = 1
-  else currentPage.value = parsePageFromQuery(to.query)
-  loadArticles(to.query)
-})
-
-// External query change (e.g. user clicked a tag from sidebar)
+// Single watcher = single source of truth for fetching on any URL change.
+// Covers: page clicks, filter clicks, browser back/forward, refresh, deep
+// links. The previous onBeforeRouteUpdate + two watch() combo had subtle
+// ordering bugs (first click landed on page 1, second click worked).
 watch(
-  () => [route.query.category, route.query.tag],
-  () => {
-    currentPage.value = 1
-    loadArticles()
+  () => ({ ...route.query }),
+  (newQuery, oldQuery) => {
+    const newPage = parsePageFromQuery(newQuery)
+    const filterChanged =
+      newQuery.category !== oldQuery?.category || newQuery.tag !== oldQuery?.tag
+
+    // Sync local state from URL — handles back/forward, deep links, refresh
+    currentPage.value = filterChanged ? 1 : newPage
+
+    // Always refetch when the URL changes; the loadSeq guard inside
+    // loadArticles protects against double-fires if multiple sources
+    // (e.g. click + watcher) trigger the same URL change.
+    loadArticles(newQuery)
   },
 )
 
