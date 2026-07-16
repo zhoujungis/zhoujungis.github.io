@@ -1,0 +1,1 @@
+import{C as e}from"./_plugin-vue_export-helper-BK47PYcU.js";var t=0,n=null;function r(e){typeof document>`u`||e&&t===1&&(n=document.body.style.overflow,document.body.style.overflow=`hidden`)}function i(){function i(){t+=1,r(!0)}function a(){t!==0&&(--t,t===0&&n!==null&&(document.body.style.overflow=n,n=null))}return e(a),{acquire:i,release:a,get count(){return t}}}export{i as t};
