@@ -30,13 +30,23 @@ const copied = ref(false)
 function shareWeibo() {
   const u = encodeURIComponent(props.url || window.location.href)
   const t = encodeURIComponent(props.title)
-  window.open(`https://service.weibo.com/share/share.php?url=${u}&title=${t}`, '_blank', 'width=600,height=400')
+  // noopener,noreferrer prevents the opened window from accessing
+  // window.opener (tabnabbing) and from leaking our URL as Referer.
+  window.open(
+    `https://service.weibo.com/share/share.php?url=${u}&title=${t}`,
+    '_blank',
+    'noopener,noreferrer,width=600,height=400',
+  )
 }
 
 function shareTwitter() {
   const u = encodeURIComponent(props.url || window.location.href)
   const t = encodeURIComponent(props.title)
-  window.open(`https://twitter.com/intent/tweet?url=${u}&text=${t}`, '_blank', 'width=600,height=400')
+  window.open(
+    `https://twitter.com/intent/tweet?url=${u}&text=${t}`,
+    '_blank',
+    'noopener,noreferrer,width=600,height=400',
+  )
 }
 
 function shareWechat() {

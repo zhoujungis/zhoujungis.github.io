@@ -53,7 +53,7 @@
 ### 环境要求
 
 - Node.js >= 18
-- Python >= 3.10
+- Python >= 3.12 (Django 5.x / 6.0.x requirement)
 
 ### 前端
 

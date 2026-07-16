@@ -61,7 +61,7 @@ async function refreshAccessToken() {
     .post(
       `${client.defaults.baseURL}token/refresh/`,
       { refresh },
-      { timeout: 15000 },
+      { timeout: 15000, _skipRefresh: true },
     )
     .then((res) => {
       const { access } = res.data || {}
@@ -112,6 +112,10 @@ client.interceptors.response.use(
     // Never try to refresh the refresh endpoint itself or the login endpoint
     const url = original.url || ''
     if (url.includes('/token/')) {
+      return Promise.reject(error)
+    }
+    // Caller opted out of refresh (used by router guard's manual refresh attempt)
+    if (original._skipRefresh) {
       return Promise.reject(error)
     }
 

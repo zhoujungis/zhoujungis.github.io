@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import client from '../api/client'
 
 const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
@@ -25,19 +26,62 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth) {
-    const authStore = useAuthStore()
-    // Re-check auth state (includes JWT expiry check)
-    authStore.checkAuth()
-    if (!authStore.isAuthenticated) {
-      next({ name: 'AdminLogin' })
-    } else {
-      next()
-    }
-  } else {
-    next()
+// Try to refresh an expired access token using the stored refresh token
+// (mirrors the response interceptor logic in api/client.js).
+async function tryRefresh() {
+  const refresh = localStorage.getItem('refresh_token')
+  if (!refresh) return false
+  try {
+    const res = await client.post(
+      '/token/refresh/',
+      { refresh },
+      // Bypass the 401 interceptor for the refresh call itself
+      { _skipRefresh: true, timeout: 10000 },
+    )
+    const access = res.data?.access
+    if (!access) return false
+    localStorage.setItem('token', access)
+    // Update expiry
+    try {
+      const payload = JSON.parse(
+        atob(access.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+      )
+      if (payload?.exp) localStorage.setItem('token_expiry', String(payload.exp * 1000))
+    } catch { /* ignore malformed JWT */ }
+    return true
+  } catch {
+    return false
   }
+}
+
+router.beforeEach(async (to, from, next) => {
+  if (!to.meta.requiresAuth) {
+    next()
+    return
+  }
+  const authStore = useAuthStore()
+  authStore.checkAuth() // re-reads expiry; clears isAuthenticated if expired
+
+  if (authStore.isAuthenticated) {
+    next()
+    return
+  }
+
+  // Token is missing or expired — try a refresh before giving up.
+  // Without this, a user with a valid refresh token who opens an admin
+  // page after their access token expired gets kicked out even though
+  // /token/refresh/ would have succeeded.
+  const refreshed = await tryRefresh()
+  if (refreshed) {
+    authStore.checkAuth()
+    if (authStore.isAuthenticated) {
+      next()
+      return
+    }
+  }
+
+  // Refresh failed or no refresh token — back to login.
+  next({ name: 'AdminLogin' })
 })
 
 export default router

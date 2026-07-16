@@ -92,17 +92,32 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 @permission_classes([AllowAny])
 @throttle_classes([AnonRateThrottle])
 def like_article(request, slug):
-    """Increment like count for an article. Simple cookie-based dedup."""
+    """Increment like count for an article.
+
+    H12 (server-side dedup): trust a 24h sliding-window IP+UA table
+    instead of cookies. Cookies are unreliable across origins / SameSite
+    rules, so they could be bypassed by clearing browser state.
+    """
     article = get_object_or_404(Article, slug=slug, status=Article.Status.PUBLISHED)
-    cookie_key = f"liked_{article.slug}"
-    if request.COOKIES.get(cookie_key):
-        return Response({"detail": "已点赞"}, status=status.HTTP_200_OK)
-    # Atomic increment — avoids race condition
-    Article.objects.filter(pk=article.pk).update(likes_count=F("likes_count") + 1)
+
+    # Client fingerprint: forwarded IP (PA sits behind a proxy) + UA.
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip = (xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", ""))[:64]
+    ua = (request.META.get("HTTP_USER_AGENT", "") or "")[:255]
+
+    since = timezone.now() - timezone.timedelta(hours=24)
+    already = ArticleLike.objects.filter(
+        article=article, ip=ip, ua=ua, created_at__gte=since
+    ).exists()
+    if already:
+        article.refresh_from_db(fields=["likes_count"])
+        return Response({"likes_count": article.likes_count, "liked": True}, status=status.HTTP_200_OK)
+
+    with transaction.atomic():
+        ArticleLike.objects.create(article=article, ip=ip, ua=ua)
+        Article.objects.filter(pk=article.pk).update(likes_count=F("likes_count") + 1)
     article.refresh_from_db(fields=["likes_count"])
-    resp = Response({"likes_count": article.likes_count}, status=status.HTTP_200_OK)
-    resp.set_cookie(cookie_key, "1", max_age=86400 * 365, httponly=True, samesite="Lax")
-    return resp
+    return Response({"likes_count": article.likes_count, "liked": True}, status=status.HTTP_201_CREATED)
 
 
 # ── Newsletter Subscription ────────────────────────────────────
@@ -116,9 +131,20 @@ class SubscribeThrottle(AnonRateThrottle):
 @throttle_classes([SubscribeThrottle])
 def subscribe_newsletter(request):
     """Subscribe an email address to the newsletter."""
-    email = request.data.get("email", "").strip().lower()
-    if not email or "@" not in email:
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    email = (request.data.get("email") or "").strip().lower()
+    if not email:
         return Response({"error": "请输入有效的邮箱地址"}, status=status.HTTP_400_BAD_REQUEST)
+    # Real email validation — the old `if "@" in email` check accepted
+    # "a@b" / "@" / "x@" and let bad addresses poison send_mass_mail(),
+    # which then fails the entire batch on the first bounce.
+    try:
+        validate_email(email)
+    except DjangoValidationError:
+        return Response({"error": "请输入有效的邮箱地址"}, status=status.HTTP_400_BAD_REQUEST)
+
     sub, created = Subscriber.objects.get_or_create(email=email)
     # L6: re-subscribing a previously unsubscribed user flips them back to active
     if not created and not sub.is_active:

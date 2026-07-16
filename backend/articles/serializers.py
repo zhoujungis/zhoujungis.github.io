@@ -4,26 +4,22 @@ from .models import Article, Category, Tag
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    article_count = serializers.SerializerMethodField()
+    # Use the queryset annotation when present (CategoryViewSet/TagViewSet
+    # annotate it). Fall back to a live count for direct ModelSerializer
+    # usage (admin etc.) so the field never silently returns 0.
+    article_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Category
         fields = ["id", "name", "slug", "article_count"]
 
-    def get_article_count(self, obj):
-        return obj.article_set.filter(status=Article.Status.PUBLISHED).count()
-
 
 class TagSerializer(serializers.ModelSerializer):
-    article_count = serializers.SerializerMethodField()
+    article_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Tag
         fields = ["id", "name", "slug", "article_count"]
-
-
-    def get_article_count(self, obj):
-        return obj.article_set.filter(status=Article.Status.PUBLISHED).count()
 
 
 class CategoryNestedField(serializers.RelatedField):

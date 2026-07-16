@@ -12,13 +12,24 @@ class ArticleCommentList(generics.ListCreateAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        article = get_object_or_404(Article, slug=self.kwargs["article_slug"])
+        # Only allow reads on published articles — draft/archived/scheduled
+        # content must not leak via comment endpoints.
+        article = get_object_or_404(
+            Article,
+            slug=self.kwargs["article_slug"],
+            status=Article.Status.PUBLISHED,
+        )
         return Comment.objects.filter(
             article=article, is_approved=True, parent=None
-        )
+        ).select_related("article").prefetch_related("replies__article")
 
     def perform_create(self, serializer):
-        article = get_object_or_404(Article, slug=self.kwargs["article_slug"])
+        # Same status guard — don't accept new comments on unpublished articles
+        article = get_object_or_404(
+            Article,
+            slug=self.kwargs["article_slug"],
+            status=Article.Status.PUBLISHED,
+        )
         parent_id = self.request.data.get("parent")
         parent = None
         if parent_id:
