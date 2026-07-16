@@ -17,12 +17,21 @@ echo "==> Building frontend..."
 npm run build
 
 echo "==> Cleaning stale build artifacts in repo root..."
-# M9: rsync --delete ensures removed chunks/files actually go away from the
-# repo root, otherwise old hashed assets accumulate forever.
-rsync -a --delete --exclude='.git' --exclude='.gitignore' --exclude='README.md' \
-      --exclude='backend' --exclude='frontend' --exclude='tools' --exclude='docs' \
-      --exclude='.claude' --exclude='_articles.json' --exclude='_*.json' \
-      dist/ ../
+# M9: prune hashed asset files that the new build no longer references,
+# otherwise old chunks accumulate in repo root forever. rsync isn't on
+# GitHub for Windows by default — fall back to a targeted rm + cp.
+ROOT="$(cd .. && pwd)"
+# Remove only the output files Vite produces. Keep repo-root content intact
+# (README, .gitignore, backend/, frontend/, tools/, docs/, .claude/, etc.).
+rm -f  "$ROOT"/index.html \
+       "$ROOT"/favicon.svg \
+       "$ROOT"/manifest.json \
+       "$ROOT"/sw.js \
+       "$ROOT"/404.html
+rm -rf "$ROOT/assets"
+rm -rf "$ROOT/photos"
+rm -rf "$ROOT/icons.svg" 2>/dev/null || true
+cp -r dist/. "$ROOT/"
 
 # Copy live2d files if they exist
 if [ -d "../public-live2d" ]; then

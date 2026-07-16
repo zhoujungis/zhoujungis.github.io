@@ -1,0 +1,1 @@
+function e(e){if(!e||e.startsWith(`data:`)||e.startsWith(`blob:`)||/^https?:\/\//.test(e)||e.startsWith(`//`))return null;let t=e.lastIndexOf(`.`);if(t<0)return null;let n=e.slice(0,t),r=e.slice(t).toLowerCase();return[`.png`,`.jpg`,`.jpeg`].includes(r)?{avif:`${n}.avif`,webp:`${n}.webp`,fallback:e}:null}export{e as t};

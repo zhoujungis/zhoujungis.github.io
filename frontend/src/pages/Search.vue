@@ -403,6 +403,8 @@ onBeforeUnmount(() => {
 </style>
 
 <style lang="scss" scoped>
+@use '@/styles/variables' as *;
+
 .results-more {
   font-size: 0.78rem;
   color: $text-secondary;
