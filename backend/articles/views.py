@@ -2,6 +2,7 @@ from django.db.models import F
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -16,10 +17,18 @@ from .serializers import (
 )
 
 
+class ArticlePagination(PageNumberPagination):
+    """Default page size 10; clients can override via ?page_size=."""
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 1000
+
+
 class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Article.objects.filter(status=Article.Status.PUBLISHED)
     lookup_field = 'slug'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    pagination_class = ArticlePagination
     filterset_fields = {
         "category__slug": ["exact"],
         "tags__slug": ["exact"],
