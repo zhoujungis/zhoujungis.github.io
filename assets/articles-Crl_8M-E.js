@@ -1,0 +1,1 @@
+import{t as e}from"./client-CkxRby-h.js";function t(t){return e.get(`/articles/`,{params:t})}function n(t){return e.get(`/articles/${t}/`)}function r(){return e.get(`/categories/`)}function i(){return e.get(`/tags/`)}function a(){return e.get(`/photos/`)}function o(){return e.get(`/friends/`)}export{a,o as i,t as n,i as o,r,n as t};
