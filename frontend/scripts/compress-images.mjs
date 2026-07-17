@@ -20,7 +20,6 @@ const MAX_DIMENSION = 2400
 // 源 PNG/JPG 列表(相对路径,以项目根为基准)
 const TARGETS = [
   { src: 'frontend/public/photos/tibet-2026.png', outDir: 'photos' },
-  { src: 'frontend/public/PIC.png', outDir: '' },
   { src: 'frontend/src/assets/hero.png', outDir: 'assets' },
 ]
 
