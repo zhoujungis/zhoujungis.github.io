@@ -1,7 +1,7 @@
 <template>
   <header class="app-header">
     <div class="header-inner">
-      <router-link to="/" class="logo">ZhouJun</router-link>
+      <router-link to="/" class="logo">个人博客</router-link>
 
       <nav class="nav-desktop">
         <router-link v-for="link in navLinks" :key="link.path" :to="link.path" class="nav-link">
@@ -36,6 +36,7 @@ import { ref } from 'vue'
 const drawerOpen = ref(false)
 const navLinks = [
   { path: '/', label: '首页' },
+  { path: '/articles', label: '文章' },
   { path: '/archives', label: '归档' },
   { path: '/categories', label: '分类' },
   { path: '/tags', label: '标签' },
