@@ -1,1 +1,0 @@
-var e=`/PIC.png`;export{e as t};
