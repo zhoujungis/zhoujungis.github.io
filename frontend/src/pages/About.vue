@@ -3,28 +3,8 @@
     <div class="about-layout">
       <div class="about-main">
         <div class="profile-avatar">
-          <div class="avatar-circle">
-            <picture v-if="getPictureSources('/PIC.png')">
-              <source
-                :srcset="getPictureSources('/PIC.png').avif"
-                type="image/avif"
-              />
-              <source
-                :srcset="getPictureSources('/PIC.png').webp"
-                type="image/webp"
-              />
-              <img
-                :src="getPictureSources('/PIC.png').fallback"
-                alt="Zhou Jun"
-                class="avatar-image"
-              />
-            </picture>
-            <img
-              v-else
-              src="/PIC.png"
-              alt="Zhou Jun"
-              class="avatar-image"
-            />
+          <div class="avatar">
+            <img src="/PIC.svg" alt="Zhou Jun" class="avatar-image" />
           </div>
         </div>
 
@@ -78,8 +58,6 @@
 </template>
 
 <script setup>
-import { getPictureSources } from '@/utils/imageSource'
-
 const skills = [
   'Python', 'JavaScript', 'TypeScript', 'Vue 3',
   'Django', 'Django REST', 'PostgreSQL', 'SQLite',
@@ -132,17 +110,11 @@ const interests = [
   margin-bottom: 20px;
 }
 
-.avatar-circle {
+.avatar {
   width: 160px;
   height: 160px;
   border-radius: 50%;
   margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: $bg-secondary;
-  border: 3px solid $accent-pink;
-  box-shadow: 0 0 15px rgba(255, 133, 162, 0.3);
   overflow: hidden;
 }
 
