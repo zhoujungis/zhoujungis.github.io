@@ -4,7 +4,7 @@
     <section class="panel-section">
       <div class="mini-about">
         <div class="avatar">
-          <img src="/PIC.png" alt="Zhou Jun" class="avatar-image" />
+          <img src="/PIC.svg" alt="Zhou Jun" class="avatar-image" />
         </div>
         <h3 class="about-name neon-text-cyan">Zhou Jun</h3>
         <p class="about-bio">热爱技术与科学</p>
@@ -190,13 +190,7 @@ onMounted(async () => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  border: 2px solid $neon-cyan;
-  box-shadow: 0 0 10px rgba($neon-cyan, 0.3), 0 0 20px rgba($neon-cyan, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   margin: 0 auto 12px;
-  background: $bg-secondary;
   overflow: hidden;
 }
 
