@@ -5,6 +5,7 @@ import client from '../api/client'
 const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
   { path: '/article/:slug', name: 'ArticleDetail', component: () => import('../pages/ArticleDetail.vue') },
+  { path: '/articles', name: 'Articles', component: () => import('../pages/Articles.vue') },
   { path: '/categories', name: 'Categories', component: () => import('../pages/Categories.vue') },
   { path: '/tags', name: 'Tags', component: () => import('../pages/Tags.vue') },
   { path: '/search', name: 'Search', component: () => import('../pages/Search.vue') },
