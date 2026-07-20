@@ -114,9 +114,8 @@ function onAvatarError() {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: 6rem; font-weight: 700;
-  background: linear-gradient(135deg, $accent-pink, $accent-purple);
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent;
+  background: $bg-card;
+  color: $accent-pink;
 }
 .avatar-status {
   position: absolute; right: 18px; bottom: 18px;
