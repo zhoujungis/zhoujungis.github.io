@@ -1,0 +1,1 @@
+function e(e){return e?typeof e==`object`?e.name||``:e:``}function t(e){return e?typeof e==`object`?e.name||``:e:``}function n(e){return e?typeof e==`object`?e.name||e.username||``:e:`匿名`}export{e as n,t as r,n as t};

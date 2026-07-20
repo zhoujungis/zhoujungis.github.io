@@ -1,1 +1,0 @@
-var e=`/PIC.svg`;export{e as t};
