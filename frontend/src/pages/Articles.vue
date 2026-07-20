@@ -6,9 +6,7 @@
         所有文章按时间倒序排列,共 {{ articleStore.pagination.count }} 篇
       </p>
     </header>
-    <div class="home-layout">
-      <!-- Main content -->
-      <div class="home-main">
+    <div class="articles-list">
         <!-- Pinned articles -->
         <div v-if="pinnedArticles.length" class="pinned-section">
           <h3 class="pinned-heading">
@@ -97,10 +95,6 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
-      </div>
-
-      <!-- Sidebar -->
-      <SidePanel />
     </div>
   </div>
 </template>
@@ -110,7 +104,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
 import ArticleCard from '@/components/ArticleCard.vue'
-import SidePanel from '@/components/SidePanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -238,15 +231,8 @@ onMounted(() => {
   padding: 24px 16px;
 }
 
-.home-layout {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-}
-
-.home-main {
-  flex: 1;
-  min-width: 0;
+.articles-list {
+  // Single-column layout — sidebar (SidePanel) removed for a cleaner reading focus.
 }
 
 // ---- Filter Bar ----
@@ -457,20 +443,9 @@ onMounted(() => {
 }
 
 // ---- Mobile adjustments ----
-// Tablet: hide sidebar, single column
-@media (max-width: 1023px) {
-  .home-layout {
-    gap: 0;
-  }
-}
-
 @media (max-width: 767px) {
   .page-articles {
     padding: 16px 12px;
-  }
-
-  .home-layout {
-    gap: 0;
   }
 }
 </style>

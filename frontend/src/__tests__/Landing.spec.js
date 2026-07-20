@@ -25,7 +25,7 @@ describe('Landing (Home.vue)', () => {
   it('renders .landing__name', async () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    expect(wrapper.find('.landing__name').text()).toBe('Zhou Jun')
+    expect(wrapper.find('.landing__name').text()).toBe('个人博客')
   })
 
   it('does NOT render any article card or article-grid', async () => {
