@@ -1,470 +1,226 @@
 <template>
-  <div class="page page-home">
-    <div class="home-layout">
-      <!-- Main content -->
-      <div class="home-main">
-        <!-- Pinned articles -->
-        <div v-if="pinnedArticles.length" class="pinned-section">
-          <h3 class="pinned-heading">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-            置顶文章
-          </h3>
-          <div class="pinned-grid">
-            <ArticleCard
-              v-for="article in pinnedArticles"
-              :key="article.slug || article.id"
-              :article="article"
-              class="pinned-card"
+  <div class="page page-landing">
+    <article class="landing">
+      <!-- Avatar column -->
+      <section class="avatar-zone">
+        <div class="avatar-frame">
+          <div class="avatar-frame__inner">
+            <img
+              :src="avatarUrl"
+              alt="Zhou Jun"
+              class="avatar-image"
+              loading="eager"
+              fetchpriority="high"
+              @error="onAvatarError"
             />
+            <div class="avatar-fallback" v-if="avatarFailed">Z</div>
           </div>
+          <span class="avatar-status" :class="{ 'avatar-status--hidden': avatarFailed }" title="在线" />
+        </div>
+        <p class="avatar-handle">@zhoujun · 📍上海</p>
+      </section>
+
+      <!-- Intro column -->
+      <section class="intro-zone">
+        <h1 class="landing__name">Zhou Jun</h1>
+        <p class="landing__tagline">探索代码 · 写作 · 光影</p>
+
+        <p class="landing__bio">
+          工程师 · 写作者。用代码构建工具,用文字记录思考,
+          用脚步丈量世界。👋 欢迎来到我的角落。
+        </p>
+
+        <div class="landing__cta">
+          <router-link to="/articles" class="cta cta--primary">
+            📖 读文章 →
+          </router-link>
+          <router-link to="/about" class="cta cta--secondary">
+            关于我
+          </router-link>
         </div>
 
-        <!-- Active filter bar -->
-        <div v-if="activeFilter" class="filter-bar">
-          <span class="filter-badge">
-            {{ filterType === 'category' ? '分类' : '标签' }}: {{ activeFilter }}
-          </span>
-          <router-link to="/" class="filter-clear" @click="clearFilter">✕ 清除筛选</router-link>
-        </div>
-
-        <!-- Loading state -->
-        <div v-if="articleStore.loading && !articleStore.articles.length" class="skeleton-grid">
-          <div v-for="i in 3" :key="i" class="skeleton-card">
-            <div class="skeleton-image" />
-            <div class="skeleton-body">
-              <div class="skeleton-line w-75" />
-              <div class="skeleton-line w-50" />
-              <div class="skeleton-line w-100" />
-              <div class="skeleton-line w-60" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Error state -->
-        <div v-else-if="error" class="state-message error-state">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <p>{{ error }}</p>
-          <button class="retry-btn" @click="loadArticles">重试</button>
-        </div>
-
-        <!-- Empty state -->
-        <div v-else-if="!regularArticles.length && !pinnedArticles.length" class="state-message empty-state">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
-          <p>还没有文章</p>
-        </div>
-
-        <!-- Article grid -->
-        <div v-else-if="regularArticles.length" class="article-grid">
-          <ArticleCard
-            v-for="article in regularArticles"
-            :key="article.slug || article.id"
-            :article="article"
-          />
-        </div>
-
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="pagination">
-          <span class="page-info">第 {{ currentPage }}/{{ totalPages }} 页</span>
-          <button
-            class="page-btn"
-            :disabled="currentPage <= 1"
-            @click="goToPage(currentPage - 1)"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-
-          <template v-for="(page, idx) in visiblePages" :key="idx">
-            <span v-if="page === '...'" class="page-ellipsis">...</span>
-            <button
-              v-else
-              class="page-btn"
-              :class="{ active: page === currentPage }"
-              @click="goToPage(page)"
-            >{{ page }}</button>
-          </template>
-
-          <button
-            class="page-btn"
-            :disabled="currentPage >= totalPages"
-            @click="goToPage(currentPage + 1)"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Sidebar -->
-      <SidePanel />
-    </div>
+        <ul class="landing__social">
+          <li><a href="https://github.com/zhoujungis" target="_blank" rel="noopener">🐙 GitHub</a></li>
+          <li><a href="mailto:hi@zhoujun.cn">📮 Email</a></li>
+          <li><a href="https://zhoujun123.pythonanywhere.com/rss.xml">📡 RSS</a></li>
+        </ul>
+      </section>
+    </article>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useArticleStore } from '@/stores/article'
-import ArticleCard from '@/components/ArticleCard.vue'
-import SidePanel from '@/components/SidePanel.vue'
+import { ref } from 'vue'
 
-const route = useRoute()
-const router = useRouter()
-const articleStore = useArticleStore()
+// Use BASE_URL so the public asset works in production; the `import.meta.env`
+// access happens at runtime (not SFC compile time), so Vite's imagemin plugin
+// doesn't try to resolve `/PIC.svg` as a transformable file when tests run.
+const avatarUrl = `${import.meta.env.BASE_URL}PIC.svg`
 
-// M13: page is part of the URL — read initial value from query, sync on change
-function parsePageFromQuery(query) {
-  const p = Number(query?.page)
-  return Number.isFinite(p) && p >= 1 ? Math.floor(p) : 1
+const avatarFailed = ref(false)
+function onAvatarError() {
+  avatarFailed.value = true
 }
-const currentPage = ref(parsePageFromQuery(route.query))
-const error = ref(null)
-const activeFilter = computed(() => route.query.category || route.query.tag || null)
-const filterType = computed(() => route.query.category ? 'category' : route.query.tag ? 'tag' : null)
-
-const pinnedArticles = computed(() =>
-  articleStore.articles.filter((a) => a.is_top)
-)
-
-const regularArticles = computed(() =>
-  articleStore.articles.filter((a) => !a.is_top)
-)
-
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(articleStore.pagination.count / articleStore.pagination.pageSize))
-)
-
-const visiblePages = computed(() => {
-  const total = totalPages.value
-  const current = currentPage.value
-  const pages = []
-
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i)
-  } else {
-    pages.push(1)
-    if (current > 3) pages.push('...')
-
-    const start = Math.max(2, current - 1)
-    const end = Math.min(total - 1, current + 1)
-    for (let i = start; i <= end; i++) pages.push(i)
-
-    if (current < total - 2) pages.push('...')
-    pages.push(total)
-  }
-
-  return pages
-})
-
-// H3: monotonic guard — only commit if this request is still the latest
-let loadSeq = 0
-
-async function loadArticles(queryOverride) {
-  const seq = ++loadSeq
-  error.value = null
-  try {
-    // Pin to the value at call time so concurrent calls don't see a
-    // mid-flight currentPage.value mutation.
-    const page = currentPage.value
-    const params = { page }
-    const q = queryOverride || route.query
-    if (q.category) params.category__slug = q.category
-    else if (q.tag) params.tags__slug = q.tag
-    await articleStore.fetchArticles(params)
-    if (seq !== loadSeq) return // superseded by a newer request
-  } catch (e) {
-    if (seq !== loadSeq) return
-    error.value = e?.response?.data?.detail || e.message || '加载文章失败'
-  }
-}
-
-function goToPage(page) {
-  if (typeof page !== 'number' || page < 1 || page > totalPages.value) return
-  // Update URL — the route.query watcher below is the single source of
-  // truth for fetching, so we don't call loadArticles here. Setting
-  // currentPage.value is purely cosmetic (button highlight + initial state
-  // before the watcher fires).
-  currentPage.value = page
-  router.replace({
-    query: { ...route.query, page: page > 1 ? page : undefined },
-  })
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-function clearFilter() {
-  const { category: _c, tag: _t, page: _p, ...rest } = route.query
-  router.replace({ query: rest })
-}
-
-// Single watcher = single source of truth for fetching on any URL change.
-// Covers: page clicks, filter clicks, browser back/forward, refresh, deep
-// links. The previous onBeforeRouteUpdate + two watch() combo had subtle
-// ordering bugs (first click landed on page 1, second click worked).
-watch(
-  () => ({ ...route.query }),
-  (newQuery, oldQuery) => {
-    const newPage = parsePageFromQuery(newQuery)
-    const filterChanged =
-      newQuery.category !== oldQuery?.category || newQuery.tag !== oldQuery?.tag
-
-    // Sync local state from URL — handles back/forward, deep links, refresh
-    currentPage.value = filterChanged ? 1 : newPage
-
-    // Always refetch when the URL changes; the loadSeq guard inside
-    // loadArticles protects against double-fires if multiple sources
-    // (e.g. click + watcher) trigger the same URL change.
-    loadArticles(newQuery)
-  },
-)
-
-onMounted(() => {
-  loadArticles()
-  articleStore.fetchCategories()
-  articleStore.fetchTags()
-})
+// No fetches. Landing is fully zero-network.
 </script>
 
 <style lang="scss" scoped>
 @use '@/styles/variables' as *;
-@use '@/styles/skeleton' as *;
 
-.page-home {
-  max-width: 1200px;
+.page-landing {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  align-items: center;
+  padding: 32px 24px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 24px 16px;
 }
 
-.home-layout {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-}
-
-.home-main {
-  flex: 1;
-  min-width: 0;
-}
-
-// ---- Filter Bar ----
-.filter-bar {
-  display: flex;
+.landing {
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 64px;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding: 10px 16px;
-  background: $glass-bg;
-  border: 1px solid $glass-border;
-  border-radius: $radius-md;
-}
-
-.filter-badge {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: $accent-pink;
-  padding: 4px 12px;
-  background: rgba(255,133,162,0.1);
-  border-radius: 999px;
-}
-
-.filter-clear {
-  font-size: 0.8rem;
-  color: $text-secondary;
-  text-decoration: none;
-  &:hover { color: $accent-pink; }
-}
-
-// ---- Pinned Section ----
-.pinned-section {
-  margin-bottom: 32px;
-}
-
-.pinned-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: $neon-pink;
-  margin-bottom: 16px;
-  text-shadow: 0 0 7px rgba($neon-pink, 0.4);
-
-  svg {
-    flex-shrink: 0;
-  }
-}
-
-.pinned-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-.pinned-card {
-  border-color: rgba($neon-pink, 0.3);
-  box-shadow: 0 0 12px rgba($neon-pink, 0.06);
-}
-
-// ---- Article Grid ----
-.article-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-
-  @media (max-width: 767px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-// ---- Skeleton Loading ----
-.skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-
-  @media (max-width: 767px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.skeleton-card {
-  background: $bg-card;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid $glass-border;
-}
-
-.skeleton-image {
   width: 100%;
-  height: 180px;
-  @include skeleton-shimmer;
 }
 
-.skeleton-body {
-  padding: 20px;
+// Avatar column
+.avatar-zone {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
 }
 
-.skeleton-line {
-  @include skeleton-line;
-
-  &:nth-child(2) { animation-delay: 0.1s; }
-  &:nth-child(3) { animation-delay: 0.2s; }
-  &:nth-child(4) { animation-delay: 0.3s; }
+.avatar-frame {
+  width: 240px;
+  height: 240px;
+  position: relative;
+  padding: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, $accent-pink, $accent-purple);
+  box-shadow: 0 8px 32px rgba(255, 133, 162, 0.30), 0 0 0 1px rgba(255, 255, 255, 0.4);
+  transition: transform $transition-base;
 }
-
-.w-75 { width: 75%; }
-.w-50 { width: 50%; }
-.w-100 { width: 100%; }
-.w-60 { width: 60%; }
-
-// ---- States (error, empty) ----
-.state-message {
+.avatar-frame:hover { transform: translateY(-4px) rotate(-2deg); }
+.avatar-frame__inner {
+  width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
+  background: $bg-card; position: relative;
+}
+.avatar-image {
+  width: 100%; height: 100%; display: block;
+  border-radius: 50%; object-fit: cover;
+}
+.avatar-fallback {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 6rem; font-weight: 700;
+  background: linear-gradient(135deg, $accent-pink, $accent-purple);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+.avatar-status {
+  position: absolute; right: 18px; bottom: 18px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: $accent-mint;
+  box-shadow: 0 0 0 4px $bg-card, 0 0 12px rgba(129, 212, 196, 0.6);
+  animation: pulse 2s infinite;
+}
+.avatar-status--hidden { display: none; }
+.avatar-handle {
+  margin-top: 18px; font-size: .9rem;
+  color: $text-secondary; letter-spacing: .04em;
   text-align: center;
-  padding: 80px 20px;
-  color: $text-secondary;
-
-  svg {
-    margin-bottom: 16px;
-    opacity: 0.5;
-  }
-
-  p {
-    font-size: 1rem;
-  }
 }
 
-.retry-btn {
-  margin-top: 16px;
-  padding: 8px 24px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  color: $neon-cyan;
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 4px $bg-card, 0 0 12px rgba(129, 212, 196, 0.6); }
+  50%      { box-shadow: 0 0 0 6px $bg-card, 0 0 18px rgba(129, 212, 196, 0.9); }
+}
+
+// Intro column
+.intro-zone { animation: slideIn 0.6s ease 0.1s both; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.landing__name {
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  font-weight: 700; line-height: 1.1;
+  background: linear-gradient(135deg, $accent-pink, $accent-purple);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  margin: 0;
+}
+.landing__tagline {
+  font-family: $font-mono;
+  letter-spacing: .15em;
+  color: $accent-pink;
+  font-size: .92rem;
+  text-transform: uppercase;
+  margin-top: 12px;
+}
+.landing__bio {
+  font-size: 1.05rem; line-height: 1.85;
+  color: $text-secondary;
+  max-width: 540px;
+  margin: 24px 0 36px;
+}
+.landing__cta {
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 12px 26px; border-radius: 10px;
+  text-decoration: none; font-weight: 600; font-size: 1rem;
+  transition: transform $transition-fast, box-shadow $transition-fast, background $transition-fast;
+  cursor: pointer; border: 0;
+}
+.cta--primary {
+  background: $accent-pink; color: #fff;
+  box-shadow: 0 4px 16px rgba(255, 133, 162, 0.30);
+}
+.cta--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 133, 162, 0.45);
+}
+.cta--secondary {
   background: transparent;
-  border: 1px solid rgba($neon-cyan, 0.3);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background $transition-fast, border-color $transition-fast;
+  border: 1.5px solid $accent-pink;
+  color: $accent-pink;
+}
+.cta--secondary:hover { background: rgba(255, 133, 162, 0.06); }
 
-  &:hover {
-    background: rgba($neon-cyan, 0.08);
-    border-color: $neon-cyan;
-  }
+.landing__social {
+  display: flex; gap: 24px;
+  margin-top: 36px; list-style: none; padding: 0;
+}
+.landing__social a {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: $text-secondary; text-decoration: none;
+  font-size: .92rem;
+  transition: color $transition-fast, transform $transition-fast;
+}
+.landing__social a:hover {
+  color: $accent-pink; transform: translateY(-2px);
 }
 
-// ---- Pagination ----
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 40px;
-  padding-bottom: 24px;
-}
-
-.page-info {
-  font-size: 0.8rem;
-  color: $text-secondary;
-  margin-right: 12px;
-  white-space: nowrap;
-}
-
-.page-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  color: $text-secondary;
-  background: transparent;
-  border: 1px solid $glass-border;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
-
-  &:hover:not(:disabled) {
-    color: $neon-cyan;
-    border-color: rgba($neon-cyan, 0.3);
-    background: rgba($neon-cyan, 0.04);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  &.active {
-    color: $neon-cyan;
-    border-color: $neon-cyan;
-    box-shadow: 0 0 8px rgba($neon-cyan, 0.3);
-    background: rgba($neon-cyan, 0.08);
-  }
-}
-
-.page-ellipsis {
-  color: $text-secondary;
-  font-size: 0.85rem;
-  padding: 0 4px;
-  letter-spacing: 2px;
-}
-
-// ---- Mobile adjustments ----
-// Tablet: hide sidebar, single column
+// Responsive
 @media (max-width: 1023px) {
-  .home-layout {
-    gap: 0;
-  }
+  .landing { grid-template-columns: 1fr; gap: 32px; text-align: center; }
+  .avatar-frame { width: 180px; height: 180px; }
+  .landing__bio { max-width: none; margin-left: auto; margin-right: auto; }
+  .landing__cta { justify-content: center; }
+  .landing__social { justify-content: center; }
 }
-
 @media (max-width: 767px) {
-  .page-home {
-    padding: 16px 12px;
-  }
-
-  .home-layout {
-    gap: 0;
-  }
+  .page-landing { padding: 24px 16px; }
+  .avatar-frame { width: 120px; height: 120px; }
+  .avatar-fallback { font-size: 3rem; }
+  .landing__name { font-size: 2rem; }
+  .landing__tagline { font-size: .8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-status, .intro-zone { animation: none !important; }
 }
 </style>
