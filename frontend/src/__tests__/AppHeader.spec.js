@@ -15,11 +15,11 @@ function withRouter() {
 }
 
 describe('AppHeader', () => {
-  it('renders logo text as 「个人博客」', async () => {
+  it('renders logo text as 「Blog」', async () => {
     const router = withRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(AppHeader, { global: { plugins: [router] } })
-    expect(wrapper.find('.logo').text()).toBe('个人博客')
+    expect(wrapper.find('.logo').text()).toBe('Blog')
   })
 
   it('renders nav link 「文章」 pointing to /articles', async () => {

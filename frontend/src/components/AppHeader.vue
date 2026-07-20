@@ -1,7 +1,7 @@
 <template>
   <header class="app-header">
     <div class="header-inner">
-      <router-link to="/" class="logo">个人博客</router-link>
+      <router-link to="/" class="logo">Blog</router-link>
 
       <nav class="nav-desktop">
         <router-link v-for="link in navLinks" :key="link.path" :to="link.path" class="nav-link">

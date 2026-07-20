@@ -22,7 +22,7 @@
 
       <!-- Intro column -->
       <section class="intro-zone">
-        <h1 class="landing__name">Zhou Jun</h1>
+        <h1 class="landing__name">个人博客</h1>
         <p class="landing__tagline">探索代码 · 写作 · 光影</p>
 
         <p class="landing__bio">
