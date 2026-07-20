@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" font-family="'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fafbff"/>
+      <stop offset="100%" stop-color="#eef2ff"/>
+    </linearGradient>
+    <linearGradient id="asic" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1976d2"/>
+      <stop offset="100%" stop-color="#0d47a1"/>
+    </linearGradient>
+    <linearGradient id="host" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43a047"/>
+      <stop offset="100%" stop-color="#1b5e20"/>
+    </linearGradient>
+    <linearGradient id="net" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fb8c00"/>
+      <stop offset="100%" stop-color="#e65100"/>
+    </linearGradient>
+    <linearGradient id="mgmt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8e24aa"/>
+      <stop offset="100%" stop-color="#4a148c"/>
+    </linearGradient>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#37474f"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="700" fill="url(#bg4)"/>
+
+  <!-- Title -->
+  <text x="600" y="44" text-anchor="middle" fill="#0d47a1" font-size="22" font-weight="700">Kiwi SNIC 800G 平台架构 · 单通道 400G RDMA ASIC 引擎</text>
+  <text x="600" y="70" text-anchor="middle" fill="#37474f" font-size="13">IBGDA · 类 NVSHMEM · 类 NCCL/DeepEP 集合通信库兼容</text>
+  <line x1="380" y1="86" x2="820" y2="86" stroke="#0d47a1" stroke-width="2"/>
+
+  <!-- Host side (GPU) -->
+  <g>
+    <rect x="60" y="160" width="180" height="380" fill="url(#host)" stroke="#1b5e20" stroke-width="2" rx="8"/>
+    <text x="150" y="190" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Host 主机</text>
+    <line x1="80" y1="200" x2="220" y2="200" stroke="#fff" stroke-width="1" opacity="0.5"/>
+
+    <rect x="80" y="220" width="140" height="60" fill="#fff" stroke="#1b5e20" rx="4"/>
+    <text x="150" y="245" text-anchor="middle" fill="#1b5e20" font-size="13" font-weight="700">国产 GPU</text>
+    <text x="150" y="263" text-anchor="middle" fill="#37474f" font-size="11">壁仞 / 沐曦 等</text>
+
+    <rect x="80" y="295" width="140" height="50" fill="#fff" stroke="#1b5e20" rx="4"/>
+    <text x="150" y="316" text-anchor="middle" fill="#1b5e20" font-size="12" font-weight="700">GPU 驱动</text>
+    <text x="150" y="332" text-anchor="middle" fill="#37474f" font-size="10">类 NVSHMEM</text>
+
+    <rect x="80" y="360" width="140" height="50" fill="#fff" stroke="#1b5e20" rx="4"/>
+    <text x="150" y="381" text-anchor="middle" fill="#1b5e20" font-size="12" font-weight="700">集合通信库</text>
+    <text x="150" y="397" text-anchor="middle" fill="#37474f" font-size="10">NCCL · DeepEP</text>
+
+    <rect x="80" y="425" width="140" height="50" fill="#fff" stroke="#1b5e20" rx="4"/>
+    <text x="150" y="446" text-anchor="middle" fill="#1b5e20" font-size="12" font-weight="700">用户态驱动</text>
+    <text x="150" y="462" text-anchor="middle" fill="#37474f" font-size="10">RDMA verbs</text>
+
+    <rect x="80" y="490" width="140" height="35" fill="#c8e6c9" stroke="#1b5e20" rx="4"/>
+    <text x="150" y="513" text-anchor="middle" fill="#1b5e20" font-size="11" font-weight="700">PCIe Gen5 x16</text>
+  </g>
+
+  <!-- ASIC center (the heart) -->
+  <g transform="translate(400,140)">
+    <rect width="400" height="420" fill="#fff" stroke="#0d47a1" stroke-width="3" rx="10"/>
+    <rect x="0" y="0" width="400" height="40" fill="url(#asic)" rx="10"/>
+    <text x="200" y="26" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">单通道 400G RDMA ASIC 引擎</text>
+
+    <!-- PCIe interface -->
+    <rect x="40" y="70" width="320" height="60" fill="#e3f2fd" stroke="#0d47a1" stroke-width="1.5" rx="6"/>
+    <text x="200" y="95" text-anchor="middle" fill="#0d47a1" font-size="13" font-weight="700">PCIe Gen5 主机接口</text>
+    <text x="200" y="115" text-anchor="middle" fill="#37474f" font-size="11">DMA 引擎 · Doorbell · MMIO</text>
+
+    <!-- IBGDA core -->
+    <rect x="40" y="145" width="320" height="70" fill="#bbdefb" stroke="#0d47a1" stroke-width="2" rx="6"/>
+    <text x="200" y="170" text-anchor="middle" fill="#0d47a1" font-size="14" font-weight="700">IBGDA 核心模块</text>
+    <text x="200" y="190" text-anchor="middle" fill="#37474f" font-size="11">GPU 直接发起通信 · 绕过 CPU</text>
+    <text x="200" y="205" text-anchor="middle" fill="#37474f" font-size="11">支持 NVSHMEM / DeepEP 语义</text>
+
+    <!-- Transport -->
+    <rect x="40" y="230" width="155" height="70" fill="#fff" stroke="#0d47a1" stroke-width="1.5" rx="6"/>
+    <text x="118" y="255" text-anchor="middle" fill="#0d47a1" font-size="12" font-weight="700">可靠传输</text>
+    <text x="118" y="272" text-anchor="middle" fill="#37474f" font-size="10">RC · UD · XRC</text>
+    <text x="118" y="287" text-anchor="middle" fill="#37474f" font-size="10">拥塞控制</text>
+
+    <rect x="205" y="230" width="155" height="70" fill="#fff" stroke="#0d47a1" stroke-width="1.5" rx="6"/>
+    <text x="283" y="255" text-anchor="middle" fill="#0d47a1" font-size="12" font-weight="700">QP / SRQ 调度</text>
+    <text x="283" y="272" text-anchor="middle" fill="#37474f" font-size="10">百万级队列</text>
+    <text x="283" y="287" text-anchor="middle" fill="#37474f" font-size="10">零拷贝</text>
+
+    <!-- MAC / SerDes -->
+    <rect x="40" y="315" width="320" height="50" fill="#e3f2fd" stroke="#0d47a1" stroke-width="1.5" rx="6"/>
+    <text x="200" y="338" text-anchor="middle" fill="#0d47a1" font-size="13" font-weight="700">400G MAC · 112G SerDes ×4</text>
+    <text x="200" y="355" text-anchor="middle" fill="#37474f" font-size="11">PAM4 · 低延迟 FEC</text>
+
+    <!-- Management / firmware -->
+    <rect x="40" y="380" width="320" height="30" fill="#ede7f6" stroke="#4a148c" stroke-width="1" rx="6"/>
+    <text x="200" y="400" text-anchor="middle" fill="#4a148c" font-size="12" font-weight="700">固件 · BMC · 遥测</text>
+  </g>
+
+  <!-- Network side -->
+  <g>
+    <rect x="960" y="160" width="180" height="380" fill="url(#net)" stroke="#bf360c" stroke-width="2" rx="8"/>
+    <text x="1050" y="190" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">网络侧</text>
+    <line x1="980" y1="200" x2="1120" y2="200" stroke="#fff" stroke-width="1" opacity="0.5"/>
+
+    <rect x="980" y="220" width="140" height="60" fill="#fff" stroke="#bf360c" rx="4"/>
+    <text x="1050" y="245" text-anchor="middle" fill="#bf360c" font-size="13" font-weight="700">开放以太网</text>
+    <text x="1050" y="263" text-anchor="middle" fill="#37474f" font-size="11">RoCE v2</text>
+
+    <rect x="980" y="295" width="140" height="50" fill="#fff" stroke="#bf360c" rx="4"/>
+    <text x="1050" y="316" text-anchor="middle" fill="#bf360c" font-size="12" font-weight="700">国产 ToR 交换</text>
+    <text x="1050" y="332" text-anchor="middle" fill="#37474f" font-size="10">51.2T · 64×800G</text>
+
+    <rect x="980" y="360" width="140" height="50" fill="#fff" stroke="#bf360c" rx="4"/>
+    <text x="1050" y="381" text-anchor="middle" fill="#bf360c" font-size="12" font-weight="700">Spine 交换</text>
+    <text x="1050" y="397" text-anchor="middle" fill="#37474f" font-size="10">102.4T 集群主干</text>
+
+    <rect x="980" y="425" width="140" height="50" fill="#fff" stroke="#bf360c" rx="4"/>
+    <text x="1050" y="446" text-anchor="middle" fill="#bf360c" font-size="12" font-weight="700">远端 RDMA</text>
+    <text x="1050" y="462" text-anchor="middle" fill="#37474f" font-size="10">跨节点 GPU</text>
+
+    <rect x="980" y="490" width="140" height="35" fill="#ffe0b2" stroke="#bf360c" rx="4"/>
+    <text x="1050" y="513" text-anchor="middle" fill="#bf360c" font-size="11" font-weight="700">800G 光模块</text>
+  </g>
+
+  <!-- Connection arrows -->
+  <g stroke="#37474f" stroke-width="2" fill="none" marker-end="url(#arr)">
+    <path d="M220 350 L400 230"/>
+    <path d="M220 410 L400 380"/>
+    <path d="M800 230 L960 350"/>
+    <path d="M800 380 L960 410"/>
+  </g>
+
+  <!-- Bottom annotations -->
+  <g transform="translate(0,600)" font-size="12" fill="#37474f">
+    <rect x="60" y="10" width="1080" height="70" fill="#fff" stroke="#0d47a1" stroke-width="1" rx="6" opacity="0.9"/>
+    <text x="80" y="32" font-weight="700" fill="#0d47a1">设计要点：</text>
+    <text x="80" y="52">• 单通道 400G RDMA ASIC 引擎 · 基于 Kiwi SNIC 800G 平台架构 · 软硬件协同开发</text>
+    <text x="80" y="68">• 原生支持 IBGDA 机制 · 兼容专为 MoE 模型优化的集合通信库（对标 DeepEP）</text>
+    <text x="700" y="52" font-weight="700" fill="#bf360c">生态：</text>
+    <text x="700" y="68">• 开放以太网 · 不绑定 · 可演进</text>
+  </g>
+</svg>
