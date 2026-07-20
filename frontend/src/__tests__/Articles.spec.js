@@ -44,6 +44,15 @@ describe('Articles page', () => {
     expect(wrapper.findAll('.stub-card').length).toBe(1)
   })
 
+  it('renders the page header above the two-column article layout', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/articles', component: Articles }] })
+    await router.push('/articles'); await router.isReady()
+    const wrapper = mount(Articles, { global: { plugins: [router] } })
+
+    expect(wrapper.find('.page-articles > .page-header').exists()).toBe(true)
+    expect(wrapper.find('.home-layout > .page-header').exists()).toBe(false)
+  })
+
   it('clears filters without leaving the article listing', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/articles', component: Articles }] })
     await router.push('/articles?category=vue&page=2'); await router.isReady()

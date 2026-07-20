@@ -1,12 +1,12 @@
 <template>
   <div class="page page-articles">
+    <header class="page-header">
+      <h1 class="page-title neon-text-cyan">文章</h1>
+      <p class="page-subtitle">
+        所有文章按时间倒序排列,共 {{ articleStore.pagination.count }} 篇
+      </p>
+    </header>
     <div class="home-layout">
-      <header class="page-header">
-        <h1 class="page-title neon-text-cyan">文章</h1>
-        <p class="page-subtitle">
-          所有文章按时间倒序排列,共 {{ articleStore.pagination.count }} 篇
-        </p>
-      </header>
       <!-- Main content -->
       <div class="home-main">
         <!-- Pinned articles -->
