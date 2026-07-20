@@ -223,4 +223,3 @@ function onAvatarError() {
   .avatar-status, .intro-zone { animation: none !important; }
 }
 </style>
-

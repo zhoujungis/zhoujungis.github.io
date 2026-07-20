@@ -1,5 +1,5 @@
 // Service Worker — caches app shell, network-first for HTML
-const CACHE = 'zhoujun-blog-v6'
+const CACHE = 'zhoujun-blog-v7'
 // Files that MUST exist for the site to work offline. Each is added
 // individually so a missing/renamed file doesn't break the whole install
 // (caches.addAll() is atomic — one failure kills the whole precache).
