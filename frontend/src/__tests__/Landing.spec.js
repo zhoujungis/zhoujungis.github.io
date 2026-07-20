@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import Home from '../pages/Home.vue'
+
+const globalStyles = readFileSync('src/styles/global.scss', 'utf8')
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -42,6 +45,19 @@ describe('Landing (Home.vue)', () => {
     expect(cta.exists()).toBe(true)
     expect(cta.attributes('href')).toBe('/articles')
     expect(cta.text()).toMatch(/读文章/)
+  })
+
+  it('defines dark-theme overrides for landing surfaces and text', () => {
+    for (const selector of [
+      '.page-landing',
+      '.avatar-frame',
+      '.landing__name',
+      '.cta--primary',
+      '.landing__bio',
+      '.avatar-handle',
+    ]) {
+      expect(globalStyles).toContain(selector)
+    }
   })
 
   it('does NOT mount SidePanel', async () => {
