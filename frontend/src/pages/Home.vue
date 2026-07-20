@@ -17,7 +17,7 @@
           </div>
           <span class="avatar-status" :class="{ 'avatar-status--hidden': avatarFailed }" title="在线" />
         </div>
-        <p class="avatar-handle">@zhoujun · 📍上海</p>
+        <p class="avatar-handle">@zhoujun · 📍深圳</p>
       </section>
 
       <!-- Intro column -->
@@ -41,7 +41,7 @@
 
         <ul class="landing__social">
           <li><a href="https://github.com/zhoujungis" target="_blank" rel="noopener">🐙 GitHub</a></li>
-          <li><a href="mailto:hi@zhoujun.cn">📮 Email</a></li>
+          <li><a href="mailto:zhoujunseu@163.com">📮 Email</a></li>
           <li><a href="https://zhoujun123.pythonanywhere.com/rss.xml">📡 RSS</a></li>
         </ul>
       </section>
