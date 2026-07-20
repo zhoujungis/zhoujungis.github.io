@@ -28,7 +28,7 @@
       </svg>
       <h2>{{ httpStatus === 404 ? '文章不存在' : '加载失败' }}</h2>
       <p>{{ error }}</p>
-      <router-link to="/" class="back-link">返回首页</router-link>
+      <router-link to="/articles" class="back-link">返回首页</router-link>
     </div>
 
     <!-- Article content -->

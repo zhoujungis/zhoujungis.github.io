@@ -43,7 +43,7 @@
         <router-link
           v-for="cat in categories"
           :key="catLabel(cat)"
-          :to="{ path: '/', query: { category: catSlug(cat) || catLabel(cat) } }"
+          :to="{ path: '/articles', query: { category: catSlug(cat) || catLabel(cat) } }"
           class="category-item"
         >
           <span class="category-name">{{ catLabel(cat) }}</span>
@@ -65,7 +65,7 @@
         <router-link
           v-for="(tag, idx) in tags"
           :key="tagLabel(tag)"
-          :to="{ path: '/', query: { tag: tagSlug(tag) || tagLabel(tag) } }"
+          :to="{ path: '/articles', query: { tag: tagSlug(tag) || tagLabel(tag) } }"
           class="tag-item"
           :style="{ borderColor: neonColors[idx % neonColors.length], color: neonColors[idx % neonColors.length] }"
         >

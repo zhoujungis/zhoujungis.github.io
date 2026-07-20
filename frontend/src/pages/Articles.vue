@@ -30,7 +30,7 @@
           <span class="filter-badge">
             {{ filterType === 'category' ? '分类' : '标签' }}: {{ activeFilter }}
           </span>
-          <router-link to="/" class="filter-clear" @click="clearFilter">✕ 清除筛选</router-link>
+          <router-link to="/articles" class="filter-clear" @click="clearFilter">✕ 清除筛选</router-link>
         </div>
 
         <!-- Loading state -->
