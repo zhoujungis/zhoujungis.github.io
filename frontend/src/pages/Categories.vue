@@ -1,7 +1,7 @@
 <template>
   <div class="page page-categories">
     <header class="page-header">
-      <h1 class="page-title neon-text-cyan">分类</h1>
+      <h1 class="page-title">分类</h1>
       <p class="page-subtitle">按主题浏览文章</p>
     </header>
 
@@ -37,7 +37,7 @@
       <router-link
         v-for="cat in categories"
         :key="catLabel(cat)"
-        :to="{ path: '/', query: { category: catSlug(cat) || catLabel(cat) } }"
+        :to="{ path: '/articles', query: { category: catSlug(cat) || catLabel(cat) } }"
         class="category-card"
       >
         <div class="card-icon">
@@ -98,19 +98,20 @@ onMounted(loadCategories)
 @use '@/styles/variables' as *;
 
 .page-categories {
-  max-width: 1200px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .page-header {
-  text-align: center;
-  margin-bottom: 40px;
+  text-align: left;
+  margin-bottom: 32px;
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 800;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
   margin-bottom: 8px;
 }
 
@@ -129,14 +130,12 @@ onMounted(loadCategories)
 .category-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 32px 20px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 26px 22px;
   background: $bg-card;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid $glass-border;
-  border-radius: 12px;
+  border-radius: $radius-md;
   text-decoration: none;
   color: inherit;
   transition:
@@ -145,11 +144,9 @@ onMounted(loadCategories)
     border-color $transition-base;
 
   &:hover {
-    transform: translateY(-4px);
-    border-color: rgba($neon-cyan, 0.3);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 20px rgba($neon-cyan, 0.08);
+    transform: translateY(-3px);
+    border-color: rgba($accent-pink, 0.4);
+    box-shadow: $card-shadow-hover;
   }
 }
 
@@ -160,15 +157,14 @@ onMounted(loadCategories)
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba($neon-cyan, 0.06);
-  border: 1px solid rgba($neon-cyan, 0.15);
-  color: $neon-cyan;
+  background: rgba($accent-pink, 0.08);
+  border: 1px solid rgba($accent-pink, 0.18);
+  color: $accent-pink;
   margin-bottom: 16px;
   transition: background $transition-fast, box-shadow $transition-fast;
 
   .category-card:hover & {
-    background: rgba($neon-cyan, 0.12);
-    box-shadow: 0 0 16px rgba($neon-cyan, 0.15);
+    background: rgba($accent-pink, 0.13);
   }
 }
 
@@ -180,8 +176,7 @@ onMounted(loadCategories)
   transition: color $transition-fast;
 
   .category-card:hover & {
-    color: $neon-cyan;
-    text-shadow: 0 0 7px rgba($neon-cyan, 0.4);
+    color: $accent-pink;
   }
 }
 
@@ -191,7 +186,7 @@ onMounted(loadCategories)
   padding: 2px 12px;
   border: 1px solid $glass-border;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
+  background: $bg-primary;
 }
 
 // ---- Skeleton ----
@@ -203,7 +198,7 @@ onMounted(loadCategories)
 
 .skeleton-card {
   background: $bg-card;
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   border: 1px solid $glass-border;
   padding: 32px 20px;
@@ -269,5 +264,18 @@ onMounted(loadCategories)
     background: rgba($neon-cyan, 0.08);
     border-color: $neon-cyan;
   }
+}
+
+@media (max-width: 767px) {
+  .page-categories { padding: 32px 14px 16px; }
+  .page-title { font-size: 2rem; }
+  .category-grid,
+  .skeleton-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .category-card { padding: 20px 16px; }
+}
+
+@media (max-width: 480px) {
+  .category-grid,
+  .skeleton-grid { grid-template-columns: 1fr; }
 }
 </style>

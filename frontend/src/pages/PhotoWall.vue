@@ -228,19 +228,20 @@ onUnmounted(() => {
 @use '@/styles/variables' as *;
 
 .page-photo-wall {
-  max-width: 1200px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .page-header {
-  text-align: center;
+  text-align: left;
   margin-bottom: 32px;
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 800;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
   margin-bottom: 8px;
 }
 
@@ -259,7 +260,7 @@ onUnmounted(() => {
 
 .photo-item {
   position: relative;
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   cursor: pointer;
   border: 1px solid $glass-border;
@@ -269,11 +270,9 @@ onUnmounted(() => {
     border-color $transition-base;
 
   &:hover {
-    transform: scale(1.05);
-    border-color: rgba($neon-cyan, 0.3);
-    box-shadow:
-      0 0 12px rgba($neon-cyan, 0.2),
-      0 0 24px rgba($neon-cyan, 0.08);
+    transform: translateY(-3px);
+    border-color: rgba($accent-pink, 0.4);
+    box-shadow: $card-shadow-hover;
     z-index: 2;
   }
 }
@@ -340,7 +339,7 @@ onUnmounted(() => {
 }
 
 .skeleton-photo {
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   border: 1px solid $glass-border;
 }
@@ -471,6 +470,8 @@ onUnmounted(() => {
 
 // ---- Mobile ----
 @media (max-width: 767px) {
+  .page-photo-wall { padding: 32px 14px 16px; }
+  .page-title { font-size: 2rem; }
   .photo-grid {
     grid-template-columns: repeat(2, 1fr);
     grid-auto-rows: 160px;

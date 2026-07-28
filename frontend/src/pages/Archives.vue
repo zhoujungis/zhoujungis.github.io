@@ -187,19 +187,20 @@ onMounted(loadArchives)
 @use '@/styles/variables' as *;
 
 .page-archives {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .page-header {
-  text-align: center;
-  margin-bottom: 40px;
+  text-align: left;
+  margin-bottom: 32px;
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 800;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
   margin-bottom: 8px;
 }
 
@@ -233,7 +234,6 @@ onMounted(loadArchives)
   border: 1px solid rgba($neon-purple, 0.3);
   border-radius: 8px;
   background: rgba($neon-purple, 0.06);
-  text-shadow: 0 0 7px rgba($neon-purple, 0.3);
 }
 
 .year-count {
@@ -254,7 +254,7 @@ onMounted(loadArchives)
     top: 0;
     bottom: 0;
     width: 2px;
-    background: linear-gradient(to bottom, $neon-purple, rgba($neon-purple, 0.1));
+    background: rgba($neon-purple, 0.25);
     border-radius: 2px;
   }
 }
@@ -266,7 +266,6 @@ onMounted(loadArchives)
   color: $neon-cyan;
   margin-bottom: 12px;
   margin-top: 20px;
-  text-shadow: 0 0 5px rgba($neon-cyan, 0.3);
 
   &:first-child {
     margin-top: 0;
@@ -288,9 +287,7 @@ onMounted(loadArchives)
   border-radius: 50%;
   background: $neon-cyan;
   border: 2px solid $bg-primary;
-  box-shadow:
-    0 0 6px rgba($neon-cyan, 0.6),
-    0 0 12px rgba($neon-cyan, 0.3);
+  box-shadow: 0 0 0 3px rgba($neon-cyan, 0.12);
   z-index: 1;
 }
 
@@ -322,11 +319,10 @@ onMounted(loadArchives)
   color: $text-primary;
   text-decoration: none;
   line-height: 1.4;
-  transition: color $transition-fast, text-shadow $transition-fast;
+  transition: color $transition-fast;
 
   .entry-content:hover & {
     color: $neon-cyan;
-    text-shadow: 0 0 7px rgba($neon-cyan, 0.3);
   }
 }
 
@@ -424,5 +420,13 @@ onMounted(loadArchives)
     background: rgba($neon-cyan, 0.08);
     border-color: $neon-cyan;
   }
+}
+
+@media (max-width: 767px) {
+  .page-archives { padding: 32px 14px 16px; }
+  .page-title { font-size: 2rem; }
+  .year-section { padding-left: 26px; }
+  .timeline-dot { left: -22px; }
+  .entry-content { padding: 13px 14px; }
 }
 </style>

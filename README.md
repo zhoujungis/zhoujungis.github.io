@@ -1,10 +1,10 @@
-# 🌸 ZhouJun's Blog
+# Zhou Jun's Blog
 
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js)](https://vuejs.org/)
 [![Django](https://img.shields.io/badge/Django-6.0-092E20?logo=django)](https://www.djangoproject.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 可爱风个人技术博客，樱花粉主题 🎀，前后端分离架构。
+> 记录技术、旅行与生活的个人博客，采用自然色响应式界面与前后端分离架构。
 
 🔗 **在线访问：** [zhoujungis.github.io](https://zhoujungis.github.io)
 
@@ -19,12 +19,12 @@
 - 🖼️ **照片墙** — 图片展示 + 灯箱预览
 - 🔗 **友情链接** — 独立友链页面
 - 🗺️ **足迹地图** — ECharts 中国地图，去过的城市标记，按区域分组统计
-- 🌓 **明暗主题** — 樱花粉亮色 / 赛博朋克暗色，自动记忆
+- 🌓 **明暗主题** — 暖白自然色 / 深绿暗色，自动记忆
 - 📡 **RSS 订阅** — Atom Feed
 - 📧 **邮件订阅** — 新文章发布自动通知订阅者（支持 163/QQ/Gmail SMTP）
 - 📊 **管理后台** — 仪表盘、文章管理、评论审核、订阅者管理
 - 🦊 **Live2D 看板娘** — 右下角可爱角色
-- 🎀 **樱花粉萌系 UI** — 花瓣粒子、软阴影、弹跳动效、骨架屏加载
+- 🎨 **自然响应式 UI** — 松绿与陶土配色、克制动效、骨架屏加载
 - 📱 **PWA** — Service Worker 离线缓存，可安装到桌面
 
 ---
@@ -184,4 +184,4 @@ MIT © Zhou Jun
 
 ---
 
-<p align="center">🌸 用爱发电，用心写作 🌸</p>
+<p align="center">用代码构建工具，用文字记录思考。</p>

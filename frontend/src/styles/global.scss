@@ -1,13 +1,8 @@
-// ========================================
-// Global Styles — Sakura Cute Theme
-// ========================================
-
 @use 'sass:color';
 @use 'variables' as *;
 @use 'cute';
 @use 'glass';
 
-// ---------- Reset ----------
 *,
 *::before,
 *::after {
@@ -16,74 +11,85 @@
   padding: 0;
 }
 
-html {
-  scroll-behavior: smooth;
+:root {
+  color-scheme: light;
+  --page-bg: #{$bg-primary};
+  --surface: #{$bg-card};
+  --surface-muted: #{$bg-secondary};
+  --text-primary: #{$text-primary};
+  --text-secondary: #{$text-secondary};
+  --accent: #{$accent-pink};
+  --accent-secondary: #{$accent-purple};
+  --glass-border: #{$glass-border};
+  --card-shadow: #{$card-shadow};
 }
 
-// ---------- Body ----------
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+}
+
 body {
-  font-family: $font-main;
-  background: $bg-primary;
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(255, 133, 162, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(201, 177, 255, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(129, 212, 196, 0.04) 0%, transparent 50%);
-  color: $text-primary;
+  min-width: 320px;
   min-height: 100vh;
+  overflow-x: hidden;
+  font-family: $font-main;
+  font-size: 16px;
   line-height: 1.7;
+  color: $text-primary;
+  background: $bg-primary;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-// ---------- Scrollbar ----------
-::-webkit-scrollbar {
-  width: 8px;
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
-::-webkit-scrollbar-track {
-  background: $bg-secondary;
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: $bg-secondary; }
 ::-webkit-scrollbar-thumb {
-  background: $accent-pink;
-  border-radius: 4px;
-  &:hover {
-    background: color.adjust($accent-pink, $lightness: -8%);
-  }
+  background: #a8b3aa;
+  border: 3px solid $bg-secondary;
+  border-radius: 999px;
 }
+::-webkit-scrollbar-thumb:hover { background: $accent-pink; }
 
-// ---------- Selection ----------
 ::selection {
-  background: rgba(255, 133, 162, 0.2);
   color: $text-primary;
+  background: rgba($accent-yellow, 0.3);
 }
 
-// ---------- Links ----------
 a {
   color: $accent-pink;
   text-decoration: none;
   transition: color $transition-fast;
-  &:hover {
-    color: color.adjust($accent-pink, $lightness: -10%);
-  }
 }
 
-// ---------- Images ----------
+a:hover { color: color.adjust($accent-pink, $lightness: -10%); }
+
 img {
+  display: block;
   max-width: 100%;
   height: auto;
-  display: block;
 }
 
-// ---------- Code ----------
-code, pre {
-  font-family: $font-mono;
-}
+code,
+pre { font-family: $font-mono; }
 
-// ---------- Layout helpers ----------
 .container {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 16px;
+  width: min(100% - 32px, 1160px);
+  margin-inline: auto;
 }
 
 .flex-center {
@@ -97,194 +103,149 @@ code, pre {
   flex-direction: column;
 }
 
-// ========================================
-// Dark Theme Override
-// ========================================
-html.theme-dark body {
-  background: #0d0d1a;
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(255, 0, 128, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(123, 47, 255, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(0, 229, 255, 0.04) 0%, transparent 50%) !important;
-  color: #e0e0e0;
+.page-header {
+  margin-bottom: 36px;
+}
+
+.page-title {
+  color: $text-primary !important;
+  text-shadow: none !important;
+  letter-spacing: 0;
+}
+
+.page-subtitle { color: $text-secondary; }
+
+:focus-visible {
+  outline: 2px solid $accent-pink;
+  outline-offset: 3px;
 }
 
 html.theme-dark {
-  .app-header { background: rgba(15, 15, 30, 0.9) !important; border-color: rgba(255,255,255,0.06) !important; }
-  .nav-link { color: #aaa !important; &:hover { color: #fff !important; } }
-  .logo { color: #ff0080 !important; }
-  .article-card, .glass-card, .comment-item, .comment-form {
-    background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.06) !important; color: #e0e0e0 !important;
-  }
-  .card-title, .comment-author, h1, h2, h3, h4 { color: #ff85a2 !important; }
-  .card-meta, .meta-item, .comment-time { color: #999 !important; }
-  .markdown-body { color: #ddd; }
-  .app-footer { background: rgba(255,255,255,0.02) !important; border-color: rgba(255,255,255,0.06) !important; }
-  .drawer { background: #111 !important; }
+  color-scheme: dark;
+  --page-bg: #18201c;
+  --surface: #222c27;
+  --surface-muted: #29352f;
+  --text-primary: #edf1ee;
+  --text-secondary: #aeb9b1;
+  --accent: #8fb29c;
+  --accent-secondary: #d18a6f;
+  --glass-border: #39483f;
+  --card-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
 
-  // ParticleBg — darker particles
-  .particle-bg { opacity: 0.35; }
-
-  // LoadingScreen
-  .loading-screen { background: #0d0d1a !important; }
-  .loading-screen .logo-text { color: #ff85a2 !important; }
-
-  // Code blocks in dark mode
-  .markdown-body pre, .markdown-body .code-block-wrapper pre {
-    background: #1a1a2e !important;
-    border-left-color: rgba(255,133,162,0.4) !important;
-    color: #ddd !important;
+  body {
+    color: #edf1ee;
+    background: #18201c !important;
+    background-image: none !important;
   }
-  .markdown-body .code-block-wrapper .copy-btn {
-    background: rgba(255,255,255,0.08) !important;
-    border-color: rgba(255,255,255,0.1) !important;
-    color: #999 !important;
-    &:hover { color: #ff85a2 !important; }
+
+  .app-header,
+  .drawer,
+  .article-card,
+  .glass-card,
+  .glass-panel,
+  .comment-item,
+  .comment-form,
+  .tag-cloud,
+  .category-card,
+  .loading-state,
+  .skeleton-card,
+  .mobile-toc,
+  .article-nav .nav-link {
+    color: #edf1ee !important;
+    background: #222c27 !important;
+    border-color: #39483f !important;
   }
+
+  .app-header { background: rgba(24, 32, 28, 0.92) !important; }
+  .nav-link,
+  .drawer-link,
+  .card-meta,
+  .meta-item,
+  .comment-time,
+  .page-subtitle,
+  .landing__bio,
+  .avatar-handle { color: #aeb9b1 !important; }
+
+  .logo,
+  .card-title,
+  .comment-author,
+  h1,
+  h2,
+  h3,
+  h4 { color: #edf1ee !important; }
+
+  .page-title,
+  .article-title { color: #edf1ee !important; text-shadow: none !important; }
+  .markdown-body { color: #dce4de; }
+  .app-footer { background: #18201c !important; border-color: #39483f !important; }
+  .loading-screen { background: #18201c !important; }
+  .loading-screen .logo-text { color: #edf1ee !important; }
+  .theme-toggle,
+  .back-to-top { color: #aeb9b1 !important; background: #222c27 !important; border-color: #39483f !important; }
+
+  .markdown-body pre,
+  .markdown-body .code-block-wrapper pre {
+    color: #dce4de !important;
+    background: #121814 !important;
+    border-left-color: #8fb29c !important;
+  }
+
+  .markdown-body .code-block-wrapper .copy-btn,
+  .newsletter-input {
+    color: #aeb9b1 !important;
+    background: #29352f !important;
+    border-color: #39483f !important;
+  }
+
   .markdown-body code {
-    background: rgba(255,133,162,0.12) !important;
-    color: #ffaac0 !important;
-  }
-  .markdown-body blockquote {
-    background: rgba(201,177,255,0.06) !important;
-  }
-  .markdown-body table {
-    background: rgba(255,255,255,0.02) !important;
-    border-color: rgba(255,255,255,0.06) !important;
-  }
-  .markdown-body th {
-    background: rgba(255,133,162,0.08) !important;
-    border-color: rgba(255,255,255,0.06) !important;
-  }
-  .markdown-body td { border-color: rgba(255,255,255,0.04) !important; }
-  .markdown-body hr { opacity: 0.15; }
-
-  // SidePanel
-  .side-panel .section-divider { background: rgba(255,255,255,0.06) !important; }
-  .side-panel .category-item:hover { background: rgba(255,255,255,0.04) !important; }
-
-  // Newsletter
-  .newsletter-input { color: #e0e0e0 !important; background: rgba(255,255,255,0.04) !important; }
-
-  // Mermaid in dark mode
-  .mermaid-container { background: #1a1a2e !important; }
-
-  // Page header subtitles
-  .page-subtitle { color: #999 !important; }
-
-  // Landing
-  .page-landing {
-    color: $bg-primary;
+    color: #b8d0c0 !important;
+    background: rgba(143, 178, 156, 0.12) !important;
   }
 
-  .avatar-frame {
-    background: linear-gradient(135deg, $accent-pink, $accent-purple) !important;
-    box-shadow:
-      0 8px 32px rgba($accent-pink, 0.24),
-      0 0 0 1px rgba($bg-primary, 0.12) !important;
-  }
+  .markdown-body blockquote { background: rgba(143, 178, 156, 0.08) !important; }
+  .markdown-body table { background: #222c27 !important; border-color: #39483f !important; }
+  .markdown-body th { background: #29352f !important; border-color: #39483f !important; }
+  .markdown-body td { border-color: #39483f !important; }
+  .markdown-body hr { opacity: 0.25; }
+  .side-panel .section-divider { background: #39483f !important; }
+  .side-panel .category-item:hover { background: #29352f !important; }
+  .mermaid-container { background: #222c27 !important; }
 
-  .avatar-frame__inner {
-    background: rgba($bg-primary, 0.08) !important;
-  }
+  .avatar-frame,
+  .avatar-frame__inner { background: #29352f !important; }
 
-  .landing__name {
-    background: linear-gradient(135deg, $accent-pink, $accent-purple) !important;
-    -webkit-background-clip: text !important;
-    background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    color: transparent !important;
-  }
+  .page-landing { color: #edf1ee; }
+  .landing__name { color: #edf1ee !important; }
+  .portrait-note { color: #aeb9b1 !important; background: #222c27 !important; border-color: #39483f !important; }
 
   .cta--primary {
-    background: $accent-pink !important;
-    color: $bg-primary !important;
-    box-shadow: 0 4px 16px rgba($accent-pink, 0.3) !important;
+    color: #18201c !important;
+    background: #9ab8a5 !important;
   }
 
-  .landing__bio,
-  .avatar-handle {
-    color: rgba($bg-secondary, 0.72) !important;
-  }
-
-  // Categories & Tags pages
-  .category-card {
-    background: rgba(255, 255, 255, 0.04) !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-    &:hover {
-      border-color: rgba(0, 229, 255, 0.4) !important;
-      box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.5),
-        0 0 24px rgba(0, 229, 255, 0.12) !important;
-    }
-  }
-
-  .card-icon {
-    background: rgba(0, 229, 255, 0.1) !important;
-    border-color: rgba(0, 229, 255, 0.25) !important;
-    color: #00e5ff !important;
-    .category-card:hover & {
-      background: rgba(0, 229, 255, 0.18) !important;
-      box-shadow: 0 0 20px rgba(0, 229, 255, 0.25) !important;
-    }
-  }
-
-  .category-name {
-    color: #e0e0e0 !important;
-    .category-card:hover & {
-      color: #00e5ff !important;
-      text-shadow: 0 0 8px rgba(0, 229, 255, 0.5) !important;
-    }
-  }
-
-  .category-count {
-    color: #aaa !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    background: rgba(255, 255, 255, 0.03) !important;
-  }
-
-  .tag-cloud {
-    background: rgba(255, 255, 255, 0.04) !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-  }
-
-  .tag-item {
-    &:hover {
-      background: rgba(255, 255, 255, 0.08) !important;
-    }
-  }
-
-  // Skeleton screens — brightened shimmer for dark background visibility
-  .skeleton-card,
-  .loading-state {
-    background: rgba(255, 255, 255, 0.03) !important;
-    border-color: rgba(255, 255, 255, 0.06) !important;
-  }
-
-  .skeleton-line,
-  .skeleton-tag {
-    background: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.04) 25%,
-      rgba(255, 255, 255, 0.1) 50%,
-      rgba(255, 255, 255, 0.04) 75%
-    ) !important;
-    background-size: 200% 100% !important;
-  }
-
-  .state-message {
-    color: #999 !important;
-    svg { color: #888 !important; }
-  }
+  .category-name,
+  .interest-field,
+  .nav-title { color: #edf1ee !important; }
+  .category-count { color: #aeb9b1 !important; background: #29352f !important; border-color: #39483f !important; }
+  .card-icon { color: #8fb29c !important; background: rgba(143, 178, 156, 0.1) !important; border-color: #39483f !important; }
+  .state-message { color: #aeb9b1 !important; }
+  .particle-bg { display: none; }
 }
 
-// ---- Focus-visible (accessibility) ----
-:focus-visible {
-  outline: 2px solid $accent-pink;
-  outline-offset: 2px;
-  border-radius: 2px;
+@media (max-width: 767px) {
+  body { font-size: 15px; }
+  .container { width: min(100% - 24px, 1160px); }
+  .page-header { margin-bottom: 28px; }
 }
-a:focus-visible, button:focus-visible {
-  outline: 2px solid $accent-pink;
-  outline-offset: 2px;
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

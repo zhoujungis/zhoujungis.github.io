@@ -15,11 +15,11 @@ function withRouter() {
 }
 
 describe('AppHeader', () => {
-  it('renders logo text as 「Blog」', async () => {
+  it('renders the Zhou Jun wordmark', async () => {
     const router = withRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(AppHeader, { global: { plugins: [router] } })
-    expect(wrapper.find('.logo').text()).toBe('Blog')
+    expect(wrapper.find('.logo').text()).toContain('Zhou Jun')
   })
 
   it('renders nav link 「文章」 pointing to /articles', async () => {

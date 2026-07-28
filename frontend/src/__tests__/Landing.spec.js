@@ -25,7 +25,7 @@ describe('Landing (Home.vue)', () => {
   it('renders .landing__name', async () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    expect(wrapper.find('.landing__name').text()).toBe('个人博客')
+    expect(wrapper.find('.landing__name').text()).toBe('Zhou Jun')
   })
 
   it('does NOT render any article card or article-grid', async () => {
@@ -44,7 +44,7 @@ describe('Landing (Home.vue)', () => {
     const cta = wrapper.find('.cta--primary')
     expect(cta.exists()).toBe(true)
     expect(cta.attributes('href')).toBe('/articles')
-    expect(cta.text()).toMatch(/读文章/)
+    expect(cta.text()).toMatch(/阅读文章/)
   })
 
   it('defines dark-theme overrides for landing surfaces and text', () => {

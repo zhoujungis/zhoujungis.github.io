@@ -356,9 +356,9 @@ onUnmounted(() => {
 @use '@/styles/skeleton' as *;
 
 .page-article-detail {
-  max-width: 1200px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 48px 20px 24px;
 }
 
 // ============ Two-column layout ============
@@ -425,13 +425,10 @@ onUnmounted(() => {
 
 .article-title {
   font-size: 2rem;
-  font-weight: 800;
-  color: $neon-cyan;
+  font-weight: 750;
+  color: $text-primary;
   line-height: 1.3;
   margin-bottom: 16px;
-  text-shadow:
-    0 0 7px rgba($neon-cyan, 0.3),
-    0 0 10px rgba($neon-cyan, 0.1);
 
   @media (max-width: 767px) {
     font-size: 1.5rem;
@@ -483,20 +480,20 @@ onUnmounted(() => {
   font-size: 0.9rem;
   font-family: $font-mono;
   font-weight: 600;
-  color: $neon-pink;
-  background: rgba($neon-pink, 0.08);
-  border: 1px solid rgba($neon-pink, 0.3);
+  color: $accent-purple;
+  background: rgba($accent-purple, 0.08);
+  border: 1px solid rgba($accent-purple, 0.3);
   border-radius: 999px;
   cursor: pointer;
   transition: background $transition-fast, box-shadow $transition-fast, transform $transition-fast;
 
-  &:hover { background: rgba($neon-pink, 0.15); box-shadow: 0 0 10px rgba($neon-pink, 0.2); }
+  &:hover { background: rgba($accent-purple, 0.15); }
   &:active { transform: scale(0.95); }
   &.liked {
     color: #fff;
-    background: rgba($neon-pink, 0.3);
-    border-color: $neon-pink;
-    box-shadow: 0 0 12px rgba($neon-pink, 0.3);
+    background: $accent-purple;
+    border-color: $accent-purple;
+    box-shadow: none;
     pointer-events: none;
   }
 }
@@ -534,8 +531,8 @@ onUnmounted(() => {
     width: 100%;
     max-height: 400px;
     object-fit: cover;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border-radius: $radius-md;
+    box-shadow: $card-shadow;
   }
 }
 
@@ -552,16 +549,14 @@ onUnmounted(() => {
   flex: 1;
   padding: 16px 20px;
   background: $bg-card;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid $glass-border;
   border-radius: $glass-radius;
   text-decoration: none;
   transition: border-color $transition-base, background $transition-base;
 
   &:hover {
-    border-color: rgba($neon-cyan, 0.2);
-    background: rgba(20, 20, 30, 0.8);
+    border-color: rgba($accent-pink, 0.35);
+    background: $bg-secondary;
   }
 }
 
@@ -689,7 +684,7 @@ onUnmounted(() => {
 // ============ Mobile ============
 @media (max-width: 767px) {
   .page-article-detail {
-    padding: 16px 12px;
+    padding: 32px 14px 16px;
   }
 
   .detail-layout {

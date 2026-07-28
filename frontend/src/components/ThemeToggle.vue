@@ -1,35 +1,68 @@
 <template>
-  <button class="theme-toggle" :title="isDark ? '切换到亮色主题' : '切换到暗色主题'" @click="toggle">
-    <svg v-if="!isDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  <button
+    class="theme-toggle"
+    :class="{ 'theme-toggle--floating': floating }"
+    :title="isDark ? '切换到亮色主题' : '切换到暗色主题'"
+    :aria-label="isDark ? '切换到亮色主题' : '切换到暗色主题'"
+    @click="toggle"
+  >
+    <svg v-if="!isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41" />
+    </svg>
   </button>
 </template>
 
 <script setup>
 import { useTheme } from '@/composables/useTheme'
 
+defineProps({
+  floating: {
+    type: Boolean,
+    default: false,
+  },
+})
+
 const { isDark, toggle } = useTheme()
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/styles/variables' as *;
+
 .theme-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px; height: 36px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  padding: 0;
+  color: $text-secondary;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 50%;
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.08));
-  background: rgba(255,255,255,0.04);
-  color: var(--text-secondary, #999);
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 999;
+  transition: color $transition-fast, background $transition-fast, border-color $transition-fast;
+
+  svg { width: 18px; height: 18px; }
+
+  &:hover {
+    color: $accent-pink;
+    background: $bg-secondary;
+    border-color: $glass-border;
+  }
 }
-.theme-toggle:hover {
-  color: var(--neon-cyan, #00e5ff);
-  background: rgba(0,229,255,0.08);
+
+.theme-toggle--floating {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 999;
+  background: $bg-card;
+  border-color: $glass-border;
+  box-shadow: $card-shadow;
 }
 </style>

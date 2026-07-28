@@ -161,9 +161,9 @@ function formatTime(dateStr) {
 
 function avatarColor(name) {
   const colors = [
-    '#ff0080', '#00e5ff', '#7b2fff', '#ff6b35',
-    '#00c853', '#ffd600', '#ea80fc', '#40c4ff',
-    '#ff5252', '#69f0ae', '#ffab40', '#b388ff',
+    '#3f6b57', '#a45f45', '#8a6c3f', '#637b68',
+    '#7b6757', '#4f7477', '#8a635f', '#6b7250',
+    '#536b5d', '#9b704e', '#65706a', '#7b6a83',
   ]
   if (!name) return colors[0]
   let hash = 0

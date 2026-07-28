@@ -21,23 +21,27 @@ function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
 @use '@/styles/variables' as *;
 
 .back-to-top {
-  position: fixed; bottom: 80px; right: 24px; z-index: 998;
-  width: 44px; height: 44px; border-radius: 50%;
-  border: 2px solid rgba(255, 133, 162, 0.3);
-  background: rgba(255, 255, 255, 0.9);
+  position: fixed; bottom: 24px; right: 24px; z-index: 998;
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 1px solid $glass-border;
+  background: rgba(255, 255, 255, 0.94);
   color: $accent-pink;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: $card-shadow;
-  transition: all $transition-bounce;
+  transition: transform $transition-base, box-shadow $transition-base, border-color $transition-base;
 
   &:hover {
-    transform: translateY(-4px) scale(1.05);
+    transform: translateY(-3px);
     box-shadow: $card-shadow-hover;
     border-color: $accent-pink;
   }
 
   &:active { transform: scale(0.95); }
+}
+
+@media (max-width: 767px) {
+  .back-to-top { right: 14px; bottom: 16px; width: 40px; height: 40px; }
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.35s ease, transform 0.35s ease; }

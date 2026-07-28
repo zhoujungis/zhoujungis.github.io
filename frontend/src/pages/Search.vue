@@ -203,19 +203,20 @@ onBeforeUnmount(() => {
 @use '@/styles/variables' as *;
 
 .page-search {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .page-header {
-  text-align: center;
+  text-align: left;
   margin-bottom: 32px;
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 800;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
   margin-bottom: 8px;
 }
 
@@ -315,7 +316,7 @@ onBeforeUnmount(() => {
 
 .skeleton-card {
   background: $bg-card;
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   border: 1px solid $glass-border;
 }
@@ -389,13 +390,18 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
   strong { color: $accent-pink; }
 }
+
+@media (max-width: 767px) {
+  .page-search { padding: 32px 14px 16px; }
+  .page-title { font-size: 2rem; }
+}
 </style>
 
 <style>
 /* Global: keyword highlight in search results */
 .search-highlight {
-  background: rgba(255,133,162,0.2);
-  color: #ff85a2;
+  background: rgba(200, 154, 70, 0.24);
+  color: #725221;
   padding: 0 2px;
   border-radius: 2px;
   font-weight: 600;

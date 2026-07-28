@@ -76,9 +76,9 @@ const interests = [
 @use '@/styles/variables' as *;
 
 .page-about {
-  max-width: 1200px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .about-layout {
@@ -178,15 +178,15 @@ const interests = [
   display: inline-block;
   padding: 6px 16px;
   border-radius: 20px;
-  background: rgba(255, 133, 162, 0.08);
-  border: 1px solid rgba(255, 133, 162, 0.2);
+  background: rgba($accent-pink, 0.08);
+  border: 1px solid rgba($accent-pink, 0.2);
   color: $accent-pink;
   font-size: 0.85rem;
   font-weight: 500;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba(255, 133, 162, 0.15);
+    background: rgba($accent-pink, 0.15);
     border-color: $accent-pink;
     transform: translateY(-2px);
   }
@@ -203,7 +203,7 @@ const interests = [
   align-items: flex-start;
   gap: 12px;
   padding: 12px 14px;
-  background: rgba(255,255,255,0.03);
+  background: $bg-primary;
   border-radius: $radius-md;
   border: 1px solid $glass-border;
 }
@@ -251,5 +251,10 @@ const interests = [
   &:hover {
     color: $accent-pink;
   }
+}
+
+@media (max-width: 767px) {
+  .page-about { padding: 32px 14px 16px; }
+  .profile-name { font-size: 1.8rem; }
 }
 </style>

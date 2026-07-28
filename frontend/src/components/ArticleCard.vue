@@ -10,7 +10,6 @@
         :fetchpriority="article.is_top ? 'high' : 'auto'"
         @error="coverBroken = true"
       />
-      <div class="cover-gradient" />
     </div>
 
     <!-- Pinned badge -->
@@ -113,13 +112,13 @@ const categoryName = computed(() => catLabel(props.article.category))
 @use '@/styles/variables' as *;
 
 .article-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   position: relative;
   background: $bg-card;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid $glass-border;
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   text-decoration: none;
   color: inherit;
@@ -129,11 +128,9 @@ const categoryName = computed(() => catLabel(props.article.category))
     border-color $transition-base;
 
   &:hover {
-    transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 20px rgba($neon-purple, 0.08);
+    transform: translateY(-3px);
+    border-color: rgba($accent-pink, 0.4);
+    box-shadow: $card-shadow-hover;
   }
 }
 
@@ -141,28 +138,20 @@ const categoryName = computed(() => catLabel(props.article.category))
 .card-cover {
   position: relative;
   width: 100%;
-  height: 200px;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
+  background: $bg-secondary;
 
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.4s ease;
+    transition: transform $transition-slow;
   }
 
   .article-card:hover & img {
-    transform: scale(1.05);
+    transform: scale(1.025);
   }
-}
-
-.cover-gradient {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60%;
-  background: linear-gradient(to top, rgba(10, 10, 15, 0.85) 0%, transparent 100%);
 }
 
 // ---- Pinned badge ----
@@ -174,35 +163,35 @@ const categoryName = computed(() => catLabel(props.article.category))
   padding: 3px 10px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #fff;
+  color: #fffaf5;
   background: $neon-pink;
   border-radius: 6px;
-  box-shadow: 0 0 10px rgba($neon-pink, 0.5), 0 0 20px rgba($neon-pink, 0.25);
-  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba($neon-pink, 0.2);
+  letter-spacing: 0;
 }
 
 // ---- Card body ----
 .card-body {
-  padding: 20px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 21px 22px 22px;
 }
 
 .card-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1.4;
-  margin-bottom: 10px;
+  font-size: 1.16rem;
+  font-weight: 720;
+  line-height: 1.45;
+  margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: $text-primary;
-  transition: color $transition-fast, text-shadow $transition-fast;
+  transition: color $transition-fast;
 
   .article-card:hover & {
-    color: $neon-cyan;
-    text-shadow:
-      0 0 7px rgba($neon-cyan, 0.6),
-      0 0 10px rgba($neon-cyan, 0.3);
+    color: $accent-pink;
   }
 }
 
@@ -210,10 +199,10 @@ const categoryName = computed(() => catLabel(props.article.category))
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 0.8rem;
+  gap: 10px;
+  font-size: 0.76rem;
   color: $text-secondary;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
@@ -224,6 +213,8 @@ const categoryName = computed(() => catLabel(props.article.category))
 .meta-category {
   font-weight: 600;
   white-space: nowrap;
+  color: $accent-purple;
+  text-shadow: none;
 }
 
 .meta-views {
@@ -242,7 +233,7 @@ const categoryName = computed(() => catLabel(props.article.category))
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-  color: $accent-mint;
+  color: $text-secondary;
 
   svg {
     opacity: 0.7;
@@ -254,25 +245,22 @@ const categoryName = computed(() => catLabel(props.article.category))
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .tag-pill {
   display: inline-block;
-  padding: 2px 10px;
-  font-size: 0.72rem;
-  color: $neon-purple;
-  border: 1px solid $neon-purple;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  color: #6e765f;
+  background: #f2f3ec;
+  border: 1px solid #e1e4d9;
   border-radius: 999px;
-  transition: background $transition-fast;
-
-  &:hover {
-    background: rgba($neon-purple, 0.12);
-  }
 }
 
 // ---- Excerpt ----
 .card-excerpt {
+  margin-top: auto;
   font-size: 0.875rem;
   color: $text-secondary;
   line-height: 1.6;
@@ -280,5 +268,11 @@ const categoryName = computed(() => catLabel(props.article.category))
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .card-body { padding: 17px 16px 18px; }
+  .card-title { font-size: 1.08rem; }
+  .card-meta { gap: 8px; }
 }
 </style>

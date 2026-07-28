@@ -132,13 +132,13 @@ function getChartOption() {
   const dark = isDark.value
 
   // ---- colour tokens ----
-  const textColor = dark ? '#ccc' : '#4a3040'
-  const mapBg = dark ? '#16162a' : '#faf0f4'
-  const mapBorder = dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,133,162,0.15)'
-  const visitedFill = dark ? '#3a1e2c' : '#fce4ec'
-  const visitedStroke = dark ? 'rgba(255,133,162,0.35)' : 'rgba(255,133,162,0.45)'
-  const unvisitedEmphasis = dark ? 'rgba(255,133,162,0.08)' : 'rgba(255,133,162,0.06)'
-  const visitedEmphasis = dark ? '#4d2840' : '#ffd6e0'
+  const textColor = dark ? '#dce4de' : '#263129'
+  const mapBg = dark ? '#222c27' : '#eef0e9'
+  const mapBorder = dark ? 'rgba(237,241,238,0.08)' : 'rgba(63,107,87,0.18)'
+  const visitedFill = dark ? '#2e4036' : '#dfe8e1'
+  const visitedStroke = dark ? 'rgba(143,178,156,0.45)' : 'rgba(63,107,87,0.5)'
+  const unvisitedEmphasis = dark ? 'rgba(143,178,156,0.08)' : 'rgba(63,107,87,0.07)'
+  const visitedEmphasis = dark ? '#395044' : '#cfddd3'
 
   // ---- geo regions: highlight visited provinces ----
   const geoRegions = visitedProvinces.value
@@ -178,11 +178,11 @@ function getChartOption() {
         }
         return params.name
       },
-      backgroundColor: dark ? '#1e1e2e' : '#fff',
-      borderColor: '#ff85a2',
+      backgroundColor: dark ? '#222c27' : '#fff',
+      borderColor: '#3f6b57',
       borderWidth: 1,
-      textStyle: { color: dark ? '#e0e0e0' : '#4a3040', fontSize: 13 },
-      extraCssText: 'border-radius: 10px; padding: 8px 12px; box-shadow: 0 4px 20px rgba(255,133,162,0.18);',
+      textStyle: { color: dark ? '#edf1ee' : '#263129', fontSize: 13 },
+      extraCssText: 'border-radius: 6px; padding: 8px 12px; box-shadow: 0 8px 24px rgba(31,42,36,0.14);',
     },
 
     // ----- base map -----
@@ -216,7 +216,7 @@ function getChartOption() {
         symbolSize: 18,
         silent: true,
         itemStyle: {
-          color: dark ? 'rgba(255,133,162,0.18)' : 'rgba(255,133,162,0.2)',
+          color: dark ? 'rgba(143,178,156,0.18)' : 'rgba(63,107,87,0.2)',
         },
         label: { show: false },
       },
@@ -231,12 +231,12 @@ function getChartOption() {
           brushType: 'stroke',
           scale: 5.5,
           period: 5,
-          color: '#ff85a2',
+          color: '#3f6b57',
         },
         itemStyle: {
-          color: '#ff85a2',
-          shadowBlur: 12,
-          shadowColor: 'rgba(255,133,162,0.5)',
+          color: '#3f6b57',
+          shadowBlur: 8,
+          shadowColor: 'rgba(63,107,87,0.35)',
           borderColor: dark ? '#2a2a3e' : '#fff',
           borderWidth: 1.8,
         },
@@ -253,8 +253,8 @@ function getChartOption() {
         emphasis: {
           scale: 2.5,
           itemStyle: {
-            shadowBlur: 24,
-            shadowColor: '#ff85a2',
+            shadowBlur: 16,
+            shadowColor: '#3f6b57',
           },
         },
       },
@@ -320,19 +320,19 @@ onBeforeUnmount(() => {
 .page-footprints {
   max-width: 960px;
   margin: 0 auto;
-  padding: 28px 16px 40px;
+  padding: 52px 20px 40px;
 }
 
 // ========================================
 // Header
 // ========================================
 .footprints-header {
-  text-align: center;
+  text-align: left;
   margin-bottom: 32px;
 }
 
 .header-decoration {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -355,14 +355,14 @@ onBeforeUnmount(() => {
 }
 
 .footprints-title {
-  font-size: 2rem;
-  font-weight: 800;
-  color: $accent-pink;
+  font-size: 2.4rem;
+  font-weight: 750;
+  color: $text-primary;
   margin: 0 0 8px;
-  letter-spacing: 1px;
+  letter-spacing: 0;
 
   @media (max-width: 767px) {
-    font-size: 1.5rem;
+    font-size: 2rem;
   }
 }
 
@@ -495,8 +495,8 @@ onBeforeUnmount(() => {
   display: inline-block;
   padding: 4px 14px;
   border-radius: 16px;
-  background: rgba(255, 133, 162, 0.07);
-  border: 1px solid rgba(255, 133, 162, 0.18);
+  background: rgba($accent-pink, 0.07);
+  border: 1px solid rgba($accent-pink, 0.18);
   color: $accent-pink;
   font-size: 0.8rem;
   font-weight: 500;
@@ -504,9 +504,15 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 
   &:hover {
-    background: rgba(255, 133, 162, 0.14);
+    background: rgba($accent-pink, 0.14);
     border-color: $accent-pink;
     transform: translateY(-1px);
   }
+}
+
+@media (max-width: 767px) {
+  .page-footprints { padding: 32px 14px 28px; }
+  .footprints-header { margin-bottom: 24px; }
+  .map-card { margin-bottom: 18px; padding: 4px; }
 }
 </style>

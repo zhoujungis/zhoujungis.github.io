@@ -1,7 +1,8 @@
 <template>
   <div class="page page-articles">
     <header class="page-header">
-      <h1 class="page-title neon-text-cyan">文章</h1>
+      <p class="page-eyebrow">WRITING</p>
+      <h1 class="page-title">文章</h1>
       <p class="page-subtitle">
         所有文章按时间倒序排列,共 {{ articleStore.pagination.count }} 篇
       </p>
@@ -226,23 +227,45 @@ onMounted(() => {
 @use '@/styles/skeleton' as *;
 
 .page-articles {
-  max-width: 1200px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
-.articles-list {
-  // Single-column layout — sidebar (SidePanel) removed for a cleaner reading focus.
+.page-header {
+  max-width: 720px;
+  margin-bottom: 36px;
 }
 
-// ---- Filter Bar ----
+.page-eyebrow {
+  margin-bottom: 8px;
+  color: $accent-purple;
+  font-family: $font-mono;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.page-title {
+  margin: 0 0 7px;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  color: $text-secondary;
+  font-size: 0.92rem;
+}
+
 .filter-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 20px;
   padding: 10px 16px;
-  background: $glass-bg;
+  background: $bg-card;
   border: 1px solid $glass-border;
   border-radius: $radius-md;
 }
@@ -252,7 +275,7 @@ onMounted(() => {
   font-weight: 600;
   color: $accent-pink;
   padding: 4px 12px;
-  background: rgba(255,133,162,0.1);
+  background: rgba($accent-pink, 0.09);
   border-radius: 999px;
 }
 
@@ -263,7 +286,6 @@ onMounted(() => {
   &:hover { color: $accent-pink; }
 }
 
-// ---- Pinned Section ----
 .pinned-section {
   margin-bottom: 32px;
 }
@@ -276,7 +298,6 @@ onMounted(() => {
   font-weight: 700;
   color: $neon-pink;
   margin-bottom: 16px;
-  text-shadow: 0 0 7px rgba($neon-pink, 0.4);
 
   svg {
     flex-shrink: 0;
@@ -290,26 +311,23 @@ onMounted(() => {
 }
 
 .pinned-card {
-  border-color: rgba($neon-pink, 0.3);
-  box-shadow: 0 0 12px rgba($neon-pink, 0.06);
+  border-color: rgba($neon-pink, 0.28);
 }
 
-// ---- Article Grid ----
 .article-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  gap: 24px;
 
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
   }
 }
 
-// ---- Skeleton Loading ----
 .skeleton-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  gap: 24px;
 
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
@@ -318,7 +336,7 @@ onMounted(() => {
 
 .skeleton-card {
   background: $bg-card;
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   border: 1px solid $glass-border;
 }
@@ -349,7 +367,6 @@ onMounted(() => {
 .w-100 { width: 100%; }
 .w-60 { width: 60%; }
 
-// ---- States (error, empty) ----
 .state-message {
   text-align: center;
   padding: 80px 20px;
@@ -370,20 +387,19 @@ onMounted(() => {
   padding: 8px 24px;
   font-size: 0.85rem;
   font-family: inherit;
-  color: $neon-cyan;
-  background: transparent;
-  border: 1px solid rgba($neon-cyan, 0.3);
+  color: #fff;
+  background: $accent-pink;
+  border: 1px solid $accent-pink;
   border-radius: 8px;
   cursor: pointer;
   transition: background $transition-fast, border-color $transition-fast;
 
   &:hover {
-    background: rgba($neon-cyan, 0.08);
-    border-color: $neon-cyan;
+    background: #315544;
+    border-color: #315544;
   }
 }
 
-// ---- Pagination ----
 .pagination {
   display: flex;
   align-items: center;
@@ -410,16 +426,16 @@ onMounted(() => {
   font-size: 0.85rem;
   font-family: inherit;
   color: $text-secondary;
-  background: transparent;
+  background: $bg-card;
   border: 1px solid $glass-border;
   border-radius: 8px;
   cursor: pointer;
   transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
 
   &:hover:not(:disabled) {
-    color: $neon-cyan;
-    border-color: rgba($neon-cyan, 0.3);
-    background: rgba($neon-cyan, 0.04);
+    color: $accent-pink;
+    border-color: rgba($accent-pink, 0.4);
+    background: $bg-secondary;
   }
 
   &:disabled {
@@ -428,10 +444,10 @@ onMounted(() => {
   }
 
   &.active {
-    color: $neon-cyan;
-    border-color: $neon-cyan;
-    box-shadow: 0 0 8px rgba($neon-cyan, 0.3);
-    background: rgba($neon-cyan, 0.08);
+    color: #fff;
+    border-color: $accent-pink;
+    box-shadow: none;
+    background: $accent-pink;
   }
 }
 
@@ -442,10 +458,18 @@ onMounted(() => {
   letter-spacing: 2px;
 }
 
-// ---- Mobile adjustments ----
 @media (max-width: 767px) {
   .page-articles {
-    padding: 16px 12px;
+    padding: 32px 14px 16px;
   }
+  .page-header { margin-bottom: 28px; }
+  .page-title { font-size: 2rem; }
+  .pagination {
+    justify-content: flex-start;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 0 2px 20px;
+  }
+  .page-info { margin-right: 6px; }
 }
 </style>

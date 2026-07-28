@@ -191,7 +191,7 @@ watch(() => props.html, () => {
     margin-top: 1.5em; margin-bottom: 0.6em;
     font-weight: 700; line-height: 1.35;
   }
-  :deep(h1) { font-size: 1.8rem; border-bottom: 2px solid rgba(255,133,162,0.2); padding-bottom: 0.4em; }
+  :deep(h1) { font-size: 1.8rem; border-bottom: 2px solid rgba($accent-pink, 0.18); padding-bottom: 0.4em; }
   :deep(h2) { font-size: 1.55rem; }
   :deep(h3) { font-size: 1.35rem; }
   :deep(h4) { font-size: 1.15rem; }
@@ -256,7 +256,7 @@ watch(() => props.html, () => {
     font-family: $font-mono;
     font-size: 0.875rem;
     line-height: 1.6;
-    box-shadow: 0 2px 8px rgba(255,133,162,0.08);
+    box-shadow: 0 2px 8px rgba($accent-pink, 0.08);
 
     code {
       background: transparent; color: inherit; padding: 0;
@@ -267,8 +267,8 @@ watch(() => props.html, () => {
 
   // Inline code
   :deep(code) {
-    background: rgba(255,133,162,0.1);
-    color: #d4677e;
+    background: rgba($accent-pink, 0.1);
+    color: #315544;
     padding: 2px 7px; border-radius: 4px;
     font-size: 0.85em; font-family: $font-mono;
   }
@@ -291,7 +291,7 @@ watch(() => props.html, () => {
     border: 1px solid $glass-border;
   }
   :deep(th) {
-    background: rgba(255,133,162,0.08);
+    background: rgba($accent-pink, 0.08);
     color: $accent-pink; font-weight: 600;
     text-align: left; padding: 12px 16px;
     border-bottom: 1px solid $glass-border;
@@ -303,8 +303,8 @@ watch(() => props.html, () => {
     font-size: 0.9rem;
   }
   :deep(tr:last-child td) { border-bottom: none; }
-  :deep(tr:nth-child(even)) { background: rgba(255,133,162,0.03); }
-  :deep(tr:hover) { background: rgba(255,133,162,0.06); }
+  :deep(tr:nth-child(even)) { background: rgba($accent-pink, 0.03); }
+  :deep(tr:hover) { background: rgba($accent-pink, 0.06); }
 
   // Links
   :deep(a) {

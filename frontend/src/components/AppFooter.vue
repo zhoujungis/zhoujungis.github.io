@@ -42,16 +42,16 @@ onMounted(() => {
 @use '@/styles/variables' as *;
 
 .app-footer {
-  margin-top: 60px;
+  margin-top: 72px;
   border-top: 1px solid $glass-border;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 20px 0;
+  background: rgba(255, 255, 255, 0.38);
+  padding: 24px 0;
 }
 
 .footer-inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  width: min(100% - 40px, 1160px);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -81,9 +81,19 @@ onMounted(() => {
   color: $text-secondary;
   text-decoration: none;
   transition: color $transition-fast;
-  &:hover { color: $neon-cyan; }
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  border-radius: 50%;
+  &:hover { color: $accent-pink; background: $bg-secondary; }
 }
 
 .rss-link:hover { color: #f26522; }
 .runtime { font-family: $font-mono; opacity: 0.6; }
+
+@media (max-width: 767px) {
+  .app-footer { margin-top: 48px; padding: 22px 0; }
+  .footer-inner { width: calc(100% - 24px); gap: 12px; }
+  .footer-left { flex-wrap: wrap; justify-content: center; }
+}
 </style>

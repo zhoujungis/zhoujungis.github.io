@@ -3,10 +3,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
-import ParticleBg from './components/ParticleBg.vue'
 import Live2DWidget from './components/Live2DWidget.vue'
 import BackToTop from './components/BackToTop.vue'
-import LoadingScreen from './components/LoadingScreen.vue'
 import ReadingProgress from './components/ReadingProgress.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 
@@ -17,9 +15,7 @@ const isAdmin = computed(() => route.path.startsWith('/admin'))
 </script>
 
 <template>
-  <LoadingScreen />
   <ReadingProgress />
-  <ParticleBg v-if="!isAdmin" />
   <AppHeader v-if="!isAdmin" />
   <main class="main-content" :class="{ 'main-content--admin': isAdmin }">
     <router-view v-slot="{ Component }">
@@ -31,12 +27,12 @@ const isAdmin = computed(() => route.path.startsWith('/admin'))
   <AppFooter v-if="!isAdmin" />
   <Live2DWidget v-if="!isAdmin" />
   <BackToTop v-if="!isAdmin" />
-  <ThemeToggle />
+  <ThemeToggle v-if="isAdmin" floating />
 </template>
 
 <style lang="scss">
 .main-content {
-  padding-top: 56px;
+  padding-top: 68px;
   min-height: calc(100vh - 120px);
 }
 
@@ -51,4 +47,8 @@ const isAdmin = computed(() => route.path.startsWith('/admin'))
 }
 .page-enter-from { opacity: 0; transform: translateY(12px); }
 .page-leave-to { opacity: 0; transform: translateY(-12px); }
+
+@media (max-width: 899px) {
+  .main-content { padding-top: 62px; }
+}
 </style>

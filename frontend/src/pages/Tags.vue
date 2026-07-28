@@ -1,7 +1,7 @@
 <template>
   <div class="page page-tags">
     <header class="page-header">
-      <h1 class="page-title neon-text-cyan">标签</h1>
+      <h1 class="page-title">标签</h1>
       <p class="page-subtitle">点击标签筛选文章</p>
     </header>
 
@@ -39,9 +39,9 @@
       <router-link
         v-for="(tag, idx) in tags"
         :key="tagLabel(tag)"
-        :to="{ path: '/', query: { tag: tagSlug(tag) || tagLabel(tag) } }"
+        :to="{ path: '/articles', query: { tag: tagSlug(tag) || tagLabel(tag) } }"
         class="tag-item"
-        :style="tagStyle(tag, idx)"
+        :class="`tag-item--${idx % 3}`"
       >
         {{ tagLabel(tag) }}
       </router-link>
@@ -63,8 +63,6 @@ const error = ref(null)
 // regenerated and Vue re-painted them.
 const skeletonWidths = Array.from({ length: 20 }, () => 40 + Math.floor(Math.random() * 80))
 
-const neonColors = ['#00e5ff', '#ff0080', '#7b2fff']
-
 // Filter out tags containing "测试" and make all tags equal size
 const tags = computed(() => {
   const raw = articleStore.tags || []
@@ -72,15 +70,6 @@ const tags = computed(() => {
     const name = tagLabel(t)
     return !name.includes('测试')
   })
-})
-
-// Find the min and max count for scaling font sizes
-const countRange = computed(() => {
-  const counts = tags.value.map((t) => tagCount(t))
-  return {
-    min: counts.length ? Math.min(...counts) : 0,
-    max: counts.length ? Math.max(...counts) : 1,
-  }
 })
 
 function tagLabel(tag) {
@@ -91,21 +80,6 @@ function tagLabel(tag) {
 function tagSlug(tag) {
   if (!tag) return ''
   return typeof tag === 'object' ? tag.slug || '' : ''
-}
-
-function tagCount(tag) {
-  if (typeof tag === 'object' && tag.article_count !== undefined) return tag.article_count
-  if (typeof tag === 'object' && tag.count !== undefined) return tag.count
-  return 1
-}
-
-function tagStyle(tag, idx) {
-  const color = neonColors[idx % neonColors.length]
-  return {
-    fontSize: '1rem',
-    borderColor: color,
-    color,
-  }
 }
 
 async function loadTags() {
@@ -127,19 +101,20 @@ onMounted(loadTags)
 @use '@/styles/variables' as *;
 
 .page-tags {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .page-header {
-  text-align: center;
-  margin-bottom: 40px;
+  text-align: left;
+  margin-bottom: 32px;
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 800;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
   margin-bottom: 8px;
 }
 
@@ -152,7 +127,7 @@ onMounted(loadTags)
 .tag-cloud {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 12px;
   padding: 40px 20px;
@@ -160,14 +135,17 @@ onMounted(loadTags)
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid $glass-border;
-  border-radius: 12px;
+  border-radius: $radius-md;
 }
 
 .tag-item {
   display: inline-block;
   padding: 4px 16px;
   border: 1px solid;
+  border: 1px solid $glass-border !important;
   border-radius: 999px;
+  color: $accent-pink !important;
+  background: $bg-primary;
   text-decoration: none;
   font-weight: 600;
   transition:
@@ -178,16 +156,19 @@ onMounted(loadTags)
 
   &:hover {
     background: rgba(255, 255, 255, 0.06);
-    box-shadow: 0 0 16px currentColor;
     transform: translateY(-2px);
+    background: $bg-secondary;
   }
 }
+
+.tag-item--1 { color: $accent-purple !important; }
+.tag-item--2 { color: $neon-purple !important; }
 
 // ---- Skeleton ----
 .loading-state {
   padding: 40px 20px;
   background: $bg-card;
-  border-radius: 12px;
+  border-radius: $radius-md;
   border: 1px solid $glass-border;
 }
 
@@ -248,5 +229,12 @@ onMounted(loadTags)
     background: rgba($neon-cyan, 0.08);
     border-color: $neon-cyan;
   }
+}
+
+@media (max-width: 767px) {
+  .page-tags { padding: 32px 14px 16px; }
+  .page-title { font-size: 2rem; }
+  .tag-cloud { gap: 9px; padding: 22px 16px; }
+  .tag-item { min-height: 40px; display: inline-flex; align-items: center; }
 }
 </style>

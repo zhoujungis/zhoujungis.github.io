@@ -103,19 +103,20 @@ onMounted(loadFriends)
 @use '@/styles/variables' as *;
 
 .page-friend-links {
-  max-width: 1200px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 52px 20px 24px;
 }
 
 .page-header {
-  text-align: center;
-  margin-bottom: 40px;
+  text-align: left;
+  margin-bottom: 32px;
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 800;
+  color: $text-primary;
+  font-size: 2.4rem;
+  font-weight: 750;
   margin-bottom: 8px;
 }
 
@@ -147,15 +148,12 @@ onMounted(loadFriends)
     box-shadow $transition-base;
 
   &:hover {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
     border-color: rgba($neon-cyan, 0.2);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 20px rgba($neon-cyan, 0.06);
+    box-shadow: $card-shadow-hover;
 
     .friend-name {
       color: $neon-cyan;
-      text-shadow: 0 0 7px rgba($neon-cyan, 0.3);
     }
 
     .arrow-icon {
@@ -180,7 +178,7 @@ onMounted(loadFriends)
 .favicon-placeholder {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: $radius-md;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,7 +194,7 @@ onMounted(loadFriends)
   font-size: 1.05rem;
   font-weight: 700;
   color: $text-primary;
-  transition: color $transition-fast, text-shadow $transition-fast;
+  transition: color $transition-fast;
 }
 
 .arrow-icon {
@@ -226,7 +224,7 @@ onMounted(loadFriends)
 .skeleton-card {
   background: $bg-card;
   border: 1px solid $glass-border;
-  border-radius: 12px;
+  border-radius: $radius-md;
   overflow: hidden;
   padding: 24px;
 }
@@ -240,7 +238,7 @@ onMounted(loadFriends)
 .skeleton-icon {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: $radius-md;
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.02) 25%,
@@ -312,5 +310,12 @@ onMounted(loadFriends)
     background: rgba($neon-cyan, 0.08);
     border-color: $neon-cyan;
   }
+}
+
+@media (max-width: 767px) {
+  .page-friend-links { padding: 32px 14px 16px; }
+  .page-title { font-size: 2rem; }
+  .friend-grid,
+  .skeleton-grid { gap: 12px; }
 }
 </style>

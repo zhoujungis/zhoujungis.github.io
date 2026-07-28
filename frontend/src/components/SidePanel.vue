@@ -104,7 +104,7 @@ const articleStore = useArticleStore()
 
 import { catLabel, catSlug, catCount, tagLabel, tagSlug } from '@/utils/labels'
 
-const neonColors = ['#00e5ff', '#ff0080', '#7b2fff', '#00e5ff', '#ff0080']
+const neonColors = ['#3f6b57', '#a45f45', '#8a6c3f', '#5d7668', '#8b6656']
 
 const categories = computed(() => articleStore.categories || [])
 
@@ -198,7 +198,6 @@ onMounted(async () => {
   font-size: 1.5rem;
   font-weight: 700;
   color: $neon-cyan;
-  text-shadow: 0 0 7px rgba($neon-cyan, 0.6);
 }
 
 .avatar-image {
