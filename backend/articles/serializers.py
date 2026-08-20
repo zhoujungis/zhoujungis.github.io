@@ -32,6 +32,19 @@ class TagNestedField(serializers.RelatedField):
         return {"id": value.id, "name": value.name, "slug": value.slug}
 
 
+def reading_time_minutes(content: str) -> int:
+    """Shared reading-time estimate so front and back end don't drift apart.
+
+    ~250 CJK characters / English words per minute, minimum 1 minute.
+    """
+    import re
+
+    text = content or ""
+    chinese = len(re.findall(r"[一-鿿㐀-䶿]", text))
+    english = len(re.findall(r"[a-zA-Z]+", text))
+    return max(1, (chinese + english) // 250 + 1)
+
+
 class ArticleListSerializer(serializers.ModelSerializer):
     category = CategoryNestedField(read_only=True)
     tags = TagNestedField(many=True, read_only=True)
@@ -57,11 +70,7 @@ class ArticleListSerializer(serializers.ModelSerializer):
         ]
 
     def get_reading_time(self, obj):
-        import re
-        text = obj.content or ""
-        chinese = len(re.findall(r"[一-鿿㐀-䶿]", text))
-        english = len(re.findall(r"[a-zA-Z]+", text))
-        return max(1, (chinese + english) // 250 + 1)
+        return reading_time_minutes(obj.content)
 
 
 class ArticleDetailSerializer(serializers.ModelSerializer):
@@ -70,6 +79,9 @@ class ArticleDetailSerializer(serializers.ModelSerializer):
     prev_article = serializers.SerializerMethodField()
     next_article = serializers.SerializerMethodField()
     related_articles = serializers.SerializerMethodField()
+    # P5: expose reading_time here too so the detail page stops recomputing it
+    # client-side with a second, separate algorithm.
+    reading_time = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
@@ -87,12 +99,16 @@ class ArticleDetailSerializer(serializers.ModelSerializer):
             "is_top",
             "views_count",
             "likes_count",
+            "reading_time",
             "created_at",
             "updated_at",
             "prev_article",
             "next_article",
             "related_articles",
         ]
+
+    def get_reading_time(self, obj):
+        return reading_time_minutes(obj.content)
 
     def get_prev_article(self, obj):
         prev = (

@@ -33,6 +33,19 @@
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
       <p>输入关键词搜索</p>
+
+      <!-- P4: give the empty state something to do — popular tags as entry points -->
+      <div v-if="hotTags.length" class="hot-tags">
+        <span class="hot-tags-label">热门标签</span>
+        <div class="hot-tags-row">
+          <button
+            v-for="tag in hotTags"
+            :key="tag.slug || tag.name"
+            class="hot-tag"
+            @click="searchTag(tag)"
+          >{{ tag.name }}</button>
+        </div>
+      </div>
     </div>
 
     <!-- Loading skeleton -->
@@ -86,7 +99,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getArticles } from '@/api/articles'
+import { getArticles, getTags } from '@/api/articles'
 import ArticleCard from '@/components/ArticleCard.vue'
 
 const route = useRoute()
@@ -177,6 +190,27 @@ function loadMore() {
 
 const hasMore = computed(() => results.value.length < totalResults.value)
 
+// P4: popular tags shown in the empty state, most-used first.
+const hotTags = ref([])
+async function loadHotTags() {
+  try {
+    const res = await getTags()
+    const list = res.data.results || res.data || []
+    hotTags.value = [...list]
+      .sort((a, b) => (b.article_count || 0) - (a.article_count || 0))
+      .slice(0, 8)
+  } catch {
+    hotTags.value = []
+  }
+}
+
+function searchTag(tag) {
+  query.value = tag.name
+  syncQueryToUrl(query.value)
+  performSearch(query.value, 1, false)
+  nextTick(() => inputRef.value?.focus())
+}
+
 // Run initial search if URL has a query on mount / route change
 watch(
   () => route.query.q,
@@ -192,6 +226,7 @@ watch(
 onMounted(() => {
   nextTick(() => inputRef.value?.focus())
   if (query.value) performSearch(query.value, 1, false)
+  loadHotTags()
 })
 
 onBeforeUnmount(() => {
@@ -326,9 +361,9 @@ onBeforeUnmount(() => {
   height: 180px;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -346,9 +381,9 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -381,6 +416,44 @@ onBeforeUnmount(() => {
 
   p {
     font-size: 1rem;
+  }
+}
+
+// P4: hot tag chips in the empty state
+.hot-tags {
+  margin-top: 28px;
+}
+
+.hot-tags-label {
+  display: block;
+  font-size: 0.8rem;
+  color: $text-secondary;
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+.hot-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hot-tag {
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: $neon-cyan;
+  background: rgba($neon-cyan, 0.06);
+  border: 1px solid rgba($neon-cyan, 0.28);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background $transition-fast, border-color $transition-fast, transform $transition-fast;
+
+  &:hover {
+    background: rgba($neon-cyan, 0.14);
+    border-color: $neon-cyan;
+    transform: translateY(-1px);
   }
 }
 

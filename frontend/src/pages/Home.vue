@@ -193,11 +193,13 @@ function onAvatarError() {
 }
 
 .cta--secondary {
-  color: $text-primary;
-  background: transparent;
-  border-color: #cbd3cc;
+  color: $accent-pink;
+  // P4: a faint fill + stronger border lifts the secondary button so it no
+  // longer looks like an afterthought next to the solid primary CTA.
+  background: rgba($accent-pink, 0.06);
+  border-color: rgba($accent-pink, 0.4);
 
-  &:hover { color: $accent-pink; background: $bg-card; border-color: rgba($accent-pink, 0.5); }
+  &:hover { color: $accent-pink; background: rgba($accent-pink, 0.12); border-color: rgba($accent-pink, 0.6); }
 }
 
 .landing__social {

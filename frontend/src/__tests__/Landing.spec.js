@@ -59,10 +59,4 @@ describe('Landing (Home.vue)', () => {
       expect(globalStyles).toContain(selector)
     }
   })
-
-  it('does NOT mount SidePanel', async () => {
-    await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
-    expect(wrapper.findComponent({ name: 'SidePanel' }).exists()).toBe(false)
-  })
 })

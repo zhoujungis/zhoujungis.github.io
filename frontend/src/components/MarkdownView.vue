@@ -24,6 +24,19 @@ const sanitizedHtml = computed(() =>
   })
 )
 
+// Copy-button icons were duplicated as raw strings four times; keep one copy.
+const COPY_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+const CHECK_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+
+function markCopied(btn) {
+  btn.classList.add('copied')
+  btn.innerHTML = CHECK_ICON_SVG
+  setTimeout(() => {
+    btn.classList.remove('copied')
+    btn.innerHTML = COPY_ICON_SVG
+  }, 2000)
+}
+
 function attachCopyButtons() {
   if (!bodyRef.value) return
   const blocks = bodyRef.value.querySelectorAll('pre')
@@ -41,18 +54,13 @@ function attachCopyButtons() {
     const btn = document.createElement('button')
     btn.className = 'copy-btn'
     btn.title = '复制代码'
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    btn.innerHTML = COPY_ICON_SVG
 
     btn.addEventListener('click', () => {
       const code = pre.querySelector('code') || pre
       const text = code.textContent || ''
       navigator.clipboard.writeText(text).then(() => {
-        btn.classList.add('copied')
-        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-        setTimeout(() => {
-          btn.classList.remove('copied')
-          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
-        }, 2000)
+        markCopied(btn)
       }).catch(() => {
         // Fallback for older browsers
         const textarea = document.createElement('textarea')
@@ -63,12 +71,7 @@ function attachCopyButtons() {
         textarea.select()
         document.execCommand('copy')
         document.body.removeChild(textarea)
-        btn.classList.add('copied')
-        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-        setTimeout(() => {
-          btn.classList.remove('copied')
-          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
-        }, 2000)
+        markCopied(btn)
       })
     })
 
@@ -77,27 +80,93 @@ function attachCopyButtons() {
 }
 
 // ── Content enhancements: Mermaid, video embeds, KaTeX ──
+// P1 perf: KaTeX + Mermaid were unconditionally preloaded from index.html on
+// every page (hundreds of KB). They are now injected on demand, only when the
+// current article actually needs them. Versions stay pinned with SRI hashes
+// (defense against CDN supply-chain compromise — see C-S1).
+const KATEX_VERSION = '0.16.21'
+const MERMAID_VERSION = '11.4.1'
+
+function injectStylesheet(href, integrity) {
+  return new Promise((resolve, reject) => {
+    // Reuse if already present (multiple renders / route changes).
+    if (document.querySelector(`link[data-lib-href="${href}"]`)) return resolve()
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = href
+    link.integrity = integrity
+    link.crossOrigin = 'anonymous'
+    link.dataset.libHref = href
+    link.onload = () => resolve()
+    link.onerror = () => reject(new Error('Failed to load stylesheet ' + href))
+    document.head.appendChild(link)
+  })
+}
+
+function injectScript(src, integrity) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[data-lib-src="${src}"]`)) return resolve()
+    const script = document.createElement('script')
+    script.src = src
+    script.integrity = integrity
+    script.crossOrigin = 'anonymous'
+    script.dataset.libSrc = src
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load script ' + src))
+    document.head.appendChild(script)
+  })
+}
+
+// Single-flight loaders: concurrent calls share one network request.
+let katexPromise = null
+async function loadKatex() {
+  if (!katexPromise) {
+    katexPromise = Promise.all([
+      injectStylesheet(
+        `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css`,
+        'sha384-zh0CIslj+VczCZtlzBcjt5ppRcsAmDnRem7ESsYwWwg3m/OaJ2l4x7YBZl9Kxxib',
+      ),
+      injectScript(
+        `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.js`,
+        'sha384-Rma6DA2IPUwhNxmrB/7S3Tno0YY7sFu9WSYMCuulLhIqYSGZ2gKCJWIqhBWqMQfh',
+      ),
+    ]).then(() => window.katex)
+  }
+  return katexPromise
+}
+
+let mermaidPromise = null
+async function loadMermaid() {
+  if (!mermaidPromise) {
+    mermaidPromise = injectScript(
+      `https://cdn.jsdelivr.net/npm/mermaid@${MERMAID_VERSION}/dist/mermaid.min.js`,
+      'sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I',
+    ).then(() => window.mermaid)
+  }
+  return mermaidPromise
+}
+
 async function processEnhancements() {
   if (!bodyRef.value) return
 
-  // M19: mermaid/katex are loaded with `defer` from index.html. If this fires
-  // before the CDN script finishes, globals are undefined and we'd silently
-  // skip rendering. Wait briefly (poll once) before bailing.
-  await waitForGlobals(['mermaid', 'katex'], 1500)
-
   // Mermaid diagrams: <code class="language-mermaid"> → render with mermaid
   const mermaidBlocks = bodyRef.value.querySelectorAll('code.language-mermaid')
-  if (mermaidBlocks.length && window.mermaid) {
-    mermaidBlocks.forEach((block, i) => {
-      const pre = block.closest('pre')
-      if (!pre || pre.dataset.mermaidRendered) return
-      pre.dataset.mermaidRendered = '1'
-      const container = document.createElement('div')
-      container.className = 'mermaid-container'
-      container.textContent = block.textContent
-      pre.parentNode.replaceChild(container, pre)
-      window.mermaid.run({ nodes: [container] })
-    })
+  if (mermaidBlocks.length) {
+    try {
+      const mermaid = await loadMermaid()
+      mermaidBlocks.forEach((block) => {
+        const pre = block.closest('pre')
+        if (!pre || pre.dataset.mermaidRendered) return
+        pre.dataset.mermaidRendered = '1'
+        const container = document.createElement('div')
+        container.className = 'mermaid-container'
+        container.textContent = block.textContent
+        pre.parentNode.replaceChild(container, pre)
+        mermaid.run({ nodes: [container] })
+      })
+    } catch (e) {
+      console.warn('Mermaid failed to load/render:', e?.message || e)
+    }
   }
 
   // Video embeds: convert image links ending in .mp4/.webm or youtube/bilibili URLs
@@ -127,43 +196,37 @@ async function processEnhancements() {
     }
   })
 
-  // KaTeX: render $$...$$ blocks. M20: replaced with text-node walking so the
-  // copy-button wrappers attached afterward aren't wiped by innerHTML rewrite.
-  if (window.katex) {
-    const walker = document.createTreeWalker(bodyRef.value, NodeFilter.SHOW_TEXT)
-    const toProcess = []
-    let node
-    while ((node = walker.nextNode())) {
-      if (node.nodeValue && node.nodeValue.includes('$')) toProcess.push(node)
-    }
-    for (const textNode of toProcess) {
-      const html = window.katex.renderToString(textNode.nodeValue, {
-        displayMode: false,
-        throwOnError: false,
-        delimiters: [
-          { left: '$$', right: '$$', display: true },
-          { left: '$', right: '$', display: false },
-        ],
-      })
-      const wrapper = document.createElement('span')
-      wrapper.innerHTML = html
-      textNode.parentNode.replaceChild(wrapper, textNode)
+  // KaTeX: render $$...$$ blocks. Text-node walking so copy-button wrappers
+  // attached afterward aren't wiped by an innerHTML rewrite.
+  // P1: only treat a node as math when it contains real $...$ / $$...$$
+  // delimiters — a lone literal "$" (prices etc.) must not pull down KaTeX.
+  const MATH_RE = /\$\$[\s\S]+?\$\$|\$[^\s$](?:[^$]*[^\s$])?\$/
+  const walker = document.createTreeWalker(bodyRef.value, NodeFilter.SHOW_TEXT)
+  const toProcess = []
+  let node
+  while ((node = walker.nextNode())) {
+    if (node.nodeValue && MATH_RE.test(node.nodeValue)) toProcess.push(node)
+  }
+  if (toProcess.length) {
+    try {
+      const katex = await loadKatex()
+      for (const textNode of toProcess) {
+        const html = katex.renderToString(textNode.nodeValue, {
+          displayMode: false,
+          throwOnError: false,
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+          ],
+        })
+        const wrapper = document.createElement('span')
+        wrapper.innerHTML = html
+        textNode.parentNode.replaceChild(wrapper, textNode)
+      }
+    } catch (e) {
+      console.warn('KaTeX failed to load/render:', e?.message || e)
     }
   }
-}
-
-// M19 helper: poll once for the given window globals to exist
-function waitForGlobals(names, timeoutMs) {
-  if (names.every((n) => window[n])) return Promise.resolve()
-  return new Promise((resolve) => {
-    const start = Date.now()
-    const tick = () => {
-      if (names.every((n) => window[n])) return resolve()
-      if (Date.now() - start > timeoutMs) return resolve()
-      setTimeout(tick, 80)
-    }
-    tick()
-  })
 }
 
 onMounted(() => {

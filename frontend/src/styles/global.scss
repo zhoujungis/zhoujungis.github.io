@@ -22,6 +22,12 @@
   --accent-secondary: #{$accent-purple};
   --glass-border: #{$glass-border};
   --card-shadow: #{$card-shadow};
+  // P0-3: skeleton shimmer tokens. The old hard-coded rgba(255,255,255,*)
+  // shimmer was invisible on the light background — skeletons looked like
+  // blank boxes. Both themes now get a visible, theme-appropriate shimmer.
+  --skeleton-base: rgba(31, 42, 36, 0.05);
+  --skeleton-hi: rgba(31, 42, 36, 0.11);
+  --skeleton-dot: rgba(31, 42, 36, 0.12);
 }
 
 html {
@@ -131,12 +137,32 @@ html.theme-dark {
   --accent-secondary: #d18a6f;
   --glass-border: #39483f;
   --card-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  --skeleton-base: rgba(237, 241, 238, 0.05);
+  --skeleton-hi: rgba(237, 241, 238, 0.11);
+  --skeleton-dot: rgba(237, 241, 238, 0.16);
 
   body {
     color: #edf1ee;
     background: #18201c !important;
     background-image: none !important;
   }
+
+  // P4 fix: scrollbars kept their light-theme colors in dark mode.
+  ::-webkit-scrollbar-track { background: #18201c; }
+  ::-webkit-scrollbar-thumb {
+    background: #39483f;
+    border: 3px solid #18201c;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #8fb29c; }
+
+  // P4 fix: article images looked pasted-on against the dark surface.
+  .markdown-body img {
+    border: 1px solid #39483f;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  // P4 fix: the hr gradient was nearly invisible in dark mode.
+  .markdown-body hr { background: linear-gradient(to right, #8fb29c, #d18a6f); }
 
   .app-header,
   .drawer,
@@ -206,7 +232,7 @@ html.theme-dark {
   .markdown-body table { background: #222c27 !important; border-color: #39483f !important; }
   .markdown-body th { background: #29352f !important; border-color: #39483f !important; }
   .markdown-body td { border-color: #39483f !important; }
-  .markdown-body hr { opacity: 0.25; }
+  .markdown-body hr { opacity: 0.55; }
   .side-panel .section-divider { background: #39483f !important; }
   .side-panel .category-item:hover { background: #29352f !important; }
   .mermaid-container { background: #222c27 !important; }
@@ -230,6 +256,14 @@ html.theme-dark {
   .card-icon { color: #8fb29c !important; background: rgba(143, 178, 156, 0.1) !important; border-color: #39483f !important; }
   .state-message { color: #aeb9b1 !important; }
   .particle-bg { display: none; }
+
+  // P4: article-card / archive tag pills were hard-coded light colors.
+  .tag-pill {
+    color: #aeb9b1 !important;
+    background: #29352f !important;
+    border-color: #39483f !important;
+  }
+  .tag-pill-more { color: #87938b !important; }
 }
 
 @media (max-width: 767px) {

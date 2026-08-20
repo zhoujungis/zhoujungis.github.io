@@ -16,8 +16,8 @@ export function getTags() {
   return client.get('/tags/')
 }
 
-export function getPhotos() {
-  return client.get('/photos/')
+export function getPhotos(params) {
+  return client.get('/photos/', { params })
 }
 
 export function getFriends() {

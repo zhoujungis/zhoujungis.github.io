@@ -41,10 +41,13 @@
 
       <div v-if="article.tags && article.tags.length" class="card-tags">
         <span
-          v-for="(tag, idx) in article.tags"
+          v-for="(tag, idx) in visibleTags"
           :key="idx"
           class="tag-pill"
         >{{ tagLabel(tag) }}</span>
+        <span v-if="hiddenTagCount > 0" class="tag-pill tag-pill-more">
+          +{{ hiddenTagCount }}
+        </span>
       </div>
 
       <p v-if="article.excerpt" class="card-excerpt">{{ article.excerpt }}</p>
@@ -106,6 +109,13 @@ const formattedDate = computed(() => {
 })
 
 const categoryName = computed(() => catLabel(props.article.category))
+
+// P4: cap the tag row so a dozen tags can't stretch the card height.
+const MAX_VISIBLE_TAGS = 4
+const visibleTags = computed(() => (props.article.tags || []).slice(0, MAX_VISIBLE_TAGS))
+const hiddenTagCount = computed(() =>
+  Math.max(0, (props.article.tags || []).length - MAX_VISIBLE_TAGS),
+)
 </script>
 
 <style lang="scss" scoped>
@@ -256,6 +266,13 @@ const categoryName = computed(() => catLabel(props.article.category))
   background: #f2f3ec;
   border: 1px solid #e1e4d9;
   border-radius: 999px;
+}
+
+// "+N" overflow indicator
+.tag-pill-more {
+  color: $text-secondary;
+  background: transparent;
+  border-style: dashed;
 }
 
 // ---- Excerpt ----

@@ -56,6 +56,8 @@ def api(method: str, path: str, data=None):
         return json.loads(body)
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
+        if exc.code == 404 and method == "GET" and path.startswith("/articles/"):
+            return None
         raise RuntimeError(f"{method} {path} -> HTTP {exc.code}: {body[:500]}") from exc
 
 

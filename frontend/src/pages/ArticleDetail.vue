@@ -241,6 +241,9 @@ const currentUrl = computed(() => window.location.origin + route.fullPath)
 
 const readingTime = computed(() => {
   if (!article.value) return 1
+  // P5: prefer the backend's reading_time (single source of truth); fall back
+  // to the local estimate for cached/legacy payloads without the field.
+  if (article.value.reading_time) return article.value.reading_time
   const text = stripMarkdown(article.value.content || '')
   return getReadingTime(text)
 })

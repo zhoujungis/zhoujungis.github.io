@@ -64,10 +64,13 @@
                 </router-link>
                 <div v-if="article.tags && article.tags.length" class="entry-tags">
                   <span
-                    v-for="(tag, idx) in article.tags"
+                    v-for="(tag, idx) in article.tags.slice(0, 4)"
                     :key="idx"
                     class="tag-pill"
                   >{{ tagLabel(tag) }}</span>
+                  <span v-if="article.tags.length > 4" class="tag-pill tag-pill-more">
+                    +{{ article.tags.length - 4 }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -80,15 +83,16 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useArticleStore } from '@/stores/article'
-
-const articleStore = useArticleStore()
+import { getArticles } from '@/api/articles'
 
 const loading = ref(false)
 const error = ref(null)
+// P1: fetch in chunks of 50 and merge, instead of one page_size=1000 request
+// that grows unbounded as the blog accumulates articles.
+const allArticles = ref([])
 
 const groupedArchives = computed(() => {
-  const articles = articleStore.articles || []
+  const articles = allArticles.value || []
   if (!articles.length) return []
 
   // M15: missing/invalid timestamps get a fallback bucket so the page doesn't
@@ -171,8 +175,23 @@ async function loadArchives() {
   loading.value = true
   error.value = null
   try {
-    // Fetch all articles with a large page size
-    await articleStore.fetchArticles({ page_size: 1000 })
+    // Fetch published articles page by page (chunked) and merge, so a single
+    // request never asks the backend for an unbounded page_size.
+    const pageSize = 50
+    let page = 1
+    let collected = []
+    let total = Infinity
+
+    while (collected.length < total) {
+      const res = await getArticles({ page, page_size: pageSize })
+      const list = res.data.results || res.data || []
+      total = typeof res.data.count === 'number' ? res.data.count : collected.length + list.length
+      if (!list.length) break
+      collected = collected.concat(list)
+      page += 1
+      if (page > 40) break // hard safety bound
+    }
+    allArticles.value = collected
   } catch (e) {
     error.value = e?.response?.data?.detail || e.message || '加载归档失败'
   } finally {
@@ -254,7 +273,8 @@ onMounted(loadArchives)
     top: 0;
     bottom: 0;
     width: 2px;
-    background: rgba($neon-purple, 0.25);
+    // P4: stronger line so the timeline reads clearly in light mode.
+    background: rgba($neon-purple, 0.4);
     border-radius: 2px;
   }
 }
@@ -342,6 +362,13 @@ onMounted(loadArchives)
   border-radius: 999px;
 }
 
+// "+N" overflow indicator (P4)
+.tag-pill-more {
+  color: $text-secondary;
+  border-style: dashed;
+  border-color: rgba($neon-purple, 0.4);
+}
+
 // ---- Skeleton ----
 .loading-state {
   padding: 40px 0;
@@ -364,7 +391,7 @@ onMounted(loadArchives)
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--skeleton-dot);
   flex-shrink: 0;
 }
 
@@ -373,9 +400,9 @@ onMounted(loadArchives)
   border-radius: 4px;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;

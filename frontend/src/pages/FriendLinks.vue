@@ -241,9 +241,9 @@ onMounted(loadFriends)
   border-radius: $radius-md;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -254,9 +254,9 @@ onMounted(loadFriends)
   border-radius: 4px;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;

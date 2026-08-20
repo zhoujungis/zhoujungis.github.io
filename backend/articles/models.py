@@ -1,11 +1,42 @@
 import re
 import uuid
+from html import unescape
 
 import bleach
 import markdown
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+
+
+def make_excerpt(html_content, fallback_text="", word_limit=50):
+    """Build a plain-text excerpt from the *rendered* article HTML.
+
+    Deriving the excerpt from rendered (and bleach-sanitized) HTML guarantees
+    raw Markdown/HTML syntax never leaks into list cards as literal text.
+    The old approach stripped a few Markdown constructs from ``content`` but
+    let inline ``<svg>``/``<div>`` markup and ``<https://...>`` autolinks
+    through, which showed up as code in the article-card excerpts.
+    """
+    text = html_content or ""
+    # Drop code blocks entirely — source code is noise in a summary.
+    text = re.sub(r"<pre\b[^>]*>.*?</pre>", " ", text, flags=re.DOTALL)
+    # Also drop style/script content along with the tags themselves.
+    text = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", text, flags=re.DOTALL)
+    # Strip every remaining tag; keep only human-readable text.
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = unescape(text)
+    # Collapse all whitespace (incl. newlines) to single spaces.
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if not text:
+        # Very defensive fallback: use raw markdown source, whitespace-only.
+        text = re.sub(r"\s+", " ", fallback_text or "").strip()
+
+    words = text.split()
+    if len(words) > word_limit:
+        return " ".join(words[:word_limit])
+    return text
 
 
 class AutoSlugMixin:
@@ -166,15 +197,10 @@ class Article(models.Model):
             r'<a \1href="\2" rel="noopener noreferrer" target="_blank"',
             self.html_content,
         )
-        # Auto-generate excerpt: first 50 words, strip Markdown syntax
-        plain_text = self.content
-        # Remove markdown image and link syntax for cleaner excerpt
-        plain_text = re.sub(r"!\[.*?\]\(.*?\)", "", plain_text)
-        plain_text = re.sub(r"\[([^\]]*)\]\(.*?\)", r"\1", plain_text)
-        plain_text = re.sub(r"[#*>`~\-\+_\[\]()]", "", plain_text)
-        plain_text = plain_text.replace("\n", " ").strip()
-        words = plain_text.split()
-        self.excerpt = " ".join(words[:50]) if len(words) > 50 else plain_text
+        # Auto-generate excerpt from the rendered HTML so raw Markdown/HTML
+        # syntax (inline <svg>, <https://...> autolinks, code fences) never
+        # leaks into list cards as literal text. See make_excerpt().
+        self.excerpt = make_excerpt(self.html_content, self.content)
 
         # Auto-publish scheduled articles whose time has come
         if self.status == self.Status.SCHEDULED and self.scheduled_at and self.scheduled_at <= timezone.now():

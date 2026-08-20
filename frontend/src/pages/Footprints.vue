@@ -54,13 +54,29 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useTheme } from '@/composables/useTheme'
+// P1 perf: import only the echarts pieces this page uses (map + scatter +
+// effectScatter). The old `import('echarts')` pulled the full ~1.1 MB build
+// for a single choropleth map. Tree-shaking cuts the chunk substantially.
+import * as echarts from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { ScatterChart, EffectScatterChart } from 'echarts/charts'
+import { GeoComponent, TooltipComponent } from 'echarts/components'
+import { LabelLayout } from 'echarts/features'
+
+echarts.use([
+  CanvasRenderer,
+  ScatterChart,
+  EffectScatterChart,
+  GeoComponent,
+  TooltipComponent,
+  LabelLayout,
+])
 
 const { isDark } = useTheme()
 
 const chartRef = ref(null)
 const error = ref('')
 let chart = null
-let echartsModule = null
 
 // ========================================
 // City data — 26 cities across 13 provinces
@@ -269,17 +285,12 @@ async function initChart() {
   if (!chartRef.value) return
 
   try {
-    // Dynamic import — echarts is only loaded when user visits this page
-    if (!echartsModule) {
-      echartsModule = await import('echarts')
-    }
-
     const resp = await fetch('/china-geo.json')
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const geoJson = await resp.json()
-    echartsModule.registerMap('china', geoJson)
+    echarts.registerMap('china', geoJson)
 
-    chart = echartsModule.init(chartRef.value)
+    chart = echarts.init(chartRef.value)
     chart.setOption(getChartOption())
 
     window.addEventListener('resize', handleResize)

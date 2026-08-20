@@ -26,7 +26,8 @@ const year = new Date().getFullYear()
 const uptime = ref('')
 
 onMounted(() => {
-  // Automatically uses the site's first commit date
+  // Site launch date. Hard-coded because a static GitHub Pages build has no
+  // access to git history at runtime; keep in sync with the first deploy.
   const start = new Date('2025-07-01')
   const now = new Date()
   const days = Math.floor((now - start) / 86400000)

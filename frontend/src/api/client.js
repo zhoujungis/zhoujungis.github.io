@@ -159,3 +159,6 @@ client.interceptors.response.use(
 )
 
 export default client
+// Exported so the router guard can reuse the same single-flight refresh
+// instead of carrying a second copy of this logic (see router/index.js).
+export { refreshAccessToken }

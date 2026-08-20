@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import client from '../api/client'
+import { refreshAccessToken } from '../api/client'
 
 const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
@@ -27,31 +27,12 @@ const router = createRouter({
   routes,
 })
 
-// Try to refresh an expired access token using the stored refresh token
-// (mirrors the response interceptor logic in api/client.js).
+// Try to refresh an expired access token using the stored refresh token.
+// P4: reuses the single-flight refresh from api/client.js instead of keeping
+// a second, divergent copy of the same logic here.
 async function tryRefresh() {
-  const refresh = localStorage.getItem('refresh_token')
-  if (!refresh) return false
   try {
-    const res = await client.post(
-      '/token/refresh/',
-      { refresh },
-      // Bypass the 401 interceptor for the refresh call itself
-      { _skipRefresh: true, timeout: 10000 },
-    )
-    const access = res.data?.access
-    const newRefresh = res.data?.refresh
-    if (!access) return false
-    localStorage.setItem('token', access)
-    // H-F1: persist the rotated refresh token (if any)
-    if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
-    // Update expiry
-    try {
-      const payload = JSON.parse(
-        atob(access.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
-      )
-      if (payload?.exp) localStorage.setItem('token_expiry', String(payload.exp * 1000))
-    } catch { /* ignore malformed JWT */ }
+    await refreshAccessToken()
     return true
   } catch {
     return false

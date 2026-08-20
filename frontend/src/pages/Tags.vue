@@ -155,7 +155,7 @@ onMounted(loadTags)
   line-height: 1.4;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--skeleton-dot);
     transform: translateY(-2px);
     background: $bg-secondary;
   }
@@ -184,9 +184,9 @@ onMounted(loadTags)
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;

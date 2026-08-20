@@ -11,16 +11,15 @@ const ROOT = path.resolve(process.cwd(), '..') // frontend/ 的上一级 = 项�
 const PUBLIC_DIR = path.join(ROOT, 'frontend', 'public')
 // vite build 的输出目录是 frontend/dist/,deploy.sh 再把它拷贝到项目根 dist/
 const DIST_DIR = path.join(ROOT, 'frontend', 'dist')
-const ASSETS_DIR = path.join(ROOT, 'frontend', 'src', 'assets')
 
 const WEBP_QUALITY = 80
 const AVIF_QUALITY = 60
 const MAX_DIMENSION = 2400
 
 // 源 PNG/JPG 列表(相对路径,以项目根为基准)
+// hero.png 已随无用素材一并删除(P5),不再参与压缩。
 const TARGETS = [
   { src: 'frontend/public/photos/tibet-2026.png', outDir: 'photos' },
-  { src: 'frontend/src/assets/hero.png', outDir: 'assets' },
 ]
 
 async function ensureDir(p) {

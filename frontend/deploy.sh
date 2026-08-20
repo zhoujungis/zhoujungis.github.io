@@ -33,11 +33,10 @@ rm -rf "$ROOT/photos"
 rm -rf "$ROOT/icons.svg" 2>/dev/null || true
 cp -r dist/. "$ROOT/"
 
-# Copy live2d files if they exist
-if [ -d "../public-live2d" ]; then
-  echo "==> Copying Live2D assets..."
-  cp -r ../public-live2d/* ../live2dw/ 2>/dev/null || true
-fi
+# P5: the old "copy public-live2d → live2dw" step produced a redundant third
+# copy of the L2Dwidget library that nothing referenced (leftover from a hexo
+# setup). The site loads Live2D from /live2d/, which ships from
+# frontend/public/live2d/ via the Vite build — one copy is enough.
 
 cd ..
 

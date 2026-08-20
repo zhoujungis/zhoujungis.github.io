@@ -78,8 +78,17 @@
 
     <!-- Lightbox -->
     <transition name="lightbox">
-      <div v-if="lightboxVisible" class="lightbox-overlay" @click.self="closeLightbox">
-        <button class="lightbox-close" @click="closeLightbox" aria-label="Close">
+      <div
+        v-if="lightboxVisible"
+        ref="lightboxRef"
+        class="lightbox-overlay"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="lightboxPhoto?.title || '照片预览'"
+        tabindex="-1"
+        @click.self="closeLightbox"
+      >
+        <button ref="lightboxCloseRef" class="lightbox-close" @click="closeLightbox" aria-label="关闭预览">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -123,7 +132,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { getPhotos } from '@/api/articles'
 import { getPictureSources } from '@/utils/imageSource'
 import { useScrollLock } from '@/composables/useScrollLock'
@@ -136,6 +145,10 @@ const loadingMore = ref(false)
 const error = ref(null)
 const lightboxVisible = ref(false)
 const lightboxPhoto = ref(null)
+const lightboxRef = ref(null)
+const lightboxCloseRef = ref(null)
+// Remember what had focus before the dialog opened so we can restore it.
+let previouslyFocused = null
 
 // Single photo → show as a full-width banner instead of a lonely left-aligned tile.
 const isSingle = computed(() => photos.value.length === 1)
@@ -150,16 +163,37 @@ function openLightbox(photo) {
   lightboxPhoto.value = photo
   lightboxVisible.value = true
   scrollLock.acquire()
+  // Accessibility: remember the trigger and move focus into the dialog.
+  previouslyFocused = document.activeElement
+  nextTick(() => {
+    lightboxCloseRef.value?.focus()
+  })
 }
 
 function closeLightbox() {
   lightboxVisible.value = false
   lightboxPhoto.value = null
   scrollLock.release()
+  // Restore focus to whichever element opened the lightbox.
+  nextTick(() => {
+    previouslyFocused?.focus?.()
+    previouslyFocused = null
+  })
 }
 
 function handleKeydown(e) {
-  if (e.key === 'Escape') closeLightbox()
+  if (!lightboxVisible.value) return
+  if (e.key === 'Escape') {
+    closeLightbox()
+    return
+  }
+  // Focus trap: the only interactive control is the close button, so keep
+  // Tab / Shift+Tab cycles on it instead of letting focus escape behind
+  // the modal overlay.
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    lightboxCloseRef.value?.focus()
+  }
 }
 
 // M12: single source of truth for image URL resolution — handles all known
@@ -349,9 +383,9 @@ onUnmounted(() => {
   height: 100%;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.02) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.02) 75%
+    var(--skeleton-base) 25%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;

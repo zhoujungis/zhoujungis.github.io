@@ -41,7 +41,9 @@ export default defineConfig(({ mode }) => ({
         assetFileNames: 'assets/[name].[hash][extname]',
         manualChunks(id) {
           if (id.includes('node_modules/echarts')) return 'echarts'
-          if (id.includes('node_modules/highlight.js')) return 'highlight'
+          // highlight.js: only its github.css theme is imported (code
+          // highlighting happens server-side via Pygments), so there is no JS
+          // chunk to split — the old 'highlight' entry never matched.
           if (id.includes('node_modules/vditor')) return 'vditor'
         },
       },
