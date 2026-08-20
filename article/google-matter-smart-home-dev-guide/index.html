@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="谷歌 Matter 智能家居开发完全指南：从入门到认证 前言 2022年，CSA连接标准联盟（Connectivity Standards Alliance）正式发布了Matter 1.0协议标准，谷歌、苹果、亚马逊三大科技巨头同时宣布支持。作为智能家居领域期待已久的&quot;大一统&quot;标准，Matter协议旨在解决长期困扰行业" />
+    <meta property="og:title" content="谷歌 Matter 智能家居开发完全指南：从入门到认证" />
+    <meta property="og:description" content="谷歌 Matter 智能家居开发完全指南：从入门到认证 前言 2022年，CSA连接标准联盟（Connectivity Standards Alliance）正式发布了Matter 1.0协议标准，谷歌、苹果、亚马逊三大科技巨头同时宣布支持。作为智能家居领域期待已久的&quot;大一统&quot;标准，Matter协议旨在解决长期困扰行业" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/google-matter-smart-home-dev-guide/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="谷歌 Matter 智能家居开发完全指南：从入门到认证" />
+    <meta name="twitter:description" content="谷歌 Matter 智能家居开发完全指南：从入门到认证 前言 2022年，CSA连接标准联盟（Connectivity Standards Alliance）正式发布了Matter 1.0协议标准，谷歌、苹果、亚马逊三大科技巨头同时宣布支持。作为智能家居领域期待已久的&quot;大一统&quot;标准，Matter协议旨在解决长期困扰行业" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>谷歌 Matter 智能家居开发完全指南：从入门到认证 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DgmlTj6g.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CkF-Ee7x.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+</style>
+    <link rel="canonical" href="https://zhoujungis.github.io/article/google-matter-smart-home-dev-guide/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-07-03T17:41:11.043969+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"谷歌 Matter 智能家居开发完全指南：从入门到认证","description":"谷歌 Matter 智能家居开发完全指南：从入门到认证 前言 2022年，CSA连接标准联盟（Connectivity Standards Alliance）正式发布了Matter 1.0协议标准，谷歌、苹果、亚马逊三大科技巨头同时宣布支持。作为智能家居领域期待已久的\"大一统\"标准，Matter协议旨在解决长期困扰行业","image":"https://images.unsplash.com/photo-1558002038-1055907df827?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-07-03T17:41:11.043969+08:00","dateModified":"2026-07-14T18:26:23.383944+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/google-matter-smart-home-dev-guide/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>谷歌 Matter 智能家居开发完全指南：从入门到认证</h1><div class="ns-meta">2026/7/3 · Zhou Jun</div><div class="markdown-body"><h1 id="matter">谷歌 Matter 智能家居开发完全指南：从入门到认证</h1>
+<h2 id="_1">前言</h2>
+<p>2022年，CSA连接标准联盟（Connectivity Standards Alliance）正式发布了Matter 1.0协议标准，谷歌、苹果、亚马逊三大科技巨头同时宣布支持。作为智能家居领域期待已久的"大一统"标准，Matter协议旨在解决长期困扰行业的生态碎片化问题——让不同品牌的智能家居设备能够跨平台、跨生态系统互联互通。</p>
+<p>本文整合了谷歌官方Matter开发文档、ESP-Matter开发框架实践、以及多位开发者的实战经验，为你呈现一份完整的Matter设备开发指南。</p>
+<hr />
+<h2 id="matter_1">一、Matter 协议简介</h2>
+<h3 id="11-matter">1.1 什么是 Matter？</h3>
+<p>Matter 是一个<strong>应用层协议</strong>，基于 IPv6 网络协议栈构建。它运行在现有的网络技术之上：</p>
+<ul>
+<li><strong>Wi-Fi</strong> — 用于高带宽设备（摄像头、网关等）</li>
+<li><strong>Thread</strong> — 用于低功耗设备（传感器、开关等），基于 IEEE 802.15.4</li>
+<li><strong>以太网</strong> — 用于固定设备（智能音响、路由器等）</li>
+<li><strong>蓝牙低功耗（BLE）</strong> — <strong>仅用于设备配网</strong>，不用于日常通信</li>
+</ul>
+<p>这种设计使得 Matter 设备可以在 IP 网络中被统一寻址和控制，无需额外的集线器或协议转换器。</p>
+<h3 id="12">1.2 核心特性</h3>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>多管理员（Multi-Admin）</strong></td>
+<td>一个 Matter 设备可以同时加入多个生态系统（Fabric），例如同时被 Google Home 和 Apple HomeKit 控制</td>
+</tr>
+<tr>
+<td><strong>本地控制</strong></td>
+<td>设备间通信优先走本地网络，延迟低，不依赖云端</td>
+</tr>
+<tr>
+<td><strong>安全性</strong></td>
+<td>端到端加密、设备证书认证、SPAKE2+密码认证会话建立（PASE）和证书认证会话建立（CASE）双重安全机制</td>
+</tr>
+<tr>
+<td><strong>统一数据模型</strong></td>
+<td>所有设备使用标准化的 Cluster/Attribute/Command 模型，确保互操作性</td>
+</tr>
+<tr>
+<td><strong>零触摸配网</strong></td>
+<td>扫码或 NFC 触碰即可完成设备配对</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13">1.3 支持的设备类型</h3>
+<p>Matter 1.0 支持的设备类别包括：</p>
+<ul>
+<li>照明电工（灯泡、开关、调光器）</li>
+<li>暖通空调（恒温器、空调）</li>
+<li>安防传感（门磁、人体感应、烟雾报警器）</li>
+<li>门锁和窗帘</li>
+<li>电视和媒体设备</li>
+<li>桥接设备（将非 Matter 设备接入 Matter 网络）</li>
+</ul>
+<hr />
+<h2 id="matter_2">二、谷歌 Matter 开发生态</h2>
+<p>Google 为 Matter 开发者提供了一整套开发工具链和平台支持。</p>
+<h3 id="21">2.1 开发者工具全景</h3>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+<th>适用阶段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Google Home Developer Console</strong></td>
+<td>创建项目、配置 Matter 集成、管理 VID/PID</td>
+<td>全流程</td>
+</tr>
+<tr>
+<td><strong>Google Home Extension for VS Code</strong></td>
+<td>Assistant 模拟器、云日志查看、设备调试</td>
+<td>开发调试</td>
+</tr>
+<tr>
+<td><strong>Matter Virtual Device（MVD）</strong></td>
+<td>Docker 化的虚拟 Matter 设备，无需真实硬件即可开发</td>
+<td>早期开发</td>
+</tr>
+<tr>
+<td><strong>Google Home Test Suite</strong></td>
+<td>自动化测试，验证集成是否符合认证要求</td>
+<td>测试认证</td>
+</tr>
+<tr>
+<td><strong>Google Home Sample App for Matter</strong></td>
+<td>Android 示例应用，演示 Matter 配网与控制</td>
+<td>应用开发</td>
+</tr>
+<tr>
+<td><strong>Android Studio Plugin</strong></td>
+<td>在 IDE 中直接测试 Assistant 命令和查看云日志</td>
+<td>应用开发</td>
+</tr>
+<tr>
+<td><strong>Home UI Automator</strong></td>
+<td>离线监测 Matter 设备状态</td>
+<td>调试测试</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-google-play-services-matter-api">2.2 Google Play Services Matter API</h3>
+<p>对于 Android 应用开发者，Google 通过 Play Services 提供了 Matter API，核心功能包括：</p>
+<ul>
+<li><strong>设备配网（Commissioning）</strong> — 将 Matter 设备加入家庭网络</li>
+<li><strong>设备共享（Device Sharing）</strong> — 支持跨应用、跨生态的设备授权</li>
+<li><strong>操作发现（Operational Discovery）</strong> — 发现网络中已配对的 Matter 设备</li>
+<li><strong>Thread Network API</strong> — 通过 Play Services 共享 Thread 网络凭证</li>
+</ul>
+<h3 id="23-vidpid">2.3 VID/PID 说明</h3>
+<p>开发和生产阶段使用不同的供应商标识：</p>
+<ul>
+<li><strong>测试 VID</strong>：<code>0xFFF1</code>、<code>0xFFF2</code>、<code>0xFFF3</code>、<code>0xFFF4</code> — 仅限开发调试使用</li>
+<li><strong>生产 VID</strong>：需通过 CSA 联盟正式申请，Google 验证后方可用于消费者产品</li>
+</ul>
+<hr />
+<h2 id="_2">三、开发环境搭建</h2>
+<h3 id="31">3.1 基础环境要求</h3>
+<p>开发 Matter 设备需要以下基础环境：</p>
+<ul>
+<li><strong>操作系统</strong>：Ubuntu 20.04 LTS（64位）或更高版本（推荐）</li>
+<li><strong>Python</strong>：3.8+</li>
+<li><strong>Git</strong>：用于克隆 Matter SDK</li>
+<li><strong>开发板</strong>（可选）：ESP32-C3/C6/S3、nRF52840、Silicon Labs EFR32MG24 等</li>
+</ul>
+<blockquote>
+<p><strong>注意</strong>：虽然 macOS 也可以构建 Matter 项目，但官方强烈推荐使用 Ubuntu Linux 环境。Windows 用户可以通过 VirtualBox 虚拟机或 WSL2 来搭建环境。</p>
+</blockquote>
+<h3 id="32-matter-sdk">3.2 克隆 Matter SDK</h3>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/project-chip/connectedhomeip.git
+<span class="nb">cd</span><span class="w"> </span>connectedhomeip
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+</code></pre></div>
+
+<h3 id="33">3.3 安装依赖项</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Ubuntu 环境</span>
+sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>git<span class="w"> </span>gcc<span class="w"> </span>g++<span class="w"> </span>pkg-config<span class="w"> </span>libssl-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libdbus-1-dev<span class="w"> </span>libglib2.0-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libavahi-client-dev<span class="w"> </span>ninja-build<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>python3-venv<span class="w"> </span>python3-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>unzip<span class="w"> </span>libgirepository1.0-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libcairo2-dev<span class="w"> </span>libreadline-dev
+
+<span class="c1"># 初始化 Matter 构建环境</span>
+<span class="nb">source</span><span class="w"> </span>scripts/activate.sh
+</code></pre></div>
+
+<h3 id="34-esp32-esp-idf">3.4 ESP32 平台环境配置（以 ESP-IDF 为例）</h3>
+<p>对于使用乐鑫 ESP32 芯片的开发者：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 安装 ESP-IDF</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>~/esp
+<span class="nb">cd</span><span class="w"> </span>~/esp
+git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>v5.1<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/espressif/esp-idf.git
+<span class="nb">cd</span><span class="w"> </span>esp-idf
+./install.sh<span class="w"> </span>esp32<span class="w"> </span>esp32c3<span class="w"> </span>esp32c6<span class="w"> </span>esp32s3
+<span class="nb">source</span><span class="w"> </span>export.sh
+
+<span class="c1"># 克隆 ESP-Matter SDK</span>
+<span class="nb">cd</span><span class="w"> </span>~/esp
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/espressif/esp-matter.git
+<span class="nb">cd</span><span class="w"> </span>esp-matter
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+</code></pre></div>
+
+<hr />
+<h2 id="matter_3">四、Matter 数据模型详解</h2>
+<p>理解 Matter 的数据模型是设备开发的核心。Matter 采用四层分层结构，可以类比为一栋房子：</p>
+<h3 id="41-node">4.1 Node（节点）— "房子"</h3>
+<p>Node 代表一个物理设备实体，是网络中的最小可寻址单元。每个 Node 拥有唯一的节点 ID，在网络层面对应一个 IP 地址。<strong>一个物理设备就是一个 Node</strong>（例如：一个智能灯泡）。</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 创建 Matter Node</span>
+<span class="n">node</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">node_config</span><span class="p">;</span>
+<span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">node_config</span><span class="p">,</span><span class="w"> </span><span class="n">app_attribute_update_cb</span><span class="p">,</span><span class="w"> </span><span class="n">app_identification_cb</span><span class="p">);</span>
+</code></pre></div>
+
+<p><code>app_attribute_update_cb</code> 是属性更新回调函数，当接收到控制命令时被调用。<code>app_identification_cb</code> 是设备识别回调，用于响应"识别"命令（如让设备闪烁以标识自身）。</p>
+<h3 id="42-endpoint">4.2 Endpoint（端点）— "房间"</h3>
+<p>Endpoint 是 Node 内部的功能逻辑单元，对应一种设备类型。一个 Node 可以有多个 Endpoint。例如：一个智能插座可能包含：</p>
+<ul>
+<li><strong>Endpoint 0</strong>：保留端点，包含 Basic Information、ACL、Network Commissioning 等基础 Cluster</li>
+<li><strong>Endpoint 1</strong>：On/Off 灯光端点</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 创建扩展彩色灯端点</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">extended_color_light</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">light_config</span><span class="p">,</span><span class="w"> </span><span class="n">ENDPOINT_FLAG_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">light_handle</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="43-cluster">4.3 Cluster（集群）— "家具/设备"</h3>
+<p>Cluster 是功能模块，同一功能相关的 Attribute（属性）、Command（命令）和 Event（事件）被组织在一起。常见的 Cluster 包括：</p>
+<table>
+<thead>
+<tr>
+<th>Cluster</th>
+<th>功能</th>
+<th>示例 Attribute</th>
+<th>示例 Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>On/Off</strong></td>
+<td>开关控制</td>
+<td><code>OnOff</code> (bool)</td>
+<td><code>Toggle</code></td>
+</tr>
+<tr>
+<td><strong>Level Control</strong></td>
+<td>亮度/等级控制</td>
+<td><code>CurrentLevel</code> (uint8)</td>
+<td><code>MoveToLevel</code></td>
+</tr>
+<tr>
+<td><strong>Color Control</strong></td>
+<td>颜色控制</td>
+<td><code>ColorTemperatureMireds</code></td>
+<td><code>MoveToHue</code></td>
+</tr>
+<tr>
+<td><strong>Temperature Measurement</strong></td>
+<td>温度测量</td>
+<td><code>MeasuredValue</code> (int16)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Occupancy Sensing</strong></td>
+<td>人体感应</td>
+<td><code>Occupancy</code> (bitmap)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="44-attributecommandevent">4.4 Attribute、Command、Event — "设备属性"</h3>
+<ul>
+<li><strong>Attribute</strong>：存储设备状态的数据字段。可读、可写或只读。</li>
+<li><strong>Command</strong>：触发设备执行某个动作的操作。由 Controller 发起，Device 响应。</li>
+<li><strong>Event</strong>：设备主动上报的状态变化或告警。</li>
+</ul>
+<h3 id="45">4.5 数据模型配置示例</h3>
+<p>以扩展彩色灯为例，配置各个 Cluster 的默认 Attribute：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// On/Off Cluster 配置</span>
+<span class="n">on_off</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">on_off_config</span><span class="p">;</span>
+<span class="n">on_off_config</span><span class="p">.</span><span class="n">on_off</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">  </span><span class="c1">// 默认关闭</span>
+<span class="n">on_off_config</span><span class="p">.</span><span class="n">lighting</span><span class="p">.</span><span class="n">start_up_on_off</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">;</span><span class="w">  </span><span class="c1">// 重启后恢复上次状态</span>
+
+<span class="c1">// Level Control Cluster 配置</span>
+<span class="n">level_control</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">level_config</span><span class="p">;</span>
+<span class="n">level_config</span><span class="p">.</span><span class="n">current_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">64</span><span class="p">;</span><span class="w">  </span><span class="c1">// 默认亮度 25%</span>
+<span class="n">level_config</span><span class="p">.</span><span class="n">min_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="n">level_config</span><span class="p">.</span><span class="n">max_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">254</span><span class="p">;</span>
+
+<span class="c1">// Color Control Cluster 配置</span>
+<span class="n">color_control</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">color_config</span><span class="p">;</span>
+<span class="n">color_config</span><span class="p">.</span><span class="n">color_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EMBER_ZCL_COLOR_MODE_COLOR_TEMPERATURE</span><span class="p">;</span>
+<span class="n">color_config</span><span class="p">.</span><span class="n">color_temperature</span><span class="p">.</span><span class="n">startup_color_temperature_mireds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">;</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_3">五、设备开发实战</h2>
+<p>下面以 ESP32 + ESP-Matter 框架为例，演示一个完整的 Matter 灯光设备开发流程。</p>
+<h3 id="51">5.1 项目结构</h3>
+<p>一个典型的 ESP-Matter 示例项目结构如下：</p>
+<div class="codehilite"><pre><span></span><code>examples/light/
+├── main/
+│   ├── app_main.cpp      # 主入口
+│   ├── app_driver.cpp    # 硬件驱动层
+│   └── app_priv.h        # 私有声明头文件
+├── partitions.csv        # 分区表
+├── sdkconfig.defaults    # 默认 SDK 配置
+└── CMakeLists.txt
+</code></pre></div>
+
+<h3 id="52">5.2 硬件驱动初始化</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 初始化 LED 驱动</span>
+<span class="n">app_driver_handle_t</span><span class="w"> </span><span class="n">light_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">app_driver_light_init</span><span class="p">();</span>
+
+<span class="c1">// 初始化按键驱动</span>
+<span class="n">app_driver_handle_t</span><span class="w"> </span><span class="n">button_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">app_driver_button_init</span><span class="p">();</span>
+
+<span class="c1">// 注册复位按键</span>
+<span class="n">app_reset_button_register</span><span class="p">(</span><span class="n">button_handle</span><span class="p">);</span>
+</code></pre></div>
+
+<p><code>app_driver_light_init()</code> 会初始化所有 LED 引脚。在示例中虽然初始化了多个 LED，但默认只使用第一个，这也是为什么示例程序"只能控制一个灯泡"。</p>
+<h3 id="53-node-endpoint">5.3 创建 Node 和 Endpoint</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. 创建 Node</span>
+<span class="n">node</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">node_config</span><span class="p">;</span>
+<span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">node_config</span><span class="p">,</span><span class="w"> </span><span class="n">app_attribute_update_cb</span><span class="p">,</span><span class="w"> </span><span class="n">app_identification_cb</span><span class="p">);</span>
+
+<span class="c1">// 2. 配置 Endpoint 属性（参见 4.5 节）</span>
+
+<span class="c1">// 3. 创建 Endpoint（自动匹配 Cluster）</span>
+<span class="n">extended_color_light</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">light_config</span><span class="p">;</span>
+<span class="c1">// ... 设置 light_config 的各个 Cluster 配置</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">extended_color_light</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">light_config</span><span class="p">,</span><span class="w"> </span><span class="n">ENDPOINT_FLAG_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">light_handle</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="54-matter">5.4 启动 Matter 协议栈</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 获取端点 ID</span>
+<span class="kt">uint16_t</span><span class="w"> </span><span class="n">light_endpoint_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">endpoint</span><span class="o">::</span><span class="n">get_id</span><span class="p">(</span><span class="n">endpoint</span><span class="p">);</span>
+
+<span class="c1">// 启动 Matter 协议栈</span>
+<span class="n">esp_matter</span><span class="o">::</span><span class="n">start</span><span class="p">(</span><span class="n">app_event_cb</span><span class="p">);</span>
+
+<span class="c1">// 应用默认值到硬件</span>
+<span class="n">app_driver_light_set_defaults</span><span class="p">(</span><span class="n">light_endpoint_id</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="55">5.5 实现属性更新回调</h3>
+<p>当用户通过 Google Home App 或语音助手控制设备时，属性更新回调被触发：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">esp_err_t</span><span class="w"> </span><span class="nf">app_driver_attribute_update</span><span class="p">(</span>
+<span class="w">    </span><span class="n">app_driver_handle_t</span><span class="w"> </span><span class="n">driver_handle</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">uint16_t</span><span class="w"> </span><span class="n">endpoint_id</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">cluster_id</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">attribute_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">esp_matter_attr_val_t</span><span class="w"> </span><span class="o">*</span><span class="n">val</span>
+<span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 按 endpoint → cluster → attribute 层级匹配</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cluster_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">OnOff</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">attribute_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">OnOff</span><span class="o">::</span><span class="n">Attributes</span><span class="o">::</span><span class="n">OnOff</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">bool</span><span class="w"> </span><span class="n">power</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">val</span><span class="o">-&gt;</span><span class="n">val</span><span class="p">.</span><span class="n">b</span><span class="p">;</span>
+<span class="w">            </span><span class="n">app_driver_light_set_power</span><span class="p">(</span><span class="n">driver_handle</span><span class="p">,</span><span class="w"> </span><span class="n">power</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cluster_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">attribute_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Attributes</span><span class="o">::</span><span class="n">CurrentLevel</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">brightness</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">val</span><span class="o">-&gt;</span><span class="n">val</span><span class="p">.</span><span class="n">u8</span><span class="p">;</span>
+<span class="w">            </span><span class="n">app_driver_light_set_brightness</span><span class="p">(</span><span class="n">driver_handle</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">brightness</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cluster_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ColorControl</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 处理颜色/色温变化...</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ESP_OK</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="56-cluster-attribute">5.6 访问 Cluster 和 Attribute 值</h3>
+<p>在运行时读取设备状态：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 获取层级引用</span>
+<span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">get</span><span class="p">();</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">endpoint</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">endpoint_id</span><span class="p">);</span>
+<span class="n">cluster_t</span><span class="w"> </span><span class="o">*</span><span class="n">cluster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cluster</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Id</span><span class="p">);</span>
+<span class="n">attribute_t</span><span class="w"> </span><span class="o">*</span><span class="n">attribute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">attribute</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">cluster</span><span class="p">,</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Attributes</span><span class="o">::</span><span class="n">CurrentLevel</span><span class="o">::</span><span class="n">Id</span><span class="p">);</span>
+
+<span class="c1">// 读取值</span>
+<span class="n">esp_matter_attr_val_t</span><span class="w"> </span><span class="n">val</span><span class="p">;</span>
+<span class="n">attribute</span><span class="o">::</span><span class="n">get_val</span><span class="p">(</span><span class="n">attribute</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">);</span>
+
+<span class="c1">// 应用到硬件</span>
+<span class="n">app_driver_light_set_brightness</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="57">5.7 延迟持久化优化</h3>
+<p>对于频繁变化的属性（如亮度、色温），建议使用延迟持久化减少 NVM（非易失性存储器）写入，以延长设备寿命：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">attribute</span><span class="o">::</span><span class="n">set_deferred_persistence</span><span class="p">(</span><span class="n">current_level_attribute</span><span class="p">);</span>
+<span class="n">attribute</span><span class="o">::</span><span class="n">set_deferred_persistence</span><span class="p">(</span><span class="n">current_x_attribute</span><span class="p">);</span>
+<span class="n">attribute</span><span class="o">::</span><span class="n">set_deferred_persistence</span><span class="p">(</span><span class="n">current_y_attribute</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="58">5.8 构建和烧录</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 设置目标芯片</span>
+idf.py<span class="w"> </span>set-target<span class="w"> </span>esp32c3
+
+<span class="c1"># 构建项目</span>
+idf.py<span class="w"> </span>build
+
+<span class="c1"># 烧录到设备</span>
+idf.py<span class="w"> </span>-p<span class="w"> </span>/dev/ttyUSB0<span class="w"> </span>flash<span class="w"> </span>monitor
+</code></pre></div>
+
+<hr />
+<h2 id="_4">六、自定义数据模型</h2>
+<p>当标准设备类型无法满足需求时，Matter 支持自定义（Vendor-Specific）数据模型。</p>
+<h3 id="61-endpoint">6.1 自定义 Endpoint</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 创建自定义端点（不关联标准设备类型）</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">endpoint</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">ENDPOINT_FLAG_NONE</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="62-cluster">6.2 自定义 Cluster</h3>
+<p>使用厂商特定的 Cluster ID（如 <code>0x131BFC00</code>）：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 创建自定义 Cluster</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">custom_cluster_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x131BFC00</span><span class="p">;</span>
+<span class="n">cluster_t</span><span class="w"> </span><span class="o">*</span><span class="n">cluster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cluster</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="n">custom_cluster_id</span><span class="p">,</span><span class="w"> </span><span class="n">CLUSTER_FLAG_SERVER</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="63-attribute">6.3 自定义 Attribute</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 添加自定义属性</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">custom_attribute_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x00000000</span><span class="p">;</span><span class="w">  </span><span class="c1">// 自定义属性 ID</span>
+<span class="n">attribute_t</span><span class="w"> </span><span class="o">*</span><span class="n">attribute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">attribute</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">cluster</span><span class="p">,</span>
+<span class="w">    </span><span class="n">custom_attribute_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ATTRIBUTE_FLAG_NONE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">esp_matter_uint16</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span><span class="w">  </span><span class="c1">// 16位无符号整型</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="64-command">6.4 自定义 Command</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 命令回调函数</span>
+<span class="k">static</span><span class="w"> </span><span class="n">esp_err_t</span><span class="w"> </span><span class="nf">custom_command_callback</span><span class="p">(</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">ConcreteCommandPath</span><span class="w"> </span><span class="o">&amp;</span><span class="n">command_path</span><span class="p">,</span>
+<span class="w">    </span><span class="n">TLVReader</span><span class="w"> </span><span class="o">&amp;</span><span class="n">tlv_data</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">opaque_ptr</span>
+<span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ESP_LOGI</span><span class="p">(</span><span class="n">TAG</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Custom command received!&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// 处理逻辑...</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ESP_OK</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// 注册自定义命令</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">custom_command_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x00000001</span><span class="p">;</span>
+<span class="n">command</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">cluster</span><span class="p">,</span>
+<span class="w">    </span><span class="n">custom_command_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">COMMAND_FLAG_ACCEPTED</span><span class="p">,</span>
+<span class="w">    </span><span class="n">custom_command_callback</span><span class="w">  </span><span class="c1">// 回调函数</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="65-endpoint-cluster">6.5 为 Endpoint 添加额外标准 Cluster</h3>
+<p>你也可以为已有端点动态添加标准 Cluster：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 添加 On/Off Cluster 到端点</span>
+<span class="n">on_off</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">config</span><span class="p">;</span>
+<span class="n">on_off</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">config</span><span class="p">,</span><span class="w"> </span><span class="n">CLUSTER_FLAG_SERVER</span><span class="p">,</span>
+<span class="w">               </span><span class="n">on_off</span><span class="o">::</span><span class="n">feature</span><span class="o">::</span><span class="n">lighting</span><span class="o">::</span><span class="n">get_id</span><span class="p">());</span>
+
+<span class="c1">// 添加温度测量 Cluster</span>
+<span class="n">temperature_measurement</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">temp_config</span><span class="p">;</span>
+<span class="n">temperature_measurement</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">temp_config</span><span class="p">,</span><span class="w"> </span><span class="n">CLUSTER_FLAG_SERVER</span><span class="p">);</span>
+</code></pre></div>
+
+<hr />
+<h2 id="google-home">七、Google Home 集成与测试</h2>
+<h3 id="71-google-home-developer-console">7.1 Google Home Developer Console 配置</h3>
+<ol>
+<li><strong>创建项目</strong>：访问 <a href="https://console.actions.google.com/">Google Home Developer Console</a>，创建智能家居项目</li>
+<li><strong>添加 Matter 集成</strong>：选择 Matter 集成类型，配置产品的 VID 和 PID</li>
+<li><strong>设置设备信息</strong>：填写设备名称、描述、类别等信息</li>
+<li><strong>获取测试凭证</strong>：生成用于开发阶段调试的测试密钥</li>
+</ol>
+<h3 id="72-matter">7.2 使用 Matter 虚拟设备</h3>
+<p>在没有真实硬件的情况下，可以使用 Docker 化的虚拟设备进行开发：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 拉取并运行 Matter 虚拟设备</span>
+docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--network<span class="w"> </span>host<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>us-central1-docker.pkg.dev/gdhome-google-com/matter-virtual-device/matter-virtual-device:latest
+</code></pre></div>
+
+<p>虚拟设备可以被配网到真实的 Google Home Fabric 中，并像物理设备一样被 Assistant 语音命令控制。</p>
+<h3 id="73-vs-code">7.3 VS Code 扩展调试</h3>
+<p>安装 Google Home Extension for VS Code 后，你可以在 IDE 中：</p>
+<ul>
+<li><strong>查看实时云日志</strong>：双向通信的详细日志，按严重级别和时间过滤</li>
+<li><strong>发送 Assistant 命令</strong>：用脚本化方式测试语音命令交互</li>
+<li><strong>检查 JSON 消息内容</strong>：查看设备与 Google Home 之间的通信详情</li>
+</ul>
+<h3 id="74">7.4 设备配网流程</h3>
+<p>设备通过 BLE 进行初始配对，配网完成后切换到 Wi-Fi 或 Thread 网络：</p>
+<div class="codehilite"><pre><span></span><code>用户扫码/NFC触碰
+    ↓
+BLE 配网通道建立（PASE 安全会话）
+    ↓
+设备获取 Wi-Fi/Thread 网络凭证
+    ↓
+设备加入 IP 网络
+    ↓
+证书认证会话建立（CASE）
+    ↓
+设备被添加到 Google Home Fabric
+    ↓
+用户可以通过 App/语音控制设备
+</code></pre></div>
+
+<h3 id="75-chip-tool">7.5 使用 chip-tool 进行调试</h3>
+<p>chip-tool 是 Matter SDK 自带的命令行调试工具：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 控制开关</span>
+./chip-tool<span class="w"> </span>onoff<span class="w"> </span>on<span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;
+
+<span class="c1"># 控制亮度</span>
+./chip-tool<span class="w"> </span>levelcontrol<span class="w"> </span>move-to-level<span class="w"> </span><span class="m">128</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;
+
+<span class="c1"># 读取温度值</span>
+./chip-tool<span class="w"> </span>temperaturemeasurement<span class="w"> </span><span class="nb">read</span><span class="w"> </span>measured-value<span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;
+
+<span class="c1"># 订阅属性变化</span>
+./chip-tool<span class="w"> </span>onoff<span class="w"> </span>subscribe<span class="w"> </span>on-off<span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;<span class="w"> </span>--min-interval<span class="w"> </span><span class="m">1</span><span class="w"> </span>--max-interval<span class="w"> </span><span class="m">10</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_5">八、测试套件与认证</h2>
+<h3 id="81-google-home-test-suite">8.1 Google Home Test Suite</h3>
+<p>Google 提供了自动化测试套件用于验证你的 Matter 集成：</p>
+<ul>
+<li>在 Developer Console 中启动测试运行</li>
+<li>自动检测设备是否符合 Google Home 生态系统规范</li>
+<li>生成详细的测试报告，指示通过/失败项</li>
+<li>必须通过测试才能进入 Field Trial 或正式发布</li>
+</ul>
+<h3 id="82">8.2 认证流程全景</h3>
+<div class="codehilite"><pre><span></span><code>需求分析 → 开发实现 → Developer Console 配置
+    ↓
+Google Home Test Suite 测试
+    ↓
+Field Trial（可选但推荐，验证真实环境表现）
+    ↓
+CSA Matter 认证（设备级别，通过授权测试实验室）
+    ↓
+产品发布
+</code></pre></div>
+
+<blockquote>
+<p><strong>2026年更新</strong>：从2026年开始，所有 Matter 集成和测试都要求使用 Alliance Interop Test（联盟互操作测试），请关注 <a href="https://csa-iot.org/">CSA 联盟官网</a> 的最新动态。</p>
+</blockquote>
+<h3 id="83">8.3 常见认证检查项</h3>
+<ul>
+<li>[ ] 设备能正确响应 On/Off、Level Control 等基本命令</li>
+<li>[ ] BLE 配网流程顺畅，二维码可被正确扫描</li>
+<li>[ ] 多管理员（Multi-Admin）功能正常工作</li>
+<li>[ ] 设备在网络中断后能正确恢复连接</li>
+<li>[ ] 固件 OTA 升级功能（如适用）</li>
+<li>[ ] 设备重启后状态正确恢复</li>
+<li>[ ] 安全凭证（DAC、PAI、CD）正确烧录</li>
+</ul>
+<hr />
+<h2 id="matter_4">九、其他平台的 Matter 开发</h2>
+<h3 id="91-nordic-nrf-connect-sdk">9.1 Nordic nRF Connect SDK</h3>
+<p>Nordic 半导体是 Matter 协议的主要贡献者之一，其 nRF52840 和 nRF5340 芯片对 Matter over Thread 有优秀的支持：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 安装 nRF Connect SDK</span>
+west<span class="w"> </span>init<span class="w"> </span>-m<span class="w"> </span>https://github.com/nrfconnect/sdk-nrf<span class="w"> </span>--mr<span class="w"> </span>v2.5.0
+west<span class="w"> </span>update
+
+<span class="c1"># 构建 Matter 灯光示例</span>
+<span class="nb">cd</span><span class="w"> </span>nrf/samples/matter/light_bulb
+west<span class="w"> </span>build<span class="w"> </span>-b<span class="w"> </span>nrf52840dk/nrf52840
+</code></pre></div>
+
+<h3 id="92-silicon-labs-simplicity-studio">9.2 Silicon Labs Simplicity Studio</h3>
+<p>Silicon Labs 提供了图形化的开发环境。其 EFR32MG24 系列芯片专为 Matter 优化。关键特色：</p>
+<ul>
+<li>通过 Simplicity Studio 5 进行可视化项目配置</li>
+<li>内置 ZAP 工具支持图形化 Cluster 配置</li>
+<li>提供完整的 Matter 示例（照明、门窗传感器、恒温器等）</li>
+</ul>
+<h3 id="93">9.3 平台选型建议</h3>
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>通信方式</th>
+<th>适合产品</th>
+<th>开发生态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ESP32 (Espressif)</strong></td>
+<td>Wi-Fi / Thread</td>
+<td>照明、插座、传感器</td>
+<td>ESP-IDF + ESP-Matter</td>
+</tr>
+<tr>
+<td><strong>nRF52/nRF53 (Nordic)</strong></td>
+<td>Thread / BLE</td>
+<td>低功耗传感器、门锁</td>
+<td>nRF Connect SDK + Zephyr</td>
+</tr>
+<tr>
+<td><strong>EFR32 (Silicon Labs)</strong></td>
+<td>Thread / Wi-Fi</td>
+<td>各类智能家居设备</td>
+<td>Simplicity Studio 5</td>
+</tr>
+<tr>
+<td><strong>Matter Virtual Device</strong></td>
+<td>虚拟</td>
+<td>早期原型验证</td>
+<td>Docker + Google Home</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_6">十、总结与展望</h2>
+<h3 id="_7">关键要点回顾</h3>
+<ol>
+<li><strong>Matter 是应用层协议</strong>，基于 IP（Wi-Fi/Thread/以太网），BLE 仅用于配网</li>
+<li><strong>数据模型是核心</strong>：Node → Endpoint → Cluster → Attribute/Command/Event 的四层结构</li>
+<li><strong>Google 提供了全流程工具链</strong>：从虚拟设备（MVD）到 VS Code 扩展再到自动化测试套件</li>
+<li><strong>开发框架选择丰富</strong>：ESP-Matter 适合快速原型，nRF Connect SDK 适合商业产品，Simplicity Studio 适合图形化开发</li>
+<li><strong>认证不可跳过</strong>：正式发布必须通过 CSA Matter 认证和 Google Home Test Suite</li>
+</ol>
+<h3 id="_8">推荐学习路径</h3>
+<div class="codehilite"><pre><span></span><code>第1步：阅读 Matter 101 基础概念（1天）
+第2步：搭建开发环境，运行第一个示例（1天）
+第3步：深入理解数据模型和 Cluster 配置（2-3天）
+第4步：使用 Matter Virtual Device 体验 Google Home 集成（1天）
+第5步：在真实硬件上构建和测试设备（3-5天）
+第6步：通过 Google Home Test Suite 验证（1-2天）
+第7步：准备 CSA Matter 认证
+</code></pre></div>
+
+<h3 id="_9">参考资料</h3>
+<ul>
+<li><a href="https://developers.home.google.com/matter/develop">Google Home Developers — Matter 开发</a></li>
+<li><a href="https://developers.home.google.com/matter/codelabs">Google Home Matter Codelab</a></li>
+<li><a href="https://github.com/project-chip/connectedhomeip">Matter SDK (GitHub)</a></li>
+<li><a href="https://github.com/espressif/esp-matter">ESP-Matter SDK</a></li>
+<li><a href="https://academy.nordicsemi.com/courses/matter-fundamentals/">Nordic Developer Academy — Matter Fundamentals</a></li>
+<li><a href="https://csa-iot.org/">CSA 连接标准联盟</a></li>
+<li><a href="https://matter.cn/">Matter 中国社区</a></li>
+<li><a href="https://developer.espressif.com/blog/matter-clusters-attributes-commands/">Espressif Matter 博客系列</a></li>
+</ul>
+<hr />
+<p><em>本文综合参考了 Google Home Developers 官方文档、ESP-Matter 开发框架实践指南、Nordic Developer Academy Matter 课程以及多位 Matter 开发者的实战经验。Matter 生态仍在快速发展中，建议持续关注 CSA 联盟和 Google Home Developers 的最新更新。</em></p></div></div></noscript>
+  </body>
+</html>

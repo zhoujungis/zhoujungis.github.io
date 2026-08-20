@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="🎯 前言 这篇教程详细讲解如何把 Django REST Framework 后端部署到 PythonAnywhere。 PythonAnywhere 免费套餐支持 Python Web 应用托管，原生支持 Django，无需服务器运维，非常适合个人项目。 📋 准备工作 | 项目 | 要求 | ||| | GitH" />
+    <meta property="og:title" content="如何将 Django 后端部署到 PythonAnywhere" />
+    <meta property="og:description" content="🎯 前言 这篇教程详细讲解如何把 Django REST Framework 后端部署到 PythonAnywhere。 PythonAnywhere 免费套餐支持 Python Web 应用托管，原生支持 Django，无需服务器运维，非常适合个人项目。 📋 准备工作 | 项目 | 要求 | ||| | GitH" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-pythonanywhere-deploy/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="如何将 Django 后端部署到 PythonAnywhere" />
+    <meta name="twitter:description" content="🎯 前言 这篇教程详细讲解如何把 Django REST Framework 后端部署到 PythonAnywhere。 PythonAnywhere 免费套餐支持 Python Web 应用托管，原生支持 Django，无需服务器运维，非常适合个人项目。 📋 准备工作 | 项目 | 要求 | ||| | GitH" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>如何将 Django 后端部署到 PythonAnywhere | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DgmlTj6g.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CkF-Ee7x.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+</style>
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-pythonanywhere-deploy/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-07-03T12:10:31.916340+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"如何将 Django 后端部署到 PythonAnywhere","description":"🎯 前言 这篇教程详细讲解如何把 Django REST Framework 后端部署到 PythonAnywhere。 PythonAnywhere 免费套餐支持 Python Web 应用托管，原生支持 Django，无需服务器运维，非常适合个人项目。 📋 准备工作 | 项目 | 要求 | ||| | GitH","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-07-03T12:10:31.916340+08:00","dateModified":"2026-07-14T18:26:25.363435+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-pythonanywhere-deploy/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>如何将 Django 后端部署到 PythonAnywhere</h1><div class="ns-meta">2026/7/3 · Zhou Jun</div><div class="markdown-body"><h2 id="_1">🎯 前言</h2>
+<p>这篇教程详细讲解如何把 Django REST Framework 后端部署到 PythonAnywhere。</p>
+<blockquote>
+<p>PythonAnywhere 免费套餐支持 Python Web 应用托管，原生支持 Django，无需服务器运维，非常适合个人项目。</p>
+</blockquote>
+<hr />
+<h2 id="_2">📋 准备工作</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitHub 账号</td>
+<td>存放代码</td>
+</tr>
+<tr>
+<td>PythonAnywhere 账号</td>
+<td>免费版即可，<a href="https://www.pythonanywhere.com">注册地址</a></td>
+</tr>
+<tr>
+<td>Django 项目</td>
+<td>可以本地运行的完整项目</td>
+</tr>
+<tr>
+<td>Git</td>
+<td>代码已经推送到 GitHub</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_3">🏗️ 整体流程</h2>
+<div class="codehilite"><pre><span></span><code> ╔══════════════╗     ╔══════════════╗     ╔══════════════╗
+ ║  本地开发     ║────▶║  GitHub      ║────▶║  Python      ║
+ ║  Django 项目  ║     ║  托管代码     ║     ║  Anywhere    ║
+ ╚══════════════╝     ╚══════════════╝     ╚══════════════╝
+</code></pre></div>
+
+<hr />
+<h2 id="_4">📂 第一步：准备项目</h2>
+<h3 id="11">1.1 确认项目结构</h3>
+<p>一个标准的 Django 项目应该类似这样：</p>
+<div class="codehilite"><pre><span></span><code>backend/
+├── blog_api/              # Django 项目配置
+│   ├── settings.py        # 核心配置文件
+│   ├── urls.py            # 主路由
+│   └── wsgi.py            # WSGI 入口
+├── articles/              # 你的 App
+│   ├── models.py
+│   ├── views.py
+│   └── serializers.py
+├── manage.py
+├── requirements.txt       # Python 依赖列表
+└── venv/                  # 本地虚拟环境
+</code></pre></div>
+
+<h3 id="12-requirementstxt">1.2 生成 requirements.txt</h3>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>backend
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">    </span><span class="c1"># Linux/Mac</span>
+<span class="c1"># venv\Scripts\activate     # Windows</span>
+
+<span class="c1"># 冻结当前所有依赖</span>
+pip<span class="w"> </span>freeze<span class="w"> </span>&gt;<span class="w"> </span>requirements.txt
+
+<span class="c1"># 确认文件内容包含这些关键包</span>
+cat<span class="w"> </span>requirements.txt<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s2">&quot;django|rest_framework|simplejwt|corsheaders&quot;</span>
+</code></pre></div>
+
+<h3 id="13">1.3 生产环境配置</h3>
+<p>修改 <code>backend/blog_api/settings.py</code>，让配置从环境变量读取：</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="c1"># ✅ 从环境变量读取，有默认值保底</span>
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+    <span class="s1">&#39;DJANGO_SECRET_KEY&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;django-insecure-dev-key-change-me&#39;</span>
+<span class="p">)</span>
+
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;True&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;True&#39;</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ALLOWED_HOSTS&#39;</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+
+<span class="c1"># ✅ CORS 配置：生产环境指定域名</span>
+<span class="n">_cors</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CORS_ALLOWED_ORIGINS&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">_cors</span><span class="p">:</span>
+    <span class="n">CORS_ALLOWED_ORIGINS</span> <span class="o">=</span> <span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">_cors</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+    <span class="n">CORS_ALLOW_ALL_ORIGINS</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">CORS_ALLOW_ALL_ORIGINS</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># 开发环境允许所有来源</span>
+
+<span class="c1"># ✅ 静态文件</span>
+<span class="n">STATIC_URL</span> <span class="o">=</span> <span class="s1">&#39;static/&#39;</span>
+<span class="n">STATIC_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">&#39;staticfiles&#39;</span>
+
+<span class="c1"># ✅ 媒体文件</span>
+<span class="n">MEDIA_URL</span> <span class="o">=</span> <span class="s1">&#39;/media/&#39;</span>
+<span class="n">MEDIA_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">&#39;media&#39;</span>
+</code></pre></div>
+
+<h3 id="14-github">1.4 推送代码到 GitHub</h3>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>backend/
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;chore: production-ready Django config&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
+</code></pre></div>
+
+<hr />
+<h2 id="pythonanywhere">🖥️ 第二步：登录 PythonAnywhere</h2>
+<h3 id="21-bash">2.1 打开 Bash 控制台</h3>
+<p>登录 <a href="https://www.pythonanywhere.com">pythonanywhere.com</a> → <strong>Dashboard</strong> → 点击 <strong>Bash</strong>：</p>
+<div class="codehilite"><pre><span></span><code>┌─────────────────────────────────────────────────────────┐
+│                   PythonAnywhere Dashboard               │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│   [ Files ]  [ Web ]  [ Databases ]  [ Bash ]  [...]    │
+│                                                         │
+│           点击 Bash 打开命令行终端                        │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+<h3 id="22">2.2 克隆代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 克隆你的仓库</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/YOUR_USERNAME/YOUR_REPO.git
+<span class="nb">cd</span><span class="w"> </span>YOUR_REPO/backend
+
+<span class="c1"># 确认文件都在</span>
+ls<span class="w"> </span>-la
+</code></pre></div>
+
+<hr />
+<h2 id="_5">🐍 第三步：创建虚拟环境</h2>
+<h3 id="31-venv">3.1 创建 venv</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># PythonAnywhere 支持 Python 3.10 / 3.11 / 3.12</span>
+python3.12<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
+
+<span class="c1"># 激活虚拟环境</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+
+<span class="c1"># 你会看到命令行前面出现 (venv) 标识</span>
+</code></pre></div>
+
+<h3 id="32">3.2 安装依赖</h3>
+<div class="codehilite"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</code></pre></div>
+
+<blockquote>
+<p>⚠️ 如果安装失败，检查 <code>requirements.txt</code> 是否包含不兼容的包。可以先手动安装核心包：
+<code>bash
+pip install django djangorestframework djangorestframework-simplejwt django-cors-headers</code></p>
+</blockquote>
+<h3 id="33">3.3 生成生产密钥</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())&quot;</span>
+</code></pre></div>
+
+<blockquote>
+<p>📋 <strong>把这个生成的密钥复制保存好</strong>，下一步要用！</p>
+</blockquote>
+<hr />
+<h2 id="web-app">⚙️ 第四步：创建 Web App</h2>
+<h3 id="41-web-app">4.1 添加 Web App</h3>
+<p>回到 <strong>Dashboard</strong> → <strong>Web</strong> 标签 → 点击 <strong>Add a new web app</strong>：</p>
+<div class="codehilite"><pre><span></span><code><span class="err">┌────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                   </span><span class="k">Create</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">web</span><span class="w"> </span><span class="n">app</span><span class="w">                    </span><span class="err">│</span>
+<span class="err">├────────────────────────────────────────────────────────┤</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="err">●</span><span class="w"> </span><span class="nf">Choose</span><span class="w"> </span><span class="n">Manual</span><span class="w"> </span><span class="n">configuration</span><span class="w"> </span><span class="p">(</span><span class="ow">not</span><span class="w"> </span><span class="n">Django</span><span class="o">/</span><span class="n">Flask</span><span class="p">)</span><span class="w">     </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                </span><span class="o">[</span><span class="n">Next</span><span class="o">]</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="err">●</span><span class="w"> </span><span class="k">Select</span><span class="w"> </span><span class="n">Python</span><span class="w"> </span><span class="mf">3.12</span><span class="w">                        </span><span class="o">[</span><span class="n">Next</span><span class="o">]</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">└────────────────────────────────────────────────────────┘</span>
+</code></pre></div>
+
+<blockquote>
+<p>⚠️ <strong>注意</strong>：选 <strong>Manual configuration</strong>，不要选 Django 自动配置！</p>
+</blockquote>
+<h3 id="42-web-app">4.2 配置 Web App</h3>
+<p>创建完成后，你会看到配置页面。依次填写：</p>
+<div class="codehilite"><pre><span></span><code>┌────────────────────────────────────────────────────────┐
+│  Source code:                                          │
+│  /home/你的用户名/YOUR_REPO/backend                     │
+│                                                        │
+│  Working directory:                                    │
+│  /home/你的用户名/YOUR_REPO/backend                     │
+│                                                        │
+│  Virtualenv:                                           │
+│  /home/你的用户名/YOUR_REPO/backend/venv                │
+│                                                        │
+└────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+<h3 id="43-wsgi">4.3 配置 WSGI 文件</h3>
+<p>点击蓝色的 <strong>WSGI configuration file</strong> 链接，把内容<strong>全部替换</strong>为：</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+
+<span class="c1"># 设置项目路径</span>
+<span class="n">path</span> <span class="o">=</span> <span class="s1">&#39;/home/YOUR_USERNAME/YOUR_REPO/backend&#39;</span>
+<span class="k">if</span> <span class="n">path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+
+<span class="c1"># 设置环境变量（把密钥换成第四步生成的！）</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;DJANGO_SETTINGS_MODULE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;blog_api.settings&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;DJANGO_SECRET_KEY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;你的生产密钥&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;False&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;ALLOWED_HOSTS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;你的用户名.pythonanywhere.com&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;CORS_ALLOWED_ORIGINS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;https://你的用户名.github.io&#39;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.core.wsgi</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_wsgi_application</span>
+<span class="n">application</span> <span class="o">=</span> <span class="n">get_wsgi_application</span><span class="p">()</span>
+</code></pre></div>
+
+<blockquote>
+<p>⚠️ <strong>把 <code>YOUR_USERNAME</code> 和 <code>YOUR_REPO</code> 替换成你自己的值！</strong></p>
+</blockquote>
+<p>保存后关闭编辑器。</p>
+<hr />
+<h2 id="_6">🗄️ 第五步：初始化数据库</h2>
+<h3 id="51">5.1 运行迁移</h3>
+<p>回到 Bash 终端：</p>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>~/YOUR_REPO/backend
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+
+<span class="c1"># 运行所有数据库迁移</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+
+<span class="c1"># 你应该看到类似输出：</span>
+<span class="c1"># Operations to perform:</span>
+<span class="c1">#   Apply all migrations: articles, comments, ...</span>
+<span class="c1"># Running migrations:</span>
+<span class="c1">#   Applying articles.0001_initial... OK</span>
+<span class="c1">#   ...</span>
+</code></pre></div>
+
+<h3 id="52">5.2 创建管理员账号</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser
+</code></pre></div>
+
+<p>按提示输入：</p>
+<div class="codehilite"><pre><span></span><code><span class="nx">Username</span><span class="p">:</span><span class="w"> </span><span class="nx">admin</span>
+<span class="nx">Email</span><span class="w"> </span><span class="nx">address</span><span class="p">:</span><span class="w"> </span><span class="nx">your</span><span class="err">@</span><span class="nx">email</span><span class="p">.</span><span class="nx">com</span>
+<span class="nx">Password</span><span class="p">:</span><span class="w"> </span><span class="o">********</span>
+<span class="nx">Password</span><span class="w"> </span><span class="p">(</span><span class="nx">again</span><span class="p">):</span><span class="w"> </span><span class="o">********</span>
+<span class="nx">Superuser</span><span class="w"> </span><span class="nx">created</span><span class="w"> </span><span class="nx">successfully</span><span class="p">.</span>
+</code></pre></div>
+
+<h3 id="53">5.3 收集静态文件</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>collectstatic<span class="w"> </span>--noinput
+
+<span class="c1"># 输出: 157 static files copied to &#39;staticfiles&#39;</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_7">📁 第六步：配置静态文件映射</h2>
+<p>回到 <strong>Web</strong> 页面，找到 <strong>Static Files</strong> 区域，添加两行：</p>
+<table>
+<thead>
+<tr>
+<th>URL</th>
+<th>Directory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/static/</code></td>
+<td><code>/home/你的用户名/YOUR_REPO/backend/staticfiles</code></td>
+</tr>
+<tr>
+<td><code>/media/</code></td>
+<td><code>/home/你的用户名/YOUR_REPO/backend/media</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code>┌────────────────────────────────────────────────────────┐
+│                   Static Files                          │
+├──────────────────┬─────────────────────────────────────┤
+│  URL             │  Directory                          │
+├──────────────────┼─────────────────────────────────────┤
+│  /static/        │  /home/xxx/YOUR_REPO/backend/       │
+│                  │  staticfiles                        │
+├──────────────────┼─────────────────────────────────────┤
+│  /media/         │  /home/xxx/YOUR_REPO/backend/       │
+│                  │  media                              │
+└──────────────────┴─────────────────────────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="_8">🚀 第七步：启动！</h2>
+<h3 id="71-web-app">7.1 重载 Web App</h3>
+<p>回到 <strong>Web</strong> 页面顶部，点击绿色 <strong>Reload</strong> 按钮：</p>
+<div class="codehilite"><pre><span></span><code><span class="err">┌────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                   </span><span class="n">Web</span><span class="w"> </span><span class="n">App</span><span class="w"> </span><span class="n">Status</span><span class="w">                        </span><span class="err">│</span>
+<span class="err">├────────────────────────────────────────────────────────┤</span>
+<span class="err">│</span><span class="w">   </span><span class="err">✅</span><span class="w"> </span><span class="n">Running</span><span class="w">        </span><span class="p">[</span><span class="w"> </span><span class="n">Reload</span><span class="w"> </span><span class="p">]</span><span class="w">                         </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="n">Your</span><span class="w"> </span><span class="n">site</span><span class="p">:</span><span class="w"> </span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">YOUR_USERNAME</span><span class="o">.</span><span class="n">pythonanywhere</span><span class="o">.</span><span class="n">com</span><span class="w">  </span><span class="err">│</span>
+<span class="err">└────────────────────────────────────────────────────────┘</span>
+</code></pre></div>
+
+<h3 id="72-api">7.2 验证 API</h3>
+<p>打开浏览器访问：</p>
+<div class="codehilite"><pre><span></span><code>https://你的用户名.pythonanywhere.com/api/articles/
+</code></pre></div>
+
+<p>如果看到 JSON 数据，恭喜部署成功！🎉</p>
+<hr />
+<h2 id="_9">⚠️ 常见问题</h2>
+<h3 id="q1-something-went-wrong">Q1: 打开网站显示 "Something went wrong"</h3>
+<blockquote>
+<p>查看错误日志：<strong>Web</strong> → <strong>Error log</strong>，根据具体错误排查。</p>
+</blockquote>
+<p>常见原因：
+- WSGI 文件路径写错了
+- 虚拟环境没装依赖
+- 密钥没有设置</p>
+<h3 id="q2">Q2: 数据库迁移报错</h3>
+<blockquote>
+<p>确认已激活虚拟环境：<code>source venv/bin/activate</code></p>
+</blockquote>
+<h3 id="q3-404">Q3: 静态文件 404</h3>
+<blockquote>
+<p>检查 Static Files 映射配置，URL 和 Directory 要完全匹配。</p>
+</blockquote>
+<h3 id="q4-cors">Q4: CORS 错误（浏览器控制台）</h3>
+<blockquote>
+<p>检查 WSGI 文件中的 <code>CORS_ALLOWED_ORIGINS</code> 是否包含你的前端域名。</p>
+</blockquote>
+<h3 id="q5">Q5: 修改代码后不生效</h3>
+<blockquote>
+<p>每次修改代码后必须点击 <strong>Reload</strong>！</p>
+</blockquote>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 更新代码的标准流程：</span>
+<span class="nb">cd</span><span class="w"> </span>~/YOUR_REPO/backend
+git<span class="w"> </span>pull<span class="w">                      </span><span class="c1"># 拉取最新代码</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">  </span><span class="c1"># 安装新依赖（如果有）</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate<span class="w">         </span><span class="c1"># 运行新迁移（如果有）</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>collectstatic<span class="w"> </span>--noinput
+<span class="c1"># 然后去 Web 页面点 Reload</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_10">📊 部署流程图</h2>
+<div class="codehilite"><pre><span></span><code><span class="w"> </span><span class="err">本地开发</span><span class="w">           </span><span class="n">GitHub</span><span class="w">          </span><span class="n">PythonAnywhere</span><span class="w">      </span><span class="n">Browser</span>
+<span class="w"> </span><span class="err">┌──────┐</span><span class="w">         </span><span class="err">┌──────┐</span><span class="w">         </span><span class="err">┌──────────┐</span><span class="w">       </span><span class="err">┌──────┐</span>
+<span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">写代码</span><span class="w"> </span><span class="err">│──</span><span class="n">push</span><span class="err">──▶│</span><span class="w"> </span><span class="err">仓库</span><span class="w">  </span><span class="err">│──</span><span class="n">clone</span><span class="err">──▶│</span><span class="w"> </span><span class="n">Bash</span><span class="w"> </span><span class="err">终端</span><span class="w"> </span><span class="err">│</span><span class="w">       </span><span class="err">│</span><span class="w"> </span><span class="err">访问</span><span class="w">  </span><span class="err">│</span>
+<span class="w"> </span><span class="err">└──────┘</span><span class="w">         </span><span class="err">└──────┘</span><span class="w">         </span><span class="err">└────┬─────┘</span><span class="w">       </span><span class="err">└──┬───┘</span>
+<span class="w">                                        </span><span class="err">│</span><span class="w">                </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">┌────▼─────┐</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">venv</span><span class="w">     </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">pip</span><span class="w">      </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">migrate</span><span class="w">  </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">collect</span><span class="w">  </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">└────┬─────┘</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                        </span><span class="err">│</span><span class="w">                </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">┌────▼─────┐</span><span class="w">    </span><span class="err">┌────▼────┐</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">Web</span><span class="w"> </span><span class="n">App</span><span class="w">   </span><span class="err">│───▶│</span><span class="w"> </span><span class="n">HTTPS</span><span class="w">   </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">WSGI</span><span class="w">      </span><span class="err">│</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="mi">200</span><span class="w"> </span><span class="n">OK</span><span class="w">  </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">Reload</span><span class="w">    </span><span class="err">│</span><span class="w">    </span><span class="err">└─────────┘</span>
+<span class="w">                                   </span><span class="err">└──────────┘</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_11">✅ 部署检查清单</h2>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>检查项</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>代码已推送到 GitHub</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>2</td>
+<td>requirements.txt 包含所有依赖</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>3</td>
+<td>settings.py 从环境变量读取配置</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>4</td>
+<td>代码已 clone 到 PythonAnywhere</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>5</td>
+<td>虚拟环境已创建并安装依赖</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Web App 已创建（Manual + 3.12）</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>7</td>
+<td>WSGI 文件已正确配置</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>8</td>
+<td>migrate 已执行</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>9</td>
+<td>createsuperuser 已完成</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>10</td>
+<td>collectstatic 已执行</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Static Files 映射已配置</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Reload 后 API 正常返回</td>
+<td>☐</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_12">🔗 参考链接</h2>
+<ul>
+<li><a href="https://help.pythonanywhere.com/pages/">PythonAnywhere 官方文档</a></li>
+<li><a href="https://docs.djangoproject.com/en/stable/howto/deployment/checklist/">Django 部署检查清单</a></li>
+<li><a href="https://www.django-rest-framework.org/">DRF 官方文档</a></li>
+</ul></div></div></noscript>
+  </body>
+</html>

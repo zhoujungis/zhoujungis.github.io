@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日，WAIC 2026（世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸&quot;三地四馆&quot;同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商，奇异摩尔交出的&quot;成绩单&quot;为何让国产算力圈集体兴奋——尤其" />
+    <meta property="og:title" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半" />
+    <meta property="og:description" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日，WAIC 2026（世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸&quot;三地四馆&quot;同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商，奇异摩尔交出的&quot;成绩单&quot;为何让国产算力圈集体兴奋——尤其" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/ibgda-domestic-gpu-rdma-demo-waic2026/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半" />
+    <meta name="twitter:description" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日，WAIC 2026（世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸&quot;三地四馆&quot;同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商，奇异摩尔交出的&quot;成绩单&quot;为何让国产算力圈集体兴奋——尤其" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DgmlTj6g.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CkF-Ee7x.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+</style>
+    <link rel="canonical" href="https://zhoujungis.github.io/article/ibgda-domestic-gpu-rdma-demo-waic2026/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-07-20T12:32:46.750771+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半","description":"不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日，WAIC 2026（世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸\"三地四馆\"同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商，奇异摩尔交出的\"成绩单\"为何让国产算力圈集体兴奋——尤其","image":"https://zhoujungis.github.io/photos/waic-cover.svg","datePublished":"2026-07-20T12:32:46.750771+08:00","dateModified":"2026-07-20T12:32:46.750797+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/ibgda-domestic-gpu-rdma-demo-waic2026/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半</h1><div class="ns-meta">2026/7/20 · Zhou Jun</div><div class="markdown-body"><h1>不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半</h1>
+
+<img alt="奇异摩尔 WAIC 2026" src="https://zhoujungis.github.io/photos/waic-cover.svg">
+<blockquote>
+
+2026 年 7 月 17–20 日，<strong>WAIC 2026</strong>（世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸"三地四馆"同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商，<strong>奇异摩尔</strong>交出的"成绩单"为何让国产算力圈集体兴奋——尤其是那场让英伟达 ConnectX 系列感到压力的 <strong>IBGDA Demo</strong>。
+</blockquote>
+<hr>
+<h2>一、奇异摩尔首次亮相 WAIC 2026</h2>
+
+奇异摩尔作为行业领先的 AI 网络全栈式互联产品及解决方案提供商，<strong>首次亮相 WAIC 2026</strong>，并在大会期间举办"<strong>智联为擎 · 合一共进——AI 网络前沿生态论坛</strong>"。
+
+参会阵容覆盖了国产算力从芯片到应用的几乎所有关键玩家：
+<ul>
+<li><strong>学术机构</strong>：上海人工智能实验室、香港科技大学（广州）</li>
+<li><strong>国产 GPU 厂商</strong>：商汤科技、壁仞科技</li>
+<li><strong>国产 AI 芯片</strong>：九章云极、曦望科技、沐曦、天数智珠、燧原科技</li>
+<li><strong>基础设施</strong>：科华云、曙光信息</li>
+<li><strong>光 / 量子生态</strong>：图灵量子、图灵芯擎、奇点光子</li>
+</ul>
+
+<strong>奇异摩尔创始人兼董事长田陌晨</strong>在论坛致辞中给出了一个核心判断：
+<blockquote>
+
+<em>"网络互联是打破算力孤岛、让单个强点连成高效系统的关键脉络。没有一家企业能够独自走完从底层芯片到顶层应用的全链条。"</em>
+</blockquote>
+
+<img alt="田陌晨致辞 - AI 网络前沿生态论坛" src="https://zhoujungis.github.io/photos/keynote-speaker.svg">
+<blockquote>
+
+论坛现场致辞示意图，右侧大屏呈现"智联为擎 · 合一共进"主题。
+</blockquote>
+
+围绕这一判断，奇异摩尔在本届 WAIC 一次性亮出五张牌：
+<ol>
+<li><strong>国产超节点生态共建倡议行动</strong>正式启动</li>
+<li><strong>《共封装光学（CPO）技术白皮书》</strong>正式发布</li>
+<li>国产化超节点互联<strong>全栈解决方案</strong>亮相</li>
+<li><strong>与壁仞科技联合打造</strong>的国产 GPU 直通国产 RDMA 网卡通信技术 <strong>IBGDA Demo</strong> 现场展示</li>
+<li><strong>下一代光互联</strong>合作成果亮相</li>
+</ol>
+<hr>
+<h2>二、国产算力的核心困境："单点强、系统弱"</h2>
+
+为什么这场论坛如此重要？要回答这个问题，需要先看清国产算力当前的结构性失衡。
+
+奇异摩尔的产品布局覆盖三个尺度：
+<table>
+<thead>
+<tr>
+<th>互联尺度</th>
+<th>范围</th>
+<th>对应产品</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scale-Out</strong></td>
+<td>网间互联</td>
+<td>RDMA 网卡 · ToR/Spine 交换</td>
+</tr>
+<tr>
+<td><strong>Scale-Up</strong></td>
+<td>超节点 XPU 间互联</td>
+<td>OSU IO 芯粒 · CPO 光引擎</td>
+</tr>
+<tr>
+<td><strong>下一代光互联</strong></td>
+<td>全栈式方案</td>
+<td>异构封装 · 光电融合</td>
+</tr>
+</tbody>
+</table>
+
+当前国产算力面临的核心困境是"<strong>单点强、系统弱</strong>"——片内、片间、网间、集群间各层互联各成体系，缺乏统一的全栈视角与系统级协同，导致系统级性能无法随芯片数量线性释放。
+
+<strong>奇异摩尔联合创始人兼产品及解决方案副总裁祝俊东</strong>指出：
+<blockquote>
+
+<em>"本套全栈方案的核心价值在于为国产 AI 算力提供了一套</em><em>可演进、可协同、不绑定</em><em>的系统级基础设施。"</em>
+</blockquote>
+
+<img alt="国产化超节点互联全栈方案机柜示意" src="https://zhoujungis.github.io/photos/supernode-cabinet.svg">
+<blockquote>
+
+上图为国产化超节点机柜示意图。中间机柜高亮展示 <strong>IBGDA Demo 平台</strong>：8 张国产 GPU + Kiwi SNIC 800G 国产 RDMA 网卡，配合 OSU IO 芯粒与 CPO 光互联，构成可演进的全栈节点。
+</blockquote>
+<hr>
+<h2>三、IBGDA DEMO：国产 GPU 与 RDMA 网卡的深度协同</h2>
+<h3>3.1 技术背景：为什么 MoE 需要 IBGDA？</h3>
+
+在 <strong>MoE（Mixture of Experts）</strong> 模型典型训练或推理中，<strong>专家并行（Expert Parallelism）</strong>通信包含两个核心阶段：
+<ul>
+<li><strong>Dispatch（分发）</strong>：把 token 路由到对应专家</li>
+<li><strong>Combine（聚合）</strong>：把专家输出汇总回原 token</li>
+</ul>
+
+这两个阶段涉及<strong>海量小粒度数据交换</strong>——这是 AI 集群通信的"老大难"。
+
+在传统跨节点通信中，GPU 必须经由 CPU 中转指令，产生<strong>额外延迟</strong>与 <strong>CPU 开销</strong>。而 <strong>IBGDA（InfiniBand GPU Direct Async）</strong> 技术正是为解决这个问题而生：通过<strong>绕过 CPU 处理环节</strong>，显著降低指令中转等待时间，在 <strong>All-to-All 通信</strong>场景中实现<strong>吞吐提升</strong>与<strong>延迟压降</strong>。
+<h3>3.2 国际对标与国产缺口</h3>
+<table>
+<thead>
+<tr>
+<th>阵营</th>
+<th>现状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🟢 英伟达</td>
+<td>凭借 <strong>GPU + ConnectX 系列网卡</strong> 深度协同，率先实现 IBGDA 方案</td>
+</tr>
+<tr>
+<td>🟡 国产 GPU</td>
+<td>需支持类 NVSHMEM 编程、最新 NCCL 通信库、DeepEP 等集合通信库</td>
+</tr>
+<tr>
+<td>🟡 国产 RDMA 网卡</td>
+<td>与国产 GPU 在软硬件层面完成适配，方能实现 GPU 直通网卡高效通信</td>
+</tr>
+<tr>
+<td>🔴 规模化落地</td>
+<td>国产 GPU 直通国产 RDMA 网卡的<strong>规模化落地案例仍相对罕见</strong></td>
+</tr>
+</tbody>
+</table>
+
+奇异摩尔的 IBGDA Demo 正是为了填补这块空白。
+<h3>3.3 奇异摩尔 IBGDA 方案规格</h3>
+
+<strong>产品规格一览：</strong>
+<ul>
+<li>✅ <strong>单通道 400G RDMA ASIC 引擎</strong></li>
+<li>✅ 基于 <strong>Kiwi SNIC 800G</strong> 平台架构设计</li>
+<li>✅ 完成<strong>软硬件协同开发</strong></li>
+<li>✅ 兼容专为 MoE 模型优化的<strong>集合通信库</strong>（对标 DeepEP）</li>
+<li>✅ <strong>原生支持 IBGDA</strong>（GPU 直接发起通信）机制</li>
+</ul>
+
+<img alt="Kiwi SNIC 800G 平台架构" src="https://zhoujungis.github.io/photos/kiwi-snic-arch.svg">
+<blockquote>
+
+上图为 <strong>Kiwi SNIC 800G</strong> 平台架构：左端为搭载类 NVSHMEM / DeepEP 通信库的国产 GPU，中间是单通道 400G RDMA ASIC 引擎（含 PCIe Gen5 主机接口、IBGDA 核心、可靠传输 / QP 调度、400G MAC + 112G SerDes），右端为开放以太网侧的国产 ToR / Spine 交换机。整套方案基于<strong>开放以太网</strong>生态构建，为国产算力集群提供兼具高性能与自主性的 Scale-Out 网络选择。
+</blockquote>
+<h3>3.4 核心测试结果</h3>
+
+该 IBGDA Demo 测试平台对标英伟达 IBGDA 测试数据，实测结果达到相应水平：
+
+<img alt="IBGDA vs 传统 IBRC 性能对比" src="https://zhoujungis.github.io/photos/ibgda-perf-chart.svg">
+<blockquote>
+
+上图为 <strong>IBGDA vs 传统 IBRC</strong> 方案在 All-to-All 场景下的实测对比：左半部分为四组吞吐量对比（单次小消息带宽、原始小包吞吐、合并发送吞吐、All-to-All 带宽），蓝色为 IBGDA 直通方案，灰色为传统 IBRC 方案；下方为延迟对比（18 μs → 10 μs，缩短约 44%）；右半部分为核心指标提升小结。
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>提升效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单次小消息带宽</td>
+<td><strong>显著跃升</strong>（15 → 52 GB/s，提升约 247%）</td>
+</tr>
+<tr>
+<td>原始小包吞吐量</td>
+<td><strong>实现质的跨越</strong>（22 → 75 GB/s，提升约 240%）</td>
+</tr>
+<tr>
+<td>合并发送吞吐量</td>
+<td><strong>实现质的跨越</strong>（28 → 82 GB/s，提升约 193%）</td>
+</tr>
+<tr>
+<td><strong>All-to-All 通信延迟</strong></td>
+<td><strong>大幅缩短，接近翻倍提升</strong>（18 → 10 μs，压降 44%）</td>
+</tr>
+<tr>
+<td>小包惩罚</td>
+<td><strong>被彻底消除</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+💡 <strong>关键洞察</strong>：延迟压降 44%、吞吐量翻倍，最直接的收益是 MoE 训练 / 推理的"专家通信墙"被打破；同时 CPU 算力被释放回前台任务，<strong>整体集群吞吐</strong>与<strong>单节点算力利用率</strong>同时得到改善。
+</blockquote>
+<hr>
+<h2>四、布局 OSU 超节点互联芯粒，锚定下一代光互联</h2>
+<h3>4.1 《共封装光学（CPO）技术白皮书》正式发布</h3>
+
+<img alt="共封装光学（CPO）技术白皮书发布" src="https://zhoujungis.github.io/photos/cpo-whitepaper.svg">
+<blockquote>
+
+上图为《共封装光学（CPO）技术白皮书》发布示意：中央为本届正式发布的白皮书封面，两侧列出<strong>发起方</strong>与<strong>参与编写单位</strong>，右下角归纳白皮书的五大发布意义。
+</blockquote>
+
+<strong>发起与参与单位：</strong>
+<ul>
+<li><strong>发起方</strong>：香港科技大学（广州）</li>
+<li><strong>参与编写</strong>：奇异摩尔、曦望 Sunrise、壁仞科技、图灵量子、奇点光子</li>
+</ul>
+<h3>4.2 光互联演进路径：越近越强</h3>
+
+白皮书清晰勾勒了光互联从"插拔"到"内生"的五阶段路径：
+
+<img alt="光互联演进路径" src="https://zhoujungis.github.io/photos/optics-evolution.svg">
+<blockquote>
+
+上图展示了光互联技术的五阶段演进：<strong>可插拔光模块 → NPO → CPO → OIO → 光内生（集成于计算芯片内部）</strong>。越靠近计算单元，互联距离越短，可省去 DSP，从而<strong>降低延迟、简化系统设计、降低功耗与成本</strong>。奇异摩尔重点布局 CPO 阶段，与生态伙伴共同推进下一阶段。
+</blockquote>
+<h3>4.3 奇异摩尔的芯粒布局</h3>
+
+奇异摩尔已前瞻性布局 <strong>OSU（Optical Scale-Up）IO 芯粒产品</strong>与未来 CPO 迭代方案的<strong>融合路径</strong>。
+
+<img alt="OSU IO 芯粒与 CPO 融合架构" src="https://zhoujungis.github.io/photos/osu-osio-arch.svg">
+<blockquote>
+
+上图为 <strong>OSU IO 芯粒 + CPO 融合架构</strong>：在先进封装基板上，xPU 芯粒（国产 GPU/NPU）、OSU IO 芯粒（电信号 → 光信号调制）、CPO 共封装光学模块（激光器 / 调制器 / 光波导 / 探测器）三者协同，通过光纤向外输出。与传统可插拔方案相比，<strong>延迟更低、功耗更低、带宽密度更高</strong>。
+</blockquote>
+<h3>4.4 生态合作成果</h3>
+<ul>
+<li><strong>× 图灵量子</strong>：共研下一代基于 xPU-CPO 的关键技术</li>
+<li><strong>× 奇点光子</strong>：共同探索基于芯粒间高速数据接口的 NPO / CPO 技术</li>
+</ul>
+<hr>
+<h2>五、聚力共赢："国产超节点生态共建倡议行动"正式启动</h2>
+<h3>5.1 行业洞察：三条指数曲线同时驱动</h3>
+
+大模型算力需求被<strong>三条指数曲线</strong>同时驱动：
+<ol>
+<li><strong>训练侧的 Scaling Law</strong> —— 模型规模与数据规模的同步扩张</li>
+<li><strong>推理侧的 Test-time Scaling</strong> —— 推理时计算量的指数增长</li>
+<li><strong>Agent 应用带来的调用量爆发</strong> —— Agent 范式推动推理调用频次陡升</li>
+</ol>
+<blockquote>
+
+因此，真正决定格局的越来越落在<strong>互联、整机、软件和系统协同</strong>上。
+</blockquote>
+
+<strong>上海市算力网络协会秘书长杨炼</strong>指出：国产超节点在<strong>体系架构定义、Scale-Up 互联协议、软硬协同优化、集群 RAS 能力</strong>等方面仍面临<strong>碎片化挑战</strong>和"<strong>卡脖子</strong>"风险。
+<h3>5.2 倡议行动参与方</h3>
+
+<img alt="国产超节点生态共建倡议行动" src="https://zhoujungis.github.io/photos/ecosystem-initiative.svg">
+<blockquote>
+
+上图展示"国产超节点生态共建倡议行动"的生态版图：中央为核心目标——国产超节点生态共建，围绕一圈的是发起单位、见证方，以及中兴通讯、壁仞、沐曦、天数智珠、燧原、商汤、曙光、奇异摩尔等参与企业。
+</blockquote>
+
+<strong>见证方</strong>：上海市经济和信息化委员会无线电管理处处长 杨沛江
+
+<strong>发起单位</strong>：
+<ul>
+<li>上海市算力网络协会</li>
+<li>上海人工智能实验室</li>
+<li>中国信息通信研究院华东分院</li>
+</ul>
+
+<strong>参与企业</strong>：中兴通讯、壁仞科技、沐曦、天数智珠、燧原科技、商汤科技、曙光信息、奇异摩尔
+<hr>
+<h2>六、总结：奇异摩尔交出的五份"成绩单"</h2>
+
+最后，用一张表回顾奇异摩尔首次亮相 WAIC 的所有重要发布：
+<table>
+<thead>
+<tr>
+<th>序号</th>
+<th>项目</th>
+<th>关键亮点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>高规格生态论坛</strong></td>
+<td>智联为擎 · 合一共进</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>国产超节点生态共建倡议行动</strong></td>
+<td>三家发起 + 八家企业参与</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>《共封装光学（CPO）技术白皮书》</strong></td>
+<td>港科大（广州）发起，五方共编</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>纯国产化超节点互联全栈方案</strong></td>
+<td>Scale-Out + Scale-Up + 下一代光互联</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>IBGDA 联合演示</strong></td>
+<td>国产 GPU + 国产 RDMA 网卡，吞吐翻倍 / 延迟砍半</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>基于 OISA 协议超节点卡间互联验证平台</strong></td>
+<td>国产等价 NVSwitch 路径</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>写在最后</h2>
+<blockquote>
+
+<em>没有一家企业能够独自走完从底层芯片到顶层应用的全链条。</em>
+</blockquote>
+
+这句话不仅是奇异摩尔对自身的清醒认知，也几乎是当前国产 AI 算力圈的一句共同写照。从 <strong>WAIC 2026</strong> 上交出的这份"成绩单"可以看到：<strong>国产 AI 网络不再只是"配角"，而是真正开始走向舞台中央</strong>。
+<ul>
+<li>当 <strong>IBGDA</strong> 把 CPU 从通信路径里摘出去，国产 GPU 集群的扩展效率第一次有了对标英伟达的可能；</li>
+<li>当 <strong>CPO</strong> 把光引擎封装进芯片内部，下一代 Scale-Up 互联的物理基础被重新定义；</li>
+<li>当 <strong>OSU IO 芯粒</strong> 把"光"送进计算芯粒内部，国产算力的天花板被再次抬高；</li>
+<li>当<strong>生态共建倡议</strong>把八家企业拢到一张桌子上，"卡脖子"的现实问题终于有了系统性的应对路径。</li>
+</ul>
+
+WAIC 2026 的舞台属于整个国产算力圈，而奇异摩尔把它最硬核的一面，第一次完整地摆在了所有人面前。
+<hr>
+<blockquote>
+
+🌐 <strong>原文参考</strong>：<a href="https://aisig.aqara.com/thread?topicId=27101" rel="noopener noreferrer" target="_blank">aisig.aqara.com - 不靠英伟达网卡，国产 GPU 直通方案实测出炉</a>
+
+<em>本文图片由 AI 生成的 SVG 示意图组成（架构图、性能对比图、生态图等），用于替代原文不可访问的现场图片。</em>
+</blockquote></div></div></noscript>
+  </body>
+</html>

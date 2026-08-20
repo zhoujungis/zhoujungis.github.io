@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选 2026 年，把一个项目部署到线上，选择比以往任何时候都多：国内三大云厂商价格战打得火热、海外性价比 VPS 遍地开花、Cloudflare 更是把&quot;免费&quot;做到了极致。这篇文章把国内云、海外云、边缘平台三条路线放在一起对比，帮你找到最" />
+    <meta property="og:title" content="国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选" />
+    <meta property="og:description" content="国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选 2026 年，把一个项目部署到线上，选择比以往任何时候都多：国内三大云厂商价格战打得火热、海外性价比 VPS 遍地开花、Cloudflare 更是把&quot;免费&quot;做到了极致。这篇文章把国内云、海外云、边缘平台三条路线放在一起对比，帮你找到最" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/cloud-deployment-guide-cn-vs-global/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选" />
+    <meta name="twitter:description" content="国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选 2026 年，把一个项目部署到线上，选择比以往任何时候都多：国内三大云厂商价格战打得火热、海外性价比 VPS 遍地开花、Cloudflare 更是把&quot;免费&quot;做到了极致。这篇文章把国内云、海外云、边缘平台三条路线放在一起对比，帮你找到最" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DgmlTj6g.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CkF-Ee7x.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+</style>
+    <link rel="canonical" href="https://zhoujungis.github.io/article/cloud-deployment-guide-cn-vs-global/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-08-10T09:40:23.922514+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选","description":"国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选 2026 年，把一个项目部署到线上，选择比以往任何时候都多：国内三大云厂商价格战打得火热、海外性价比 VPS 遍地开花、Cloudflare 更是把\"免费\"做到了极致。这篇文章把国内云、海外云、边缘平台三条路线放在一起对比，帮你找到最","image":"https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-08-10T09:40:23.922514+08:00","dateModified":"2026-08-10T09:40:23.922556+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cloud-deployment-guide-cn-vs-global/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选</h1><div class="ns-meta">2026/8/10 · Zhou Jun</div><div class="markdown-body"><h1>国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选</h1>
+
+<img alt="数据中心" src="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+2026 年，把一个项目部署到线上，选择比以往任何时候都多：国内三大云厂商价格战打得火热、海外性价比 VPS 遍地开花、Cloudflare 更是把"免费"做到了极致。这篇文章把国内云、海外云、边缘平台三条路线放在一起对比，帮你找到最适合自己场景的部署方案。
+</blockquote>
+<h2>为什么部署选择越来越复杂？</h2>
+
+前几年"上云"基本就等于买台云服务器（IaaS），阿里云、腾讯云、AWS 三选一完事。但发展到现在，部署路径已经分化为<strong>三条截然不同的路线</strong>：
+<table>
+<thead>
+<tr>
+<th>路线</th>
+<th>代表</th>
+<th>形态</th>
+<th>核心特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>国内云服务器</td>
+<td>阿里云/腾讯云/华为云</td>
+<td>IaaS 云主机</td>
+<td>国内访问快、需要 ICP 备案、带宽贵</td>
+</tr>
+<tr>
+<td>海外云</td>
+<td>AWS/Azure/GCP + Vultr/Hetzner</td>
+<td>IaaS/PaaS</td>
+<td>免备案、全球节点、按美元计费、国内延迟不稳</td>
+</tr>
+<tr>
+<td>边缘平台</td>
+<td>Cloudflare Pages/Workers</td>
+<td>静态托管+Serverless</td>
+<td>免费额度惊人、全球 CDN、几乎零运维</td>
+</tr>
+</tbody>
+</table>
+
+摆在面前的不是"哪家好"，而是<strong>哪条路线更贴合你的业务形态</strong>。下面逐一拆解。
+<h2>一、国内云：卷出天际的价格战</h2>
+
+<img alt="团队协作" src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+据 IDC 数据，2025 年中国公有云 IaaS 市场规模已突破 4000 亿元，阿里云、腾讯云、华为云稳居前三。2026 年这场竞争直接卷成了"价格战"：入门级配置被压到几十元一年。
+<h3>当前主流活动价（2026 年中参考）</h3>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>阿里云</th>
+<th>腾讯云</th>
+<th>华为云</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2核2G</td>
+<td>轻量 38-68元/年；ECS "99计划" 99元/年（续费同价）</td>
+<td>轻量约 82-99元/年；CVM S5 199元/年</td>
+<td>Flexus L 38-98元/年</td>
+</tr>
+<tr>
+<td>2核4G</td>
+<td>ECS u1 199元/年</td>
+<td>蜂驰型 BF1 约 417元/年起</td>
+<td>Flexus L 约 165-199元/年</td>
+</tr>
+<tr>
+<td>4核8G</td>
+<td>ECS 约 955元/年</td>
+<td>轻量 450元/年左右</td>
+<td>Flexus X 338元/年起</td>
+</tr>
+</tbody>
+</table>
+
+几点选型时务必注意的"潜规则"：
+<ol>
+<li><strong>首购价≠长期价</strong>：很多低价仅限新用户，续费直接翻倍。优先选标注"续费同价"的活动（如阿里云 99 计划、腾讯云新老同享款）。</li>
+<li><strong>带宽是隐形开销</strong>：低价款常配 1-3M 固定带宽或"峰值带宽"，图站/下载站慎选。相对而言，阿里云轻量 200M 峰值不限流量的模式对突发流量最友好。</li>
+<li><strong>必须 ICP 备案</strong>：使用大陆节点必须备案，周期 7-20 个工作日。等不了就选香港/海外节点（免备案，但国内访问速度下降）。</li>
+</ol>
+<h3>国内云的独特优势</h3>
+<ul>
+<li><strong>网络质量</strong>：BGP 多线接入，国内各省市访问延迟低且稳定，这是海外 VPS 比不了的。</li>
+<li><strong>生态完善</strong>：对象存储、CDN、短信、支付、AI 服务一站式集成，业务落地快。</li>
+<li><strong>支付与合规</strong>：微信/支付宝直接付，发票、实名、监管一条龙，适合正规商用。</li>
+</ul>
+
+移动云、京东云、百度智能云也在用激进价格抢市场（移动云 2核4G 年付约 151 元、华为云 2核2G 38 元/年），预算敏感时值得对比，但生态和文档丰富度仍以三大厂为最。
+<h2>二、海外云：免备案的自由与美元的标价</h2>
+
+<img alt="分析数据" src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+海外部署的两大流派：<strong>超大规模公有云</strong>（AWS、Azure、GCP）和<strong>开发者友好 VPS</strong>（Vultr、DigitalOcean、Hetzner、Linode）。
+<h3>大厂 vs VPS：定位完全不同</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>AWS / Azure / GCP</th>
+<th>Vultr / DO / Hetzner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>定位</td>
+<td>企业级全栈云平台</td>
+<td>轻量级 IaaS，开发者友好</td>
+</tr>
+<tr>
+<td>入门价格</td>
+<td>按量计费，低配也要 $5-10/月，出站流量另算</td>
+<td>$2.5-6/月起步</td>
+</tr>
+<tr>
+<td>免费额度</td>
+<td>首年免费套餐（12 个月）</td>
+<td>充值返额度（Vultr $300 / DO $200）</td>
+</tr>
+<tr>
+<td>事项复杂度</td>
+<td>高，账单容易失控（出站流量是"刺客"）</td>
+<td>低，按小时计费、价格透明</td>
+</tr>
+<tr>
+<td>国内访问</td>
+<td>普通国际线路，晚高峰丢包明显</td>
+<td>同左，均无 CN2 GIA 优化线路</td>
+</tr>
+</tbody>
+</table>
+
+<strong>关键数字（2026 年对比）</strong>：同等 2核4G 配置，Hetzner CX22 约 €4.5/月（含 20TB 出站流量），DigitalOcean/Vultr 约 $24/月（含 1-3TB 流量），AWS EC2 则要贵上数倍且出站流量另计——这正是"同样的事，AWS 可能贵 10-50 倍"的由来。
+<h3>各家强项速记</h3>
+<ul>
+<li><strong>Hetzner</strong>（德国）：欧洲性价比之王，20TB 免费出站流量近乎无限，EU 业务/GDPR 首选。</li>
+<li><strong>Vultr</strong>：32 个全球机房，覆盖东京/首尔/新加坡等亚洲节点，按小时计费最灵活，还有 GPU 实例。</li>
+<li><strong>DigitalOcean</strong>：文档教程业界标杆，App Platform 能"推代码即上线"，Kubernetes、托管数据库开箱即用。</li>
+<li><strong>AWS/Azure/GCP</strong>：生态天花板，适合跨国业务、需要 S3/云数据库等托管组件的大项目。</li>
+</ul>
+
+海外 VPS 的痛点也很明确：<strong>从国内访问普遍延迟 180-250ms</strong>，晚高峰丢包；<strong>支付需要国际信用卡</strong>；部分平台封禁代理类用途。想要国内访问快，得选走 CN2 GIA 优化线路的专门商家（如搬瓦工），价格另说，且注意合规。
+<h2>三、Cloudflare：免费额度界的"赛博活佛"</h2>
+
+<img alt="笔记本电脑与代码" src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+如果说前两条路线还在花钱，Cloudflare 则把"白嫖"做到了极致——它早已不是单纯的 CDN 厂商，而是一个完整的边缘计算平台。<strong>90% 的个人项目和中小型应用，免费版就够跑。</strong>
+<h3>免费额度速查表</h3>
+<table>
+<thead>
+<tr>
+<th>产品</th>
+<th>免费额度</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DNS + CDN</td>
+<td>无限带宽、不限流量</td>
+<td>所有网站的加速底座，还能隐藏源站 IP</td>
+</tr>
+<tr>
+<td>免费 SSL</td>
+<td>自动签发与续签</td>
+<td>秒变 HTTPS</td>
+</tr>
+<tr>
+<td>WAF</td>
+<td>基础规则 + 5 条自定义规则</td>
+<td>防爬虫、拦攻击、按国家屏蔽</td>
+</tr>
+<tr>
+<td>Pages</td>
+<td>无限带宽、500 次构建/月</td>
+<td>静态网站/前端托管，全球 CDN</td>
+</tr>
+<tr>
+<td>Workers</td>
+<td>10 万次请求/天</td>
+<td>Serverless API、反向代理、边缘逻辑</td>
+</tr>
+<tr>
+<td>R2 存储</td>
+<td>10GB，<strong>出站流量永久免费</strong></td>
+<td>图床、文件存储，对标 S3</td>
+</tr>
+<tr>
+<td>KV / D1</td>
+<td>1GB KV / 5GB D1</td>
+<td>缓存、会话、SQLite 数据库</td>
+</tr>
+<tr>
+<td>Tunnel</td>
+<td>无限流量</td>
+<td>无公网 IP 也能内网穿透，比 frp 更稳</td>
+</tr>
+<tr>
+<td>Email Routing</td>
+<td>无限转发规则</td>
+<td>免费自定义域名邮箱</td>
+</tr>
+<tr>
+<td>Workers AI</td>
+<td>每日免费 Token</td>
+<td>边缘跑大模型推理</td>
+</tr>
+</tbody>
+</table>
+<h3>Cloudflare 的部署哲学：零成本分层架构</h3>
+<div class="codehilite"><pre><span></span><code>用户请求 → Cloudflare CDN（边缘节点）
+              ↓
+    Pages（前端静态资源）
+              ↓
+    Workers（API / 边缘逻辑）
+              ↓
+      KV + R2 + D1（存储全家桶）
+              ↓
+    Tunnel → 自有 VPS（重任务兜底）
+</code></pre></div>
+
+
+举个真实场景：前端用 Pages、接口用 Workers、图片放 R2、数据存 D1、重任务通过 Tunnel 连回自己的一台 $5 VPS——<strong>这套组合的月成本可以压到一台 VPS 的价格</strong>。对比传统"云服务器+数据库+CDN+对象存储"动辄 $88-320/月的账单，优势是数量级的。
+
+两个避坑点：免费版 Workers 单请求 CPU 时间限 10ms（await I/O 不算，别做 CPU 密集活）；免费额度会调整，上线前以官网定价页为准。付费从 Workers Paid $5/月起步，依然是地板价。
+<h2>四、三阵营终极横评</h2>
+
+<img alt="对比与决策" src="https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>国内云（阿里/腾讯/华为）</th>
+<th>海外云（Vultr/Hetzner/AWS）</th>
+<th>Cloudflare</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入门成本</td>
+<td>38-199 元/年</td>
+<td>$2.5-6/月</td>
+<td>0 元</td>
+</tr>
+<tr>
+<td>国内访问速度</td>
+<td>★★★★★</td>
+<td>★★☆</td>
+<td>★★★★（国内节点不算顶尖但稳）</td>
+</tr>
+<tr>
+<td>海外访问速度</td>
+<td>★★★</td>
+<td>★★★★★</td>
+<td>★★★★★</td>
+</tr>
+<tr>
+<td>免备案</td>
+<td>✗（大陆节点必备案）</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>部署灵活度</td>
+<td>高（完整云主机）</td>
+<td>高（完整 VPS）</td>
+<td>中（无长驻进程，重活靠 Tunnel）</td>
+</tr>
+<tr>
+<td>运维成本</td>
+<td>中</td>
+<td>中高</td>
+<td>极低</td>
+</tr>
+<tr>
+<td>长期成本陷阱</td>
+<td>续费涨价、带宽费</td>
+<td>出站流量费、信用卡</td>
+<td>免费额度上限</td>
+</tr>
+<tr>
+<td>适合对象</td>
+<td>国内 C 端业务/备案刚需</td>
+<td>出海业务/学习折腾</td>
+<td>博客/文档/API/零预算项目</td>
+</tr>
+</tbody>
+</table>
+<h2>五、按场景给结论</h2>
+
+<strong>1. 个人博客 / 文档站 / 作品集（零预算优先）</strong>
+→ Cloudflare Pages + GitHub Pages。绑定 GitHub 仓库自动部署，无限带宽 + 全球 CDN，一分钱不花。追求极致简单选 GitHub Pages，追求速度与可扩展选 Cloudflare Pages。
+
+<strong>2. 正经国内项目 / 企业官网（需要备案）</strong>
+→ 国内三大云。预算敏感看活动价续费条款，稳定优先选阿里云 99 计划或腾讯云新老同享款；有华为生态/信创需求再考虑华为云。
+
+<strong>3. 出海业务 / 面向海外用户的站点</strong>
+→ Vultr（亚洲节点广）或 Hetzner（欧洲性价比）起步，规模大了再上 AWS。别忘了前面套一层 Cloudflare CDN。
+
+<strong>4. 个人项目但需要后端 API + 数据库</strong>
+→ 两条路：Cloudflare Workers + D1 + R2 全套边缘方案（最省钱）；或一台海外 VPS 全自己装（最灵活）。国内用户访问为主就选国内云的小配置。
+
+<strong>5. 已有服务器，想省钱又提速</strong>
+→ 不用换服务器，把域名接进 Cloudflare 免费版：CDN 加速 + WAF 防护 + 免费证书一条龙，还能隐藏源站 IP。
+<h2>六、案例：本站的部署架构</h2>
+
+<img alt="代码特写" src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+拿本博客现身说法，用的正是"零成本 + 低成本"混合思路：
+<ul>
+<li><strong>前端</strong>：Vue 3 构建后推送到 GitHub Pages，静态托管免费、版本管理天然。</li>
+<li><strong>后端</strong>：Django API 部署在 PythonAnywhere 免费档，够支撑文章接口和点赞。</li>
+<li><strong>图片</strong>：走 Unsplash 远程图床，本地零存储成本。</li>
+</ul>
+
+它就是"没有服务器也能跑一个完整前后端项目"的活例子。如果哪天 PythonAnywhere 限额不够，下一步就是 Cloudflare Workers 换掉后端、R2 换掉图片——迁移路径也是现成的。这也正是本文想传达的：<strong>部署方案不是一锤子买卖，先用免费/低成本方案跑起来，随业务增长按需演进，才是最务实的上云姿势。</strong>
+<h2>七、最后的避坑清单</h2>
+<ol>
+<li><strong>续费条款看仔细</strong>——首购便宜续费翻倍是国内云最大的坑，认准"续费同价"。</li>
+<li><strong>出站流量是隐形刺客</strong>——AWS 等按 GB 计费，海量图片/下载业务算清楚账再上车；R2 和 Hetzner 则永远免费。</li>
+<li><strong>免费试用记得关</strong>——到期自动扣费是经典事故，设好账单告警和预算上限。</li>
+<li><strong>数据一定要异地备份</strong>——廉价 VPS 没有冗余承诺，<code>rsync</code>/<code>restic</code> 定期备份是底线。</li>
+<li><strong>合规先行</strong>——国内大陆节点必须备案，代理类用途注意服务商 TOS 和当地法律。</li>
+</ol>
+
+<strong>祝大家都能用最合理的成本，把自己的项目稳稳地送上线。</strong></div></div></noscript>
+  </body>
+</html>
