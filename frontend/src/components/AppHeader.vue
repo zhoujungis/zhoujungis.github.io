@@ -76,7 +76,7 @@
         </nav>
         <div class="drawer-foot">
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener">GitHub</a>
-          <a href="mailto:zhoujunseu@163.com">Email</a>
+          <a href="mailto:no-reply@gmail.com">Email</a>
           <a href="https://zhoujun123.pythonanywhere.com/rss.xml">RSS</a>
         </div>
       </aside>
