@@ -37,7 +37,7 @@ class StaticViewSitemap(BaseSitemap):
     priority = 0.5
 
     def items(self):
-        return ["Home", "Categories", "Tags", "Archives", "About", "FriendLinks", "PhotoWall"]
+        return ["Home", "Categories", "Tags", "Archives", "FriendLinks", "PhotoWall"]
 
     def location(self, item):
         routes = {
@@ -45,7 +45,6 @@ class StaticViewSitemap(BaseSitemap):
             "Categories": "/categories",
             "Tags": "/tags",
             "Archives": "/archives",
-            "About": "/about",
             "FriendLinks": "/friends",
             "PhotoWall": "/photos",
         }

@@ -19,7 +19,6 @@ function makeRouter() {
     routes: [
       { path: '/', component: Home },
       { path: '/articles', component: { template: '<div />' } },
-      { path: '/about', component: { template: '<div />' } },
       { path: '/article/:slug', component: { template: '<div />' } },
     ],
   })

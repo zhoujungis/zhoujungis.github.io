@@ -31,7 +31,6 @@
               阅读文章
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </router-link>
-            <router-link to="/about" class="cta cta--secondary">认识我</router-link>
           </div>
           <div class="hero__social">
             <a href="https://github.com/zhoujungis" target="_blank" rel="noopener" aria-label="GitHub">
@@ -182,7 +181,6 @@
 
       <div v-else class="latest-empty">
         <p>还没有发布文章，敬请期待</p>
-        <router-link to="/about" class="latest-empty__link">认识作者 →</router-link>
       </div>
     </section>
 

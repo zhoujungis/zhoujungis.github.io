@@ -100,7 +100,6 @@ const primaryLinks = [
   { path: '/articles', label: '文章' },
   { path: '/archives', label: '归档' },
   { path: '/footprints', label: '足迹' },
-  { path: '/about', label: '关于' },
 ]
 
 const exploreLinks = [

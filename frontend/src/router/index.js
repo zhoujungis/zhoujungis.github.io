@@ -9,7 +9,6 @@ const routes = [
   { path: '/categories', name: 'Categories', component: () => import('../pages/Categories.vue') },
   { path: '/tags', name: 'Tags', component: () => import('../pages/Tags.vue') },
   { path: '/search', name: 'Search', component: () => import('../pages/Search.vue') },
-  { path: '/about', name: 'About', component: () => import('../pages/About.vue') },
   { path: '/photos', name: 'PhotoWall', component: () => import('../pages/PhotoWall.vue') },
   { path: '/friends', name: 'FriendLinks', component: () => import('../pages/FriendLinks.vue') },
   { path: '/footprints', name: 'Footprints', component: () => import('../pages/Footprints.vue') },
