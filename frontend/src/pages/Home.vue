@@ -64,6 +64,9 @@
       </header>
       <div class="live-grid">
         <a href="https://happy-games.pages.dev/" target="_blank" rel="noopener" class="live-card">
+          <div class="live-card__cover">
+            <img src="/projects/happy-games.webp" alt="Happy Games 游戏大厅界面预览" loading="lazy" decoding="async" />
+          </div>
           <div class="live-card__head">
             <h3 class="live-card__title">01 / Happy Games</h3>
             <span class="live-card__badges">
@@ -76,6 +79,9 @@
           <p class="live-card__meta">体验关键词：轻量、即时、可重复游玩。<br />入口：happy-games.pages.dev</p>
         </a>
         <a href="https://halo-music.pages.dev/" target="_blank" rel="noopener" class="live-card">
+          <div class="live-card__cover">
+            <img src="/projects/halo-music.webp" alt="Halo Music 播放界面预览" loading="lazy" decoding="async" />
+          </div>
           <div class="live-card__head">
             <h3 class="live-card__title">02 / Halo Music</h3>
             <span class="live-card__badges">
@@ -88,6 +94,9 @@
           <p class="live-card__meta">体验关键词：沉浸、连续、内容优先。<br />入口：halo-music.pages.dev</p>
         </a>
         <a href="https://routewise-ai.pages.dev/" target="_blank" rel="noopener" class="live-card">
+          <div class="live-card__cover">
+            <img src="/projects/routewise-ai.webp" alt="Routewise AI 行程规划界面预览" loading="lazy" decoding="async" />
+          </div>
           <div class="live-card__head">
             <h3 class="live-card__title">03 / Routewise AI</h3>
             <span class="live-card__badges">
@@ -100,6 +109,9 @@
           <p class="live-card__meta">体验关键词：降低规划摩擦、建议可执行、保留人的选择。<br />入口：routewise-ai.pages.dev</p>
         </a>
         <a href="https://block-world-3d.pages.dev/" target="_blank" rel="noopener" class="live-card">
+          <div class="live-card__cover">
+            <img src="/projects/block-world-3d.webp" alt="Block World 3D 游戏画面预览" loading="lazy" decoding="async" />
+          </div>
           <div class="live-card__head">
             <h3 class="live-card__title">04 / Block World 3D</h3>
             <span class="live-card__badges">
@@ -624,9 +636,25 @@ onMounted(fetchLatest)
   border-radius: $radius-md;
   text-decoration: none;
   color: inherit;
+  overflow: hidden;
   transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
   &:hover { transform: translateY(-2px); border-color: rgba($accent-pink, 0.26); box-shadow: $card-shadow-hover; }
   &:hover .live-card__title { color: $accent-pink; }
+  &:hover .live-card__cover img { transform: scale(1.04); }
+}
+
+.live-card__cover {
+  margin: -14px -16px 10px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-bottom: 1px solid $glass-border;
+  background: $bg-secondary;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
 }
 
 .live-card__head {
