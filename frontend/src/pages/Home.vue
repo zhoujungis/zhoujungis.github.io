@@ -238,11 +238,11 @@ async function fetchLatest() {
   loading.value = true
   loadError.value = null
   try {
-    const res = await getArticles({ page: 1, page_size: 5, ordering: '-created_at' })
+    const res = await getArticles({ page: 1, page_size: 20 })
     const list = res.data?.results || res.data || []
     totalCount.value = typeof res.data?.count === 'number' ? res.data.count : list.length
     const sorted = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    latestArticles.value = sorted.slice(0, 5)
+    latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
   } catch (e) {
     loadError.value = e?.response?.data?.detail || e.message || '加载失败'
   } finally {
