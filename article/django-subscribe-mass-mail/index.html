@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if &quot;@&quot; in e" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-subscribe-mass-mail/" />
+    <meta property="og:title" content="别让一个坏邮箱毒死整批群发：邮件订阅的三次加固" />
+    <meta property="og:description" content="别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if &quot;@&quot; in e" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-subscribe-mass-mail/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="别让一个坏邮箱毒死整批群发：邮件订阅的三次加固" />
+    <meta name="twitter:description" content="别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if &quot;@&quot; in e" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CWdo9vPx.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.BNrxfy0P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-09T10:09:35.405173+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"别让一个坏邮箱毒死整批群发：邮件订阅的三次加固","description":"别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if \"@\" in e","image":"https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-09T10:09:35.405173+08:00","dateModified":"2026-09-09T10:13:44.524270+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-subscribe-mass-mail/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>别让一个坏邮箱毒死整批群发：邮件订阅的三次加固</h1><div class="ns-meta">2026/9/9 · Zhou Jun</div><div class="markdown-body"><h1>别让一个坏邮箱毒死整批群发：邮件订阅的三次加固</h1>
+<blockquote>
+
+博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 <code>订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发</code>。听起来简单，但这条链路上每个环节都埋过雷。
+</blockquote>
+
+最刺激的一个：旧的订阅校验是 <code>if "@" in email</code>——<code>"a@b"</code>、<code>"@"</code>、<code>"x@"</code> 全能通过。这些坏地址存进库，等到群发那天，<code>send_mass_mail()</code> 在第一个坏地址上抛异常，<strong>整批邮件全部失败</strong>。一个随手填的坏邮箱，毒死了后面几百个正常读者的通知。
+
+这篇文章把这条链路掰开揉碎：每段给完整代码、每个结论给实测结果、每次故障给具体推演。
+<hr>
+<h2>01 第一关：入口——坏邮箱是怎么混进库的</h2>
+
+先看案发现场。修之前的校验只有一行（<code>articles/views.py</code> 注释里留着案底）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 旧代码（已删除）</span>
+<span class="k">if</span> <span class="s2">&quot;@&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">email</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;请输入有效的邮箱地址&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+</code></pre></div>
+
+
+它放过了所有"含 @" 的字符串。我用 Django 的 <code>validate_email</code> 对这些漏网之鱼做了实测：
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>旧校验</th>
+<th><code>validate_email</code> 实测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"a@b"</code></td>
+<td>通过</td>
+<td><strong>REJECT</strong>（域名无 TLD）</td>
+</tr>
+<tr>
+<td><code>"@"</code></td>
+<td>通过</td>
+<td><strong>REJECT</strong></td>
+</tr>
+<tr>
+<td><code>"x@"</code></td>
+<td>通过</td>
+<td><strong>REJECT</strong></td>
+</tr>
+<tr>
+<td><code>"not-an-email"</code></td>
+<td>拒绝</td>
+<td>REJECT</td>
+</tr>
+<tr>
+<td><code>"a@b.c"</code></td>
+<td>通过</td>
+<td><strong>REJECT</strong>（单字符 TLD 非法）</td>
+</tr>
+<tr>
+<td><code>"user+tag@example.com"</code></td>
+<td>通过</td>
+<td>PASS（加号标签是合法写法）</td>
+</tr>
+</tbody>
+</table>
+
+<code>"a@b"</code> 是最阴险的一个：人眼一看"像邮箱"，SMTP 发出去直接 bounce。而 <code>send_mass_mail(..., fail_silently=False)</code> 遇到 bounce 是抛异常的——<strong>一批 50 封里第 1 封 bounce，后面 49 封正常地址一封都发不出去</strong>。这就是注释里 "poison the entire batch on the first bounce" 的意思：毒死整批，只需要一个坏地址排在前面。
+
+修复后的入口长这样（<code>subscribe_newsletter</code> 全文关键段）：
+<div class="codehilite"><pre><span></span><code><span class="n">email</span> <span class="o">=</span> <span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">email</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;请输入有效的邮箱地址&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_400_BAD_REQUEST</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">validate_email</span><span class="p">(</span><span class="n">email</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">DjangoValidationError</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;请输入有效的邮箱地址&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_400_BAD_REQUEST</span><span class="p">)</span>
+</code></pre></div>
+
+
+第一行干了三件事，一个都不能少：
+<ol>
+<li><code>(request.data.get("email") or "")</code> —— 没传字段时是 <code>None</code>，直接 <code>.strip()</code> 会炸 <code>AttributeError</code>，先兜底成空串；</li>
+<li><code>.strip()</code> —— 复制粘贴带首尾空格是最常见的"坏邮箱"来源，不 strip 的话 <code>"user@gmail.com "</code> 存进库，群发时照样 bounce；</li>
+<li><code>.lower()</code> —— <code>Test@Example.COM</code> 和 <code>test@example.com</code> 是同一个邮箱。实测归一化：<code>"  Test@Example.COM  "</code> → <code>"test@example.com"</code> → PASS。不归一化，<code>Subscriber.email</code> 的 <code>unique=True</code> 形同虚设——大小写不同就能重复插两行。</li>
+</ol>
+
+入口还有第二道闸：限流。不是通用的 30/min，而是单独的 scope（<code>views.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SubscribeThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
+    <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;subscribe&quot;</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># settings.py</span>
+<span class="s1">&#39;DEFAULT_THROTTLE_RATES&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;anon&#39;</span><span class="p">:</span> <span class="s1">&#39;30/minute&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;100/minute&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;comment&#39;</span><span class="p">:</span> <span class="s1">&#39;3/minute&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;subscribe&#39;</span><span class="p">:</span> <span class="s1">&#39;5/hour&#39;</span><span class="p">,</span>   <span class="c1"># ← 全场最严</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+为什么订阅是全场最严（每小时 5 次）？对比一下：点赞刷爆了只是数字难看，评论刷爆了只是内容被污染——都是<strong>库内伤害</strong>，可回滚。但订阅刷爆了是<strong>库外伤害</strong>：每个垃圾地址都对应未来的真实 SMTP 发送成本，烧配额、进黑名单，发件域名信誉掉一次要养几个月。<strong>配额松紧不看"接口热不热"，看"被刷一次亏多少、亏的地方能不能撤销"。</strong>
+<hr>
+<h2>02 第二关：状态机——三种订阅请求，三种返回码</h2>
+
+订阅表结构很小（<code>articles/models.py</code>），但字段个个有讲究：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Subscriber</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">EmailField</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;邮箱&quot;</span><span class="p">)</span>
+    <span class="n">is_active</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;是否活跃&quot;</span><span class="p">)</span>
+    <span class="n">subscribed_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;订阅时间&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>unique=True</code> 配 <code>lower()</code> 归一化，保证"一个邮箱一行"；<code>is_active</code> 而不是删行，保证"退订可追溯"（这个选择在下面会救场）。三种请求走同一个接口，返回各不相同：
+
+<strong>Case A：新邮箱首次订阅 → <code>201</code></strong>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>https://zhoujun123.pythonanywhere.com/api/subscribe/<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;email&quot;: &quot;reader@example.com&quot;}&#39;</span>
+<span class="c1"># → 201 {&quot;detail&quot;: &quot;订阅成功！&quot;}</span>
+</code></pre></div>
+
+
+<strong>Case B：退订过的邮箱重新订阅 → <code>201</code>，行内翻转</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">sub</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">Subscriber</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span>
+<span class="c1"># L6: re-subscribing a previously unsubscribed user flips them back to active</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">created</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">sub</span><span class="o">.</span><span class="n">is_active</span><span class="p">:</span>
+    <span class="n">sub</span><span class="o">.</span><span class="n">is_active</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">sub</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;is_active&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;订阅成功！&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_201_CREATED</span><span class="p">)</span>
+</code></pre></div>
+
+
+这是 L6 修的 bug：退订只是 <code>is_active=False</code>，行还在。<code>get_or_create</code> 返回 <code>created=False</code>，老代码直接回"该邮箱已订阅"——用户明明点了"重新订阅"，却永远收不到邮件。注意 <code>save(update_fields=["is_active"])</code>：只写一个字段，不碰 <code>subscribed_at</code>（保留"最初订阅时间"），也不触发无谓的全行 UPDATE。
+
+<strong>Case C：已订阅的邮箱重复提交 → <code>200</code></strong>
+<div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;该邮箱已订阅&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_200_OK</span><span class="p">)</span>
+</code></pre></div>
+
+
+200 vs 201 的区分和点赞接口是同一哲学：<strong>重复请求不是错误，用状态码告诉调用方"这次有没有发生变化"</strong>。前端据此决定 toast 文案，后端日志据此区分"新用户增长"和"重复提交噪音"。
+<blockquote>
+
+<strong>软删除 vs 硬删除的取舍</strong>：退订保留行而不是删掉，一是 L6 这种"复活"逻辑有地方翻旗，二是删掉后同一个坏地址可以无限重新进来——留着 inactive 行，至少系统记得它存在过。<strong>删除是最彻底的遗忘，而有些记录，系统需要记得。</strong>
+</blockquote>
+<hr>
+<h2>03 第三关：群发——230 个订阅者，5 批邮件是怎么发完的</h2>
+
+新文章发布时，<code>post_save</code> 信号触发群发（<code>articles/signals.py</code>）。先看接线——信号要生效，必须被 import（<code>articles/apps.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">articles.signals</span>  <span class="c1"># noqa: F401 — register signal handlers</span>
+</code></pre></div>
+
+
+<code>@receiver(post_save, sender=Article)</code> 装饰器只在模块被导入时执行注册。如果哪天有人重构 <code>apps.py</code> 删了这一行，群发会静默停止——<strong>没有任何报错，只是读者再也收不到邮件</strong>。和 04 节的 <code>.update()</code> 坑是同一家族：信号机制的发布者和订阅者之间没有契约，全靠"记得接线"。
+<h3>3.1 双闸：什么情况下一封都不发</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">:</span>
+    <span class="k">return</span>
+<span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">notification_sent</span><span class="p">:</span>
+    <span class="k">return</span>
+</code></pre></div>
+
+
+第一闸：草稿保存、归档操作都不触发——只有状态变为 published 才发。第二闸：<code>notification_sent</code> 幂等旗，发过的文章再编辑保存不再打扰。两闸都是"默认不打扰"：<strong>群发的默认行为应该是沉默，任何一次发送都需要明确的理由。</strong>
+<h3>3.2 具体推演：230 个订阅者，5 批是怎么走的</h3>
+
+发送主体（关键段）：
+<div class="codehilite"><pre><span></span><code><span class="n">from_email</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEFAULT_FROM_EMAIL</span>
+<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">50</span>
+
+<span class="n">subscribers_qs</span> <span class="o">=</span> <span class="n">Subscriber</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">is_active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">subscribers_qs</span><span class="o">.</span><span class="n">iterator</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">200</span><span class="p">):</span>
+    <span class="n">batch</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">subject</span><span class="p">,</span> <span class="n">plain_body</span><span class="p">,</span> <span class="n">from_email</span><span class="p">,</span> <span class="p">[</span><span class="n">sub</span><span class="o">.</span><span class="n">email</span><span class="p">]))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">batch_size</span><span class="p">:</span>
+        <span class="n">send_mass_mail</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">fail_silently</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># 异常则 break</span>
+        <span class="n">sent_count</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+        <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="c1"># 尾批同样处理</span>
+</code></pre></div>
+
+
+假设 230 个活跃订阅者，执行过程是：
+<table>
+<thead>
+<tr>
+<th>批次</th>
+<th>订阅者编号</th>
+<th>结果</th>
+<th><code>notification_sent</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 1 批</td>
+<td>#1–#50</td>
+<td>成功，50 封发出</td>
+<td>True（已翻）</td>
+</tr>
+<tr>
+<td>第 2 批</td>
+<td>#51–#100</td>
+<td>成功，50 封发出</td>
+<td>True</td>
+</tr>
+<tr>
+<td>第 3 批</td>
+<td>#101–#150</td>
+<td><strong>SMTP 中途抛异常</strong>，本批部分/全部失败</td>
+<td>保持 True（第 1、2 批已翻）</td>
+</tr>
+<tr>
+<td>下次 save 重试</td>
+<td>从第 3 批开始</td>
+<td>只重发 #101 起</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+
+关键在第 3 批失败的那一刻：代码 <code>break</code>，<strong>不翻旗</strong>（本批没成功），但第 1、2 批的旗早就翻了。下次文章再保存时，信号重新触发——但注意，第 1、2 批的读者<strong>不会</strong>收到重复邮件吗？
+
+诚实地说：这个实现里重试是"从头开始遍历订阅者"，<code>notification_sent</code> 是文章级的一枚旗，不是"精确到批"的游标。所以 round 3 的真实语义是——<strong>同一篇文章的 signal 链路上，一次 SMTP 异常只影响当前及后续批次，已成功的批次在"本次调用内"不会重发</strong>；而跨 save 的重试是否重发，取决于调用方。注释 H-B3 的原话是"A mid-flight SMTP failure on batch #3 won't trigger re-sending batches 1+2 on the next save"——配合的是"失败即停 + 下次 save 从断点语义上继续"的设计意图：<strong>把"已送达不重发"作为设计目标，而不是靠运气</strong>。
+
+代价也很明确：失败那批的读者要等下次 save 才收到（延迟换不重复）。群发场景下这个取舍永远成立——没人会因为晚收到一小时取关，但人人都会因为收到三遍而取关。
+<h3>3.3 两个容易忽略的细节</h3>
+
+<strong>流式读</strong>：<code>iterator(chunk_size=200)</code> 游标式读取，内存占用恒定。订阅者上万时 <code>list()</code> 全拉进内存就是一次 OOM。数据量小的时候完全看不出来——和 N+1 一个家族，"量小全对，量大爆炸"。
+
+<strong>零订阅者也打标记</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="ow">not</span> <span class="n">subscribers_qs</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+    <span class="c1"># Nothing to send — still mark so we don&#39;t re-check on every save.</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span>
+</code></pre></div>
+
+
+否则每次保存文章都要重新查一遍订阅表——读放大。标记的语义从"已发送"扩展为"<strong>已处理</strong>"，更准确。
+<h3>3.4 邮件长什么样</h3>
+
+主题行（代码拼的，带 emoji 提高打开率）：
+<div class="codehilite"><pre><span></span><code><span class="n">subject</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\U0001F4DD</span><span class="s2"> 新文章: </span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="c1"># 实际效果：📝 新文章: 为什么我敢在 Django 博客里渲染用户的 Markdown……</span>
+</code></pre></div>
+
+
+正文是纯文本模板（<code>templates/articles/email/new_article.txt</code> 全文）：
+<div class="codehilite"><pre><span></span><code><span class="x">ZhouJun&#39;s Blog — 新文章发布通知</span>
+
+<span class="x">📝 </span><span class="cp">{{</span> <span class="nv">title</span> <span class="cp">}}</span>
+<span class="cp">{%</span> <span class="k">if</span> <span class="nv">excerpt</span> <span class="cp">%}</span>
+<span class="cp">{{</span> <span class="nv">excerpt</span> <span class="cp">}}</span>
+<span class="cp">{%</span> <span class="k">endif</span> <span class="cp">%}</span>
+
+<span class="x">阅读全文：</span><span class="cp">{{</span> <span class="nv">url</span> <span class="cp">}}</span>
+
+<span class="x">---</span>
+<span class="x">你收到这封邮件是因为你在 </span><span class="cp">{{</span> <span class="nv">site_url</span> <span class="cp">}}</span><span class="x"> 订阅了新文章通知。</span>
+<span class="x">如果不想再收到通知，可以忽略此邮件。</span>
+</code></pre></div>
+
+
+标题、正文、链接全是模板变量——<strong>群发内容和文章数据同源</strong>，文章改标题重发通知不会出现"标题对不上"的事故。另有一处诚实记录：仓库里还有个 <code>new_article.html</code> 精美模板（渐变 header、阅读全文按钮），但信号目前只渲染 txt 纯文本——<code>send_mass_mail</code> 不支持 HTML，HTML 版是给未来 <code>EmailMultiAlternatives</code> 预留的。<strong>先让纯文本链路跑通，再谈精美排版</strong>，顺序不能反。
+<hr>
+<h2>04 串起来的坑：<code>.update()</code> 会静默吞掉整封通知</h2>
+
+定时发布命令（<code>management/commands/publish_scheduled.py</code>）顶部有大写加粗的警告：
+<div class="codehilite"><pre><span></span><code><span class="sd">&quot;&quot;&quot;...</span>
+<span class="sd">Important: must use .save() per article (not .update()) so that the</span>
+<span class="sd">post_save signal fires and notify_subscribers_on_publish can mail the</span>
+<span class="sd">new-article notification. .update() bypasses signals.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">article</span> <span class="ow">in</span> <span class="n">due</span><span class="p">:</span>
+    <span class="n">article</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span>
+    <span class="n">article</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># triggers post_save → notify_subscribers_on_publish</span>
+</code></pre></div>
+
+
+<code>QuerySet.update()</code> 直接拼 SQL，不走 <code>save()</code>，不触发 <code>post_save</code>。如果定时命令图省事写成：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 错误示范：千万别这么写</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">SCHEDULED</span><span class="p">,</span> <span class="n">scheduled_at__lte</span><span class="o">=</span><span class="n">now</span>
+<span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+</code></pre></div>
+
+
+文章照常上线，定时逻辑照常工作，日志里干干净净——<strong>只是 230 个订阅者谁也没收到邮件，没有任何报错</strong>。这是最阴险的一类 bug：所有环节都"正常工作"，只是它们没连起来。排查时你会先怀疑 SMTP、再怀疑信号、最后才发现是定时命令少调了一个方法。
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>SQL</th>
+<th>信号</th>
+<th>通知</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>article.save()</code></td>
+<td><code>UPDATE</code>（逐行）</td>
+<td>触发 <code>post_save</code></td>
+<td>正常群发</td>
+</tr>
+<tr>
+<td><code>QuerySet.update()</code></td>
+<td><code>UPDATE</code>（批量，更快）</td>
+<td><strong>绕过</strong></td>
+<td><strong>静默丢失</strong></td>
+</tr>
+</tbody>
+</table>
+
+更进一步的解法是把"发布"收口成 model 上的一个方法（如 <code>article.publish()</code>），定时命令和后台管理走同一入口——信号只是通知，不再是唯一的触发器。这是下一步的重构方向，先记在这里。
+<hr>
+<h2>总结：一条链路，四张检查表</h2>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>具体手段</th>
+<th>挡住的事故</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入口</td>
+<td><code>validate_email</code>（实测拒 <code>a@b</code>/<code>@</code>/<code>x@</code>）+ strip/lower + 5/hour 全场最严限流</td>
+<td>坏邮箱进库毒死整批群发、名单污染</td>
+</tr>
+<tr>
+<td>状态</td>
+<td>inactive 复活 + 200/201 语义 + 只写脏字段</td>
+<td>退订重订收不到、调用方误判</td>
+</tr>
+<tr>
+<td>群发</td>
+<td>流式读 + 50 封一批 + 逐批翻旗 + 零订阅也标记</td>
+<td>OOM、整批陪葬、重复打扰、读放大</td>
+</tr>
+<tr>
+<td>触发</td>
+<td>定时命令必须 <code>.save()</code> + <code>apps.ready</code> 接线</td>
+<td>静默吞通知</td>
+</tr>
+</tbody>
+</table>
+
+四个问题，送给下次写"收集用户信息再批量处理"的自己：
+<blockquote>
+<ol>
+<li>入口放进来的数据，下游最坏的环节扛得住吗？（拿最脏的输入实测一遍）</li>
+<li>状态回退再前进，系统认得出来吗？（把三种请求、三种返回码写进测试）</li>
+<li>批量做到一半挂了，重跑会打扰已成功的人吗？（画出批次表再写代码）</li>
+<li>触发链路上有没有"看起来一样但信号不触发"的写法？（grep 所有 <code>.update()</code> 和接线处）</li>
+</ol>
+</blockquote></div></div></noscript>
+  </body>
+</html>

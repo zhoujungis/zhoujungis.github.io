@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/&lt;slug&gt;/like/ ，不需要登录。上一篇讲的是&quot;敢渲染&quot;，这一篇讲的是&quot;敢被点&quot;—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得&quot;点赞不就是计数器加一吗" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-anon-like-dedup/" />
+    <meta property="og:title" content="为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计" />
+    <meta property="og:description" content="为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/&lt;slug&gt;/like/ ，不需要登录。上一篇讲的是&quot;敢渲染&quot;，这一篇讲的是&quot;敢被点&quot;—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得&quot;点赞不就是计数器加一吗" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-anon-like-dedup/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计" />
+    <meta name="twitter:description" content="为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/&lt;slug&gt;/like/ ，不需要登录。上一篇讲的是&quot;敢渲染&quot;，这一篇讲的是&quot;敢被点&quot;—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得&quot;点赞不就是计数器加一吗" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CWdo9vPx.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.BNrxfy0P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-09T09:53:59.063732+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计","description":"为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/<slug>/like/ ，不需要登录。上一篇讲的是\"敢渲染\"，这一篇讲的是\"敢被点\"—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得\"点赞不就是计数器加一吗","image":"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-09T09:53:59.063732+08:00","dateModified":"2026-09-09T09:53:59.063759+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-anon-like-dedup/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计</h1><div class="ns-meta">2026/9/9 · Zhou Jun</div><div class="markdown-body"><h1>为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计</h1>
+<blockquote>
+
+这篇博客的点赞接口是匿名可调用的：<code>POST /api/articles/&lt;slug&gt;/like/</code>，不需要登录。上一篇讲的是"敢渲染"，这一篇讲的是"敢被点"——<strong>把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少</strong>。
+</blockquote>
+
+如果你觉得"点赞不就是计数器加一吗"，那你可能没想过这几个问题：
+<blockquote>
+
+有人不登录就能刷吗？两个人同时点会丢吗？清一下浏览器就能无限点吗？伪造个请求头就能绕过吗？
+</blockquote>
+
+这篇文章带你走一遍我的博客点赞从"能点"到"刷不动"的五层设计。代码全部来自后端真实实现（<code>articles/views.py</code>、<code>articles/models.py</code>），其中两个是踩过坑换来的。
+<hr>
+<h2>01 问题：一个点赞按钮，有多少种死法</h2>
+
+先把攻击面列出来。一个匿名点赞接口，面临的威胁至少有四种：
+<ol>
+<li><strong>无限重放</strong>：写个 <code>for</code> 循环发 1 万次请求，<code>likes_count</code> 直接上天。</li>
+<li><strong>并发丢失</strong>：两个人同时点，<code>read-modify-write</code> 互相覆盖，只加了 1 次。</li>
+<li><strong>身份伪造</strong>：靠 cookie 或前端 <code>localStorage</code> 去重？清一下浏览器状态就满血复活。</li>
+<li><strong>请求头伪造</strong>：靠 IP 去重？<code>X-Forwarded-For</code> 是客户端随便填的，想换就换。</li>
+</ol>
+<blockquote>
+
+<strong>关键认知：点赞防刷不是"加个判断"的问题，而是一个"身份识别 + 并发正确 + 多层限流"的系统问题。</strong>
+</blockquote>
+
+每一层都只解决一种死法，合起来才叫防线。
+<hr>
+<h2>02 第一层：为什么不用 cookie 去重</h2>
+
+最直觉的方案是 cookie：点过赞就种个 cookie，下次带 cookie 来就拒绝。但我的博客前后端是分离部署的——前端在 <code>zhoujungis.github.io</code>，后端在 <code>zhoujun123.pythonanywhere.com</code>，<strong>跨域</strong>。
+
+跨域 cookie 要存住，需要 <code>SameSite=None; Secure</code> + 前端 <code>withCredentials</code> + 后端 CORS 白名单三处同时配对。任何一处浏览器行为差异（Safari 的 ITP、微信 WebView、无痕模式），cookie 就丢了。丢了会怎样？<strong>用户明明点过赞，换个姿势又能点一次</strong>——去重逻辑形同虚设。
+
+而且 cookie 是存在用户手里的东西。清一下浏览器，身份就重置了。用"用户自己保管的凭证"来做"防用户作弊"的依据，本身就是信任错位。
+
+所以我的选择是（<code>views.py</code> 的注释原话）：
+<div class="codehilite"><pre><span></span><code><span class="sd">&quot;&quot;&quot;Increment like count for an article.</span>
+
+<span class="sd">H12 (server-side dedup): trust a 24h sliding-window IP+UA table</span>
+<span class="sd">instead of cookies. Cookies are unreliable across origins / SameSite</span>
+<span class="sd">rules, so they could be bypassed by clearing browser state.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>核心决策：去重依据必须存在服务端，而不能存在用户手里。</strong>
+</blockquote>
+
+服务端记什么？一张表：<code>ArticleLike</code>。
+<hr>
+<h2>03 第二层：服务端去重表（IP + UA + 24 小时滑动窗口）</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ArticleLike</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;H12: server-side like dedup.</span>
+
+<span class="sd">    Cross-origin cookie storage is unreliable (different SameSite rules,</span>
+<span class="sd">    browser quirks). Trust a 24h sliding-window IP+UA dedup table instead.</span>
+<span class="sd">    Old rows are pruned by a periodic cleanup; unique_together doesn&#39;t apply</span>
+<span class="sd">    because a single client is allowed to like again after 24h.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+        <span class="n">Article</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">&quot;like_records&quot;</span><span class="p">,</span>
+        <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;文章&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ip</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;客户端 IP&quot;</span><span class="p">)</span>
+    <span class="n">ua</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;User-Agent&quot;</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;点赞时间&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+去重逻辑（<code>like_article</code>）：
+<div class="codehilite"><pre><span></span><code><span class="n">since</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">timezone</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+<span class="n">already</span> <span class="o">=</span> <span class="n">ArticleLike</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">,</span> <span class="n">ip</span><span class="o">=</span><span class="n">ip</span><span class="p">,</span> <span class="n">ua</span><span class="o">=</span><span class="n">ua</span><span class="p">,</span> <span class="n">created_at__gte</span><span class="o">=</span><span class="n">since</span>
+<span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">already</span><span class="p">:</span>
+    <span class="n">article</span><span class="o">.</span><span class="n">refresh_from_db</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;likes_count&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;likes_count&quot;</span><span class="p">:</span> <span class="n">article</span><span class="o">.</span><span class="n">likes_count</span><span class="p">,</span> <span class="s2">&quot;liked&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+                    <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_200_OK</span><span class="p">)</span>
+</code></pre></div>
+
+
+注意三个设计点：
+<ol>
+<li><strong>滑动窗口，不是永久去重</strong>。<code>unique_together</code> 被刻意弃用了——同一客户端 24 小时后允许再点一次。这是产品取舍：防的是"一分钟刷一万"，不是"这辈子只能点一次"。永久去重会让表无限增长，还会误伤动态 IP 用户。</li>
+<li><strong>幂等的返回语义</strong>。重复点赞返回 <code>200 + liked: true</code>，新点赞返回 <code>201 + liked: true</code>。前端不用区分"报错"和"已经点过"，体验一致——<strong>重复请求不是错误，是已知状态</strong>。</li>
+<li><strong>指纹是 IP + UA 组合</strong>。单靠 IP，整个公司出口 IP 算一个人；单靠 UA，全网 Chrome 算一个人。组合起来，误伤和漏防之间取了个平衡。它防不住专业刷量（代理池 + UA 随机化），但<strong>个人博客的威胁模型里，攻击者是"无聊的人"，不是"黑产工作室"</strong>——安全投入要和威胁等级匹配。</li>
+</ol>
+<hr>
+<h2>04 真实漏洞：<code>X-Forwarded-For</code> 取左边，等于没设防</h2>
+
+这一层有个真实踩过的坑：<strong>IP 从哪取</strong>。
+
+博客跑在 PythonAnywhere 后面，真实客户端 IP 藏在 <code>X-Forwarded-For</code> 头里。这个头长这样：
+<div class="codehilite"><pre><span></span><code><span class="nv">X</span><span class="o">-</span><span class="nv">Forwarded</span><span class="o">-</span><span class="k">For</span>:<span class="w"> </span><span class="nv">client</span>,<span class="w"> </span><span class="nv">proxy1</span>,<span class="w"> </span><span class="nv">proxy2</span>
+</code></pre></div>
+
+
+最左边的 <code>client</code> 是<strong>客户端自己声称的</strong>，可以随便填；最右边的 <code>proxy2</code> 是<strong>受信任的反向代理追加的</strong>，客户端改不了。
+
+老代码取的是最左边——攻击者只需要在请求头里每次填一个随机 IP，去重表里永远查不到"这个人"，刷多少次都行。等于大门上了锁，但钥匙挂在门上。
+
+修复后的代码（<code>views.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># Client fingerprint: trusted-proxy IP (rightmost XFF) + UA.</span>
+<span class="c1"># Using the leftmost XFF (the older approach) lets clients trivially</span>
+<span class="c1"># bypass the dedup by setting XFF to a random IP per request. The</span>
+<span class="c1"># rightmost XFF entry is added by the trusted reverse proxy (PA&#39;s</span>
+<span class="c1"># web frontend) and cannot be spoofed by the client.</span>
+<span class="n">xff</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;HTTP_X_FORWARDED_FOR&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">xff</span><span class="p">:</span>
+    <span class="n">ip</span> <span class="o">=</span> <span class="n">xff</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">ip</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;REMOTE_ADDR&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>这一条值得单独记住：凡是客户端能直接控制的输入（请求头、cookie、前端传参），都不能当作信任依据。信任只能来自你控制的基础设施追加的信息。</strong>
+</blockquote>
+<hr>
+<h2>05 第三层：并发正确（<code>F()</code> + 事务）</h2>
+
+去重判断过了，计数加一怎么写？天真写法：
+<div class="codehilite"><pre><span></span><code><span class="n">article</span><span class="o">.</span><span class="n">likes_count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">article</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</code></pre></div>
+
+
+这是 <code>read-modify-write</code>：读出来、内存里加一、写回去。两个人同时点，读到同一个旧值，各加一，各写回去——<strong>两次点赞只涨了 1</strong>。点赞是低频操作，撞上的概率小，但"概率小"不等于"不会发生"，热门文章刚好是最可能被同时点的。
+
+正确写法（<code>views.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+    <span class="n">ArticleLike</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">,</span> <span class="n">ip</span><span class="o">=</span><span class="n">ip</span><span class="p">,</span> <span class="n">ua</span><span class="o">=</span><span class="n">ua</span><span class="p">)</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">article</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">likes_count</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;likes_count&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>F("likes_count") + 1</code> 让加一发生在<strong>数据库内部</strong>（<code>UPDATE ... SET likes_count = likes_count + 1</code>），而不是 Python 内存里。数据库的写是串行的，并发来多少个，加的就是多少个，一个都丢不了。
+
+<code>transaction.atomic()</code> 保证"记去重行"和"涨计数"要么一起成功、要么一起回滚——不会出现"点了赞但计数没涨"（或反过来）的半吊子状态。
+
+顺带一提，<strong>阅读数也是同样的问题</strong>，同样用 <code>F()</code> 解决：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">()</span>
+    <span class="c1"># Atomic increment — avoids race condition</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">views_count</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;views_count&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">instance</span><span class="o">.</span><span class="n">refresh_from_db</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;views_count&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>心法：凡是计数器，一律用数据库原子的 <code>F()</code> 表达式，永远不要读出来在内存里加。</strong>
+</blockquote>
+<hr>
+<h2>06 第四层：限流（DRF <code>AnonRateThrottle</code>）</h2>
+
+去重表挡的是"同一指纹重复点"，但攻击者可以换 IP、换 UA 接着刷。这时候需要<strong>速率层</strong>：不管你是谁，单位时间内的总请求数封顶。
+<div class="codehilite"><pre><span></span><code><span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">AllowAny</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">AnonRateThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">like_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">slug</span><span class="p">):</span>
+</code></pre></div>
+
+
+全局配置（<code>blog_api/settings.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="s1">&#39;DEFAULT_THROTTLE_RATES&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;anon&#39;</span><span class="p">:</span> <span class="s1">&#39;30/minute&#39;</span><span class="p">,</span>     <span class="c1"># 30 requests/min for anonymous users</span>
+    <span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;100/minute&#39;</span><span class="p">,</span>    <span class="c1"># 100 requests/min for authenticated users</span>
+    <span class="s1">&#39;comment&#39;</span><span class="p">:</span> <span class="s1">&#39;3/minute&#39;</span><span class="p">,</span>   <span class="c1"># 3 comments per minute per IP</span>
+    <span class="s1">&#39;subscribe&#39;</span><span class="p">:</span> <span class="s1">&#39;5/hour&#39;</span><span class="p">,</span>   <span class="c1"># 5 subscriptions per hour per IP</span>
+    <span class="s1">&#39;upload&#39;</span><span class="p">:</span> <span class="s1">&#39;100/hour&#39;</span><span class="p">,</span>    <span class="c1"># 100 image uploads per hour per user</span>
+<span class="p">},</span>
+</code></pre></div>
+
+
+注意这个限流矩阵是<strong>按操作风险分级的</strong>：点赞 30/分钟（正常人点不出这么快），评论 3/分钟（防 spam），订阅 5/小时（防邮箱轰炸）。<strong>越接近"写放大"和"外部成本"的操作，配额越紧。</strong> 这不是拍脑袋，是每一种滥用都对应真实代价：刷赞污染数据、刷评论污染内容、刷订阅烧 SMTP 配额甚至进黑名单。
+
+限流和去重是互补关系：<strong>去重管"准不准"，限流管"快不快"</strong>。指纹能伪造，但伪造本身需要成本（换代理 IP 要钱要时间），限流把"单位时间的伪造成本"锁死，刷量的经济账就算不过来了。
+<hr>
+<h2>07 第五层：表不能无限长（定时清理 + 索引）</h2>
+
+去重表每被点一次就多一行。如果从不清，几年下来几十万行，每次点赞都要 <code>filter(article, ip, ua, created_at__gte)</code> 扫一遍——越跑越慢。
+
+因为去重窗口只有 24 小时，<strong>超过 48 小时的数据对去重没有任何意义</strong>（24 小时窗口 + 24 小时余量）。所以有一个定时命令（<code>management/commands/cleanup_article_likes.py</code>），挂在 PythonAnywhere 上每小时/每天跑：
+<div class="codehilite"><pre><span></span><code><span class="sd">&quot;&quot;&quot;Prune old ArticleLike rows so the dedup table doesn&#39;t grow unbounded. ...&quot;&quot;&quot;</span>
+<span class="n">cutoff</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="n">hours</span><span class="p">)</span>  <span class="c1"># default 48h</span>
+<span class="n">pks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+    <span class="n">ArticleLike</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">created_at__lt</span><span class="o">=</span><span class="n">cutoff</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">)[:</span><span class="n">batch_size</span><span class="p">]</span>  <span class="c1"># default 5000</span>
+<span class="p">)</span>
+<span class="n">deleted</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">ArticleLike</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">pks</span><span class="p">)</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+</code></pre></div>
+
+
+两个细节：
+<ol>
+<li><strong>分批删（batch 5000 + 事务）</strong>。一次性 <code>DELETE</code> 几十万行会长时间锁表（SQLite 尤其疼），分批 + 小事务把影响摊薄。还顺手兼容了 SQLite 和 Postgres（<code>DELETE ... LIMIT</code> 不是所有库都支持，用"先查主键再按主键删"绕开）。</li>
+<li><strong>复合索引让去重查询永远走索引</strong>（<code>models.py</code>）：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="n">indexes</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span>
+        <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;article&quot;</span><span class="p">,</span> <span class="s2">&quot;ip&quot;</span><span class="p">,</span> <span class="s2">&quot;ua&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">],</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articlelike_dedup_idx&quot;</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">],</span>
+</code></pre></div>
+
+
+索引字段顺序和查询条件顺序对齐（<code>article → ip → ua → created_at__gte</code>），去重查询是一次索引范围扫描，不回表扫全表。<strong>表设计、索引设计、清理策略是一件事的三个面</strong>：不去想清理的表，就别建。
+<hr>
+<h2>08 纵深防御总结</h2>
+
+把整条链路串起来：
+<div class="codehilite"><pre><span></span><code>匿名 POST /api/articles/&lt;slug&gt;/like/
+   │
+   ▼  ① 速率层：AnonRateThrottle 30/min
+限流 ──► 刷得再快也被截断
+   │
+   ▼  ② 身份层：IP(取XFF最右)+UA 指纹
+去重表 ──► 同一指纹 24h 内只算一次
+   │
+   ▼  ③ 正确层：transaction + F() 原子加一
+计数 ──► 并发再高也不丢数
+   │
+   ▼  ④ 语义层：重复 200 / 新赞 201
+幂等 ──► 重复请求不是错误
+   │
+   ▼  ⑤ 寿命层：48h 定时清理 + 复合索引
+存储 ──► 表不 unbounded，查询永远快
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>手段</th>
+<th>挡住的攻击</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>①</td>
+<td>DRF 限流 30/min</td>
+<td>换指纹硬刷、脚本 flood</td>
+</tr>
+<tr>
+<td>②</td>
+<td>IP+UA 24h 滑动窗口</td>
+<td>清浏览器重放、普通重复点</td>
+</tr>
+<tr>
+<td>③</td>
+<td>XFF 取最右可信 IP</td>
+<td>请求头伪造绕过去重</td>
+</tr>
+<tr>
+<td>④</td>
+<td><code>F()</code> + 事务</td>
+<td>并发丢失、半吊子写</td>
+</tr>
+<tr>
+<td>⑤</td>
+<td>48h 清理 + 复合索引</td>
+<td>表膨胀拖慢查询</td>
+</tr>
+</tbody>
+</table>
+
+和上一篇 XSS 的防线对照着看， Methodology 是同一套：<strong>不信任客户端、每一层只解决一件事、每一层都假设上一层已失守</strong>。
+<hr>
+<h2>延伸：什么时候该上 Redis</h2>
+
+诚实地说，IP+UA 表方案有天花板：防不住代理池 + UA 随机化的专业刷量。如果有一天流量大到需要升级，标准答案是 Redis：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>做法</th>
+<th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>当前：DB 去重表</td>
+<td><code>filter(...).exists()</code> + 复合索引</td>
+<td>日活 &lt; 万，单机 SQLite，零运维</td>
+</tr>
+<tr>
+<td>进阶：Redis 去重</td>
+<td><code>SET like:&lt;slug&gt;:&lt;hash&gt; EX 86400 NX</code>，返回 nil 即重复</td>
+<td>高频点赞，原子判断 + 自动过期二合一</td>
+</tr>
+<tr>
+<td>计数：Redis INCR</td>
+<td><code>INCR like:count:&lt;slug&gt;</code>，定时落库</td>
+<td>秒杀级并发，DB 写扛不住时</td>
+</tr>
+<tr>
+<td>去重：HyperLogLog</td>
+<td><code>PFADD</code> 估算 UV</td>
+<td>只需要"大概多少人赞过"，不要精确名单时</td>
+</tr>
+</tbody>
+</table>
+
+<strong>但不要提前优化</strong>。Redis 意味着多一个组件、多一份运维、多一种故障模式（缓存与 DB 不一致）。个人博客的量级下，一张带索引的小表 + 定时清理，又准又稳，够了。<strong>架构选型永远跟着威胁模型和量级走，而不是跟着时髦走。</strong>
+<hr>
+<h2>结语</h2>
+
+回到开头：<strong>把写操作开放给匿名用户，靠的不是胆子大，而是每一层都知道自己在防什么。</strong>
+<ul>
+<li>去重依据放服务端（不信 cookie）——信任边界；</li>
+<li>XFF 取最右（不信客户端头）——信任只能来自自己控制的基础设施；</li>
+<li>计数用 <code>F()</code>（不信"概率小"）——并发正确不能靠运气；</li>
+<li>限流分级（不信"用户都是好人"）——每种滥用都要有成本；</li>
+<li>表要清理、索引要对齐（不信"以后再说"）——存储设计是功能设计的一部分。</li>
+</ul>
+
+如果你也维护一个允许匿名写入的接口，不妨问自己三个问题：
+<blockquote>
+<ol>
+<li>我的"身份"依据存在谁手里？（信任边界）</li>
+<li>并发和重放时，我的数据还正确吗？（正确性）</li>
+<li>最坏情况下，表和配额会爆炸吗？（有界性）</li>
+</ol>
+</blockquote>
+
+想清楚这三个问题，你就离"敢被点"不远了。</div></div></noscript>
+  </body>
+</html>
