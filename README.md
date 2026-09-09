@@ -52,7 +52,7 @@
 
 ### 环境要求
 
-- Node.js >= 18
+- Node.js >= 20.19（Vite 8 / @types/node@26 要求，Node 18 会安装失败）
 - Python >= 3.12 (Django 5.x / 6.0.x requirement)
 
 ### 前端

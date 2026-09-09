@@ -138,6 +138,8 @@
         </router-link>
       </header>
 
+      <p v-if="cacheNotice && !loading" class="cache-notice" role="status">{{ cacheNotice }}</p>
+
       <div v-if="loading" class="latest-skeleton" aria-hidden="true">
         <div class="latest-skeleton__featured">
           <div class="sk sk-cover" />
@@ -223,12 +225,14 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { getArticles } from '@/api/articles'
+import { resolveListFallback, saveListCache, cacheNoticeText } from '@/utils/articleCache'
 import { catLabel, tagLabel } from '@/utils/labels'
 
 const latestArticles = ref([])
 const totalCount = ref(0)
 const loading = ref(true)
 const loadError = ref(null)
+const cacheNotice = ref('')
 const coverBroken = reactive({})
 
 const featured = computed(() => latestArticles.value[0] || null)
@@ -249,14 +253,28 @@ function formatDate(dateStr) {
 async function fetchLatest() {
   loading.value = true
   loadError.value = null
+  cacheNotice.value = ''
   try {
     const res = await getArticles({ page: 1, page_size: 20 })
     const list = res.data?.results || res.data || []
     totalCount.value = typeof res.data?.count === 'number' ? res.data.count : list.length
     const sorted = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
+    saveListCache(list, totalCount.value)
   } catch (e) {
-    loadError.value = e?.response?.data?.detail || e.message || '加载失败'
+    // Backend down — fall back to the build-time snapshot / last cache so
+    // the home page never renders an empty skeleton-only state.
+    const fallback = await resolveListFallback({ page: 1, page_size: 20 })
+    if (fallback?.results?.length) {
+      const sorted = [...fallback.results].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at),
+      )
+      totalCount.value = fallback.count
+      latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
+      cacheNotice.value = cacheNoticeText[fallback.source] || ''
+    } else {
+      loadError.value = e?.response?.data?.detail || e.message || '加载失败'
+    }
   } finally {
     loading.value = false
   }
@@ -957,6 +975,17 @@ onMounted(fetchLatest)
   border-radius: $radius-md;
 }
 .latest-empty__link { display: inline-block; margin-top: 8px; font-weight: 600; }
+
+// API-down fallback notice (static snapshot / cached content)
+.cache-notice {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  color: $text-secondary;
+  background: rgba($accent-pink, 0.07);
+  border: 1px solid rgba($accent-pink, 0.18);
+  border-radius: $radius-md;
+  font-size: 0.78rem;
+}
 
 // ── Explore：收紧为细条 ──
 .explore-strip {

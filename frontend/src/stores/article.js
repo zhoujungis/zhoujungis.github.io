@@ -5,6 +5,13 @@ import {
   getCategories,
   getTags,
 } from '../api/articles'
+import {
+  resolveListFallback,
+  saveListCache,
+  saveDetailCache,
+  loadDetailCache,
+  cacheNoticeText,
+} from '../utils/articleCache'
 
 // Monotonic counters — only the latest in-flight fetch gets to commit.
 // Earlier responses are discarded even if they arrive after a newer one
@@ -23,6 +30,10 @@ export const useArticleStore = defineStore('article', {
     categories: [],
     tags: [],
     loading: false,
+    // API-down fallback state — when true, `articles` come from the
+    // build-time snapshot / localStorage cache instead of the live API.
+    fromCache: false,
+    cacheNotice: '',
     pagination: {
       count: 0,
       page: 1,
@@ -34,6 +45,8 @@ export const useArticleStore = defineStore('article', {
     async fetchArticles(params = {}) {
       this.loading = true
       this.articles = []
+      this.fromCache = false
+      this.cacheNotice = ''
       const seq = ++listSeq
       try {
         const response = await getArticles(params)
@@ -42,6 +55,24 @@ export const useArticleStore = defineStore('article', {
         if (response.data.count !== undefined) {
           this.pagination.count = response.data.count
         }
+        // Persist for API-down fallback (best-effort, see articleCache.js).
+        saveListCache(this.articles, this.pagination.count)
+      } catch (err) {
+        if (seq !== listSeq) return
+        // Backend unreachable — degrade to the static snapshot / last cache
+        // instead of leaving list pages blank.
+        const fallback = await resolveListFallback(params)
+        if (seq !== listSeq) return
+        if (fallback) {
+          this.articles = fallback.results
+          this.pagination.count = fallback.count
+          this.pagination.page = fallback.page
+          this.pagination.pageSize = fallback.pageSize
+          this.fromCache = true
+          this.cacheNotice = cacheNoticeText[fallback.source] || ''
+          return
+        }
+        throw err
       } finally {
         if (seq === listSeq) this.loading = false
       }
@@ -62,12 +93,22 @@ export const useArticleStore = defineStore('article', {
           this.articlesBySlug = { ...this.articlesBySlug, [slug]: article }
           this.currentArticle = article
           this.currentArticleSlug = slug
+          saveDetailCache(article)
         } else {
           console.error('fetchArticleBySlug: response.data is empty', response)
         }
         return article
       } catch (e) {
         if (seq !== detailSeq) throw e
+        // API down — serve the last-seen full payload for this slug so
+        // detail pages still render instead of erroring out.
+        const cached = loadDetailCache(slug)
+        if (cached) {
+          this.articlesBySlug = { ...this.articlesBySlug, [slug]: cached }
+          this.currentArticle = cached
+          this.currentArticleSlug = slug
+          return cached
+        }
         console.error('fetchArticleBySlug error:', slug, e?.message, e?.response?.status, e?.response?.data)
         throw e
       } finally {

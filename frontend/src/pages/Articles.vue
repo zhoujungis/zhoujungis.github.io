@@ -7,6 +7,9 @@
         所有文章按时间倒序排列,共 {{ articleStore.pagination.count }} 篇
       </p>
     </header>
+    <p v-if="articleStore.fromCache && articleStore.cacheNotice" class="cache-notice" role="status">
+      {{ articleStore.cacheNotice }}
+    </p>
     <div class="articles-list">
         <!-- Pinned articles -->
         <div v-if="pinnedArticles.length" class="pinned-section">
@@ -257,6 +260,16 @@ onMounted(() => {
 .page-subtitle {
   color: $text-secondary;
   font-size: 0.92rem;
+}
+
+.cache-notice {
+  margin: 0 0 16px;
+  padding: 8px 14px;
+  color: $text-secondary;
+  background: rgba($accent-pink, 0.07);
+  border: 1px solid rgba($accent-pink, 0.18);
+  border-radius: $radius-md;
+  font-size: 0.78rem;
 }
 
 .filter-bar {
