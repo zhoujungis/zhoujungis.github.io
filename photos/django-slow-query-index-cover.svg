@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0e27"/>
+      <stop offset="55%" stop-color="#141a3f"/>
+      <stop offset="100%" stop-color="#1a1140"/>
+    </linearGradient>
+    <linearGradient id="accentA" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="accentC" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#facc15"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
+    <linearGradient id="grid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <g opacity="0.5">
+    <path d="M0 150 H1600" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M0 300 H1600" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M0 450 H1600" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M0 600 H1600" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M0 750 H1600" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M200 0 V900" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M400 0 V900" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M600 0 V900" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M800 0 V900" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M1000 0 V900" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M1200 0 V900" stroke="url(#grid)" stroke-width="1"/>
+    <path d="M1400 0 V900" stroke="url(#grid)" stroke-width="1"/>
+  </g>
+
+  <circle cx="300" cy="430" r="220" fill="#fb923c" opacity="0.13" filter="url(#soft)"/>
+  <circle cx="1300" cy="430" r="220" fill="#22d3ee" opacity="0.13" filter="url(#soft)"/>
+
+  <g font-family="ui-sans-serif, system-ui, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <text x="140" y="150" font-size="20" fill="#64748b" letter-spacing="3">DJANGO · SQLITE · 100 万行实测</text>
+    <text x="140" y="238" font-size="52" font-weight="700" fill="#f1f5f9">索引建了，为什么排序还是没用上？</text>
+    <text x="140" y="292" font-size="24" fill="#94a3b8">ORDER BY 的列与方向，必须和索引逐项对齐</text>
+    <path d="M140 322 H420" stroke="url(#accentA)" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- ================= 左：线上索引 ================= -->
+  <g transform="translate(140 370)">
+    <rect x="0" y="0" width="580" height="440" rx="18" fill="#0e1530" stroke="#fb923c" stroke-opacity="0.55" stroke-width="1.5"/>
+    <g font-family="ui-sans-serif, system-ui, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+      <text x="28" y="46" font-size="21" font-weight="600" fill="#fdba74">线上索引</text>
+      <text x="28" y="72" font-size="14" fill="#64748b">(status, created_at DESC)</text>
+      <text x="36" y="104" font-size="11" fill="#475569">is_top</text>
+      <text x="200" y="104" font-size="11" fill="#475569">created_at DESC</text>
+
+      <!-- 行：按 created_at 排好了，但 is_top 是散的 -->
+      <g>
+        <rect x="24" y="112" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="118" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="129" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="121" width="400" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="148" width="532" height="26" rx="6" fill="#0b1226" stroke="#fb923c" stroke-opacity="0.5"/>
+        <rect x="36" y="154" width="26" height="14" rx="4" fill="#facc15"/>
+        <text x="44" y="165" font-size="10" fill="#0a0e27">1</text>
+        <rect x="76" y="157" width="372" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="184" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="190" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="201" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="193" width="346" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="220" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="226" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="237" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="229" width="322" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="256" width="532" height="26" rx="6" fill="#0b1226" stroke="#fb923c" stroke-opacity="0.5"/>
+        <rect x="36" y="262" width="26" height="14" rx="4" fill="#facc15"/>
+        <text x="44" y="273" font-size="10" fill="#0a0e27">1</text>
+        <rect x="76" y="265" width="300" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="292" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="298" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="309" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="301" width="279" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="328" width="532" height="26" rx="6" fill="#0b1226" stroke="#fb923c" stroke-opacity="0.5"/>
+        <rect x="36" y="334" width="26" height="14" rx="4" fill="#facc15"/>
+        <text x="44" y="345" font-size="10" fill="#0a0e27">1</text>
+        <rect x="76" y="337" width="260" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+
+      <text x="28" y="392" font-size="15" fill="#fb923c">SEARCH + TEMP B-TREE FOR ORDER BY</text>
+      <text x="552" y="418" font-size="38" font-weight="700" fill="#fb923c" text-anchor="end">476.50 ms</text>
+      <text x="28" y="418" font-size="14" fill="#64748b">置顶行散在中间</text>
+    </g>
+  </g>
+
+  <!-- ================= 中间：倍差 ================= -->
+  <g font-family="ui-sans-serif, system-ui, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">
+    <text x="800" y="568" font-size="46" font-weight="700" fill="url(#accentA)" filter="url(#glow)">2600×</text>
+    <text x="800" y="598" font-size="14" fill="#64748b">首页 LIMIT 10</text>
+  </g>
+
+  <!-- ================= 右：对齐后 ================= -->
+  <g transform="translate(880 370)">
+    <rect x="0" y="0" width="580" height="440" rx="18" fill="#0e1530" stroke="#22d3ee" stroke-opacity="0.55" stroke-width="1.5"/>
+    <g font-family="ui-sans-serif, system-ui, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+      <text x="28" y="46" font-size="21" font-weight="600" fill="#67e8f9">列与方向全对齐</text>
+      <text x="28" y="72" font-size="14" fill="#64748b">(status, is_top DESC, created_at DESC)</text>
+      <text x="36" y="104" font-size="11" fill="#475569">is_top</text>
+      <text x="200" y="104" font-size="11" fill="#475569">created_at DESC</text>
+
+      <!-- 行：is_top 全部聚在顶部，索引顺序即查询顺序 -->
+      <g>
+        <rect x="24" y="112" width="532" height="26" rx="6" fill="#0b1226" stroke="#22d3ee" stroke-opacity="0.55"/>
+        <rect x="36" y="118" width="26" height="14" rx="4" fill="#22d3ee"/>
+        <text x="44" y="129" font-size="10" fill="#0a0e27">1</text>
+        <rect x="76" y="121" width="400" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="148" width="532" height="26" rx="6" fill="#0b1226" stroke="#22d3ee" stroke-opacity="0.55"/>
+        <rect x="36" y="154" width="26" height="14" rx="4" fill="#22d3ee"/>
+        <text x="44" y="165" font-size="10" fill="#0a0e27">1</text>
+        <rect x="76" y="157" width="372" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="184" width="532" height="26" rx="6" fill="#0b1226" stroke="#22d3ee" stroke-opacity="0.55"/>
+        <rect x="36" y="190" width="26" height="14" rx="4" fill="#22d3ee"/>
+        <text x="44" y="201" font-size="10" fill="#0a0e27">1</text>
+        <rect x="76" y="193" width="346" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="220" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="226" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="237" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="229" width="322" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="256" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="262" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="273" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="265" width="300" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="292" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="298" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="309" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="301" width="279" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+      <g>
+        <rect x="24" y="328" width="532" height="26" rx="6" fill="#0b1226" stroke="#1e293b"/>
+        <rect x="36" y="334" width="26" height="14" rx="4" fill="#1e293b"/>
+        <text x="44" y="345" font-size="10" fill="#64748b">0</text>
+        <rect x="76" y="337" width="260" height="8" rx="4" fill="url(#accentA)" opacity="0.7"/>
+      </g>
+
+      <text x="28" y="392" font-size="15" fill="#67e8f9">SEARCH（无临时排序）</text>
+      <text x="552" y="418" font-size="38" font-weight="700" fill="#67e8f9" text-anchor="end">0.18 ms</text>
+      <text x="28" y="418" font-size="14" fill="#64748b">读 10 行就够，LIMIT 生效</text>
+    </g>
+  </g>
+</svg>
