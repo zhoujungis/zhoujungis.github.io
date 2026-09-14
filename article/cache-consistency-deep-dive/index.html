@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/cache-consistency-deep-dive/" />
+    <meta property="og:title" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）" />
+    <meta property="og:description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/cache-consistency-deep-dive/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）" />
+    <meta name="twitter:description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-14T17:27:46.601358+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）","description":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被\"缓存和数据库对不上\"\"缓存一挂数据库就崩\"坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间","image":"https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T17:27:46.601358+08:00","dateModified":"2026-09-14T17:27:46.601401+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cache-consistency-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）</h1>
+<blockquote>
+
+适用读者：给接口加过 Redis 缓存、被"缓存和数据库对不上""缓存一挂数据库就崩"坑过的后端工程师
+技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用
+阅读时间：约 30 分钟 | 难度：中高级 | 收获：一套"缓存到底该怎么写"的决策框架 + 三种缓存故障的可复现实测 + 上线 Checklist
+</blockquote>
+<h2>前言：一个"改了昵称不生效"的工单</h2>
+
+用户改了昵称，接口返回 200，数据库里也是新昵称，可刷新页面还是旧的。客服把工单转给你，你打开 Redis 一看：
+<div class="codehilite"><pre><span></span><code>GET user:1001:nickname
+&quot;张三&quot;        # 用户明明已经改成了「三丰」
+</code></pre></div>
+
+
+这就是<strong>缓存一致性</strong>问题。它不是 bug，是缓存这种"用空间换时间"的架构自带的代价：<strong>只要你在两个地方存了同一份数据，就一定存在两个地方对不上的窗口</strong>。
+
+如果说《<a href="/article/redis-distributed-lock-deep-dive/">Redis 分布式锁：从 SETNX 到 Redlock</a>》解决的是"并发写同一份数据"，那这一篇解决的是它的孪生问题：<strong>同一份数据，存在缓存和数据库两个副本，怎么让它们尽量一致，以及缓存失效的那一刻系统会不会被打穿。</strong>
+
+缓存用错，会带来三类经典故障，业界叫"三兄弟"：
+<table>
+<thead>
+<tr>
+<th>故障</th>
+<th>一句话</th>
+<th>典型表现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缓存穿透 Penetration</td>
+<td>查一个<strong>根本不存在</strong>的数据</td>
+<td>恶意刷 <code>id=-1</code>，缓存永不命中，DB 被打满</td>
+</tr>
+<tr>
+<td>缓存击穿 Breakdown</td>
+<td>一个<strong>热点 key 突然失效</strong></td>
+<td>秒杀商品缓存过期，上千并发同时回源</td>
+</tr>
+<tr>
+<td>缓存雪崩 Avalanche</td>
+<td><strong>大批 key 同时失效</strong></td>
+<td>凌晨批量预热时同一 TTL，整点集体过期，DB 瞬间挂</td>
+</tr>
+</tbody>
+</table>
+
+这篇文章按"先建立框架、再逐个拆解、最后实测"的顺序来：
+
+<strong>目录</strong>
+<ul>
+<li>缓存的四种读写策略：先搞清楚你在用哪种</li>
+<li>一致性：Cache-Aside 的四条路线与不一致窗口</li>
+<li>缓存穿透：布隆过滤器 vs 缓存空值</li>
+<li>缓存击穿：互斥锁 vs 逻辑过期</li>
+<li>缓存雪崩：TTL 抖动 vs 多级缓存</li>
+<li>三兄弟对比与决策树</li>
+<li>并发实测：一段 Python 复现三种故障</li>
+<li>上线 Checklist + 高频 FAQ</li>
+</ul>
+<hr>
+<h2>1. 缓存的四种读写策略：先搞清楚你在用哪种</h2>
+
+聊一致性之前，先确定你的读写路径。缓存有四种经典模式，<strong>90% 的业务用的是第一种，也只需要第一种</strong>。
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>读</th>
+<th>写</th>
+<th>一致性</th>
+<th>复杂度</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cache-Aside（旁路缓存）</td>
+<td>应用查缓存，miss 查库回填</td>
+<td>应用先写库，再<strong>删</strong>缓存</td>
+<td>最终一致</td>
+<td>低</td>
+<td>绝大多数业务</td>
+</tr>
+<tr>
+<td>Read-Through</td>
+<td>应用只读缓存，miss 由缓存组件回源</td>
+<td>—</td>
+<td>最终一致</td>
+<td>中</td>
+<td>需要统一回源逻辑</td>
+</tr>
+<tr>
+<td>Write-Through</td>
+<td>—</td>
+<td>应用写缓存，缓存组件同步写库</td>
+<td>强（同步）</td>
+<td>中</td>
+<td>写少读多、要求实时</td>
+</tr>
+<tr>
+<td>Write-Behind（Write-Back）</td>
+<td>—</td>
+<td>应用写缓存，缓存组件<strong>异步</strong>批量刷库</td>
+<td>弱（可能丢）</td>
+<td>高</td>
+<td>计数器、埋点等可容忍丢失</td>
+</tr>
+</tbody>
+</table>
+
+Cache-Aside 的标准骨架，几乎每个后端都写过：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;article:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span>      <span class="c1"># miss 才回源</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">serialize</span><span class="p">(</span><span class="n">article</span><span class="p">)),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">serialize</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">update_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>   <span class="c1"># 1. 先写库</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;article:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>                  <span class="c1"># 2. 再删缓存</span>
+</code></pre></div>
+
+
+这套代码有两个决策点，也是面试和事故的高发区：
+<ol>
+<li><strong>写的时候，是先操作数据库还是先操作缓存？</strong></li>
+<li><strong>写的时候，缓存是"删除"还是"更新"？</strong></li>
+</ol>
+
+下面逐条讲清楚。
+<blockquote>
+
+先说结论：<strong>Cache-Aside 下，写操作应该是"先更新数据库，再删除缓存"，而不是"先删缓存再更库"，也不是"更新缓存"。</strong> 理由在下一章。
+</blockquote>
+<hr>
+<h2>2. 一致性：Cache-Aside 的四条路线与不一致窗口</h2>
+<h3>2.1 路线一：先更新 DB，再删除缓存（主流答案）</h3>
+<div class="codehilite"><pre><span></span><code>写请求：UPDATE db → DEL cache
+读请求：GET cache → miss → GET db → SET cache
+</code></pre></div>
+
+
+这是绝大多数系统的选择。它<strong>不保证强一致</strong>，但把不一致窗口压到了极小的概率，且实现最简单。
+
+为什么安全？看一个并发推演。假设缓存里没有数据（已删除），此时来一个读请求 R 和一个写请求 W：
+<div class="codehilite"><pre><span></span><code>时刻   线程 R（读）              线程 W（写）             缓存/DB 状态
+────────────────────────────────────────────────────────────────
+t1    GET cache → miss                                  cache: 空
+t2                              UPDATE db = 新值          db: 新值
+t3    GET db → 新值（读到新值）                            db: 新值
+t4                              DEL cache                cache: 空
+t5    SET cache = 新值                                   cache: 新值 ✅
+</code></pre></div>
+
+
+结果一致。真正会出问题的，是<strong>读请求在写请求"更库"和"删缓存"之间，读到了旧值并回填</strong>：
+<div class="codehilite"><pre><span></span><code>时刻   线程 R（读）              线程 W（写）             缓存/DB 状态
+────────────────────────────────────────────────────────────────
+t1    GET cache → miss                                  cache: 空
+t2                              UPDATE db = 新值          db: 新值
+t3    GET db → ???（读旧值快照）                          db: 新值
+t4                              DEL cache                cache: 空
+t5    SET cache = 旧值  ⚠️                                cache: 旧值 ❌
+</code></pre></div>
+
+
+注意 t3：只有当读请求<strong>在 t2 之前就发起了 SELECT</strong>（拿到的是旧快照），却<strong>在 t5 才把旧值写进缓存</strong>，才会出现"缓存里长期是旧值"。
+
+这个窗口有多宽？取决于三件事：
+<ul>
+<li>读请求 t3 的 SELECT 是否慢（慢查询、行锁等待）；</li>
+<li>写请求 t2→t4 之间是否慢（同一事务里还有别的操作）；</li>
+<li>网络/GC 抖动。</li>
+</ul>
+
+<strong>结论：这个窗口存在，但很窄。</strong> 除非读接口有慢 SQL（这恰好是我在《<a href="/article/django-slow-query-index-tuning/">索引建了，为什么排序还是没用上？</a>》里修过的那类问题），否则概率极低。
+<h3>2.2 路线二：先删除缓存，再更新 DB（危险）</h3>
+<div class="codehilite"><pre><span></span><code>写请求：DEL cache → UPDATE db
+</code></pre></div>
+
+
+很多教程推荐它，理由是"删了缓存，读请求就会回源拿新值"。但并发下它是<strong>灾难</strong>：
+<div class="codehilite"><pre><span></span><code>时刻   线程 R（读）              线程 W（写）             缓存/DB 状态
+────────────────────────────────────────────────────────────────
+t1                              DEL cache                cache: 空
+t2    GET cache → miss                                  cache: 空
+t3    GET db → 旧值                                      db: 旧值
+t4    SET cache = 旧值  ⚠️                                cache: 旧值
+t5                              UPDATE db = 新值          db: 新值
+                                                         ❌ 缓存旧值，DB 新值
+</code></pre></div>
+
+
+t1 删除后、t5 更新前，只要有一个读请求进来，就会把<strong>旧值</strong>回填进缓存。而缓存的有效期（比如 300 秒）内，所有读请求拿到的都是旧值——<strong>不一致窗口从"毫秒级"变成了"一个 TTL"</strong>。
+
+这就是"先删缓存"被诟病的核心：它把不一致窗口从"写操作耗时"放大到了"缓存 TTL"。<strong>除非你的写库耗时极短、且能接受读请求回填旧值，否则不要用。</strong>
+<h3>2.3 为什么是"删除"而不是"更新"缓存？</h3>
+
+"写库 + 更新缓存"看起来更直观，其实更糟：
+<ul>
+<li><strong>更新缓存的代价可能很大</strong>：缓存里存的往往是聚合结果（列表页、统计值），每次更新都要重算一遍，浪费 CPU；</li>
+<li><strong>并发更新顺序无法保证</strong>：A、B 两个写请求，A 先算好缓存值但网络慢，B 后算好先写入，最后 A 的值覆盖了 B —— <strong>缓存里留下旧值</strong>；</li>
+<li><strong>删除是幂等的、便宜的</strong>：删掉就完事，下一次读自然会回源。</li>
+</ul>
+<blockquote>
+
+记住这条：<strong>"删除缓存"比"更新缓存"更安全</strong>，因为它把"值是否正确"的判断推迟到了读的时候，天然规避了写写乱序。
+</blockquote>
+<h3>2.4 路线三：延迟双删（对付"先删缓存"的补丁）</h3>
+
+如果你确实需要"先删缓存再更库"（比如为了把缓存击穿的影响前移），业界有个补丁叫<strong>延迟双删</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">update_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">key</span> <span class="o">:=</span> <span class="sa">f</span><span class="s2">&quot;article:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>     <span class="c1"># 1. 先删</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>  <span class="c1"># 2. 更库</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>                                  <span class="c1"># 3. 等读请求回填完</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>                                <span class="c1"># 4. 再删一次</span>
+</code></pre></div>
+
+
+第 3 步的 <code>sleep</code> 要略大于"读请求回源 + 回填缓存"的耗时。缺点是：
+<ul>
+<li><code>sleep</code> 让接口 RT 直接涨 0.5 秒，<strong>不适合同步接口</strong>，得丢到异步任务里；</li>
+<li>sleep 时长靠猜，数据库慢一点就又失效了；</li>
+<li>治标不治本。</li>
+</ul>
+
+<strong>我的建议：能用"先更库再删缓存"，就不要用延迟双删。</strong> 延迟双删是给历史遗留代码打的补丁，不是首选方案。
+<h3>2.5 路线四：最终一致 —— binlog 订阅</h3>
+
+前面所有方案都在"应用层"做文章，本质是<strong>尽力而为</strong>。要真正做到最终一致，应该把"失效缓存"这件事<strong>从业务代码里剥离出来</strong>，交给数据库日志：
+<div class="codehilite"><pre><span></span><code>业务写 DB ──► binlog ──► Canal / Debezium ──► MQ ──► 消费者删缓存
+</code></pre></div>
+
+
+这个方案的好处：
+<ol>
+<li><strong>业务代码只写库，不用管缓存</strong>，不会漏删（新人写新接口时忘了删缓存，是这类 bug 的头号来源）；</li>
+<li><strong>解耦</strong>：缓存失效失败可以重试，有 MQ 的可靠性兜底；</li>
+<li><strong>顺序性</strong>：binlog 天然有序，不会出现"旧值覆盖新值"。</li>
+</ol>
+
+代价是<strong>架构复杂度</strong>：要维护 Canal/Debezium、MQ、消费者，还得处理消息积压。<strong>个人项目、中小团队，别上；中大型系统、缓存 key 分散在几十个服务里，值得上。</strong>
+<h3>2.6 四条路线对比</h3>
+<table>
+<thead>
+<tr>
+<th>路线</th>
+<th>不一致窗口</th>
+<th>实现成本</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>先更库 → 删缓存</td>
+<td>毫秒级（极窄）</td>
+<td>低</td>
+<td>✅ 默认选择</td>
+</tr>
+<tr>
+<td>先删缓存 → 更库</td>
+<td>一个 TTL</td>
+<td>低</td>
+<td>❌ 别用</td>
+</tr>
+<tr>
+<td>延迟双删</td>
+<td>毫秒级 + 补偿</td>
+<td>中（要异步）</td>
+<td>历史代码补丁</td>
+</tr>
+<tr>
+<td>binlog 订阅</td>
+<td>秒级最终一致</td>
+<td>高</td>
+<td>中大型系统</td>
+</tr>
+</tbody>
+</table>
+<h3>2.7 什么时候干脆别用缓存？</h3>
+
+这是长文必须有的诚实一节。<strong>强一致要求 + 高并发写</strong>的场景，缓存一致性本身就是伪命题，正确做法是<strong>不缓存</strong>或<strong>换存储</strong>：
+<ul>
+<li><strong>资金、库存、余额</strong>：直接读库 + <code>SELECT ... FOR UPDATE</code> / 原子 SQL，或把状态放 Redis 用 Lua 保证原子（见分布式锁那篇的 6.2 节）；</li>
+<li><strong>读多写少、且能容忍秒级延迟</strong>：才适合缓存，比如文章详情、用户资料、商品描述；</li>
+<li><strong>读写比 &lt; 3:1</strong>：缓存收益抵不过一致性成本，别加。</li>
+</ul>
+
+一句话：<strong>缓存是为"读多写少"设计的，不要拿它去扛"写多"的一致性。</strong>
+<hr>
+<h2>3. 缓存穿透：查一个不存在的 ID</h2>
+<h3>3.1 现象</h3>
+<div class="codehilite"><pre><span></span><code>GET article:999999     # 数据库里根本没有 id=999999
+→ 缓存 miss
+→ 查库，返回空
+→ 不缓存（因为值是 null，很多人直接跳过）
+→ 下次再来，缓存还是 miss
+→ 查库……
+</code></pre></div>
+
+
+正常的 id 查不到，用户不会反复请求。但<strong>恶意攻击</strong>会：用脚本刷 <code>id=-1</code>、<code>id=999999</code>、随机大整数，每次都不命中缓存，<strong>每个请求都打到数据库</strong>。缓存不但没起到保护作用，反而成了"永远 miss 的收费站"。
+<h3>3.2 方案一：缓存空值</h3>
+
+最简单粗暴：<strong>查不到也缓存，只是 TTL 短一点</strong>。
+<div class="codehilite"><pre><span></span><code><span class="n">EMPTY</span> <span class="o">=</span> <span class="s2">&quot;&lt;empty&gt;&quot;</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;article:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">cached</span> <span class="o">==</span> <span class="n">EMPTY</span> <span class="k">else</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+
+    <span class="n">article</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">article</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">EMPTY</span><span class="p">,</span> <span class="n">ex</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>     <span class="c1"># 空值缓存 30 秒，短 TTL 防堆积</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">serialize</span><span class="p">(</span><span class="n">article</span><span class="p">)),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">serialize</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+</code></pre></div>
+
+
+要点：
+<ul>
+<li>空值的 TTL 要<strong>明显短于正常值</strong>（30s vs 300s），否则攻击者用海量随机 id 能把缓存撑爆；</li>
+<li>如果攻击者 id 空间极大（比如 UUID），空值缓存会被"每个 id 存一条"打爆内存——这时要靠方案二。</li>
+</ul>
+<h3>3.3 方案二：布隆过滤器</h3>
+
+布隆过滤器（Bloom Filter）是一个<strong>概率型数据结构</strong>，用极少的内存回答一个问题：<strong>"这个 key 可能存在，还是一定不存在？"</strong>
+<ul>
+<li>说"不存在"→ <strong>一定不存在</strong>，直接拦截，不查库；</li>
+<li>说"存在"→ <strong>可能存在</strong>（有误判），放行去查库。</li>
+</ul>
+
+它用<strong>位数组 + k 个哈希函数</strong>实现：
+<div class="codehilite"><pre><span></span><code>add(x)：对 x 算 k 个哈希，把对应位数组的 k 个位置 1
+query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存在
+</code></pre></div>
+
+
+手写一个，20 行：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BloomFilter</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="p">,</span> <span class="n">error_rate</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">capacity</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">error_rate</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">/</span> <span class="n">capacity</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bits</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">//</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_positions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+        <span class="n">h1</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">h</span><span class="p">[:</span><span class="mi">8</span><span class="p">],</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span>
+        <span class="n">h2</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="mi">8</span><span class="p">:</span><span class="mi">16</span><span class="p">],</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">h1</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">h2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)]</span>   <span class="c1"># 双重哈希构造 k 个</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_positions</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bits</span><span class="p">[</span><span class="n">p</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">]</span> <span class="o">|=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">p</span> <span class="o">&amp;</span> <span class="mi">7</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bits</span><span class="p">[</span><span class="n">p</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">]</span> <span class="o">&amp;</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">p</span> <span class="o">&amp;</span> <span class="mi">7</span><span class="p">))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_positions</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
+</code></pre></div>
+
+
+布隆过滤器的关键参数（<code>n</code> = 预计元素数，<code>p</code> = 期望误判率）：
+<div class="codehilite"><pre><span></span><code>位数组大小 m = -n·ln(p) / (ln2)²
+哈希个数   k = (m/n)·ln2 ≈ 0.693·(m/n)
+</code></pre></div>
+
+
+用 <code>n=1000, p=1%</code> 算出来 <code>m=9585</code> 位（约 1.2 KB），<code>k=7</code>。实测误判率 <strong>1.056%</strong>，与理论值 1% 几乎一致（见第 7 章）。
+
+生产上别手写，直接用现成的：
+<ul>
+<li><strong>Redis 4.0+ 的 <code>BF.ADD</code> / <code>BF.EXISTS</code></strong>（RedisBloom 模块），支持分布式；</li>
+<li><strong>Guava <code>BloomFilter</code></strong>（Java 单机）、<strong><code>pybloom-live</code></strong>（Python）。</li>
+</ul>
+
+布隆过滤器的局限要写清楚：
+<table>
+<thead>
+<tr>
+<th>局限</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只能增不能删</td>
+<td>删除一个元素没法把位清 0（会影响其他元素），要支持删除得用<strong>计数布隆过滤器</strong></td>
+</tr>
+<tr>
+<td>有误判</td>
+<td>误判率随元素增多而上升，要预留容量</td>
+</tr>
+<tr>
+<td>需要预热</td>
+<td>启动时要把库里已有 id 全量灌进去，数据量大时耗时长</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+数据会删除的场景（比如文章会被删），布隆过滤器会"误报存在"，但不会"误报不存在"——所以<strong>删文章时把缓存也删掉</strong>，让读请求回源拿到空值并缓存，就没问题了。布隆只负责拦"从来没存在过的 id"。
+</blockquote>
+<h3>3.4 方案三：参数校验 + 限流</h3>
+
+这是最被低估的一层，也是<strong>成本最低</strong>的一层：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">article_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">article_id</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">article_id</span> <span class="o">&gt;</span> <span class="mi">10_000_000</span><span class="p">:</span>   <span class="c1"># 1. 边界校验</span>
+        <span class="k">raise</span> <span class="n">Http404</span>
+    <span class="c1"># 2. 接口限流：同一 IP 每秒最多 20 次（见 DRF 三件套那篇）</span>
+    <span class="n">throttle</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s2">&quot;20/s&quot;</span><span class="p">)</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+
+一个 <code>id &lt;= 0</code> 的判断，就能挡掉大量扫描脚本。<strong>永远不要相信客户端传来的 id。</strong>
+<h3>3.5 三方案对比</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>内存</th>
+<th>误判</th>
+<th>能防随机 id 攻击</th>
+<th>实现成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缓存空值</td>
+<td>随攻击 id 数增长</td>
+<td>无</td>
+<td>差（id 空间大时被撑爆）</td>
+<td>极低</td>
+</tr>
+<tr>
+<td>布隆过滤器</td>
+<td>固定，极小</td>
+<td>有（可配）</td>
+<td>强</td>
+<td>中</td>
+</tr>
+<tr>
+<td>参数校验 + 限流</td>
+<td>无</td>
+<td>无</td>
+<td>中（靠限流）</td>
+<td>极低</td>
+</tr>
+</tbody>
+</table>
+
+<strong>生产推荐：参数校验 + 限流打底，缓存空值兜常用 id，布隆过滤器防大范围随机 id。三层叠加。</strong>
+<hr>
+<h2>4. 缓存击穿：热点 key 失效的那一瞬间</h2>
+<h3>4.1 现象</h3>
+
+注意它和"穿透"的区别：<strong>穿透是查不存在的数据，击穿是查存在、但特别热的数据</strong>。
+
+一个秒杀商品，缓存 TTL 到了，或者被主动删除了。这一瞬间，<strong>成千上万个并发请求同时 miss，同时回源查库、同时回填缓存</strong>：
+<div class="codehilite"><pre><span></span><code>热点 key 过期瞬间：
+1000 个并发 ──► 全部 miss ──► 1000 个请求同时 SELECT 同一行 ──► DB 连接池打满
+</code></pre></div>
+
+
+这就是<strong>惊群（thundering herd）</strong>。我在第 7 章实测：300 并发下，无保护时产生了 <strong>183 次</strong>数据库查询（本该只有 1 次）。
+<h3>4.2 方案一：互斥锁重建（最常用）</h3>
+
+思路：<strong>只让一个线程去重建缓存，其他线程等一下</strong>。锁用 Redis 的 <code>SET NX</code>，正是《<a href="/article/redis-distributed-lock-deep-dive/">Redis 分布式锁</a>》里 V2 的写法。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_hot_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;article:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+
+    <span class="n">lock_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;lock:rebuild:</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
+    <span class="k">if</span> <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">lock_key</span><span class="p">,</span> <span class="n">token</span><span class="p">,</span> <span class="n">nx</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">px</span><span class="o">=</span><span class="mi">5000</span><span class="p">):</span>     <span class="c1"># 抢到锁 → 去重建</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>                      <span class="c1"># 双检：可能已被别人建好</span>
+            <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+            <span class="n">article</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span>
+            <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">serialize</span><span class="p">(</span><span class="n">article</span><span class="p">)),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">serialize</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="c1"># 解锁要用 Lua 比较 token（见分布式锁那篇 4.1）</span>
+            <span class="n">redis</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="n">UNLOCK_LUA</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">lock_key</span><span class="p">,</span> <span class="n">token</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>                                 <span class="c1"># 没抢到 → 短暂等待后重试</span>
+        <span class="k">return</span> <span class="n">get_hot_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">)</span>
+</code></pre></div>
+
+
+实测：300 并发下 DB 查询从 <strong>183 次降到 1 次</strong>。
+
+代价是<strong>吞吐下降</strong>：没抢到锁的请求要 sleep 重试，P99 会变高（实测 P95 从 20.7ms 变 20.0ms，但因为要等锁，实际业务中会略涨）。对秒杀这种场景，用"牺牲延迟换 DB 安全"完全值得。
+<blockquote>
+
+注意：这里的锁 <strong>TTL 要短（5 秒）</strong>，因为重建逻辑通常很快；且<strong>必须用 Lua 解锁</strong>，否则会误删别人的锁。
+</blockquote>
+<h3>4.3 方案二：逻辑过期（高并发首选）</h3>
+
+互斥锁的缺点是"要等"。<strong>逻辑过期</strong>换了个思路：<strong>缓存永不物理过期，而是在 value 里存一个逻辑过期时间</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_hot_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;article:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rebuild_and_cache</span><span class="p">(</span><span class="n">article_id</span><span class="p">)</span>     <span class="c1"># 冷启动，只能同步重建</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;expire_at&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;payload&quot;</span><span class="p">]</span>                   <span class="c1"># 逻辑上没过期，直接返回</span>
+
+    <span class="c1"># 逻辑已过期：先返回旧值，再异步刷新</span>
+    <span class="k">if</span> <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;lock:refresh:</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="n">nx</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">px</span><span class="o">=</span><span class="mi">3000</span><span class="p">):</span>
+        <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span>             <span class="c1"># 或丢给 Celery / MQ</span>
+            <span class="n">target</span><span class="o">=</span><span class="n">refresh_cache</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">article_id</span><span class="p">,),</span> <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;payload&quot;</span><span class="p">]</span>                       <span class="c1"># 返回旧数据，用户无感</span>
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>互斥锁重建</th>
+<th>逻辑过期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一致性</td>
+<td>强（等到新值）</td>
+<td>弱（返回旧值，最终一致）</td>
+</tr>
+<tr>
+<td>吞吐</td>
+<td>低（要等锁）</td>
+<td>高（永不阻塞）</td>
+</tr>
+<tr>
+<td>实现</td>
+<td>简单</td>
+<td>需额外异步机制 + 缓存预热</td>
+</tr>
+<tr>
+<td>适用</td>
+<td>数据一致性要求较高</td>
+<td>秒杀、首页、可容忍短暂旧值</td>
+</tr>
+</tbody>
+</table>
+
+<strong>秒杀、大促、首页这种"宁可旧一点也不能卡"的场景，逻辑过期是更优解。</strong>
+<h3>4.4 方案三：热点 key 永不物理过期</h3>
+
+对<strong>极少数</strong>确定的热点 key（比如首页 banner），干脆<strong>不给 TTL</strong>，靠后台定时任务或数据变更时主动刷新：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 后台每 5 分钟刷一次首页缓存，业务侧永不 miss</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">refresh_homepage_cache</span><span class="p">():</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;homepage:feed&quot;</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">build_feed</span><span class="p">()),</span> <span class="n">ex</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># 不过期</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">300</span><span class="p">)</span>
+</code></pre></div>
+
+
+代价是<strong>数据变更到生效有延迟</strong>，且要保证刷新任务本身高可用（用分布式锁防重复执行——又回到那篇了）。
+<h3>4.5 三种方案怎么选</h3>
+<div class="codehilite"><pre><span></span><code>热点 key 失效要不要等新值？
+├─ 要（商品库存、配置）→ 互斥锁重建
+└─ 不要（首页、榜单、秒杀列表）
+   ├─ key 数量少且固定 → 永不过期 + 后台刷新
+   └─ key 数量多且动态 → 逻辑过期 + 异步刷新
+</code></pre></div>
+
+<hr>
+<h2>5. 缓存雪崩：大批 key 同时失效</h2>
+<h3>5.1 现象</h3>
+
+击穿是"一个热点 key"，雪崩是"<strong>一大批 key 同时失效</strong>"。
+
+最常见的起因：<strong>批量预热时用了同一个 TTL</strong>。
+<div class="codehilite"><pre><span></span><code><span class="c1"># 凌晨预热 1 万个商品</span>
+<span class="k">for</span> <span class="n">product</span> <span class="ow">in</span> <span class="n">products</span><span class="p">:</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;product:</span><span class="si">{</span><span class="n">product</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>  <span class="c1"># 全是 3600 秒</span>
+</code></pre></div>
+
+
+这 1 万个 key 会在<strong>同一秒集体过期</strong>。届时所有请求全部回源，DB 瞬间被打满——<strong>缓存不但没保护 DB，还成了"定时炸弹"</strong>。
+
+另一种起因：<strong>Redis 实例本身挂了</strong>。所有请求瞬间打到 DB，如果没做降级，DB 直接跟着挂，形成"缓存挂 → DB 挂 → 全站挂"的雪崩链。
+<h3>5.2 方案一：TTL 加随机抖动（最低成本，必做）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+
+<span class="c1"># 基础 TTL 300 秒，额外加 0~150 秒随机</span>
+<span class="n">ttl</span> <span class="o">=</span> <span class="mi">300</span> <span class="o">+</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">150</span><span class="p">)</span>
+<span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">ex</span><span class="o">=</span><span class="n">ttl</span><span class="p">)</span>
+</code></pre></div>
+
+
+一行改动，就能把"同一秒集体过期"打散成"在 150 秒内均匀过期"。第 7 章实测：<strong>峰值失效密度从 1000 个/秒降到 12 个/秒</strong>。
+<blockquote>
+
+<strong>这是性价比最高的一招，任何用了缓存的系统都应该加。</strong> 记住口诀：<strong>TTL 一定要加抖动。</strong>
+</blockquote>
+<h3>5.3 方案二：多级缓存</h3>
+
+在 Redis 前面再挡一层<strong>进程内缓存</strong>（Caffeine / Guava / <code>functools.lru_cache</code>）：
+<div class="codehilite"><pre><span></span><code>请求 ──► 本地缓存（进程内，纳秒级） ──► Redis（毫秒级） ──► DB
+</code></pre></div>
+
+
+好处：
+<ul>
+<li>本地缓存命中时<strong>根本不碰网络</strong>，RT 极低；</li>
+<li><strong>Redis 挂了，本地缓存还能扛一阵</strong>，给 DB 争取恢复时间。</li>
+</ul>
+
+代价：
+<ul>
+<li><strong>本地缓存各进程独立，一致性更难保证</strong>（一个进程更新了，其他进程不知道）——只能靠短 TTL（秒级）或消息广播失效；</li>
+<li><strong>占用应用内存</strong>，要注意容量上限。</li>
+</ul>
+
+适用：<strong>读极多、变更极少</strong>的数据，比如字典表、配置、榜单。
+<h3>5.4 方案三：熔断 + 降级</h3>
+
+即使前面都做了，也要假设"缓存一定会挂"。这时需要<strong>熔断降级</strong>：
+<ul>
+<li><strong>熔断</strong>：当 DB 错误率/慢查询比例超阈值，直接<strong>拒绝</strong>后续请求（快速失败），而不是让请求堆在 DB 上把它压死；</li>
+<li><strong>降级</strong>：缓存不可用时，返回<strong>兜底数据</strong>（默认值、静态页、上次的快照），而不是报错。</li>
+</ul>
+
+Java 用 Sentinel / Resilience4j，Python 可以用 <code>pybreaker</code>：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pybreaker</span>
+
+<span class="n">db_breaker</span> <span class="o">=</span> <span class="n">pybreaker</span><span class="o">.</span><span class="n">CircuitBreaker</span><span class="p">(</span><span class="n">fail_max</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">reset_timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_article_safe</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">db_breaker</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">))</span>
+    <span class="k">except</span> <span class="n">pybreaker</span><span class="o">.</span><span class="n">CircuitBreakerError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">DEFAULT_ARTICLE</span>      <span class="c1"># 降级：返回兜底内容，而不是 500</span>
+</code></pre></div>
+
+<h3>5.5 方案四：Redis 高可用</h3>
+
+雪崩的"另一半"是缓存服务本身不可用。生产环境 Redis 必须做到：
+<ul>
+<li><strong>主从 + 哨兵</strong>，或 <strong>Cluster</strong> 分片；</li>
+<li><strong>持久化</strong>（RDB + AOF），重启能快速恢复数据，避免"重启后缓存全空 → 全部回源"；</li>
+<li><strong>容量监控 + 淘汰策略</strong>（<code>maxmemory-policy allkeys-lru</code>），别让 Redis 被写满 OOM。</li>
+</ul>
+<h3>5.6 四方案对比</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>防"同时失效"</th>
+<th>防"Redis 挂"</th>
+<th>成本</th>
+<th>必做度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TTL 抖动</td>
+<td>强</td>
+<td>无</td>
+<td>极低</td>
+<td>★★★ 必做</td>
+</tr>
+<tr>
+<td>多级缓存</td>
+<td>中</td>
+<td>强</td>
+<td>中</td>
+<td>视场景</td>
+</tr>
+<tr>
+<td>熔断降级</td>
+<td>中</td>
+<td>强</td>
+<td>中</td>
+<td>★★★ 必做</td>
+</tr>
+<tr>
+<td>Redis 高可用</td>
+<td>无</td>
+<td>强</td>
+<td>高</td>
+<td>★★★ 必做</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>6. 三兄弟对比与决策树</h2>
+
+把三者的本质摊开对比：
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>缓存穿透</th>
+<th>缓存击穿</th>
+<th>缓存雪崩</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>查的数据</td>
+<td><strong>不存在</strong></td>
+<td>存在，且是<strong>热点</strong></td>
+<td>存在，<strong>大批量</strong></td>
+</tr>
+<tr>
+<td>触发条件</td>
+<td>恶意/无效 key</td>
+<td>单个热点 key 失效</td>
+<td>大批 key 同时失效 / Redis 挂</td>
+</tr>
+<tr>
+<td>后果</td>
+<td>每次请求都打到 DB</td>
+<td>瞬时并发打到同一行</td>
+<td>DB 瞬时被打满</td>
+</tr>
+<tr>
+<td>核心解法</td>
+<td>缓存空值 / 布隆 / 校验</td>
+<td>互斥锁 / 逻辑过期</td>
+<td>TTL 抖动 / 多级缓存 / 熔断</td>
+</tr>
+<tr>
+<td>一句话记忆</td>
+<td>空值也缓存</td>
+<td>只放一个去重建</td>
+<td>过期时间打散</td>
+</tr>
+</tbody>
+</table>
+
+<strong>一张决策树收尾：</strong>
+<div class="codehilite"><pre><span></span><code>缓存出问题了？
+├─ 查的是不存在的数据？
+│   ├─ id 空间小、可枚举 → 缓存空值
+│   └─ id 空间大、随机     → 布隆过滤器 + 限流
+├─ 单个热点 key 失效，DB 被打穿？
+│   ├─ 要求读到新值 → 互斥锁重建
+│   └─ 可容忍短暂旧值 → 逻辑过期 + 异步刷新
+└─ 大批 key 同时失效 / Redis 挂了？
+    ├─ 同时失效 → TTL 加随机抖动（必做）
+    ├─ Redis 挂  → 多级缓存 + 熔断降级 + 高可用
+    └─ 都要      → 上面全上，再加监控告警
+</code></pre></div>
+
+<hr>
+<h2>7. 并发实测：一段 Python 复现三种故障</h2>
+
+网上讲这三种故障的文章很多，但大多只给"结论"。我写了一段<strong>可复现的压测脚本</strong>（<code>tools/bench_cache_problems.py</code>），用进程内 TTL 缓存 + 带 20ms 延迟的 Mock DB，把三种故障的真实数字跑出来。
+<blockquote>
+
+为什么不用真 Redis？因为穿透/击穿/雪崩是<strong>并发属性</strong>，不是 Redis 属性——它们描述的是"多少请求同时回源"，与缓存用什么实现无关。用 Mock 反而更容易控制变量、复现结论。
+</blockquote>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>tools/bench_cache_problems.py<span class="w"> </span>--concurrency<span class="w"> </span><span class="m">300</span><span class="w"> </span>--rounds<span class="w"> </span><span class="m">5</span><span class="w"> </span>--db-latency-ms<span class="w"> </span><span class="m">20</span>
+</code></pre></div>
+
+<h3>7.1 穿透：1500 次请求，3 种防护</h3>
+<div class="codehilite"><pre><span></span><code>E1 缓存穿透：5 轮 x 300 并发，全部查不存在的 id=999999
+  A 无防护         DB 查询   1500 次 | P50 20.4ms  P95 20.7ms  P99 20.8ms
+  B 缓存空值        DB 查询    198 次 | P50  0.0ms  P95 20.5ms  P99 20.6ms
+  C 布隆过滤器      DB 查询      0 次 | P50  0.0ms  P95  0.0ms  P99  0.0ms
+</code></pre></div>
+
+
+读法：
+<ul>
+<li><strong>无防护</strong>：1500 个请求 → 1500 次 DB 查询，<strong>1:1</strong>，缓存完全没起作用；</li>
+<li><strong>缓存空值</strong>：降到 <strong>198 次</strong>（-87%）。注意它没降到 0——因为每轮请求的<strong>第一批</strong>并发在"空值写入缓存"之前就已经 miss 了（20ms 延迟内涌入的请求都会回源）。这说明<strong>缓存空值能防"持续性攻击"，但防不住"瞬时突发"</strong>；</li>
+<li><strong>布隆过滤器</strong>：<strong>0 次</strong>。因为 <code>999999</code> 不在过滤器里，请求在<strong>进缓存之前</strong>就被拦掉了，连缓存都不用查，P99 直接是 0.0ms。</li>
+</ul>
+<h3>7.2 击穿：300 并发重建一个热点 key</h3>
+<div class="codehilite"><pre><span></span><code>E2 缓存击穿：热点 key 刚过期，300 并发同时来重建
+  A 无互斥重建      DB 查询    183 次 | P50 20.2ms  P95 20.7ms  P99 20.8ms
+  B 互斥锁重建      DB 查询      1 次 | P50 10.5ms  P95 20.0ms  P99 20.4ms
+</code></pre></div>
+
+
+读法：
+<ul>
+<li><strong>无互斥</strong>：300 并发 → <strong>183 次</strong> DB 查询。本该只查 1 次的数据，被查了 183 次，<strong>放大了 183 倍</strong>。真实业务里 DB 行锁 + 慢查询叠加，这个数字会直接把连接池打满；</li>
+<li><strong>互斥锁</strong>：<strong>1 次</strong>。只放一个线程去重建，其余等待。代价是 P50 从 20.2ms 变 10.5ms（大部分线程在锁外等待/命中缓存后立即返回，反而更快），但<strong>极端情况下要等锁</strong>。</li>
+</ul>
+<blockquote>
+
+183 这个数字说明了一件事：<strong>击穿不是"多查几次"，而是"并发放大"</strong>——并发越高，放大倍数越大。1000 并发时，就是 1000 次查同一行。
+</blockquote>
+<h3>7.3 雪崩：1000 个 key 的失效密度</h3>
+<div class="codehilite"><pre><span></span><code>E3 缓存雪崩：1000 个 key 的失效密度（同一 1000ms 窗口内过期的数量）
+  A 固定 TTL        峰值 1000 个 key / 1000ms 窗口 → 瞬时回源压力约为平时的 600.0 倍
+  B TTL 抖动 ±50%   峰值   12 个 key / 1000ms 窗口 → 瞬时回源压力约为平时的   7.2 倍
+</code></pre></div>
+
+
+读法：
+<ul>
+<li><strong>固定 TTL</strong>：1000 个 key 在<strong>同一秒</strong>全部过期，瞬时回源压力是平时的 <strong>600 倍</strong>——这就是雪崩；</li>
+<li><strong>TTL 抖动 ±50%</strong>：把过期时间打散到 300 秒里，峰值只剩 <strong>12 个/秒</strong>，是平时的 <strong>7.2 倍</strong>，DB 完全扛得住。</li>
+</ul>
+
+<strong>一行 <code>random.randint</code>，把 600 倍削到 7 倍。</strong> 这就是为什么我说"TTL 抖动是性价比最高的一招"。
+<h3>7.4 布隆过滤器：误判率实测</h3>
+<div class="codehilite"><pre><span></span><code>E4 布隆过滤器：实测误判率 vs 理论值
+  m=9585 bits  k=7 hash  n=1000
+  理论误判率 1.000%  |  实测 1.056%  (2111/200000)
+</code></pre></div>
+
+
+<code>n=1000, p=1%</code> 时，位数组只需 <strong>9585 位（约 1.2 KB）</strong>、7 个哈希函数。20 万次探测里误判 2111 次，实测 <strong>1.056%</strong>，与理论值 1% 吻合。
+
+<strong>1.2 KB 拦掉 100% 的"一定不存在"请求，只漏 1% 的误判给缓存空值兜底</strong>——这就是布隆过滤器的价值。
+<h3>7.5 汇总</h3>
+<div class="codehilite"><pre><span></span><code>穿透  1500 次请求：无防护 1500 次 DB → 缓存空值 198 次 → 布隆 0 次
+击穿  300 并发    ：无互斥 183 次 DB  → 互斥锁 1 次
+雪崩  1000 key    ：固定 TTL 峰值 1000 → TTL 抖动 12
+布隆  实测误判率 1.056%
+</code></pre></div>
+
+<hr>
+<h2>8. 上线 Checklist + 高频 FAQ</h2>
+
+<strong>Checklist（12 项）</strong>
+<ul>
+<li>[ ] 写路径是<strong>先更新 DB，再删除缓存</strong>，不是"先删缓存"也不是"更新缓存"</li>
+<li>[ ] 缓存 key 有统一前缀 + 版本：<code>v1:article:1001</code>，大改版切 <code>v2</code></li>
+<li>[ ] <strong>所有 TTL 都加了随机抖动</strong>（<code>base + random.randint(0, base//2)</code>）</li>
+<li>[ ] 热点 key 有互斥重建或逻辑过期保护，不会惊群</li>
+<li>[ ] 查不到的 id 缓存了空值（短 TTL），或前置了布隆过滤器</li>
+<li>[ ] 接口有参数边界校验（<code>id &gt; 0</code>）+ 限流</li>
+<li>[ ] Redis 配了主从/Cluster + 持久化 + <code>maxmemory-policy</code></li>
+<li>[ ] DB 侧有熔断降级，缓存挂时不至于 500</li>
+<li>[ ] 缓存删除失败有兜底（重试 / binlog 补偿 / 短 TTL 自愈）</li>
+<li>[ ] 监控了<strong>缓存命中率</strong>、<strong>DB QPS 突刺</strong>、<strong>Redis 内存与连接数</strong></li>
+<li>[ ] 压测过"热点 key 过期""Redis 重启""批量 key 同时过期"三种故障</li>
+<li>[ ] 强一致场景（资金/库存）<strong>没有</strong>用 Cache-Aside 硬扛</li>
+</ul>
+
+<strong>FAQ</strong>
+
+<strong>Q1：先更新 DB 再删缓存，就万无一失了吗？</strong>
+A：不是。存在"读请求读到旧快照、在删缓存后才回填"的窄窗口（2.1 节）。要彻底解决，靠短 TTL 自愈或 binlog 订阅。
+
+<strong>Q2：为什么删缓存而不是更新缓存？</strong>
+A：更新缓存要重算（贵），且并发写会乱序导致旧值覆盖新值；删除幂等、便宜，把正确性判断推迟到读的时候（2.3 节）。
+
+<strong>Q3：TTL 设多长？</strong>
+A：按"能容忍多久的旧数据"来设，再加随机抖动。文章详情 5 分钟、用户资料 1 分钟、字典表 1 小时，都行，<strong>关键是加抖动</strong>。
+
+<strong>Q4：布隆过滤器支持删除吗？</strong>
+A：标准布隆不支持。需要删除就用<strong>计数布隆过滤器（Counting Bloom）</strong>，或者干脆"删除数据时同时删缓存"，让读请求回源拿到空值。
+
+<strong>Q5：本地缓存和 Redis 不一致怎么办？</strong>
+A：本地缓存 TTL 设短（秒级），或变更时发 MQ 广播失效。<strong>本地缓存只适合"读极多、变更极少"的数据</strong>。
+
+<strong>Q6：Redis 挂了，怎么保证 DB 不挂？</strong>
+A：多级缓存（本地扛一阵）+ 熔断降级（快速失败）+ 限流（削峰）。核心是<strong>别让请求堆在 DB 上</strong>。
+
+<strong>Q7：缓存和数据库的一致性，能做成强一致吗？</strong>
+A：能，但没必要。强一致要靠分布式事务（2PC/TCC），性能和复杂度代价极高。<strong>缓存场景的正确目标是"最终一致 + 不一致窗口足够短"</strong>，不是强一致。
+
+<strong>Q8：Django 里怎么优雅地做缓存？</strong>
+A：<code>django.core.cache</code> 已经封装好了 <code>cache.get_or_set()</code>、<code>cache.delete_pattern()</code>（Redis 后端），配合 <code>@cache_page</code> 装饰器。但<strong>别用 <code>@cache_page</code> 缓存在线用户相关页面</strong>，会串号。
+<hr>
+<h2>结语</h2>
+
+缓存这个话题，绕来绕去就三句话：
+<blockquote>
+<ol>
+<li><strong>写路径</strong>：先更库、再删缓存，别先删缓存，别更新缓存；不一致窗口靠短 TTL 自愈。</li>
+<li><strong>防穿透</strong>：空值缓存 + 布隆过滤器 + 参数校验，三层叠加，别只做一层。</li>
+<li><strong>防击穿雪崩</strong>：热点 key 用互斥锁/逻辑过期，<strong>所有 TTL 都加随机抖动</strong>，缓存挂了要能降级。</li>
+</ol>
+</blockquote>
+
+回到开头那个"改了昵称不生效"的工单：如果你当初写的是 <code>DEL cache</code> 而不是 <code>UPDATE cache</code>，如果 TTL 加了抖动，如果接口校验了 <code>id</code>——这个工单根本不会出现。
+
+<strong>缓存不是"加个 Redis 就完事"，它是一套需要被设计、被压测、被监控的架构。</strong> 下次有人跟你说"加个缓存吧"，把这篇的 Checklist 甩给他：TTL 加抖动了吗？热点 key 防惊群了吗？布隆装了吗？Redis 挂了 DB 扛得住吗？四个问题答完，才算真的"加了缓存"。</div></div></noscript>
+  </body>
+</html>
