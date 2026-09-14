@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-slow-query-index-tuning/" />
+    <meta property="og:title" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）" />
+    <meta property="og:description" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-slow-query-index-tuning/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）" />
+    <meta name="twitter:description" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-14T09:57:53.474332+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）","description":"索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；","image":"https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T09:57:53.474332+08:00","dateModified":"2026-09-14T10:22:36.716434+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-slow-query-index-tuning/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）</h1>
+<blockquote>
+
+承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但<strong>条数少，不等于快</strong>。
+技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；原理对 MySQL 8 / PostgreSQL 同样成立，文中会标注差异。
+阅读时间：约 45 分钟（超详细版） | 难度：中高级 | 收获：一套"看执行计划 → 定位索引 → 用数字验证"的慢查询排查法
+</blockquote>
+<h2>前言：N+1 修完之后，账单才刚开始</h2>
+
+上一篇的结尾，我把文章列表页从 21 条 SQL 压到了 2 条。当时我以为这个接口的性能问题已经结束了。
+
+后来我做了一件更较真的事：<strong>把本地数据从 9 篇灌到 100 万篇</strong>，然后跑了一遍线上那条一模一样的 SQL。结果是这样的：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>执行计划</th>
+<th>首页 <code>LIMIT 10</code> 耗时（中位数）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不建任何索引</td>
+<td><code>SCAN</code> + <code>TEMP B-TREE</code></td>
+<td>395.92 ms</td>
+</tr>
+<tr>
+<td><strong>线上现在的索引</strong></td>
+<td><code>SEARCH</code> + <code>TEMP B-TREE</code></td>
+<td><strong>476.50 ms</strong></td>
+</tr>
+<tr>
+<td>多补一列 <code>is_top</code></td>
+<td><code>SEARCH</code> + <code>TEMP B-TREE FOR LAST TERM</code></td>
+<td>690.80 ms</td>
+</tr>
+<tr>
+<td>方向也对齐</td>
+<td><code>SEARCH</code></td>
+<td><strong>0.18 ms</strong></td>
+</tr>
+</tbody>
+</table>
+
+三件事，每一件都反直觉：
+<ol>
+<li><strong>建了索引，反而比不建更慢</strong>（476 ms vs 396 ms）。这个索引对这条 SQL 来说，约等于不存在。</li>
+<li><strong>多补一列，更慢了</strong>（691 ms）。"半个索引"比没有索引更糟——它给了优化器一个"我好像能帮上忙"的假象。</li>
+<li><strong>把方向写对，快了约 2600 倍</strong>（0.18 ms）。</li>
+</ol>
+
+差距的根源不是"有没有索引"，而是：<strong>索引的物理有序性，能不能对得上 SQL 要求的顺序。</strong>
+
+而这一切，在只有 9 篇文章的博客上，你永远看不出来。这才是慢查询最阴的地方。
+<hr>
+
+<strong>目录</strong>
+<ul>
+<li>先分清两笔账：查询次数 ≠ 单条查询成本</li>
+<li>认识执行计划：四种关键字读懂慢在哪</li>
+<li>现场：博客真实的索引，和它真实的执行计划</li>
+<li>实验一：造 100 万行，把 2600 倍差距压出来</li>
+<li>原理：为什么"方向不对"就等于没索引</li>
+<li>修复：改一行 models.py，附迁移与验证</li>
+<li>实验二：10 种写法，哪种让索引当场失效</li>
+<li>第二个慢查询：深翻页 OFFSET 900000</li>
+<li>COUNT(*) 也是慢查询</li>
+<li>索引不是越多越好：写放大与选择性</li>
+<li>方法论：五步定位慢查询</li>
+<li>上线 Checklist</li>
+<li>结语</li>
+</ul>
+<hr>
+<h2>1. 先分清两笔账：查询次数 ≠ 单条查询成本</h2>
+
+上一篇解决的是<strong>次数</strong>问题：一个请求发几条 SQL。这篇解决的是<strong>成本</strong>问题：一条 SQL 要花多久。
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>症状</th>
+<th>典型元凶</th>
+<th>修复手段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>查询次数</td>
+<td>条数随数据量线性增长</td>
+<td>N+1</td>
+<td><code>select_related</code> / <code>prefetch_related</code> / <code>annotate</code></td>
+</tr>
+<tr>
+<td>单条成本</td>
+<td>条数不变，但每条越来越慢</td>
+<td>全表扫描、排序、临时表</td>
+<td>索引、改写 SQL、分页策略</td>
+</tr>
+</tbody>
+</table>
+
+一个请求发 2 条 SQL，每条各扫 90 万行——<strong>总成本是 2 × 476 ms ≈ 1 秒</strong>。次数优化做到了满分，用户体感依然是"这站好卡"。
+
+所以排查顺序应该是：
+<ol>
+<li>先看条数（贵得离谱的 N+1 优先干掉，收益最大）；</li>
+<li>再看每条 SQL 的执行计划（这一步决定上限）；</li>
+<li>最后看单条 SQL 内部的算法（是否可用索引、是否排序、是否临时表）。</li>
+</ol>
+
+<strong>两笔账都要算，只算一笔就会得出"我已经优化过了"的错觉。</strong>
+<hr>
+<h2>2. 认识执行计划：四种关键字读懂慢在哪</h2>
+
+在 MySQL 里你敲 <code>EXPLAIN</code>，在 SQLite 里你敲 <code>EXPLAIN QUERY PLAN</code>。输出的关键字不多，但每一个都对应一种真实的代价。
+<table>
+<thead>
+<tr>
+<th>关键字</th>
+<th>含义</th>
+<th>代价</th>
+<th>危险等级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SCAN table</code></td>
+<td>全表扫描</td>
+<td>O(全表行数)</td>
+<td>🔴 高</td>
+</tr>
+<tr>
+<td><code>SEARCH table USING INDEX (col=?)</code></td>
+<td>用索引定位到具体行</td>
+<td>O(命中行数)</td>
+<td>🟢 低</td>
+</tr>
+<tr>
+<td><code>SEARCH ... USING COVERING INDEX</code></td>
+<td>索引里就有全部需要的列，<strong>不回表</strong></td>
+<td>O(命中行数)，更省</td>
+<td>🟢 更低</td>
+</tr>
+<tr>
+<td><code>SCAN ... USING COVERING INDEX</code></td>
+<td>扫整个索引而不是整张表</td>
+<td>O(全表行数)，但行更窄</td>
+<td>🟡 中（是"扫"不是"查"）</td>
+</tr>
+<tr>
+<td><code>USE TEMP B-TREE FOR ORDER BY</code></td>
+<td><strong>必须额外排序</strong></td>
+<td>O(n log n)</td>
+<td>🔴 高</td>
+</tr>
+<tr>
+<td><code>USE TEMP B-TREE FOR LAST TERM OF ORDER BY</code></td>
+<td>排序条件只满足了一部分</td>
+<td>O(n log n) 的一部分</td>
+<td>🟠 中高</td>
+</tr>
+<tr>
+<td><code>USE TEMP B-TREE FOR GROUP BY</code></td>
+<td>分组也要临时表</td>
+<td>O(n log n)</td>
+<td>🟠 中高</td>
+</tr>
+</tbody>
+</table>
+
+一句话记住：
+<blockquote>
+
+<strong><code>SEARCH</code> 是查，<code>SCAN</code> 是翻；出现 <code>TEMP B-TREE</code> 说明索引没帮你把顺序也管住。</strong>
+</blockquote>
+
+<code>SCAN</code> 不一定是灾难（小表、或者只取很少列时很快），但出现在一个"每次请求都要跑"的热路径上，就是定时炸弹。而 <code>TEMP B-TREE FOR ORDER BY</code> 基本等同于告诉你：<strong>你的索引只被用了一半。</strong>
+<h3>2.1 在 Django 里怎么拿到执行计划</h3>
+
+Django 的 ORM 不会把执行计划吐给你，但你可以把 ORM 生成的 SQL 抠出来，再喂给数据库：
+<div class="codehilite"><pre><span></span><code><span class="c1"># tools/explain.py —— 把任意 queryset 的执行计划打出来</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">django</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;DJANGO_SETTINGS_MODULE&quot;</span><span class="p">,</span> <span class="s2">&quot;blog_api.settings&quot;</span><span class="p">)</span>
+<span class="n">django</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">explain</span><span class="p">(</span><span class="n">qs</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;返回 queryset 的执行计划（SQLite 用 EXPLAIN QUERY PLAN）。&quot;&quot;&quot;</span>
+    <span class="n">sql</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">qs</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">sql_with_params</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cur</span><span class="p">:</span>
+        <span class="c1"># MySQL 8 用 &quot;EXPLAIN&quot;，8.0.18+ 可用 &quot;EXPLAIN ANALYZE&quot;</span>
+        <span class="c1"># PostgreSQL 用 &quot;EXPLAIN (ANALYZE, BUFFERS)&quot;</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;EXPLAIN QUERY PLAN &quot;</span> <span class="o">+</span> <span class="n">sql</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()]</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">articles.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Article</span>
+
+    <span class="n">qs</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">explain</span><span class="p">(</span><span class="n">qs</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   &quot;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+</code></pre></div>
+
+
+跑一下，输出是：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="s2">&quot;articles_article&quot;</span><span class="p">.</span><span class="s2">&quot;id&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="s2">&quot;articles_article&quot;</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="s2">&quot;articles_article&quot;</span><span class="p">.</span><span class="s2">&quot;status&quot;</span><span class="w"> </span><span class="err">=</span><span class="w"> </span><span class="nv">?</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="s2">&quot;articles_article&quot;</span><span class="p">.</span><span class="s2">&quot;is_top&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span>
+<span class="s2">&quot;articles_article&quot;</span><span class="p">.</span><span class="s2">&quot;created_at&quot;</span><span class="w"> </span><span class="k">DESC</span>
+
+<span class="w">    </span><span class="k">SEARCH</span><span class="w"> </span><span class="n">articles_article</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">articles_status_created_idx</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="err">=</span><span class="nv">?</span><span class="p">)</span>
+<span class="w">    </span><span class="n">USE</span><span class="w"> </span><span class="k">TEMP</span><span class="w"> </span><span class="n">B</span><span class="o">-</span><span class="n">TREE</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span>
+</code></pre></div>
+
+
+<strong>注意最后那行。</strong> 索引用上了（<code>SEARCH</code>），但排序没管住（<code>TEMP B-TREE</code>）——这就是本文要解剖的那根刺。
+<h3>2.2 顺手把"每条 SQL 花了多久"也打出来</h3>
+
+上一篇我们用 <code>CaptureQueriesContext</code> 数条数，其实它连每条 SQL 的耗时一起给了：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.test.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">CaptureQueriesContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">articles.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Article</span>
+
+<span class="k">with</span> <span class="n">CaptureQueriesContext</span><span class="p">(</span><span class="n">connection</span><span class="p">)</span> <span class="k">as</span> <span class="n">ctx</span><span class="p">:</span>
+    <span class="nb">list</span><span class="p">(</span><span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)[:</span><span class="mi">10</span><span class="p">])</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;共 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">captured_queries</span><span class="p">)</span><span class="si">}</span><span class="s2"> 条 SQL&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">captured_queries</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">])</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="si">:</span><span class="s1">8.2f</span><span class="si">}</span><span class="s1"> ms | </span><span class="si">{</span><span class="n">q</span><span class="p">[</span><span class="s2">&quot;sql&quot;</span><span class="p">][:</span><span class="mi">110</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>条数 + 单条耗时，才是完整的性能画像。</strong> 只有条数，你会漏掉"2 条 SQL 各花半秒"这种更常见的线上事故。
+<hr>
+<h2>3. 现场：博客真实的索引，和它真实的执行计划</h2>
+
+先看博客线上真实的模型定义（<code>backend/articles/models.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Status</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">TextChoices</span><span class="p">):</span>
+        <span class="n">DRAFT</span> <span class="o">=</span> <span class="s2">&quot;draft&quot;</span><span class="p">,</span> <span class="s2">&quot;草稿&quot;</span>
+        <span class="n">PUBLISHED</span> <span class="o">=</span> <span class="s2">&quot;published&quot;</span><span class="p">,</span> <span class="s2">&quot;已发布&quot;</span>
+        <span class="n">ARCHIVED</span> <span class="o">=</span> <span class="s2">&quot;archived&quot;</span><span class="p">,</span> <span class="s2">&quot;已归档&quot;</span>
+        <span class="n">SCHEDULED</span> <span class="o">=</span> <span class="s2">&quot;scheduled&quot;</span><span class="p">,</span> <span class="s2">&quot;定时发布&quot;</span>
+
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;标题&quot;</span><span class="p">)</span>
+    <span class="n">slug</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">SlugField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Slug&quot;</span><span class="p">)</span>
+    <span class="c1"># ... 省略若干字段 ...</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">Status</span><span class="o">.</span><span class="n">choices</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Status</span><span class="o">.</span><span class="n">DRAFT</span><span class="p">)</span>
+    <span class="n">is_top</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;置顶&quot;</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;创建时间&quot;</span><span class="p">)</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;文章&quot;</span>
+        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">]</span>        <span class="c1"># ← 排序：先置顶，再按时间倒序</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span>                            <span class="c1"># ← 索引：status + created_at</span>
+                <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">],</span>
+                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_status_created_idx&quot;</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;scheduled_at&quot;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_scheduled_idx&quot;</span><span class="p">),</span>
+        <span class="p">]</span>
+</code></pre></div>
+
+
+请把这两行并排看：
+<div class="codehilite"><pre><span></span><code><span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">]</span>                                  <span class="c1"># 排序：is_top, created_at</span>
+<span class="n">indexes</span>  <span class="o">=</span> <span class="p">[</span><span class="n">Index</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">])]</span>                   <span class="c1"># 索引：status, created_at</span>
+</code></pre></div>
+
+
+<strong>排序要两列，索引只有其中一列。</strong> 少的那一列是 <code>is_top</code>。
+
+在真实的 <code>db.sqlite3</code>（9 篇文章）上跑执行计划：
+<div class="codehilite"><pre><span></span><code>SEARCH articles_article USING INDEX articles_status_created_idx (status=?)
+USE TEMP B-TREE FOR ORDER BY
+</code></pre></div>
+
+
+对比一下"把 <code>is_top</code> 从排序里去掉"的同一个查询：
+<div class="codehilite"><pre><span></span><code>SEARCH articles_article USING INDEX articles_status_created_idx (status=?)
+</code></pre></div>
+
+
+<strong><code>TEMP B-TREE</code> 消失了。</strong>
+
+同一个索引，同一个表，只因为排序条件少了 <code>is_top</code> 这一列，一个要额外排序、一个不要。这就是全部秘密。
+<blockquote>
+
+<strong>但 9 篇文章的时候，两种写法都是 0.0x 毫秒，你完全察觉不到。</strong> 一个索引是否有效，和数据量无关；一个索引失效带来的痛，和数据量强相关。这是本文最想让你带走的一句话。
+</blockquote>
+<hr>
+<h2>4. 实验一：造 100 万行，把 2600 倍差距压出来</h2>
+
+线上那 9 篇文章不可能复现问题，所以我在本地按同样的表结构造数据：
+<div class="codehilite"><pre><span></span><code><span class="n">ROWS</span> <span class="o">=</span> <span class="mi">1_000_000</span>
+<span class="c1"># 90% published，10% draft；is_top 只有极少数为 1（和真实博客一样）</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ROWS</span><span class="p">):</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="s2">&quot;published&quot;</span> <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">10</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;draft&quot;</span>
+    <span class="n">is_top</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">42</span><span class="p">,</span> <span class="mi">1337</span><span class="p">,</span> <span class="mi">99999</span><span class="p">,</span> <span class="mi">500000</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">37</span> <span class="n">秒</span>
+</code></pre></div>
+
+
+环境与口径：
+<ul>
+<li>SQLite 3.50.4 / 100 万行 / 其中已发布 90 万行 / 库文件 63 MB</li>
+<li>每条 SQL 跑 7 次取<strong>中位数</strong>（单次取最小值容易骗自己，中位数更接近稳定表现）</li>
+<li>每换一次索引都 <code>DROP</code> 掉其他索引，保证对照组干净</li>
+</ul>
+<h3>4.1 四组对照</h3>
+
+被测试的 SQL 就是列表页那条：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">articles_article</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;published&#39;</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">is_top</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>索引</th>
+<th>执行计划</th>
+<th>中位数</th>
+<th>对比基准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S0</td>
+<td>无</td>
+<td><code>SCAN</code> + <code>TEMP B-TREE</code></td>
+<td>395.92 ms</td>
+<td>1×</td>
+</tr>
+<tr>
+<td>S1</td>
+<td><code>(status, created_at DESC)</code> ← <strong>线上现状</strong></td>
+<td><code>SEARCH</code> + <code>TEMP B-TREE</code></td>
+<td>476.50 ms</td>
+<td>0.83×（更慢）</td>
+</tr>
+<tr>
+<td>S2</td>
+<td><code>(status, is_top, created_at DESC)</code></td>
+<td><code>SEARCH</code> + <code>TEMP B-TREE FOR LAST TERM</code></td>
+<td>690.80 ms</td>
+<td>0.57×（更慢）</td>
+</tr>
+<tr>
+<td>S3</td>
+<td><code>(status, is_top DESC, created_at DESC)</code></td>
+<td><code>SEARCH</code></td>
+<td><strong>0.18 ms</strong></td>
+<td><strong>2200×（相对 S0）</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>4.2 逐条解读</h3>
+
+<strong>S0（无索引）395.92 ms</strong> —— <code>SCAN</code> 扫 100 万行，<code>TEMP B-TREE</code> 再排 100 万行。教科书式的灾难。
+
+<strong>S1（线上索引）476.50 ms</strong> —— 这是最扎心的一格。索引<strong>确实被用上了</strong>（<code>SEARCH ... (status=?)</code>，从 100 万行过滤到 90 万行），但排序照样要做。而且它比 S0 还慢了 20%，原因有两个：
+<ol>
+<li>走索引是 90 万次索引项访问 + 90 万次回表（要取 <code>title</code> 和 <code>is_top</code>），而 <code>SCAN</code> 是 100 万次<strong>顺序</strong>读表——顺序读比随机读便宜；</li>
+<li>省下的 10% 过滤成本（100 万 → 90 万），远远抵不过多绕的这一层。</li>
+</ol>
+
+结论只有一句：<strong>这个索引对这条 SQL 的贡献约等于 0。</strong>
+
+<strong>S2（补了 <code>is_top</code>，但方向是升序）690.80 ms</strong> —— 最反直觉的一格：加了列反而更慢。
+
+因为 <code>(status, is_top, created_at DESC)</code> 里 <code>is_top</code> 是<strong>升序</strong>，而 SQL 要 <code>is_top DESC</code>。SQLite 只能反向扫索引拿到 <code>is_top</code> 的倒序——但一反向，<code>created_at</code> 也跟着变成升序了，于是排序的第二项又对不上。优化器只好退而求其次，提示 <code>TEMP B-TREE FOR LAST TERM OF ORDER BY</code>：<strong>对最后一个排序项再排一次</strong>。
+
+而 <code>is_top</code> 里 99.9995% 都是 0，那个"最后一组"就是几乎全部 90 万行。等于绕了一圈，还是排了 90 万行，还多付了索引访问的成本。
+<blockquote>
+
+<strong>教训：半个索引比没有索引更糟。</strong> 它让优化器以为自己能帮上忙，于是选了更绕的路，最后什么都没省。
+</blockquote>
+
+<strong>S3（方向也对齐）0.18 ms</strong> —— <code>(status, is_top DESC, created_at DESC)</code>，索引的物理顺序和 SQL 要求的顺序<strong>逐项一致</strong>。SQLite 定位到 <code>status='published'</code> 的第一条，顺着索引往下读 10 条就够——<code>LIMIT 10</code> 终于生效了。<strong>476.50 → 0.18，约 2600 倍。</strong>
+<h3>4.3 顺手把深翻页也测了</h3>
+
+同一批数据，同一个查询，只改 <code>OFFSET</code>：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th><code>OFFSET 900000</code> 中位数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1 旧索引</td>
+<td>1131.62 ms</td>
+</tr>
+<tr>
+<td>S3 新索引</td>
+<td>109.72 ms</td>
+</tr>
+</tbody>
+</table>
+
+新索引把深翻页压到了 1/10，但 <strong>110 ms 依然是慢查询</strong>——因为 <code>OFFSET</code> 的本质是"先数过 90 万行，再全部丢掉"。第 8 节单独讲这个。
+<hr>
+<h2>5. 原理：为什么"方向不对"就等于没索引</h2>
+
+很多人对索引的心智模型是"加速查找"。这个模型<strong>只对了一半</strong>——索引的另一半价值是<strong>提供有序性</strong>。
+<h3>5.1 索引就是一本按顺序排好的电话簿</h3>
+
+把 <code>(status, is_top DESC, created_at DESC)</code> 这个索引想成一本电话簿：
+<div class="codehilite"><pre><span></span><code>published | is_top=1 | 2026-09-11 16:55   ← 第 1 条
+published | is_top=1 | 2026-09-09 16:45
+published | is_top=1 | 2026-09-04 11:23
+published | is_top=0 | 2026-09-11 16:56
+published | is_top=0 | 2026-09-11 16:55
+published | is_top=0 | 2026-09-10 10:12
+...
+</code></pre></div>
+
+
+它的物理顺序是：<strong>先按 status 分组，组内先按 is_top 倒序，再按 created_at 倒序。</strong>
+
+而 SQL 要的顺序是 <code>is_top DESC, created_at DESC</code>——<strong>和这本电话簿的翻页方向完全一致</strong>。所以数据库只要翻到 <code>published</code> 那一段的第一页，读 10 行就交差。
+
+现在看线上那个索引 <code>(status, created_at DESC)</code>，电话簿变成：
+<div class="codehilite"><pre><span></span><code>published | 2026-09-11 16:56   ← 第 1 条
+published | 2026-09-11 16:55
+published | 2026-09-10 10:12
+...
+</code></pre></div>
+
+
+它按时间排好了，但<strong><code>is_top</code> 根本不在里面</strong>。而 SQL 要求"先按 is_top 排"，数据库只能：把所有 <code>published</code> 的行全捞出来（90 万行），补上每行的 <code>is_top</code>，再自己排一遍。<strong>这就是 <code>TEMP B-TREE FOR ORDER BY</code>。</strong>
+<h3>5.2 三条硬规则</h3>
+
+从上面的电话簿模型可以直接推出三条规则，记住它们，90% 的索引问题就不用猜了：
+<blockquote>
+
+<strong>规则一：等值条件列在前，排序列在后。</strong>
+<code>WHERE status = 'published' ORDER BY ...</code> → 索引必须以 <code>status</code> 开头。反过来 <code>(created_at, status)</code> 就只能当覆盖索引用，定位不了。
+
+<strong>规则二：索引列顺序必须覆盖 <code>ORDER BY</code> 的列顺序（从第一项开始）。</strong>
+<code>ORDER BY is_top DESC, created_at DESC</code> 需要索引里有 <code>is_top</code> 且紧接 <code>created_at</code>。少一个、错一个位置，都要额外排序。
+
+<strong>规则三：每一列的升降方向必须逐项对齐。</strong>
+<code>is_top DESC</code> 就要索引里 <code>is_top</code> 也是 <code>DESC</code>。这是最容易被忽略、也最致命的一条——<strong>规则二满足而规则三不满足，就会得到 S2 那种"更慢"的结果。</strong>
+</blockquote>
+<h3>5.3 各家数据库的差异（别踩版本坑）</h3>
+<table>
+<thead>
+<tr>
+<th>数据库</th>
+<th>降序索引支持</th>
+<th>排序没走索引时的提示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite</td>
+<td>3.3.0+ 支持 <code>DESC</code></td>
+<td><code>USE TEMP B-TREE FOR ORDER BY</code></td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td><strong>8.0 才真正支持降序索引</strong>；5.7 及以前 <code>DESC</code> 关键字被静默忽略，只建升序索引</td>
+<td><code>Using filesort</code></td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>支持；但只能整体反向扫描，<strong>混合方向（一升一降）必须建方向匹配的索引</strong></td>
+<td><code>Sort</code> / <code>Incremental Sort</code></td>
+</tr>
+</tbody>
+</table>
+
+<strong>MySQL 5.7 的用户特别注意</strong>：你在 5.7 上写 <code>Index(fields=["status", "-is_top", "-created_at"])</code>，Django 生成的 DDL 里带着 <code>DESC</code>，但 MySQL 5.7 会<strong>当作升序索引建</strong>，<code>SHOW CREATE TABLE</code> 里也看不到 <code>DESC</code>。迁移到 8.0 之后行为才改变。升级数据库版本时，执行计划是会变的——这类"升级后突然变慢"的事故，源头常常就在这里。
+<hr>
+<h2>6. 修复：改一行 models.py，附迁移与验证</h2>
+<h3>6.1 改法</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="c1"># ... 字段不变 ...</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;文章&quot;</span>
+        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;文章&quot;</span>
+        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">]</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="c1"># 与 ordering 逐项对齐：等值列 status 在前，随后是 is_top DESC、created_at DESC</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span>
+                <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">],</span>
+                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_status_top_created_idx&quot;</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;scheduled_at&quot;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_scheduled_idx&quot;</span><span class="p">),</span>
+        <span class="p">]</span>
+</code></pre></div>
+
+
+关键就一处：<code>fields=["status", "-created_at"]</code> → <code>fields=["status", "-is_top", "-created_at"]</code>。
+
+Django 会把 <code>-is_top</code> 翻译成 DDL 里的 <code>"is_top" DESC</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">&quot;articles_status_top_created_idx&quot;</span>
+<span class="k">ON</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;status&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;is_top&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;created_at&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">);</span>
+</code></pre></div>
+
+
+然后：
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>makemigrations<span class="w"> </span>articles
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+</code></pre></div>
+
+<h3>6.2 验证（我在 <code>db.sqlite3</code> 的副本上实测）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">[改动前]</span>
+<span class="w">    </span><span class="na">SEARCH articles_article USING INDEX articles_status_created_idx (status</span><span class="o">=</span><span class="s">?)</span>
+<span class="w">    </span><span class="na">USE TEMP B-TREE FOR ORDER BY          ← 排序靠自己</span>
+
+<span class="k">[改动后]</span>
+<span class="w">    </span><span class="na">SEARCH articles_article USING INDEX articles_status_top_created_idx (status</span><span class="o">=</span><span class="s">?)</span>
+<span class="w">                                          </span><span class="na">← 没有 TEMP B-TREE 了</span>
+</code></pre></div>
+
+
+<strong><code>TEMP B-TREE</code> 消失，就是"改对了"的唯一硬指标。</strong> 不要靠感觉，也不要只看耗时——9 篇文章的数据量下，耗时永远看不出差别。
+<h3>6.3 三个容易翻车的细节</h3>
+
+<strong>细节一：索引列顺序不能反。</strong> <code>(is_top, created_at, status)</code> 或 <code>(is_top, status, created_at)</code> 都无效——<code>status</code> 是等值条件，必须在最左。<strong>等值列在前</strong>是铁律。
+
+<strong>细节二：旧索引要不要删？</strong> <code>articles_status_created_idx</code> 并非完全没用，它还能服务"不带 <code>is_top</code> 的排序"（比如归档页 <code>ORDER BY created_at DESC</code>）。判断方法很简单：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 把所有可能用到它的查询捞出来，看还有没有&quot;只按 created_at 排序&quot;的</span>
+grep<span class="w"> </span>-rn<span class="w"> </span><span class="s2">&quot;order_by&quot;</span><span class="w"> </span>backend/articles/<span class="w"> </span>backend/comments/
+</code></pre></div>
+
+
+如果没有这种查询，留着它只是纯粹的写放大（每写一篇文章，多维护一棵 B+ 树），删掉。如果有，就两个都留。
+
+<strong>细节三：大表加索引要小心锁。</strong> 100 万行的表上直接 <code>CREATE INDEX</code> 可能锁住写入几十秒：
+<table>
+<thead>
+<tr>
+<th>数据库</th>
+<th>在线加索引</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MySQL</td>
+<td><code>ALTER TABLE ... ADD INDEX ..., ALGORITHM=INPLACE, LOCK=NONE</code>（8.0 默认就支持在线 DDL）</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td><code>CREATE INDEX CONCURRENTLY idx_name ON ...</code></td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>建索引会短暂锁库（PythonAnywhere 上的 SQLite 本来就是单写，影响有限）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>7. 实验二：10 种写法，哪种让索引当场失效</h2>
+
+上面的实验只改索引，SQL 不动。但<strong>更常见的事故是索引没变，SQL 被改坏了</strong>。同一个 100 万行表（128 MB，索引 <code>(status, created_at DESC)</code> + <code>(title)</code>），我测了 10 种写法：
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>写法</th>
+<th>执行计划</th>
+<th>中位数</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td><code>WHERE status='published' ORDER BY created_at DESC</code></td>
+<td><code>SEARCH USING INDEX</code></td>
+<td><strong>0.33 ms</strong></td>
+<td>✅ 基线</td>
+</tr>
+<tr>
+<td>B</td>
+<td><code>WHERE substr(status,1,9)='published' ...</code></td>
+<td><code>SCAN</code> + <code>TEMP B-TREE</code></td>
+<td><strong>1015.49 ms</strong></td>
+<td>❌ 函数包裹，<strong>3000 倍</strong></td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>WHERE status LIKE 'published%' ...</code></td>
+<td><code>SCAN</code> + <code>TEMP B-TREE</code></td>
+<td><strong>936.83 ms</strong></td>
+<td>❌ LIKE 没能走索引</td>
+</tr>
+<tr>
+<td>D</td>
+<td><code>WHERE title LIKE '%article 19999%'</code></td>
+<td><code>SCAN USING COVERING INDEX</code></td>
+<td>25.38 ms</td>
+<td>⚠️ 全扫，但覆盖索引救了它</td>
+</tr>
+<tr>
+<td>E</td>
+<td><code>WHERE status != 'draft' ...</code></td>
+<td><code>SCAN</code> + <code>TEMP B-TREE</code></td>
+<td><strong>948.18 ms</strong></td>
+<td>❌ 不等值</td>
+</tr>
+<tr>
+<td>F</td>
+<td><code>WHERE status='published' OR status='scheduled' ...</code></td>
+<td><code>SEARCH USING INDEX</code> + <code>TEMP B-TREE</code></td>
+<td>0.38 ms</td>
+<td>🟡 索引用上了，排序没用上</td>
+</tr>
+<tr>
+<td>G</td>
+<td><code>SELECT status, created_at WHERE status='published'</code></td>
+<td><code>SEARCH USING COVERING INDEX</code></td>
+<td>0.30 ms</td>
+<td>✅ 覆盖索引</td>
+</tr>
+<tr>
+<td>H</td>
+<td><code>SELECT id, title WHERE status='published'</code></td>
+<td><code>SEARCH USING INDEX</code></td>
+<td>0.23 ms</td>
+<td>✅ 回表，但 <code>LIMIT 10</code> 让它无所谓</td>
+</tr>
+<tr>
+<td>I</td>
+<td><code>WHERE created_at &gt; '2025-06-01'</code>（跳过最左列）</td>
+<td><code>SCAN USING COVERING INDEX</code></td>
+<td><strong>216.15 ms</strong></td>
+<td>❌ 违反最左前缀</td>
+</tr>
+<tr>
+<td>J</td>
+<td><code>WHERE status='published' AND created_at &gt; '2025-06-01'</code></td>
+<td><code>SEARCH ... (status=? AND created_at&gt;?)</code></td>
+<td><strong>0.28 ms</strong></td>
+<td>✅ <strong>770 倍差距</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>7.1 三个最有价值的发现</h3>
+
+<strong>① 函数包裹是最贵的错误（B，3000 倍）。</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 索引失效：索引里存的是 status 的原值，不是 substr(status,1,9)</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">extra</span><span class="p">(</span><span class="n">where</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;substr(status,1,9)=&#39;published&#39;&quot;</span><span class="p">])</span>   <span class="c1"># 千万别这么写</span>
+
+<span class="c1"># ✅ 索引有效</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;published&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+原理：索引存的是<strong>列的原值</strong>。一旦你给列套上函数（<code>substr</code>、<code>date()</code>、<code>lower()</code>、<code>UPPER()</code>、<code>CAST()</code>），数据库就没法用索引里的有序值去定位了，只能逐行算函数值再比——<strong>索引瞬间变成摆设</strong>。
+
+Django 里最常见的三个"隐形函数包裹"：
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 日期函数</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">created_at__date</span><span class="o">=</span><span class="s2">&quot;2026-09-11&quot;</span><span class="p">)</span>
+<span class="c1"># ✅ 用范围表达同一天</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">created_at__gte</span><span class="o">=</span><span class="s2">&quot;2026-09-11&quot;</span><span class="p">,</span> <span class="n">created_at__lt</span><span class="o">=</span><span class="s2">&quot;2026-09-12&quot;</span><span class="p">)</span>
+
+<span class="c1"># ❌ 大小写转换</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">title__lower__contains</span><span class="o">=</span><span class="s2">&quot;django&quot;</span><span class="p">)</span>
+<span class="c1"># ✅ 让数据库层用不区分大小写的排序规则，或存一份规范化字段</span>
+
+<span class="c1"># ❌ 类型转换</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">views_count__contains</span><span class="o">=</span><span class="s2">&quot;12&quot;</span><span class="p">)</span>
+<span class="c1"># ✅ 用数字字段比较</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">views_count__gte</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>created_at__date=</code> 是最隐蔽的一个——它读起来人畜无害，实际上生成的是 <code>django_datetime_cast_date(...)</code>，索引直接报废。
+
+<strong>② <code>LIKE 'published%'</code> 居然也失效了（C，936 ms）。</strong>
+
+这一条反直觉到值得单独说。前缀通配（<code>'abc%'</code>）<strong>理论上</strong>是可以走索引的，但 SQLite 默认的 <code>LIKE</code> 对 ASCII 是<strong>不区分大小写</strong>的，而索引是区分大小写的 <code>BINARY</code> 排序——两者语义不匹配，于是优化器放弃索引。
+
+想在 SQLite 里让 <code>LIKE 'prefix%'</code> 走索引，需要 <code>PRAGMA case_sensitive_like=ON</code>（或给列加 <code>COLLATE NOCASE</code>）。<strong>而更根本的建议是：能用 <code>=</code> 就别用 <code>LIKE</code>。</strong> 等值查询走索引没有任何歧义。
+
+MySQL 的规则不同：<code>LIKE 'abc%'</code> 在默认排序规则下可以走索引，但 <code>LIKE '%abc'</code> 和 <code>LIKE '%abc%'</code> 一定不行。
+
+<strong>③ 前缀通配 <code>LIKE '%xxx%'</code> 是最没救的（D）。</strong>
+
+左侧有通配符 = 没有起点 = 索引无法定位，只能全扫。D 组之所以只有 25 ms（而不是 900 ms），是因为它命中了 <code>COVERING INDEX</code>——只扫 <code>title</code> 这一个索引文件（行窄），不用读整张表。
+<blockquote>
+
+<strong>这就是"覆盖索引"的实战价值：同样都是 <code>SCAN</code>，扫索引比扫表便宜 10~40 倍。</strong> 如果某个字段查询频繁又只需要少数几列，一个覆盖索引能把最坏情况显著变好。
+</blockquote>
+<h3>7.2 <code>OR</code> 不是不能优化（F）</h3>
+
+很多人背过"<code>OR</code> 会导致索引失效"，但 SQLite 3.9+ 有 OR 优化（对每个分支各走一次索引再合并）。F 组实测 0.38 ms，索引<strong>确实用上了</strong>，只是排序还得自己来（<code>TEMP B-TREE</code>）。
+
+MySQL 同理：<code>OR</code> 在 5.0+ 也能通过 index merge 用索引，但 <strong>index merge 的代价常常被低估</strong>，而且一旦有一个分支用不上索引，整个查询就退化成全扫。<strong>能改写成 <code>IN</code> 或 <code>UNION ALL</code> 就改写。</strong>
+<h3>7.3 最左前缀：770 倍的差距只差一个条件（I vs J）</h3>
+
+I 和 J 的差别只有一处：<strong>有没有带上最左列 <code>status</code></strong>。
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 跳过最左列 → SCAN USING COVERING INDEX，216.15 ms</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">created_at__gt</span><span class="o">=</span><span class="s2">&quot;2025-06-01&quot;</span><span class="p">)</span>
+
+<span class="c1"># ✅ 带上最左列 → SEARCH (status=? AND created_at&gt;?)，0.28 ms</span>
+<span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;published&quot;</span><span class="p">,</span> <span class="n">created_at__gt</span><span class="o">=</span><span class="s2">&quot;2025-06-01&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+原因：索引 <code>(status, created_at)</code> 的物理顺序是"先 status 再 created_at"。不给 <code>status</code>，就没法在索引里定位起点，只能从头扫到尾（虽然扫的是索引，快一点，但还是全扫）。
+<blockquote>
+
+<strong>最左前缀的准确表述：索引可以从最左列开始被连续使用；一旦某个中间列缺失，它右边的列就无法用于定位。</strong>
+
+另外注意"<strong>范围条件会截断后续列</strong>"：索引 <code>(a, b, c)</code> 遇到 <code>WHERE a=1 AND b&gt;10 AND c=2</code>，<code>c</code> 就用不上索引定位了（<code>b</code> 是范围，后面断了）。所以列顺序要按"等值 → 范围 → 排序"来排。
+</blockquote>
+<hr>
+<h2>8. 第二个慢查询：深翻页 OFFSET 900000</h2>
+
+回到 4.3 的数字：新索引把深翻页从 1131 ms 压到 110 ms。<strong>但 110 ms 依然是慢查询。</strong>
+
+因为 <code>OFFSET</code> 的语义决定了它必须"先数过去，再丢掉"：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">articles_article</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;published&#39;</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">is_top</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">900000</span><span class="p">;</span><span class="w">    </span><span class="c1">-- 数据库必须定位并跳过前 90 万行</span>
+</code></pre></div>
+
+
+无论索引多完美，<code>OFFSET 900000</code> 都要先走过 90 万行。<strong>这是 O(offset) 的固有成本，索引救不了。</strong>
+<h3>8.1 解法：游标分页（keyset pagination）</h3>
+
+思路是<strong>不用"第几页"，用"上一页最后一行的位置"</strong>：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 第一页</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">is_top</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">articles_article</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;published&#39;</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">is_top</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+
+<span class="c1">-- 下一页：把上一页最后一行记作游标 (last_is_top, last_created_at)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">is_top</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">articles_article</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;published&#39;</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="p">(</span><span class="n">is_top</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">)</span><span class="w">      </span><span class="c1">-- SQLite 3.15+ / PostgreSQL 支持行值比较</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">is_top</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+</code></pre></div>
+
+
+索引直接定位到游标位置，往后读 10 行。<strong>无论第几页，都是 0.2 ms 量级。</strong> MySQL 8 需要用 <code>(is_top &lt; ?) OR (is_top = ? AND created_at &lt; ?)</code> 的展开写法（<code>ROW(...) &lt; ROW(...)</code> 在 MySQL 里不能走索引）。
+
+DRF 自带 <code>CursorPagination</code>：
+<div class="codehilite"><pre><span></span><code><span class="c1"># blog_api/settings.py</span>
+<span class="n">REST_FRAMEWORK</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;DEFAULT_PAGINATION_CLASS&quot;</span><span class="p">:</span> <span class="s2">&quot;rest_framework.pagination.CursorPagination&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;PAGE_SIZE&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1"># articles/views.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">CursorPagination</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleCursorPagination</span><span class="p">(</span><span class="n">CursorPagination</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="s2">&quot;-created_at&quot;</span>        <span class="c1"># 必须是唯一且不变的字段</span>
+</code></pre></div>
+
+<h3>8.2 一个诚实的坑：置顶和游标分页天然冲突</h3>
+
+<code>CursorPagination.ordering</code> <strong>只支持单个字段</strong>，而且要求这个字段<strong>唯一且不变</strong>——因为它把该字段的值当作游标。而我们的列表是 <code>ORDER BY is_top DESC, created_at DESC</code>，两个问题：
+<ol>
+<li>组合排序，游标分页不支持；</li>
+<li><code>is_top</code> <strong>会被编辑</strong>（置顶/取消置顶）。一旦某篇文章的 <code>is_top</code> 变了，游标就失效——用户翻页时可能看到重复或漏掉的文章。</li>
+</ol>
+
+务实的折中方案：<strong>把置顶文章单独查一次，列表主体用 <code>created_at</code> 游标分页。</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 置顶文章最多几篇，一次查完，不走分页</span>
+<span class="n">top_articles</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">,</span> <span class="n">is_top</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;-created_at&quot;</span><span class="p">)</span>
+
+<span class="c1"># 列表主体：游标分页，游标字段用不可变的 created_at</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleCursorPagination</span><span class="p">(</span><span class="n">CursorPagination</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="s2">&quot;-created_at&quot;</span>
+</code></pre></div>
+
+
+<strong>为什么不在列表里"合并"两批？</strong> 因为那样分页游标就跨了两个数据集，边界会出错。分成"置顶区 + 分页区"两块渲染，前端也更好做（置顶区本来就是特殊样式）。
+<blockquote>
+
+顺便说一句：<strong>游标分页的代价是失去"跳转到第 N 页"的能力</strong>。如果产品需求是"显示 1/50 页"的页码条，那就得接受 <code>OFFSET</code>，转而用第 9 节的办法把 <code>COUNT</code> 的成本降下来。<strong>这是一个产品决策，不是纯技术决策。</strong>
+</blockquote>
+<hr>
+<h2>9. COUNT(*) 也是慢查询</h2>
+
+DRF 的 <code>PageNumberPagination</code> 每页都会执行一次 <code>COUNT(*)</code> 来算总数。在 90 万行已发布数据上实测：
+<div class="codehilite"><pre><span></span><code>SELECT count(*) FROM articles_article WHERE status=&#39;published&#39;
+→ SEARCH articles_article USING COVERING INDEX idx_status_created (status=?)
+→ 88.05 ms
+</code></pre></div>
+
+
+<strong>88 ms，只为渲染一个"共 128 篇 / 第 1 页"的页码条。</strong>
+
+注意它的执行计划是 <code>COVERING INDEX</code>——SQLite 不用读表，只数索引项。这是最好的情况了，但它依然是 O(n)：<strong>要数 90 万个索引项。</strong>
+<h3>9.1 四种应对</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>做法</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 缓存总数</td>
+<td><code>cache.get_or_set("article_count", ...)</code>，TTL 60s</td>
+<td>最省事，绝大多数博客/内容站够用</td>
+</tr>
+<tr>
+<td>② 不显示总数</td>
+<td>前端只显示"上一页/下一页"</td>
+<td>配合游标分页，成本直接归零</td>
+</tr>
+<tr>
+<td>③ 用估算值</td>
+<td>MySQL <code>EXPLAIN</code> 的 <code>rows</code> 列、PG 的 <code>pg_class.reltuples</code></td>
+<td>显示"约 100 篇"，不要求精确</td>
+</tr>
+<tr>
+<td>④ 物化计数</td>
+<td>单独一张统计表，写入时 <code>+1</code></td>
+<td>计数极频繁且要求精确时</td>
+</tr>
+</tbody>
+</table>
+
+本站用的是 ①+② 的组合：列表页不显示精确总数，分类页的文章数用 <code>annotate(Count(...))</code> 一次查出（见上一篇）。
+<h3>9.2 一个容易忽略的点：<code>COUNT(*)</code> 和 <code>COUNT(id)</code> 一样慢</h3>
+
+InnoDB 里 <code>COUNT(*)</code> 和 <code>COUNT(id)</code> 都要选一个最小的可用索引来数，性能差别很小；<strong>真正快的是 <code>COUNT(1)</code> 吗？也不是</strong>——它们本质都是"数行数"，没有捷径。<strong>唯一真正的捷径是不数。</strong>
+<blockquote>
+
+MySQL 里 <code>COUNT(*)</code> 用二级索引比用主键索引快，因为二级索引更小——这是唯一可做的优化：<strong>确保有一个窄的、包含 WHERE 列的索引</strong>。本文的 <code>(status, is_top DESC, created_at DESC)</code> 恰好就是这样一个索引。
+</blockquote>
+<hr>
+<h2>10. 索引不是越多越好：写放大与选择性</h2>
+
+到这里很容易产生一个冲动："那我给每个字段都建索引不就行了？"
+
+<strong>不行。</strong> 索引的代价有三层：
+<h3>10.1 写放大</h3>
+
+每建一个索引，就要多维护一棵 B+ 树：
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>1 个索引</th>
+<th>5 个索引</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INSERT</code></td>
+<td>写表 + 写 1 棵树</td>
+<td>写表 + 写 5 棵树</td>
+</tr>
+<tr>
+<td><code>UPDATE status</code></td>
+<td>更新表 + 更新 1 棵树</td>
+<td>更新表 + 更新 5 棵树</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td>删表行 + 删 1 棵树</td>
+<td>删表行 + 删 5 棵树</td>
+</tr>
+</tbody>
+</table>
+
+博客这种读多写少的场景，5 个索引无所谓。但如果是"每秒写入上千条"的业务表，每个多余索引都在实打实地拖慢写入、并占用缓冲池。
+<h3>10.2 选择性（区分度）</h3>
+
+<strong>区分度 = 不同值的个数 / 总行数。</strong> 区分度越低，索引越没用。
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>不同值</th>
+<th>100 万行中的区分度</th>
+<th>建索引有用吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slug</code></td>
+<td>~100 万</td>
+<td>≈ 1.0</td>
+<td>✅ 极有用（本身就唯一）</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>~100 万</td>
+<td>≈ 1.0</td>
+<td>✅ 有用</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>4</td>
+<td>0.000004</td>
+<td>❌ 单独建索引几乎无用</td>
+</tr>
+<tr>
+<td><code>is_top</code></td>
+<td>2</td>
+<td>0.000002</td>
+<td>❌ 单独建索引完全无用</td>
+</tr>
+</tbody>
+</table>
+
+看我们的索引 <code>(status, is_top DESC, created_at DESC)</code>：前两列区分度极低，<strong>整个索引的价值 99.9% 来自最后一列 <code>created_at</code></strong>。前两列的作用不是"过滤"，而是<strong>让索引的物理顺序和 <code>ORDER BY</code> 对齐</strong>——这正是本文的主题。
+<blockquote>
+
+<strong>所以判断一个索引该不该建，要问两个问题：</strong>
+1. 它的<strong>最左列</strong>能过滤掉多少行？（选择性）
+2. 它的<strong>列顺序</strong>能对齐哪个 <code>ORDER BY</code>？（有序性）
+
+两个都答不上来的索引，就是在白付写放大。
+</blockquote>
+<h3>10.3 存储</h3>
+
+63 MB 的表，三个索引加起来让库文件涨到 128 MB。生产环境里索引占用超过数据本身是常态，磁盘和备份成本都要算进去。
+<h3>10.4 怎么找出"没用的索引"</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- PostgreSQL：直接查索引使用次数</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">indexrelname</span><span class="p">,</span><span class="w"> </span><span class="n">idx_scan</span><span class="p">,</span><span class="w"> </span><span class="n">idx_tup_read</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_user_indexes</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">idx_scan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pg_relation_size</span><span class="p">(</span><span class="n">indexrelid</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+
+
+MySQL 没有这么直接的视图（<code>sys.schema_unused_indexes</code> 需要 performance_schema 开启）。最土也最可靠的办法是：<strong>把所有 <code>order_by</code> / <code>filter</code> 列出来，逐个和现有索引做匹配，找不到主人的索引就是候选删除对象。</strong>
+<hr>
+<h2>11. 方法论：五步定位慢查询</h2>
+
+把本文所有动作整理成一套可复用的流程：
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>动作</th>
+<th>工具 / 命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① <strong>先量</strong></td>
+<td>找出最慢的接口和 SQL，别猜</td>
+<td>Django Debug Toolbar、django-silk、Sentry Performance、MySQL slow log + <code>pt-query-digest</code></td>
+</tr>
+<tr>
+<td>② <strong>拆账</strong></td>
+<td>分清是"条数多"还是"单条慢"</td>
+<td><code>CaptureQueriesContext</code> 同时给出条数和每条耗时</td>
+</tr>
+<tr>
+<td>③ <strong>看计划</strong></td>
+<td>拿执行计划，找 <code>SCAN</code> / <code>TEMP B-TREE</code></td>
+<td><code>EXPLAIN QUERY PLAN</code>（SQLite）/ <code>EXPLAIN</code>（MySQL）/ <code>EXPLAIN ANALYZE</code>（PG、MySQL 8.0.18+）</td>
+</tr>
+<tr>
+<td>④ <strong>改索引或改 SQL</strong></td>
+<td>优先对齐 <code>ORDER BY</code>；其次消除函数包裹、前缀通配、跳过最左列</td>
+<td>改 <code>Meta.indexes</code> + <code>makemigrations</code>，或改 queryset</td>
+</tr>
+<tr>
+<td>⑤ <strong>用数字验证</strong></td>
+<td>改前改后各跑一次执行计划和耗时，<strong>必须看到 <code>TEMP B-TREE</code> 消失或 <code>SCAN</code> 变 <code>SEARCH</code></strong></td>
+<td>同上，另加 <code>assertNumQueries</code> 防回归</td>
+</tr>
+</tbody>
+</table>
+<h3>11.1 第 ⑤ 步值得单独立规矩</h3>
+
+<strong>性能优化最大的敌人是"感觉快了"。</strong> 本文所有数字都是本地实测，因为：
+<ul>
+<li>9 篇文章的数据量下，0.18 ms 和 476 ms 都是 0.0x ms，你的眼睛分不出；</li>
+<li>数据量小的时候，<code>SCAN</code> 甚至可能比 <code>SEARCH</code> 快（顺序读 vs 随机读）——<strong>你凭体感优化，可能是在优化反方向</strong>。</li>
+</ul>
+
+所以定一条硬规矩：
+<blockquote>
+
+<strong>任何性能改动，必须能回答两个问题：改之前的数字是多少？改之后的数字是多少？</strong>
+答不上来，就不是优化，是改代码。
+</blockquote>
+<h3>11.2 别忘了回归测试</h3>
+
+索引是会被"改回去"的——某天有人给列表页加个新排序，<code>ORDER BY is_top DESC, created_at DESC, views_count DESC</code>，你的索引又废了。用断言把性能要求钉在测试里：
+<div class="codehilite"><pre><span></span><code><span class="c1"># articles/tests/test_query_plan.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.test</span><span class="w"> </span><span class="kn">import</span> <span class="n">TestCase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">articles.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Article</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">QueryPlanTests</span><span class="p">(</span><span class="n">TestCase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;列表页的 SQL 不允许出现全表扫描或额外排序。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_list_query_uses_index_without_sort</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">qs</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+        <span class="n">sql</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">qs</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">sql_with_params</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cur</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;EXPLAIN QUERY PLAN &quot;</span> <span class="o">+</span> <span class="n">sql</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="n">plan</span> <span class="o">=</span> <span class="s2">&quot; | &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">())</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertNotIn</span><span class="p">(</span><span class="s2">&quot;TEMP B-TREE&quot;</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;排序没走索引，执行计划：</span><span class="si">{</span><span class="n">plan</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertNotIn</span><span class="p">(</span><span class="s2">&quot;SCAN articles_article&quot;</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;发生全表扫描：</span><span class="si">{</span><span class="n">plan</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>把执行计划写成测试断言</strong>——这是本文最想推荐的一个实践。它把"性能"从"上线后才发现的问题"变成"提交时就被拦住的问题"。
+<hr>
+<h2>12. 上线 Checklist</h2>
+
+改索引/改慢查询之前，逐条过一遍：
+<ul>
+<li>[ ] 用 <code>EXPLAIN</code> 确认了<strong>改之前的执行计划</strong>，并且记下了数字（耗时 + 扫描行数）</li>
+<li>[ ] 索引列顺序是"<strong>等值列 → 范围列 → 排序列</strong>"</li>
+<li>[ ] <code>ORDER BY</code> 的<strong>每一列和方向</strong>都在索引里逐项对齐（含 <code>DESC</code>）</li>
+<li>[ ] SQL 里没有<strong>函数包裹</strong>索引列（<code>__date</code>、<code>__lower</code>、<code>CAST</code> 都是重灾区）</li>
+<li>[ ] 没有左侧通配的 <code>LIKE '%...%'</code></li>
+<li>[ ] 没有<strong>跳过最左列</strong>的查询</li>
+<li>[ ] <code>LIMIT</code> 配合 <code>ORDER BY</code> 时，<strong>排序也必须走索引</strong>（否则 <code>LIMIT</code> 只能省传输、不能省计算）</li>
+<li>[ ] 深翻页改用<strong>游标分页</strong>，或明确接受 <code>OFFSET</code> 的 O(n) 成本</li>
+<li>[ ] 分页总数有<strong>缓存或估算</strong>，不是每页都 <code>COUNT(*)</code></li>
+<li>[ ] 大表加索引用了<strong>在线 DDL</strong>（MySQL <code>LOCK=NONE</code> / PG <code>CONCURRENTLY</code>）</li>
+<li>[ ] 改完后 <code>EXPLAIN</code> 里 <strong><code>TEMP B-TREE</code> 消失</strong>、<code>SCAN</code> 变 <code>SEARCH</code></li>
+<li>[ ] 补了一条<strong>执行计划断言测试</strong>，防止未来被改回去</li>
+<li>[ ] 检查了旧索引还有没有主人，没有就删掉（减少写放大）</li>
+</ul>
+<hr>
+<h2>13. 结语</h2>
+
+回头看这次的发现，其实只有一句话：
+<blockquote>
+
+<strong>索引的价值有两半——一半是"加速查找"，一半是"提供有序性"。大多数人只用了前一半。</strong>
+</blockquote>
+
+线上那个 <code>(status, created_at DESC)</code> 索引，用上了前一半：它把 100 万行过滤到 90 万行，看起来"索引生效了"。但它没用上后一半：<code>ORDER BY is_top DESC</code> 那一列不在索引里，于是数据库只能老老实实排 90 万行。
+
+而 <code>TEMP B-TREE FOR ORDER BY</code> 这个提示，SQLite 一直都明明白白写在那里。<strong>只是从来没人去看执行计划。</strong>
+<h3>三条带走的清单</h3>
+<blockquote>
+<ol>
+<li><strong><code>ORDER BY</code> 的每一列和方向，都要在索引里逐项对齐。</strong> 少一列、错一个 <code>DESC</code>，就等于没索引——甚至更慢（S2 的 691 ms）。</li>
+<li><strong>数据量小的时候，索引失效是看不见的。</strong> 想验证索引，就要造数据；想看执行计划，就要 <code>EXPLAIN</code>。<strong>别用体感优化数据库。</strong></li>
+<li><strong>把执行计划写成测试断言。</strong> 性能不是一次性任务，是每次加字段、加排序、加接口都会回来的慢性病。</li>
+</ol>
+</blockquote>
+
+上一篇我写"最热的那个接口，往往就是灯下黑的那个"。这一篇的补充是：<strong>灯下黑的地方，不报错、不变红、测试全绿——它只是随着你的数据，一点一点变慢。</strong>
+
+而发现它只需要一行命令。去看执行计划吧。
+<hr>
+<h3>附：本文实验脚本</h3>
+
+如果你想把本文的数字在自己机器上复现：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. 看真实执行计划（只读，不改数据；需要 Django，用 backend 的虚拟环境跑）</span>
+<span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./venv/bin/python<span class="w"> </span>../tools/explain.py
+<span class="c1"># Windows 用户：cd backend &amp;&amp; ./venv/Scripts/python.exe ../tools/explain.py</span>
+
+<span class="c1"># 2. 造 100 万行，跑四组索引对照（纯标准库，不依赖 Django）</span>
+python<span class="w"> </span>tools/bench_index_order_by.py
+python<span class="w"> </span>tools/bench_index_order_by.py<span class="w"> </span>--rows<span class="w"> </span><span class="m">200000</span><span class="w"> </span>--runs<span class="w"> </span><span class="m">3</span><span class="w">    </span><span class="c1"># 想快点跑</span>
+</code></pre></div>
+
+
+<code>tools/explain.py</code> 会直接把有问题的执行计划标出来，比如：
+<div class="codehilite"><pre><span></span><code><span class="err">===</span><span class="w"> </span><span class="n">文章列表页（模型默认</span><span class="w"> </span><span class="n">ordering：</span><span class="err">-</span><span class="n">is_top</span><span class="p">,</span><span class="w"> </span><span class="err">-</span><span class="n">created_at）</span><span class="w"> </span><span class="err">===</span>
+<span class="n">PLAN</span><span class="err">:</span>
+<span class="w">  </span><span class="k">SEARCH</span><span class="w"> </span><span class="n">articles_article</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">articles_status_created_idx</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="err">=</span><span class="nv">?</span><span class="p">)</span>
+<span class="w">  </span><span class="n">USE</span><span class="w"> </span><span class="k">TEMP</span><span class="w"> </span><span class="n">B</span><span class="o">-</span><span class="n">TREE</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span>
+<span class="w">  </span><span class="err">&gt;&gt;&gt;</span><span class="w"> </span><span class="n">警告：排序</span><span class="o">/</span><span class="n">分组没走索引（TEMP</span><span class="w"> </span><span class="n">B</span><span class="o">-</span><span class="n">TREE）</span>
+
+<span class="err">===</span><span class="w"> </span><span class="n">对照：去掉</span><span class="w"> </span><span class="n">is_top</span><span class="w"> </span><span class="n">的排序</span><span class="w"> </span><span class="err">===</span>
+<span class="n">PLAN</span><span class="err">:</span>
+<span class="w">  </span><span class="k">SEARCH</span><span class="w"> </span><span class="n">articles_article</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">articles_status_created_idx</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="err">=</span><span class="nv">?</span><span class="p">)</span>
+</code></pre></div>
+
+
+环境口径：SQLite 3.50.4 / Django 6.0.6 / Python 3.13 / 每条 SQL 7 次取中位数。
+两个脚本都在系统临时目录里建临时库，跑完自动删除，<strong>不会碰 <code>backend/db.sqlite3</code></strong>。</div></div></noscript>
+  </body>
+</html>

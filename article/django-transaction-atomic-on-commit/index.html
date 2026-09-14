@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/" />
+    <meta property="og:title" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）" />
+    <meta property="og:description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）" />
+    <meta name="twitter:description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-14T10:39:13.728721+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）","description":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:39:13.728721+08:00","dateModified":"2026-09-14T10:40:16.570367+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）</h1>
+<blockquote>
+
+承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，"并发三件套"的最后一篇。
+技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 / PostgreSQL 差异处会单独标注。
+阅读时间：约 30 分钟 | 难度：中高级 | 收获：能把"事务、并发、副作用"三件事一次性想明白，并写出经得起并发的代码
+</blockquote>
+<h2>前言：一场邮件事故</h2>
+
+写这篇之前，我重新读了一遍站上的代码，在 <code>backend/articles/signals.py</code> 里看到这样一段（为了行文有删节）：
+<div class="codehilite"><pre><span></span><code><span class="nd">@receiver</span><span class="p">(</span><span class="n">post_save</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">Article</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">notify_subscribers_on_publish</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">created</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">notification_sent</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c1"># ... 准备 subject、plain_body ...</span>
+
+    <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">subscribers_qs</span><span class="o">.</span><span class="n">iterator</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">200</span><span class="p">):</span>
+        <span class="n">batch</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">subject</span><span class="p">,</span> <span class="n">plain_body</span><span class="p">,</span> <span class="n">from_email</span><span class="p">,</span> <span class="p">[</span><span class="n">sub</span><span class="o">.</span><span class="n">email</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">batch_size</span><span class="p">:</span>           <span class="c1"># 一批 50 封</span>
+            <span class="n">send_mass_mail</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>         <span class="c1"># 同步 SMTP，阻塞</span>
+            <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+
+它做了一件正确的事——用 <code>notification_sent</code> 字段做幂等开关——但同时做了两件<strong>结构性有问题</strong>的事：
+<ol>
+<li><strong>在 <code>post_save</code> 信号里同步群发邮件。</strong> 一封邮件几百毫秒，一批 50 封，订阅者上千时这次 <code>save()</code> 要把 HTTP 请求拖住几十秒。信号是同步执行的，没人拦得住。</li>
+<li><strong><code>post_save</code> 在事务还没提交时就跑了。</strong> 如果外面有 <code>transaction.atomic()</code>、或者 <code>ATOMIC_REQUESTS=True</code> 把请求包在事务里、然后 <code>save()</code> 之后业务校验抛异常导致回滚——邮件已经发出去了，<code>notification_sent</code> 的 <code>update</code> 跟着回滚变回 False，下次再 <code>save()</code> 又发一遍。</li>
+</ol>
+
+第二点尤其要命：<strong>事务回滚只回滚数据库，不会回滚已发出的 HTTP 请求和邮件。</strong>
+
+这两件事的修法都是同一个东西：<strong><code>transaction.on_commit</code></strong>。但在我把修法写出来之前，先把"事务"这件事真正搞懂——因为 Django 里关于事务的误解，比 Redis 分布式锁那篇里讲过的还要多。
+
+<strong>目录</strong>
+<ul>
+<li>先看清你站上的事务边界：<code>ATOMIC_REQUESTS</code>、<code>CONN_MAX_AGE</code>、<code>autocommit</code></li>
+<li>实验一：丢失更新——8 线程并发自增，87.5% 的更新无声无息地没了</li>
+<li>实验二：只改一个计数器，<code>save()</code> 比 <code>update()</code> 慢 14.7 倍</li>
+<li>实验三：事务回滚时，<code>post_save</code> 里发出去的邮件收不回来</li>
+<li>实验四：在 <code>atomic</code> 里捕获异常，继续查库——<code>TransactionManagementError</code></li>
+<li><code>transaction.on_commit</code> 的完整用法与三个坑</li>
+<li>三条事务心智模型，看完就能避开 90% 的坑</li>
+<li>SQLite / MySQL / PostgreSQL 的事务差异表</li>
+<li>上线 Checklist</li>
+<li>结语</li>
+</ul>
+<hr>
+<h2>1. 先看清你站上的事务边界</h2>
+
+跑一个小脚本（<a href="#附本文实验脚本">本文附录的 <code>tools/bench_transaction.py</code></a>）就能把"你这套 Django 的事务底层到底是按什么方式工作的"摸得一清二楚。在做本站（<code>backend/db.sqlite3</code> + Django 6.0.6 + Python 3.13）上的实测时，第一个输出是：
+<div class="codehilite"><pre><span></span><code>ENGINE                : django.db.backends.sqlite3
+ATOMIC_REQUESTS       : False
+CONN_MAX_AGE          : 0
+has_select_for_update : False
+</code></pre></div>
+
+
+四行里藏着四个事实，每一件都可能影响你接下来写的代码：
+<h3>1.1 <code>ATOMIC_REQUESTS = False</code>（默认）</h3>
+
+Django 默认<strong>不会</strong>把每个 HTTP 请求自动包在一个事务里。一个视图方法里的 <code>save()</code>、连带的 <code>update()</code>，各自都是独立的小事务（甚至在 SQLite 上是 autocommit、每条 SQL 独立提交）。
+
+意味着：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">grant_points</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">delta</span><span class="p">):</span>
+    <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">user_id</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">points</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;points&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">delta</span><span class="p">)</span>  <span class="c1"># 事务 #1</span>
+    <span class="n">PointLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">)</span>              <span class="c1"># 事务 #2</span>
+</code></pre></div>
+
+
+这两行是<strong>两个独立事务</strong>。中间如果崩了，会留下"加了积分但没记账"的脏数据。要么你自己 <code>with transaction.atomic():</code> 包起来，要么在 <code>DATABASES</code> 里把 <code>ATOMIC_REQUESTS</code> 设为 <code>True</code>（Django 会把整个请求包成一个事务，回滚等价于整个请求没发生过）。
+<blockquote>
+
+<strong><code>ATOMIC_REQUESTS=True</code> 是开还是关？</strong> 这是一个工程权衡，不是绝对的好坏。开了，请求粒度的"全有或全无"自动就有了，但所有视图都得按"可能随时被回滚"来写，关掉非必要的写入。关了，自己写 <code>atomic</code> 更灵活但每个 <code>save()</code> 都得想清楚。本站是<strong>关</strong>，因为视图里要做一些不能包进事务的事——比如发通知、调第三方 API——这些事天然不能在事务里。
+</blockquote>
+<h3>1.2 <code>CONN_MAX_AGE = 0</code>（默认）</h3>
+
+连接最大存活时间。<code>0</code> 表示每次请求都关掉数据库连接，下次重新开。对 SQLite 这种嵌入式数据库几乎无所谓（建立连接就是 open 一个文件，几十微秒）。但对 MySQL/PostgreSQL，开连接的 TCP 握手 + 鉴权可能要 10-100ms——并发量起来之后这是隐形瓶颈。
+
+生产里 MySQL/PG 一般会设：
+<div class="codehilite"><pre><span></span><code><span class="n">DATABASES</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+    <span class="s2">&quot;CONN_MAX_AGE&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">,</span>           <span class="c1"># 60 秒内的连接复用</span>
+    <span class="s2">&quot;CONN_HEALTH_CHECKS&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>   <span class="c1"># Django 4.1+：复用前先 SELECT 1</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+本站是 SQLite + PythonAnywhere，每次请求关连接也没人盯着，所以保持默认。要切到 MySQL/PG 时记得改这一行。
+<h3>1.3 <code>has_select_for_update = False</code></h3>
+
+这个布尔值 Django 是从数据库能力探测出来的。SQLite 不支持行级 <code>SELECT ... FOR UPDATE</code>（SQLite 是库级写锁，根本没有"行锁"这个概念），所以 Django 把这个值设成 <code>False</code>。后果是：<strong>你写 <code>.select_for_update()</code> 不会报错，Django 直接忽略它。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_for_update</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>   <span class="c1"># 在 SQLite 上 = 不加锁</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">views_count</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</code></pre></div>
+
+
+你以为"加了行锁，别的并发拿不到"，事实上锁根本没存在。这一节稍后会用实验证明。
+<h3>1.4 autocommit 与隐式事务</h3>
+
+Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要进入"事务模式"，得显式 <code>with transaction.atomic():</code>。
+
+这对新手很反直觉：你以为 <code>save()</code> 是事务，事实上一条 <code>save()</code> 在 SQLite 上可能是十几条独立提交的 SQL（<code>save()</code> 触发的信号、<code>update()</code> 的 cascade、m2m 表的写入……）。<strong>"<code>save()</code> 是一条 SQL"这个心智模型是错的。</strong>
+<hr>
+<h2>2. 实验一：丢失更新——8 线程并发自增，87.5% 的更新无声无息地没了</h2>
+<h3>2.1 场景与代码</h3>
+
+最经典的并发竞态：一篇文章被多个请求同时访问，每个请求里：
+<div class="codehilite"><pre><span></span><code><span class="n">a</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>        <span class="c1"># SELECT</span>
+<span class="n">a</span><span class="o">.</span><span class="n">views_count</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">views_count</span> <span class="o">+</span> <span class="mi">1</span>    <span class="c1"># Python 自增</span>
+<span class="n">a</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;views_count&quot;</span><span class="p">])</span>  <span class="c1"># UPDATE</span>
+</code></pre></div>
+
+
+直觉上应该没问题——<code>views_count</code> 是整数，<code>+1</code> 谁不会？<strong>但它在并发下是错的</strong>，因为两步之间会插进别人的写。
+
+我在本地跑了四种写法，每种用 <strong>8 个线程 × 50 次自增 = 400 次期望期望</strong>期望，期望最终 <code>views_count = 400</code>。结果：
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>最终值</th>
+<th>丢失</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A 读-改-写（autocommit）</td>
+<td>50</td>
+<td><strong>350（87.5%）</strong></td>
+<td>4819 ms</td>
+</tr>
+<tr>
+<td>B 读-改-写 + <code>transaction.atomic()</code></td>
+<td>50</td>
+<td><strong>350（87.5%）</strong></td>
+<td>571 ms</td>
+</tr>
+<tr>
+<td>C <code>F()</code> 表达式（单条 UPDATE）</td>
+<td><strong>400</strong></td>
+<td><strong>0</strong></td>
+<td>3302 ms</td>
+</tr>
+<tr>
+<td>D <code>atomic</code> + <code>select_for_update()</code></td>
+<td>50</td>
+<td><strong>350（87.5%）</strong></td>
+<td>573 ms</td>
+</tr>
+</tbody>
+</table>
+
+注意 B 和 D 跑得比 A 快——但不是因为它们"更好"，是因为 <strong>7/8 线程直接 <code>OperationalError: database is locked</code> 退出了</strong>。剩下的 1 个线程做完 50 次写完，线程结束留下 50。
+<h3>2.2 逐行解读</h3>
+
+<strong>A 读-改-写（autocommit），87.5% 丢失：这是最危险的一种——它不报错。</strong> 它的工作原理是：
+<div class="codehilite"><pre><span></span><code><span class="n">T1</span><span class="o">:</span><span class="w"> </span><span class="n">SELECT</span><span class="w"> </span><span class="n">views_count</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mi">5</span>
+<span class="n">T2</span><span class="o">:</span><span class="w"> </span><span class="n">SELECT</span><span class="w"> </span><span class="n">views_count</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mi">5</span>
+<span class="n">T1</span><span class="o">:</span><span class="w"> </span><span class="n">UPDATE</span><span class="w"> </span><span class="n">views_count</span><span class="w"> </span><span class="nf">SET</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span>
+<span class="n">T2</span><span class="o">:</span><span class="w"> </span><span class="n">UPDATE</span><span class="w"> </span><span class="n">views_count</span><span class="w"> </span><span class="nf">SET</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span><span class="w">   </span><span class="o">--</span><span class="w"> </span><span class="err">覆盖了</span><span class="w"> </span><span class="n">T1</span><span class="w"> </span><span class="err">的</span><span class="w"> </span><span class="o">+</span><span class="mi">1</span><span class="err">，丢了</span><span class="w"> </span><span class="mi">1</span>
+</code></pre></div>
+
+
+两个线程读到的旧值都是 5，各加 1 得到 6，写回 6。<strong>净增 1 而不是 2。</strong> 400 次自增下来，只有 ~50 次真的落库了（因为锁竞争让大多数并发根本没机会写，纯 Python 端的 "race window" 缩小了）。生产环境里——SQLite 不算、MySQL 上可能更糟——这种 bug 没有任何日志、监控、报错，就是数字不对。
+
+<strong>B 套上 <code>transaction.atomic()</code>，你以为能解决：</strong> <code>with transaction.atomic():</code> 在 PostgreSQL/MySQL 的默认隔离级别（READ COMMITTED）下，<strong>仍然救不了丢失更新</strong>。原因是隔离级别只管"读到的是不是已提交的数据"，不管"读完之后到写之前别人改了没有"。你读 5、别人读 5、你写 6、别人写 6——两次写都是 READ COMMITTED 之后做的，都是合法的；数据库根本不觉得哪里不对。
+
+<strong>B 加上 SQLite 的库级写锁副作用：8 个写线程挤 SQLite，7 个 <code>OperationalError: database is locked</code>，1 个做完了留下 50。</strong> 响亮地失败比静默地丢好，但仍然是错的，而且生产换 MySQL/PG 后连这点"响亮失败"都没有。
+
+<strong>C <code>F()</code> 表达式，唯一正确答案：</strong> Django 的 <code>.update(views_count=F("views_count") + 1)</code> 被翻译成一条 <code>UPDATE articles_article SET views_count = views_count + 1 WHERE id = ?</code>。<strong>这是一条 SQL，数据库自己在 UPDATE 里算新值，不读不取、不给并发留窗口。</strong> 400 次自增，最终值就是 400，没有丢失一格。
+
+本站的 <code>articles/views.py:56</code> 已经做对了：
+<div class="codehilite"><pre><span></span><code><span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">views_count</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;views_count&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>心法一：能用 <code>.update(F() + 1)</code> 就别 <code>get() + 改 + save()</code>。</strong> 一条 SQL，原子性、并发安全、性能都好。
+</blockquote>
+
+<strong>D <code>atomic</code> + <code>select_for_update()</code>，在 SQLite 上完全等于 B。</strong> 输出上证明了这一点——同样的最终值 50、同样的耗时、同样的 7 个 <code>database is locked</code>。原因就是 1.3 节说的：<code>has_select_for_update = False</code>，Django 直接把 <code>.select_for_update()</code> 忽略，没有 <code>FOR UPDATE</code> 子句，没有行锁。<strong>这是 SQLite 用户的常见错觉：我写了锁了所以并发安全——没有。</strong>
+
+要在 SQLite 上防止丢失更新，唯一可靠的做法还是 <code>F()</code> 表达式——或者迁移到支持行锁的 MySQL/PostgreSQL，然后用真正的 <code>SELECT ... FOR UPDATE</code> + <code>atomic</code>。
+<h3>2.3 那 <code>atomic</code> 到底有什么用？</h3>
+
+它管的不是"防丢失更新"，它管的是<strong>多步操作的原子性</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">transfer_money</span><span class="p">(</span><span class="n">from_id</span><span class="p">,</span> <span class="n">to_id</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">Account</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">from_id</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">balance</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;balance&quot;</span><span class="p">)</span> <span class="o">-</span> <span class="n">amount</span><span class="p">)</span>
+        <span class="n">Account</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">to_id</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">balance</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;balance&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">amount</span><span class="p">)</span>
+        <span class="n">TransferLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+
+这三条 SQL 在 <code>atomic</code> 块内，要么一起成功、要么一起回滚——中间任何一条失败（比如余额不足的 CHECK 约束），前面已经做的扣款会自动撤销。<strong>这是事务的本职工作：把"多步操作"变成"一步"。</strong>
+
+而单步 <code>update(F()+1)</code>——它本身已经是原子的（一条 SQL），不需要 <code>atomic</code> 包。
+<h3>2.4 SQLite 上多线程写入还能这么救</h3>
+
+虽然 SQLite 不能 <code>select_for_update</code>，但它有别的招让你不那么容易翻车：
+<div class="codehilite"><pre><span></span><code><span class="c1"># settings.py</span>
+<span class="n">DATABASES</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+    <span class="s2">&quot;OPTIONS&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span>        <span class="c1"># 默认 5 秒；长一点的写入不会立刻炸</span>
+        <span class="s2">&quot;init_command&quot;</span><span class="p">:</span> <span class="s2">&quot;PRAGMA journal_mode=WAL;&quot;</span><span class="p">,</span>
+        <span class="c1"># WAL 让读不阻塞写、写不阻塞读，单写串行化还在</span>
+    <span class="p">},</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+<strong>WAL + 合理 timeout</strong> 让 SQLite 在低并发下不至于一脚踢出 <code>database is locked</code>。但本质的并发上限还是<strong>单写串行化</strong>——要正经高并发，还得 MySQL/PG。
+<hr>
+<h2>3. 实验二：只改一个计数器，<code>save()</code> 比 <code>update()</code> 慢 14.7 倍</h2>
+
+我之前一直以为"改一个字段用 <code>update_fields</code> 很快"，实测把脸打肿了。在本站正文最长的一篇（pk=12，正文 19,692 字符）上：
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>耗时（中位数 20 次）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a.save(update_fields=["views_count"])</code></td>
+<td><strong>109.04 ms</strong></td>
+</tr>
+<tr>
+<td><code>.update(views_count=F("views_count") + 1)</code></td>
+<td><strong>7.40 ms</strong></td>
+</tr>
+<tr>
+<td>倍差</td>
+<td><strong>14.7×</strong></td>
+</tr>
+</tbody>
+</table>
+
+为什么 <code>update_fields=["views_count"]</code> 也要 100ms？因为 <code>Article.save()</code> 是被<strong>自定义重写</strong>过的（<code>models.py</code> 第 125 行起）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">slug</span><span class="p">:</span>
+        <span class="c1"># 自动生成 slug 的重试循环</span>
+        <span class="o">...</span>
+    <span class="n">md</span> <span class="o">=</span> <span class="n">markdown</span><span class="o">.</span><span class="n">Markdown</span><span class="p">(</span><span class="n">extensions</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>
+    <span class="n">raw_html</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">html_content</span> <span class="o">=</span> <span class="n">bleach</span><span class="o">.</span><span class="n">clean</span><span class="p">(</span><span class="n">raw_html</span><span class="p">,</span> <span class="n">tags</span><span class="o">=...</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=...</span><span class="p">,</span> <span class="n">protocols</span><span class="o">=...</span><span class="p">)</span>
+    <span class="c1"># ... 重新计算 excerpt ...</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>update_fields</code> 只影响 <code>super().save()</code> 写哪些列——<strong>改不了 <code>save()</code> 方法本身已经执行过的代码</strong>。每次 <code>save()</code> 都会重新跑一遍：
+<ol>
+<li><code>markdown.Markdown().convert(self.content)</code> —— 全文 Markdown 解析</li>
+<li><code>bleach.clean(raw_html, ...)</code> —— HTML 清洗</li>
+<li>自动 excerpt 重算</li>
+</ol>
+
+一个 19 KB 的正文，这一套下来就是 100ms 量级。<strong>只改一个计数器，也要全文重渲染。</strong>
+
+而 <code>.update(views_count=F()+1)</code> 是直接的 <code>UPDATE</code> 语句，没有 save() 钩子，毫秒级返回。
+<blockquote>
+
+<strong>心法二：<code>save()</code> 不是免费的。</strong> 自定义的 <code>save()</code> 里塞了什么逻辑，决定了"改一个字段"的真实代价。计数器、布尔标记、排序位置这些小改动，一律 <code>.update(fields=F()+1)</code>；只有真正要触发渲染、信号、cascade 的写，才走 <code>save()</code>。
+
+顺便：<code>ATOMIC_REQUESTS=True</code> + <code>save()</code> 里跑 markdown 解析，会让每个 POST 请求都包在事务里等 100ms+ 渲染完——这个延迟对前端是真实的体感。把它改成异步（Celery）或在 <code>save()</code> 里加 <code>if self._state.adding is False and not getattr(self, "_render_required", True): return</code> 的短路判断，是另一种思路。
+</blockquote>
+<hr>
+<h2>4. 实验三：事务回滚时，<code>post_save</code> 里发出去的邮件收不回来</h2>
+
+这是这一篇最值得修的 bug——因为它<strong>不是性能问题，是正确性问题</strong>。
+<h3>4.1 实验脚本</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">log</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">side_effect</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;post_save: 邮件已发出&quot;</span><span class="p">)</span>
+
+<span class="n">post_save</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">side_effect</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">Article</span><span class="p">)</span>
+
+<span class="c1"># 场景 1：事务里抛异常，主动回滚</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>
+        <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;on_commit: 邮件已发出&quot;</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;业务校验失败，回滚&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+    <span class="k">pass</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>
+<span class="c1"># &gt;&gt;&gt; [&#39;post_save: 邮件已发出&#39;]    ← 邮件已发出，事务已回滚</span>
+
+<span class="c1"># 场景 2：事务正常提交</span>
+<span class="n">log</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+<span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>
+    <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;on_commit: 邮件已发出&quot;</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>
+<span class="c1"># &gt;&gt;&gt; [&#39;post_save: 邮件已发出&#39;, &#39;on_commit: 邮件已发出&#39;]</span>
+</code></pre></div>
+
+<h3>4.2 解读</h3>
+<ul>
+<li><strong>场景 1</strong>：事务回滚了，<code>log</code> 里只剩 <code>post_save</code>。<strong><code>on_commit</code> 那一行根本没执行。</strong></li>
+<li><strong>场景 2</strong>：事务提交了，两个都执行。</li>
+</ul>
+
+<code>post_save</code> 信号是在 <code>Article.save()</code> 里 <code>super().save(*args, **kwargs)</code> 之前的最后一行（<code>models.py:209</code>）触发的——Django 的代码路径是：<code>save()</code> 写库 → <code>post_save</code> 信号 → 函数返回。这个顺序<strong>早于</strong>外层 <code>atomic</code> 块的 <code>COMMIT</code>。所以：
+<div class="codehilite"><pre><span></span><code><span class="k">proc</span><span class="nv">ess_request</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="nv">with</span><span class="w"> </span><span class="nv">atomic</span><span class="p">():</span><span class="w"> </span><span class="nv">BEGIN</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="nv">a.save</span><span class="p">()</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="nv">INSERT</span><span class="o">/</span><span class="nv">UPDATE</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="nv">post_save</span><span class="w"> </span><span class="err">信号</span>
+<span class="w">                </span><span class="err">→</span><span class="w"> </span><span class="err">（如果这里抛异常，</span><span class="nf">atomic</span><span class="w"> </span><span class="err">块</span><span class="w"> </span><span class="nv">ROLLBACK</span><span class="err">）</span>
+<span class="w">                </span><span class="err">→</span><span class="w"> </span><span class="err">（事务边界外）</span><span class="nf">on_commit</span><span class="w"> </span><span class="err">队列：空</span>
+</code></pre></div>
+
+
+<code>post_save</code> 在 ROLLBACK 之前就跑了——而 SMTP 也跑了。<strong>回滚的只是数据库，不是邮件。</strong>
+
+回到前言那段 <code>notify_subscribers_on_publish</code>：它不仅阻塞请求（性能问题），还<strong>在事务回滚之后变成"该发的没发对、不该发的发了"</strong>（正确性问题）—— 因为 <code>notification_sent</code> 的 <code>update</code> 是 POST <code>post_save</code> 内触发的，跟着 <code>save</code> 一起在事务里；事务一回滚，<code>notification_sent</code> 变回 False，但邮件已经被发出去了。下次重新 <code>save</code> 同一个文章，又发一遍。
+<h3>4.3 修法：<code>transaction.on_commit</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="nd">@receiver</span><span class="p">(</span><span class="n">post_save</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">Article</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">notify_subscribers_on_publish</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">created</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">notification_sent</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">blog_url</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="s2">&quot;SITE_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;https://zhoujungis.github.io&quot;</span><span class="p">)</span>
+    <span class="n">article_url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">blog_url</span><span class="si">}</span><span class="s2">/article/</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">slug</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">subject</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\U0001F4DD</span><span class="s2"> 新文章: </span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">plain_body</span> <span class="o">=</span> <span class="n">render_to_string</span><span class="p">(</span><span class="s2">&quot;articles/email/new_article.txt&quot;</span><span class="p">,</span> <span class="p">{</span><span class="o">...</span><span class="p">})</span>
+
+    <span class="n">from_email</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEFAULT_FROM_EMAIL</span>
+    <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">subscribers_qs</span> <span class="o">=</span> <span class="n">Subscriber</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">is_active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">send_all_batches</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;只有事务提交后才会被调用的闭包。&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">subscribers_qs</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">sent_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">failed</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">subscribers_qs</span><span class="o">.</span><span class="n">iterator</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">200</span><span class="p">):</span>
+            <span class="n">batch</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">subject</span><span class="p">,</span> <span class="n">plain_body</span><span class="p">,</span> <span class="n">from_email</span><span class="p">,</span> <span class="p">[</span><span class="n">sub</span><span class="o">.</span><span class="n">email</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">batch_size</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">send_mass_mail</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">fail_silently</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to send batch: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+                    <span class="n">failed</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+                <span class="n">sent_count</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+                <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">batch</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">batch</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">failed</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">send_mass_mail</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">fail_silently</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">sent_count</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+                <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to send final batch: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sent_count</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">failed</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Sent notification to </span><span class="si">%d</span><span class="s2"> subscribers.&quot;</span><span class="p">,</span> <span class="n">sent_count</span><span class="p">)</span>
+
+    <span class="c1"># 关键：把真正发信的逻辑推迟到事务提交之后</span>
+    <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="n">send_all_batches</span><span class="p">)</span>
+</code></pre></div>
+
+
+三个收益：
+<ol>
+<li><strong>不回滚就重复发：</strong> 事务回滚 → <code>on_commit</code> 不跑 → 没邮件，下次 <code>save</code> 重试还能再发。</li>
+<li><strong>请求不被 SMTP 拖住：</strong> <code>post_save</code> 现在只注册了一个回调，立刻返回；HTTP 请求响应照常；真正的发信在 <code>COMMIT</code> 之后异步发生（如果你想更异步，可以塞 <code>threading.Thread</code> 或者 Celery task，但 <code>on_commit</code> 已经把"事务提交前不能做"这条边界划清楚了）。</li>
+<li><strong>信号跑在事务里、副作用跑在事务外</strong>，边界清晰。</li>
+</ol>
+<blockquote>
+
+<strong>心法三：所有"业务上不想被回滚"的副作用（邮件、推送、扣非事务资源、调第三方 API），都走 <code>transaction.on_commit</code>。</strong> 信号只用来做"事务内可见的准备"，比如改标记位、记审计日志。
+</blockquote>
+<h3>4.4 <code>on_commit</code> 还有一个隐性好处</h3>
+
+它让你<strong>少写一套"提交失败回滚"的补偿逻辑</strong>。把副作用塞进 <code>post_save</code> 里，事务回滚后这些事已经发生了，你不得不写补偿（"如果回滚了，撤回刚才那封邮件"——你撤不回啊）。把副作用塞进 <code>on_commit</code> 里，"事务成功"是执行的<strong>前提条件</strong>，回滚就什么也没发生——天然不需要补偿。
+<hr>
+<h2>5. 实验四：在 <code>atomic</code> 里捕获异常，继续查库——<code>TransactionManagementError</code></h2>
+
+<code>transaction.atomic()</code> 的语义：进入时 <code>BEGIN</code>，退出时如果正常退出就 <code>COMMIT</code>，如果块内有异常就 <code>ROLLBACK</code>。但<strong>已经处于"broken transaction"状态的连接，不能再发新查询</strong>。
+<h3>5.1 经典错误写法</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;dup&quot;</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="n">base_slug</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">IntegrityError</span><span class="p">:</span>
+        <span class="k">pass</span>                              <span class="c1"># ← 想&quot;跳过这一条，继续后面的&quot;</span>
+    <span class="c1"># 后面想做点别的：</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>           <span class="c1"># 💥 TransactionManagementError</span>
+</code></pre></div>
+
+
+实测输出：
+<div class="codehilite"><pre><span></span><code><span class="err">场景</span><span class="mi">1</span><span class="w"> </span><span class="err">捕获</span><span class="w"> </span><span class="n">IntegrityError</span><span class="p">:</span><span class="w"> </span><span class="n">UNIQUE</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="n">failed</span><span class="p">:</span><span class="w"> </span><span class="n">articles_article</span><span class="o">.</span><span class="n">slug</span>
+<span class="err">场景</span><span class="mi">1</span><span class="w"> </span><span class="err">捕获后继续查询</span><span class="p">:</span><span class="w"> </span><span class="n">TransactionManagementError</span>
+<span class="w">    </span><span class="n">An</span><span class="w"> </span><span class="n">error</span><span class="w"> </span><span class="n">occurred</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="n">transaction</span><span class="o">.</span><span class="w"> </span><span class="n">You</span><span class="w"> </span><span class="n">can</span><span class="s1">&#39;t execute queries until the</span>
+<span class="w">    </span><span class="n">end</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="s1">&#39;atomic&#39;</span><span class="w"> </span><span class="n">block</span><span class="o">.</span>
+</code></pre></div>
+
+
+Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 catch 了），连接状态已经被污染——再发查询很可能给你错误的结果。所以它直接禁止你继续查。
+<h3>5.2 正确写法：内层 atomic（savepoint）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>                                <span class="c1"># 外层</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>                        <span class="c1"># 内层 = savepoint</span>
+            <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;dup&quot;</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="n">base_slug</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">IntegrityError</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>                           <span class="c1"># ✅ OK, 共 9 篇</span>
+</code></pre></div>
+
+
+内层 <code>atomic</code> 在支持 savepoint 的数据库（SQLite、PostgreSQL、MySQL）上会创建一个 savepoint；内层失败只回滚到 savepoint，不影响外层事务。
+
+实测在 SQLite 上：
+<div class="codehilite"><pre><span></span><code><span class="err">场景</span><span class="mi">2</span><span class="w"> </span><span class="err">内层</span><span class="w"> </span><span class="n">atomic</span><span class="w"> </span><span class="err">捕获</span><span class="w"> </span><span class="n">IntegrityError</span><span class="p">:</span><span class="w"> </span><span class="n">UNIQUE</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="n">failed</span><span class="p">:</span><span class="w"> </span><span class="n">articles_article</span><span class="o">.</span><span class="n">slug</span>
+<span class="err">场景</span><span class="mi">2</span><span class="w"> </span><span class="err">捕获后继续查询</span><span class="p">:</span><span class="w"> </span><span class="n">OK</span><span class="err">，共</span><span class="w"> </span><span class="mi">9</span><span class="w"> </span><span class="err">篇</span>
+</code></pre></div>
+
+<h3>5.3 两种写法的代价</h3>
+
+内层 atomic = 多一次 <code>SAVEPOINT</code> / <code>RELEASE</code> / <code>ROLLBACK TO</code>。SQLite 上这点开销几乎为零；PostgreSQL 上每次 savepoint 也只要几十微秒。<strong>但它换来的是"出错不影响后面"的健壮性。</strong>
+<blockquote>
+
+<strong>心法四：在 <code>atomic</code> 里做可能失败的操作，用嵌套 atomic 包成 savepoint，不要直接 try/except。</strong> 嵌套的层数多少无所谓——Django 实现 savepoint 就是嵌套 atomic。
+</blockquote>
+<hr>
+<h2>6. <code>transaction.on_commit</code> 的完整用法与三个坑</h2>
+
+把 <code>on_commit</code> 拆开看：
+<div class="codehilite"><pre><span></span><code><span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">using</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">robust</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+<ul>
+<li><code>func</code> 不带参数；它捕获不到 <code>instance</code>，要捕获的话自己用闭包（像 4.3 节那样）。</li>
+<li><code>using</code> 默认 <code>default</code>，多数据库时指定。</li>
+<li><code>robust=False</code>（默认）——如果 <code>func</code> 自己抛异常，Django 会把错误<strong>原样抛出</strong>，打断 <code>COMMIT</code> 后的代码。生产里建议 <code>robust=True</code>：异常被吞掉、记日志，<code>COMMIT</code> 流程不被一个邮件发送失败拖垮。</li>
+</ul>
+<h3>6.1 三个坑</h3>
+
+<strong>坑一：在没有事务的代码里调用 <code>on_commit</code>。</strong> 没有 <code>with transaction.atomic():</code> 包着，Django 内部把它当"立即执行"——所谓 <code>autocommit</code> 下的隐式事务。所以独立函数里写 <code>on_commit(func)</code> 等价于 <code>func()</code>。很多人用 <code>on_commit</code> 以为"一定会在事务提交后跑"，其实<strong>没有事务就没有"提交后"</strong>。
+
+<strong>坑二：<code>on_commit</code> 在 <code>TestCase</code> 里不执行。</strong> Django 的 <code>TestCase</code> 把每个测试包在事务里<strong>并回滚</strong>，根本不会 <code>COMMIT</code>，<code>on_commit</code> 自然不会触发。<strong>这是单元测试里"为什么我的邮件没发出去"的第一名原因。</strong>
+
+修法：要么用 <code>TransactionTestCase</code>（不走测试事务），要么用 <code>django.test.testcases.TestCase.captureOnCommitCallbacks</code> 来收集回调、断言调用次数/参数，要么直接手动调一下那个回调。
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.test</span><span class="w"> </span><span class="kn">import</span> <span class="n">TestCase</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NotifyOnPublishTest</span><span class="p">(</span><span class="n">TestCase</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_email_callback_registered</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">captureOnCommitCallbacks</span><span class="p">(</span><span class="n">execute</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">callbacks</span><span class="p">:</span>
+            <span class="n">article</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">title</span><span class="o">=</span><span class="s2">&quot;t&quot;</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="s2">&quot;t&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">callbacks</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># 提交一次，回调注册一次</span>
+</code></pre></div>
+
+
+<strong>坑三：<code>on_commit</code> 的执行顺序 = 注册顺序。</strong> 如果一个事务里先后注册了 A、B、C，回调就是 A→B→C。<strong>别假设 Django 帮你并行/调度。</strong> 真正的"并发放邮件"请走 Celery。
+<h3>6.2 进阶用法：HTTP 响应里触发异步任务</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">transaction</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">JsonResponse</span>
+
+<span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+        <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">send_confirmation_email</span><span class="o">.</span><span class="n">delay</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+</code></pre></div>
+
+
+<code>send_confirmation_email.delay(...)</code> 是 Celery 任务的注册——<code>delay()</code> 通常是同步入队（写 Redis），所以塞进 <code>on_commit</code> 里几乎是零开销。如果你用 <code>delay()</code> 直接发邮件（不依赖 broker），那就不需要 <code>on_commit</code>；但通常你应该走 Celery，而 Celery 入队可以放进事务——万一事务回滚，Celery 任务也不该发出去。
+<hr>
+<h2>7. 三条事务心智模型，看完就能避开 90% 的坑</h2>
+
+把上面所有实验和代码揉成三条能写在手边的心智模型：
+<blockquote>
+
+<strong>第一条：能用 <code>.update(F()+k)</code> 就别 <code>get() + 改 + save()</code>。</strong> 一条 SQL，原子的，并发安全。计数器、布尔位、排序、增量统计——一律 <code>update(F())</code>。<strong>只改一个字段，不代表 save() 的成本小</strong>——<code>save()</code> 自定义逻辑有多少，每次调用都得付。
+
+<strong>第二条：<code>atomic</code> 管的是多步原子性，不防丢失更新。</strong> 读已提交的隔离级别下，"读出来改完写回去"这套动作在 <code>atomic</code> 里也是会丢的。<strong>真正防丢失的是 SQL 层面的原子操作</strong>（<code>F()</code>、单条 <code>UPDATE ... WHERE</code>、或数据库的行锁 <code>SELECT FOR UPDATE</code>）。
+
+<strong>第三条：事务边界外的副作用不能回滚。</strong> 邮件、推送、调 API、扣外部资源——要么走 <code>on_commit</code>（事务成功才执行），要么走 Celery + <code>on_commit</code>（异步 + 事务后入队）。<strong>信号里写副作用是反模式</strong>，哪怕你只写了 <code>print("邮件发了")</code>。
+</blockquote>
+
+这三条记不住全部也行，但如果你能记得"<strong>改 → <code>update(F())</code>；原子性 → <code>atomic</code>；副作用 → <code>on_commit</code></strong>"，生产里 90% 的并发和事务事故都能避开。
+<hr>
+<h2>8. SQLite / MySQL / PostgreSQL 的事务差异表</h2>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>SQLite（本站）</th>
+<th>MySQL 8.0+ (InnoDB)</th>
+<th>PostgreSQL 15+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>默认隔离级别</td>
+<td>Serializable</td>
+<td>REPEATABLE READ</td>
+<td>READ COMMITTED</td>
+</tr>
+<tr>
+<td><code>ATOMIC_REQUESTS</code> 默认</td>
+<td>False</td>
+<td>False</td>
+<td>False</td>
+</tr>
+<tr>
+<td><code>select_for_update</code></td>
+<td>❌ 静默忽略</td>
+<td>✅ <code>FOR UPDATE</code></td>
+<td>✅ <code>FOR UPDATE</code></td>
+</tr>
+<tr>
+<td><code>select_for_update(skip_locked=)</code></td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>nowait</code></td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>写锁粒度</td>
+<td><strong>库级</strong>（一写全堵）</td>
+<td>行级</td>
+<td>行级</td>
+</tr>
+<tr>
+<td>并发写上限</td>
+<td>1（队列化）</td>
+<td>数千行锁</td>
+<td>数千行锁</td>
+</tr>
+<tr>
+<td><code>on_commit</code></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>savepoint</code></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>一个并发写典型失败</td>
+<td><code>OperationalError: database is locked</code></td>
+<td>锁等待超时（<code>innodb_lock_wait_timeout</code>）</td>
+<td>锁等待超时</td>
+</tr>
+<tr>
+<td>多线程 Django 注意事项</td>
+<td><code>OPTIONS.timeout=20</code> + WAL，否则动不动 SQLITE_BUSY</td>
+<td><code>CONN_MAX_AGE=60</code></td>
+<td><code>CONN_MAX_AGE=60</code></td>
+</tr>
+</tbody>
+</table>
+
+最关键的一行：<strong>"本站跑 SQLite 没事" ≠ "生产也行"。</strong> 在 SQLite 上 8 线程并发写还能凑合（虽然 7 个会抛 locked），到 MySQL/PG 上同等规模会更快，但你必须假设并发写会真实发生——所以<strong>所有写了"读 → 算 → 写"模式代码，都得用 <code>F()</code> 或行锁过一遍</strong>。
+
+迁移到 MySQL/PG 时，<strong>立刻把 <code>select_for_update</code> 用上</strong>——它不再是空操作；同时把 <code>OPTIONS.timeout</code> 删掉、加上 <code>CONN_MAX_AGE=60</code>。
+<hr>
+<h2>9. 上线 Checklist</h2>
+<h3>9.1 代码层</h3>
+<ul>
+<li>[ ] 任何"读出来改完写回去"的逻辑，要么换成 <code>.update(F()+k)</code>，要么显式开事务 + <code>select_for_update</code>（确认 <code>has_select_for_update=True</code>）</li>
+<li>[ ] <code>save()</code> 里不要塞与本字段无关的逻辑；如果塞了，确认它是必须的，并加注释说明代价</li>
+<li>[ ] <code>post_save</code> / <code>post_delete</code> 信号里不要同步调外部副作用（邮件 / 推送 / HTTP），改用 <code>transaction.on_commit</code></li>
+<li>[ ] 邮件、推送、调第三方 API 全部走 <code>on_commit</code> 或 Celery + <code>on_commit</code></li>
+<li>[ ] <code>transaction.on_commit(func, robust=True)</code> 给非关键副作用加上，避免一个邮件发送失败打断 COMMIT 后面的代码</li>
+</ul>
+<h3>9.2 测试层</h3>
+<ul>
+<li>[ ] <code>TestCase</code> 写完检查 <code>on_commit</code> 回调是否注册：使用 <code>captureOnCommitCallbacks(execute=True)</code></li>
+<li>[ ] 并发竞态测试用 <code>TransactionTestCase</code>（不走测试事务）+ 线程池</li>
+<li>[ ] 任何"读 → 算 → 写"逻辑都加：1000 次并发执行，断言最终值 = 期望值</li>
+</ul>
+<h3>9.3 配置层</h3>
+<ul>
+<li>[ ] SQLite 加 WAL：<code>DATABASES.OPTIONS.init_command = "PRAGMA journal_mode=WAL;"</code></li>
+<li>[ ] SQLite 写延迟：<code>DATABASES.OPTIONS.timeout = 20</code></li>
+<li>[ ] MySQL/PG 加 <code>CONN_MAX_AGE=60</code>、<code>CONN_HEALTH_CHECKS=True</code></li>
+<li>[ ] <code>ATOMIC_REQUESTS</code> 决策：要做"全有或全无"就开；要做不能回滚的副作用就关</li>
+<li>[ ] 监控：<code>SELECT ... FOR UPDATE</code> 的等待时长、事务回滚率（MySQL <code>information_schema.innodb_trx</code>，PG <code>pg_stat_activity</code>）</li>
+</ul>
+<hr>
+<h2>10. 结语</h2>
+
+如果说 Redis 分布式锁那篇讲的是"进程之间的互斥"、索引/慢查询那篇讲的是"查询的代价"，那这一篇讲的是<strong>"操作的边界"</strong>——什么事必须绑在一起、什么事必须分开、什么绝对不能放进同一段代码里。
+
+读完这篇你只需要记住三件事：
+<blockquote>
+<ol>
+<li>改数据：<code>F()</code> 表达式。</li>
+<li>多步原子：<code>atomic</code> 块。</li>
+<li>副作用：<code>on_commit</code>。</li>
+</ol>
+</blockquote>
+
+这三件事对应 Django 事务的三个面——<strong>原子性</strong>、<strong>一致性</strong>、<strong>持久性的副作用</strong>。再复杂的事务场景，也不过是这三件事的不同组合。
+
+至于前前言里那个真实的 <code>signals.py</code> 邮件 bug——如果你也写了类似代码，<strong>今天</strong>就把它改成 <code>on_commit</code>。花十分钟，避开一次"用户收到两封新文章邮件"的投诉。
+<hr>
+<h3>附：本文实验脚本</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 复现全部实验：1.4 万行正文的 worst-case save/update 对比、8 线程并发、on_commit 行为、TransactionManagementError</span>
+<span class="nb">cd</span><span class="w"> </span>backend
+<span class="nv">DJANGO_SECRET_KEY</span><span class="o">=</span>dev-only<span class="w"> </span>python<span class="w"> </span>../tools/bench_transaction.py
+python<span class="w"> </span>../tools/bench_transaction.py<span class="w"> </span>--threads<span class="w"> </span><span class="m">4</span><span class="w"> </span>--increments<span class="w"> </span><span class="m">25</span><span class="w">    </span><span class="c1"># 跑快点</span>
+
+<span class="c1"># 跑在你的真实模型上也会复制同名 Article 行；如果不想表，参数 --pk 改一下</span>
+</code></pre></div>
+
+
+环境口径：Django 6.0.6 / SQLite 3.50.4 / Python 3.13；8 线程 × 50 次自增取中位数。
+脚本会<strong>自动复制 <code>db.sqlite3</code> 到系统临时目录</strong>，跑完自动删除，不会触碰你的真实数据库；订阅者通知信号也会自动断开，所以<strong>不会有任何邮件被发出去</strong>。</div></div></noscript>
+  </body>
+</html>

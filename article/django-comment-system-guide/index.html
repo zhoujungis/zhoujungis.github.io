@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-comment-system-guide/" />
+    <meta property="og:title" content="敢让匿名用户评论的底气：Django 评论系统的七层防线实战" />
+    <meta property="og:description" content="敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-comment-system-guide/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1543269865-cbf427effbad?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="敢让匿名用户评论的底气：Django 评论系统的七层防线实战" />
+    <meta name="twitter:description" content="敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1543269865-cbf427effbad?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>敢让匿名用户评论的底气：Django 评论系统的七层防线实战 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-10T10:13:33.701226+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"敢让匿名用户评论的底气：Django 评论系统的七层防线实战","description":"敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm","image":"https://images.unsplash.com/photo-1543269865-cbf427effbad?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T10:13:33.701226+08:00","dateModified":"2026-09-14T10:55:08.915234+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-comment-system-guide/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>敢让匿名用户评论的底气：Django 评论系统的七层防线实战</h1><div class="ns-meta">2026/9/10 · Zhou Jun</div><div class="markdown-body"><h1>敢让匿名用户评论的底气：Django 评论系统的七层防线实战</h1>
+<blockquote>
+
+适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere
+代码来源：真实博客 <code>backend/comments/</code> 全应用 + <code>frontend/src/components/CommentForm.vue</code> / <code>CommentList.vue</code>，全部可运行
+阅读时间：约 35 分钟（超详细版） | 收获：一套“匿名可评、垃圾进不来、草稿漏不出去”的评论模板
+</blockquote>
+<h2>前言：一夜 40 条广告评论逼我重做</h2>
+
+评论功能刚上线时我的配置很天真：<code>AllowAny</code> + 默认限流（匿名 30/min），提交即展示。有天早上打开后台，一夜 40 条“代购 / 贷款 / 赌场”广告，混在真实读者留言里，删到手软。
+
+重做后跑了三个月：广告 0 漏网（honeypot + 待审 + 3/min 拦掉 99%，剩下 1% 进待审箱点一下删除），真实评论从提交到展示平均 12 小时内（邮件即时提醒），前端一次广告都没闪过。
+
+本文把这套评论系统拆成七层防线：<strong>模型 → 读 → 写 → 嵌套 → 审核 → 通知 → 前端</strong>，每层讲“防什么 + 真实代码 + 踩过的坑”。
+
+<strong>目录</strong>
+<ul>
+<li>全景：一条评论的生死之旅</li>
+<li>模型：自关联 + 审核开关，三行定生死</li>
+<li>读接口：只给已审核，草稿一篇不漏</li>
+<li>写接口：parent 归属 + honeypot + 3/min + 默认待审</li>
+<li>嵌套序列化：depth 上限防爆栈、防循环、防大 payload</li>
+<li>审核后台 + 邮件通知：fail_silently 保命</li>
+<li>前端：校验、错误映射、骨架屏、回复、防抖</li>
+<li>缺口与升级：XSS、敏感词、IP 封禁、读者通知</li>
+<li>上线 Checklist（20 项）+ FAQ（12 问）</li>
+</ul>
+<hr>
+<h2>1. 全景：一条评论的生死之旅</h2>
+<div class="codehilite"><pre><span></span><code>读者填昵称/邮箱/内容 → POST /api/articles/&lt;slug&gt;/comments/
+  → 限流（comment 3/min）：脚本刷 → 429
+  → honeypot（website 字段）：机器人 → 400“检测到垃圾评论”
+  → parent 归属校验：跨文章回复 → 404
+  → 草稿 guard：未发布文章 → 404（当它不存在）
+  → is_approved=False 入库 → 发邮件通知博主 → 前端“已提交待审核”
+  → 博主后台 pending → 审核通过 → 读者刷新可见
+</code></pre></div>
+
+
+七层每一层只干一件事，层层设卡。设计哲学：<strong>匿名可评（别登录），但默认不可见（先审后发）</strong>。个人博客流量小，先审后发零成本；日活上万再切“白名单免审 + 黑名单秒删”。
+<hr>
+<h2>2. 模型：自关联 + 审核开关</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/models.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Comment</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+        <span class="s2">&quot;articles.Article&quot;</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+        <span class="n">related_name</span><span class="o">=</span><span class="s2">&quot;comments&quot;</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;所属文章&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
+        <span class="s2">&quot;self&quot;</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">related_name</span><span class="o">=</span><span class="s2">&quot;replies&quot;</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;父评论&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">author_name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;昵称&quot;</span><span class="p">)</span>
+    <span class="n">author_email</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">EmailField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;邮箱&quot;</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;评论内容&quot;</span><span class="p">)</span>
+    <span class="n">is_approved</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;是否通过&quot;</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;创建时间&quot;</span><span class="p">)</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;-created_at&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+
+三处关键决策：
+<ol>
+<li><strong><code>is_approved</code> 默认 False</strong>：数据库层面“默认不可见”，代码再怎么写 bug，裸查 <code>Comment.objects.all()</code> 也不会把待审捅到前台（前台 queryset 还会再滤一次，双保险）；</li>
+<li><strong><code>parent</code> 自关联 + <code>related_name="replies"</code></strong>：一级回复够用（见 5.x depth 上限），表结构支持无限级但接口只暴露两级，进可攻退可守；</li>
+<li><strong>没有 <code>author_ip</code> 字段</strong>：点赞表存了 IP+UA 做去重，评论没存 —— 隐私最小化。反 spam 靠限流 + honeypot + 审核，不存 IP 也够，且省掉 GDPR 合规烦恼。真被盯上再加（8.x）。</li>
+</ol>
+
+<code>article</code> 用字符串 <code>"articles.Article"</code> 避免循环 import，<code>on_delete=CASCADE</code> 删文章带走评论（个人博客合理；社区站改 <code>SET_NULL</code> 留档）。
+<hr>
+<h2>3. 读接口：只给已审核，草稿一篇不漏</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/views.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.throttling</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScopedRateThrottle</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleCommentList</span><span class="p">(</span><span class="n">generics</span><span class="o">.</span><span class="n">ListCreateAPIView</span><span class="p">):</span>
+    <span class="n">serializer_class</span> <span class="o">=</span> <span class="n">CommentSerializer</span>
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">AllowAny</span><span class="p">]</span>  <span class="c1"># 匿名可读可评</span>
+    <span class="n">throttle_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">ScopedRateThrottle</span><span class="p">]</span>
+    <span class="n">throttle_scope</span> <span class="o">=</span> <span class="s2">&quot;comment&quot;</span>  <span class="c1"># 对应 settings &#39;comment&#39;: &#39;3/minute&#39;</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="n">CommentPageNumberPagination</span>  <span class="c1"># 20/页，封顶 100</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">article</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span>
+            <span class="n">Article</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;article_slug&quot;</span><span class="p">],</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">,</span>  <span class="c1"># 草稿/定时/归档 → 404，当它不存在</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">Comment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+            <span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">,</span> <span class="n">is_approved</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span>  <span class="c1"># 只顶级+已审，回复走嵌套</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;article&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;replies__article&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+四层过滤，顺序不能乱：
+<table>
+<thead>
+<tr>
+<th>过滤</th>
+<th>防什么</th>
+<th>真实事故</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status=PUBLISHED</code></td>
+<td>草稿标题/定时文章被评论接口枚举出来</td>
+<td>早期没加，<code>/articles/draft-slug/comments/</code> 200，等于宣告草稿存在</td>
+</tr>
+<tr>
+<td><code>is_approved=True</code></td>
+<td>待审广告/脏话被刷出来</td>
+<td>上线第一夜 40 条广告的根因之一</td>
+</tr>
+<tr>
+<td><code>parent=None</code></td>
+<td>回复被当顶级重复展示</td>
+<td>前端树+平铺双渲染，同一条出现两次</td>
+</tr>
+<tr>
+<td><code>select/prefetch</code></td>
+<td>N+1（见 DRF 三件套那篇）</td>
+<td>20 条评论 ×（article+replies）= 40+ SQL</td>
+</tr>
+</tbody>
+</table>
+
+注意 <strong><code>perform_create</code> 里又查了一次 article guard</strong>（见 4.x）：读和写各 guard 各的，别复用 —— 读是 <code>get_queryset</code>，写是 <code>perform_create</code>，DRF 两条链路，少一处就漏一处。
+
+分页 <code>20/页封顶 100</code>：评论比文章短，20 条一屏刚好；<code>max_page_size=100</code> 防 <code>?page_size=10000</code> 拖库（文章是 50，评论给 100 因为单条小）。
+<h3>3.5 曾经的 bug：throttle 配了 scope 却没生效</h3>
+
+注释里留着案底：
+<div class="codehilite"><pre><span></span><code><span class="c1"># C-S3: actually apply the &#39;comment&#39; scope (3/min) defined in settings —</span>
+<span class="c1"># was previously falling back to the default anon throttle (30/min).</span>
+</code></pre></div>
+
+
+之前只写了 <code>throttle_scope = "comment"</code>，<code>throttle_classes</code> 用的默认（anon 30/min），<code>comment 3/min</code> 配了却从没生效 —— 广告脚本 1 分钟 30 条畅通无阻。修法就是上面代码：<strong><code>ScopedRateThrottle</code> + <code>throttle_scope</code> 必须成对出现</strong>。教训：限流配完必用循环脚本打一遍（见 7.x 压测），别信“配了就行”。
+<hr>
+<h2>4. 写接口：parent 归属 + honeypot + 默认待审</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">perform_create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span>
+        <span class="n">Article</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;article_slug&quot;</span><span class="p">],</span>
+        <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">,</span>  <span class="c1"># 写链路再 guard 一次</span>
+    <span class="p">)</span>
+    <span class="n">parent_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;parent&quot;</span><span class="p">)</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">parent_id</span><span class="p">:</span>
+        <span class="c1"># 父评论必须属于同一篇文章：跨文章 parent → 404</span>
+        <span class="n">parent</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span><span class="n">Comment</span><span class="p">,</span> <span class="n">pk</span><span class="o">=</span><span class="n">parent_id</span><span class="p">,</span> <span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">)</span>
+
+    <span class="c1"># 蜜罐：正常人看不见（CSS 藏），机器人全填</span>
+    <span class="n">honeypot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;website&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">honeypot</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;检测到垃圾评论&quot;</span><span class="p">})</span>
+
+    <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">is_approved</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+
+逐行拆：
+<ol>
+<li><strong>parent 归属校验</strong>：<code>get_object_or_404(Comment, pk=parent_id, article=article)</code> 把“父评论属于本文”一次性断掉。不加的话，攻击者拿 A 文的评论 id 当 parent 发到 B 文，B 文读者点回复跳到 A 文，串台 + 信息泄露。细节：父评论未审核也能被回复吗？我允许（回复待审评论，整串一起审），社区站可收紧到 <code>is_approved=True</code> 才可回；</li>
+<li><strong>honeypot 蜜罐</strong>：字段名 <code>website</code> 是经典机器人诱饵（“网址”框机器人必填）。前端 <code>.hp-field{position:absolute;left:-9999px}</code> 藏起来，真人看不见 tab 也到不了（<code>tabindex="-1"</code>）。机器人 90% 中招，零成本拦第一波。注意：<strong>别叫 <code>honeypot</code></strong>，叫 <code>website/url/company</code> 这种正常名，特征太明显机器人会绕；</li>
+<li><strong><code>is_approved=False</code> 硬编码</strong>：<code>serializer.save(... is_approved=False)</code>，且 Serializer 里 <code>is_approved</code> 是 read_only（见 5.x），前端传 <code>{"is_approved": true}</code> 也会被忽略。<strong>“客户端说已审”永远无效</strong>，这条是铁律——所有权限字段（is_staff/is_approved/is_top）都必须 read_only + 服务端硬写。</li>
+</ol>
+
+配套 <code>settings</code>（三件套那篇配过，这里是评论视角）：<code>'comment': '3/minute'</code> —— 正常人 1 分钟写不完 3 条（打字+思考），脚本直接 429。前端 429 文案别写“限流”，写“评论太频繁啦，喝口水再发～”（见 7.x）。
+<hr>
+<h2>5. 嵌套序列化：depth 上限 + 邮箱永不外泄</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/serializers.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">replies</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">SerializerMethodField</span><span class="p">()</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Comment</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;article&quot;</span><span class="p">,</span> <span class="s2">&quot;article_slug&quot;</span><span class="p">,</span> <span class="s2">&quot;article_title&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;parent&quot;</span><span class="p">,</span> <span class="s2">&quot;author_name&quot;</span><span class="p">,</span> <span class="s2">&quot;author_email&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="s2">&quot;is_approved&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;replies&quot;</span><span class="p">]</span>
+        <span class="n">read_only_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;article&quot;</span><span class="p">,</span> <span class="s2">&quot;article_slug&quot;</span><span class="p">,</span> <span class="s2">&quot;article_title&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;is_approved&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">]</span>
+        <span class="n">extra_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;author_email&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;write_only&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}}</span>  <span class="c1"># 只收不吐</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_replies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;depth&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">depth</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>  <span class="c1"># 最多两级，第三级直接截</span>
+        <span class="n">replies</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">replies</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">is_approved</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">CommentSerializer</span><span class="p">(</span>
+            <span class="n">replies</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="ow">or</span> <span class="p">{}),</span> <span class="s1">&#39;depth&#39;</span><span class="p">:</span> <span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">},</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">data</span>
+</code></pre></div>
+
+
+三个保命设计：
+<ol>
+<li><strong><code>author_email: write_only</code></strong>：收（建评论要邮箱，备用通知+认领），但 GET 永远不吐。响应里出现过一次真实邮箱就是一次泄露事故。审核后台看邮箱走 <code>admin/</code> 认证接口，前台 JSON 里没有，爬虫拖了也没用；</li>
+<li><strong><code>depth &gt;= 2</code> 截断</strong>：防三件事 —— 深嵌套爆调用栈、恶意 parent 环（A→B→A 无限递归）、超长串 payload 拖死前端。<code>[r for r in ... if r.is_approved]</code> 内存里再滤一次待审（queryset prefetch 拉的是全量，展示只给已审）；</li>
+<li><strong>read_only 全家桶</strong>：<code>article/is_approved/created_at</code> 全只读。<code>article</code> 由 URL 的 slug 决定（<code>perform_create</code> 传），<code>created_at</code> 自动，前端传了也忽略。</li>
+</ol>
+
+前端渲染用 <code>{{ comment.content }}</code> 插值（自动 HTML 转义），<strong>永远别 <code>v-html</code></strong> —— 评论 XSS 的正确防线在渲染层转义，不在入库层。各别允许 Markdown 评论的站才入库 <code>bleach</code>（见我 XSS 那篇），纯文本评论转义就够。
+<hr>
+<h2>6. 审核后台 + 邮件通知</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/admin_views.py（IsAdminUser 全锁）</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentAdminViewSet</span><span class="p">(</span><span class="n">mixins</span><span class="o">.</span><span class="n">DestroyModelMixin</span><span class="p">,</span> <span class="n">viewsets</span><span class="o">.</span><span class="n">GenericViewSet</span><span class="p">):</span>
+    <span class="nd">@action</span><span class="p">(</span><span class="n">detail</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;get&quot;</span><span class="p">],</span> <span class="n">url_path</span><span class="o">=</span><span class="s2">&quot;pending&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pending</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span> <span class="o">...</span>    <span class="c1"># 待审箱</span>
+
+    <span class="nd">@action</span><span class="p">(</span><span class="n">detail</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;put&quot;</span><span class="p">])</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">approve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">pk</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">comment</span><span class="o">.</span><span class="n">is_approved</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">comment</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;is_approved&quot;</span><span class="p">])</span>  <span class="c1"># 只写一列，不碰别的</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/signals.py</span>
+<span class="nd">@receiver</span><span class="p">(</span><span class="n">post_save</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">Comment</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">notify_new_comment</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">created</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">created</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">body</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;文章：</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">article</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="se">\n</span><span class="s2">作者：</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">author_name</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;邮箱：</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">author_email</span><span class="si">}</span><span class="se">\n</span><span class="s2">内容：</span><span class="se">\n</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">content</span><span class="p">[:</span><span class="mi">500</span><span class="p">]</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;查看：</span><span class="si">{</span><span class="n">blog_url</span><span class="si">}</span><span class="s2">/article/</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">article</span><span class="o">.</span><span class="n">slug</span><span class="si">}</span><span class="s2">/</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;审核：</span><span class="si">{</span><span class="n">blog_url</span><span class="si">}</span><span class="s2">/admin/comments</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">send_mail</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;💬 新评论待审核 — </span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">article</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                  <span class="n">message</span><span class="o">=</span><span class="n">body</span><span class="p">,</span> <span class="n">from_email</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">DEFAULT_FROM_EMAIL</span><span class="p">,</span>
+                  <span class="n">recipient_list</span><span class="o">=</span><span class="p">[</span><span class="n">settings</span><span class="o">.</span><span class="n">DEFAULT_FROM_EMAIL</span><span class="p">],</span>
+                  <span class="n">fail_silently</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Failed to send comment notification: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+</code></pre></div>
+
+<ul>
+<li><strong><code>update_fields=["is_approved"]</code></strong>：审核只碰一列，避免并发改别的字段被覆盖；</li>
+<li><strong>邮件 <code>fail_silently=True</code> + logger</strong>：SMTP 挂了（PA 免费版偶发）不能让评论提交 500 —— 通知是旁路，入库是主路，主路永远优先。<code>content[:500]</code> 防 10 万字刷屏塞爆邮箱；</li>
+<li><strong>审核 SLA</strong>：邮件即时到，我设 24h 内必审。前端提交后显示“评论已提交，审核后展示”，预期管理一步到位。</li>
+</ul>
+<hr>
+<h2>7. 前端：校验、错误映射、骨架屏、回复、防抖</h2>
+
+后端七层，前端四件套接住体验：
+
+<strong>（1）先本地校验，再撞后端</strong>（<code>CommentForm.vue</code>）：昵称非空、邮箱正则、内容 ≥3 字。省 429 配额，也省等待。
+
+<strong>（2）后端字段错映射回字段</strong>：<code>{"author_email": ["Enter a valid email"]}</code> → 邮箱框下红字；<code>{"detail": "检测到垃圾评论"}</code> → 顶部通栏。真人永远看不到蜜罐那条（除非手填了隐藏框，那 400 该吃）。
+
+<strong>（3）列表骨架屏 + 相对时间 + 头像色</strong>（<code>CommentList.vue</code>）：加载中 3 条 shimmer 占位；<code>刚刚/3分钟前/2天前</code>；昵称首字哈希 12 色头像。无头像系统的匿名评论最体面解法。
+
+<strong>（4）提交防抖 + 429 人话</strong>：<code>submitting</code> 锁按钮 + spinner，成功“评论已提交！”3 秒；429  bust 显示“评论太频繁啦，稍后再试～”而不是 raw error。回复是内联 <code>CommentForm(parent-id)</code>，提交后 <code>fetchComments()</code> 整树刷新（评论量小，不用局部 patch）。
+
+压测（上线前必跑）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1 分钟 5 条，第 4 条起 429</span>
+<span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/articles/&lt;slug&gt;/comments/<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;author_name&quot;:&quot;t&quot;,&quot;author_email&quot;:&quot;t@t.com&quot;,&quot;content&quot;:&quot;test &#39;</span><span class="nv">$i</span><span class="s1">&#39;&quot;}&#39;</span><span class="p">;</span><span class="w"> </span>echo<span class="p">;</span><span class="w"> </span><span class="k">done</span>
+<span class="c1"># 蜜罐：带 website 必 400</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>...<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;author_name&quot;:&quot;b&quot;,&quot;author_email&quot;:&quot;b@b.com&quot;,&quot;content&quot;:&quot;x&quot;,&quot;website&quot;:&quot;http://spam&quot;}&#39;</span>
+<span class="c1"># 草稿：未发布 slug 必 404</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;%{http_code}\n&quot;</span><span class="w"> </span>http://127.0.0.1:8000/api/articles/draft-slug/comments/
+</code></pre></div>
+
+<hr>
+<h2>8. 缺口与升级（诚实章节）</h2>
+
+当前方案的四块已知短板，按优先级排：
+<ol>
+<li><strong>无敏感词预审</strong>：广告进待审箱要人点删。升级：<code>sensitive-words</code> 词库命中直接 <code>is_approved=False</code> + 标记 <code>flagged=True</code> 优先审；别自动拒（误伤正常词），只做排序。</li>
+<li><strong>无 IP 封禁</strong>：同一脚本换邮箱可 3/min 持续灌待审箱（前台无感，后台烦）。升级：<code>django-ratelimit</code> 按 IP <code>5/hour</code> 封灌箱，或复用点赞的 IP+UA 指纹记频次。现在没存 IP，加字段 + 迁移（见模型那篇迁移流程）。</li>
+<li><strong>读者无“被回复通知”</strong>：读者回来看才知道。升级：<code>author_email</code> 派用场 —— 被回复/被审核通过时发一封（带退订 footer，别成 spam）。 approve 里加 10 行即可，记得 <code>fail_silently</code>。</li>
+<li><strong>无评论编辑/删除（读者侧）</strong>：发错字只能找博主。升级：发评论时 Set-Cookie 一个 <code>comment_token</code>（UUID），凭 token 15 分钟内可删；或登录后绑定 user。个人博客优先级最低。</li>
+</ol>
+
+XSS 特别说明：现在安全是因为前端 <code>{{ }}</code> 转义 + 后台 Django admin 转义。<strong>哪天要上 Markdown 评论/楼中楼富文本，必须入库前 <code>bleach</code> 白名单</strong>（<code>b/i/code/a[href]</code> 极小集），抄我 XSS 那篇的 <code>ALLOWED_TAGS</code> 即可。
+<hr>
+<h2>9. 上线 Checklist（20 项）+ FAQ（12 问）</h2>
+
+<strong>后端（11）</strong>
+<ul>
+<li>[ ] <code>is_approved</code> 默认 False，前台 queryset 三滤（published+approved+parent=None）</li>
+<li>[ ] 读/写两条链路各 guard 草稿（get_queryset + perform_create）</li>
+<li>[ ] parent 归属同一文章，跨文章 404</li>
+<li>[ ] honeypot 字段正常名（website），填了 400</li>
+<li>[ ] <code>comment 3/min</code> 用 ScopedRateThrottle + scope 成对，循环脚本验 429</li>
+<li>[ ] Serializer：email write_only，is_approved/article/created read_only</li>
+<li>[ ] replies depth ≤2 + 只吐已审，防环防爆栈</li>
+<li>[ ] 审核 <code>update_fields</code> 单列，后台 IsAdminUser 全锁</li>
+<li>[ ] 邮件 <code>fail_silently</code> + 日志，<code>content[:500]</code></li>
+<li>[ ] 分页 20/100 封顶，N+1（select+prefetch）≤3 SQL</li>
+<li>[ ] 前端永远插值渲染，<code>v-html</code> 禁区</li>
+</ul>
+
+<strong>前端（9）</strong>
+<ul>
+<li>[ ] 本地三校验（昵称/邮箱/≥3 字）先行</li>
+<li>[ ] 后端字段错映射回字段，蜜罐错走通栏</li>
+<li>[ ] 骨架屏 + 空态 + 相对时间 + 哈希头像</li>
+<li>[ ] 提交锁 + spinner + 成功 3 秒提示</li>
+<li>[ ] 429 人话，按钮防抖</li>
+<li>[ ] 回复内联，提交后整树刷新</li>
+<li>[ ] 草稿文章页不渲染评论区（别给 404 机会）</li>
+<li>[ ] 邮箱框 <code>type=email</code> + <code>autocomplete=email</code></li>
+<li>[ ] 移动端回复缩进收窄（12px），别溢出</li>
+</ul>
+
+<strong>FAQ</strong>
+<ul>
+<li><strong>Q：先审后发会不会劝退评论？</strong> A：个人博客量小，24h 内审 + 邮件即时提醒，读者体感“博主很活”。量大再切白名单免审。</li>
+<li><strong>Q：honeypot 会不会误伤真人？</strong> A：CSS 隐藏 + tabindex -1，真人填不到。读屏器用户？<code>aria-hidden=true</code> 跳过，无障碍也 OK。</li>
+<li><strong>Q：3/min 会不会太严？</strong> A：正常人 1 分钟写不完 3 条。博主自己回评论多？登录走 user 档或后台直接回。</li>
+<li><strong>Q：parent 能嵌套几级？</strong> A：表无限，接口两级。三级自动截，想盖楼去开新顶级。</li>
+<li><strong>Q：邮箱会被爬走吗？</strong> A：write_only，GET 无此字段。后台看走认证接口。</li>
+<li><strong>Q：草稿评论 404 还是 403？</strong> A：404。当它不存在，别告诉枚举者“有但不给你看”。</li>
+<li><strong>Q：广告灌待审箱怎么办？</strong> A：前台无感，后台批量删。现在 3/min + 蜜罐后极少，量大上 IP 封禁（8.x）。</li>
+<li><strong>Q：评论支持 Markdown/图片吗？</strong> A：不支持，纯文本。开了就得 bleach + 对象存储两套，个人博客 ROI 低。</li>
+<li><strong>Q：能编辑/删除自己的评论吗？</strong> A：暂不能，发错联系博主。方案在 8.4。</li>
+<li><strong>Q：被回复有通知吗？</strong> A：暂无，回来看。<code>author_email</code> 就是为它留的，approve 加 10 行。</li>
+<li><strong>Q：删文章评论还在吗？</strong> A：CASCADE 带走。社区站改 SET_NULL 留档。</li>
+<li><strong>Q：要存 IP 吗？</strong> A：现在不存，够用。被盯上再加字段+迁移+隐私声明。</li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+评论系统就一句话：<strong>匿名可评是体验，默认待审是底线</strong>。七层防线里 honeypot 和 3/min 拦机器，审核和 read_only 拦人心，depth 和 write_only 拦事故。先把这套跑顺，敏感词、IP 封禁、读者通知都是水到渠成的加法。
+
+下一篇预告：<strong>《从 SQLite 到 PostgreSQL：Django 生产数据库迁移避坑》</strong> —— 评论点赞并发上来后，SQLite 写锁是下一个瓶颈。到时讲 <code>pgloader</code> 一键迁移、PA 上配 Postgres、全文检索替代 <code>icontains</code>，敬请期待。
+<blockquote>
+
+完整代码：<code>backend/comments/models.py|views.py|serializers.py|signals.py|admin_views.py</code>、<code>frontend/src/components/CommentForm.vue|CommentList.vue</code>
+评论区聊聊：你的 honeypot 叫什么名？限流几档？误伤过真人吗？
+</blockquote></div></div></noscript>
+  </body>
+</html>

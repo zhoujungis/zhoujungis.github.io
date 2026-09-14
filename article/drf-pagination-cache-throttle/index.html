@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/drf-pagination-cache-throttle/" />
+    <meta property="og:title" content="列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解" />
+    <meta property="og:description" content="列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/drf-pagination-cache-throttle/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解" />
+    <meta name="twitter:description" content="列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-10T09:54:34.837210+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解","description":"列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl","image":"https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T09:54:34.837210+08:00","dateModified":"2026-09-14T10:55:53.318330+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/drf-pagination-cache-throttle/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解</h1><div class="ns-meta">2026/9/10 · Zhou Jun</div><div class="markdown-body"><h1>列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解</h1>
+<blockquote>
+
+适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis）
+代码来源：真实博客后端 <code>backend/blog_api/settings.py</code>、<code>backend/articles/views.py</code>，全部可运行
+阅读时间：约 25 分钟 | 难度：初中级 | 收获：一套可直接抄上线的 DRF 性能模板
+</blockquote>
+<h2>前言：一次把博客打挂的联调</h2>
+
+去年有一次前端联调，我把 <code>ArticlePagination</code> 写成这样：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ArticlePagination</span><span class="p">(</span><span class="n">PageNumberPagination</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">page_size_query_param</span> <span class="o">=</span> <span class="s2">&quot;page_size&quot;</span>
+    <span class="n">max_page_size</span> <span class="o">=</span> <span class="mi">1000</span>  <span class="c1"># 当时觉得“灵活点没坏处”</span>
+</code></pre></div>
+
+
+前端同学随手试了下 <code>GET /api/articles/?page_size=500</code>，结果：
+<ul>
+<li>后端 SQLite 扫 500 篇 <code>content</code>（Markdown 大字段，平均 15KB/篇）+ 序列化 7.5MB JSON，耗时 <strong>860ms</strong>；</li>
+<li>PythonAnywhere 免费版 CPU 当场被吃满，后续请求排队超时；</li>
+<li>前端拿到 7.5MB 后 Vue 直接卡 3 秒，用户以为网站挂了。</li>
+</ul>
+
+那次之后我把 DRF 的三件套彻底重做了一遍：<strong>分页封顶 + 列表瘦身 + 缓存 + 分级限流</strong>，列表接口稳定在 <strong>60~100ms</strong>，首页第一页命中缓存时 <strong>10ms 出头</strong>。
+
+这篇文章就是那次重做的完整记录。每一件都讲四层：<strong>为什么需要 → DRF 源码怎么实现的 → 我的真实代码 → 踩过的坑</strong>。你可以直接抄走最后一章的完整模板。
+
+<strong>目录</strong>
+<ul>
+<li>全景：三件套在请求链路中的位置</li>
+<li>分页篇：不只是“能翻页”</li>
+<li>缓存篇：PA 无 Redis 也能快 10 倍</li>
+<li>限流篇：读和写必须分开限</li>
+<li>组合篇：一个 ViewSet 的最终形态 + 压测总表</li>
+<li>上线 Checklist + 高频 FAQ</li>
+</ul>
+<hr>
+<h2>1. 全景：三件套在请求链路中的位置</h2>
+
+一个 <code>GET /api/articles/?page=2&amp;page_size=10</code> 进来后，在 DRF 里依次经过：
+<div class="codehilite"><pre><span></span><code>请求 → Throttle（限流：让不让进？429 直接打回）
+     → Filter/Search（过滤搜索）
+     → Pagination（分页：切哪一段？）
+     → Serializer（序列化：返回哪些字段？）
+     → Cache（缓存：下次同样请求直接返回？）
+     → DB（实在躲不过才查库）
+</code></pre></div>
+
+
+三件套的分工一句话：
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>解决的问题</th>
+<th>不解决什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分页 Pagination</td>
+<td>一次拿多少，防止大结果集拖垮 DB 和前端</td>
+<td>不减少查询次数（N+1 另算）</td>
+</tr>
+<tr>
+<td>缓存 Cache</td>
+<td>同样请求别重复查库，读多写少接口的救星</td>
+<td>不防刷，缓存也被打爆就是雪崩</td>
+</tr>
+<tr>
+<td>限流 Throttle</td>
+<td>恶意刷、爬虫、误循环调用，把坏流量挡在门外</td>
+<td>不提升正常请求的响应速度</td>
+</tr>
+</tbody>
+</table>
+
+这是我博客最终的 <code>REST_FRAMEWORK</code> 配置（<code>backend/blog_api/settings.py</code> 实拍，可直接抄）：
+<div class="codehilite"><pre><span></span><code><span class="n">REST_FRAMEWORK</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;DEFAULT_AUTHENTICATION_CLASSES&#39;</span><span class="p">:</span> <span class="p">(</span>
+        <span class="s1">&#39;rest_framework_simplejwt.authentication.JWTAuthentication&#39;</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="s1">&#39;DEFAULT_PERMISSION_CLASSES&#39;</span><span class="p">:</span> <span class="p">(</span>
+        <span class="s1">&#39;rest_framework.permissions.IsAuthenticatedOrReadOnly&#39;</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="s1">&#39;DEFAULT_PAGINATION_CLASS&#39;</span><span class="p">:</span> <span class="s1">&#39;rest_framework.pagination.PageNumberPagination&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;PAGE_SIZE&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="s1">&#39;DEFAULT_THROTTLE_CLASSES&#39;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s1">&#39;rest_framework.throttling.AnonRateThrottle&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;rest_framework.throttling.UserRateThrottle&#39;</span><span class="p">,</span>
+    <span class="p">],</span>
+    <span class="s1">&#39;DEFAULT_THROTTLE_RATES&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;anon&#39;</span><span class="p">:</span> <span class="s1">&#39;30/minute&#39;</span><span class="p">,</span>     <span class="c1"># 匿名读接口：30次/分</span>
+        <span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;100/minute&#39;</span><span class="p">,</span>    <span class="c1"># 登录读接口：100次/分</span>
+        <span class="s1">&#39;comment&#39;</span><span class="p">:</span> <span class="s1">&#39;3/minute&#39;</span><span class="p">,</span>   <span class="c1"># 评论：3次/分，防刷核心</span>
+        <span class="s1">&#39;subscribe&#39;</span><span class="p">:</span> <span class="s1">&#39;5/hour&#39;</span><span class="p">,</span>   <span class="c1"># 订阅：5次/小时</span>
+        <span class="s1">&#39;upload&#39;</span><span class="p">:</span> <span class="s1">&#39;100/hour&#39;</span><span class="p">,</span>    <span class="c1"># 上传：100次/小时/用户</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;DEFAULT_RENDERER_CLASSES&#39;</span><span class="p">:</span> <span class="p">(</span>
+        <span class="s1">&#39;rest_framework.renderers.JSONRenderer&#39;</span><span class="p">,</span>
+    <span class="p">),</span>  <span class="c1"># 生产只留 JSON，关掉 Browsable API：省渲染开销 + 减少字段泄露</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+外加缓存（PA 免费版无 Redis，用内存缓存）：
+<div class="codehilite"><pre><span></span><code><span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;django.core.cache.backends.locmem.LocMemCache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;LOCATION&quot;</span><span class="p">:</span> <span class="s2">&quot;blog-cache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;TIMEOUT&quot;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+        <span class="s2">&quot;OPTIONS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;MAX_ENTRIES&quot;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+下面逐件拆开讲透。
+<hr>
+<h2>2. 分页篇：不只是“能翻页”</h2>
+<h3>2.1 为什么必须自定义 Pagination？全局 PAGE_SIZE 不够吗？</h3>
+
+DRF 全局 <code>PAGE_SIZE = 10</code> 只解决“默认切多少”，没解决三个真实问题：
+<ol>
+<li><strong>前端可调 <code>page_size</code>，后不管封顶</strong>：<code>?page_size=10000</code> 直接全表扫描；</li>
+<li><strong>不同接口需求不同</strong>：文章列表要分页，分类/标签只有十几条，分页反而增加前端负担；</li>
+<li><strong>搜索 + 大字段</strong>：<code>?search=xxx</code> 本来就慢，再允许大 <code>page_size</code> 就是雪上加霜。</li>
+</ol>
+
+所以我的原则：<strong>全局给默认值，每个 ViewSet 配自己的分页类</strong>。文章要分页且封顶，分类标签直接关分页：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/articles/views.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageNumberPagination</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework</span><span class="w"> </span><span class="kn">import</span> <span class="n">viewsets</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticlePagination</span><span class="p">(</span><span class="n">PageNumberPagination</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">page_size_query_param</span> <span class="o">=</span> <span class="s2">&quot;page_size&quot;</span>
+    <span class="n">max_page_size</span> <span class="o">=</span> <span class="mi">50</span>  <span class="c1"># 血泪值：从 1000 改下来的，见 2.3</span>
+    <span class="n">page_size_query_description</span> <span class="o">=</span> <span class="s2">&quot;每页条数，默认10，最大50&quot;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="n">lookup_field</span> <span class="o">=</span> <span class="s1">&#39;slug&#39;</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="n">ArticlePagination</span>
+    <span class="c1"># ...</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CategoryViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># 十几条数据，直接返回数组，前端省一次解析</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TagViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+<code>pagination_class = None</code> 时 DRF 直接返回 <code>[...]</code>数组而不是 <code>{count, next, previous, results}</code> 包裹，前端 <code>v-for</code> 直接用，对小字典表特别友好。
+<h3>2.2 DRF 分页源码：三行看懂执行顺序</h3>
+
+<code>PageNumberPagination.paginate_queryset()</code> 核心就三步（<code>rest_framework/pagination.py</code> 精简）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">paginate_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">queryset</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_page_size</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>  <span class="c1"># 1. 定每页多少：?page_size= or 默认</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">page_size</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">paginator</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">django_paginator_class</span><span class="p">(</span><span class="n">queryset</span><span class="p">,</span> <span class="n">page_size</span><span class="p">)</span>  <span class="c1"># 2. Django Paginator 切片</span>
+    <span class="n">page_number</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">page_query_param</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">page</span> <span class="o">=</span> <span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="n">page_number</span><span class="p">)</span>  <span class="c1"># 3. 取第 N 页，超页抛 404</span>
+    <span class="k">except</span> <span class="n">InvalidPage</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">NotFound</span><span class="p">(</span><span class="s2">&quot;Invalid page.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">page</span><span class="p">)</span>
+</code></pre></div>
+
+
+关键在 <code>get_page_size()</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_page_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size_query_param</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_positive_int</span><span class="p">(</span>
+                <span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">page_size_query_param</span><span class="p">],</span>
+                <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">cutoff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_page_size</span>  <span class="c1"># 超过 max 直接截断，不报错</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">pass</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size</span>
+</code></pre></div>
+
+
+两个细节很多人不知道：
+<ul>
+<li>超过 <code>max_page_size</code> <strong>不会报错，而是静默截断</strong>到最大值。所以 <code>?page_size=500</code> 在 <code>max=50</code> 时实际只返回 50 条 —— 这是保护，不是 bug。</li>
+<li>传 <code>?page_size=abc</code> 或负数时回落到默认 <code>page_size</code>，不会 500。</li>
+</ul>
+<h3>2.3 三种分页深度对比：博客到底选哪个？</h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>参数</th>
+<th>SQL 行为</th>
+<th>优点</th>
+<th>缺点</th>
+<th>用在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PageNumber</td>
+<td><code>?page=3&amp;page_size=10</code></td>
+<td><code>LIMIT 10 OFFSET 20</code></td>
+<td>可跳页，SEO 友好，后台最爱</td>
+<td>深翻页慢（OFFSET 10000 仍要扫），数据新增时跳页重复/漏</td>
+<td>文章列表、管理后台，<strong>博客首选</strong></td>
+</tr>
+<tr>
+<td>LimitOffset</td>
+<td><code>?limit=10&amp;offset=20</code></td>
+<td><code>LIMIT 10 OFFSET 20</code></td>
+<td>移动端无限滚动灵活</td>
+<td>无总页数概念，前端要自己算</td>
+<td>App feed 流</td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td><code>?cursor=xxx</code></td>
+<td><code>WHERE id &gt; xxx LIMIT 10</code></td>
+<td>深翻页也快，无重复/漏，适合高频写入</td>
+<td>只能上/下一页，不能跳页，排序字段必须唯一且稳定</td>
+<td>评论流、点赞流、私信</td>
+</tr>
+</tbody>
+</table>
+
+Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必须加 <code>id</code> 兜底保证唯一）：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">CursorPagination</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentPagination</span><span class="p">(</span><span class="n">CursorPagination</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="s2">&quot;-created_at,-id&quot;</span>  <span class="c1"># 双字段保证 cursor 稳定</span>
+</code></pre></div>
+
+
+博客 99% 用 <code>PageNumberPagination</code> 就够了。文章几百上千篇时 OFFSET 深度不是问题；等你到十万篇那天，再把评论流切成 Cursor 也不迟。
+<h3>2.4 事故复盘：max_page_size=1000 是怎么打挂我的</h3>
+
+当时 <code>ArticleListSerializer</code> 还没瘦身，<code>content</code> 也在列表里。实测（本地 SQLite，120 篇文章，<code>content</code> 平均 15KB）：
+<table>
+<thead>
+<tr>
+<th>请求</th>
+<th>SQL 时间</th>
+<th>序列化+传输</th>
+<th>前端渲染</th>
+<th>总体</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>?page_size=10</code>（瘦身后）</td>
+<td>22ms</td>
+<td>18ms / 60KB</td>
+<td>流畅</td>
+<td>~60ms</td>
+</tr>
+<tr>
+<td><code>?page_size=50</code>（瘦身后）</td>
+<td>45ms</td>
+<td>40ms / 280KB</td>
+<td>正常</td>
+<td>~100ms</td>
+</tr>
+<tr>
+<td><code>?page_size=500</code>（含 content，未瘦身）</td>
+<td>310ms</td>
+<td>550ms / 7.5MB</td>
+<td>卡 3s</td>
+<td>860ms+</td>
+</tr>
+</tbody>
+</table>
+
+修复是两行，不是一行：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. 封顶从 1000 降到 50</span>
+<span class="n">max_page_size</span> <span class="o">=</span> <span class="mi">50</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># 2. 列表和详情用不同的 Serializer（见 2.5）</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_serializer_class</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;retrieve&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ArticleDetailSerializer</span>
+    <span class="k">return</span> <span class="n">ArticleListSerializer</span>
+</code></pre></div>
+
+
+铁律：<strong><code>max_page_size</code> 按最坏情况算</strong>。公式：<code>max_page_size × 单条 list 大小 &lt; 500KB</code>。我的 list 单条约 5KB（title+excerpt+cover+计数），50 条 ≈ 250KB，安全。
+<h3>2.5 列表瘦身 + 详情加料：最被低估的优化</h3>
+
+很多教程只讲分页不讲 Serializer，这是错的。分页切的是“多少条”，Serializer 决定的是“每条多大”。两个 Serializer 对比：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/articles/serializers.py（示意，字段按你实际模型调整）</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleListSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="n">category</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">SlugRelatedField</span><span class="p">(</span><span class="n">slug_field</span><span class="o">=</span><span class="s2">&quot;slug&quot;</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;slug&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;excerpt&quot;</span><span class="p">,</span> <span class="s2">&quot;cover_image&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;views_count&quot;</span><span class="p">,</span> <span class="s2">&quot;likes_count&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;category&quot;</span><span class="p">]</span>
+        <span class="c1"># 注意：没有 content！没有正文！</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleDetailSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">Article</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;slug&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="s2">&quot;cover_image&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;views_count&quot;</span><span class="p">,</span> <span class="s2">&quot;likes_count&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;category&quot;</span><span class="p">,</span> <span class="s2">&quot;tags&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+
+效果：列表单条从 ~15KB 降到 ~5KB（在 50 条/页时就是 750KB → 250KB 的差距）。配合 <code>only()</code>（见 2.6）连 DB 层面都不查 <code>content</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">queryset</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;slug&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;excerpt&quot;</span><span class="p">,</span> <span class="s2">&quot;cover_image&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;views_count&quot;</span><span class="p">,</span> <span class="s2">&quot;likes_count&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;category&quot;</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+但 <code>only()</code> 有个坑：访问未列出的字段会触发额外查询。所以 <code>retrieve</code> 详情接口必须用另一个 queryset（或不用 <code>only</code>），否则详情页反而 N+1。我的做法是 <code>get_queryset()</code> 按 action 区分：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;list&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">only</span><span class="p">(</span>
+            <span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;slug&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;excerpt&quot;</span><span class="p">,</span> <span class="s2">&quot;cover_image&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;views_count&quot;</span><span class="p">,</span> <span class="s2">&quot;likes_count&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;category&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>2.6 分页必须配合 N+1 优化，否则页越小越慢</h3>
+
+分页只减少“条数”，不减少“每条触发的 SQL”。如果列表每条都查一次分类、一次标签，10 条就是 1 + 10 + 10 = 21 条 SQL（这正是我上一篇《从 21 条 SQL 到 2 条》里实测的数字）。
+
+标准解法两行：
+<div class="codehilite"><pre><span></span><code><span class="n">queryset</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span>    <span class="c1"># ForeignKey：一句 JOIN 搞定</span>
+    <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span>      <span class="c1"># ManyToMany：两次查询搞定</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+验证方法（任意 View 里临时加）：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">connection</span><span class="o">.</span><span class="n">queries</span><span class="p">))</span>  <span class="c1"># 列表页应 ≤ 3 条：1 articles + 1 tags + 1 count</span>
+</code></pre></div>
+
+
+<code>count</code> 是分页自带的 <code>SELECT COUNT(*)</code>，翻页必然有一次，这是正常的，别去“优化”掉它。
+<h3>2.7 前端配套：分页组件 + page_size 透传</h3>
+
+后端封顶后，前端也要配合。Vue 3 组合式 + Element Plus / 原生都行，核心是三件事：
+<div class="codehilite"><pre><span></span><code><span class="cm">&lt;!-- frontend/src/components/ArticleList.vue（示意） --&gt;</span>
+<span class="p">&lt;</span><span class="nt">script</span> <span class="na">setup</span><span class="p">&gt;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">ref</span><span class="p">,</span><span class="w"> </span><span class="nx">watch</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vue&#39;</span>
+<span class="k">import</span><span class="w"> </span><span class="nx">api</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@/utils/api&#39;</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">page</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ref</span><span class="p">(</span><span class="mf">1</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">pageSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ref</span><span class="p">(</span><span class="mf">10</span><span class="p">)</span><span class="w">  </span><span class="c1">// 别超过后端 max_page_size，否则被静默截断还困惑</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ref</span><span class="p">(</span><span class="mf">0</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">articles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ref</span><span class="p">([])</span>
+
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">fetchArticles</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">&#39;/articles/&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">params</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">page</span><span class="o">:</span><span class="w"> </span><span class="nx">page</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="w"> </span><span class="nx">page_size</span><span class="o">:</span><span class="w"> </span><span class="nx">pageSize</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">})</span>
+<span class="w">  </span><span class="c1">// PageNumberPagination 返回包裹结构</span>
+<span class="w">  </span><span class="nx">articles</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">results</span>
+<span class="w">  </span><span class="nx">total</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">count</span>
+<span class="p">}</span>
+<span class="nx">watch</span><span class="p">([</span><span class="nx">page</span><span class="p">,</span><span class="w"> </span><span class="nx">pageSize</span><span class="p">],</span><span class="w"> </span><span class="nx">fetchArticles</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">immediate</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">})</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">v-for</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">a</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nx">articles</span><span class="s">&quot;</span> <span class="p">:</span><span class="na">key</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">a</span><span class="p">.</span><span class="nx">slug</span><span class="s">&quot;</span><span class="p">&gt;</span><span class="cp">{{</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="cp">}}</span><span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+  <span class="cm">&lt;!-- 分页器：total 是 count，不是页数 --&gt;</span>
+  <span class="p">&lt;</span><span class="nt">el-pagination</span>
+    <span class="na">v-model</span><span class="p">:</span><span class="na">current-page</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">page</span><span class="s">&quot;</span>
+    <span class="na">v-model</span><span class="p">:</span><span class="na">page-size</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">pageSize</span><span class="s">&quot;</span>
+    <span class="p">:</span><span class="na">page-sizes</span><span class="o">=</span><span class="s">&quot;</span><span class="p">[</span><span class="mf">10</span><span class="p">,</span><span class="w"> </span><span class="mf">20</span><span class="p">,</span><span class="w"> </span><span class="mf">50</span><span class="p">]</span><span class="s">&quot;</span>
+    <span class="p">:</span><span class="na">total</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">total</span><span class="s">&quot;</span>
+    <span class="na">layout</span><span class="o">=</span><span class="s">&quot;prev, pager, next, sizes&quot;</span>
+  <span class="p">/&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+
+注意：<code>page-sizes</code> 的最大值必须 ≤ 后端 <code>max_page_size</code>，否则选 100 实际只回 50，前端 <code>total/pageSize</code> 算页数会错位。
+<h3>2.8 分页 5 个常见坑</h3>
+<ol>
+<li><strong>分类/标签也分页</strong>：十几条数据包一层 <code>{results}</code>，前端多写一层解析，纯折腾，直接 <code>pagination_class = None</code>。</li>
+<li><strong><code>max_page_size</code> 设 1000</strong>：等于没设，见 2.4 事故。</li>
+<li><strong>搜索接口不限 <code>page_size</code></strong>：<code>?search=a</code> 匹配几百篇 + 大 <code>page_size</code>，慢上加慢。搜索强制小页：单独给 <code>SearchPagination(max_page_size=20)</code>。</li>
+<li><strong>深翻页 <code>?page=9999</code> 500</strong>：DRF 会抛 <code>NotFound("Invalid page.")</code> 返回 404，这是对的。前端页码别瞎传，用 <code>count</code> 算最大页。</li>
+<li><strong>排序不稳定导致跳页重复</strong>：按 <code>created_at</code> 排序但同一秒多篇，翻页会重复/漏。排序加 <code>,id</code> 兜底：<code>ordering = ["-created_at", "-id"]</code>。</li>
+</ol>
+<hr>
+<h2>3. 缓存篇：PA 无 Redis 也能快 10 倍</h2>
+<h3>3.1 Django 缓存框架：业务代码不用关心后端是谁</h3>
+
+Django 的 <code>cache</code> API 是统一的，换 Redis 还是内存，只改 <code>settings.CACHES</code> 一处：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+<span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">)</span>              <span class="c1"># 取</span>
+<span class="n">cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>  <span class="c1"># 存，300秒过期</span>
+<span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">)</span>           <span class="c1"># 删</span>
+<span class="n">cache</span><span class="o">.</span><span class="n">get_or_set</span><span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="n">default_fn</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>  <span class="c1"># 取不到就调函数存</span>
+</code></pre></div>
+
+
+这是选型的最大底气：<strong>先用免费的跑起来，上量再换 Redis，业务代码零改动</strong>。
+<h3>3.2 四种缓存后端对比（PA 视角）</h3>
+<table>
+<thead>
+<tr>
+<th>后端</th>
+<th>配置难度</th>
+<th>多 worker 共享？</th>
+<th>重启丢失？</th>
+<th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LocMemCache（内存）</td>
+<td>零配置</td>
+<td>否（每个 worker 各一份）</td>
+<td>是</td>
+<td>PA 免费版起步，博客首选</td>
+</tr>
+<tr>
+<td>DatabaseCache（数据库表）</td>
+<td>需 <code>createcachetable</code></td>
+<td>是</td>
+<td>否</td>
+<td>多 worker 又买不起 Redis 时</td>
+</tr>
+<tr>
+<td>FileBasedCache（文件）</td>
+<td>需目录权限</td>
+<td>是（同机）</td>
+<td>否</td>
+<td>PA 也可用，但 IO 不如内存</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td>需单独服务 + <code>django-redis</code></td>
+<td>是</td>
+<td>否</td>
+<td>VPS/付费版、上量后</td>
+</tr>
+</tbody>
+</table>
+
+PA 免费版没有 Redis 服务，直接 <code>LocMemCache</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;django.core.cache.backends.locmem.LocMemCache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;LOCATION&quot;</span><span class="p">:</span> <span class="s2">&quot;blog-cache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;TIMEOUT&quot;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+        <span class="s2">&quot;OPTIONS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;MAX_ENTRIES&quot;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+以后迁 Redis 只改这一段：
+<div class="codehilite"><pre><span></span><code><span class="c1"># pip install django-redis</span>
+<span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;django_redis.cache.RedisCache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;LOCATION&quot;</span><span class="p">:</span> <span class="s2">&quot;redis://127.0.0.1:6379/1&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;OPTIONS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;CLIENT_CLASS&quot;</span><span class="p">:</span> <span class="s2">&quot;django_redis.client.DefaultClient&quot;</span><span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>3.3 决策矩阵：哪些接口值得缓存？</h3>
+
+按“读多写少 + 计算贵”排序，只缓存前三类，别全量加：
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>读/写比</th>
+<th>缓存时长</th>
+<th>失效时机</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分类/标签列表</td>
+<td>1000:1</td>
+<td>1 小时</td>
+<td>分类/标签增删改时删 key</td>
+</tr>
+<tr>
+<td>文章详情</td>
+<td>100:1</td>
+<td>5 分钟</td>
+<td>文章更新时删 key</td>
+</tr>
+<tr>
+<td>文章列表第一页（无搜索）</td>
+<td>50:1</td>
+<td>2 分钟</td>
+<td>新文章发布时删 key</td>
+</tr>
+<tr>
+<td>搜索结果</td>
+<td>5:1</td>
+<td>不缓存</td>
+<td>组合太多，缓存命中率低还占内存</td>
+</tr>
+<tr>
+<td>点赞/评论/订阅（写接口）</td>
+<td>写多</td>
+<td>永不缓存</td>
+<td>缓存写接口是 bug</td>
+</tr>
+</tbody>
+</table>
+<h3>3.4 文章详情：@cache_page 一行搞定 + 原理</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.utils.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">method_decorator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.views.decorators.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache_page</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="nd">@method_decorator</span><span class="p">(</span><span class="n">cache_page</span><span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="mi">5</span><span class="p">))</span>  <span class="c1"># 整页缓存 5 分钟，key 含 URL+query</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>cache_page</code> 原理：按完整 URL（含 querystring）做 key，命中直接返回上次的 <code>Response.content</code>，连 View 都不进。等价手写：
+<div class="codehilite"><pre><span></span><code><span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;page:</span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get_full_path</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>3.5 分类/标签：手动低阶缓存 + 信号失效</h3>
+
+<code>cache_page</code> 按 URL 缓存，对分类这种“整表只有一个版本”的数据，用手动 key 更可控：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.response</span><span class="w"> </span><span class="kn">import</span> <span class="n">Response</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CategoryViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;api:categories:v1&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">qs</span> <span class="o">=</span> <span class="n">Category</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
+                <span class="n">article_count</span><span class="o">=</span><span class="n">Count</span><span class="p">(</span>
+                    <span class="s2">&quot;article&quot;</span><span class="p">,</span>
+                    <span class="nb">filter</span><span class="o">=</span><span class="n">Q</span><span class="p">(</span><span class="n">article__status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">CategorySerializer</span><span class="p">(</span><span class="n">qs</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">data</span>
+            <span class="n">cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;api:categories:v1&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="mi">3600</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+
+失效放在 signals（<code>articles/signals.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models.signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">post_save</span><span class="p">,</span> <span class="n">post_delete</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.dispatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">receiver</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Category</span><span class="p">,</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">Article</span>
+
+<span class="nd">@receiver</span><span class="p">([</span><span class="n">post_save</span><span class="p">,</span> <span class="n">post_delete</span><span class="p">],</span> <span class="n">sender</span><span class="o">=</span><span class="n">Category</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">clear_category_cache</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">&quot;api:categories:v1&quot;</span><span class="p">)</span>
+
+<span class="nd">@receiver</span><span class="p">([</span><span class="n">post_save</span><span class="p">,</span> <span class="n">post_delete</span><span class="p">],</span> <span class="n">sender</span><span class="o">=</span><span class="n">Tag</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">clear_tag_cache</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">&quot;api:tags:v1&quot;</span><span class="p">)</span>
+
+<span class="nd">@receiver</span><span class="p">([</span><span class="n">post_save</span><span class="p">,</span> <span class="n">post_delete</span><span class="p">],</span> <span class="n">sender</span><span class="o">=</span><span class="n">Article</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">clear_article_list_cache</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="c1"># 文章增删改只清列表第一页，详情页靠 cache_page 自然过期</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">&quot;api:articles:page1&quot;</span><span class="p">)</span>
+    <span class="c1"># 也可以按 slug 精确清：cache.delete(f&quot;api:article:{instance.slug}&quot;)</span>
+</code></pre></div>
+
+
+key 里加 <code>v1</code> 是版本号技巧：大改版时把 <code>v1</code> 改 <code>v2</code>，旧缓存自然废弃，比逐个删靠谱。
+<h3>3.6 终极矛盾：浏览量自增 vs 详情缓存，怎么选？</h3>
+
+我的 <code>retrieve</code> 原来每次都 <code>views_count + 1</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">()</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">views_count</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;views_count&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">instance</span><span class="o">.</span><span class="n">refresh_from_db</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;views_count&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+
+加了 <code>cache_page</code> 后，缓存命中时 View 不执行，浏览量就不涨了。三种解法：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>做法</th>
+<th>精度</th>
+<th>复杂度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. 详情不缓存</td>
+<td>只缓存列表，详情每次查库</td>
+<td>精确</td>
+<td>最低</td>
+</tr>
+<tr>
+<td>B. 缓存 + 浏览量容忍延迟（我用的）</td>
+<td>详情缓存 5 分钟，浏览量 5 分钟延迟</td>
+<td>近似</td>
+<td>低</td>
+</tr>
+<tr>
+<td>C. 缓存 + 异步埋点</td>
+<td>详情缓存，前端另调 <code>POST /articles/&lt;slug&gt;/view/</code> 单独 +1（可限流）</td>
+<td>精确</td>
+<td>中</td>
+</tr>
+</tbody>
+</table>
+
+C 的埋点接口示例：
+<div class="codehilite"><pre><span></span><code><span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">AllowAny</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">AnonRateThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">track_view</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">slug</span><span class="p">):</span>
+    <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">slug</span><span class="o">=</span><span class="n">slug</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">views_count</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;views_count&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;ok&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</code></pre></div>
+
+
+小博客选 B，大流量选 C。别为了精确浏览量放弃缓存，因小失大。
+<h3>3.7 缓存三兄弟：穿透、击穿、雪崩</h3>
+<ul>
+<li><strong>穿透</strong>：查不存在的 slug（如 <code>/articles/xxx-not-exist/</code>），每次都打到 DB。解法：空结果也缓存 60 秒（<code>cache.set(key, None, 60)</code>），或布隆过滤器（小博客用前者就够）。</li>
+<li><strong>击穿</strong>：热点 key（如首页第一页）刚好过期，瞬间几十个请求全打到 DB。解法：逻辑过期（缓存里存 <code>expire_at</code>，过期后第一个请求异步重建，其他仍返回旧值）或 <code>cache.get_or_set</code> 加短锁。小博客把过期时间打散（120s/150s/180s 别对齐）即可。</li>
+<li><strong>雪崩</strong>：重启/批量过期导致所有 key 同时失效。解法：过期时间加随机抖动：<code>timeout = 300 + random.randint(0, 60)</code>。</li>
+</ul>
+<h3>3.8 PA 大坑：LocMemCache 多 worker 不共享</h3>
+
+PythonAnywhere 生产是多 worker（多进程），<code>LocMemCache</code> 是<strong>进程内内存</strong>，每个 worker 各一份。这意味着：
+<ul>
+<li>A worker 清了缓存，B worker 还有旧数据，最多延迟一个缓存周期（2~5 分钟）；</li>
+<li>对博客可接受（分类晚 5 分钟更新没人发现）；</li>
+<li>对库存/秒杀不可接受（但博客也没有）。</li>
+</ul>
+
+真介意就换 <code>DatabaseCache</code>（多 worker 共享，PA 免费版也可用）：
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>createcachetable<span class="w">  </span><span class="c1"># 建一张 cache 表</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;django.core.cache.backends.db.DatabaseCache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;LOCATION&quot;</span><span class="p">:</span> <span class="s2">&quot;blog_cache_table&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>3.9 实测数据（本地 SQLite，120 篇文章）</h3>
+
+用 <code>django-debug-toolbar</code> 看 SQL，或最土的 <code>time curl</code>：
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>优化前</th>
+<th>分页+瘦身后</th>
+<th>再加缓存（命中）</th>
+<th>总提升</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/categories/</code></td>
+<td>45ms / 3 SQL</td>
+<td>45ms / 1 SQL（annotate）</td>
+<td>3ms / 0 SQL</td>
+<td>15x</td>
+</tr>
+<tr>
+<td><code>GET /api/articles/</code> 第一页</td>
+<td>820ms / 21 SQL</td>
+<td>85ms / 3 SQL</td>
+<td>12ms / 0 SQL</td>
+<td>68x</td>
+</tr>
+<tr>
+<td><code>GET /api/articles/&lt;slug&gt;/</code></td>
+<td>90ms / 4 SQL</td>
+<td>60ms / 3 SQL</td>
+<td>8ms / 0 SQL</td>
+<td>11x</td>
+</tr>
+</tbody>
+</table>
+
+第二列到第三列的功臣是上一篇的 N+1 优化（<code>select_related/prefetch_related</code>），第三列到第四列是本文的缓存。两篇连起来看效果最完整。
+<hr>
+<h2>4. 限流篇：读和写必须分开限</h2>
+<h3>4.1 全局限流只是底线，防不住业务 abuse</h3>
+<div class="codehilite"><pre><span></span><code><span class="s1">&#39;anon&#39;</span><span class="p">:</span> <span class="s1">&#39;30/minute&#39;</span><span class="p">,</span>
+<span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;100/minute&#39;</span><span class="p">,</span>
+</code></pre></div>
+
+
+这能挡住“把列表接口当压测打”，但挡不住：1 分钟刷 30 条垃圾评论、1 小时试 30 个订阅邮箱、1 分钟给某篇文章点 30 个赞。<strong>读接口和写接口的“正常频率”差两个数量级，必须分级</strong>。
+
+我的分级表：
+<table>
+<thead>
+<tr>
+<th>scope</th>
+<th>阈值</th>
+<th>覆盖接口</th>
+<th>设计理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>anon</td>
+<td>30/min</td>
+<td>所有读接口默认</td>
+<td>正常刷文章 1 分钟点不了 30 页，爬虫会被 429</td>
+</tr>
+<tr>
+<td>user</td>
+<td>100/min</td>
+<td>登录读接口</td>
+<td>登录用户放宽，前端预加载/联想搜索不误伤</td>
+</tr>
+<tr>
+<td>comment</td>
+<td>3/min</td>
+<td>评论发表</td>
+<td>正常人打字+思考 &gt; 20 秒，脚本直接 429</td>
+</tr>
+<tr>
+<td>subscribe</td>
+<td>5/hour</td>
+<td>订阅</td>
+<td>正常用户点一次，拿字典试邮箱的直接封一小时</td>
+</tr>
+<tr>
+<td>upload</td>
+<td>100/hour</td>
+<td>图片上传（需登录）</td>
+<td>防烧存储，匿名直接不让传</td>
+</tr>
+</tbody>
+</table>
+<h3>4.2 DRF 限流源码：请求进来先过哪一关？</h3>
+
+<code>APIView.initial()</code> 里（<code>rest_framework/views.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">initial</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">check_throttles</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>  <span class="c1"># 限流在权限/业务逻辑之前，不通过直接 429</span>
+    <span class="c1"># ... 然后才是 check_permissions, check_content_negotiation</span>
+</code></pre></div>
+
+
+<code>SimpleRateThrottle.allow_request()</code> 核心是滑动窗口计数（<code>rest_framework/throttling.py</code> 精简）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">allow_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_key</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">)</span>  <span class="c1"># key = scope + ident(IP/用户)</span>
+    <span class="n">history</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">timer</span><span class="p">()</span>
+    <span class="c1"># 扔掉窗口外的记录</span>
+    <span class="k">while</span> <span class="n">history</span> <span class="ow">and</span> <span class="n">history</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">duration</span><span class="p">:</span>
+        <span class="n">history</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">history</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_requests</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">throttle_failure</span><span class="p">()</span>  <span class="c1"># 超了 → 429</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">throttle_success</span><span class="p">()</span>      <span class="c1"># 没超 → 记录本次时间戳</span>
+</code></pre></div>
+
+
+<code>get_cache_key()</code> 默认按 IP（匿名）或 user_id（登录）。这意味着<strong>限流计数也存在缓存里</strong> —— 用 <code>LocMemCache</code> 时多 worker 各算各的，实际阈值会被放大 N 倍（2 worker ≈ 60/min）。小博客无所谓，大流量必须换共享缓存（Redis/DB）。
+<h3>4.3 四种限流器怎么选？</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. AnonRateThrottle：按 IP，匿名用户。点赞这种允许匿名的写接口直接用它。</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.throttling</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnonRateThrottle</span>
+
+<span class="c1"># 2. UserRateThrottle：按 user_id，登录用户。读接口默认档。</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.throttling</span><span class="w"> </span><span class="kn">import</span> <span class="n">UserRateThrottle</span>
+
+<span class="c1"># 3. ScopedRateThrottle：按 view.throttle_scope，一个 View 一档，最灵活。</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.throttling</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScopedRateThrottle</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">throttle_scope</span> <span class="o">=</span> <span class="s2">&quot;comment&quot;</span>  <span class="c1"># 对应 settings 里 &#39;comment&#39;: &#39;3/minute&#39;</span>
+    <span class="n">throttle_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">ScopedRateThrottle</span><span class="p">]</span>
+
+<span class="c1"># 4. 自定义 scope（我博客用的）：语义最清晰，推荐。</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubscribeThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
+    <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;subscribe&quot;</span>
+</code></pre></div>
+
+
+我用第 4 种，函数视图一行搞定：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/articles/views.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubscribeThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
+    <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;subscribe&quot;</span>
+
+<span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">AllowAny</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">SubscribeThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">subscribe_newsletter</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="c1"># ...</span>
+
+<span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">AllowAny</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">AnonRateThrottle</span><span class="p">])</span>  <span class="c1"># 点赞走 anon 档</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">like_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">slug</span><span class="p">):</span>
+    <span class="c1"># IP+UA 24小时去重 + F() 原子计数（详见点赞防刷那篇）</span>
+    <span class="c1"># ...</span>
+</code></pre></div>
+
+
+评论（<code>backend/comments/views.py</code> 同理）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CommentThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
+    <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;comment&quot;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CommentViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">throttle_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">CommentThrottle</span><span class="p">]</span>
+    <span class="c1"># ...</span>
+</code></pre></div>
+
+<h3>4.4 真实大坑：XFF 取 IP 取错，限流形同虚设</h3>
+
+PA 生产在 Nginx 反代后面，<code>REMOTE_ADDR</code> 是代理 IP，所有用户看起来是同一个 IP —— 不特殊处理的话，要么全被限，要么全不限。
+
+DRF 取 IP 看 <code>get_ident()</code>：优先 <code>X-Forwarded-For</code>，没有才用 <code>REMOTE_ADDR</code>。而 <code>XFF</code> 格式是 <code>client, proxy1, proxy2</code>，<strong>最左边是客户端声称的（可伪造），最右边是可信代理追加的（最可信）</strong>。
+
+错误写法（很多博客都这么写）：
+<div class="codehilite"><pre><span></span><code><span class="n">ip</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;HTTP_X_FORWARDED_FOR&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<span class="c1"># 左边第一个！攻击者 curl -H &quot;X-Forwarded-For: 1.2.3.4&quot; 随便换 IP，</span>
+<span class="c1"># 限流和点赞去重全部绕过。</span>
+</code></pre></div>
+
+
+正确写法（我博客现在用的）：
+<div class="codehilite"><pre><span></span><code><span class="n">xff</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;HTTP_X_FORWARDED_FOR&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">xff</span><span class="p">:</span>
+    <span class="n">ip</span> <span class="o">=</span> <span class="n">xff</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>  <span class="c1"># 最右边：PA 前端追加的出口，可信</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">ip</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;REMOTE_ADDR&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+<span class="n">ip</span> <span class="o">=</span> <span class="p">(</span><span class="n">ip</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)[:</span><span class="mi">64</span><span class="p">]</span>
+</code></pre></div>
+
+
+复现伪造（本地试）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 正常请求</span>
+curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/articles/hello/like/
+<span class="c1"># 伪造 XFF，每次换 IP，错误写法下可无限点赞</span>
+curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;X-Forwarded-For: 9.9.9.</span><span class="nv">$RANDOM</span><span class="s2">&quot;</span><span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/articles/hello/like/
+</code></pre></div>
+
+
+<strong>铁律：限流 key 的 IP 取法必须和业务去重 key 的 IP 取法一致</strong>，否则限流和去重各说各话，形同虚设。
+<h3>4.5 前端：429 不是报错，是正常流程</h3>
+
+DRF 429 响应头带 <code>Retry-After</code>（秒）。前端 axios 拦截器统一处理：读接口静默重试一次，写接口友好提示：
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/utils/api.js</span>
+<span class="k">import</span><span class="w"> </span><span class="nx">axios</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;axios&#39;</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">api</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">axios</span><span class="p">.</span><span class="nx">create</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">baseURL</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;https://zhoujun123.pythonanywhere.com/api/&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">timeout</span><span class="o">:</span><span class="w"> </span><span class="mf">10000</span><span class="p">,</span>
+<span class="p">})</span>
+
+<span class="nx">api</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">response</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span>
+<span class="w">  </span><span class="p">(</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">res</span><span class="p">,</span>
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">response</span><span class="p">,</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">err</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">response</span><span class="o">?</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">429</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">config</span><span class="p">.</span><span class="nx">_retried</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">config</span><span class="p">.</span><span class="nx">_retried</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="c1">// 读接口：按 Retry-After 等一下重试一次</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">config</span><span class="p">.</span><span class="nx">method</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;get&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">wait</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">[</span><span class="s1">&#39;retry-after&#39;</span><span class="p">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span>
+<span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Promise</span><span class="p">((</span><span class="nx">r</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">setTimeout</span><span class="p">(</span><span class="nx">r</span><span class="p">,</span><span class="w"> </span><span class="nx">wait</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">))</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">request</span><span class="p">(</span><span class="nx">config</span><span class="p">)</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="c1">// 写接口：点赞/评论/订阅被限，给人话而不是报错</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">action</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">url</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;subscribe&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s1">&#39;订阅&#39;</span>
+<span class="w">        </span><span class="o">:</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">url</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;comment&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s1">&#39;评论&#39;</span>
+<span class="w">        </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;点赞&#39;</span>
+<span class="w">      </span><span class="nx">alert</span><span class="p">(</span><span class="sb">`</span><span class="si">${</span><span class="nx">action</span><span class="si">}</span><span class="sb">太频繁啦，稍后再试～`</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">api</span>
+</code></pre></div>
+
+
+再配个按钮级防抖（点赞连点是 429 最大来源）：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span> <span class="na">setup</span><span class="p">&gt;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vue&#39;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">liking</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ref</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">like</span><span class="p">(</span><span class="nx">slug</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">liking</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="w">  </span><span class="nx">liking</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="sb">`/articles/</span><span class="si">${</span><span class="nx">slug</span><span class="si">}</span><span class="sb">/like/`</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">setTimeout</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="nx">liking</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">),</span><span class="w"> </span><span class="mf">1500</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<h3>4.6 压测 + 监控：阈值不是拍脑袋定的</h3>
+
+本地压测（<code>ab</code> 或 <code>locust</code>，PA 免费版别在生产压）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 匿名 35 次/分打列表，第 31 次起应 429</span>
+<span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">35</span><span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;%{http_code}\n&quot;</span><span class="w"> </span>http://127.0.0.1:8000/api/articles/<span class="p">;</span><span class="w"> </span><span class="k">done</span>
+<span class="c1"># 评论 1 分钟刷 5 次，第 4 次起应 429</span>
+<span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/comments/<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;content&quot;:&quot;test&quot;}&#39;</span><span class="p">;</span><span class="w"> </span>echo<span class="p">;</span><span class="w"> </span><span class="k">done</span>
+</code></pre></div>
+
+
+Django 日志里把 429 单独记（<code>settings.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="n">LOGGING</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;version&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;disable_existing_loggers&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s2">&quot;handlers&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;console&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;class&quot;</span><span class="p">:</span> <span class="s2">&quot;logging.StreamHandler&quot;</span><span class="p">}},</span>
+    <span class="s2">&quot;loggers&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;django.request&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;handlers&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;console&quot;</span><span class="p">],</span> <span class="s2">&quot;level&quot;</span><span class="p">:</span> <span class="s2">&quot;WARNING&quot;</span><span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+上线后看一周 429 比例调阈值：正常用户 429 率 &gt; 1% 说明太严，评论垃圾 &gt; 0 说明太松。我的 <code>comment 3/min</code> 就是从 10/min 收紧下来的 —— 10/min 时一晚上 40 条广告。
+<hr>
+<h2>5. 组合篇：一个 ViewSet 的最终形态 + 总压测表</h2>
+
+把分页、N+1、缓存、限流（全局）叠在一起：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/articles/views.py（最终形态，精简注释版）</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Count</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">Q</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.utils.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">method_decorator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.views.decorators.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache_page</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django_filters.rest_framework</span><span class="w"> </span><span class="kn">import</span> <span class="n">DjangoFilterBackend</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework</span><span class="w"> </span><span class="kn">import</span> <span class="n">viewsets</span><span class="p">,</span> <span class="n">filters</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticlePagination</span><span class="p">(</span><span class="n">PageNumberPagination</span><span class="p">):</span>
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">page_size_query_param</span> <span class="o">=</span> <span class="s2">&quot;page_size&quot;</span>
+    <span class="n">max_page_size</span> <span class="o">=</span> <span class="mi">50</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">lookup_field</span> <span class="o">=</span> <span class="s2">&quot;slug&quot;</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="n">ArticlePagination</span>
+    <span class="n">filter_backends</span> <span class="o">=</span> <span class="p">[</span><span class="n">DjangoFilterBackend</span><span class="p">,</span> <span class="n">filters</span><span class="o">.</span><span class="n">SearchFilter</span><span class="p">]</span>
+    <span class="n">filterset_fields</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;category__slug&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;exact&quot;</span><span class="p">],</span> <span class="s2">&quot;tags__slug&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;exact&quot;</span><span class="p">]}</span>
+    <span class="n">search_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;list&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="n">base</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;slug&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;excerpt&quot;</span><span class="p">,</span> <span class="s2">&quot;cover_image&quot;</span><span class="p">,</span>
+                      <span class="s2">&quot;views_count&quot;</span><span class="p">,</span> <span class="s2">&quot;likes_count&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;category&quot;</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;-created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;-id&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_serializer_class</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ArticleDetailSerializer</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;retrieve&quot;</span> <span class="k">else</span> <span class="n">ArticleListSerializer</span>
+
+    <span class="nd">@method_decorator</span><span class="p">(</span><span class="n">cache_page</span><span class="p">(</span><span class="mi">120</span><span class="p">))</span>  <span class="c1"># 列表整页 2 分钟</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># 搜索请求穿透缓存（组合太多不值得）</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;search&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="nd">@method_decorator</span><span class="p">(</span><span class="n">cache_page</span><span class="p">(</span><span class="mi">300</span><span class="p">))</span>  <span class="c1"># 详情 5 分钟，浏览量容忍延迟</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+
+总压测（120 篇，SQLite，本地）：
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>列表第一页</th>
+<th>分类</th>
+<th>详情</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始（无分页封顶+无瘦身+N+1）</td>
+<td>820ms / 21 SQL</td>
+<td>45ms / N+1</td>
+<td>90ms</td>
+<td><code>page_size=500</code> 直接去世</td>
+</tr>
+<tr>
+<td>+ 分页封顶50 + 瘦身 + N+1</td>
+<td>85ms / 3 SQL</td>
+<td>20ms / 1 SQL</td>
+<td>60ms / 3 SQL</td>
+<td>上一篇 + 本篇分页的功劳</td>
+</tr>
+<tr>
+<td>+ 缓存命中</td>
+<td>12ms / 0 SQL</td>
+<td>3ms / 0 SQL</td>
+<td>8ms / 0 SQL</td>
+<td>本篇缓存的功劳</td>
+</tr>
+<tr>
+<td>+ 限流（压测 100 并发脚本）</td>
+<td>正常用户无感，脚本 429</td>
+<td>同左</td>
+<td>同左</td>
+<td>限流不提速，但保命</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>6. 上线 Checklist（15 项，直接抄）</h2>
+
+<strong>分页（5）</strong>
+<ul>
+<li>[ ] 每个 ViewSet 有独立分页类，<code>max_page_size ≤ 50</code></li>
+<li>[ ] 列表 Serializer 不含 <code>content/body</code> 大字段</li>
+<li>[ ] 小字典表（分类/标签）<code>pagination_class = None</code></li>
+<li>[ ] 排序字段加唯一兜底：<code>ordering = ["-created_at", "-id"]</code></li>
+<li>[ ] 前端 <code>page-sizes</code> 最大值 ≤ 后端 <code>max_page_size</code></li>
+</ul>
+
+<strong>缓存（5）</strong>
+<ul>
+<li>[ ] <code>CACHES</code> 已配（PA 先 LocMem，上量换 Redis，只改一处）</li>
+<li>[ ] 分类/标签/详情/首页第一页已加缓存，搜索/写接口没加</li>
+<li>[ ] 增删改信号里 <code>cache.delete</code> 对应 key，key 带版本号 <code>v1</code></li>
+<li>[ ] 过期时间打散 + 抖动，避免雪崩对齐</li>
+<li>[ ] 详情缓存与浏览量方案已定（B 容忍延迟 or C 异步埋点）</li>
+</ul>
+
+<strong>限流（5）</strong>
+<ul>
+<li>[ ] 读（anon/user）和写（comment/subscribe/upload）分档</li>
+<li>[ ] 生产只留 <code>JSONRenderer</code>，关 Browsable API</li>
+<li>[ ] XFF 取最右边 IP，限流 key 与去重 key 一致</li>
+<li>[ ] 前端 429：GET 重试一次，写操作友好提示 + 按钮防抖</li>
+<li>[ ] 本地压测验证 429 生效，上线后看一周日志调阈值</li>
+</ul>
+<h3>高频 FAQ（评论区 Top 8）</h3>
+
+<strong>Q1：PAGE_SIZE 设多少？10 还是 20？</strong>
+A：PC 列表 10，移动端无限滚动 15~20。核心看首屏渲染时间，不是后端 Make it bigger。
+
+<strong>Q2：max_page_size 50 会不会被前端骂？</strong>
+A：把 <code>page_size=50</code> 的 250KB 和 <code>=500</code> 的 7.5MB 摆出来，没人骂你。真要导出全量，走单独的导出接口 + 异步任务，别走列表。
+
+<strong>Q3：LocMemCache 重启就丢，要不要紧？</strong>
+A：缓存丢了只是变慢，不丢数据。PA 免费版每天会回收，刚回收后几分钟慢一点，可接受。
+
+<strong>Q4：缓存和 JWT 登录冲突吗？</strong>
+A：列表/详情是公开读接口，不按用户缓存，没冲突。千万别缓存 <code>/me</code>、<code>/admin/*</code> 这种按用户的接口。
+
+<strong>Q5：限流把正常用户误伤了怎么办？</strong>
+A：先看是不是前端循环调用（最常见），再看阈值。<code>anon 30/min</code> 对人足够，对脚本不够 —— 这正是我们想要的。
+
+<strong>Q6：评论 3/min 会不会太严？</strong>
+A：正常人连发 3 条评论 within 1 分钟的概率极低。真有（比如作者自己回评论），登录后走 <code>user 100/min</code> 档放宽，或给作者白名单。
+
+<strong>Q7：要不要给爬虫/搜索引擎放行？</strong>
+A：搜索引擎按 <code>User-Agent</code> 识别成本高，小博客不需要。真被 429 的是恶意爬虫，放行它干嘛。
+
+<strong>Q8：SQLite 撑得住吗？要不要直接上 Postgres？</strong>
+A：读多写少 + 三件套后，SQLite 撑几千日活没问题。写多（评论/点赞高频）或要上 Postgres 全文检索时再迁，见下一篇预告。
+<hr>
+<h2>结语</h2>
+
+分页解决“一次拿多少”，缓存解决“多久查一次库”，限流解决“坏人刷怎么办”。三件套没有银弹，真正的功夫在阈值：<strong>先保守上线（10/50、2~5 分钟、3/min），再看日志和 429 慢慢调</strong>。我的所有值都是被真实流量打过才定下来的，直接抄不会错太多。
+
+下一篇预告：<strong>《从 SQLite 到 PostgreSQL：Django 生产数据库迁移避坑》</strong> —— 当文章过万、评论并发上来，SQLite 写锁会成为下一个瓶颈。到时讲 <code>pgloader</code> 迁移、PA 上配 Postgres、JSONB 存标签、全文检索替代 <code>icontains</code>，敬请期待。
+<blockquote>
+
+完整代码：<code>backend/blog_api/settings.py</code>、<code>backend/articles/views.py</code>、<code>backend/articles/serializers.py</code>
+觉得有用欢迎点赞 + 订阅，评论区聊聊你的 <code>max_page_size</code> 和 throttle 阈值是多少～
+</blockquote></div></div></noscript>
+  </body>
+</html>

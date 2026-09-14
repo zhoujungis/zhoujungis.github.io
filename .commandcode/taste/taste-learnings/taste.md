@@ -1,0 +1,13 @@
+# Taste Learnings
+- Respond in Simplified Chinese — the user writes exclusively in Chinese. Confidence: 0.95
+- Keep responses lean and pragmatic: the user is quota/budget-sensitive and explicitly said "差不多就行" (good enough is fine) and just wants things shipped. Avoid over-engineering, verbose explanations, and excessive confirmation loops — act autonomously and carry work through to completion (e.g., finish with actual deployment, not just code). Confidence: 0.85
+- Cares about responsive UI that renders well on both desktop and mobile. Confidence: 0.7
+- Prefers natural, harmonious color palettes over harsh or oversaturated schemes ("配色更自然"). Confidence: 0.7
+- When offered conservative-fix vs. ambitious-redesign options for the blog homepage, chose the boldest option ("大改视觉" — full editorial/magazine restyle) over incremental cleanup: comfortable with large-scale visual restructuring. Confidence: 0.65
+- Wants screenshot-based visual verification before shipping frontend changes: approved globally installing agent-browser + its browser runtime so light and dark themes could be screenshotted before deploying. Confidence: 0.75
+- Personally reviews rendered output and gives specific composition critique (e.g., flagged the masthead's empty right column); self-check layout balance/whitespace in both themes before presenting results. Confidence: 0.7
+- Personal blog (D:\zhoujungis.github.io) is a Vue 3 SPA: source lives in frontend/ (pages in frontend/src/pages, components in frontend/src/components), built site at repo root, deployed to GitHub Pages via frontend/deploy.sh. Confidence: 0.8
+- For visual design the quality bar sits above "差不多就行": after a completed pass the user pushed for another round ("还有优化的空间呀") and multi-selected both 细节打磨 and 版面节奏 tracks — proactively self-critique and offer concrete next-refinement options after each delivery instead of stopping at "done". Confidence: 0.7
+- Strong CTA hierarchy on landing pages: the main action ("阅读文章") was promoted to a solid accent-filled button while secondary links (GitHub/Email/RSS) were demoted to thin underline text links — user chose this option. Confidence: 0.7
+- Prefers generous vertical breathing room: accepted widening section spacing 40→56px, project-row padding 22→26px, and colophon margin 44→64px when offered a "版面节奏重排". Confidence: 0.7
+- Enjoys editorial micro-detail polish: decorative project numerals recolored to the terracotta accent (1.6→1.8rem) and subtitle letter-spacing widened (0.22em→0.3em) for a masthead feel — approved as part of 细节打磨. Confidence: 0.65

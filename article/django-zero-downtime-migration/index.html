@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-zero-downtime-migration/" />
+    <meta property="og:title" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）" />
+    <meta property="og:description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-zero-downtime-migration/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）" />
+    <meta name="twitter:description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-14T10:50:42.720034+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）","description":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:50:42.720034+08:00","dateModified":"2026-09-14T10:50:42.720059+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-zero-downtime-migration/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）</h1>
+<blockquote>
+
+承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你"给 <code>(status, is_top DESC, created_at DESC)</code> 补一条索引"，这一篇讲的就是<strong>那条索引怎么上线</strong>——以及为什么大多数人上线的姿势，会把整张表锁死几十秒。
+技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；MySQL 8 / PostgreSQL 的对照单独成节。
+阅读时间：约 40 分钟 | 难度：中高级 | 收获：能提前算出一次 <code>migrate</code> 要花多久、锁多久，并且知道哪几种操作可以绕开整表重建
+</blockquote>
+<h2>前言：一条 <code>makemigrations</code> 的代价</h2>
+
+上一篇文章的结尾，我给自己留了一个待办：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/articles/models.py  ← 现在的样子（有 bug）</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">]</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_status_created_idx&quot;</span><span class="p">),</span>
+        <span class="p">]</span>
+</code></pre></div>
+
+
+<code>ordering</code> 是 <code>["-is_top", "-created_at"]</code>，索引却是 <code>["status", "-created_at"]</code>——<strong>少了 <code>is_top</code>，而且方向也不对</strong>。在 100 万行上实测，这条"看起来能用"的索引让首页列表查询慢到了 <strong>476.50 ms</strong>，比不建索引（395.92 ms）还慢；把列和方向全对齐之后是 <strong>0.18 ms</strong>。
+
+修法很简单，改一行：
+<div class="codehilite"><pre><span></span><code><span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_status_top_created_idx&quot;</span><span class="p">),</span>
+</code></pre></div>
+
+
+然后 <code>makemigrations</code> + <code>migrate</code>。
+
+我本来打算就这么干。但在敲下回车之前，我做了一件更谨慎的事——<strong>先看看这条 migration 到底会翻译成什么 SQL</strong>：
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>sqlmigrate<span class="w"> </span>articles<span class="w"> </span><span class="m">0007</span>
+</code></pre></div>
+
+
+输出让我把手从键盘上拿开了。
+
+因为在这个站上，<code>makemigrations</code> 从来不只是"加一条索引"。它会同时发现"模型和数据库对不上"的地方，顺手补一次 <code>AddField</code>；而<strong>在 SQLite 上，<code>AddField</code> 不是 <code>ALTER TABLE ADD COLUMN</code>，是把整张表重建一遍</strong>。
+
+这篇文章要回答的就是这个问题：<strong>一条你以为是"改一行"的 migration，为什么会在上线那一刻把整张表锁死？</strong>
+
+我把整张表的行数灌到 20 万、体积灌到 <strong>789.7 MB</strong>（和本站真实表结构一致，包含 <code>content</code> / <code>html_content</code> 两个大 TEXT 字段），把每一种 DDL 都跑了一遍。数字比我想的还要难看。
+
+<strong>目录</strong>
+<ul>
+<li>一、先看清：<code>sqlmigrate</code> 把你的 migration 翻译成了什么</li>
+<li>二、实验一：原始 SQLite 的 <code>ALTER TABLE ADD COLUMN</code> 有多快</li>
+<li>三、实验二：Django 式整表重建——8381 ms，2× 磁盘峰值</li>
+<li>四、实验三：<code>CREATE INDEX</code> 的代价，和它拿的那把写锁</li>
+<li>五、实验四：DDL 执行期间，写入被挡了多久</li>
+<li>六、实验五：<code>DROP COLUMN</code> 比加列更贵</li>
+<li>七、体积账：表和索引各占多少（<code>dbstat</code> 精确统计）</li>
+<li>八、读源码：Django 为什么非重建不可</li>
+<li>九、四种改法，从最省事到最可控</li>
+<li>十、MySQL 8 / PostgreSQL 的对照表与各自的地雷</li>
+<li>十一、<code>lock_timeout</code>：零停机迁移里最容易被忽略的一行配置</li>
+<li>十二、Expand / Contract：真正意义上的零停机</li>
+<li>十三、上线 Checklist</li>
+<li>结语</li>
+<li>附录：本文实验脚本</li>
+</ul>
+<hr>
+<h2>一、先看清：<code>sqlmigrate</code> 把你的 migration 翻译成了什么</h2>
+
+<code>sqlmigrate</code> 是 Django 里被严重低估的命令。它不连库、不改数据，只把 migration 渲染成 SQL 打印出来。<strong>任何要上线的 migration，都应该先跑一遍这个命令。</strong>
+
+拿本站真实的 migration 链来演示。<code>0004_article_notification_sent.py</code> 是一次普通的 <code>AddField</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">migrations</span><span class="o">.</span><span class="n">AddField</span><span class="p">(</span>
+    <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;article&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;notification_sent&quot;</span><span class="p">,</span>
+    <span class="n">field</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+看起来很无辜。<code>sqlmigrate articles 0004</code> 的输出是这样的：
+<div class="codehilite"><pre><span></span><code><span class="k">BEGIN</span><span class="p">;</span>
+<span class="c1">--</span>
+<span class="c1">-- Add field notification_sent to article</span>
+<span class="c1">--</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">&quot;new__articles_article&quot;</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="ss">&quot;id&quot;</span><span class="w"> </span><span class="nb">integer</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;notification_sent&quot;</span><span class="w"> </span><span class="n">bool</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;title&quot;</span><span class="w"> </span><span class="nb">varchar</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;slug&quot;</span><span class="w"> </span><span class="nb">varchar</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">UNIQUE</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;content&quot;</span><span class="w"> </span><span class="nb">text</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;html_content&quot;</span><span class="w"> </span><span class="nb">text</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;excerpt&quot;</span><span class="w"> </span><span class="nb">text</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;status&quot;</span><span class="w"> </span><span class="nb">varchar</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;is_top&quot;</span><span class="w"> </span><span class="n">bool</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;views_count&quot;</span><span class="w"> </span><span class="nb">integer</span><span class="w"> </span><span class="n">unsigned</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;views_count&quot;</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span>
+<span class="w">    </span><span class="ss">&quot;created_at&quot;</span><span class="w"> </span><span class="n">datetime</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;updated_at&quot;</span><span class="w"> </span><span class="n">datetime</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;category_id&quot;</span><span class="w"> </span><span class="nb">bigint</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="ss">&quot;articles_category&quot;</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;id&quot;</span><span class="p">)</span><span class="w"> </span><span class="k">DEFERRABLE</span><span class="w"> </span><span class="k">INITIALLY</span><span class="w"> </span><span class="k">DEFERRED</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;cover_image&quot;</span><span class="w"> </span><span class="nb">varchar</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">&quot;likes_count&quot;</span><span class="w"> </span><span class="nb">integer</span><span class="w"> </span><span class="n">unsigned</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;likes_count&quot;</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span>
+<span class="w">    </span><span class="ss">&quot;scheduled_at&quot;</span><span class="w"> </span><span class="n">datetime</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">);</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="ss">&quot;new__articles_article&quot;</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;id&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;title&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;slug&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;scheduled_at&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;notification_sent&quot;</span><span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;id&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;title&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;slug&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;scheduled_at&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="p">;</span>
+<span class="k">DROP</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">&quot;new__articles_article&quot;</span><span class="w"> </span><span class="k">RENAME</span><span class="w"> </span><span class="k">TO</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">&quot;articles_article_category_id_633dad2b&quot;</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;category_id&quot;</span><span class="p">);</span>
+<span class="k">COMMIT</span><span class="p">;</span>
+</code></pre></div>
+
+
+<strong>加一个布尔字段，Django 做了四件事：建新表 → 全表拷贝 → 删旧表 → 改名。</strong> 而且是在一个事务里。
+
+对比 <code>0005_add_indexes.py</code>，一次 <code>AddIndex</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">BEGIN</span><span class="p">;</span>
+<span class="c1">--</span>
+<span class="c1">-- Create index articles_status_created_idx on field(s) status, -created_at of model article</span>
+<span class="c1">--</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">&quot;articles_status_created_idx&quot;</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;status&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;created_at&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">);</span>
+<span class="c1">--</span>
+<span class="c1">-- Create index articles_scheduled_idx on field(s) scheduled_at of model article</span>
+<span class="c1">--</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">&quot;articles_scheduled_idx&quot;</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">&quot;articles_article&quot;</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;scheduled_at&quot;</span><span class="p">);</span>
+<span class="k">COMMIT</span><span class="p">;</span>
+</code></pre></div>
+
+
+干净利落，两条 <code>CREATE INDEX</code>，不碰数据行。
+
+<strong>所以从这一刻起，你脑子里应该有一条分界线：</strong>
+<table>
+<thead>
+<tr>
+<th>migration 操作</th>
+<th>SQLite 上的真实 SQL</th>
+<th>是否重建整表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AddIndex</code> / <code>RemoveIndex</code></td>
+<td><code>CREATE INDEX</code> / <code>DROP INDEX</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>AddField</code>（可空、无默认值）</td>
+<td><code>ALTER TABLE ADD COLUMN</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>AddField</code>（<strong>NOT NULL</strong> / 有默认值）</td>
+<td>建表 + 拷数据 + 删表 + 改名</td>
+<td><strong>是</strong></td>
+</tr>
+<tr>
+<td><code>AlterField</code></td>
+<td>建表 + 拷数据 + 删表 + 改名</td>
+<td><strong>是</strong></td>
+</tr>
+<tr>
+<td><code>RemoveField</code></td>
+<td><code>ALTER TABLE DROP COLUMN</code>（3.35+）或重建</td>
+<td>视情况</td>
+</tr>
+<tr>
+<td><code>RunSQL</code></td>
+<td>你写什么就是什么</td>
+<td>你说了算</td>
+</tr>
+</tbody>
+</table>
+
+这张表就是全文的地图。左边是你写的 Python，右边是数据库真正要干的活——<strong>中间隔着一层翻译，而翻译的结果你从来没看过。</strong>
+<h3>1.1 为什么 <code>sqlmigrate</code> 必须成为肌肉记忆</h3>
+
+因为它能提前告诉你三件事：
+<ol>
+<li><strong>会不会重建整表</strong>——看到 <code>CREATE TABLE "new__..."</code> 就是重建。</li>
+<li><strong>有没有顺带改别的东西</strong>——<code>makemigrations</code> 会检测所有模型漂移，你以为只加索引，它可能同时给你补三个 <code>AlterField</code>。</li>
+<li><strong>能不能在一个事务里跑完</strong>——所有语句都在 <code>BEGIN;</code> / <code>COMMIT;</code> 之间，意味着<strong>它们要么全成功，要么全回滚</strong>。这听起来是好事，但下面会看到它同时也是坏事。</li>
+</ol>
+
+第二点尤其坑。我原本以为 <code>makemigrations</code> 只会生成一条 <code>AddIndex</code>，但因为 <code>models.py</code> 里索引定义和 <code>ordering</code> 不一致，加上之前手改过字段，它实际生成的是一个混合 migration。<strong>先跑 <code>sqlmigrate</code>，再决定要不要按下回车。</strong>
+<hr>
+<h2>二、实验一：原始 SQLite 的 <code>ALTER TABLE ADD COLUMN</code> 有多快</h2>
+
+在讲 Django 的 8381 ms 之前，得先知道"标准答案"是多少。
+
+SQLite 从很早就支持 <code>ALTER TABLE ... ADD COLUMN</code>，而且它是<strong>纯元数据操作</strong>——只改 <code>sqlite_schema</code> 里那行 <code>CREATE TABLE</code> 语句，一行数据都不碰。所以理论上它应该和表大小无关。
+
+我在 20 万行（约 50 MB）的表上直接跑原始 SQL，把 SQLite 支持和不支持的形态都试了一遍：
+<div class="codehilite"><pre><span></span><code><span class="n">sqlite</span><span class="w"> </span><span class="n">lib</span><span class="w"> </span><span class="n">version</span><span class="p">:</span><span class="w"> </span><span class="mf">3.53</span><span class="o">.</span><span class="mi">1</span>
+<span class="w">  </span><span class="n">OK</span><span class="w">   </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">nullable</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="n">TEXT</span><span class="p">)</span><span class="w">                              </span><span class="mf">7.7</span><span class="w"> </span><span class="n">ms</span>
+<span class="w">  </span><span class="n">OK</span><span class="w">   </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">NOT</span><span class="w"> </span><span class="n">NULL</span><span class="w"> </span><span class="n">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="n">INTEGER</span><span class="p">)</span><span class="w">                 </span><span class="mf">7.4</span><span class="w"> </span><span class="n">ms</span>
+<span class="w">  </span><span class="n">OK</span><span class="w">   </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">NOT</span><span class="w"> </span><span class="n">NULL</span><span class="w"> </span><span class="n">DEFAULT</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="w"> </span><span class="n">TEXT</span><span class="p">)</span><span class="w">                   </span><span class="mf">7.0</span><span class="w"> </span><span class="n">ms</span>
+<span class="w">  </span><span class="n">FAIL</span><span class="w"> </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">NOT</span><span class="w"> </span><span class="n">NULL</span><span class="w"> </span><span class="n">no</span><span class="w"> </span><span class="n">default</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="w"> </span><span class="n">INTEGER</span><span class="p">)</span><span class="w">           </span><span class="n">OperationalError</span><span class="p">:</span><span class="w"> </span><span class="n">Cannot</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">NOT</span><span class="w"> </span><span class="n">NULL</span><span class="w"> </span><span class="n">column</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">default</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="n">NULL</span>
+<span class="w">  </span><span class="n">FAIL</span><span class="w"> </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">non</span><span class="o">-</span><span class="n">constant</span><span class="w"> </span><span class="n">default</span><span class="w"> </span><span class="p">(</span><span class="n">g</span><span class="w"> </span><span class="n">TEXT</span><span class="p">)</span><span class="w">             </span><span class="n">OperationalError</span><span class="p">:</span><span class="w"> </span><span class="n">Cannot</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">column</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">non</span><span class="o">-</span><span class="n">constant</span><span class="w"> </span><span class="n">default</span>
+<span class="w">  </span><span class="n">FAIL</span><span class="w"> </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">UNIQUE</span><span class="w"> </span><span class="p">(</span><span class="n">h</span><span class="w"> </span><span class="n">TEXT</span><span class="p">)</span><span class="w">                           </span><span class="n">OperationalError</span><span class="p">:</span><span class="w"> </span><span class="n">Cannot</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">UNIQUE</span><span class="w"> </span><span class="n">column</span>
+<span class="w">  </span><span class="n">OK</span><span class="w">   </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="n">INTEGER</span><span class="w"> </span><span class="n">CHECK</span><span class="p">(</span><span class="n">i</span><span class="o">&gt;=</span><span class="mi">0</span><span class="p">))</span><span class="w">                 </span><span class="mf">52.8</span><span class="w"> </span><span class="n">ms</span>
+<span class="w">  </span><span class="n">OK</span><span class="w">   </span><span class="n">ADD</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="n">REFERENCES</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w">                                 </span><span class="mf">7.7</span><span class="w"> </span><span class="n">ms</span>
+<span class="w">  </span><span class="n">FAIL</span><span class="w"> </span><span class="n">ALTER</span><span class="w"> </span><span class="n">COLUMN</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">change</span><span class="w"> </span><span class="n">type</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="w">                       </span><span class="n">OperationalError</span><span class="p">:</span><span class="w"> </span><span class="n">near</span><span class="w"> </span><span class="s2">&quot;TYPE&quot;</span><span class="p">:</span><span class="w"> </span><span class="n">syntax</span><span class="w"> </span><span class="n">error</span>
+<span class="w">  </span><span class="n">OK</span><span class="w">   </span><span class="n">ADD</span><span class="w"> </span><span class="n">CONSTRAINT</span><span class="w"> </span><span class="n">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">table</span><span class="o">-</span><span class="n">level</span><span class="p">)</span><span class="w">                       </span><span class="mf">26.3</span><span class="w"> </span><span class="n">ms</span>
+</code></pre></div>
+
+
+<strong>请重点看第二行。</strong>
+<div class="codehilite"><pre><span></span><code>ADD COLUMN NOT NULL DEFAULT 0   →   7.4 ms   ✅
+</code></pre></div>
+
+
+一个 <strong>NOT NULL 带常量默认值</strong> 的列，SQLite 原生支持，耗时 <strong>7.4 ms</strong>，和加一个可空列完全一样。
+
+而 Django 为同样的操作，在同样规模的数据上要花 <strong>8381 ms</strong>（下面实验二）。<strong>差了 1130 倍。</strong>
+
+SQLite 的 <code>ADD COLUMN</code> 有三条硬限制，理解了就能理解 Django 为什么要绕路：
+<ol>
+<li><strong>不能加 <code>NOT NULL</code> 且没有默认值的列。</strong> 因为已有行填不出值——SQLite 拒绝猜。</li>
+<li><strong>默认值必须是常量。</strong> <code>DEFAULT (datetime('now'))</code> 这种不行，因为常量默认值可以只存在 schema 里，而非恒定默认值必须写进每一行。</li>
+<li><strong>不能加 <code>UNIQUE</code> 列。</strong> 唯一性需要索引，<code>ADD COLUMN</code> 不做这件事。</li>
+</ol>
+
+反过来，<code>NOT NULL DEFAULT 0</code> 完全合法：SQLite 会把默认值记在 schema 里，读取旧行时按 schema 补上——<strong>不需要改写任何一行数据。</strong> 这就是 7.4 ms 的来源。
+
+顺带一个反直觉的：<code>CHECK</code> 约束是支持的（52.8 ms，略贵是因为要校验存量行）。而 <code>ALTER COLUMN</code>（改类型）<strong>根本不支持</strong>，SQLite 没有这个语法——这也是 Django 遇到 <code>AlterField</code> 只能重建的原因。
+<blockquote>
+
+<strong>一句话总结实验一：</strong> SQLite 本身完全有能力在 7 ms 内加一个 <code>NOT NULL DEFAULT 0</code> 的列。接下来要看的，是 Django 为什么偏不这么做。
+</blockquote>
+<hr>
+<h2>三、实验二：Django 式整表重建——8381 ms，2× 磁盘峰值</h2>
+
+现在跑 Django 在 SQLite 上遇到 <code>AddField</code> 时的真实路径。我把 <code>sqlmigrate</code> 打印出的那四步原样执行，在 20 万行 / 789.7 MB 的表上计时：
+<div class="codehilite"><pre><span></span><code>==========================================================================
+E2 Django 式整表重建（NOT NULL 列，SQLite 上 AddField 的真实做法）
+==========================================================================
+  耗时      : 8381.1 ms   ← 全表拷贝 + 全索引重建
+  峰值体积  : 1.5 GB（原表 789.7 MB，约 2×）
+  期间整张表被独占：读要排队，写要排队
+</code></pre></div>
+
+
+三个数字，每个都要命。
+<h3>3.1 8381 ms：时间随表大小线性增长</h3>
+
+<code>INSERT INTO new_... SELECT ... FROM old</code> 是一次全表扫描 + 全表写入。表越大越慢，<strong>没有上界</strong>。
+
+我这张表是 789.7 MB。你的表可能是 8 GB。那就是 80 秒起步——而且是在一个事务里，全程持锁。
+<h3>3.2 1.5 GB：峰值磁盘是 2×</h3>
+
+<code>CREATE TABLE new</code> → <code>INSERT SELECT</code> → <code>DROP TABLE old</code> → <code>RENAME</code>。
+
+在 <code>DROP TABLE</code> 执行之前，<strong>新旧两张表同时存在</strong>。所以峰值磁盘 = 原表 × 2 + 索引。原表 789.7 MB，峰值 1.5 GB。
+
+这一条在共享主机上会直接变成事故：PythonAnywhere 免费档的磁盘配额是 512 MB。<strong>如果数据库已经 400 MB，这次 migration 会在写到一半时因为磁盘满而失败</strong>——而它在一个事务里，失败会回滚，但磁盘上的临时数据要等 SQLite 自己清理，期间站点可能已经 500 了。
+<h3>3.3 "整张表被独占"</h3>
+
+这是最容易被忽略、也最致命的一条。
+
+整个重建过程跑在一个<strong>写事务</strong>里。SQLite 的锁模型是数据库级的（不是行级、不是表级）：一旦开始写，其他连接<strong>不能写</strong>；在回滚日志模式下，<strong>读也要排队</strong>。
+
+意味着在 8381 ms 里：
+<ul>
+<li>任何一个 <code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> 都在等锁；</li>
+<li>任何一个 <code>SELECT</code>（在非 WAL 模式下）也在等锁；</li>
+<li>Django 每个请求的 <code>save()</code> 都会卡住，请求超时、连接池耗尽、Web 进程被占满。</li>
+</ul>
+
+<strong>用户看到的不是"慢"，是"站点挂了"。</strong>
+<blockquote>
+
+这就是本文标题的由来：<strong>上线那一刻，数据库在重建整张表。</strong> 而 <code>git push</code> 的那个人，看到的只是 <code>Applying articles.0007... OK</code>。
+</blockquote>
+<hr>
+<h2>四、实验三：<code>CREATE INDEX</code> 的代价，和它拿的那把写锁</h2>
+
+回到我最初想做的事——加一条索引。这个操作<strong>不会重建表</strong>，但不代表它免费：
+<div class="codehilite"><pre><span></span><code>==========================================================================
+E3 CREATE INDEX（上一篇那条索引）
+==========================================================================
+  耗时      : 1594.0 ms
+  索引体积  : 7.4 MB
+</code></pre></div>
+
+
+1594 ms，索引本身 7.4 MB。对 20 万行来说这个代价是合理的——<code>CREATE INDEX</code> 要扫全表、排序、写 B+ 树，复杂度是 O(n log n)。
+
+但重点是它<strong>同样需要写事务</strong>。在 SQLite 上，<code>CREATE INDEX</code> 期间：
+<ul>
+<li>写入被阻塞（下面的实验四会量化）；</li>
+<li>在回滚日志模式下，读取也被阻塞；<strong>在 WAL 模式下，读可以继续</strong>。</li>
+</ul>
+
+所以第一条实用建议来了：
+<blockquote>
+
+<strong>如果你的 SQLite 库还在用默认的回滚日志模式，先把 <code>PRAGMA journal_mode=WAL</code> 打开。</strong> 它不能让写不阻塞，但能让<strong>读</strong>在 DDL 和长写事务期间继续服务——对一个读多写少的博客来说，这一条就把"整站挂掉"降级成了"发布文章会慢一点"。
+</blockquote>
+
+WAL 的代价是会产生 <code>-wal</code> 和 <code>-shm</code> 两个附属文件，且网络文件系统（NFS）上不可靠——但在单机部署上是净收益。
+<hr>
+<h2>五、实验四：DDL 执行期间，写入被挡了多久</h2>
+
+上面说"被阻塞"，得给个数字。我开了一个后台线程，在 <code>CREATE INDEX</code> 进行的同时不停地 <code>INSERT</code>，测每次写入的耗时：
+<div class="codehilite"><pre><span></span><code>==========================================================================
+E4 DDL 期间，并发写入被阻塞多久
+==========================================================================
+  基线（无 DDL 竞争）INSERT : 181.1 ms
+  DDL 期间 INSERT          : 1324.5 ms  ← 被写锁挡住，等 DDL 做完
+  本次 CREATE INDEX 总耗时 : 1456.2 ms
+</code></pre></div>
+
+
+基线的 181 ms 是我这个探针脚本里 200 次插入的总时间（脚本用的批处理，所以单次看起来慢，这里只看比例）。关键是比例：
+
+<strong>DDL 期间，写入延迟变成了基线的 7.3 倍</strong>，而且 1324.5 ms 这个数字几乎等于 DDL 的总耗时 1456.2 ms。
+
+这说明什么？说明那条 <code>INSERT</code> <strong>不是在"变慢"，是在"等"</strong>——它一直阻塞到 DDL 拿到锁、做完、释放锁，然后才执行。
+
+这个模式有一个非常危险的变体，值得单独讲：
+<h3>5.1 锁队列堆积（lock queue pile-up）</h3>
+
+假设 DDL 要跑 10 秒。在这 10 秒内：
+<ul>
+<li>第 1 秒来了 5 个写请求，全部排队等锁；</li>
+<li>第 2 秒又来 5 个，继续排；</li>
+<li>……</li>
+<li>第 10 秒，队列里堆了 50 个请求。</li>
+</ul>
+
+DDL 结束时，这 50 个请求会<strong>一起</strong>涌向数据库。瞬时并发从 0 跳到 50，SQLite 会开始报 <code>database is locked</code>（因为默认 <code>timeout</code> 只有 5 秒，排在后面的请求等不到就报错了）。
+
+<strong>所以真正杀死站点的往往不是 DDL 本身，而是 DDL 结束后那一波反压。</strong> 这也是 PostgreSQL 里 <code>lock_timeout</code> 存在的理由——后面第十一节会展开。
+<hr>
+<h2>六、实验五：<code>DROP COLUMN</code> 比加列更贵</h2>
+
+顺带测了删除列。SQLite 3.35+ 宣称支持 <code>ALTER TABLE DROP COLUMN</code>，所以理论上应该和 <code>ADD COLUMN</code> 一样是元数据操作：
+<div class="codehilite"><pre><span></span><code>==========================================================================
+E5 ALTER TABLE DROP COLUMN
+==========================================================================
+  ADD COLUMN   : 1.8 ms
+  DROP COLUMN  : 1864.4 ms   ← SQLite 3.35+ 仍然是整表重建
+</code></pre></div>
+
+
+<strong>1.8 ms vs 1864.4 ms。</strong>
+
+加列是元数据操作，删列却是整表重建。原因是 <code>DROP COLUMN</code> 在 SQLite 内部就是<strong>改写每一条记录</strong>——SQLite 的行是紧凑存储的，去掉一列必须重排所有行。
+
+更糟的是，SQLite 的 <code>DROP COLUMN</code> 有一堆限制，触发任何一个都会 fallback 到重建：
+<ul>
+<li>列上有索引 → 不支持；</li>
+<li>列是 <code>PRIMARY KEY</code> 或 <code>UNIQUE</code>；</li>
+<li>列出现在 <code>CHECK</code> / 外键 / 生成列表达式里；</li>
+<li>列是 <code>VIEW</code> 引用的对象。</li>
+</ul>
+
+<strong>所以 <code>RemoveField</code> 在 SQLite 上几乎总是整表重建。</strong> 这直接影响第十二节的"Contract 阶段"——删列不能等到最后随便删，得当成一次正式的表重建来规划。
+<hr>
+<h2>七、体积账：表和索引各占多少（<code>dbstat</code> 精确统计）</h2>
+
+"索引占多少空间"这个问题，用文件大小是答不出来的（SQLite 的页是混在一起的）。正确工具是 <strong><code>dbstat</code> 虚拟表</strong>——它逐页报告每个对象占用的字节数：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">pgsize</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">dbstat</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+
+
+结果：
+<div class="codehilite"><pre><span></span><code>==========================================================================
+E6 体积账：表 vs 索引（dbstat 精确统计）
+==========================================================================
+  文件大小 : 1.5 GB
+  逻辑合计 : 804.3 MB
+    articles_article                         783.2 MB   97.4%
+    articles_status_top_created_idx            7.4 MB    0.9%
+    articles_status_created_probe_idx          7.2 MB    0.9%
+    sqlite_autoindex_articles_article_1        4.7 MB    0.6%
+    articles_article_category_id_idx           1.8 MB    0.2%
+    sqlite_schema                              4.0 KB    0.0%
+    sqlite_sequence                            4.0 KB    0.0%
+</code></pre></div>
+
+
+（注意"文件大小 1.5 GB"和"逻辑合计 804.3 MB"的差异——这是实验二重建时留下的空闲页，SQLite 不会主动还给操作系统，需要 <code>VACUUM</code>。<strong>又是一条运维知识点：重建之后记得 <code>VACUUM</code>，否则磁盘白占一倍。</strong>）
+
+这张表最有价值的信息是：<strong>表本体占了 97.4%，索引加起来不到 2%。</strong>
+
+于是两个结论：
+
+<strong>结论一：索引不是空间问题。</strong> 7.4 MB 的索引换 0.18 ms 的查询，这笔账怎么算都划算。上一篇说过"索引有写放大代价"，但那是在说<strong>写性能</strong>，不是在说<strong>空间</strong>。用"占空间"当借口不建索引，是站不住脚的。
+
+<strong>结论二：真正的空间问题在 <code>content</code> / <code>html_content</code> 两个大 TEXT 字段。</strong> 783 MB 里绝大部分是文章正文和渲染后的 HTML。这解释了两件事：
+<ul>
+<li>为什么整表重建要 8381 ms——拷贝的就是这 783 MB；</li>
+<li>为什么<strong>任何</strong>重建都是昂贵的，和加几个字段无关。</li>
+</ul>
+<blockquote>
+
+<strong>推论：</strong> 如果正文和渲染 HTML 是瓶颈，那把它们拆到独立的 <code>article_body</code> 表里（一对一），能让 <code>articles_article</code> 这个"热表"瘦到几十 MB——<strong>之后所有的 migration 都会快一个数量级。</strong> 这是一次性的架构投资，收益是终身的。这也是我接下来要在这个站上做的事。
+</blockquote>
+<hr>
+<h2>八、读源码：Django 为什么非重建不可</h2>
+
+现在回答那个最关键的问题：SQLite 明明 7.4 ms 能加一个 <code>NOT NULL DEFAULT 0</code> 的列，Django 为什么非要花 8381 ms？
+
+答案在 <code>django/db/backends/sqlite3/schema.py</code>，<code>DatabaseSchemaEditor.add_field</code>，第 298 行起：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">add_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a field on a model.&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models.expressions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Value</span>
+
+    <span class="c1"># Special-case implicit M2M tables.</span>
+    <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">many_to_many</span> <span class="ow">and</span> <span class="n">field</span><span class="o">.</span><span class="n">remote_field</span><span class="o">.</span><span class="n">through</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">auto_created</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_model</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">remote_field</span><span class="o">.</span><span class="n">through</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">CompositePrimaryKey</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="k">elif</span> <span class="p">(</span>
+        <span class="c1"># Primary keys and unique fields are not supported in ALTER TABLE</span>
+        <span class="c1"># ADD COLUMN.</span>
+        <span class="n">field</span><span class="o">.</span><span class="n">primary_key</span>
+        <span class="ow">or</span> <span class="n">field</span><span class="o">.</span><span class="n">unique</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="n">field</span><span class="o">.</span><span class="n">null</span>
+        <span class="c1"># Fields with default values cannot by handled by ALTER TABLE ADD</span>
+        <span class="c1"># COLUMN statement because DROP DEFAULT is not supported in</span>
+        <span class="c1"># ALTER TABLE.</span>
+        <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">effective_default</span><span class="p">(</span><span class="n">field</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="c1"># Fields with non-constant defaults cannot by handled by ALTER</span>
+        <span class="c1"># TABLE ADD COLUMN statement.</span>
+        <span class="ow">or</span> <span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">has_db_default</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">db_default</span><span class="p">,</span> <span class="n">Value</span><span class="p">))</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_remake_table</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">create_field</span><span class="o">=</span><span class="n">field</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+</code></pre></div>
+
+
+读懂这个 <code>or</code> 链，就理解了整件事。触发重建的条件是<strong>任意一条</strong>成立：
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>什么时候触发</th>
+<th>合理吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>field.primary_key</code></td>
+<td>加主键</td>
+<td>合理</td>
+</tr>
+<tr>
+<td><code>field.unique</code></td>
+<td>加唯一字段</td>
+<td>合理（SQLite 限制）</td>
+</tr>
+<tr>
+<td><strong><code>not field.null</code></strong></td>
+<td><strong>字段是 NOT NULL</strong></td>
+<td>⚠️ 见下</td>
+</tr>
+<tr>
+<td><code>self.effective_default(field) is not None</code></td>
+<td>字段有 Django 层 <code>default=</code></td>
+<td>⚠️ 见下</td>
+</tr>
+<tr>
+<td><code>field.has_db_default() and not isinstance(field.db_default, Value)</code></td>
+<td><code>db_default</code> 是表达式而非常量</td>
+<td>合理</td>
+</tr>
+</tbody>
+</table>
+
+<strong>前两条和最后一条都合理。问题出在中间两条。</strong>
+<h3>8.1 <code>not field.null</code>：NOT NULL 不等于必须重建</h3>
+
+注释里写的理由是"<code>ADD COLUMN</code> 不支持 <code>NOT NULL</code>"。但这个说法<strong>不完整</strong>——SQLite 不支持的是<strong>没有默认值的</strong> <code>NOT NULL</code>。刚才实验一已经证明，<code>NOT NULL DEFAULT 0</code> 是 7.4 ms 就能做完的。
+
+Django 之所以一刀切，是因为它要处理<strong>通用情况</strong>：<code>null=False</code> 且没有默认值的字段，<code>ALTER TABLE ADD COLUMN</code> 确实做不到。于是 Django 选择了保守策略——<strong>只要 <code>null=False</code>，就重建</strong>，不去细分"有没有常量默认值"。
+
+代价就是你看到的：<strong>1130 倍的性能差。</strong>
+<h3>8.2 <code>effective_default(field) is not None</code>：<code>default=</code> 的隐藏成本</h3>
+
+这一条更值得警惕。Django 的注释解释了原因：
+<blockquote>
+
+Fields with default values cannot by handled by ALTER TABLE ADD COLUMN statement because <strong>DROP DEFAULT is not supported in ALTER TABLE</strong>.
+</blockquote>
+
+Django 的行为是：加字段时把默认值写进 DDL，加完之后<strong>再 <code>ALTER TABLE ... ALTER COLUMN ... DROP DEFAULT</code></strong> 把默认值去掉（因为 Django 认为默认值应该只在 Python 层，不该留在数据库里）。
+
+但 SQLite <strong>没有 <code>ALTER COLUMN</code> 语法</strong>（实验一最后一行证实了）。既然"加完再删默认值"做不到，Django 就退而求其次：<strong>重建整表，且不在 DDL 里写默认值。</strong>
+
+所以：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 触发重建（因为 default=False → effective_default 不为 None）</span>
+<span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="c1"># 也触发重建（因为 null=False）</span>
+<span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">()</span>
+
+<span class="c1"># 不触发重建 —— 可空、无默认值</span>
+<span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>你在模型里加一句 <code>default=False</code>，就买到了一次 8381 ms 的整表重建。</strong> 这个代价，<code>makemigrations</code> 不会告诉你。
+<h3>8.3 <code>db_default=Value(0)</code> 也救不了你</h3>
+
+Django 5.0 引入了真正的数据库层默认值 <code>db_default</code>，看起来正是为这个场景设计的：
+<div class="codehilite"><pre><span></span><code><span class="n">models</span><span class="o">.</span><span class="n">PositiveSmallIntegerField</span><span class="p">(</span><span class="n">db_default</span><span class="o">=</span><span class="n">Value</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+</code></pre></div>
+
+
+看条件链的最后一环：<code>field.has_db_default() and not isinstance(field.db_default, Value)</code>。用 <code>Value(0)</code> 时，<code>isinstance(...)</code> 为真，这一环<strong>不</strong>触发。
+
+但前面 <code>not field.null</code> 那一环<strong>先短路了</strong>。字段是 <code>null=False</code>，第一个成立的 <code>or</code> 就把控制流送进了 <code>_remake_table</code>。
+<blockquote>
+
+<strong>结论：在 SQLite 上，<code>db_default</code> 无法避免 <code>AddField</code> 的整表重建。</strong> 这个判断我是读了源码才敢下的——文档里没写。
+</blockquote>
+<hr>
+<h2>九、四种改法，从最省事到最可控</h2>
+
+知道了原因，就能设计绕路方案。按"改动量从小到大"排列。
+<h3>方案 A：把列设计成可空（最省事，但要求你诚实）</h3>
+
+如果这个字段真的允许为空，那就写 <code>null=True</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Migration</span><span class="p">(</span><span class="n">migrations</span><span class="o">.</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;articles&quot;</span><span class="p">,</span> <span class="s2">&quot;0006_articlelike&quot;</span><span class="p">)]</span>
+    <span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">migrations</span><span class="o">.</span><span class="n">AddField</span><span class="p">(</span>
+            <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;article&quot;</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;reading_minutes&quot;</span><span class="p">,</span>
+            <span class="n">field</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">PositiveSmallIntegerField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+
+<code>null=True</code> 且无默认值 → 条件链全不成立 → 走 <code>super().add_field()</code> → 真正的 <code>ALTER TABLE ADD COLUMN</code> → <strong>毫秒级</strong>。
+
+<strong>代价：</strong> 业务上这个字段可能不该为空。如果它逻辑上必填，你就在数据库里留了个谎言——以后每个查询都要处理 <code>None</code>。<strong>只在字段确实可空时用。</strong>
+<h3>方案 B：<code>SeparateDatabaseAndState</code> + 原始 DDL（推荐）</h3>
+
+这是 Django 官方为"数据库操作和状态操作不一致"设计的机制。核心思路：<strong>让 Django 的状态机以为字段是正常加的，但让数据库执行你手写的、便宜的 DDL。</strong>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">migrations</span><span class="p">,</span> <span class="n">models</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Migration</span><span class="p">(</span><span class="n">migrations</span><span class="o">.</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;articles&quot;</span><span class="p">,</span> <span class="s2">&quot;0006_articlelike&quot;</span><span class="p">)]</span>
+
+    <span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">migrations</span><span class="o">.</span><span class="n">SeparateDatabaseAndState</span><span class="p">(</span>
+            <span class="c1"># 告诉 Django 的&quot;模型状态&quot;：这个字段存在了</span>
+            <span class="n">state_operations</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">migrations</span><span class="o">.</span><span class="n">AddField</span><span class="p">(</span>
+                    <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;article&quot;</span><span class="p">,</span>
+                    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;reading_minutes&quot;</span><span class="p">,</span>
+                    <span class="n">field</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">PositiveSmallIntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+                <span class="p">),</span>
+            <span class="p">],</span>
+            <span class="c1"># 告诉数据库：用最便宜的方式真的加上它</span>
+            <span class="n">database_operations</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">migrations</span><span class="o">.</span><span class="n">RunSQL</span><span class="p">(</span>
+                    <span class="n">sql</span><span class="o">=</span><span class="p">(</span>
+                        <span class="s2">&quot;ALTER TABLE articles_article &quot;</span>
+                        <span class="s2">&quot;ADD COLUMN reading_minutes integer unsigned NOT NULL DEFAULT 0&quot;</span>
+                    <span class="p">),</span>
+                    <span class="n">reverse_sql</span><span class="o">=</span><span class="p">(</span>
+                        <span class="s2">&quot;ALTER TABLE articles_article DROP COLUMN reading_minutes&quot;</span>
+                    <span class="p">),</span>
+                <span class="p">),</span>
+            <span class="p">],</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+
+同样的操作，从 8381 ms 降到 <strong>7.4 ms</strong>。
+
+<strong>三个必须注意的点：</strong>
+<ol>
+<li><strong><code>state_operations</code> 里的字段定义必须和 <code>models.py</code> 完全一致。</strong> 否则下次 <code>makemigrations</code> 会检测到漂移，又生成一条 <code>AlterField</code>——等于绕了一圈回到原点。<code>default=0</code> 和 SQL 里的 <code>DEFAULT 0</code> 要对得上。</li>
+<li><strong>原始 SQL 不可移植。</strong> <code>integer unsigned</code> 是 SQLite 方言，MySQL 用 <code>INT UNSIGNED</code>，PostgreSQL 用 <code>integer</code>。跨库项目要用 <code>RunPython</code> 配合 <code>schema_editor.connection.vendor</code> 分支。</li>
+<li><strong><code>RunSQL</code> 不走 <code>schema_editor</code>。</strong> 这意味着它不会处理引号、不会做后端抽象、也不会自动加事务包裹——<strong>你得自己保证 SQL 是对的</strong>。上线前务必在库的副本上跑一遍。</li>
+</ol>
+
+跨库的写法大致是这样：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">add_column</span><span class="p">(</span><span class="n">apps</span><span class="p">,</span> <span class="n">schema_editor</span><span class="p">):</span>
+    <span class="n">vendor</span> <span class="o">=</span> <span class="n">schema_editor</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">vendor</span>
+    <span class="n">ddl</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;sqlite&quot;</span><span class="p">:</span> <span class="s2">&quot;ALTER TABLE articles_article ADD COLUMN reading_minutes integer unsigned NOT NULL DEFAULT 0&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;mysql&quot;</span><span class="p">:</span> <span class="s2">&quot;ALTER TABLE articles_article ADD COLUMN reading_minutes INT UNSIGNED NOT NULL DEFAULT 0, ALGORITHM=INSTANT&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;postgresql&quot;</span><span class="p">:</span> <span class="s2">&quot;ALTER TABLE articles_article ADD COLUMN reading_minutes smallint NOT NULL DEFAULT 0&quot;</span><span class="p">,</span>
+    <span class="p">}[</span><span class="n">vendor</span><span class="p">]</span>
+    <span class="n">schema_editor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">ddl</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>方案 C：接受重建，但选一个没人的时间，并且先演练</h3>
+
+如果字段确实必须 <code>NOT NULL</code> 且没有合理默认值（比如"必须人工回填的数据"），重建可能避不开。那就把它当成一次<strong>正式变更</strong>：
+<ol>
+<li><strong>在库的副本上跑一遍</strong>，计时。用 <code>cp db.sqlite3 /tmp/probe.sqlite3</code>，改 <code>DATABASES</code> 指向副本，跑 <code>migrate</code>。</li>
+<li><strong>把实测耗时 × 3 当作预算</strong>（生产环境通常更慢：更多行、更多索引、磁盘更忙）。</li>
+<li><strong>先备份。</strong> <code>sqlite3 db.sqlite3 ".backup /path/to/backup.sqlite3"</code>——注意用 <code>.backup</code> 命令而不是 <code>cp</code>，因为 <code>.backup</code> 能正确处理正在被写入的库。</li>
+<li><strong>维护窗口内执行，并且停掉写入。</strong> 让 Web 进程先停（PythonAnywhere 上就是关掉 Web App），跑完 <code>migrate</code>，再 <code>VACUUM</code>，再启动。</li>
+<li><strong>重建后立刻 <code>VACUUM</code></strong>，把实验二留下的 2× 空闲页还给磁盘。</li>
+</ol>
+<h3>方案 D：从架构上消灭重建（长期投资）</h3>
+
+第七节的体积账已经指明了方向：<strong>783 MB 里绝大部分是正文 TEXT。</strong> 把 <code>content</code> / <code>html_content</code> / <code>excerpt</code> 拆到独立的 <code>article_body</code> 表：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ArticleBody</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">OneToOneField</span><span class="p">(</span><span class="n">Article</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">&quot;body&quot;</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+    <span class="n">html_content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+    <span class="n">excerpt</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>
+</code></pre></div>
+
+
+之后 <code>articles_article</code> 只剩元数据（标题、slug、状态、时间戳），大概几十 MB。<strong>之后所有的 migration 都会快一个数量级</strong>，因为要拷贝的东西少了一个数量级。
+
+代价是每次取文章正文要多一次 JOIN（或者 <code>select_related("body")</code>）。对详情页来说这完全可接受——列表页根本不读正文，反而更快了。
+<blockquote>
+
+<strong>这是本文最值得带走的一条：</strong> 与其反复优化 migration，不如让表本身变小。<strong>表的体积是迁移成本的地基。</strong>
+</blockquote>
+<hr>
+<h2>十、MySQL 8 / PostgreSQL 的对照表与各自的地雷</h2>
+
+SQLite 是本站的栈，但原理换个库就变。三个库在"加列"这件事上的差异大到必须分开记：
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>SQLite</th>
+<th>MySQL 8.0.12+</th>
+<th>PostgreSQL 11+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>加可空列</td>
+<td>元数据，~7 ms</td>
+<td><code>ALGORITHM=INSTANT</code>，元数据</td>
+<td>元数据</td>
+</tr>
+<tr>
+<td>加 <code>NOT NULL DEFAULT &lt;常量&gt;</code></td>
+<td>原生支持，~7 ms；<strong>Django 却重建</strong></td>
+<td><code>INSTANT</code>，元数据</td>
+<td>元数据（PG 11+ 优化）</td>
+</tr>
+<tr>
+<td>加 <code>NOT NULL</code> 无默认值</td>
+<td>不支持</td>
+<td><code>INSTANT</code> + 全表校验</td>
+<td>需 <code>CHECK NOT VALID</code> + <code>VALIDATE</code></td>
+</tr>
+<tr>
+<td>加索引</td>
+<td><code>CREATE INDEX</code>，阻塞写</td>
+<td><code>ALGORITHM=INPLACE, LOCK=NONE</code></td>
+<td><code>CREATE INDEX CONCURRENTLY</code></td>
+</tr>
+<tr>
+<td>删列</td>
+<td>整表重建</td>
+<td><code>ALGORITHM=INSTANT</code></td>
+<td>元数据（标记删除）</td>
+</tr>
+<tr>
+<td>改列类型</td>
+<td>不支持</td>
+<td>视情况 <code>INPLACE</code> / <code>COPY</code></td>
+<td>视情况 <code>INPLACE</code> / 重写</td>
+</tr>
+<tr>
+<td>Django 会自动用在线 DDL 吗</td>
+<td>不适用</td>
+<td><strong>不会</strong>，需 <code>RunSQL</code></td>
+<td>需显式 <code>AddIndexConcurrently</code></td>
+</tr>
+</tbody>
+</table>
+<h3>10.1 MySQL：INSTANT 是真香，但 Django 不会替你加</h3>
+
+MySQL 8.0.12 起，<code>ADD COLUMN</code> 支持 <code>ALGORITHM=INSTANT</code>——<strong>纯元数据，秒回</strong>。但 Django 的 MySQL 后端<strong>不会自动带上这个 hint</strong>，你必须在 <code>RunSQL</code> 里自己写：
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">articles_article</span>
+<span class="w">  </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">reading_minutes</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="n">UNSIGNED</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="n">ALGORITHM</span><span class="o">=</span><span class="n">INSTANT</span><span class="p">;</span>
+</code></pre></div>
+
+
+<strong>地雷：<code>INSTANT</code> 只在列被加到"表的末尾"时才生效。</strong> 如果你想插到中间（<code>AFTER created_at</code>），就退回 <code>COPY</code> 算法——整表重建。<strong>所以永远把新列加到最后。</strong>
+<h3>10.2 PostgreSQL：<code>CONCURRENTLY</code> 与 <code>atomic = False</code></h3>
+
+PostgreSQL 的 <code>CREATE INDEX CONCURRENTLY</code> 是真正的在线建索引：不阻塞写。但它有一个硬限制——<strong>不能在事务里运行</strong>。
+
+而 Django 的 migration <strong>默认跑在事务里</strong>。所以你必须：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Migration</span><span class="p">(</span><span class="n">migrations</span><span class="o">.</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="n">atomic</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># ← 关键，否则 CONCURRENTLY 直接报错</span>
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;articles&quot;</span><span class="p">,</span> <span class="s2">&quot;0006_articlelike&quot;</span><span class="p">)]</span>
+    <span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">migrations</span><span class="o">.</span><span class="n">RunSQL</span><span class="p">(</span>
+            <span class="s2">&quot;CREATE INDEX CONCURRENTLY articles_status_top_created_idx &quot;</span>
+            <span class="s2">&quot;ON articles_article (status, is_top DESC, created_at DESC)&quot;</span><span class="p">,</span>
+            <span class="n">reverse_sql</span><span class="o">=</span><span class="s2">&quot;DROP INDEX CONCURRENTLY articles_status_top_created_idx&quot;</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+
+Django 也提供了开箱即用的封装：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.postgres.operations</span><span class="w"> </span><span class="kn">import</span> <span class="n">AddIndexConcurrently</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Migration</span><span class="p">(</span><span class="n">migrations</span><span class="o">.</span><span class="n">Migration</span><span class="p">):</span>
+    <span class="n">atomic</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">AddIndexConcurrently</span><span class="p">(</span>
+            <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;article&quot;</span><span class="p">,</span>
+            <span class="n">index</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span>
+                <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;-is_top&quot;</span><span class="p">,</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">],</span>
+                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;articles_status_top_created_idx&quot;</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+
+<strong>地雷：<code>atomic = False</code> 意味着这个 migration 失去了原子性。</strong> 如果它在第 3 步失败，前 2 步<strong>不会回滚</strong>。而且 <code>CREATE INDEX CONCURRENTLY</code> 失败会留下一个 <code>INVALID</code> 状态的索引——它不会被查询使用，但会拖慢写入。<strong>必须手动 <code>DROP INDEX</code> 再重试。</strong>
+<h3>10.3 PostgreSQL：<code>NOT NULL</code> 的两步法</h3>
+
+PG 上加一个 <code>NOT NULL</code> 列会全表扫描校验。想零停机就拆成两步：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 第 1 步：加约束但先不校验（瞬间完成，只拿 ACCESS EXCLUSIVE 一小会儿）</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">articles_article</span>
+<span class="w">  </span><span class="k">ADD</span><span class="w"> </span><span class="k">CONSTRAINT</span><span class="w"> </span><span class="n">article_reading_minutes_not_null</span>
+<span class="w">  </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">reading_minutes</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">VALID</span><span class="p">;</span>
+
+<span class="c1">-- 第 2 步：校验（只拿 SHARE UPDATE EXCLUSIVE，不阻塞写）</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">articles_article</span><span class="w"> </span><span class="n">VALIDATE</span><span class="w"> </span><span class="k">CONSTRAINT</span><span class="w"> </span><span class="n">article_reading_minutes_not_null</span><span class="p">;</span>
+</code></pre></div>
+
+
+PG 12+ 还有一个优化：如果存在一个已 <code>VALIDATE</code> 的 <code>CHECK (col IS NOT NULL)</code> 约束，<code>SET NOT NULL</code> 会<strong>跳过全表扫描</strong>。
+<hr>
+<h2>十一、<code>lock_timeout</code>：零停机迁移里最容易被忽略的一行配置</h2>
+
+前面第五节的"锁队列堆积"是 DDL 最阴的杀手。它在 PostgreSQL 上有个专门的解法，只有一行：
+<div class="codehilite"><pre><span></span><code><span class="k">SET</span><span class="w"> </span><span class="n">lock_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;3s&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+原理是这样的。在 PostgreSQL 里，<code>ALTER TABLE</code> 要拿 <code>ACCESS EXCLUSIVE</code> 锁。这个锁<strong>和所有其他锁都冲突</strong>。于是：
+<ol>
+<li>DDL 请求进入锁队列，等前面的事务释放锁；</li>
+<li><strong>而它一旦在队列里，后面所有的 <code>SELECT</code> 也全部排在它后面</strong>——因为 PostgreSQL 的锁队列是<strong>严格 FIFO</strong> 的，后到的读不能越过等待中的排他锁。</li>
+</ol>
+
+结果：一个跑了 60 秒的慢查询，能让后面一个 <code>ALTER TABLE</code> 排队 60 秒，<strong>而这个 <code>ALTER TABLE</code> 又让后面 60 秒内所有的普通查询全部排队</strong>。一个 DDL，把整站拖死。
+
+<code>lock_timeout = '3s'</code> 的效果是：DDL 等 3 秒拿不到锁就<strong>自己失败退出</strong>，不再堵住队列。你可以稍后重试。
+
+<strong>这个配置在 SQLite 上对应的是 <code>PRAGMA busy_timeout</code></strong>，但语义不同——SQLite 没有 FIFO 锁队列（它是数据库级锁，更粗暴），<code>busy_timeout</code> 只是控制"等不到锁时重试多久"。对 SQLite，更实际的做法是：
+<div class="codehilite"><pre><span></span><code><span class="n">PRAGMA</span><span class="w"> </span><span class="n">busy_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">10000</span><span class="p">;</span><span class="w">   </span><span class="c1">-- 10 秒，给 DDL 留出空间</span>
+<span class="n">PRAGMA</span><span class="w"> </span><span class="n">journal_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WAL</span><span class="p">;</span><span class="w">     </span><span class="c1">-- 读不被写阻塞</span>
+</code></pre></div>
+
+
+在 Django 里给每个连接自动设上，用 <code>connection_created</code> 信号：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db.backends.signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection_created</span>
+
+<span class="nd">@receiver</span><span class="p">(</span><span class="n">connection_created</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_sqlite_pragmas</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">connection</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">connection</span><span class="o">.</span><span class="n">vendor</span> <span class="o">!=</span> <span class="s2">&quot;sqlite&quot;</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">with</span> <span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cursor</span><span class="p">:</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA journal_mode=WAL;&quot;</span><span class="p">)</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA busy_timeout=10000;&quot;</span><span class="p">)</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA synchronous=NORMAL;&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>注意 <code>synchronous=NORMAL</code></strong>：WAL 模式下它依然保证崩溃一致性（只是断电可能丢最后一个事务），但对写性能有数量级提升。对博客这种场景，这个取舍是合理的。
+</blockquote>
+<hr>
+<h2>十二、Expand / Contract：真正意义上的零停机</h2>
+
+前面讲的都是"怎么让单个 DDL 更快"。但真正的零停机迁移，靠的不是快的 DDL，而是<strong>把一次危险的变更拆成多次安全的变更</strong>。
+
+这套模式叫 <strong>Expand / Contract</strong>（也叫 Parallel Change）。核心约束只有一条：
+<blockquote>
+
+<strong>任何时刻，正在运行的代码和正在运行的数据库 schema 必须互相兼容。</strong>
+</blockquote>
+
+因为部署不是原子的：你 <code>git push</code> 之后，新旧代码会<strong>同时</strong>存在一段时间（多个 worker、滚动重启、CDN 缓存）。如果 migration 已经删了列，而老代码还在读它——500。
+<h3>一个真实的例子：给 <code>Article</code> 加 <code>reading_minutes</code> 并回填</h3>
+
+假设要新增一个字段，且<strong>必须 NOT NULL</strong>。分五个发布：
+
+<strong>发布 1（Expand）：加可空列 + 并发建索引</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">migrations</span><span class="o">.</span><span class="n">SeparateDatabaseAndState</span><span class="p">(</span>
+    <span class="n">state_operations</span><span class="o">=</span><span class="p">[</span><span class="n">migrations</span><span class="o">.</span><span class="n">AddField</span><span class="p">(</span>
+        <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;article&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;reading_minutes&quot;</span><span class="p">,</span>
+        <span class="n">field</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">PositiveSmallIntegerField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="p">)],</span>
+    <span class="n">database_operations</span><span class="o">=</span><span class="p">[</span><span class="n">migrations</span><span class="o">.</span><span class="n">RunSQL</span><span class="p">(</span>
+        <span class="s2">&quot;ALTER TABLE articles_article ADD COLUMN reading_minutes integer unsigned NULL&quot;</span><span class="p">,</span>
+        <span class="n">reverse_sql</span><span class="o">=</span><span class="s2">&quot;ALTER TABLE articles_article DROP COLUMN reading_minutes&quot;</span><span class="p">,</span>
+    <span class="p">)],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+这一阶段老代码完全不受影响——它不知道这个列存在。<strong>毫秒级完成，零锁。</strong>
+
+<strong>发布 2：部署"双写"代码</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 新代码同时写两边；读还是读旧字段</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reading_minutes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reading_minutes</span> <span class="o">=</span> <span class="n">estimate_reading_minutes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>发布 3：回填历史数据（分批，不要在 migration 里做）</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 写成管理命令，分批跑，每批之间 sleep，避免长时间持锁</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">):</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--batch-size&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s2">&quot;batch_size&quot;</span><span class="p">]</span>
+        <span class="n">qs</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">reading_minutes__isnull</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">qs</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;pk&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">)[:</span><span class="n">size</span><span class="p">])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">batch</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">for</span> <span class="n">pk</span><span class="p">,</span> <span class="n">content</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">:</span>
+                <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                    <span class="n">reading_minutes</span><span class="o">=</span><span class="n">estimate_reading_minutes</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;backfilled </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>      <span class="c1"># 让出锁，别把站堵死</span>
+</code></pre></div>
+
+
+<strong>关键：回填不要写成 <code>RunPython</code>。</strong> migration 跑在事务里，回填 10 万行就是 10 万行的一个事务——和整表重建一样糟，而且失败要全部重来。<strong>用管理命令，分批提交。</strong>
+
+<strong>发布 4：部署"读新字段"代码</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 现在读 reading_minutes，双写可以撤掉了</span>
+</code></pre></div>
+
+
+<strong>发布 5（Contract）：收紧约束</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">migrations</span><span class="o">.</span><span class="n">RunSQL</span><span class="p">(</span>
+    <span class="s2">&quot;ALTER TABLE articles_article ADD CONSTRAINT ... CHECK (reading_minutes IS NOT NULL) NOT VALID&quot;</span><span class="p">,</span>
+    <span class="c1"># 然后 VALIDATE CONSTRAINT（PG）；SQLite 上则是一次重建，得挑时间</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+如果确定不会再回滚，最后才删旧列——<strong>而且最好再等一个发布周期</strong>。删列是不可逆的。
+<h3>12.1 判断"能不能安全回滚"的简单方法</h3>
+
+问自己一个问题：
+<blockquote>
+
+<strong>如果我在 migration 之后立刻回滚代码，老代码还能跑吗？</strong>
+</blockquote>
+<ul>
+<li>加列（可空）→ 能。老代码忽略新列。✅</li>
+<li>加索引 → 能。✅</li>
+<li>删列 → <strong>不能</strong>。老代码会 <code>no such column</code>。❌</li>
+<li>改列类型 → 通常不能。❌</li>
+<li>加 NOT NULL 约束 → 取决于新代码是否已经保证有值。⚠️</li>
+</ul>
+
+<strong>能安全回滚的操作可以随时上线。不能的，必须走 Expand / Contract。</strong>
+<hr>
+<h2>十三、上线 Checklist</h2>
+
+我把这一节写成可以贴在显示器上的形式。<strong>任何一次 <code>migrate</code> 之前，逐条过一遍。</strong>
+
+<strong>执行前</strong>
+<ul>
+<li>[ ] 跑 <code>python manage.py sqlmigrate &lt;app&gt; &lt;migration&gt;</code>，确认有没有 <code>CREATE TABLE "new__..."</code></li>
+<li>[ ] 跑 <code>python manage.py migrate --plan</code>，确认这次会应用哪些 migration（可能不止你写的那一个）</li>
+<li>[ ] 在<strong>库的副本</strong>上实测一次，记录耗时</li>
+<li>[ ] 备份：<code>sqlite3 db.sqlite3 ".backup backup.sqlite3"</code>（用 <code>.backup</code>，不要 <code>cp</code>）</li>
+<li>[ ] 算磁盘：库体积 × 2 够不够？不够就先清理</li>
+<li>[ ] 确认 <code>PRAGMA journal_mode=WAL</code> 已开启</li>
+</ul>
+
+<strong>执行中</strong>
+<ul>
+<li>[ ] 有重建操作时，先停 Web 进程（PythonAnywhere：关掉 Web App）</li>
+<li>[ ] <code>migrate</code> 用 <code>--no-input</code>，不要在自动化里等交互</li>
+<li>[ ] 多 worker 环境<strong>只在一个地方跑 <code>migrate</code></strong>，别让每个 worker 启动时各跑一次</li>
+</ul>
+
+<strong>执行后</strong>
+<ul>
+<li>[ ] <code>VACUUM</code>，把重建留下的空闲页还给磁盘</li>
+<li>[ ] <code>python manage.py check --database default</code></li>
+<li>[ ] 打开站点，手动验证列表页 / 详情页 / 后台</li>
+<li>[ ] 确认响应时间没有退化（对比 DDL 前的基线）</li>
+</ul>
+
+<strong>长期</strong>
+<ul>
+<li>[ ] 把正文 TEXT 拆到独立表，让热表瘦下来</li>
+<li>[ ] 任何"加 NOT NULL 字段"的需求，先问：能不能可空？能不能走 <code>SeparateDatabaseAndState</code>？</li>
+<li>[ ] 把 <code>sqlmigrate</code> 写进 CI，让危险的 migration 在合并前就暴露</li>
+</ul>
+<hr>
+<h2>结语：<code>migrate</code> 是一条 <code>git push</code>，但它改的是磁盘上的 783 MB</h2>
+
+写这篇之前，我对 migration 的心理模型是"改 schema 的代码"。写完之后，模型变成了：
+<blockquote>
+
+<strong><code>migrate</code> 是一条 <code>git push</code>，但它改的是磁盘上的 783 MB，而且过程中要独占整张表。</strong>
+</blockquote>
+
+这个转变的关键，是<strong>把 Python 和 SQL 之间的那层翻译打开看一眼</strong>。<code>AddField</code> 看起来是"加个字段"，<code>sqlmigrate</code> 告诉你是"重建整张表"。这中间的落差，就是事故的全部空间。
+
+三个数字，是这篇文章想留下的东西：
+<ul>
+<li><strong>7.4 ms</strong> —— SQLite 原生加一个 <code>NOT NULL DEFAULT 0</code> 的列，真实成本</li>
+<li><strong>8381 ms</strong> —— Django 为同一个操作付出的成本</li>
+<li><strong>1130×</strong> —— 两者之间的差距，全部来自 <code>schema.py</code> 里一个 <code>or not field.null</code></li>
+</ul>
+
+而这三个数字，在只有 9 篇文章的库上，你<strong>永远看不出来</strong>。9 行的表重建一次大概 1 毫秒，<code>sqlmigrate</code> 打印出的 <code>CREATE TABLE new__...</code> 你也不会多看一眼。
+
+<strong>这才是迁移最阴的地方——它在你的开发机上永远是安全的，只在数据长起来之后的某一次上线，突然变成一次事故。</strong>
+
+上一篇我留下了一个待办：修 <code>models.py</code> 里那条索引。现在我知道该怎么修了——不是直接 <code>makemigrations</code>，而是先 <code>sqlmigrate</code> 看一眼，确认它不会顺带触发一次整表重建；如果会，就拆成 <code>AddIndex</code> 和 <code>SeparateDatabaseAndState</code> 两步。
+
+<strong>先看 SQL，再按回车。</strong>
+<hr>
+<h2>附录：本文实验脚本</h2>
+<table>
+<thead>
+<tr>
+<th>脚本</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/zhoujungis/zhoujungis.github.io/blob/master/tools/bench_migration.py" rel="noopener noreferrer" target="_blank"><code>tools/bench_migration.py</code></a></td>
+<td>本文全部实测：E1 加列 / E2 整表重建 / E3 建索引 / E4 DDL 阻塞 / E5 删列 / E6 <code>dbstat</code> 体积账</td>
+</tr>
+<tr>
+<td><a href="https://github.com/zhoujungis/zhoujungis.github.io/blob/master/tools/explain.py" rel="noopener noreferrer" target="_blank"><code>tools/explain.py</code></a></td>
+<td>上一篇的脚本：打印 queryset 的 SQL 与 <code>EXPLAIN QUERY PLAN</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/zhoujungis/zhoujungis.github.io/blob/master/tools/bench_transaction.py" rel="noopener noreferrer" target="_blank"><code>tools/bench_transaction.py</code></a></td>
+<td>上一篇的脚本：并发丢失更新 / <code>save()</code> vs <code>update()</code> / <code>on_commit</code></td>
+</tr>
+</tbody>
+</table>
+
+复现本文数据：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 默认 20 万行 / 约 790 MB，跑完约 30 秒</span>
+python<span class="w"> </span>tools/bench_migration.py
+
+<span class="c1"># 想更快跑完，减少行数（数字会等比例变化）</span>
+python<span class="w"> </span>tools/bench_migration.py<span class="w"> </span>--rows<span class="w"> </span><span class="m">50000</span>
+</code></pre></div>
+
+
+脚本用临时库，<strong>不会碰你的 <code>db.sqlite3</code></strong>。
+<hr>
+
+<strong>系列文章</strong>
+<ol>
+<li><a href="/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li>
+<li><a href="/article/django-slow-query-index-tuning/">索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）</a></li>
+<li><a href="/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li>
+<li><strong>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（本篇）</strong></li>
+</ol></div></div></noscript>
+  </body>
+</html>

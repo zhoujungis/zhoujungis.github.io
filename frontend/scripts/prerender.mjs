@@ -311,7 +311,14 @@ function renderHomePage(template, articles) {
     `<noscript><div class="ns-home-list"><h1>Zhou Jun · 技术与生活笔记</h1>` +
     `<p>最新文章（静态快照，完整体验请启用 JavaScript）：</p><ul>\n${items}\n</ul></div></noscript>`
   let html = template
-  if (!html.includes('ns-home-list')) {
+  // The shell is a build artifact reused across builds, so on every rebuild
+  // after the first one it ALREADY contains a previously injected block.
+  // Replace that block in place — otherwise the home page's static article
+  // list stays frozen at whatever the first build produced, forever.
+  const existing = /<noscript>[\s\S]*?ns-home-list[\s\S]*?<\/noscript>/
+  if (existing.test(html)) {
+    html = html.replace(existing, noscript)
+  } else {
     html = html.replace(
       '<div id="app"></div>',
       `<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`,

@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/django-jwt-dual-token-auth/" />
+    <meta property="og:title" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS" />
+    <meta property="og:description" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/django-jwt-dual-token-auth/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS" />
+    <meta name="twitter:description" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-10T10:01:51.315654+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS","description":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings","image":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T10:01:51.315654+08:00","dateModified":"2026-09-14T10:55:31.701234+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-jwt-dual-token-auth/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS</h1><div class="ns-meta">2026/9/10 · Zhou Jun</div><div class="markdown-body"><h1>登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS</h1>
+<blockquote>
+
+适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios
+代码来源：真实博客 <code>backend/blog_api/settings.py</code>、<code>backend/blog_api/urls.py</code>、<code>frontend/src/stores/auth.js</code>、<code>frontend/src/api/client.js</code>、<code>frontend/src/router/index.js</code>，全部可运行
+阅读时间：约 40 分钟（超详细版） | 收获：一套“过期自动续、并发只刷一次、退出清干净、防爆破”的双 Token 模板
+</blockquote>
+<h2>前言：最烦人的 bug 是“我明明刚登录过”</h2>
+
+博客后台刚上线时，我遇到一个玄学 bug：
+<ul>
+<li>早上登录，进 <code>/admin/dashboard</code> 好好的；</li>
+<li>中午写了篇文章，点保存直接跳回登录页，草稿差点丢了；</li>
+<li>看 Network：一堆 <code>401 Unauthorized</code>，调 <code>/admin/articles/</code> 全挂。</li>
+</ul>
+
+原因一句话：<strong>Access Token 1 小时过期了，但前端不会自动续</strong>。用户必须手动重登，体验极差。
+
+修完之后的效果：access 过期后第一次请求自动用 refresh 换新 token 并重试，用户无感；5 个并发请求同时 401 也只刷一次；refresh 也过期了才真正跳登录。这就是本文要讲的 <strong>Access + Refresh 双 Token</strong> 全链路。
+
+<strong>目录</strong>
+<ul>
+<li>全景：双 Token 在请求链路中的位置</li>
+<li>JWT 原理：三段式与 exp/jti</li>
+<li>后端：SimpleJWT 配置与权限矩阵</li>
+<li>前端存储：localStorage / Cookie / 内存三选一</li>
+<li>登录：access + refresh 落地</li>
+<li>自动续期：401 拦截 + 单 uçuş…单飞行刷新 + 路由守卫</li>
+<li>注销与安全缺口：logout 只是前端清除？黑名单升级</li>
+<li>调试：curl 复现与 8 个大坑</li>
+<li>上线 Checklist（20 项）+ FAQ（15 问）</li>
+<li>纵深防御 + 测试用例</li>
+</ul>
+<hr>
+<h2>1. 全景：一次后台保存经过了哪些关？</h2>
+<div class="codehilite"><pre><span></span><code>登录页 AdminLogin
+  → POST /api/token/ {username, password}
+  → 后端返回 {access(1h), refresh(1d)} → 存 localStorage
+
+写文章点保存
+  → POST /api/admin/articles/ + Header: Bearer &lt;access&gt;
+  → 后端 JWTAuthentication 验签 + IsAdminUser 鉴权 → 201
+
+1 小时后 access 过期，再点保存
+  → POST /api/admin/articles/ → 401（access 过期）
+  → 前端拦截器：POST /api/token/refresh/ {refresh} → 新 access
+  → 重试原请求 → 201，用户无感
+
+refresh 也过期（1 天没碰后台）
+  → /token/refresh/ 也 401 → 清本地 token → 跳 /admin 登录页
+</code></pre></div>
+
+
+两个 token 的分工：
+<table>
+<thead>
+<tr>
+<th>Token</th>
+<th>有效期（我博客）</th>
+<th>用途</th>
+<th>泄露后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>access</td>
+<td>60 分钟</td>
+<td>每次 API 请求都带，短命</td>
+<td>最多被冒用 1 小时</td>
+</tr>
+<tr>
+<td>refresh</td>
+<td>1 天</td>
+<td>只用来换 access，不碰业务接口</td>
+<td>可换一整天 access，必须保护 + 可吊销</td>
+</tr>
+</tbody>
+</table>
+
+这就是双 Token 的核心思想：<strong>常用钥匙短命（access），备用钥匙长命但少用（refresh）</strong>。单 Token 方案（一个 7 天 token）一旦泄露就是 7 天任意门，双 Token 把 Blast Radius 压到 1 小时。
+<hr>
+<h2>2. JWT 原理：三段式，5 分钟看懂</h2>
+
+JWT 长这样（用 <code>.</code> 分三段）：
+<div class="codehilite"><pre><span></span><code><span class="n">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9</span><span class="w">  </span><span class="o">.</span><span class="w">  </span><span class="n">eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzI1ODI4MDAwLCJ1c2VyX2lkIjoxfQ</span><span class="w">  </span><span class="o">.</span><span class="w">  </span><span class="n">SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c</span>
+<span class="err">────────────</span><span class="w"> </span><span class="n">header</span><span class="w"> </span><span class="err">────────────</span><span class="w">      </span><span class="err">───────────────</span><span class="w"> </span><span class="n">payload</span><span class="w"> </span><span class="err">────────────────</span><span class="w">      </span><span class="err">─────</span><span class="w"> </span><span class="n">signature</span><span class="w"> </span><span class="err">─────</span>
+</code></pre></div>
+
+<ul>
+<li><strong>header</strong>：<code>{"alg":"HS256","typ":"JWT"}</code>，算法声明；</li>
+<li><strong>payload</strong>：真正的数据，Base64 可解码，<strong>别放密码</strong>。SimpleJWT 默认带 <code>token_type</code>、<code>exp</code>、<code>iat</code>、<code>jti</code>、<code>user_id</code>；</li>
+<li><strong>signature</strong>：<code>HMACSHA256(header + payload, SECRET_KEY)</code>，后端用 <code>SECRET_KEY</code> 验签，篡改 payload 会验签失败。</li>
+</ul>
+
+去 <a href="https://jwt.io" rel="noopener noreferrer" target="_blank">jwt.io</a> 粘一段 access 进去，能直接看到：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;token_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;access&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;exp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1725828000</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;iat&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1725824400</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;jti&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3f1c9...&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;user_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<ul>
+<li><code>exp</code>：过期时间戳（秒），前端读它做本地过期判断；</li>
+<li><code>iat</code>：签发时间；</li>
+<li><code>jti</code>：token 唯一 ID，黑名单就靠它；</li>
+<li><code>user_id</code>：认出你是谁。</li>
+</ul>
+
+JWT 是<strong>无状态</strong>的：后端不存 session，靠验签认人。这对 PythonAnywhere 多 worker 特别友好 —— 任意 worker 都能验，不用共享 session。但代价是<strong>签发后无法单方面作废</strong>（除非黑名单，见第 7 章）。
+<h3>2.4 选型：JWT vs Session vs OAuth2，博客为什么选 JWT？</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>原理</th>
+<th>多 worker</th>
+<th>跨域（前后分离）</th>
+<th>吊销</th>
+<th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Django Session + Cookie</td>
+<td>后端存 sessionid→user，Cookie 传 id</td>
+<td>需共享 session（DB/Redis），PA 多 worker 用 DB session 才行</td>
+<td>Cookie 跨 <code>github.io</code>→<code>pythonanywhere.com</code> 被 SameSite 卡，需 SameSite=None+Secure</td>
+<td>服务端删 session 即吊销，最方便</td>
+<td>传统前后不分离、强管控后台</td>
+</tr>
+<tr>
+<td>JWT 双 Token（我博客）</td>
+<td>无状态验签，access 短 + refresh 长</td>
+<td>零共享，任意 worker 可验</td>
+<td>手动 <code>Authorization: Bearer</code> 头，不走 Cookie，跨域零烦恼</td>
+<td>默认难吊销，需黑名单/rotation（第 7 章）</td>
+<td>前后端分离 + 移动端 + Serverless，首选</td>
+</tr>
+<tr>
+<td>OAuth2 / OIDC（GitHub 登录）</td>
+<td>跳第三方授权拿 token</td>
+<td>同 JWT</td>
+<td>同 JWT</td>
+<td>第三方管吊销</td>
+<td>多用户 + 第三方登录，不想管密码时</td>
+</tr>
+</tbody>
+</table>
+
+单人博客 + Vue（github.io）+ Django（pythonanywhere.com）跨双域，Session 的 Cookie 跨站携带是持续的坑（Safari ITP 直接吞第三方 Cookie），JWT 的 Header 模式一次配对终身受益。这就是选型理由：<strong>跨域省心 + 多 worker 免共享 + App 复用同一套</strong>。
+
+SimpleJWT 源码速览（知道三处就够）：<code>TokenObtainPairView.post()</code> 校密码 → <code>RefreshToken.for_user(user)</code> 同时签 access+refresh；<code>TokenRefreshView</code> 验 refresh 的 <code>token_type==refresh</code> + <code>exp</code> + 黑名单 → 吐新 access；<code>JWTAuthentication.authenticate()</code> 从 <code>Authorization: Bearer xxx</code> 取 token、<code>UntypedToken</code> 验签解出 <code>user_id</code>。验签失败/过期统一抛 <code>InvalidToken</code> → DRF 转 401。
+<hr>
+<h2>3. 后端：SimpleJWT 三处配置</h2>
+<h3>3.1 settings：有效期 + 认证入口</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/blog_api/settings.py</span>
+<span class="n">REST_FRAMEWORK</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;DEFAULT_AUTHENTICATION_CLASSES&#39;</span><span class="p">:</span> <span class="p">(</span>
+        <span class="s1">&#39;rest_framework_simplejwt.authentication.JWTAuthentication&#39;</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="s1">&#39;DEFAULT_PERMISSION_CLASSES&#39;</span><span class="p">:</span> <span class="p">(</span>
+        <span class="s1">&#39;rest_framework.permissions.IsAuthenticatedOrReadOnly&#39;</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="c1"># ... 分页限流见 DRF 三件套那篇</span>
+<span class="p">}</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
+<span class="n">SIMPLE_JWT</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;ACCESS_TOKEN_LIFETIME&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">60</span><span class="p">),</span>
+    <span class="s1">&#39;REFRESH_TOKEN_LIFETIME&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="s1">&#39;AUTH_HEADER_TYPES&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;Bearer&#39;</span><span class="p">,),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+为什么是 60 分钟 + 1 天？我的调参逻辑：
+<ul>
+<li>access 太短（如 5 分钟）：后台写长文时频繁续期，弱网下容易续失败；</li>
+<li>access 太长（如 7 天）：约等于单 Token，泄露风险大；</li>
+<li>refresh 1 天：博主每天至少看一次后台，1 天不断签；读者是匿名的，根本不需要 refresh。</li>
+</ul>
+
+个人博客推荐 <strong>30~60 分钟 + 1~7 天</strong>，管理后台密集型可 access 15 分钟 + refresh 8 小时（下班即失效）。
+<h3>3.2 urls：两个端点，全站只此两处发 token</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/blog_api/urls.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_simplejwt.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">TokenObtainPairView</span><span class="p">,</span> <span class="n">TokenRefreshView</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/token/&quot;</span><span class="p">,</span> <span class="n">TokenObtainPairView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;token_obtain_pair&quot;</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/token/refresh/&quot;</span><span class="p">,</span> <span class="n">TokenRefreshView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;token_refresh&quot;</span><span class="p">),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/&quot;</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">&quot;articles.urls&quot;</span><span class="p">)),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/admin/&quot;</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">&quot;articles.admin_urls&quot;</span><span class="p">)),</span>
+    <span class="c1"># ...</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<ul>
+<li><code>POST /api/token/ {username, password}</code> → <code>{access, refresh}</code>；</li>
+<li><code>POST /api/token/refresh/ {refresh}</code> → <code>{access}</code>（开了 ROTATE 还会带新 refresh，见 7.3）。</li>
+</ul>
+<h3>3.3 权限矩阵：读开放，写只给管理员</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 公开读接口：默认 IsAuthenticatedOrReadOnly，匿名 GET 可过</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="c1"># 无 permission_classes，走全局默认：读放行，写（本来也没有）要登录</span>
+    <span class="o">...</span>
+
+<span class="c1"># 后台写接口：IsAdminUser，登录还不够，必须 is_staff</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleAdminViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAdminUser</span><span class="p">]</span>
+
+<span class="c1"># 上传：同样锁死管理员 + 限流 100/hour</span>
+<span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">IsAdminUser</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">upload_image</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+
+效果矩阵：
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>匿名</th>
+<th>登录非管理员</th>
+<th>管理员</th>
+<th>过期 access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET /api/articles/</td>
+<td>200</td>
+<td>200</td>
+<td>200</td>
+<td>200（公开读不验也放）</td>
+</tr>
+<tr>
+<td>POST /api/admin/articles/</td>
+<td>401</td>
+<td>403</td>
+<td>201</td>
+<td>401 → 前端自动续期后重试</td>
+</tr>
+<tr>
+<td>POST /api/admin/upload/</td>
+<td>401</td>
+<td>403</td>
+<td>201</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+
+注意 <strong>401 vs 403</strong> 的区别：401 是“你是谁都不知道”（没带/过期 token），前端该续期；403 是“知道你是谁但没权限”，续期也没用，直接提示。这在前端拦截器里是分支依据。
+<h3>3.4 curl 实测：5 条命令走完一生</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. 登录拿双 token</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>https://zhoujun123.pythonanywhere.com/api/token/<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;username&quot;:&quot;admin&quot;,&quot;password&quot;:&quot;xxxx&quot;}&#39;</span>
+<span class="c1"># → {&quot;access&quot;:&quot;eyJ...&quot;,&quot;refresh&quot;:&quot;eyJ...&quot;}</span>
+
+<span class="c1"># 2. 带 access 调后台（把 $A 换成上面的 access）</span>
+curl<span class="w"> </span>-s<span class="w"> </span>https://zhoujun123.pythonanywhere.com/api/admin/stats/<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$A</span><span class="s2">&quot;</span><span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;\n%{http_code}\n&quot;</span>
+
+<span class="c1"># 3. 不带 token → 401</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;%{http_code}\n&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://zhoujun123.pythonanywhere.com/api/admin/stats/
+<span class="c1"># → 401</span>
+
+<span class="c1"># 4. access 过期后用 refresh 换新（$R 是 refresh）</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>https://zhoujun123.pythonanywhere.com/api/token/refresh/<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">&quot;{\&quot;refresh\&quot;:\&quot;</span><span class="nv">$R</span><span class="s2">\&quot;}&quot;</span>
+<span class="c1"># → {&quot;access&quot;:&quot;eyJ...（新的）&quot;}</span>
+
+<span class="c1"># 5. 伪造篡改：把 payload 改一个字符再请求 → 401（验签失败）</span>
+</code></pre></div>
+
+<h3>3.5 高危缺口：/token/ 登录接口没有限流，可被爆破</h3>
+
+审计我博客时发现的真问题：<code>REST_FRAMEWORK.DEFAULT_THROTTLE_RATES</code> 配了 anon/user/comment/subscribe/upload 五档，但 <code>/api/token/</code> 和 <code>/api/token/refresh/</code> <strong>走的是 SimpleJWT 默认视图，没有配任何 throttle_class</strong>，等于登录接口无限次试密码。单人博客用户名好猜（admin/zhoujun），必须堵。
+
+三行修复（<code>backend/blog_api/urls.py</code> 或单独 <code>accounts/throttles.py</code>）：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.throttling</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnonRateThrottle</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_simplejwt.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">TokenObtainPairView</span><span class="p">,</span> <span class="n">TokenRefreshView</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LoginThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
+    <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;login&quot;</span>  <span class="c1"># settings 里加 &#39;login&#39;: &#39;5/minute&#39;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RefreshThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
+    <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;refresh&quot;</span>  <span class="c1"># settings 里加 &#39;refresh&#39;: &#39;30/minute&#39;</span>
+
+<span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/token/&quot;</span><span class="p">,</span> <span class="n">TokenObtainPairView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(</span><span class="n">throttle_classes</span><span class="o">=</span><span class="p">[</span><span class="n">LoginThrottle</span><span class="p">])),</span>
+    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/token/refresh/&quot;</span><span class="p">,</span> <span class="n">TokenRefreshView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(</span><span class="n">throttle_classes</span><span class="o">=</span><span class="p">[</span><span class="n">RefreshThrottle</span><span class="p">])),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># settings.py DEFAULT_THROTTLE_RATES 追加</span>
+<span class="s1">&#39;login&#39;</span><span class="p">:</span> <span class="s1">&#39;5/minute&#39;</span><span class="p">,</span>    <span class="c1"># 登录 1 分钟 5 次，正常人够，字典爆破直接 429</span>
+<span class="s1">&#39;refresh&#39;</span><span class="p">:</span> <span class="s1">&#39;30/minute&#39;</span><span class="p">,</span> <span class="c1"># 刷新宽一点（多 Tab 并发续期），但也封顶</span>
+</code></pre></div>
+
+
+为什么登录只给 5/min？正常人输错 3 次就去找密码了，脚本 1 分钟几百次直接 429 + 日志告警。进阶可上 <code>django-axes</code>（失败 5 次锁 IP 30 分钟 + 管理员邮件），小博客先限流就够。<strong>上线前必查：所有吃密码/发 token 的端点都有 throttle</strong>。
+
+前端配合：登录 429/401 不要提示“密码错”（给爆破者确认用户名的信息），统一提示“用户名或密码错误，稍后再试”，登录按钮加 3 秒禁用 + 验证码留作后手。
+<div class="codehilite"><pre><span></span><code><span class="o">---</span>
+
+<span class="c1">## 4. 前端存储：localStorage / Cookie / 内存三选一</span>
+
+<span class="n">这是</span><span class="w"> </span><span class="n">JWT</span><span class="w"> </span><span class="n">最有争议的一题。先给结论：</span><span class="o">**</span><span class="n">我博客选</span><span class="w"> </span><span class="n">localStorage</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">本地过期预判</span><span class="o">**</span><span class="n">，理由下面展开。</span>
+
+<span class="o">|</span><span class="w"> </span><span class="n">方案</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">XSS</span><span class="w"> </span><span class="n">偷走？</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">CSRF</span><span class="w"> </span><span class="n">影响？</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">刷新页面还在？</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">多</span><span class="w"> </span><span class="n">Tab</span><span class="w"> </span><span class="n">同步？</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">适合</span><span class="w"> </span><span class="o">|</span>
+<span class="o">|------|-----------|------------|---------------|--------------|------|</span>
+<span class="o">|</span><span class="w"> </span><span class="n">localStorage</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">能（JS</span><span class="w"> </span><span class="n">可读）</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">无（手动加</span><span class="w"> </span><span class="k">Header</span><span class="n">，不自动带）</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">在</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">需监听</span><span class="w"> </span><span class="k">storage</span><span class="w"> </span><span class="n">事件</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">SPA</span><span class="w"> </span><span class="n">后台，我博客在用</span><span class="w"> </span><span class="o">|</span>
+<span class="o">|</span><span class="w"> </span><span class="n">HttpOnly</span><span class="w"> </span><span class="n">Cookie（后端</span><span class="w"> </span><span class="k">Set</span><span class="o">-</span><span class="n">Cookie）</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">不能（JS</span><span class="w"> </span><span class="n">读不到）</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">有（自动带，需</span><span class="w"> </span><span class="n">SameSite</span><span class="o">+</span><span class="n">Lax</span><span class="o">/</span><span class="n">CSRF）</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">在</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">自动</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">安全要求高的生产</span><span class="w"> </span><span class="o">|</span>
+<span class="o">|</span><span class="w"> </span><span class="n">内存（Pinia</span><span class="o">/</span><span class="n">ref）</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">刷新就没，偷都没处偷</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">无</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">刷新丢，需重登</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">不同</span><span class="w"> </span><span class="n">Tab</span><span class="w"> </span><span class="n">各自为政</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">超高安全但体验差</span><span class="w"> </span><span class="o">|</span>
+
+<span class="c1">### 4.1 我为什么敢用 localStorage？三层緩解</span>
+
+<span class="n">localStorage</span><span class="w"> </span><span class="n">最大的黑点是</span><span class="w"> </span><span class="n">XSS</span><span class="w"> </span><span class="n">能读。但我博客有三层緩解，风险可控：</span>
+
+<span class="mf">1.</span><span class="w"> </span><span class="o">**</span><span class="n">内容侧</span><span class="o">**</span><span class="n">：文章</span><span class="w"> </span><span class="n">Markdown</span><span class="w"> </span><span class="n">经</span><span class="w"> </span><span class="n n-Quoted">`bleach`</span><span class="w"> </span><span class="n">白名单过滤</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">CSP，XSS</span><span class="w"> </span><span class="n">先被砍一刀（见《Django</span><span class="w"> </span><span class="n">XSS</span><span class="w"> </span><span class="n">防护》那篇）；</span>
+<span class="mf">2.</span><span class="w"> </span><span class="o">**</span><span class="n">权限侧</span><span class="o">**</span><span class="n">：偷到</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="n">也只是博主一个人的后台，读者全是匿名的，无批量用户数据可拖；</span>
+<span class="mf">3.</span><span class="w"> </span><span class="o">**</span><span class="n">有效期侧</span><span class="o">**</span><span class="n">：access</span><span class="w"> </span><span class="n">只有</span><span class="w"> </span><span class="mi">60</span><span class="w"> </span><span class="n">分钟，偷走也要</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="n">小时内用掉。</span>
+
+<span class="n">如果你的站有批量用户数据</span><span class="o">/</span><span class="n">支付，</span><span class="o">**</span><span class="n">直接上</span><span class="w"> </span><span class="n">HttpOnly</span><span class="w"> </span><span class="n">Cookie</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SameSite</span><span class="o">=</span><span class="n">Lax</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">CSRF</span><span class="o">**</span><span class="n">，别学我。安全永远是</span><span class="w"> </span><span class="n">trade</span><span class="o">-</span><span class="k">off</span><span class="n">，不是银弹。</span>
+
+<span class="c1">### 4.2 key 命名：别把 token 存成 `jwt` 这种通用名</span>
+
+<span class="n n-Quoted">`</span><span class="n n-Quoted n-Quoted-Escape">``</span><span class="n n-Quoted">js</span>
+<span class="n n-Quoted">// frontend/src/stores/auth.js</span>
+<span class="n n-Quoted">const TOKEN_KEY = &#39;token&#39;</span>
+<span class="n n-Quoted">const EXPIRY_KEY = &#39;token_expiry&#39;</span>
+<span class="n n-Quoted">const USER_KEY = &#39;user&#39;</span>
+<span class="n n-Quoted">// refresh 存 &#39;refresh_token&#39;</span>
+</code></pre></div>
+
+
+通用名容易和别的库撞，也容易被一锅端。<code>token_expiry</code> 存的是 <code>exp*1000</code>（毫秒），打开 F12 → Application → Local Storage 能直接看到三个 key。
+<h3>4.4 进阶：HttpOnly Cookie 完整迁移指南（收藏备用）</h3>
+
+哪天博客加了读者登录/付费，必须从 localStorage 迁走。完整改动四处，后端为主：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. settings.py：允许 Cookie 携带跨站 + CSRF</span>
+<span class="n">CORS_ALLOW_CREDENTIALS</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">CORS_ALLOWED_ORIGINS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;https://zhoujungis.github.io&quot;</span><span class="p">]</span>  <span class="c1"># Cookie 跨站必须精确域名，不能 *</span>
+<span class="n">CSRF_COOKIE_SAMESITE</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+<span class="n">SESSION_COOKIE_SAMESITE</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+<span class="n">CSRF_COOKIE_SECURE</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">SESSION_COOKIE_SECURE</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># 本地 http 调试改 False，生产 True</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># 2. backend/accounts/views.py：登录改 Set-Cookie（access 不再回 body）</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_simplejwt.tokens</span><span class="w"> </span><span class="kn">import</span> <span class="n">RefreshToken</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">JsonResponse</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cookie_login</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="c1"># ... 校验 username/password 通过后 ...</span>
+    <span class="n">refresh</span> <span class="o">=</span> <span class="n">RefreshToken</span><span class="o">.</span><span class="n">for_user</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;ok&quot;</span><span class="p">})</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">set_cookie</span><span class="p">(</span><span class="s2">&quot;access&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">refresh</span><span class="o">.</span><span class="n">access_token</span><span class="p">),</span>
+                    <span class="n">httponly</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">secure</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">samesite</span><span class="o">=</span><span class="s2">&quot;None&quot;</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">set_cookie</span><span class="p">(</span><span class="s2">&quot;refresh&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">refresh</span><span class="p">),</span>
+                    <span class="n">httponly</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">secure</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">samesite</span><span class="o">=</span><span class="s2">&quot;None&quot;</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="mi">86400</span><span class="p">,</span>
+                    <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/api/token/refresh/&quot;</span><span class="p">)</span>  <span class="c1"># refresh 只发给刷新端点，最小暴露</span>
+    <span class="k">return</span> <span class="n">resp</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// 3. 前端：axios 全局带 Cookie，不再手动加 Header</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">axios</span><span class="p">.</span><span class="nx">create</span><span class="p">({</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="nx">withCredentials</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">});</span>
+<span class="c1">// 请求拦截器删掉 Authorization，响应 401 照旧走单飞行刷新（Cookie 自动带 refresh）</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># 4. 后端认证：自定义从 Cookie 读 access（替代默认的 Header 模式）</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_simplejwt.authentication</span><span class="w"> </span><span class="kn">import</span> <span class="n">JWTAuthentication</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CookieJWTAuthentication</span><span class="p">(</span><span class="n">JWTAuthentication</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">authenticate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="n">token</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">COOKIES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;access&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">token</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">validated</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_validated_token</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_user</span><span class="p">(</span><span class="n">validated</span><span class="p">),</span> <span class="n">validated</span>
+<span class="c1"># REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES 换成它</span>
+</code></pre></div>
+
+
+代价：CSRF 回来了（Cookie 自动带，恶意站可跨站 POST），必须 <code>SameSite=None; Secure</code> + Django CSRF 中间件 + 前端 <code>X-CSRFToken</code> 头三件套。所以<strong>单人博客继续 localStorage，多用户/支付切 Cookie</strong>，按威胁模型选，不跟风。
+<hr>
+<h2>5. 登录：access + refresh 落地 + 本地过期预判</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/api/admin.js</span>
+<span class="k">import</span><span class="w"> </span><span class="nx">client</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;./client&#39;</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">login</span><span class="p">(</span><span class="nx">username</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">client</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="s1">&#39;/token/&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">username</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="w"> </span><span class="p">})</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/stores/auth.js（Pinia，精简注释版逻辑全保留）</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">defineStore</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;pinia&#39;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">login</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="nx">apiLogin</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;../api/admin&#39;</span>
+
+<span class="kd">function</span><span class="w"> </span><span class="nx">parseJwtPayload</span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">base64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">token</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mf">1</span><span class="p">].</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/-/g</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;+&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/_/g</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">atob</span><span class="p">(</span><span class="nx">base64</span><span class="p">))</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="c1">// 畸形 token 直接当无</span>
+<span class="p">}</span>
+
+<span class="kd">function</span><span class="w"> </span><span class="nx">getStoredToken</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">expiry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;token_expiry&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">token</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">expiry</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nb">parseInt</span><span class="p">(</span><span class="nx">expiry</span><span class="p">,</span><span class="w"> </span><span class="mf">10</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 本地预判已过期：直接清掉，当没登录，避免拿过期 token 去撞 401</span>
+<span class="w">    </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token_expiry&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="kc">null</span>
+<span class="p">}</span>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">useAuthStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">defineStore</span><span class="p">(</span><span class="s1">&#39;auth&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">state</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">({</span>
+<span class="w">    </span><span class="nx">token</span><span class="o">:</span><span class="w"> </span><span class="nx">getStoredToken</span><span class="p">(),</span>
+<span class="w">    </span><span class="nx">user</span><span class="o">:</span><span class="w"> </span><span class="nx">safeParseUser</span><span class="p">(),</span><span class="w">  </span><span class="c1">// localStorage user 可能是脏 JSON，try/catch 包住</span>
+<span class="w">    </span><span class="nx">isAuthenticated</span><span class="o">:</span><span class="w"> </span><span class="o">!!</span><span class="nx">getStoredToken</span><span class="p">(),</span>
+<span class="w">  </span><span class="p">}),</span>
+<span class="w">  </span><span class="nx">actions</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">login</span><span class="p">(</span><span class="nx">username</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">apiLogin</span><span class="p">(</span><span class="nx">username</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">)</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">access</span><span class="p">,</span><span class="w"> </span><span class="nx">refresh</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">data</span>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">access</span>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">access</span><span class="p">)</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">refresh</span><span class="p">)</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">refresh</span><span class="p">)</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">parseJwtPayload</span><span class="p">(</span><span class="nx">access</span><span class="p">)</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">payload</span><span class="o">?</span><span class="p">.</span><span class="nx">exp</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">&#39;token_expiry&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="p">(</span><span class="nx">payload</span><span class="p">.</span><span class="nx">exp</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">))</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">logout</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token_expiry&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">checkAuth</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">getStoredToken</span><span class="p">()</span>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">token</span>
+<span class="w">      </span><span class="k">this</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!!</span><span class="nx">token</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+两个细节：
+<ul>
+<li><code>safeParseUser()</code> 包 try/catch：localStorage 手改坏了/旧版本残留脏 JSON，不能白屏整个站（真实踩过）；</li>
+<li><code>getStoredToken()</code> 做<strong>本地过期预判</strong>：access 的 <code>exp</code> 本地可读，过期了直接当没登录，连 401 都不去撞，省一次往返。</li>
+</ul>
+<h3>5.4 记住我 + 自定义 claims + 改密码即吊销（token_version）</h3>
+
+<strong>记住我</strong>：登录页加 checkbox，不勾 refresh 1 天（<code>REFRESH_TOKEN_LIFETIME</code> 默认），勾选调单独接口发 7 天 refresh。后端用两个 Serializer 区分即可，前端 <code>login(username, password, rememberMe)</code> 透传。后端 Session 时代靠 <code>SESSION_COOKIE_AGE</code>，JWT 时代靠签发不同 <code>lifetime</code> 的 refresh，各走各的。
+
+<strong>自定义 claims</strong>（把常用字段塞进 access，省一次 <code>/me</code>）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/accounts/serializers.py（新增）</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_simplejwt.serializers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TokenObtainPairSerializer</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MyTokenSerializer</span><span class="p">(</span><span class="n">TokenObtainPairSerializer</span><span class="p">):</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_token</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+        <span class="n">token</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_token</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="n">token</span><span class="p">[</span><span class="s2">&quot;username&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">username</span>
+        <span class="n">token</span><span class="p">[</span><span class="s2">&quot;is_staff&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">is_staff</span>
+        <span class="n">token</span><span class="p">[</span><span class="s2">&quot;tv&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="s2">&quot;token_version&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>  <span class="c1"># 吊销版本号，见下</span>
+        <span class="k">return</span> <span class="n">token</span>
+<span class="c1"># urls 里 TokenObtainPairView.as_view(serializer_class=MyTokenSerializer)</span>
+</code></pre></div>
+
+
+前端 <code>parseJwtPayload(access).is_staff</code> 直接判断菜单显隐，不用再调我是谁。但记住：<strong>payload 可解码，别塞手机号/邮箱</strong>，只塞展示用的非敏感字段。
+
+<strong>改密码即吊销全部（token_version Hastag版，推荐）</strong>：User 表加 <code>token_version = models.IntegerField(default=0)</code>；签 token 时塞 <code>tv</code>；认证时比对 <code>payload.tv == user.token_version</code>，不等则 401。改密码/点“退出其他设备”时 <code>user.token_version += 1</code>，历史所有 access+refresh 瞬间全废，比黑名单一张张拉高效得多。黑名单管“单个 token 作废”，<code>token_version</code> 管“一键全废”，两者互补。
+<hr>
+<h2>6. 自动续期：全文最核心的 60 行</h2>
+<h3>6.1 请求拦截器：每次带上 Bearer</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/api/client.js</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">request</span><span class="p">.</span><span class="nx">use</span><span class="p">((</span><span class="nx">config</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">Authorization</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`Bearer </span><span class="si">${</span><span class="nx">token</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">config</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<h3>6.2 响应拦截器 + 单飞行刷新：5 个 401 只换一次 token</h3>
+
+没做单飞行前，长文保存时 5 个并发请求同时 401，会发 5 次 <code>/token/refresh/</code>，后 4 次可能因 ROTATE（见 7.3）用旧 refresh 而失败。修法是<strong>全局一个 Promise 排队</strong>：
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/api/client.js（核心，注释精简但逻辑完整）</span>
+<span class="kd">let</span><span class="w"> </span><span class="nx">refreshInFlight</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span>
+
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">refreshAccessToken</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">refreshInFlight</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">refreshInFlight</span><span class="w">  </span><span class="c1">// 已有人在刷，直接排队等</span>
+
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">refresh</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">refresh</span><span class="p">)</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="ne">Error</span><span class="p">(</span><span class="s1">&#39;No refresh token&#39;</span><span class="p">)</span>
+
+<span class="w">  </span><span class="nx">refreshInFlight</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">axios</span>
+<span class="w">    </span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="sb">`</span><span class="si">${</span><span class="nx">client</span><span class="p">.</span><span class="nx">defaults</span><span class="p">.</span><span class="nx">baseURL</span><span class="si">}</span><span class="sb">token/refresh/`</span><span class="p">,</span>
+<span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nx">refresh</span><span class="w"> </span><span class="p">},</span>
+<span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nx">timeout</span><span class="o">:</span><span class="w"> </span><span class="mf">15000</span><span class="p">,</span><span class="w"> </span><span class="nx">_skipRefresh</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// 刷 token 自己不触发再刷</span>
+<span class="w">    </span><span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">access</span><span class="p">,</span><span class="w"> </span><span class="nx">refresh</span><span class="o">:</span><span class="w"> </span><span class="nx">newRefresh</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">access</span><span class="p">)</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="ne">Error</span><span class="p">(</span><span class="s1">&#39;No access token in refresh response&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">access</span><span class="p">)</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">newRefresh</span><span class="p">)</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">newRefresh</span><span class="p">)</span>
+<span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">atob</span><span class="p">(</span><span class="nx">access</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mf">1</span><span class="p">].</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/-/g</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;+&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/_/g</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">)))</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">payload</span><span class="o">?</span><span class="p">.</span><span class="nx">exp</span><span class="p">)</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="s1">&#39;token_expiry&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="p">(</span><span class="nx">payload</span><span class="p">.</span><span class="nx">exp</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">))</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nx">access</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="w">    </span><span class="p">.</span><span class="k">finally</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">setTimeout</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">refreshInFlight</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w">  </span><span class="c1">// 结算后放行下一轮</span>
+<span class="w">    </span><span class="p">})</span>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">refreshInFlight</span>
+<span class="p">}</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">response</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span>
+<span class="w">  </span><span class="p">(</span><span class="nx">response</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">response</span><span class="p">,</span>
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">response</span><span class="o">?</span><span class="p">.</span><span class="nx">status</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">original</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">config</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">status</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="mf">401</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">original</span><span class="p">.</span><span class="nx">url</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">url</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;/token/&#39;</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w">  </span><span class="c1">// 登录/刷新自己 401 不续</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">original</span><span class="p">.</span><span class="nx">_skipRefresh</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">original</span><span class="p">.</span><span class="nx">_retry</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// 重试一次还 401：真没救了，清掉跳登录</span>
+<span class="w">      </span><span class="nx">clearAuth</span><span class="p">()</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">pathname</span><span class="p">.</span><span class="nx">startsWith</span><span class="p">(</span><span class="s1">&#39;/admin&#39;</span><span class="p">))</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;/admin&#39;</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">wasAuthenticated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!!</span><span class="nx">original</span><span class="p">.</span><span class="nx">headers</span><span class="o">?</span><span class="p">.</span><span class="nx">Authorization</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">wasAuthenticated</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">original</span><span class="p">.</span><span class="nx">_retry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w">  </span><span class="c1">// 只重试一次，防死循环</span>
+<span class="w">      </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">newToken</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">refreshAccessToken</span><span class="p">()</span>
+<span class="w">        </span><span class="nx">original</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">Authorization</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`Bearer </span><span class="si">${</span><span class="nx">newToken</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">client</span><span class="p">(</span><span class="nx">original</span><span class="p">)</span><span class="w">  </span><span class="c1">// 拿新 token 重放原请求</span>
+<span class="w">      </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">refreshErr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">clearAuth</span><span class="p">()</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="nx">original</span><span class="p">.</span><span class="nx">url</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;/admin/&#39;</span><span class="p">))</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;/admin&#39;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">refreshErr</span><span class="p">)</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w">  </span><span class="c1">// 匿名读接口 401：别清登录态，别跳页</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+四道保险缺一不可：
+<ol>
+<li><code>_skipRefresh</code>：刷新请求自己不触发刷新，否则 401 死递归；</li>
+<li><code>_retry</code>：只重试一次，refresh 烂了不死循环；</li>
+<li><code>wasAuthenticated</code>：匿名请求 401 不清登录态（公开读接口偶发 401 不能把后台踢掉）；</li>
+<li><code>url.includes('/token/')</code>：登录密码错了的 401 不去续，直接报错给用户看。</li>
+</ol>
+<h3>6.3 路由守卫：过期后直接打开后台也不掉线</h3>
+
+光有拦截器还不够：access 过期后用户<strong>直接刷新</strong> <code>/admin/dashboard</code>，守卫先于任何 API 执行。我的守卫会先试一次 refresh，成了才放行：
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/router/index.js</span>
+<span class="nx">router</span><span class="p">.</span><span class="nx">beforeEach</span><span class="p">(</span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="nx">to</span><span class="p">,</span><span class="w"> </span><span class="kr">from</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">to</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">requiresAuth</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">authStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useAuthStore</span><span class="p">()</span>
+<span class="w">  </span><span class="nx">authStore</span><span class="p">.</span><span class="nx">checkAuth</span><span class="p">()</span><span class="w">  </span><span class="c1">// 本地过期预判</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">authStore</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">next</span><span class="p">()</span>
+
+<span class="w">  </span><span class="c1">// access 没了但 refresh 可能还在：试一次，不行再踢</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="nx">refreshAccessToken</span><span class="p">()</span><span class="w">  </span><span class="c1">// 复用 client.js 的单飞行，不另起一套</span>
+<span class="w">    </span><span class="nx">authStore</span><span class="p">.</span><span class="nx">checkAuth</span><span class="p">()</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">authStore</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* fall through */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">next</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;AdminLogin&#39;</span><span class="w"> </span><span class="p">})</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+早期这里和 client.js 各写了一套刷新逻辑，两边行为分叉出过 bug，现在统一复用 <code>refreshAccessToken()</code>，<strong>同一逻辑只留一份</strong>。
+<h3>6.4 多 Tab 同步 + 草稿保护 + AdminLogin 完整代码</h3>
+
+<strong>多 Tab 同步</strong>：A 标签页点了退出，B 标签页还显示“已登录”，一点保存才 401。监听 storage 事件即解：
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/stores/auth.js（追加，全局一次）</span>
+<span class="nb">window</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;storage&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">key</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;token&#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">e</span><span class="p">.</span><span class="nx">newValue</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 别的 Tab 清了 token，本 Tab 跟着退出</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useAuthStore</span><span class="p">()</span>
+<span class="w">    </span><span class="nx">auth</span><span class="p">.</span><span class="nx">checkAuth</span><span class="p">()</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">auth</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">pathname</span><span class="p">.</span><span class="nx">startsWith</span><span class="p">(</span><span class="s1">&#39;/admin&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;/admin&#39;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+<strong>草稿保护</strong>：续期重试“只慢几百毫秒”建立在 refresh 有效的前提下；refresh 也过期时保存还是会挂。编辑器必须本地存草稿兜底：
+<div class="codehilite"><pre><span></span><code><span class="c1">// ArticleEditor.vue：输入防抖 1s 存 localStorage，发布成功清掉</span>
+<span class="nx">watch</span><span class="p">(</span><span class="nx">content</span><span class="p">,</span><span class="w"> </span><span class="nx">debounce</span><span class="p">((</span><span class="nx">v</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="sb">`draft:</span><span class="si">${</span><span class="nx">route</span><span class="p">.</span><span class="nx">params</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;new&#39;</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span><span class="w"> </span><span class="nx">v</span><span class="p">)</span>
+<span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">))</span>
+<span class="c1">// 挂载时读出恢复 + 提示“已恢复 12:30 的草稿”</span>
+</code></pre></div>
+
+
+<strong>AdminLogin 完整逻辑</strong>（防爆破版）：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span> <span class="na">setup</span><span class="p">&gt;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vue&#39;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">cooldown</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ref</span><span class="p">(</span><span class="mf">0</span><span class="p">)</span>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">onLogin</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">cooldown</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="nx">authStore</span><span class="p">.</span><span class="nx">login</span><span class="p">(</span><span class="nx">username</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="w"> </span><span class="nx">password</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">router</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;AdminDashboard&#39;</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 401 和 429 统一文案，不告诉爆破者哪个对了</span>
+<span class="w">    </span><span class="nx">error</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;用户名或密码错误，稍后再试&#39;</span>
+<span class="w">    </span><span class="nx">cooldown</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">3</span><span class="w">  </span><span class="c1">// 按钮禁用 3 秒，脚本 5/min 限流下效率归零</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">setInterval</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">--</span><span class="nx">cooldown</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="nx">clearInterval</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<hr>
+<h2>7. 注销与安全缺口：最该看的一章</h2>
+<h3>7.1 现状：logout 只是前端删 key</h3>
+<div class="codehilite"><pre><span></span><code><span class="nx">logout</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这清的是<strong>这台浏览器</strong>。refresh 在 1 天有效期内<strong>依然有效</strong>：别人拷走 refresh，照样能换 access。后端无状态，根本不知道你“退出了”。对单人博客可接受，对多用户站不可接受。
+<h3>7.2 立刻能做的两件事（不改后端）</h3>
+<ol>
+<li><strong>改密码即吊销全部</strong>：SimpleJWT 的 refresh 里不含密码版本？默认 <code>TOKEN</code> 只认 <code>user_id</code>，改密码后旧 token 照样能用。缓解：重要操作后提示“已退出其他设备”是不诚实的，别写。真要做看 7.3。</li>
+<li><strong>缩短 refresh</strong>：后台常用设备 1 天 Hoch，不常用设备每次登录都是一次风险敞口。公共电脑用完务必点退出 + 清 localStorage（F12 → Application → Clear storage）。</li>
+</ol>
+<h3>7.3 根治：Refresh Rotation + 黑名单（升级方案，直接抄）</h3>
+<div class="codehilite"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>djangorestframework-simplejwt<span class="o">[</span>token-blacklist<span class="o">]</span>
+<span class="c1"># settings INSTALLED_APPS 加 &#39;rest_framework_simplejwt.token_blacklist&#39;</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/blog_api/settings.py（升级后）</span>
+<span class="n">SIMPLE_JWT</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;ACCESS_TOKEN_LIFETIME&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">60</span><span class="p">),</span>
+    <span class="s1">&#39;REFRESH_TOKEN_LIFETIME&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="s1">&#39;ROTATE_REFRESH_TOKENS&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>   <span class="c1"># 每次刷新都发新 refresh</span>
+    <span class="s1">&#39;BLACKLIST_AFTER_ROTATION&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># 旧 refresh 进黑名单，用过即废</span>
+    <span class="s1">&#39;AUTH_HEADER_TYPES&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;Bearer&#39;</span><span class="p">,),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+开了之后 <code>/token/refresh/</code> 返回 <code>{access, refresh（新的）}</code>，旧 refresh 再用直接 401（<code>Token is blacklisted</code>）。前端我已经提前写好了兼容（<code>if (newRefresh) localStorage.setItem(...)</code>，见 6.2），后端一开即生效，不用改前端。
+
+再加一个真正的注销接口：
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/accounts/views.py（新增）</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">api_view</span><span class="p">,</span> <span class="n">permission_classes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsAuthenticated</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.response</span><span class="w"> </span><span class="kn">import</span> <span class="n">Response</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_simplejwt.tokens</span><span class="w"> </span><span class="kn">import</span> <span class="n">RefreshToken</span>
+
+<span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">IsAuthenticated</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">logout</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">refresh</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refresh&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">refresh</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;refresh required&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">RefreshToken</span><span class="p">(</span><span class="n">refresh</span><span class="p">)</span><span class="o">.</span><span class="n">blacklist</span><span class="p">()</span>  <span class="c1"># 进黑名单，此 refresh 彻底作废</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">pass</span>  <span class="c1"># 过期/已黑也当成功，前端照常清</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;logged out&quot;</span><span class="p">})</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1"># urls.py 加一行</span>
+<span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/logout/&quot;</span><span class="p">,</span> <span class="n">logout</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;logout&quot;</span><span class="p">),</span>
+</code></pre></div>
+
+
+前端 <code>logout()</code> 改成先调接口再清本地：
+<div class="codehilite"><pre><span></span><code><span class="k">async</span><span class="w"> </span><span class="nx">logout</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="nx">client</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="s1">&#39;/logout/&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">refresh</span><span class="o">:</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 后端黑名单失败也不阻塞前端清除 */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 原来的 removeItem 四件套 */</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这套做完才敢说“退出即吊销”。没做之前，诚实地在管理页写“退出仅清除本机登录态”都比撒谎强。
+<hr>
+<h2>8. 调试：复现过期与 8 个大坑</h2>
+<h3>8.1 本地 3 分钟复现过期续期</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 临时把 access 调成 1 分钟（只本地！提交前改回）</span>
+<span class="n">SIMPLE_JWT</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">SIMPLE_JWT</span><span class="p">,</span> <span class="s1">&#39;ACCESS_TOKEN_LIFETIME&#39;</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">1</span><span class="p">)}</span>
+</code></pre></div>
+
+<ol>
+<li>登录后台，等 70 秒；</li>
+<li>点保存 → Network 应看到：<code>POST /admin/articles/ 401</code> → <code>POST /token/refresh/ 200</code> → <code>POST /admin/articles/ 201</code>；</li>
+<li>用户侧无感，只慢了几百毫秒。这就是 single-flight + retry 的完整证据链。</li>
+</ol>
+<h3>8.2 8 个坑（按踩中频率排序）</h3>
+<ol>
+<li><strong>Authorization 头没发出去</strong>：CORS 没放行 <code>Authorization</code>。后端 <code>CORS_ALLOWED_ORIGINS</code> 精确到 <code>https://zhoujungis.github.io</code>，且 axios 手动加 Header（不是 Cookie），与 <code>CORS_ALLOW_CREDENTIALS</code> 无关。换域先查 <code>Access-Control-Allow-Headers</code>。</li>
+<li><strong>Bearer 写成 Token/Basic</strong>：<code>AUTH_HEADER_TYPES = ('Bearer',)</code>，<code>Token xxx</code> 直接 401。前后统一。</li>
+<li><strong>拿 access 去调 /token/refresh/</strong>：refresh 接口要的是 <code>{refresh}</code>，传 access 必 401。复制粘贴时看清 key 名。</li>
+<li><strong>refresh 复用（开了 ROTATE 后）</strong>：旧 refresh 用过即黑，5 并发同时刷时没 single-flight 的 4 个全挂。见 6.2。</li>
+<li><strong>时钟漂移</strong>：<code>exp</code> 按后端时间签，<code>Date.now()</code> 是前端时间，两边差 5 分钟就会“本地觉得没过期、后端说过期了”或反之。本地预判只做体验优化，<strong>最终以 401 为准</strong>。</li>
+<li><strong>PA 强制 HTTPS + Secure Cookie 混用</strong>：如果以后切 HttpOnly Cookie，<code>SESSION_COOKIE_SECURE=True</code> 在本地 http 调不通，别怀疑人生，加 <code>SECURE_SSL_REDIRECT</code> 例外或本地改 False。</li>
+<li><strong>localStorage 脏 JSON 白屏</strong>：<code>JSON.parse(localStorage.user)</code> 抛错把 Pinia init 炸了。<code>safeParseUser()</code> 包住（我博客真实修过，见第 5 章）。</li>
+<li><strong>匿名 401 被当登录失效</strong>：公开读接口偶发 401（如 CSRF 中间件抖动）不能清 token 跳登录。靠 <code>wasAuthenticated</code> + <code>url.includes('/admin/')</code> 双判断（见 6.2）。</li>
+</ol>
+<hr>
+<h2>9. 上线 Checklist（20 项）+ FAQ（15 问）</h2>
+
+<strong>后端（9）</strong>
+<ul>
+<li>[ ] <code>ACCESS 30~60min + REFRESH 1~7天</code>，生产 <code>SECRET_KEY</code> 非默认值</li>
+<li>[ ] <code>/token/</code> + <code>/token/refresh/</code> 可达，<code>AUTH_HEADER_TYPES</code> 前后一致</li>
+<li>[ ] <code>/token/</code> 配 <code>login 5/min</code>、<code>refresh 30/min</code> 限流（3.5，高危）</li>
+<li>[ ] 读 <code>IsAuthenticatedOrReadOnly</code>，写 <code>IsAdminUser</code>，401/403 语义分清</li>
+<li>[ ] 生产只留 <code>JSONRenderer</code>（减少 token 错误信息泄露）</li>
+<li>[ ] 全站 HTTPS + HSTS，CORS 精确域名不开 <code>*</code></li>
+<li>[ ] 进阶：<code>token_blacklist</code> + <code>ROTATE + BLACKLIST_AFTER_ROTATION</code> + <code>/logout/</code> 黑名单接口</li>
+<li>[ ] 进阶：<code>token_version</code> 字段，改密码/踢设备一键全废（5.4）</li>
+<li>[ ] 登录失败日志 + 429 告警（爆破早发现）</li>
+</ul>
+
+<strong>前端（11）</strong>
+<ul>
+<li>[ ] 登录存 access + refresh + <code>token_expiry</code>（exp*1000）</li>
+<li>[ ] 请求拦截加 <code>Bearer</code>（Cookie 模式改 <code>withCredentials</code>）</li>
+<li>[ ] 响应拦截 401 单飞行刷新 + <code>_retry</code> 只一次 + <code>_skipRefresh</code> 防递归</li>
+<li>[ ] <code>/token/</code> 401 不续期，匿名 401 不清登录态不跳页</li>
+<li>[ ] 路由守卫过期先 <code>tryRefresh()</code> 再踢，别直接踢</li>
+<li>[ ] 退出清四件套（token/expiry/refresh/user），开了黑名单先调 <code>/logout/</code></li>
+<li>[ ] 脏 localStorage 不白屏（try/catch + 日志）</li>
+<li>[ ] 多 Tab <code>storage</code> 事件同步登录态（6.4）</li>
+<li>[ ] 编辑器草稿防丢（localStorage draft + 恢复提示）</li>
+<li>[ ] 登录按钮冷却 3 秒 + 统一错误文案（防用户名枚举）</li>
+<li>[ ] 公共电脑退出后手动清 Application 存储</li>
+</ul>
+
+<strong>FAQ（15 问）</strong>
+<ul>
+<li><strong>Q：access 1 小时，写长文保存时正好过期会丢稿吗？</strong> A：不会。拦截器自动续 + 重放原请求，编辑器等几百毫秒后拿到 201。再加草稿本地存（6.4）双保险。</li>
+<li><strong>Q：refresh 1 天，出差一周回来？</strong> A：重登一次。trade-off，可按频率调 7 天，或“记住我”双档（5.4）。</li>
+<li><strong>Q：localStorage 真的不如 Cookie 吗？</strong> A：有用户数据/支付直接 Cookie（4.4）；单人博客 + bleach + CSP + 短 access，localStorage 可接受。看威胁模型。</li>
+<li><strong>Q：多 Tab 不同步？</strong> A：<code>storage</code> 事件监听（6.4），一处退处处退。</li>
+<li><strong>Q：改密码后旧 token 失效吗？</strong> A：默认不失效。用黑名单逐个废，或 <code>token_version</code> 一键全废（5.4/7.3）。</li>
+<li><strong>Q：JWT vs Session 到底选哪个？</strong> A：前后分离跨域选 JWT（2.4）；同域强管控后台 Session 吊销最爽；第三方登录加 OAuth2。</li>
+<li><strong>Q：access 里塞 username/is_staff 安全吗？</strong> A：payload 可解码，只塞非敏感展示字段，敏感信息后端查库。</li>
+<li><strong>Q：refresh 被偷了怎么办？</strong> A：ROTATE 让旧 refresh 用过即废（7.3）+ 短有效期 + <code>token_version</code> 一键全废。发现即改密码+版本号+1。</li>
+<li><strong>Q：登录接口要不要验证码？</strong> A：<code>5/min</code> 限流后脚本效率归零，小博客可不上；被针对性打再加（滑块/turnstile），别提前过度设计。</li>
+<li><strong>Q：时钟漂移导致“本地没过期后端说过期”？</strong> A：本地预判只做体验，最终以 401 + 自动续为准（坑 5）。</li>
+<li><strong>Q：移动端 App 存哪？</strong> A：Keychain/Keystore（iOS/Android 安全存储），别放 AsyncStorage 明文；续期逻辑同一套。</li>
+<li><strong>Q：登出后 refresh 还能用 1 天？</strong> A：没黑名单就是这样（7.1）。要真注销上 <code>/logout/</code> 黑名单（7.3）。</li>
+<li><strong>Q：401 和 403 前端怎么分？</strong> A：401→续期；403→提示无权限别续。见权限矩阵（3.3）。</li>
+<li><strong>Q：CORS 报错但 Postman 通？</strong> A：Postman 不走浏览器 CORS。查 <code>CORS_ALLOWED_ORIGINS</code> 精确域名 + <code>Authorization</code> 在 Allow-Headers。</li>
+<li><strong>Q：PA 上 SECRET_KEY 怎么管？</strong> A：<code>.env</code> + <code>DJANGO_SECRET_KEY</code> 环境变量，绝不进 git（见 settings 注释），丢了全站 token 得重签。</li>
+</ul>
+<hr>
+<h2>10. 纵深防御 + 测试：上线前最后两块拼图</h2>
+<h3>10.1 纵深防御：JWT 只是其中一层</h3>
+
+我博客 <code>settings.py</code> 里和认证联动的四层，一眼看全：
+<div class="codehilite"><pre><span></span><code><span class="n">SECURE_SSL_REDIRECT</span> <span class="o">=</span> <span class="kc">True</span>           <span class="c1"># 全站 HTTPS，token 明文传输一生黑</span>
+<span class="n">SECURE_HSTS_SECONDS</span> <span class="o">=</span> <span class="mi">31536000</span>       <span class="c1"># HSTS，防 SSL 剥离</span>
+<span class="n">CORS_ALLOWED_ORIGINS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;https://zhoujungis.github.io&quot;</span><span class="p">]</span>  <span class="c1"># 精确域名，Cookie 模式必备</span>
+<span class="n">CORS_ALLOW_ALL_ORIGINS</span> <span class="o">=</span> <span class="kc">False</span>       <span class="c1"># 永远别开 *</span>
+</code></pre></div>
+
+
+外加内容侧 <code>bleach</code> 白名单 + 上传禁 SVG（见 XSS 那篇 + 三件套上传限流），认证侧 <code>login 5/min</code>（3.5）。攻击者要偷后台，得连过：HTTPS → 爆破限流 → XSS（bleach）→ 短 access（60min）→ 黑名单/rotation。单点被破不致命，这就是纵深。
+<h3>10.2 测试：5 个后端 + 3 个前端用例，锁死行为</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># backend/accounts/tests.py（pytest/django TestCase 均可）</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_login_ok</span><span class="p">(</span><span class="n">api_client</span><span class="p">,</span> <span class="n">admin_user</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">api_client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/api/token/&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;p&quot;</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_admin_api_no_token_401</span><span class="p">(</span><span class="n">api_client</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">api_client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/api/admin/stats/&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">401</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_normal_user_admin_api_403</span><span class="p">(</span><span class="n">api_client</span><span class="p">,</span> <span class="n">normal_user</span><span class="p">):</span>
+    <span class="c1"># 401 和 403 分清：登录了但不是管理员 → 403，续期也救不了</span>
+    <span class="k">assert</span> <span class="n">api_client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/api/admin/stats/&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">403</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_expired_access_401_and_refresh_ok</span><span class="p">(</span><span class="n">api_client</span><span class="p">):</span>
+    <span class="c1"># access 过期 → 401；refresh 换新 → 200；旧 access 仍 401</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_login_throttled_after_5_fails</span><span class="p">(</span><span class="n">api_client</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">):</span>
+        <span class="n">api_client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/api/token/&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;wrong&quot;</span><span class="p">})</span>
+    <span class="k">assert</span> <span class="n">api_client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/api/token/&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;wrong&quot;</span><span class="p">})</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">429</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// frontend/src/__tests__/auth.test.js（已有，在此约束下扩展）</span>
+<span class="c1">// 1. access 过期只调一次 /token/refresh/（5 并发单飞行）</span>
+<span class="c1">// 2. /token/ 自己 401 不触发续期（防递归）</span>
+<span class="c1">// 3. 匿名 GET 401 不清 localStorage、不跳页</span>
+</code></pre></div>
+
+<hr>
+<h2>结语</h2>
+
+双 Token 就三句话：<strong>access 短命冲锋，refresh 长命待命，过期自动续命</strong>。难的从来不是配两个有效期，而是续期时的并发（单飞行）、边界（匿名 401 别踢人）、退出（黑名单才算真退出），再加登录口的爆破限流。把这四处做对，登录态就从“玄学掉线”变成“无感续航”。
+
+下一篇预告：<strong>《从 SQLite 到 PostgreSQL：Django 生产数据库迁移避坑》</strong> —— 当评论点赞并发上来，SQLite 写锁会成为下一个瓶颈。到时讲 <code>pgloader</code> 一键迁移、PA 上配 Postgres、JSONB 存标签、全文检索替代 <code>icontains</code>，敬请期待。
+<blockquote>
+
+完整代码：<code>backend/blog_api/settings.py</code>、<code>backend/blog_api/urls.py</code>、<code>frontend/src/stores/auth.js</code>、<code>frontend/src/api/client.js</code>、<code>frontend/src/router/index.js</code>
+评论区聊聊：你的 access/refresh 设的多长？localStorage 还是 Cookie？为什么？
+</blockquote></div></div></noscript>
+  </body>
+</html>
