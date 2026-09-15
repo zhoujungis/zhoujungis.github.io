@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测） 适用读者：写过下单/支付/表单接口，被&quot;用户双击&quot;&quot;回调重发&quot;&quot;MQ 重复消费&quot;坑过的后端工程师 技术栈：Python + SQL（SQLite 实测）；方案不绑定框架，Django / Spring Boot / Go 通用 阅读时间：约" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/api-idempotency-deep-dive/" />
+    <meta property="og:title" content="用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）" />
+    <meta property="og:description" content="用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测） 适用读者：写过下单/支付/表单接口，被&quot;用户双击&quot;&quot;回调重发&quot;&quot;MQ 重复消费&quot;坑过的后端工程师 技术栈：Python + SQL（SQLite 实测）；方案不绑定框架，Django / Spring Boot / Go 通用 阅读时间：约" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/api-idempotency-deep-dive/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）" />
+    <meta name="twitter:description" content="用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测） 适用读者：写过下单/支付/表单接口，被&quot;用户双击&quot;&quot;回调重发&quot;&quot;MQ 重复消费&quot;坑过的后端工程师 技术栈：Python + SQL（SQLite 实测）；方案不绑定框架，Django / Spring Boot / Go 通用 阅读时间：约" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测） | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-0oF8Iu58.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-15T17:30:12.534486+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）","description":"用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测） 适用读者：写过下单/支付/表单接口，被\"用户双击\"\"回调重发\"\"MQ 重复消费\"坑过的后端工程师 技术栈：Python + SQL（SQLite 实测）；方案不绑定框架，Django / Spring Boot / Go 通用 阅读时间：约","image":"https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-15T17:30:12.534486+08:00","dateModified":"2026-09-15T17:30:12.534566+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/api-idempotency-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）</h1><div class="ns-meta">2026/9/15 · Zhou Jun</div><div class="markdown-body"><h1>用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）</h1>
+<blockquote>
+
+适用读者：写过下单/支付/表单接口，被"用户双击""回调重发""MQ 重复消费"坑过的后端工程师
+技术栈：Python + SQL（SQLite 实测）；方案不绑定框架，Django / Spring Boot / Go 通用
+阅读时间：约 25 分钟 | 难度：中高级 | 收获：四层幂等防线 + 支付回调/MQ/表单三个场景的组合拳 + 上线 Checklist
+</blockquote>
+<h2>前言：一个重复发货的事故</h2>
+
+用户在结算页点了"提交订单"，网络卡了一秒，他又点了一下。第二天仓库打出两份快递，客服收到投诉，你在数据库里看到：
+<div class="codehilite"><pre><span></span><code>SELECT * FROM orders WHERE user_id = 1001;
+id=4242  user=1001  product=88  created_at=10:23:01.204
+id=4243  user=1001  product=88  created_at=10:23:01.219   ← 15ms 后的&quot;双击&quot;
+</code></pre></div>
+
+
+你翻出代码，明明写了判重：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">product_id</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">product_id</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span>
+</code></pre></div>
+
+
+为什么还是有重复？因为<strong>"先查后插"在并发下永远有窗口</strong>——两个请求都通过了 <code>exists()</code> 检查，然后各自插入。我在本机实测：8 个并发提交同一笔订单，这种写法会<strong>生成 8 条订单</strong>（见第 2 章）。
+
+这类问题的学名叫<strong>幂等（Idempotency）</strong>：
+<blockquote>
+
+<strong>f(f(x)) = f(x)</strong> —— 同一个操作执行一次和执行多次，结果相同。
+</blockquote>
+
+它是分布式系统的地基设定，因为<strong>重复请求根本防不住</strong>，来源至少有四个：
+<table>
+<thead>
+<tr>
+<th>重复来源</th>
+<th>场景</th>
+<th>频率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>用户手抖</td>
+<td>双击、提交后刷新页面重发表单</td>
+<td>每天</td>
+</tr>
+<tr>
+<td>客户端重试</td>
+<td>超时自动重试（axios-retry / OkHttp interceptor）</td>
+<td>常见</td>
+</tr>
+<tr>
+<td>网关/负载均衡重试</td>
+<td>Nginx <code>proxy_next_upstream</code>、Feign 重试</td>
+<td>隐藏且致命</td>
+</tr>
+<tr>
+<td>MQ / 回调重投</td>
+<td>至少一次（at-least-once）投递是消息系统的默认语义</td>
+<td>一定会发生</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论先行：既然重复无法阻止，就只能让接口"重复执行也无害"。</strong> 这篇文章按"先复现事故 → 四层防线逐个拆 → 三个场景组合出拳"的顺序展开。
+
+<strong>目录</strong>
+<ul>
+<li>幂等到底是什么：天然幂等与非幂等</li>
+<li>事故复现：为什么 <code>if not exists</code> 防不住</li>
+<li>防线一：数据库唯一约束，最硬的兜底</li>
+<li>防线二：幂等表 + 幂等键，Stripe 同款</li>
+<li>防线三：状态机 + 条件更新</li>
+<li>防线四：防抖 Token，体验层优化</li>
+<li>幂等、去重、分布式锁：一次说清边界</li>
+<li>三个真实场景的组合拳</li>
+<li>并发实测汇总</li>
+<li>上线 Checklist + 高频 FAQ</li>
+</ul>
+<hr>
+<h2>1. 幂等到底是什么：天然幂等与非幂等</h2>
+
+先分清哪些操作<strong>天生</strong>幂等，哪些<strong>必须设计</strong>：
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>幂等性</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /articles/1</code></td>
+<td>✅ 天然幂等</td>
+<td>只读，执行多少次结果都一样</td>
+</tr>
+<tr>
+<td><code>PUT /articles/1</code>（全量更新）</td>
+<td>✅ 天然幂等</td>
+<td>重复 PUT 同一份内容，终态不变</td>
+</tr>
+<tr>
+<td><code>DELETE /articles/1</code></td>
+<td>✅ 天然幂等</td>
+<td>第一次删成功，第二次 404，但"文章不存在"这个终态没变</td>
+</tr>
+<tr>
+<td><code>POST /orders</code>（创建）</td>
+<td>❌ 非幂等</td>
+<td>每执行一次多一条记录</td>
+</tr>
+<tr>
+<td><code>POST /balance/deduct</code>（扣款）</td>
+<td>❌ 非幂等</td>
+<td>每执行一次扣一次钱，最危险</td>
+</tr>
+<tr>
+<td><code>PATCH /articles/1</code>（增量）</td>
+<td>❌ 非幂等</td>
+<td><code>views += 1</code> 执行两次加两次</td>
+</tr>
+</tbody>
+</table>
+
+两个常见误区：
+
+<strong>误区一："HTTP 方法幂等，所以我的接口就幂等。"</strong> 方法语义只是约定，<code>PUT /articles/1</code> 的 handler 里写 <code>views = views + 1</code>，它照样不幂等。<strong>幂等看的是服务端状态变化，不是方法名。</strong>
+
+<strong>误区二："前端加个按钮置灰就完事了。"</strong> 前端防抖只改善体验，防不了重试、重放、绕过浏览器直接调 API 的脚本。<strong>安全边界必须在服务端。</strong>
+
+还有一个必须刻进 DNA 的事实：<strong>消息系统和回调系统几乎都是 at-least-once</strong>。RocketMQ/Kafka 的重平衡、支付网关的"收不到应答就重发"，都意味着<strong>你的接口一定会被重复调用</strong>，区别只是今天还是大促那天。
+<hr>
+<h2>2. 事故复现：为什么 <code>if not exists</code> 防不住</h2>
+
+先把这个 bug 跑出来。完整脚本在 <code>tools/bench_idempotency.py</code>，8 个线程同时提交 user=1 的同一笔订单，业务逻辑耗时 10ms（模拟校验、计价），标准库 sqlite3 + WAL 模式：
+<div class="codehilite"><pre><span></span><code>E1 用户双击竞态：8 线程同时提交 user=1 的同一笔订单
+  A 无防护（查-插）           订单   8 条  ← 期望 1 条，多出 7 条重复
+</code></pre></div>
+
+
+<strong>8 个请求，8 条订单。</strong> 时序推演一下就明白：
+<div class="codehilite"><pre><span></span><code>时刻   线程 1                     线程 2                     … 线程 8
+────────────────────────────────────────────────────────────────────
+t1    SELECT exists → False
+t2                                SELECT exists → False
+t3    …（所有线程在 10ms 窗口内全部通过了检查）
+t4    INSERT order ✅
+t5                                INSERT order ✅
+t6    …（8 条全部插进去了）
+</code></pre></div>
+
+
+这就是教科书上的 <strong>TOCTOU（Time-of-Check to Time-of-Use）</strong>：检查和使用之间有时间差，并发请求全部挤进了这个窗口。窗口有多宽？取决于检查和写入之间的业务耗时——<strong>只要中间有校验、计价、调库存，窗口就一定存在</strong>。
+<blockquote>
+
+<strong>关键认知：应用层的"先查后插"是信息，不是约束。它能告诉你"刚才没有"，不能阻止"别人同时插入"。真正的互斥必须交给数据库——它是唯一能看到"此刻"的地方。</strong>
+</blockquote>
+
+那"加个事务"行不行？我在《<a href="/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去</a>》里实测过：SQLite 的默认隔离级别下，<code>atomic + 先查后插</code>照样丢重复（读-改-写竞态）；<code>SELECT ... FOR UPDATE</code> 在 MySQL 上能锁住，但 SQLite 直接不支持（<code>has_select_for_update=False</code>）。<strong>把希望寄托在事务隔离级别上，是这最容易踩的坑。</strong>
+
+下面开始上防线。
+<hr>
+<h2>3. 防线一：数据库唯一约束，最硬的兜底</h2>
+<h3>3.1 怎么写</h3>
+
+把"业务上不该重复的东西"直接声明成<strong>唯一约束</strong>，让数据库替你把关：
+<div class="codehilite"><pre><span></span><code><span class="c1"># Django</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">product</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">Product</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">amount</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">constraints</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">UniqueConstraint</span><span class="p">(</span>
+                <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;uniq_user_product&quot;</span>
+            <span class="p">),</span>
+        <span class="p">]</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 裸 SQL</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">product_id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">amount</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="k">UNIQUE</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">product_id</span><span class="p">)</span><span class="w">          </span><span class="c1">-- ← 约束在这里</span>
+<span class="p">);</span>
+</code></pre></div>
+
+
+然后<strong>捕获冲突</strong>，而不是先查再插：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">IntegrityError</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">product_id</span><span class="o">=</span><span class="n">pid</span><span class="p">,</span> <span class="n">amount</span><span class="o">=</span><span class="n">amt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+    <span class="k">except</span> <span class="n">IntegrityError</span><span class="p">:</span>
+        <span class="c1"># 已经有人创建了：查出那条返回</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">product_id</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+</code></pre></div>
+
+<h3>3.2 实测</h3>
+<div class="codehilite"><pre><span></span><code>  B 唯一约束兜底              订单   1 条  | 7 个请求被 IntegrityError 拦下
+</code></pre></div>
+
+
+8 个并发请求，1 条订单，7 个被数据库当场拒绝。<strong>这是唯一在数据库层面"物理不可能重复"的防线</strong>——不管你的代码写得多烂、并发多高，约束都在。
+<h3>3.3 业务键怎么选</h3>
+
+唯一约束的成败全在<strong>业务键</strong>的选择：
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>业务键</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>秒杀下单</td>
+<td><code>(user_id, activity_id)</code></td>
+<td>一人一单</td>
+</tr>
+<tr>
+<td>普通电商下单</td>
+<td>❌ 没有</td>
+<td>用户可以合法买多单，见防线二</td>
+</tr>
+<tr>
+<td>支付流水</td>
+<td><code>out_trade_no</code>（商户单号）</td>
+<td>渠道回调靠它判重</td>
+</tr>
+<tr>
+<td>点赞</td>
+<td><code>(user_id, article_id)</code></td>
+<td>我在《<a href="/article/django-anon-like-dedup/">点赞按钮背后的五层防刷</a>》用的就是它</td>
+</tr>
+<tr>
+<td>短信验证码</td>
+<td><code>(phone, code, scene)</code></td>
+<td>防重发</td>
+</tr>
+</tbody>
+</table>
+<h3>3.4 局限（必须诚实）</h3>
+<ul>
+<li><strong>只能防"相同业务键"</strong>：用户改一下收货地址再提交，键就变了，约束管不着；</li>
+<li><strong>要求业务上真的唯一</strong>：普通商城"一人只能买一次"是错的，这种场景唯一约束根本没法建——这正是防线二存在的理由；</li>
+<li><strong>冲突后的返回值</strong>要自己处理（<code>IntegrityError</code> 之后查出已有记录返回，保证响应也一致）。</li>
+</ul>
+<blockquote>
+
+一句话：<strong>能建唯一约束的场景，闭眼建。它是你所有上层设计的最后兜底。</strong>
+</blockquote>
+<hr>
+<h2>4. 防线二：幂等表 + 幂等键，Stripe 同款</h2>
+<h3>4.1 思路</h3>
+
+既然"业务键"不是所有场景都有，那就<strong>自己造一个键</strong>：客户端每次"意图提交"时带一个唯一 ID（幂等键），服务端见过的键就拒绝/复用，没见过的才执行。
+
+这就是 Stripe 的 <code>Idempotency-Key</code> 设计——所有写接口都支持这个 header，官方文档明确说：<strong>"重试同一个 key，返回同一次执行的结果，不会重复扣款。"</strong>
+
+表结构：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">idempotency</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">idem_key</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">   </span><span class="c1">-- 幂等键（客户端生成，UUID）</span>
+<span class="w">    </span><span class="n">request_hash</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">      </span><span class="c1">-- 请求体指纹（防 key 被换内容复用）</span>
+<span class="w">    </span><span class="n">status</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">      </span><span class="c1">-- PROCESSING / SUCCESS / FAILED</span>
+<span class="w">    </span><span class="n">response</span><span class="w">      </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">               </span><span class="c1">-- 成功后的响应缓存（JSON）</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w">    </span><span class="k">TIMESTAMP</span>
+<span class="p">);</span>
+</code></pre></div>
+
+
+核心逻辑是<strong>"先抢占位"</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Idempotency-Key&quot;</span><span class="p">)</span>
+    <span class="n">body_hash</span> <span class="o">=</span> <span class="n">sha256</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>
+
+    <span class="c1"># 1. 抢占：插入成功 = 拿到执行权（原子，靠主键约束）</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">Idempotency</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">idem_key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">request_hash</span><span class="o">=</span><span class="n">body_hash</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">&quot;PROCESSING&quot;</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="n">IntegrityError</span><span class="p">:</span>
+            <span class="c1"># 2. 键已存在：要么复用结果，要么拒绝</span>
+            <span class="n">rec</span> <span class="o">=</span> <span class="n">Idempotency</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">idem_key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">request_hash</span> <span class="o">!=</span> <span class="n">body_hash</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">err</span><span class="p">(</span><span class="mi">422</span><span class="p">,</span> <span class="s2">&quot;该幂等键已绑定其他请求体&quot;</span><span class="p">)</span>     <span class="c1"># 防串台</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">&quot;SUCCESS&quot;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">response</span><span class="p">))</span>   <span class="c1"># 直接回放缓存</span>
+            <span class="k">return</span> <span class="n">err</span><span class="p">(</span><span class="mi">409</span><span class="p">,</span> <span class="s2">&quot;上一请求仍在处理中，请稍后&quot;</span><span class="p">)</span>        <span class="c1"># PROCESSING</span>
+
+    <span class="c1"># 3. 抢到的那个请求执行业务</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">do_create_order</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>                            <span class="c1"># 里面仍有唯一约束兜底</span>
+
+    <span class="c1"># 4. 缓存响应</span>
+    <span class="n">Idempotency</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">idem_key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="n">status</span><span class="o">=</span><span class="s2">&quot;SUCCESS&quot;</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+</code></pre></div>
+
+
+三个细节，每个都是坑点：
+
+<strong>细节一：靠 <code>INSERT</code> 抢占，不要靠 <code>SELECT</code>。</strong> "先查有没有这个键"又是 TOCTOU；<code>INSERT</code> 碰主键约束是数据库原子的，8 个并发只有一个能插进去。
+
+<strong>细节二：<code>request_hash</code> 防串台。</strong> 同一个 key 配不同的 body（用户改参数后拿旧 key 重试），必须拒绝——否则用户"改了地址重试"会拿到第一次那单旧地址的缓存结果。实测见第 8 章 E3。
+
+<strong>细节三：<code>PROCESSING</code> 状态的后来者怎么办？</strong> 抢占失败的请求有三种处理：等待轮询（同 E1-C）、直接 409、返回旧结果。秒杀场景选 409（快速失败），普通表单选等待。
+<h3>4.2 实测</h3>
+<div class="codehilite"><pre><span></span><code>  C 幂等表（先抢占位）        订单   1 条  | 8 个请求拿到的 order_id 完全一致 (1)
+</code></pre></div>
+
+
+比防线一更强的地方在<strong>响应一致性</strong>：8 个并发请求全部拿到<strong>同一个 order_id</strong>——用户双击的两下，界面显示的是同一单，而不是"第二下报错"。
+<h3>4.3 幂等键从哪来</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>做法</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前端进页领取</td>
+<td>打开表单页时 <code>GET /idempotency-key</code> 领一个 UUID，提交时带上</td>
+<td>表单、H5</td>
+</tr>
+<tr>
+<td>前端本地生成</td>
+<td><code>crypto.randomUUID()</code></td>
+<td>现代浏览器</td>
+</tr>
+<tr>
+<td>内容寻址</td>
+<td>用业务语义拼：<code>pay:out_trade_no:{单号}</code></td>
+<td>支付回调</td>
+</tr>
+<tr>
+<td>不用前端</td>
+<td>服务端按"用户+接口+参数指纹"自动生成</td>
+<td>兜底，粒度粗</td>
+</tr>
+</tbody>
+</table>
+<h3>4.4 清理</h3>
+
+幂等表会一直涨，需要定期清理：成功的记录保留 24 小时（足够覆盖重试窗口）后删除。Stripe 的窗口也是 24 小时。<strong>别把幂等表当流水账存。</strong>
+<hr>
+<h2>5. 防线三：状态机 + 条件更新</h2>
+<h3>5.1 思路</h3>
+
+很多重复不是"创建重复"，而是<strong>"同一个单据被处理多次"</strong>：支付回调对同一笔订单发了 5 次"已支付"，每次都执行了发短信、记账、扣库存。
+
+朴素写法：
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 无条件更新：回调 5 次，副作用执行 5 次</span>
+<span class="n">Payment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">order_no</span><span class="o">=</span><span class="n">no</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;PAID&quot;</span><span class="p">,</span> <span class="n">paid_at</span><span class="o">=</span><span class="n">now</span><span class="p">())</span>
+<span class="n">send_sms</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>      <span class="c1"># 5 条短信</span>
+</code></pre></div>
+
+
+正确写法是<strong>把"当前状态"写进 WHERE</strong>，用影响行数判断"是不是我处理的"：
+<div class="codehilite"><pre><span></span><code><span class="c1"># ✅ 条件更新：只允许 PENDING → PAID 这一条边</span>
+<span class="n">updated</span> <span class="o">=</span> <span class="n">Payment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">order_no</span><span class="o">=</span><span class="n">no</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">&quot;PENDING&quot;</span>            <span class="c1"># ← 状态机守卫</span>
+<span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;PAID&quot;</span><span class="p">,</span> <span class="n">paid_at</span><span class="o">=</span><span class="n">now</span><span class="p">())</span>
+
+<span class="k">if</span> <span class="n">updated</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="c1"># 影响行数为 0：要么已处理过（幂等跳过），要么状态不对（非法跳转）</span>
+    <span class="n">current</span> <span class="o">=</span> <span class="n">Payment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_no</span><span class="o">=</span><span class="n">no</span><span class="p">)</span><span class="o">.</span><span class="n">status</span>
+    <span class="k">if</span> <span class="n">current</span> <span class="o">==</span> <span class="s2">&quot;PAID&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ok</span><span class="p">(</span><span class="s2">&quot;已处理，幂等返回&quot;</span><span class="p">)</span>          <span class="c1"># 重放，安全</span>
+    <span class="k">return</span> <span class="n">err</span><span class="p">(</span><span class="mi">409</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;非法状态跳转: </span><span class="si">{</span><span class="n">current</span><span class="si">}</span><span class="s2"> → PAID&quot;</span><span class="p">)</span>
+
+<span class="c1"># 只有抢到的那一次走到这里</span>
+<span class="n">send_sms</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>      <span class="c1"># 1 条短信</span>
+</code></pre></div>
+
+
+<code>UPDATE ... WHERE status='PENDING'</code> 是<strong>原子的读-改-写</strong>：数据库保证只有一个事务能把行从 PENDING 改走，其余事务的影响行数是 0。这正是我在《<a href="/article/django-transaction-atomic-on-commit/">事务深水区</a>》里推的 <code>F()</code> 表达式同一思想——<strong>把判断压进一条 SQL，而不是先读后写</strong>。
+<h3>5.2 实测</h3>
+<div class="codehilite"><pre><span></span><code>E2 支付回调重放：同一条「已支付」回调投递 5 次
+  A 无条件更新    「支付成功」逻辑执行了 5 次（含发短信/记账） | 终态 PAID
+  B 条件更新      「支付成功」逻辑执行了 1 次（其余幂等跳过）   | 终态 PAID
+  C 非法跳转      已发货订单再收「支付」回调 → 被拒绝 ✅
+</code></pre></div>
+
+
+三个行为全部符合预期：重放被幂等跳过、<strong>非法跳转（已发货又收到"支付"）被状态机拒绝</strong>——后者是唯一约束和幂等表都防不住的，只有状态机能防。
+<h3>5.3 状态机的完整形态</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">PENDING</span> <span class="err">──支付成功──►</span> <span class="n">PAID</span> <span class="err">──发货──►</span> <span class="n">SHIPPED</span> <span class="err">──签收──►</span> <span class="n">DONE</span>
+   <span class="err">│</span>                    <span class="err">│</span>
+   <span class="err">└──超时关单──►</span> <span class="n">CLOSED</span> <span class="err">└──退款──►</span> <span class="n">REFUNDED</span>
+</code></pre></div>
+
+
+用一张"状态转移表"约束所有跳变：
+<div class="codehilite"><pre><span></span><code><span class="n">ALLOWED</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="s2">&quot;PENDING&quot;</span><span class="p">,</span> <span class="s2">&quot;PAID&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;PENDING&quot;</span><span class="p">,</span> <span class="s2">&quot;CLOSED&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;PAID&quot;</span><span class="p">,</span> <span class="s2">&quot;SHIPPED&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;PAID&quot;</span><span class="p">,</span> <span class="s2">&quot;REFUNDED&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;SHIPPED&quot;</span><span class="p">,</span> <span class="s2">&quot;DONE&quot;</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">transition</span><span class="p">(</span><span class="n">order_no</span><span class="p">,</span> <span class="n">to_status</span><span class="p">):</span>
+    <span class="n">from_status</span> <span class="o">=</span> <span class="n">Payment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_no</span><span class="o">=</span><span class="n">order_no</span><span class="p">)</span><span class="o">.</span><span class="n">status</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">from_status</span><span class="p">,</span> <span class="n">to_status</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ALLOWED</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">IllegalTransition</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">from_status</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">to_status</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">updated</span> <span class="o">=</span> <span class="n">Payment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+        <span class="n">order_no</span><span class="o">=</span><span class="n">order_no</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="n">from_status</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">to_status</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">updated</span> <span class="o">==</span> <span class="mi">1</span>
+</code></pre></div>
+
+<h3>5.4 和乐观锁（version 字段）的关系</h3>
+
+乐观锁是状态机的泛化：把"状态"换成"版本号"，<code>WHERE version=5 ... SET version=6</code>。对比：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>状态机</th>
+<th>乐观锁 version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>表达能力</td>
+<td>业务语义（非法跳转可枚举）</td>
+<td>只知道"变了没有"</td>
+</tr>
+<tr>
+<td>冲突处理</td>
+<td>天然幂等（0 行 = 已处理）</td>
+<td>冲突后要重读重试</td>
+</tr>
+<tr>
+<td>适用</td>
+<td>单据流转（订单/支付/工单）</td>
+<td>并发编辑（文档/库存行）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>单据类场景用状态机，编辑类场景用乐观锁。</strong> 别混着用。
+<hr>
+<h2>6. 防线四：防抖 Token，体验层优化</h2>
+
+最后一层最弱，但用户体验最好：<strong>提交前先领票，提交时核销</strong>。
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">打开表单页</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="kr">GET</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="ow">or</span><span class="n">der</span><span class="o">/</span><span class="kr">to</span><span class="n">ken</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">服务端</span><span class="w"> </span><span class="n">SETNX</span><span class="w"> </span><span class="ow">or</span><span class="n">der</span><span class="p">:</span><span class="kr">to</span><span class="n">ken</span><span class="p">:</span><span class="err">{</span><span class="n">uuid</span><span class="err">}</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="n">EX</span><span class="w"> </span><span class="mf">600</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">返回</span><span class="w"> </span><span class="n">uuid</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">提交订单</span><span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="nb">POS</span><span class="n">T</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="ow">or</span><span class="n">ders</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">header</span><span class="p">:</span><span class="w"> </span><span class="n">X</span><span class="o">-</span><span class="kr">To</span><span class="n">ken</span><span class="p">:</span><span class="w"> </span><span class="n">uuid</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">服务端</span><span class="w">     </span><span class="err">→</span><span class="w"> </span><span class="n">DEL</span><span class="w"> </span><span class="ow">or</span><span class="n">der</span><span class="p">:</span><span class="kr">to</span><span class="n">ken</span><span class="p">:</span><span class="err">{</span><span class="n">uuid</span><span class="err">}</span><span class="w"> </span><span class="n">成功</span><span class="err">（</span><span class="n">key</span><span class="w"> </span><span class="n">存在</span><span class="err">）</span><span class="o">=</span><span class="w"> </span><span class="n">第一次提交</span><span class="err">，</span><span class="n">放行</span>
+<span class="w">              </span><span class="err">→</span><span class="w"> </span><span class="n">DEL</span><span class="w"> </span><span class="n">返回</span><span class="w"> </span><span class="mf">0</span><span class="err">（</span><span class="n">key</span><span class="w"> </span><span class="n">不存在</span><span class="err">）</span><span class="o">=</span><span class="w"> </span><span class="n">重复提交</span><span class="err">，</span><span class="n">拒绝</span>
+</code></pre></div>
+
+
+<code>SETNX</code> + <code>DEL</code> 的核销是原子的（这把"一次性票"正是《<a href="/article/redis-distributed-lock-deep-dive/">Redis 分布式锁</a>》V2 的变体）。Django 里大约 15 行：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">issue_token</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;order:token:</span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">600</span><span class="p">)</span>   <span class="c1"># add = SETNX</span>
+    <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="n">token</span><span class="p">})</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;X-Token&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">token</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;order:token:</span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>  <span class="c1"># 核销</span>
+        <span class="k">return</span> <span class="n">err</span><span class="p">(</span><span class="mi">409</span><span class="p">,</span> <span class="s2">&quot;请勿重复提交&quot;</span><span class="p">)</span>
+    <span class="o">...</span>  <span class="c1"># 真正的业务</span>
+</code></pre></div>
+
+
+<strong>为什么说它是最弱的防线：</strong>
+<ul>
+<li>用户可以不领票直接调接口（脚本、老版本客户端）；</li>
+<li>Token 会过期（600 秒后领的票失效，用户第二次提交反而被拒）；</li>
+<li>Redis 挂了票就全废。</li>
+</ul>
+
+<strong>所以定位要摆正：防抖 Token 是体验层（拦住 99% 的手抖），数据库唯一约束是安全层（拦住剩下的 1%）。</strong> 只有 Token 没有唯一约束的接口，等于裸奔。
+<hr>
+<h2>7. 幂等、去重、分布式锁：一次说清边界</h2>
+
+写到这必须停下来掰扯三个高频混用的概念——面试和方案评审里，一半的争论来自没分清它们：
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>解决什么问题</th>
+<th>生效层面</th>
+<th>失效后果</th>
+<th>对应文章</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>幂等</strong></td>
+<td>重复<strong>执行</strong>也无害</td>
+<td>写路径的固有设计</td>
+<td>重复下单、重复扣款</td>
+<td>本文</td>
+</tr>
+<tr>
+<td><strong>去重</strong></td>
+<td>重复<strong>数据</strong>不落库</td>
+<td>数据层（唯一键/指纹）</td>
+<td>脏数据、统计失真</td>
+<td>《<a href="/article/django-anon-like-dedup/">点赞按钮的五层防刷</a>》</td>
+</tr>
+<tr>
+<td><strong>分布式锁</strong></td>
+<td>重复<strong>进入</strong>临界区</td>
+<td>运行时协调</td>
+<td>并发写坏共享资源</td>
+<td>《<a href="/article/redis-distributed-lock-deep-dive/">Redis 分布式锁</a>》</td>
+</tr>
+</tbody>
+</table>
+
+三者的关系：
+<ol>
+<li><strong>锁是"事前挡"，幂等是"挡不住也没事"。</strong> 锁会过期（TTL）、会丢（Redis 主从切换）、会假醒（GC 停顿）——我在锁那篇的 6.1 节专门论证过：<strong>任何基于 TTL 的锁都防不住进程停顿</strong>。所以锁永远不能当唯一防线，幂等才是。</li>
+<li><strong>去重是幂等的子集。</strong> 去重只保证"数据只有一条"（唯一约束就够了），幂等还要求"响应一致、副作用一致、状态流转正确"。能去重 ≠ 幂等：重复请求被唯一约束拦下时报 500，数据是没了，但用户看到的是报错——幂等要求他看到第一单的结果。</li>
+<li><strong>组合才有完整答案</strong>：锁管体验（并发请求排队而非报错），幂等管安全（排队失败也不重复）。支付回调那套四层防线，本质就是"不依赖锁，纯幂等"的设计——因为它面对的是跨进程、跨时间、跨系统的重复，锁的时效性根本罩不住。</li>
+</ol>
+
+最后给一个"这个接口要不要做幂等"的快速判断：
+<div class="codehilite"><pre><span></span><code>写接口自问：这个 handler 被调 2 次，会发生什么？
+├─ 只读 / 纯覆盖写        → 天然幂等，收工
+├─ 多一条记录 / 多扣一次钱 → 必须幂等：唯一约束（能建）+ 幂等表（建不了）
+├─ 状态被改两次           → 状态机条件更新
+└─ 副作用是对外发消息      → 外部系统也要幂等（短信、记账、第三方 API）
+副作用越贵（钱 &gt; 短信 &gt; 日志），防线层数越多。
+</code></pre></div>
+
+<hr>
+<h2>8. 三个真实场景的组合拳</h2>
+
+单用一层防线都有漏洞，生产上是<strong>按场景组合</strong>：
+<h3>8.1 支付回调（最高危）</h3>
+<div class="codehilite"><pre><span></span><code><span class="err">渠道回调</span> <span class="err">→</span> <span class="mi">1</span><span class="p">.</span><span class="err">验签（伪造请求直接挡）</span>
+         <span class="err">→</span> <span class="mi">2</span><span class="p">.</span><span class="err">幂等表（</span><span class="n">out_trade_no</span> <span class="err">做键）</span>      <span class="err">←</span> <span class="err">重放在这里被挡</span>
+         <span class="err">→</span> <span class="mi">3</span><span class="p">.</span><span class="err">状态机（</span><span class="n">PENDING</span> <span class="err">→</span> <span class="n">PAID</span> <span class="err">条件更新）←</span> <span class="err">并发在这里被串行化</span>
+         <span class="err">→</span> <span class="mi">4</span><span class="p">.</span><span class="err">唯一约束（流水表</span> <span class="n">uniq</span> <span class="n">out_trade_no</span><span class="err">）←</span> <span class="err">终极兜底</span>
+</code></pre></div>
+
+
+四层各司其职：重放挡在 2，并发挡在 3，就算前两层全漏了，4 保证账不会错。<strong>支付场景少一层都睡不着觉。</strong>
+<h3>8.2 MQ 消费（最隐蔽）</h3>
+
+最常见的错误答案是"用消息 ID 判重"——<strong>消息 ID 不可靠</strong>：重平衡后消息会重投（新 ID，旧内容），生产端重发也是新 ID。正确做法是<strong>用业务键建唯一约束</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">on_message</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+            <span class="n">PaymentFlow</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>       <span class="c1"># uniq: out_trade_no</span>
+                <span class="n">out_trade_no</span><span class="o">=</span><span class="n">msg</span><span class="p">[</span><span class="s2">&quot;out_trade_no&quot;</span><span class="p">],</span> <span class="o">...</span>
+            <span class="p">)</span>
+    <span class="k">except</span> <span class="n">IntegrityError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Ack</span>                             <span class="c1"># 已处理过，直接确认</span>
+    <span class="k">return</span> <span class="n">Ack</span>
+</code></pre></div>
+
+
+注意<strong>消费端的 Ack 策略</strong>：处理失败要重试，但 <code>IntegrityError</code> 这类"已处理"要直接 Ack，否则消息会无限重投。
+<h3>8.3 表单提交（最常见）</h3>
+<div class="codehilite"><pre><span></span><code>前端：按钮防抖 + 提交后置灰 + 进页领幂等键
+后端：幂等表（体验一致）+ 唯一约束（兜底）
+</code></pre></div>
+
+
+用户双击的两下，第二下拿到第一下的缓存结果，界面无感。
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>必选防线</th>
+<th>可选增强</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>支付回调</td>
+<td>唯一约束 + 状态机 + 幂等表</td>
+<td>验签、金额核对</td>
+</tr>
+<tr>
+<td>MQ 消费</td>
+<td>业务键唯一约束</td>
+<td>消费日志、死信队列</td>
+</tr>
+<tr>
+<td>表单提交</td>
+<td>唯一约束（能建就建）</td>
+<td>幂等键、防抖 Token</td>
+</tr>
+<tr>
+<td>扣款/余额</td>
+<td>条件更新（<code>WHERE balance &gt;= x</code>）</td>
+<td>乐观锁 + 对账</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>9. 并发实测汇总</h2>
+
+三个实验全部出自 <code>tools/bench_idempotency.py</code>（标准库 sqlite3 + WAL，临时库跑完自删，8 线程，业务逻辑耗时 10ms 模拟真实窗口）：
+<div class="codehilite"><pre><span></span><code>E1 用户双击竞态：8 线程同时提交 user=1 的同一笔订单
+  A 无防护（查-插）           订单   8 条  ← 期望 1 条，多出 7 条重复
+  B 唯一约束兜底              订单   1 条  | 7 个请求被 IntegrityError 拦下
+  C 幂等表（先抢占位）        订单   1 条  | 8 个请求拿到的 order_id 完全一致 (1)
+
+E2 支付回调重放：同一条「已支付」回调投递 5 次
+  A 无条件更新    「支付成功」逻辑执行了 5 次（含发短信/记账） | 终态 PAID
+  B 条件更新      「支付成功」逻辑执行了 1 次（其余幂等跳过）   | 终态 PAID
+  C 非法跳转      已发货订单再收「支付」回调 → 被拒绝 ✅
+
+E3 幂等键 + 请求指纹：同 key 打 100 次，body 不同会怎样
+  同 key + 同 body   ×100: 业务执行 1 次 | 99 次复用缓存 | 响应全部一致 ✅
+  同 key + 不同 body ×1 : REJECTED: key 已被其他请求体占用（改参重试被识别，避免结果串台）
+</code></pre></div>
+
+
+三个最值得记住的读数：
+<ol>
+<li><strong>A：8 并发 = 8 条订单。</strong> "先查后插"的重复率不是概率问题，是必然——所有请求都挤进了检查窗口；</li>
+<li><strong>C：8 个请求同一个 order_id。</strong> 幂等表不仅防重复，还保证了<strong>响应一致性</strong>（双击的两下看到同一单），这是唯一约束做不到的；</li>
+<li><strong>E3：同 key 不同 body 被拒绝。</strong> 请求指纹防止"改参数重试"拿到旧结果的缓存——没有这一层，幂等键反而会制造数据错乱。</li>
+</ol>
+<hr>
+<h2>10. 上线 Checklist + 高频 FAQ</h2>
+
+<strong>Checklist（12 项）</strong>
+<ul>
+<li>[ ] 所有"创建类"接口：能建唯一约束的<strong>闭眼建</strong>，冲突时 <code>IntegrityError</code> → 查回已有记录返回</li>
+<li>[ ] 建不了唯一约束的（可重复购买类）：上幂等表，幂等键由客户端生成</li>
+<li>[ ] 幂等表有 <code>request_hash</code> 字段，同 key 不同 body 返回 422</li>
+<li>[ ] 幂等表有清理任务（成功记录 24h 后删除）</li>
+<li>[ ] 单据流转（订单/支付/工单）用状态机：<code>UPDATE ... WHERE status=当前态</code>，按影响行数分流</li>
+<li>[ ] 非法状态跳转显式拒绝并告警，不是静默 500</li>
+<li>[ ] MQ 消费用<strong>业务键</strong>判重，不用消息 ID</li>
+<li>[ ] 消费端区分"处理失败要重试"和"已处理要 Ack"</li>
+<li>[ ] 支付回调四层齐上：验签 → 幂等表 → 状态机 → 唯一约束</li>
+<li>[ ] 前端防抖只是体验层，<strong>后端一定有数据库层兜底</strong></li>
+<li>[ ] 压测过"双击并发""回调重放""改参重试"三种场景（直接跑 bench 脚本）</li>
+<li>[ ] 对账任务存在且真的在跑（最后一道人工防线）</li>
+</ul>
+
+<strong>FAQ</strong>
+
+<strong>Q1：幂等键存 Redis 行不行，为什么还要建表？</strong>
+A：Redis 快但会丢（重启/淘汰），丢单后果严重的场景必须落库。折中：Redis 做第一道快速判断，数据库幂等表做真相源。
+
+<strong>Q2：<code>IntegrityError</code> 之后查回来的记录，和刚创建的语义一样吗？</strong>
+A：响应一样（同一单），但要区分"我创建的"和"并发者创建的"需要记录归属。绝大多数场景不需要区分。
+
+<strong>Q3：PATCH 增量更新怎么幂等？</strong>
+A：改全量语义（PUT 化），或带版本号（<code>If-Match: version=5</code>），冲突返回 409 让客户端重读。
+
+<strong>Q4：幂等键的 TTL 设多久？</strong>
+A：覆盖客户端最长重试窗口即可，24 小时是业界惯例（Stripe 同款）。别设永久——存储会爆。
+
+<strong>Q5：先抢占位后，业务执行失败了怎么办？</strong>
+A：幂等记录标 <code>FAILED</code> 并删除（或允许同 key 重试），别把失败的 key 留成死锁。失败路径一定要在压测里覆盖。
+
+<strong>Q6：状态机在 Django 里怎么写得优雅？</strong>
+A：把 <code>ALLOWED</code> 转移表提到类属性，<code>transition()</code> 收敛到一个方法，视图层只调用不实现。别在每个视图里散写 <code>filter(status=...)</code>。
+
+<strong>Q7：扣款场景 <code>WHERE balance &gt;= 100</code> 也算幂等吗？</strong>
+A：不算幂等，算<strong>正确性</strong>——重复执行第二次会因余额不足失败，天然防了重复扣款。但用户可能被误报"余额不足"，体验上还是要配幂等键。
+
+<strong>Q8：网关重试和我服务端的幂等，责任怎么分？</strong>
+A：网关只重试"没收到响应"的请求，幂等是服务端的义务。<strong>永远假设网关会重试。</strong> Nginx 默认 <code>proxy_next_upstream error timeout</code>，POST 也在重试范围内，检查你的配置。
+<hr>
+<h2>结语</h2>
+
+幂等设计就三句话：
+<blockquote>
+<ol>
+<li><strong>兜底在数据库</strong>：唯一约束是物理防线，应用层检查只是信息，<code>先查后插</code>必然有窗口。</li>
+<li><strong>一致靠幂等表</strong>：抢占位 + 请求指纹 + 响应缓存，让重复请求拿到同一个结果，而不是报错。</li>
+<li><strong>流转靠状态机</strong>：条件更新把"读-改-写"压成一条 SQL，重放幂等跳过，非法跳转拒绝。</li>
+</ol>
+</blockquote>
+
+回到开头那个双击：如果订单表建了 <code>(user, product)</code> 唯一约束，如果提交带幂等键，如果支付状态机只认 <code>PENDING</code>——那个工单根本不会出现。
+
+<strong>"用户只提交了一次"是前端的世界观；"接口一定会被调用多次"才是后端的世界观。</strong> 下次有人跟你说"这个接口不会重复调的"，把这篇的实测甩给他：8 个并发 8 条订单，5 次重放 5 条短信，100 次重试 1 次执行——三个数字看完，再去写代码。</div></div></noscript>
+  </body>
+</html>
