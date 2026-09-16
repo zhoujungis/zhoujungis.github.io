@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清&quot;为什么选这个算法&quot;的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/rate-limit-algorithms-deep-dive/" />
+    <meta property="og:title" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个" />
+    <meta property="og:description" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清&quot;为什么选这个算法&quot;的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/rate-limit-algorithms-deep-dive/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个" />
+    <meta name="twitter:description" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清&quot;为什么选这个算法&quot;的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 " />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-hkbmnGtT.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-16T09:47:40.842551+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个","description":"限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清\"为什么选这个算法\"的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 ","image":"https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-16T09:47:40.842551+08:00","dateModified":"2026-09-16T09:52:24.418140+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/rate-limit-algorithms-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个</h1><div class="ns-meta">2026/9/16 · Zhou Jun</div><div class="markdown-body"><h1>限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个</h1>
+<blockquote>
+
+适用读者：给接口加过限流、但说不清"为什么选这个算法"的后端工程师
+技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用
+阅读时间：约 28 分钟 | 难度：中高级 | 收获：四种算法的可运行实现 + 边界条件实测数据 + 选型决策树
+</blockquote>
+<h2>前言：一次被"整点突刺"打挂的接口</h2>
+
+线上有个查询接口，加了限流，配置是"每分钟 600 次"。上线后风平浪静，直到某天早上 9:00:00，监控告警：CPU 打满，接口 502。
+
+翻了日志才发现规律：这个接口被一个报表系统定时调用，所有客户端都配置在<strong>整分钟</strong>触发。于是每分钟的前 0.2 秒，600 个请求全部涌进来，剩下的 59.8 秒一个请求都没有。
+
+限流器认为："这一分钟才 600 次，没超啊。" 但你的服务在同一瞬间承受了 600 QPS——<strong>限流阈值是对的，但时间分布完全失控</strong>。
+
+这就是<strong>固定窗口计数器</strong>的经典缺陷：窗口边界处可以产生 2 倍溢出。而这只是四种主流限流算法里最简单的一种。
+
+这篇文章不满足于"背诵四种算法的定义"，而是把每种算法<strong>真的实现出来压测一遍</strong>，用数据说明它们的差异：
+<ul>
+<li>固定窗口为什么在边界处能放过 2 倍流量？</li>
+<li>滑动窗口日志明明最精确，为什么生产环境反而不敢用？</li>
+<li>漏桶和令牌桶看起来很像，那个"桶"到底装的是请求还是令牌？</li>
+<li>令牌桶的"突刺"能力是优点还是隐患？</li>
+</ul>
+
+<strong>目录</strong>
+<ul>
+<li>限流到底在解决什么问题</li>
+<li>固定窗口计数器：最简单，也最容易翻车</li>
+<li>滑动窗口日志：最精确，也最占内存</li>
+<li>滑动窗口计数：精度与内存的折中</li>
+<li>漏桶：恒定输出的"整流器"</li>
+<li>令牌桶：允许突发的主流选择</li>
+<li>四种算法横向实测</li>
+<li>分布式限流的三个坑</li>
+<li>选型决策树与参数估算</li>
+<li>上线 Checklist + 高频 FAQ</li>
+</ul>
+<hr>
+<h2>1. 限流到底在解决什么问题</h2>
+
+先分清三件常被混为一谈的事：
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>目的</th>
+<th>触发后的行为</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>限流 Rate Limiting</td>
+<td>控制<strong>速率</strong></td>
+<td>拒绝或排队</td>
+<td>保护自身服务、防爬</td>
+</tr>
+<tr>
+<td>熔断 Circuit Breaking</td>
+<td>防止<strong>雪崩</strong></td>
+<td>快速失败、断开下游</td>
+<td>下游依赖不可用</td>
+</tr>
+<tr>
+<td>降级 Degradation</td>
+<td>保<strong>核心</strong>功能</td>
+<td>返回兜底数据</td>
+<td>大促期间关闭非核心</td>
+</tr>
+</tbody>
+</table>
+
+限流的本质是一道<strong>准入控制</strong>：在请求真正消耗资源之前，决定它能不能进来。它的价值有三层：
+<ol>
+<li><strong>自我保护</strong>：防止单个调用方（或爬虫）耗尽你的连接池、CPU、数据库连接。</li>
+<li><strong>成本控制</strong>：下游是按调用量计费的（大模型 API、短信、地图服务），限流就是控预算。</li>
+<li><strong>公平性</strong>：多租户系统里，不能让一个租户占满所有配额。</li>
+</ol>
+
+限流器通常放在哪？从外到内：
+<div class="codehilite"><pre><span></span><code>客户端 → CDN/WAF → 网关(Nginx/APIGW) → 应用内限流 → 数据库/下游
+          ↑ 全局限流        ↑ 路由级限流      ↑ 业务级限流
+</code></pre></div>
+
+
+<strong>关键认知：限流的位置越靠外，成本越低。</strong> 在 Nginx 层拦掉一个请求只花几微秒，等请求进了应用、占了线程、查了数据库再拦，成本已经付出去了。所以理想结构是"多层限流"，而不是在应用里堆一个万能限流器。
+
+另外要明确一个概念：<strong>限流的单位通常不是"次/分钟"，而是"令牌/秒 + 桶容量"</strong>。这句话现在看没感觉，读完令牌桶那一节你就懂了。
+<hr>
+<h2>2. 固定窗口计数器：最简单，也最容易翻车</h2>
+<h3>原理</h3>
+
+把时间切成固定长度的窗口（比如 1 分钟），每个窗口一个计数器。请求来了就 +1，超过阈值就拒绝，窗口到期计数器清零。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FixedWindowLimiter</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">limit</span> <span class="o">=</span> <span class="n">limit</span>          <span class="c1"># 窗口内允许的请求数</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>        <span class="c1"># 窗口长度（秒）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="c1"># 窗口过期，重置</span>
+        <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">window_start</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">window</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">window_start</span> <span class="o">=</span> <span class="n">now</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">limit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+
+生产环境用 Redis 实现的话，通常是一行 <code>INCR</code> + <code>EXPIRE</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">60</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;rl:</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="n">window</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">pipe</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">pipeline</span><span class="p">()</span>
+    <span class="n">pipe</span><span class="o">.</span><span class="n">incr</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">pipe</span><span class="o">.</span><span class="n">expire</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">window</span><span class="p">)</span>
+    <span class="n">count</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">pipe</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">count</span> <span class="o">&lt;=</span> <span class="n">limit</span>
+</code></pre></div>
+
+
+<strong>注意这里 key 里带了 <code>time.time() // window</code></strong>，也就是窗口编号。这样根本不需要手动重置计数器——换窗口就是换 key，旧的自动过期。这是生产中固定窗口最常用的写法。
+<h3>实测：2 倍溢出</h3>
+
+现在来看它最致命的缺陷。配置 <code>limit=10, window=1s</code>，我在第 0.99 秒打 10 个请求，第 1.01 秒再打 10 个请求：
+<div class="codehilite"><pre><span></span><code>窗口 [0.0s, 1.0s)  →  10 个请求  ✓ 全部通过（达到上限）
+窗口 [1.0s, 2.0s)  →  10 个请求  ✓ 全部通过（新窗口，计数器归零）
+
+结果：0.02 秒内通过了 20 个请求，实际瞬时速率 = 1000 QPS
+而配置的阈值是 10 QPS。
+</code></pre></div>
+
+
+<strong>溢出倍率 = 2 倍</strong>，是理论上限。一般形式是：跨窗口边界时，最多可以通过 <code>2 × limit</code> 个请求。我用假时钟实测确认了这个上限：<code>limit=10/窗口=1s</code>，两个边界各打 10 个，<strong>20 个全部放行</strong>（见第 7 节实测表）。
+
+这就是开头那次事故的原因。报表系统在整分钟触发，恰好卡在每个窗口的起点，所以每个窗口的流量都集中在开头——限流器看到的永远是"刚好达标"。
+<h3>优缺点</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>评价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实现复杂度</td>
+<td>★ 极简，一行 Redis 命令</td>
+</tr>
+<tr>
+<td>内存占用</td>
+<td>极低，每个 key 一个整数</td>
+</tr>
+<tr>
+<td>精度</td>
+<td>差，边界处最多 2 倍溢出</td>
+</tr>
+<tr>
+<td>突发容忍</td>
+<td>无控制，窗口初始瞬间可打满</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>内部接口、日志采集、对精度不敏感的粗粒度保护</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论：固定窗口只适合"防呆"，不适合"防精确超量"。</strong> 如果你的下游按量计费，或者 SLA 有严格 QPS 上限，别用它。
+<hr>
+<h2>3. 滑动窗口日志：最精确，也最占内存</h2>
+<h3>原理</h3>
+
+既然问题出在"窗口是死的"，那就让窗口<strong>跟着当前时间滑动</strong>。记录每个请求的时间戳，判断"最近 1 秒内有多少个请求"。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SlidingWindowLogLimiter</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">limit</span> <span class="o">=</span> <span class="n">limit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>          <span class="c1"># 存请求时间戳</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="c1"># 移除窗口外的过期记录</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span> <span class="ow">and</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">window</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">limit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<h3>实测：精度无可挑剔</h3>
+
+同样的场景，<code>limit=10, window=1s</code>，在第 0.99 秒打 10 个请求，第 1.01 秒再打 10 个：
+<div class="codehilite"><pre><span></span><code><span class="mf">0.99</span><span class="n">s</span><span class="p">:</span><span class="w"> </span><span class="n">窗口内记录</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="n">条</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">前</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="n">个全部通过</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">日志</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">[</span><span class="mf">0.99</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">10</span><span class="err">]</span>
+<span class="mf">1.01</span><span class="n">s</span><span class="p">:</span><span class="w"> </span><span class="n">窗口回溯到</span><span class="w"> </span><span class="o">-</span><span class="mf">0.01</span><span class="n">s</span><span class="err">，</span><span class="mf">0.99</span><span class="n">s</span><span class="w"> </span><span class="n">的</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="n">条记录仍在窗口内</span>
+<span class="w">       </span><span class="err">→</span><span class="w"> </span><span class="n">第</span><span class="w"> </span><span class="mf">11</span><span class="w"> </span><span class="n">个请求被拒绝</span><span class="w"> </span><span class="err">✓（</span><span class="nb">len</span><span class="p">(</span><span class="nb">log</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="n">已达上限</span><span class="err">）</span>
+</code></pre></div>
+
+
+<strong>没有任何边界漏洞。</strong> 任意时刻向前看 1 秒，通过的请求数都不会超过 10。
+<h3>代价：内存与复杂度</h3>
+
+精确是有代价的：
+<table>
+<thead>
+<tr>
+<th>请求量</th>
+<th>窗口</th>
+<th>需要存储的时间戳</th>
+<th>内存估算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1,000 QPS</td>
+<td>60s</td>
+<td>60,000 条</td>
+<td>≈ 480 KB（float 8 字节）</td>
+</tr>
+<tr>
+<td>10,000 QPS</td>
+<td>60s</td>
+<td>600,000 条</td>
+<td>≈ 4.8 MB</td>
+</tr>
+<tr>
+<td>10,000 QPS</td>
+<td>300s</td>
+<td>3,000,000 条</td>
+<td>≈ 24 MB</td>
+</tr>
+</tbody>
+</table>
+
+<strong>单用户单接口</strong>就要这么多。如果按 user_id × API 维度限流，内存会被迅速吃光。这就是"精确但不敢用"的原因。
+
+Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，但每次请求都是 3~4 条命令，且 <code>ZSET</code> 的成员数就是 QPS × 窗口秒数。有人用 <code>member = 时间戳:随机数</code> 来避免同毫秒冲突，进一步放大了内存。
+<h3>优缺点</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>评价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实现复杂度</td>
+<td>★★ 简单，但 Redis 版要维护 ZSET</td>
+</tr>
+<tr>
+<td>内存占用</td>
+<td>极高，与 QPS × 窗口长度成正比</td>
+</tr>
+<tr>
+<td>精度</td>
+<td>完美，无任何边界溢出</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>低 QPS 但要求严格精确的场景（如短信验证码、密码重试）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论：滑动窗口日志适合低频、高价值的限流</strong>——比如"每分钟最多 5 次验证码"，因为 5 × 60 = 300 条记录，内存完全无所谓。
+<hr>
+<h2>4. 滑动窗口计数：精度与内存的折中</h2>
+<h3>原理</h3>
+
+日志版太占内存，是因为它记了每个请求的<strong>精确时刻</strong>。但其实我们只需要知道"大概有多少个"。于是把窗口切成 N 个小格子（比如 1 分钟切成 6 个 10 秒的格子），每个格子存一个计数。
+
+估算当前窗口的请求数时，把所有还在窗口内的格子按<strong>重叠比例加权求和</strong>：
+<div class="codehilite"><pre><span></span><code>当前窗口请求数 ≈ Σ (每个格子内的计数 × 该格子与窗口的重叠比例)
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SlidingWindowCounter</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">buckets</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">limit</span> <span class="o">=</span> <span class="n">limit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bucket_size</span> <span class="o">=</span> <span class="n">window</span> <span class="o">/</span> <span class="n">buckets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="n">buckets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">counts</span> <span class="o">=</span> <span class="p">{}</span>        <span class="c1"># bucket_id -&gt; count</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_bucket</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ts</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">ts</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">bucket_size</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bucket</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+        <span class="c1"># 清理已完全滑出窗口的桶（保留 current-n，它可能还有部分重叠）</span>
+        <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">b</span> <span class="o">&lt;</span> <span class="n">current</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+
+        <span class="c1"># 最老的桶只保留重叠部分，其余整桶计入</span>
+        <span class="n">elapsed</span> <span class="o">=</span> <span class="p">(</span><span class="n">now</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">bucket_size</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">bucket_size</span>
+        <span class="n">estimate</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">elapsed</span><span class="p">)</span> <span class="k">if</span> <span class="n">b</span> <span class="o">==</span> <span class="n">current</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="k">else</span> <span class="mf">1.0</span>
+            <span class="n">estimate</span> <span class="o">+=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">weight</span>
+
+        <span class="k">if</span> <span class="n">estimate</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">limit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="p">[</span><span class="n">current</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<h3>一个真实的踩坑：只估一个桶 = 完全失效</h3>
+
+我第一次实现时，只拿"上一个桶 × 重叠比例 + 当前桶"来估算——看起来像那么回事，实测却放过了 <strong>600 个请求（误差 500%）</strong>。原因很简单：窗口是 1 秒、有 6 个桶，而我每个桶都只回溯一个桶，等于把 1 秒的窗口缩成了 0.167 秒。
+
+<strong>必须遍历窗口内的所有桶</strong>，只有"即将滑出的那个最老桶"才需要按比例打折。
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 错误：只回溯一个桶，等价于把窗口缩短了</span>
+<span class="n">estimate</span> <span class="o">=</span> <span class="n">prev</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">elapsed</span><span class="p">)</span> <span class="o">+</span> <span class="n">curr</span>
+
+<span class="c1"># ✅ 正确：遍历窗口内所有桶，只对最老的桶打折</span>
+<span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">elapsed</span><span class="p">)</span> <span class="k">if</span> <span class="n">b</span> <span class="o">==</span> <span class="n">current</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="k">else</span> <span class="mf">1.0</span>
+    <span class="n">estimate</span> <span class="o">+=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">weight</span>
+</code></pre></div>
+
+
+修正后实测：均匀 1000 请求/秒的流量下，放行数精确为 <strong>100</strong>（理论值 100），误差 <strong>0%</strong>。
+<h3>精度误差</h3>
+
+滑动窗口计数是<strong>近似算法</strong>，误差来源只有一个：它假设"上一个窗口内的请求是均匀分布的"。实际当然不是——如果请求全部集中在一个桶的末尾，估算就会偏离。
+
+不过只要桶数量足够（6~10 个），误差通常控制在个位数百分比以内，相比固定窗口的 <strong>100% 溢出</strong>是质的改善。桶越多越精确，代价是遍历和内存略增。
+<h3>优缺点</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>评价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实现复杂度</td>
+<td>★★★ 需要维护多个桶</td>
+</tr>
+<tr>
+<td>内存占用</td>
+<td>低，只有 buckets 个整数</td>
+</tr>
+<tr>
+<td>精度</td>
+<td>良好，桶足够时误差可到 0%~5%</td>
+</tr>
+<tr>
+<td>突发容忍</td>
+<td>无特别设计</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td><strong>综合最优的通用选择</strong>，Redis 的 <code>INCR</code> 多 key 版本即可实现</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论：如果你的场景不极端，滑动窗口计数是最平衡的方案。</strong> 多数云厂商 API 网关的默认限流就是这个。
+<hr>
+<h2>5. 漏桶：恒定输出的"整流器"</h2>
+<h3>原理</h3>
+
+想象一个底部有洞的桶，水（请求）从上面倒进来，从洞（出口）以<strong>恒定速率</strong>流出去。
+<ul>
+<li>桶满了 → 新来的水溢出（拒绝请求）</li>
+<li>桶没满 → 水先存着，排队等待流出</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LeakyBucketLimiter</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">leak_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="n">capacity</span>        <span class="c1"># 桶容量</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">leak_rate</span> <span class="o">=</span> <span class="n">leak_rate</span>      <span class="c1"># 每秒漏出（处理）多少请求</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">water</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_leak</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="c1"># 先漏水：按流逝时间计算漏出量</span>
+        <span class="n">leaked</span> <span class="o">=</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_leak</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak_rate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">water</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">water</span> <span class="o">-</span> <span class="n">leaked</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_leak</span> <span class="o">=</span> <span class="n">now</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">water</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">water</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>        <span class="c1"># 桶满，溢出（拒绝或排队）</span>
+</code></pre></div>
+
+
+<strong>关键点：漏桶的核心是"输出速率恒定"。</strong> 稳态下，无论输入多么汹涌，出口永远以 <code>leak_rate</code> 的速度放行。
+<h3>一个容易被忽略的细节：冷启动突刺</h3>
+
+上面这段代码（以及绝大多数教学实现）有一个隐藏行为：<strong>桶初始是空的</strong>。所以系统刚启动、或者长时间空闲之后，第一批 <code>capacity</code> 个请求会被<strong>立刻放行</strong>——它们填满桶的瞬间也在以 <code>leak_rate</code> 漏出。
+
+实测 <code>capacity=100, leak_rate=100, 输入 1000 请求/秒</code>，逐 0.1 秒统计放行数：
+<div class="codehilite"><pre><span></span><code>[0.0s - 0.1s)  100 个  ← 冷启动瞬间放行，等于 capacity
+[0.1s - 0.2s)   19 个  ← 开始收敛
+[0.2s - 0.3s)   10 个  ┐
+[0.3s - 0.4s)   10 个  │
+  <span class="k">...</span>                  ├─ 稳态：严格 100/s
+[0.9s - 1.0s)   10 个  ┘
+
+1 秒总计 199 个（100 冷启动 + 99 稳态），
+0.2 秒之后实测速率 = 100.0/s，与 leak_rate 完全一致。
+</code></pre></div>
+
+
+这告诉我们两件事：
+<ol>
+<li><strong>漏桶的"恒定"是稳态性质，不是瞬态性质。</strong> 冷启动/空闲后的第一个瞬间仍可能有一波 <code>capacity</code> 大小的流量。如果你的下游连这一波都扛不住，把 <code>capacity</code> 调小。</li>
+<li><strong>它和令牌桶的突刺在数学上其实是同一回事</strong>——初始桶满（令牌桶）或初始桶空（漏桶），都会产生一次 <code>capacity</code> 量级的瞬态。区别在于漏桶的突刺<strong>只发生在冷启动</strong>，令牌桶则<strong>每次空闲后都会重新积攒</strong>。</li>
+</ol>
+<h3>漏桶 vs 令牌桶：一个字的区别</h3>
+
+这是最容易混淆的地方。两者的"桶"装的东西完全不同：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>漏桶 Leaky Bucket</th>
+<th>令牌桶 Token Bucket</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>桶里装的是</td>
+<td><strong>请求</strong>（水）</td>
+<td><strong>令牌</strong></td>
+</tr>
+<tr>
+<td>流入</td>
+<td>请求进水</td>
+<td>定时生成令牌</td>
+</tr>
+<tr>
+<td>流出</td>
+<td>恒定速率放行请求</td>
+<td>请求消耗令牌</td>
+</tr>
+<tr>
+<td>满了怎么办</td>
+<td>新请求被拒绝</td>
+<td>令牌丢弃</td>
+</tr>
+<tr>
+<td>空了呢</td>
+<td>没水就不放行</td>
+<td>请求被拒绝</td>
+</tr>
+<tr>
+<td>输出形态</td>
+<td><strong>恒定</strong>，完美平滑</td>
+<td><strong>允许突发</strong></td>
+</tr>
+</tbody>
+</table>
+
+一句话总结：<strong>漏桶管"出场速度"，令牌桶管"平均速度 + 允许突刺"。</strong>
+<h3>优缺点</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>评价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实现复杂度</td>
+<td>★★ 简单，维护一个水位</td>
+</tr>
+<tr>
+<td>输出特性</td>
+<td>稳态恒定，但冷启动有 <code>capacity</code> 突刺</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td><strong>会引入排队延迟</strong>（这是它的特性，也是缺陷）</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>保护脆弱下游（如老旧的第三方接口、单线程处理器）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论：漏桶适合"下游必须被温柔对待"的场景</strong>，但要记得把 <code>capacity</code> 调小以压住冷启动突刺。另外它带来的排队延迟要警惕——如果客户端有超时限制，排队请求可能会超时，这时宁可拒绝也不要无脑排队。
+<hr>
+<h2>6. 令牌桶：允许突发的主流选择</h2>
+<h3>原理</h3>
+
+反过来想：桶里不放请求，放<strong>令牌</strong>。系统以恒定速率往桶里扔令牌，桶满则令牌溢出。请求进来时，必须先拿走一个令牌才能通过。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TokenBucketLimiter</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">capacity</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rate</span> <span class="o">=</span> <span class="n">rate</span>            <span class="c1"># 令牌生成速率（个/秒）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="n">capacity</span>    <span class="c1"># 桶容量（最大突发量）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">capacity</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_refill</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tokens_needed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="c1"># 补充令牌</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">+</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_refill</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_refill</span> <span class="o">=</span> <span class="n">now</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">&gt;=</span> <span class="n">tokens_needed</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">-=</span> <span class="n">tokens_needed</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+<h3>"突刺"从哪来</h3>
+
+因为桶<strong>可以积攒令牌</strong>。如果系统空闲了 10 秒，桶里就攒了 <code>10 × rate</code> 个令牌（上限是 capacity）。此时突然来了一批请求，可以<strong>一次性消费掉所有积攒的令牌</strong>，这就是突发（burst）。
+
+举个例子，<code>rate = 10/s, capacity = 100</code>：
+<div class="codehilite"><pre><span></span><code>空闲 10 秒后，桶里有 min(100, 10×10) = 100 个令牌
+→ 第一个瞬间可以放行 100 个请求（10 倍于平均速率）
+→ 之后被限制回 10/s
+</code></pre></div>
+
+
+<strong>这是一个设计选择，不是 bug。</strong> 真实流量本来就不是均匀的——用户早上打开 App，会一次性加载十几个接口。如果严格按 10/s 限流，这些正常用户会被误伤。令牌桶的 capacity 就是用来"吸收正常突刺"的。
+
+但要小心：<strong>capacity 设得太大 = 变相放开限流</strong>。如果 <code>capacity = 10000, rate = 10</code>，那么理论上攻击者可以每 1000 秒打一次、每次打 10000 个请求，平均速率还是 10/s，但瞬时峰值会让你的下游崩溃。
+<h3>Redis + Lua 生产实现</h3>
+
+生产环境的令牌桶必须用 Lua 保证原子性（读-算-写三步不能被打断）：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- KEYS[1]: 桶的 key</span>
+<span class="c1">-- ARGV[1]: rate（令牌/秒）</span>
+<span class="c1">-- ARGV[2]: capacity（桶容量）</span>
+<span class="c1">-- ARGV[3]: now（毫秒时间戳）</span>
+<span class="c1">-- ARGV[4]: requested（本次要消耗的令牌数）</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">KEYS</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">tonumber</span><span class="p">(</span><span class="nv">ARGV</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">capacity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">tonumber</span><span class="p">(</span><span class="nv">ARGV</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">now</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">tonumber</span><span class="p">(</span><span class="nv">ARGV</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">requested</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">tonumber</span><span class="p">(</span><span class="nv">ARGV</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+
+<span class="kd">local</span><span class="w"> </span><span class="nv">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">redis</span><span class="p">.</span><span class="nf">call</span><span class="p">(</span><span class="s1">&#39;HMGET&#39;</span><span class="p">,</span><span class="w"> </span><span class="nv">key</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;tokens&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;last_refill&#39;</span><span class="p">)</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">tokens</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">tonumber</span><span class="p">(</span><span class="nv">data</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="nv">capacity</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">last_refill</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">tonumber</span><span class="p">(</span><span class="nv">data</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="nv">now</span>
+
+<span class="c1">-- 按流逝时间补充令牌</span>
+<span class="kd">local</span><span class="w"> </span><span class="nv">delta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">math.max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nv">now</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nv">last_refill</span><span class="p">)</span>
+<span class="nv">tokens</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">math.min</span><span class="p">(</span><span class="nv">capacity</span><span class="p">,</span><span class="w"> </span><span class="nv">tokens</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nv">delta</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nv">rate</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1000</span><span class="p">)</span>
+
+<span class="kd">local</span><span class="w"> </span><span class="nv">allowed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">tokens</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nv">requested</span>
+<span class="kr">if</span><span class="w"> </span><span class="nv">allowed</span><span class="w"> </span><span class="kr">then</span>
+<span class="w">    </span><span class="nv">tokens</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">tokens</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nv">requested</span>
+<span class="kr">end</span>
+
+<span class="nv">redis</span><span class="p">.</span><span class="nf">call</span><span class="p">(</span><span class="s1">&#39;HMSET&#39;</span><span class="p">,</span><span class="w"> </span><span class="nv">key</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;tokens&#39;</span><span class="p">,</span><span class="w"> </span><span class="nv">tokens</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;last_refill&#39;</span><span class="p">,</span><span class="w"> </span><span class="nv">now</span><span class="p">)</span>
+<span class="c1">-- TTL 设为&quot;装满一桶所需时间的 2 倍&quot;，避免冷 key 常驻内存</span>
+<span class="nv">redis</span><span class="p">.</span><span class="nf">call</span><span class="p">(</span><span class="s1">&#39;EXPIRE&#39;</span><span class="p">,</span><span class="w"> </span><span class="nv">key</span><span class="p">,</span><span class="w"> </span><span class="nb">math.ceil</span><span class="p">(</span><span class="nv">capacity</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nv">rate</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">2</span><span class="p">))</span>
+
+<span class="kr">return</span><span class="w"> </span><span class="nv">allowed</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="mi">0</span>
+</code></pre></div>
+
+
+<strong>为什么要用 Lua</strong>：如果分成 <code>HGET</code> → 计算 → <code>HSET</code> 三步，两个并发请求可能读到同一个令牌数，然后各自扣减，导致令牌被超发——这正是幂等文章里说的 TOCTOU 问题。
+<h3>优缺点</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>评价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实现复杂度</td>
+<td>★★★ 需 Lua 保证原子性</td>
+</tr>
+<tr>
+<td>内存占用</td>
+<td>极低，两个字段</td>
+</tr>
+<tr>
+<td>精度</td>
+<td>高，且可精确控制突发量</td>
+</tr>
+<tr>
+<td>突发容忍</td>
+<td><strong>可配置</strong>（capacity 决定）</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td><strong>API 限流的事实标准</strong>，Nginx <code>limit_req</code>、Guava <code>RateLimiter</code>、Stripe 都是这个思路</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论：令牌桶是通用推荐的默认选择。</strong> 它同时给了你"平均速率"和"突发容量"两个旋钮，表达能力最强。
+<hr>
+<h2>7. 四种算法横向实测</h2>
+
+所有数据来自 <code>tools/bench_rate_limit.py</code>（纯标准库 + 假时钟，可复现）。统一参数：<code>limit = 100 请求/秒</code>，模拟 1000 个请求在 1 秒内均匀到达。
+<table>
+<thead>
+<tr>
+<th>算法</th>
+<th>1 秒放行数</th>
+<th>理论值</th>
+<th>瞬时峰值</th>
+<th>边界溢出</th>
+<th>内存/用户</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定窗口</td>
+<td><strong>20 × N 窗口</strong></td>
+<td>100</td>
+<td><strong>200</strong></td>
+<td>⚠️ 2 倍</td>
+<td>~40 B</td>
+</tr>
+<tr>
+<td>滑动窗口日志</td>
+<td><strong>10 / 10</strong></td>
+<td>10</td>
+<td>10</td>
+<td>✅ 无</td>
+<td>~4.8 MB</td>
+</tr>
+<tr>
+<td>滑动窗口计数（6 桶）</td>
+<td>100</td>
+<td>100</td>
+<td>100</td>
+<td>✅ 0%</td>
+<td>~80 B</td>
+</tr>
+<tr>
+<td>漏桶（cap=100）</td>
+<td>199</td>
+<td>100 稳态</td>
+<td><strong>100 冷启动</strong></td>
+<td>✅ 可控</td>
+<td>~48 B</td>
+</tr>
+<tr>
+<td>令牌桶（cap=100）</td>
+<td>199</td>
+<td>100 稳态</td>
+<td><strong>100 突刺</strong></td>
+<td>✅ 可控</td>
+<td>~48 B</td>
+</tr>
+<tr>
+<td>令牌桶（桶已排空）</td>
+<td>99</td>
+<td>100</td>
+<td>100</td>
+<td>✅ 无突刺</td>
+<td>~48 B</td>
+</tr>
+</tbody>
+</table>
+
+实测结论，逐条对应文章前面的分析：
+<ol>
+<li><strong>固定窗口的边界溢出被实测确认</strong>：<code>limit=10/窗口=1s</code>，在 0.99s 打 10 个、1.01s 再打 10 个，<strong>20 个全部通过</strong>，恰好 2 倍。这是理论上限，实测完全吻合。</li>
+<li><strong>滑动窗口日志精确无误</strong>：同样场景只放行 <strong>10 个</strong>，第 11 个被正确拒绝。</li>
+<li><strong>修正后的滑动窗口计数达到 0% 误差</strong>：1000 请求/秒的均匀流量下放行 100 个，与理论值完全一致。而修正前的错误实现放行 <strong>600 个（500% 误差）</strong>——这就是第 4 节那个"只回溯一个桶"的坑。</li>
+<li><strong>令牌桶的突刺实测 = 100 个</strong>（初始桶满），加稳态 100/s，1 秒共 199 个。</li>
+<li><strong>令牌桶排空后（<code>tokens = 0</code>）不再有突刺</strong>：放行 99 个，退化为纯速率限制。这验证了"突刺完全由 <code>capacity</code> 决定"的判断。</li>
+<li><strong>漏桶冷启动突刺同样 = 100 个</strong>：初始空桶被瞬间填满，之后严格 100/s。稳态速率实测 <strong>100.0/s</strong>，与 <code>leak_rate</code> 分毫不差。</li>
+</ol>
+
+<strong>把 4 和 6 放在一起看：令牌桶和漏桶在"突刺"这件事上行为一致，区别只是令牌桶每次空闲都会重新积攒，漏桶只有冷启动那一次。</strong>
+<h3>同样的参数，看时间维度</h3>
+<div class="codehilite"><pre><span></span><code>固定窗口（limit=100/s，窗口不滑动）
+0.0s ──────── 100 通过 ──────── 0.99s │ 1.0s ──── 100 通过 ──── 1.99s
+                                     ↑
+                              边界处 20ms 内过 200 个 ⚠️
+
+令牌桶（rate=100/s，capacity=100）
+0.0s ──── 100 通过（桶内积攒）──── 0.01s │ ──── 100/s 匀速 ────
+        ↑ 突刺 = capacity，空闲后会重新积攒
+
+漏桶（rate=100/s，capacity=100）
+0.0s ──── 100 通过（冷启动填桶）── 0.1s │ ──── 严格 100/s ────
+        ↑ 突刺 = capacity，仅此一次
+</code></pre></div>
+
+<hr>
+<h2>8. 分布式限流的三个坑</h2>
+
+前面都是单机实现，一旦上多实例，问题立刻出现。
+<h3>坑一：本地限流 × N 实例 = 阈值 × N</h3>
+
+你在 4 台机器上用本地令牌桶限流 100 QPS，以为整体是 100 QPS，实际是 <strong>400 QPS</strong>。Nginx 的 <code>limit_req</code> 在单机生效，多实例部署时同样有此问题。
+
+<strong>解法</strong>：要么在网关层做全局限流（推荐），要么用 Redis 做集中计数。
+<h3>坑二：Redis 成了新的瓶颈和单点</h3>
+
+所有请求都要打一次 Redis，Redis 的 QPS 上限反而成了系统上限。
+
+<strong>解法</strong>：
+- <strong>本地 + 全局两层</strong>：本地令牌桶吸收大部分流量（阈值设为全局的 1/N 加缓冲），只有本地判断接近阈值时才去问 Redis。这样 Redis 的调用量下降 90% 以上。
+- <strong>批量同步</strong>：本地按固定间隔（如每 100ms）从 Redis 批量领取一批令牌，而不是每个请求都问一次。
+- Redis 部署为集群/哨兵，避免单点。
+<h3>坑三：限流 key 的设计</h3>
+
+key 的粒度决定了限流的语义：
+<table>
+<thead>
+<tr>
+<th>Key 维度</th>
+<th>语义</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>user:{id}</code></td>
+<td>每用户限流</td>
+<td>保护服务，防刷</td>
+</tr>
+<tr>
+<td><code>ip:{addr}</code></td>
+<td>每 IP 限流</td>
+<td>防爬（注意 NAT 后的误伤）</td>
+</tr>
+<tr>
+<td><code>api:{path}</code></td>
+<td>每接口限流</td>
+<td>保护特定重接口</td>
+</tr>
+<tr>
+<td><code>tenant:{id}:api:{path}</code></td>
+<td>租户+接口</td>
+<td>多租户计费</td>
+</tr>
+<tr>
+<td><code>global</code></td>
+<td>全局限流</td>
+<td>保护下游总容量</td>
+</tr>
+</tbody>
+</table>
+
+<strong>要小心的两个陷阱</strong>：
+<ol>
+<li><strong>IP 限流会误伤 NAT 用户</strong>。一个公司出口 IP 后面可能有几千人，按 IP 限流会让整个公司一起被拒。可以改用 <code>user_id</code> 或 <code>user_id + ip</code> 组合。</li>
+<li><strong>key 爆炸</strong>。如果 key 里带了不可枚举的维度（如 URL 查询参数），攻击者可以构造海量不同 key，绕过限流同时把 Redis 撑爆。<strong>key 的维度必须来自可控白名单</strong>。</li>
+</ol>
+<hr>
+<h2>9. 选型决策树与参数估算</h2>
+<h3>决策树</h3>
+<div class="codehilite"><pre><span></span><code>需要极严格的精确性（如验证码、支付）？
+├─ 是 → 滑动窗口日志（低频场景，内存无所谓）
+└─ 否 ↓
+    下游脆弱、必须恒定速率？
+    ├─ 是 → 漏桶
+    └─ 否 ↓
+        需要允许正常突发（如 App 启动批量请求）？
+        ├─ 是 → 令牌桶 ★ 推荐默认
+        └─ 否 ↓
+            一般场景 → 滑动窗口计数 ★ 性价比最高
+</code></pre></div>
+
+<h3>参数估算：怎么定 rate 和 capacity</h3>
+
+这是实践中最难回答的问题。推荐步骤：
+<ol>
+<li><strong>先测出下游容量</strong>。在压测环境用递增并发找出 P99 延迟开始劣化的拐点，那就是 <code>rate</code> 的上限。<strong>不要拍脑袋定值</strong>。</li>
+<li><strong>rate = 下游容量的 70%~80%</strong>，留出余量应对突发的非限流流量。</li>
+<li><strong>capacity（令牌桶）= 单次正常突发的请求数</strong>。观察真实客户端行为：一个 App 首页启动会打几个接口？如果是 15 个，那 capacity 至少 15。</li>
+<li><strong>拒绝策略要明确</strong>：返回 <code>429 Too Many Requests</code>，并带上 <code>Retry-After</code> 头。</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kr">HTTP</span><span class="o">/</span><span class="m">1.1</span> <span class="m">429</span> <span class="ne">Too Many Requests</span>
+<span class="na">Retry-After</span><span class="o">:</span> <span class="l">3</span>
+<span class="na">X-RateLimit-Limit</span><span class="o">:</span> <span class="l">100</span>
+<span class="na">X-RateLimit-Remaining</span><span class="o">:</span> <span class="l">0</span>
+<span class="na">X-RateLimit-Reset</span><span class="o">:</span> <span class="l">1726450000</span>
+</code></pre></div>
+
+
+<strong>把限流信息透出给客户端，是专业度的体现</strong>——好的客户端会读 <code>Retry-After</code> 并退避重试，而不是疯狂重试加剧拥塞。
+<h3>一个常见的误配置</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 错误：以为这是&quot;每用户 600 次/分钟&quot;</span>
+<span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;rl:</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">&quot;</span>          <span class="c1"># 没带时间维度</span>
+<span class="n">INCR</span> <span class="n">key</span><span class="p">;</span> <span class="n">EXPIRE</span> <span class="n">key</span> <span class="mi">60</span>
+
+<span class="c1"># 问题：第一次 EXPIRE 后，如果持续有请求，key 永不过期</span>
+<span class="c1">#       → 变成&quot;累计 600 次后永久封禁&quot;</span>
+</code></pre></div>
+
+
+正确写法是让 key 自带时间维度（固定窗口），或用 Lua 维护滑动窗口的状态。
+<hr>
+<h2>10. 上线 Checklist + 高频 FAQ</h2>
+<h3>Checklist</h3>
+<ul>
+<li>[ ] 限流阈值基于<strong>压测数据</strong>，不是拍脑袋</li>
+<li>[ ] 限流 key 的维度来自白名单，防止 key 爆炸绕过</li>
+<li>[ ] 多实例部署时，确认是全局限流而非本地限流 × N</li>
+<li>[ ] Redis 令牌桶用 <strong>Lua 脚本</strong>保证原子性</li>
+<li>[ ] Redis key 设置了 TTL，避免冷 key 常驻</li>
+<li>[ ] 返回 <code>429</code> 且带 <code>Retry-After</code> / <code>X-RateLimit-*</code> 响应头</li>
+<li>[ ] 被限流的请求有监控和告警（突然大量 429 说明阈值或流量异常）</li>
+<li>[ ] 限流器本身有降级方案：Redis 挂了怎么办？<strong>通常选择放行（fail-open）而不是全部拒绝（fail-close）</strong>，避免限流组件成为新的单点</li>
+<li>[ ] 内部服务间调用、健康检查、监控探针等流量<strong>加入白名单</strong>，否则会把运维通道一起限掉</li>
+</ul>
+<h3>FAQ</h3>
+
+<strong>Q：限流和服务器的连接数限制有什么区别？</strong>
+
+A：连接数限制在 TCP 层，管的是"同时有多少个连接"（并发数）；限流在应用层，管的是"单位时间允许多少个请求"（速率）。两者互补：一个防连接堆积，一个防请求洪峰。
+
+<strong>Q：为什么我的限流看起来不生效？</strong>
+
+A：最常见三个原因——(1) 多实例部署导致阈值被放大 N 倍；(2) 客户端走的是不同的入口，绕过了限流器；(3) key 设计有问题，每个请求都被算成了新用户。先用日志把实际参与限流的 key 打出来排查。
+
+<strong>Q：令牌桶的 capacity 该设多大？</strong>
+
+A：等于"你希望容忍的最大突发请求数"。可以从观察真实客户端的突发行开始——比如 App 首页并发 15 个请求，就设 30（留一倍余量）。设得太大就等于没有限流。
+
+<strong>Q：Redis 挂了限流软件该怎么办？</strong>
+
+A：默认 <strong>fail-open（放行）</strong>。理由：限流的目的是保护服务，如果限流组件本身故障就让全部业务不可用，损失远大于短时限流失效。但要有告警，且对于按量计费的敏感接口可以考虑 fail-close。
+
+<strong>Q：Nginx <code>limit_req</code> 和 <code>limit_conn</code> 用哪个？</strong>
+
+A：<code>limit_req</code> 是漏桶算法管速率，<code>limit_conn</code> 管并发连接数。两个都要配，因为它们是正交的——一个接口可以 QPS 很低但每个请求都很慢，把连接占满。
+
+<strong>Q：限流和降级应该谁先触发？</strong>
+
+A：限流在前。流量先被削峰，如果削峰后下游仍然过载（说明是内部问题而非流量问题），才触发熔断降级。顺序错了会导致正常流量被误降级。
+<hr>
+<h2>小结</h2>
+
+四种算法的本质区别，可以归结为一个问题：<strong>你想控制的是"平均速率"还是"瞬时速率"？</strong>
+<table>
+<thead>
+<tr>
+<th>你想要的</th>
+<th>选它</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>最省事，能接受边界 2 倍溢出</td>
+<td>固定窗口</td>
+</tr>
+<tr>
+<td>最精确，不在乎内存</td>
+<td>滑动窗口日志</td>
+</tr>
+<tr>
+<td>平衡，精度够用内存可控</td>
+<td><strong>滑动窗口计数</strong></td>
+</tr>
+<tr>
+<td>稳态严格平滑（能接受冷启动突刺）</td>
+<td>漏桶</td>
+</tr>
+<tr>
+<td>平均速率可控 + 允许突刺</td>
+<td><strong>令牌桶</strong></td>
+</tr>
+</tbody>
+</table>
+
+如果只记一句话：<strong>默认选令牌桶，参数不极端时用滑动窗口计数，验证码这类低频高价值校验用滑动窗口日志。</strong> 固定窗口只在无关紧要的地方用。
+
+还有一个贯穿全文的反直觉结论：<strong>漏桶并不比令牌桶"更平滑"</strong>——在突刺这件事上，两者都会在初始瞬间放出 <code>capacity</code> 个请求，区别只是令牌桶每次空闲后重新积攒、漏桶只有冷启动那一次。真正决定瞬时峰值的，是你设的 <code>capacity</code>，而不是算法的名字。
+
+限流不是加个装饰器就完事的配置项，它是一道需要压测验证、需要监控、需要考虑失效边界的<strong>系统能力</strong>。想清楚"为什么是这个算法、这个参数"，比会写代码重要得多。
+<hr>
+
+<em>本文的四种算法实现与全部实测数据均可复现：算法代码是纯 Python 标准库（无第三方依赖），压测脚本在 <code>tools/bench_rate_limit.py</code>（基于假时钟，结果确定可重复）。生产环境请用 Redis + Lua 版本替换单机实现。</em></div></div></noscript>
+  </body>
+</html>

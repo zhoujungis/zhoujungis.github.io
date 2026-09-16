@@ -198,36 +198,6 @@ const lastUpdated = computed(() => {
 
 const projects = [
   {
-    slug: 'happy-games',
-    name: 'Happy Games',
-    url: 'https://happy-games.pages.dev/',
-    cover: '/projects/happy-games.webp',
-    alt: 'Happy Games 游戏大厅界面预览',
-    strong: '把“打开就玩”当作第一条产品原则。',
-    desc: '这个站点把注意力放在游戏本身，而不是复杂的入口和说明上。它更像一个持续收集中的网页游戏实验室：每一次点击都应该尽快得到反馈，每一个小玩法都可以独立成立。对我来说，它练习的是交互节奏、状态反馈和“让用户马上开始”的取舍。',
-    meta: '体验关键词：轻量、即时、可重复游玩 · 入口 happy-games.pages.dev',
-  },
-  {
-    slug: 'halo-music',
-    name: 'Halo Music',
-    url: 'https://halo-music.pages.dev/',
-    cover: '/projects/halo-music.webp',
-    alt: 'Halo Music 播放界面预览',
-    strong: '让音乐成为界面里的主角。',
-    desc: '这个项目围绕“发现并听下去”来组织页面，不把音乐压缩成一排冷冰冰的文件名。视觉、播放控制和内容浏览需要互相让路：用户可以快速找到想听的内容，也可以顺着氛围继续探索。它更关注听觉内容如何决定页面节奏，以及播放器如何保持存在感但不打断体验。',
-    meta: '体验关键词：沉浸、连续、内容优先 · 入口 halo-music.pages.dev',
-  },
-  {
-    slug: 'routewise-ai',
-    name: 'Routewise AI',
-    url: 'https://routewise-ai.pages.dev/',
-    cover: '/projects/routewise-ai.webp',
-    alt: 'Routewise AI 行程规划界面预览',
-    strong: '把一堆出行信息整理成下一步行动。',
-    desc: '路线规划真正麻烦的地方，通常不是找不到地点，而是不知道怎样把目的地、时间和个人偏好组合成一条愿意执行的路线。这个项目尝试把 AI 放在“整理和取舍”的位置：先理解用户想怎么走，再把建议变成更清晰的安排。它练习的是输入如何变成上下文、建议如何保持可解释，以及自动化和人的判断如何共同完成决策。',
-    meta: '体验关键词：降低规划摩擦、建议可执行 · 入口 routewise-ai.pages.dev',
-  },
-  {
     slug: 'block-world-3d',
     name: 'Block World 3D',
     url: 'https://block-world-3d.pages.dev/',
@@ -236,6 +206,16 @@ const projects = [
     strong: '把技术变成可以亲手进入的空间。',
     desc: '这是一个在浏览器里打开的 3D 方块世界。它不急着把所有功能解释清楚，而是先让人移动、观察、靠近和发现：空间关系本身就是反馈，视角变化本身就是交互。这个项目把注意力放在实时渲染、相机控制和空间感上，也是在尝试回答一个很简单的问题：网页除了展示内容，能不能直接变成一个可探索的地方？',
     meta: '体验关键词：空间感、即时交互、可探索 · 入口 block-world-3d.pages.dev',
+  },
+  {
+    slug: 'devbox',
+    name: 'DevBox',
+    url: 'https://devbox-492.pages.dev/',
+    cover: '/projects/devbox.webp',
+    alt: 'DevBox 程序员工具箱界面预览',
+    strong: '把日常用得上的小工具集中到一个页面。',
+    desc: '这是一个面向程序员的工具箱，收录了四十多个开箱即用的小工具：编码、加密、网络、文本处理、生成器和速查表。所有计算默认在浏览器本地完成，数据不出机器。对我来说，它练习的是单页应用的即时反馈、键盘优先的交互方式，以及“零后端也能做完整产品”的边界。',
+    meta: '体验关键词：快、免费、隐私优先 · 入口 devbox-492.pages.dev',
   },
 ]
 
