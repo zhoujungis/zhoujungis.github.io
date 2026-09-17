@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID 适用读者：系统从单机走向多实例部署，开始纠结&quot;主键用什么&quot;的后端工程师 技术栈：Python 纯标准库实测；原理与语言无关，MySQL / PostgreSQL / 各种 NoSQL 通用 阅读" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/distributed-id-deep-dive/" />
+    <meta property="og:title" content="主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID" />
+    <meta property="og:description" content="主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID 适用读者：系统从单机走向多实例部署，开始纠结&quot;主键用什么&quot;的后端工程师 技术栈：Python 纯标准库实测；原理与语言无关，MySQL / PostgreSQL / 各种 NoSQL 通用 阅读" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/distributed-id-deep-dive/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID" />
+    <meta name="twitter:description" content="主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID 适用读者：系统从单机走向多实例部署，开始纠结&quot;主键用什么&quot;的后端工程师 技术栈：Python 纯标准库实测；原理与语言无关，MySQL / PostgreSQL / 各种 NoSQL 通用 阅读" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).then(function() {
+          return navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-hkbmnGtT.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-17T14:19:28.339743+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID","description":"主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID 适用读者：系统从单机走向多实例部署，开始纠结\"主键用什么\"的后端工程师 技术栈：Python 纯标准库实测；原理与语言无关，MySQL / PostgreSQL / 各种 NoSQL 通用 阅读","image":"https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-17T14:19:28.339743+08:00","dateModified":"2026-09-17T14:19:28.339769+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/distributed-id-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID</h1><div class="ns-meta">2026/9/17 · Zhou Jun</div><div class="markdown-body"><h1>主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID</h1>
+<blockquote>
+
+适用读者：系统从单机走向多实例部署，开始纠结"主键用什么"的后端工程师
+技术栈：Python 纯标准库实测；原理与语言无关，MySQL / PostgreSQL / 各种 NoSQL 通用
+阅读时间：约 22 分钟 | 难度：中级 | 收获：四类方案的可运行实现 + 时钟回拨实测数据 + 选型决策树
+</blockquote>
+<h2>前言：一次"双机房各发各的 ID"事故</h2>
+
+系统做水平拆分那天，订单服务的两个实例部署在不同机房。开发者很自然地说：主键用数据库自增呗。然后两个实例连的是各自机房的数据库——
+
+<strong>两边都从 1 开始发号。</strong>
+
+数据同步时主键冲突，同步任务红了一整晚。事后复盘会上有人提出来用 UUID，立刻有人反对：UUID 无序，InnoDB 主键插入性能会崩。又有人提议雪花算法，马上有人问：<strong>机器时钟回拨了怎么办？</strong>
+
+三个方案，三个都有人反对，但没人能说清反对的理由到底成不成立。
+
+这篇文章把四类主流方案（数据库自增、UUID、号段模式、雪花算法）<strong>全部实现一遍，并把争议最大的两个点真的测出来</strong>：
+<ul>
+<li>UUID 的"无序之痛"到底痛在哪、痛多少？</li>
+<li>雪花算法遇到时钟回拨，不做防护会发生什么？标准防护又是用什么代价换的？</li>
+</ul>
+
+<strong>目录</strong>
+<ul>
+<li>先想清楚：你要 ID 干什么</li>
+<li>数据库自增：好用，但到不了分布式</li>
+<li>UUID：全局唯一，却和 B+ 树八字不合</li>
+<li>号段模式：用一次往返换一万次发号</li>
+<li>雪花算法：位分配的艺术</li>
+<li>实测一：时钟回拨不做防护，200 次回拨撞出 1 万条</li>
+<li>实测二：三种方案的吞吐对比</li>
+<li>选型决策树 + 上线 Checklist</li>
+<li>高频 FAQ</li>
+</ul>
+<hr>
+<h2>1. 先想清楚：你要 ID 干什么</h2>
+
+"分布式 ID"的需求清单，先分清哪些是硬性、哪些是软性：
+<table>
+<thead>
+<tr>
+<th>需求</th>
+<th>硬/软</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全局唯一</td>
+<td>硬性</td>
+<td>跨机房、跨实例绝不重复——这是底线</td>
+</tr>
+<tr>
+<td>趋势递增</td>
+<td>软性</td>
+<td>B+ 树索引友好；也是"按 ID 排序即按时间排序"的来源</td>
+</tr>
+<tr>
+<td>生成不依赖网络</td>
+<td>软性</td>
+<td>中心化发号服务挂了，业务是否跟着挂</td>
+</tr>
+<tr>
+<td>无业务含义</td>
+<td>软性</td>
+<td>不泄露"今天只有 3 个订单"这类信息</td>
+</tr>
+<tr>
+<td>足够短</td>
+<td>软性</td>
+<td>64-bit 远优于 36 字符字符串：索引体积、内存、join 性能</td>
+</tr>
+</tbody>
+</table>
+
+关键认知：<strong>没有方案能同时满分</strong>。自增有序但依赖中心、UUID 无序、雪花有序但怕时钟回拨、号段折中但要多一次预取。工程选型的本质是：<strong>为你的业务找出唯一一条硬性需求，然后看哪个方案在这条上不出错</strong>。
+
+比如订单 ID 的硬性需求是"绝不重复且不能泄露量级"，内部流水表的硬性需求可能是"有序 + 紧凑"，监控打点可能唯一的需求就是"别重复"——三者的正确答案完全不同。
+<hr>
+<h2>2. 数据库自增：好用，但到不了分布式</h2>
+
+单库时代 <code>AUTO_INCREMENT</code> 是完美的：有序、紧凑、零心智负担。上分布式后它死在两点：
+<ol>
+<li><strong>发号能力 = 数据库写入能力</strong>。每次插入才发号，高峰期数据库本身成为瓶颈；</li>
+<li><strong>多库必然冲突</strong>。分库分表后，两个库的自增序列互相不知道对方的存在。</li>
+</ol>
+
+常见的"分库步长法"（库 1 发 1、6、11…，库 2 发 2、7、12…）能续命，但有两个暗坑：
+<ul>
+<li><strong>扩容即重新规划步长</strong>。从 2 库扩到 3 库，步长要改，历史区间要重新切分，极其痛苦；</li>
+<li><strong>区间天然无序</strong>。库 1 的 1 和库 2 的 2 哪个先发生？无从知晓。这对"按 ID 排序"是致命的。</li>
+</ul>
+
+所以自增的定位很明确：<strong>单库、写并发不高、确定不分库的场景，继续用；一旦有分库的预期，一开始就别选它</strong>。
+<hr>
+<h2>3. UUID：全局唯一，却和 B+ 树八字不合</h2>
+
+UUIDv4 完全随机生成，128 bit，冲突概率在工程意义上为零（生成 10 亿个，冲突概率约十亿分之一）。它解决了"多机房各发各的"问题——因为根本不需要协商。
+
+代价在数据库里。InnoDB 的主键是聚簇索引，数据按主键物理有序存储。随机主键的插入点均匀分布在整个 B+ 树上：
+<ul>
+<li><strong>页分裂</strong>：每次插入可能落在已满的页，触发分裂 + 数据搬移；</li>
+<li><strong>缓冲池污染</strong>：插入点散布导致工作集远大于热点页，命中率骤降；</li>
+<li><strong>主键更宽</strong>：36 字符（或 16 字节二进制）对比 8 字节 BIGINT，<strong>所有</strong>二级索引的叶子节点都要跟着膨胀。</li>
+</ul>
+
+一个常被忽略的事实：二级索引膨胀是乘法效应。表上 5 个二级索引，每个都要存一份主键值——主键宽 4 倍，5 个索引跟着宽 4 倍。这也是为什么"UUID 作主键"和"UUID 作唯一索引列"的性能画像完全不同。
+
+如果一定要用 UUID，按序生成是解药：<strong>UUIDv7</strong>（时间戳前缀，2024 年成为 RFC 9562 标准）让 UUID 具备了趋势递增性，页分裂问题大幅缓解。新系统优先考虑 v7 而不是 v4。
+<hr>
+<h2>4. 号段模式：用一次往返换一万次发号</h2>
+
+号段（Segment）模式的思路是：<strong>批量预取</strong>。不逐个向数据库要 ID，而是一次取一批：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 发号服务/应用本地维护</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">alloc</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">max_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">step</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+<span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">biz_tag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;order&#39;</span><span class="p">;</span>
+<span class="c1">-- 读回新的 max_id，本地缓存在内存里</span>
+<span class="c1">-- [max_id - step + 1, max_id] 这一段全部在内存中发放</span>
+</code></pre></div>
+
+
+本地发放是纯内存操作，数据库压力被压缩到<strong>每 1 万次发号才一次往返</strong>。以订单号段 step=10000 为例：10 万 TPS 的发号需求，数据库只需承受 10 次/秒的更新。
+
+工程上的必配项是<strong>双 buffer</strong>：单 buffer 的问题是号段用完那一刻才去取下一批，取号请求卡在数据库上时，发号会出现毛刺。双 buffer 在当前号段消耗到 10%~20% 时就异步预取下一批，切换无感。
+
+它的短板也很直白：
+<ul>
+<li><strong>ID 不是严格递增的，是"号段内递增、号段间可能乱序"</strong>——多实例各自持号段时，实例 A 的号段可能晚于实例 B 发放却数值更小；</li>
+<li><strong>服务重启会浪费半段</strong>（可用"用掉超过 90% 才持久化进度"缓解）；</li>
+<li>需要一张发号表和发号服务的运维。</li>
+</ul>
+
+它最适合的场景：<strong>对严格有序没要求、但要求数值紧凑短小、且吞吐高的内部 ID</strong>——典型如各种流水号。
+<hr>
+<h2>5. 雪花算法：位分配的艺术</h2>
+
+Snowflake 用一个 64-bit 整数编码了"时间 + 机器 + 序列"：
+<div class="codehilite"><pre><span></span><code>| 1 bit 保留 | 41 bit 时间戳 | 10 bit 机器 ID | 12 bit 序列 |
+</code></pre></div>
+
+
+三段位数的含义值得逐个算清楚：
+<ul>
+<li><strong>41 bit 毫秒时间戳</strong>：<code>2^41 / 1000 / 86400 / 365 ≈ 69 年</code>——从自定义纪元起用 69 年；</li>
+<li><strong>10 bit 机器 ID</strong>：1024 个实例；这 10 bit 还常被再拆成"5 bit 机房 + 5 bit 机器"；</li>
+<li><strong>12 bit 序列</strong>：<strong>同一毫秒、同一机器最多发 4096 个 ID</strong>——单实例发号上限 409.6 万/秒，绝大多数业务一辈子碰不到。</li>
+</ul>
+
+它的优势是致命的：<strong>纯内存位运算生成，趋势递增，无中心依赖</strong>。
+
+它的命门也在这 41 bit 上：<strong>时间戳取自本地时钟，而本地时钟不是可信的</strong>。NTP 校时会往回调，虚拟机迁移会漂移，手动改时间的事故历史上真发生过。时钟一旦回拨，"用时间 + 序列"生成的新 ID 就可能与回拨前发过的 ID 完全相同。
+<hr>
+<h2>6. 实测一：时钟回拨不做防护，200 次回拨撞出 1 万条</h2>
+
+雪花算法最著名的争议点值得用数据说话。我写了一个模拟器（完整代码在仓库 <code>tools/bench_distributed_id.py</code>，虚拟时钟 + 固定随机种子，结果可复现）：模拟生成 10 万个 ID，期间注入 <strong>200 次 NTP 式校时，每次把时钟往回拨 50ms</strong>——
+<table>
+<thead>
+<tr>
+<th>防护</th>
+<th>碰撞数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无防护（标准实现）</td>
+<td><strong>10000</strong></td>
+<td>每次回拨 50ms = 重走 50 个已用过的毫秒，200 × 50 = 10000</td>
+</tr>
+<tr>
+<td>回拨等待守护</td>
+<td><strong>0</strong></td>
+<td>检测到 <code>ts &lt;= last_ts</code> 就自旋等待，不发号</td>
+</tr>
+</tbody>
+</table>
+
+无防护的碰撞数完全符合推导：<strong>回拨多少毫秒，就撞多少条</strong>。而且注意这 1 万条不是均匀散开的——碰撞集中在每次回拨后的 50ms 内，<strong>恰好对应回拨前那段时间产生的订单</strong>。换成业务语言：回拨一次，那个时间窗的订单主键全部冲突。
+
+守护版的代价同样值得看清：
+<ul>
+<li>碰撞归零，但整个回拨窗口内<strong>发号被暂停</strong>（自旋等待时钟追上来）——回拨 50ms，业务最多等 50ms，通常可接受；</li>
+<li>更隐蔽的一点：<strong>守护版发的 ID 时间戳会"透支未来"</strong>。实测中守护版为了保持严格递增，时间戳一路领先真实时钟，且不会自己恢复——回拨太狠（如几十分钟）时，<strong>应该直接报警拒绝服务，而不是自旋</strong>。</li>
+</ul>
+
+所以生产级雪花算法的时钟回拨策略是一个三级火箭：
+<ol>
+<li>回拨 &lt; 100ms：自旋等待（等待成本低）；</li>
+<li>回拨较大：拒绝发号 + 告警（宁可业务报错，不可悄悄发错 ID）；</li>
+<li>兜底：使用<strong>扩展位</strong>——把机器 ID 里留几位作"回拨代"，回拨一次就翻一代，绕开已用过的时间区间（美团 Leaf 的做法）。</li>
+</ol>
+<hr>
+<h2>7. 实测二：三种方案的吞吐对比</h2>
+
+同一台机器、纯 Python 单线程（Python 慢是出了名的，但<strong>相对差距</strong>有参考价值），各生成 20 万个 ID：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>实测吞吐</th>
+<th>每次生成的成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UUIDv4（标准库）</td>
+<td>115.8 万/秒</td>
+<td>一次随机数生成</td>
+</tr>
+<tr>
+<td>雪花（纯位运算）</td>
+<td>331.0 万/秒</td>
+<td>几次移位和加法</td>
+</tr>
+<tr>
+<td>号段模式</td>
+<td>本地发放无上限，瓶颈在预取</td>
+<td>20 次数据库往返发完 20 万个</td>
+</tr>
+</tbody>
+</table>
+
+三个数字三个结论：
+<ul>
+<li><strong>雪花比 UUIDv4 快 3 倍</strong>，且这还只是 Python 里的差距——Go/C 里雪花的位运算是纳秒级，而 UUID 的随机数生成仍然是主要成本。有序 + 更快，这是"能用雪花就别用 UUIDv4"的底气；</li>
+<li><strong>号段模式的数字要这么读</strong>：20 万 ID 只花了 20 次数据库往返，按每次 1ms 算，理论天花板 1000 万/秒——它的吞吐上限由你设定的 step 决定，想多快就多快，代价是发号服务多一次内存占用和重启浪费；</li>
+<li><strong>单实例 40 万/秒以下的业务，三个方案的吞吐都过剩</strong>。瓶颈通常在别处（数据库写入），选型时别为吞吐付费，为正确性约束付费。</li>
+</ul>
+<hr>
+<h2>8. 选型决策树 + 上线 Checklist</h2>
+
+按顺序问自己四个问题：
+<ol>
+<li><strong>分库分表在可预见未来吗？</strong> 不在 → 数据库自增，收工；</li>
+<li><strong>ID 要暴露给外部（订单号/支付单号）？</strong> 要 → 不要用连续自增 ID（泄露量级 + 可遍历），用号段/雪花生成后<strong>加一层业务前缀和校验位</strong>，或者干脆独立设计业务单号；</li>
+<li><strong>内部主键，要严格趋势递增、不想要额外组件？</strong> → 雪花算法（记得时钟回拨三级防护），或 UUIDv7；</li>
+<li><strong>要求数值短小、可解释、吞吐可控，能接受多一个发号服务？</strong> → 号段模式（Leaf-segment）。</li>
+</ol>
+
+<strong>上线 Checklist</strong>
+<ul>
+<li>[ ] 机器 ID 分配机制明确：静态配置、ZK/K8s 分配还是数据库注册，<strong>重复的机器 ID = 雪花直接退化成碰撞机器</strong></li>
+<li>[ ] 雪花：时钟回拨三级防护齐全，"回拨大"的阈值定好并接告警</li>
+<li>[ ] 自定义纪元（epoch）写进代码常量并注释，全团队统一</li>
+<li>[ ] UUIDv4 作主键的表，评估二级索引膨胀和页分裂；新表优先 UUIDv7</li>
+<li>[ ] 号段模式：双 buffer + step 按业务峰值 10 分钟消耗量配置</li>
+<li>[ ] 对外暴露的 ID 不连续、不可遍历、不带时间信息（或确认能接受）</li>
+<li>[ ] 发号服务的可用性级别与业务对齐：雪花无中心依赖，号段服务挂了业务要能本地续命</li>
+</ul>
+
+<strong>高频 FAQ</strong>
+
+<strong>Q：雪花算法 69 年用完了怎么办？</strong> 自定义纪元选近一点的日期（如系统上线日），69 年从那天起算。真到期前，ID 迁移是一个早已被规划过的大工程，不是算法问题。
+
+<strong>Q：容器环境机器 ID 怎么分？</strong> Pod IP 会变，静态配置不现实。用 K8s StatefulSet 的序号，或启动时向数据库/Redis 注册租约（类似 Leaf 的 workerID 分配），租约过期自动释放。
+
+<strong>Q：什么时候该用 UUIDv7 而不是雪花？</strong> 已有系统里 ID 以字符串 UUID 形式流转（大量 API、第三方对接），改造成 64-bit 整数代价太大时。v7 = UUID 格式的兼容性 + 趋势递增的索引友好，是 UUID 阵营的正确答案。全新系统且全链路可控，雪花更紧凑。
+
+<strong>Q：单机部署的小系统还需要这些吗？</strong> 不需要。数据库自增是最正确的答案——不要为一个不存在的分布式问题引入分布式组件。
+<hr>
+<h2>写在最后</h2>
+
+回到开头那场双机房事故。最终方案：订单表主键换成雪花算法，两个机房各自独立发号，互不依赖；对外暴露的订单号用号段模式生成的短流水号加校验位。上线三年，零冲突，时钟回拨触发过两次告警，都被守护逻辑拦下，业务无感。
+
+分布式 ID 这件事的教训是：<strong>它不是"选一个最先进的算法"，而是"认清你的唯一硬性约束，然后为那个约束选最简单的方案"</strong>。大多数系统的答案朴素得惊人——不分库就用自增，分库且全链路可控就用雪花，其余情况号段模式兜底。
+
+如果这篇文章帮你理清了选型思路，欢迎在评论区聊聊你们系统的 ID 方案。</div></div></noscript>
+  </body>
+</html>
