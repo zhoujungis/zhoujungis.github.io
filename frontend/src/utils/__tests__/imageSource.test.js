@@ -3,10 +3,18 @@ import { getPictureSources } from '../imageSource.js'
 
 describe('getPictureSources', () => {
   it('PNG 路径返回 avif/webp/fallback', () => {
-    expect(getPictureSources('/photos/tibet-2026.png')).toEqual({
+    expect(getPictureSources('/img/foo.png')).toEqual({
+      avif: '/img/foo.avif',
+      webp: '/img/foo.webp',
+      fallback: '/img/foo.png',
+    })
+  })
+
+  it('本地照片路径返回 avif/webp/fallback', () => {
+    expect(getPictureSources('/photos/tibet-2026.jpg')).toEqual({
       avif: '/photos/tibet-2026.avif',
       webp: '/photos/tibet-2026.webp',
-      fallback: '/photos/tibet-2026.png',
+      fallback: '/photos/tibet-2026.jpg',
     })
   })
 

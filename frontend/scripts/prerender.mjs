@@ -334,7 +334,9 @@ function toSnapshotList(articles) {
     .map((a) => ({
       slug: a.slug,
       title: a.title,
-      excerpt: a.excerpt || '',
+      // Cards/SEO only ever show the first ~160 chars; full excerpts
+      // (often multi-KB) would bloat the SW-precached snapshot.
+      excerpt: (a.excerpt || '').slice(0, 160),
       cover_image: a.cover_image || '',
       category: a.category ?? null,
       tags: a.tags ?? [],

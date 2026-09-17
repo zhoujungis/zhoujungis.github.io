@@ -30,7 +30,6 @@ rm -f  "$ROOT"/index.html \
        "$ROOT"/404.html
 rm -rf "$ROOT/assets"
 rm -rf "$ROOT/photos"
-rm -rf "$ROOT/icons.svg" 2>/dev/null || true
 cp -r dist/. "$ROOT/"
 
 # P5: the old "copy public-live2d → live2dw" step produced a redundant third

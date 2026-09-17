@@ -37,21 +37,25 @@
          blocks. Pinned versions + SRI hashes are kept there (see loadMath/
          loadMermaid) to defend against CDN supply-chain compromise. -->
 
-    <!-- Service Worker — unregister old first to avoid stale cache -->
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          return Promise.all(regs.map(function(r) { return r.unregister(); }));
-        }).then(function() {
-          return navigator.serviceWorker.register('/sw.js');
-        });
+        navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-hkbmnGtT.js"></script>
+    <script type="module" crossorigin src="/assets/index--qIApebp.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.D4ta7Bvf.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.DIrQsRRS.css">
   </head>
   <body>
     <div id="app"></div>

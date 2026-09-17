@@ -19,7 +19,9 @@ const MAX_DIMENSION = 2400
 // 源 PNG/JPG 列表(相对路径,以项目根为基准)
 // hero.png 已随无用素材一并删除(P5),不再参与压缩。
 const TARGETS = [
-  { src: 'frontend/public/photos/tibet-2026.png', outDir: 'photos' },
+  // Source photo lives in public/photos/ as JPG (PNG fallback removed —
+  // WebP/AVIF cover modern browsers; JPG is ~8x smaller than the old PNG).
+  { src: 'frontend/public/photos/tibet-2026.jpg', outDir: 'photos' },
 ]
 
 async function ensureDir(p) {

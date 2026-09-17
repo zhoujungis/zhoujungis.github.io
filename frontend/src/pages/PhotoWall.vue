@@ -214,7 +214,7 @@ function resolveImageUrl(photo, rawOnly = false) {
 // under /photos/). Shown alongside any dynamic photos from the backend API,
 // so the wall works even if the backend media host is unavailable.
 const localPhotos = [
-  { id: 'tibet-2026', image: '/photos/tibet-2026.png', local: true },
+  { id: 'tibet-2026', image: '/photos/tibet-2026.jpg', local: true },
 ]
 
 async function fetchApiPhotos(page, append = false) {

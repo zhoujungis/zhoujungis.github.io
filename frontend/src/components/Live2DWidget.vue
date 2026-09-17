@@ -29,7 +29,9 @@ function injectWidget() {
     if (cancelled || !window.L2Dwidget) return
     window.L2Dwidget.init({
       model: {
-        jsonPath: 'https://unpkg.com/live2d-widget-model-shizuku@1.0.5/assets/shizuku.model.json',
+        // Self-hosted (frontend/public/live2d/model/shizuku/) — unpkg.com
+        // was slow/unreliable in mainland China and a third-party dependency.
+        jsonPath: '/live2d/model/shizuku/shizuku.model.json',
       },
       display: {
         position: 'right',

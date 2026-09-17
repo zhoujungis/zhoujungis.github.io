@@ -7,7 +7,7 @@
 // - Only same-origin, HTTP-200 GET responses are stored; API/admin/opaque
 //   responses are never cached.
 // - Bump CACHE_VERSION on each release that changes cached shell files.
-const CACHE_VERSION = 'v7'
+const CACHE_VERSION = 'v8'
 const CACHE = `zhoujun-blog-${CACHE_VERSION}`
 const NAV_CACHE = `${CACHE}-nav`
 const STATIC_CACHE = `${CACHE}-static`
@@ -20,8 +20,8 @@ const MAX_STATIC_ENTRIES = 150
 // individually so a missing/renamed file doesn't break the whole install
 // (caches.addAll() is atomic — one failure kills the whole precache).
 const SHELL = [
+  // '/' and '/index.html' serve the same document — precache it once.
   '/',
-  '/index.html',
   '/favicon.svg',
   '/manifest.json',
   '/articles.json', // build-time article snapshot (API-down fallback)
@@ -120,6 +120,27 @@ self.addEventListener('fetch', (e) => {
         })
         .catch(() =>
           caches.match(e.request).then((cached) => cached || caches.match('/404.html')),
+        ),
+    )
+    return
+  }
+
+  // articles.json: network-first so new deploys reach returning visitors
+  // immediately (previously cache-first left stale snapshots until a manual
+  // CACHE_VERSION bump). The cached copy remains the offline/API-down fallback.
+  if (url.pathname === '/articles.json') {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (isCacheable(e.request, res)) {
+            putWithCap(STATIC_CACHE, e.request, res.clone(), MAX_STATIC_ENTRIES)
+          }
+          return res
+        })
+        .catch(() =>
+          caches
+            .match(e.request)
+            .then((cached) => cached || new Response('', { status: 504, statusText: 'Offline and not cached' })),
         ),
     )
     return
