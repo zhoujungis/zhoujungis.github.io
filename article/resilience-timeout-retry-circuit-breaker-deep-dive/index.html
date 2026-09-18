@@ -1,0 +1,1578 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/resilience-timeout-retry-circuit-breaker-deep-dive/" />
+    <meta property="og:title" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测）" />
+    <meta property="og:description" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/resilience-timeout-retry-circuit-breaker-deep-dive/" />
+    <meta property="og:site_name" content="ZhouJun's Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测）" />
+    <meta name="twitter:description" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="ZhouJun's Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） | ZhouJun&#39;s Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index--qIApebp.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DIrQsRRS.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-18T10:11:41.925018+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测）","description":"下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo","image":"https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-18T10:11:41.925018+08:00","dateModified":"2026-09-18T10:18:58.890024+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/resilience-timeout-retry-circuit-breaker-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测）</h1><div class="ns-meta">2026/9/18 · Zhou Jun</div><div class="markdown-body"><h1>下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测）</h1>
+<blockquote>
+
+适用读者：写过 <code>requests.post(url, json=data)</code> 就上线、从没认真设过 <code>timeout</code> 的后端工程师
+技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Boot / Go 通用
+阅读时间：约 32 分钟 | 难度：中高级 | 收获：四件套的可运行实现 + 6 组实测数据 + 一份可直接抄的参数清单
+</blockquote>
+<h2>前言：一次"下游 3 秒就恢复了，我们 5 分钟才缓过来"的事故</h2>
+
+早上 9:12，监控告警：文章详情页 502，持续 5 分钟。
+
+第一时间去看数据库——正常。CPU——正常。自己写的业务代码——当天没有任何发布。最后发现是<strong>推荐服务</strong>（返回"相关文章"列表的那个）挂了：一个没走索引的查询把它的 RT 从 30ms 拖到了 5s。
+
+推荐服务 3 分钟后自己恢复了（DBA 杀掉了那个慢查询）。但我们的文章页又多瘫了两分钟才缓过来。
+
+复盘的时候，把文章页调推荐服务的那 8 行代码翻出来，发现了<strong>五个连环错误</strong>，而且每一个单独看都"挺合理"：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 事故版本——五个错误全在这 8 行里</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">related_articles</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">REC_URL</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">article_id</span><span class="p">})</span>   <span class="c1"># ① 没设 timeout</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>                                        <span class="c1"># ② 固定退避、③ 无脑重试</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.3</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">REC_URL</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">article_id</span><span class="p">})</span>
+                <span class="k">break</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span>                                                 <span class="c1"># ④ 没有降级</span>
+    <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>                                            <span class="c1"># ⑤ 没有熔断</span>
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>缺失的东西</th>
+<th>直接后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>①</td>
+<td><strong>超时</strong></td>
+<td>20 个 worker 全被 5s 的请求占死，队列堆满</td>
+</tr>
+<tr>
+<td>②</td>
+<td><strong>抖动</strong></td>
+<td>恢复瞬间所有重试同时到达，把刚活过来的推荐服务二次打死</td>
+</tr>
+<tr>
+<td>③</td>
+<td><strong>重试节制</strong></td>
+<td>每个用户请求变成 4 次下游调用，放大 4 倍</td>
+</tr>
+<tr>
+<td>④</td>
+<td><strong>降级</strong></td>
+<td>"相关文章"只是个装饰模块，它挂了整页就该 502 吗？</td>
+</tr>
+<tr>
+<td>⑤</td>
+<td><strong>熔断</strong></td>
+<td>明知对面已经死了，还在每秒往上面打几百次</td>
+</tr>
+</tbody>
+</table>
+
+这篇文章不打算背诵四个名词的定义，而是把每一个机制<strong>真的实现出来压测一遍</strong>，用数据回答几个真问题：
+<ul>
+<li>为什么"没设超时"能让<strong>下游已经恢复、你自己还在瘫</strong>？</li>
+<li>重试明明是为了提高成功率，为什么实测把我的吞吐<strong>砍掉了 88%</strong>？</li>
+<li>抖动（jitter）到底能削掉多少峰值？</li>
+<li>熔断的收益和代价各是多少——它真的没有副作用吗？</li>
+</ul>
+
+<strong>目录</strong>
+<ul>
+<li>先分清：限流是"入站"的，这四件套是"出站"的</li>
+<li>超时：唯一没有商量余地的那一个</li>
+<li>超时到底设多少：从 P99 到超时预算</li>
+<li>重试：唯一能把故障放大的机制</li>
+<li>重试的前提：幂等，以及"值得重试"的错误</li>
+<li>退避与抖动：把同步的重试波打散</li>
+<li>重试预算：给重试装一个总闸门</li>
+<li>熔断：别再往一个已经死了的依赖上打</li>
+<li>降级：熔断之后，你到底给用户什么</li>
+<li>舱壁隔离：别让一个慢依赖拖死另一个健康依赖</li>
+<li>四件套组合：一条链路的完整配置表</li>
+<li>上线 Checklist + 高频 FAQ</li>
+</ul>
+<hr>
+<h2>1. 先分清：限流是"入站"的，这四件套是"出站"的</h2>
+
+聊之前先划清地盘，因为它们经常被混为一谈：
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>方向</th>
+<th>管的是谁</th>
+<th>触发后做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>限流 Rate Limiting</td>
+<td><strong>入站</strong></td>
+<td>别人打我</td>
+<td>拒绝 / 排队</td>
+</tr>
+<tr>
+<td>超时 Timeout</td>
+<td><strong>出站</strong></td>
+<td>我打别人</td>
+<td>放弃等待，释放线程</td>
+</tr>
+<tr>
+<td>重试 Retry</td>
+<td><strong>出站</strong></td>
+<td>我打别人</td>
+<td>再试一次（<strong>会放大流量</strong>）</td>
+</tr>
+<tr>
+<td>熔断 Circuit Breaker</td>
+<td><strong>出站</strong></td>
+<td>我打别人</td>
+<td>直接不打，快速失败</td>
+</tr>
+<tr>
+<td>降级 Degradation</td>
+<td><strong>出站</strong></td>
+<td>我打别人</td>
+<td>用兜底数据替代</td>
+</tr>
+<tr>
+<td>舱壁 Bulkhead</td>
+<td>出站</td>
+<td>我打别人</td>
+<td>限制单个依赖占用的资源</td>
+</tr>
+</tbody>
+</table>
+
+一句话区分：<strong>限流防的是"别人把你打死"，这四件套防的是"你被自己的依赖拖死"。</strong>
+
+一个系统可以限流做得很好（挡住了外部洪峰），却在第一个下游抖动时全线崩溃——因为它的出站调用是裸奔的。反过来也一样：出站治理做得再好，一个爬虫就能把你打挂。
+
+特别提醒：本系列的<a href="/article/rate-limit-algorithms-deep-dive/">限流算法实测</a>那篇管的是入站，这篇管出站，两者正交，都需要。
+<hr>
+<h2>2. 超时：唯一没有商量余地的那一个</h2>
+<h3>2.1 实验 A：不设超时，下游恢复了你也缓不过来</h3>
+
+先看实测。场景设计得很克制——<strong>下游只劣化 3 秒</strong>，不是永久宕机：
+<div class="codehilite"><pre><span></span><code>服务：20 个 worker 线程（模拟 gunicorn sync worker / Tomcat 线程池）
+压测：60 个并发客户端闭环打，共 8 秒
+下游：t &lt; 3s 时 RT = 5s（近乎挂死），t ≥ 3s 时 RT = 30ms（完全恢复）
+</code></pre></div>
+
+
+结果：
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>总完成</th>
+<th>吞吐</th>
+<th>p50</th>
+<th>p99</th>
+<th>最大延迟</th>
+<th>下游峰值并发</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>无超时</strong></td>
+<td>2021</td>
+<td>249.8/s</td>
+<td>92ms</td>
+<td><strong>5034ms</strong></td>
+<td>5059ms</td>
+<td>20</td>
+</tr>
+<tr>
+<td><strong>超时 200ms</strong></td>
+<td>3533</td>
+<td>436.8/s</td>
+<td>92ms</td>
+<td><strong>627ms</strong></td>
+<td>640ms</td>
+<td><strong>320</strong></td>
+</tr>
+</tbody>
+</table>
+
+只看聚合指标的话，无超时的 p50 竟然是"漂亮的" 92ms——<strong>因为它 100% 的分位数都被恢复后的请求稀释了</strong>。真正的伤害要看<strong>每秒完成数的时间线</strong>：
+<div class="codehilite"><pre><span></span><code>无超时  每秒完成数: 0 / 0 / 0 / 0 / 0 / 652 / 654 / 655 / 60
+超时200ms 每秒完成数: 80 / 100 / 100 / 580 / 659 / 652 / 650 / 652 / 60
+                                    ↑
+                              下游在 t=3s 已经恢复
+</code></pre></div>
+
+
+<strong>下游 3 秒就恢复了，无超时的服务整整 5 秒零吞吐。</strong>
+
+为什么会多出 2 秒？因为在 t=2.99s 发出去的那个请求，要等到 t=7.99s 才返回。下游的故障窗口是 3 秒，但<strong>你的故障窗口是 5 秒</strong>——故障时长被"最后一个进入队列的请求"拉长了。队列越深，这个尾巴越长。
+
+另外一个反直觉的数据：<strong>无超时组的下游峰值并发只有 20，超时组的峰值并发是 320（16 倍）。</strong>
+
+这揭示了一个很多人没意识到的事实：
+<blockquote>
+
+<strong>超时不是"保护下游"，是"保护你自己"。你松手的那一刻，请求还在下游那儿算着呢。</strong>
+</blockquote>
+
+超时组每秒放弃 100 个请求，这 100 个请求在下游还在占用 5 秒。下游的负载一点没减，反而因为你"放弃得快、重试得快"而变得更大。这就是为什么<strong>超时必须和重试节制、熔断配套使用</strong>——单独加超时，只是把洪水从自己家引到了下游家。
+<h3>2.2 超时不是一个数字，是三个</h3>
+
+这是最常见的配置错误。<code>requests</code> 的 <code>timeout</code> 参数可以接受一个元组，绝大多数人只传了一个数：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 错误：一个数字会同时作用于 connect 和 read</span>
+<span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+<span class="c1"># 正确：连接超时和读取超时是两个完全不同的东西</span>
+<span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">))</span>
+<span class="c1">#                                       ↑     ↑</span>
+<span class="c1">#                                   connect  read</span>
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>超时类型</th>
+<th>管的是</th>
+<th>典型值</th>
+<th>设错会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>连接超时</strong> connect</td>
+<td>TCP 握手 + TLS</td>
+<td>0.5 ~ 2s</td>
+<td>太长：对端黑洞（SYN 无响应）时白等</td>
+</tr>
+<tr>
+<td><strong>读取超时</strong> read</td>
+<td>两个数据包之间的间隔</td>
+<td>依赖 P99</td>
+<td>太长：慢查询拖死线程池</td>
+</tr>
+<tr>
+<td><strong>整体超时</strong> deadline</td>
+<td>整个调用的总耗时</td>
+<td>由链路预算决定</td>
+<td>没有它，重试 3 次可能耗时 3 倍</td>
+</tr>
+</tbody>
+</table>
+
+注意 read timeout 的语义：<strong>它不是"整个响应必须在这个时间内返回"，而是"任意两个数据包之间的间隔不能超过这个值"</strong>。一个 100MB 的文件下载，只要数据一直在流，read timeout 就不会触发。所以大文件传输不能靠 read timeout 兜底，得用整体 deadline。
+
+第三层"整体超时"是很多人漏掉的。看这段代码：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 三次重试，每次 read timeout 3s —— 最坏情况 9 秒？不止</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+</code></pre></div>
+
+
+单次 3s + 退避 0.5s，三次下来最坏 <strong>10.5 秒</strong>。如果你的网关超时是 5 秒，那么这个请求注定超时——<strong>你花了 10.5 秒的下游资源和线程池，去做一个 5 秒后注定被丢弃的结果</strong>。
+
+正确做法是<strong>整体 deadline 传递</strong>（deadline propagation）：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">call_with_deadline</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">total_budget</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;总预算固定，每次重试只能用掉剩余预算。&quot;&quot;&quot;</span>
+    <span class="n">deadline</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">total_budget</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">attempts</span><span class="p">):</span>
+        <span class="n">remaining</span> <span class="o">=</span> <span class="n">deadline</span> <span class="o">-</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">remaining</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># 单次超时取剩余预算和单次上限的较小值</span>
+            <span class="n">per_try</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">remaining</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">per_try</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">attempts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">deadline</span> <span class="o">-</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">())))</span>
+    <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="s2">&quot;total budget exhausted&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+这个模式的思想来自 Google 的 SRE 实践：<strong>超时是一个沿着调用链往下递减的预算，不是每个环节各自拍脑袋的一个常数。</strong>
+<h3>2.3 Python / Django 里那些"默认没有超时"的坑</h3>
+
+值得单独列出来，因为每一个我都见过它把服务拖死：
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>默认行为</th>
+<th>正确配置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>requests</code> / <code>urllib3</code></td>
+<td><strong>默认无超时，永久等待</strong></td>
+<td>必须显式传 <code>timeout=(connect, read)</code></td>
+</tr>
+<tr>
+<td><code>httpx</code></td>
+<td>默认 5s</td>
+<td>显式设置更保险</td>
+</tr>
+<tr>
+<td><code>socket</code></td>
+<td>无超时</td>
+<td><code>socket.setdefaulttimeout(10)</code></td>
+</tr>
+<tr>
+<td><code>redis-py</code></td>
+<td><code>socket_timeout=None</code></td>
+<td><code>socket_timeout=1, socket_connect_timeout=1</code></td>
+</tr>
+<tr>
+<td><code>psycopg2</code></td>
+<td>无 statement 超时</td>
+<td><code>OPTIONS: {"statement_timeout": "3s"}</code></td>
+</tr>
+<tr>
+<td><code>MySQLdb</code></td>
+<td>无</td>
+<td><code>SET SESSION max_execution_time=3000</code></td>
+</tr>
+<tr>
+<td><code>gunicorn</code></td>
+<td><code>timeout=30</code>（太长）</td>
+<td>sync worker 建议 10~15s，且必须小于 LB 超时</td>
+</tr>
+<tr>
+<td>Celery task</td>
+<td>无</td>
+<td><code>soft_time_limit</code> + <code>time_limit</code></td>
+</tr>
+</tbody>
+</table>
+
+Django 的数据库连接加 statement 超时：
+<div class="codehilite"><pre><span></span><code><span class="c1"># settings.py</span>
+<span class="n">DATABASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;ENGINE&quot;</span><span class="p">:</span> <span class="s2">&quot;django.db.backends.postgresql&quot;</span><span class="p">,</span>
+        <span class="c1"># ...</span>
+        <span class="s2">&quot;CONN_MAX_AGE&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">,</span>
+        <span class="s2">&quot;OPTIONS&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;connect_timeout&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+            <span class="c1"># 单条 SQL 最多跑 3 秒，防止一个慢查询拖死整个连接池</span>
+            <span class="s2">&quot;options&quot;</span><span class="p">:</span> <span class="s2">&quot;-c statement_timeout=3000&quot;</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+⚠️ 注意 <code>statement_timeout</code> 是<strong>单条 SQL</strong> 的，不是整个事务的。事务里跑 100 条 2 秒的 SQL，总时长还是 200 秒。要限制事务总时长，得用 <code>idle_in_transaction_session_timeout</code> 加应用层 deadline。
+<hr>
+<h2>3. 重试：唯一能把故障放大的机制</h2>
+
+超时让你"松手"，重试让你"再来一次"。超时是纯收益（除了前面说的把压力转嫁给下游），<strong>重试是唯一一个"本意是救命、实则可能致命"的机制</strong>——因为它是唯一会主动增加流量的那个。
+<h3>3.1 实验 B：重试 3 次，我的吞吐掉了 88%</h3>
+
+场景：下游已经慢了（RT 恒定 1s，远超 150ms 超时），20 worker / 40 并发客户端 / 6 秒：
+<table>
+<thead>
+<tr>
+<th>重试次数</th>
+<th>用户请求数</th>
+<th>下游调用数</th>
+<th><strong>放大倍数</strong></th>
+<th>用户吞吐</th>
+<th>下游峰值并发</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>800</td>
+<td>800</td>
+<td>×1.00</td>
+<td><strong>128.3/s</strong></td>
+<td>140</td>
+</tr>
+<tr>
+<td>1</td>
+<td>320</td>
+<td>640</td>
+<td>×2.00</td>
+<td>47.6/s</td>
+<td>113</td>
+</tr>
+<tr>
+<td>2</td>
+<td>180</td>
+<td>540</td>
+<td>×3.00</td>
+<td>25.7/s</td>
+<td>100</td>
+</tr>
+<tr>
+<td>3</td>
+<td>120</td>
+<td>480</td>
+<td>×4.00</td>
+<td><strong>15.0/s</strong></td>
+<td>80</td>
+</tr>
+</tbody>
+</table>
+
+两个数字要看懂：
+
+<strong>第一，放大倍数是精确的 ×(n+1)。</strong> 因为所有请求都必然超时，重试 n 次就是 n+1 次调用，无一例外。
+
+<strong>第二，也是最要命的——这是一笔双输的买卖。</strong>
+<div class="codehilite"><pre><span></span><code>用户吞吐：128.3/s  →  15.0/s     （掉了 88.3%，8.6 倍差距）
+下游调用：800      →  480        （只降了 40%）
+</code></pre></div>
+
+
+你用 88% 的自身吞吐损失，只换来了下游 40% 的减载。<strong>省下来的算力全烧在了注定失败的重试上。</strong>
+
+换个角度算更清楚：
+<table>
+<thead>
+<tr>
+<th>重试次数</th>
+<th>下游每做 1 次工作，能服务几个用户请求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>0.25</strong></td>
+</tr>
+</tbody>
+</table>
+
+下游每处理 4 次调用，只有 1 次对应一个真实的用户请求，其余 3 次是纯粹的重复劳动。而且这 4 次<strong>全都失败了</strong>——有效产出是 0。
+
+这就是"重试风暴"的数学本质：<strong>下游越慢 → 越多请求超时 → 越多重试 → 下游更慢</strong>。这是一个正反馈环，只要有重试、没有节制，它一定会自我强化到崩溃。
+<h3>3.2 不是所有请求都能重试：先问幂等</h3>
+
+在讨论"重试几次"之前，有一个更前置的问题必须回答：<strong>这个操作重试安全吗？</strong>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>幂等</th>
+<th>能直接重试吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /articles/123</code></td>
+<td>✅ 是</td>
+<td>可以</td>
+</tr>
+<tr>
+<td><code>PUT /articles/123</code>（全量覆盖）</td>
+<td>✅ 是</td>
+<td>可以</td>
+</tr>
+<tr>
+<td><code>DELETE /articles/123</code></td>
+<td>✅ 是</td>
+<td>可以</td>
+</tr>
+<tr>
+<td><code>POST /orders</code>（创建订单）</td>
+<td>❌ 否</td>
+<td><strong>必须带幂等键</strong></td>
+</tr>
+<tr>
+<td><code>POST /payments</code>（扣款）</td>
+<td>❌ 否</td>
+<td><strong>必须带幂等键</strong></td>
+</tr>
+<tr>
+<td><code>PATCH /articles/123</code>（<code>inc</code> 类操作）</td>
+<td>⚠️ 视语义</td>
+<td>小心</td>
+</tr>
+<tr>
+<td>发短信 / 发邮件</td>
+<td>❌ 否</td>
+<td>必须带幂等键</td>
+</tr>
+</tbody>
+</table>
+
+关键点在于：<strong>超时 ≠ 失败</strong>。你看到的 <code>TimeoutError</code> 可能是：
+<ol>
+<li>请求根本没到下游 → 重试安全</li>
+<li>请求到了，下游正在处理，只是慢 → 重试会<strong>执行两次</strong></li>
+<li>请求处理完了，响应在回程丢了 → 重试会<strong>执行两次</strong></li>
+</ol>
+
+对于非幂等的操作，第 2、3 种情况下的重试就是"用户只点了一次，订单生成了两笔"。这个话题展开很长，本系列的<a href="/article/api-idempotency-deep-dive/">接口幂等与防重复提交实战</a>专门讲，这里只给结论：
+<blockquote>
+
+<strong>非幂等接口加重试之前，先加幂等键。顺序反了就是事故。</strong>
+</blockquote>
+<h3>3.3 只重试"值得重试"的错误</h3>
+
+另一个常见错误：把 <code>except Exception</code> 包住然后无脑重试。
+<div class="codehilite"><pre><span></span><code><span class="c1"># 错误示范：400 你重试一万次也是 400</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+<span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+    <span class="n">retry</span><span class="p">()</span>
+</code></pre></div>
+
+
+<strong>值得重试的（瞬时故障）：</strong>
+<ul>
+<li>连接超时、连接被拒绝、连接重置</li>
+<li>读取超时（<strong>仅限幂等操作</strong>）</li>
+<li>5xx 中的 <code>502 / 503 / 504</code></li>
+<li><code>429 Too Many Requests</code>（且遵守 <code>Retry-After</code>）</li>
+</ul>
+
+<strong>绝对不该重试的（永久故障）：</strong>
+<ul>
+<li><code>400 Bad Request</code> / <code>401</code> / <code>403</code> / <code>404</code> / <code>422</code> —— 重试一万次还是同样的结果</li>
+<li>业务错误码（余额不足、库存不够、参数非法）</li>
+<li>序列化失败、代码 Bug</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="n">RETRYABLE_STATUS</span> <span class="o">=</span> <span class="p">{</span><span class="mi">408</span><span class="p">,</span> <span class="mi">429</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">502</span><span class="p">,</span> <span class="mi">503</span><span class="p">,</span> <span class="mi">504</span><span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_retryable</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="p">(</span><span class="n">requests</span><span class="o">.</span><span class="n">ConnectionError</span><span class="p">,</span> <span class="n">requests</span><span class="o">.</span><span class="n">Timeout</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">requests</span><span class="o">.</span><span class="n">HTTPError</span><span class="p">)</span> <span class="ow">and</span> <span class="n">exc</span><span class="o">.</span><span class="n">response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">exc</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="ow">in</span> <span class="n">RETRYABLE_STATUS</span>
+    <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+
+顺带一提，<code>429</code> 和 <code>503</code> 的响应里如果有 <code>Retry-After</code> 头，<strong>优先尊重它</strong>，别用自己算的退避时间。下游明确告诉你"3 秒后再来"，比你自己猜准得多。
+<h3>3.4 退避与抖动：实验 C</h3>
+
+就算该重试，也不该"立刻重试"。立刻重试 = 用同样的力度再撞一次墙。
+
+<strong>指数退避</strong>：第 n 次重试等待 <code>base × 2^(n-1)</code>。base=300ms 时：300ms、600ms、1200ms。
+
+但指数退避有个致命缺陷——<strong>如果所有客户端同时失败，它们会同时退避、同时重试</strong>。这就是惊群（thundering herd）。
+
+实测（120 个同步的客户端，下游 t∈[1s,5s] 宕机，退避基数 300ms，最多重试 3 次），统计<strong>恢复之后</strong>每 100ms 窗口的下游调用数：
+<div class="codehilite"><pre><span></span><code>固定退避:   26  0  0  0  55  39  0   2 118  0   0 120  0   0 120  0   0  19 101
+全抖动:     25 28 23 24  35  31 17  41  40  22  36  45  30  31  47  35  28  46  37
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>恢复后峰值 QPS</th>
+<th>恢复后均值 QPS</th>
+<th>突刺比</th>
+<th>变异系数 CV</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定退避</td>
+<td><strong>1200/s</strong></td>
+<td>357/s</td>
+<td>×3.36</td>
+<td><strong>1.43</strong></td>
+</tr>
+<tr>
+<td>全抖动</td>
+<td><strong>520/s</strong></td>
+<td>361/s</td>
+<td>×1.44</td>
+<td><strong>0.23</strong></td>
+</tr>
+</tbody>
+</table>
+
+看那行固定退避的数字：<strong>118 / 0 / 0 / 120 / 0 / 0 / 120</strong>——下游被三轮整齐的重试波反复冲击，波谷是 0，波峰是 1200 QPS。真实世界的下游在这种波形下，刚恢复就会再次被峰值打死，然后进入"恢复→被打死→恢复→被打死"的震荡。
+
+全抖动把峰值从 1200 压到 <strong>520（-57%）</strong>，变异系数从 1.43 降到 <strong>0.23（-84%）</strong>，而<strong>平均负载几乎不变（357 vs 361）</strong>。
+
+<strong>平均负载不变，峰值砍半——这就是抖动的全部价值：把集中的冲击摊平成均匀的负载。</strong>
+
+三种抖动策略：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">backoff_delay</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">attempt</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s2">&quot;full&quot;</span><span class="p">):</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">base</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">attempt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">raw</span>                                  <span class="c1"># 无抖动：会惊群</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;equal&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">raw</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">raw</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># 半抖动：有下限，尾部仍较集中</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;full&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>                <span class="c1"># 全抖动：AWS 推荐，削峰最好</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;decorrelated&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">raw</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span>         <span class="c1"># 去相关抖动：退避期望更长</span>
+    <span class="k">return</span> <span class="n">raw</span>
+</code></pre></div>
+
+
+AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确实削峰最狠。它的代价是<strong>平均等待时间变长</strong>（期望是 raw/2 而不是 raw），也就是说单次请求的成功延迟会略高一点。在你更关心"下游别被二次打死"的场景，这个交换非常划算。
+
+顺便说个坑：<strong><code>random</code> 要用每个客户端独立的实例，不要用全局 random。</strong> 全局 <code>random</code> 在多线程下有锁竞争，而且如果你给所有线程用同一个种子，它们会算出<strong>完全相同的退避序列</strong>——抖动就白加了。
+<h3>3.5 重试预算：给重试装一个总闸门</h3>
+
+退避解决"什么时候重试"，重试预算解决"总共能重试多少"。
+
+思路（来自 Google SRE）：<strong>重试次数不按单请求算，而按全局比例算——重试量不得超过近期成功量的某个百分比。</strong> 比如 20%：每 100 次成功请求，最多只允许 20 次重试。
+
+实测，场景分两段：
+
+<strong>第一段：下游 30% 概率随机失败（部分降级，不是全挂）</strong>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>放大倍数</th>
+<th>真实成功率</th>
+<th>预算拒绝</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不设预算</td>
+<td>×1.45</td>
+<td>99.0%</td>
+<td>0</td>
+</tr>
+<tr>
+<td>预算 50%</td>
+<td>×1.45</td>
+<td>98.9%</td>
+<td>2</td>
+</tr>
+<tr>
+<td>预算 20%</td>
+<td>×1.29</td>
+<td><strong>88.1%</strong></td>
+<td>150</td>
+</tr>
+</tbody>
+</table>
+
+结论很有意思：<strong>错误率不高时，预算几乎不生效</strong>（50% 档只拒绝了 2 次）。这是设计使然，也是它的优点——<strong>它不干扰正常运维，只在真正出事时才起作用</strong>。
+
+预算 20% 那档成功率掉到 88.1%，看起来很糟。但请注意这个前提：<strong>重试被拒绝 ≠ 请求失败</strong>，它应该走降级路径（返回兜底数据）。如果你的降级真的只能返回错误，那就别把预算压这么低。
+
+<strong>第二段：同一套配置，下游彻底不可用（100% 超时）</strong>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>用户吞吐</th>
+<th>下游调用</th>
+<th>放大倍数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不设预算</td>
+<td><strong>26.7/s</strong></td>
+<td>640</td>
+<td><strong>×4.00</strong></td>
+</tr>
+<tr>
+<td>预算 20%</td>
+<td><strong>97.0/s</strong></td>
+<td>603</td>
+<td><strong>×1.04</strong></td>
+</tr>
+</tbody>
+</table>
+
+这组数字是全文最反直觉的：<strong>给重试加限制之后，我自己的吞吐反而涨了 3.6 倍。</strong>
+
+为什么？因为不设预算时，每个 worker 有 3/4 的时间在做注定失败的重试；砍掉这些无效劳动后，同样的 20 个 worker 能服务 3.6 倍的用户请求——虽然其中一部分只能拿到兜底数据，但<strong>至少是立刻拿到</strong>，而不是转圈 10 秒后拿一个 502。
+<blockquote>
+
+<strong>重试预算不只是保护下游的善举，它是保护你自己的算术。</strong>
+</blockquote>
+
+一个简化实现：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RetryBudget</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;全局重试闸门：窗口内重试次数 &lt;= ratio * 成功次数。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ratio</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">,</span> <span class="n">floor</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ratio</span> <span class="o">=</span> <span class="n">ratio</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">floor</span> <span class="o">=</span> <span class="n">floor</span>          <span class="c1"># 成功数为 0 时仍允许的最小重试量（用于探测）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">success</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">retries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window_start</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">denied</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clock</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">window_start</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">window</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">success</span> <span class="o">*=</span> <span class="mf">0.5</span>   <span class="c1"># 衰减而不是硬清零，避免边界突刺</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">retries</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">window_start</span> <span class="o">=</span> <span class="n">now</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">retries</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ratio</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">success</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">floor</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">denied</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">record_success</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">success</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div>
+
+
+两个细节：
+<ul>
+<li><strong><code>floor</code> 参数</strong>：成功数为 0 时（下游全挂），仍然允许每窗口 <code>ratio × floor</code> 次重试。否则预算会把自己锁死，永远探测不到下游恢复。</li>
+<li><strong>衰减而非硬清零</strong>：窗口切换时成功数减半而不是归零，避免"窗口刚切换 → 预算瞬间归零 → 又瞬间放开"的锯齿。</li>
+</ul>
+<hr>
+<h2>4. 熔断：别再往一个已经死了的依赖上打</h2>
+
+超时让你"等太久就松手"，重试预算让你"别一直重试"，但它们都不回答一个问题：
+<blockquote>
+
+<strong>如果我已经知道下游死了，为什么还要发第一个请求？</strong>
+</blockquote>
+
+熔断器的答案：<strong>不发。直接失败，直接降级。</strong>
+<h3>4.1 三态状态机</h3>
+<div class="codehilite"><pre><span></span><code>        ┌──────────────────────────────────────┐
+        │                                      │
+        ▼                                      │
+   ┌─────────┐  失败率超阈值    ┌────────┐  冷却到期  ┌───────────┐
+   │ CLOSED  │ ───────────────▶ │  OPEN  │ ────────▶ │ HALF-OPEN │
+   │ 正常放行 │                  │ 全部拒绝 │           │  放探针   │
+   └─────────┘ ◀───────────────  └────────┘           └───────────┘
+        ▲          探测成功            ▲                     │
+        └──────────────────────────────┴─────────────────────┘
+                                          探测失败
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>行为</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CLOSED</strong></td>
+<td>正常放行，统计失败率</td>
+<td>常态</td>
+</tr>
+<tr>
+<td><strong>OPEN</strong></td>
+<td>立即失败（<strong>不发出请求</strong>）</td>
+<td>停止踩踏，给下游喘息时间</td>
+</tr>
+<tr>
+<td><strong>HALF-OPEN</strong></td>
+<td>放行有限个探针请求</td>
+<td>探测下游是否恢复</td>
+</tr>
+</tbody>
+</table>
+
+最容易写错的是 HALF-OPEN：很多人实现成"冷却时间到就直接全部放行"，结果下游没真恢复的话，瞬间的全量流量会<strong>立刻</strong>把它再次打死。正确做法是<strong>放有限个探针</strong>（比如 3 个），探针成功才关闸，失败就重新计时。
+<h3>4.2 一个可用的实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CircuitBreaker</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;滑动窗口失败率熔断器，带半开探测。进程内实现，多实例需各自统计。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">min_calls</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+                 <span class="n">cooldown</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">probes</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>        <span class="c1"># 统计窗口（秒）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_calls</span> <span class="o">=</span> <span class="n">min_calls</span>  <span class="c1"># 窗口内最少调用数，低于此值不判定（防低流量误熔）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span> <span class="o">=</span> <span class="n">threshold</span>  <span class="c1"># 失败率阈值</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cooldown</span> <span class="o">=</span> <span class="n">cooldown</span>    <span class="c1"># 熔断后冷却多久进入半开</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">probes</span> <span class="o">=</span> <span class="n">probes</span>        <span class="c1"># 半开状态放几个探针</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">events</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>       <span class="c1"># (timestamp, ok)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;closed&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">probe_left</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">open_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rejected</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+        <span class="n">cut</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">window</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">events</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">cut</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">allow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clock</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_prune</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s2">&quot;open&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cooldown</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;half-open&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">probe_left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">probes</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">rejected</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s2">&quot;half-open&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">probe_left</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">rejected</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">probe_left</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ok</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clock</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">now</span><span class="p">,</span> <span class="nb">bool</span><span class="p">(</span><span class="n">ok</span><span class="p">)))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_prune</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s2">&quot;half-open&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;closed&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;open&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span> <span class="o">=</span> <span class="n">now</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">open_count</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">return</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_calls</span><span class="p">:</span>
+                <span class="n">fails</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">ok_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">events</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">ok_</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">fails</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;open&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">opened_at</span> <span class="o">=</span> <span class="n">now</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">open_count</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+</code></pre></div>
+
+
+三个参数值得单独解释：
+<ul>
+<li><strong><code>min_calls</code>（最小调用数）</strong>：窗口内不足 20 次调用就不判定熔断。没有它，凌晨 3 点流量低的时候，3 个请求失败 2 个就直接熔断了——<strong>低流量下的误熔断是个经典事故</strong>。</li>
+<li><strong><code>threshold</code>（失败率阈值）</strong>：0.5 是常见起点。对于"宁可慢也不能错"的依赖调到 0.7~0.8；对于非核心依赖可以压到 0.3。</li>
+<li><strong><code>cooldown</code>（冷却时间）</strong>：太短会导致频繁试探、下游反复被打；太长会导致下游恢复了半天你还在降级。<strong>5s 起步，根据下游的恢复时间调。</strong></li>
+</ul>
+<h3>4.3 实验 D：熔断的收益与代价</h3>
+
+开环定速 150 req/s，服务 25 worker + 队列 40（队列满即 503），下游 t∈[1s,6s] RT=2s，超时 150ms，2 次重试：
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>成功</th>
+<th>降级</th>
+<th>失败</th>
+<th><strong>拒绝(503)</strong></th>
+<th>故障期 p50</th>
+<th>下游调用</th>
+<th>恢复探测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无熔断（超时+2 重试）</td>
+<td>807</td>
+<td>0</td>
+<td>150</td>
+<td><strong>543 (36.2%)</strong></td>
+<td><strong>774ms</strong></td>
+<td>1296</td>
+<td><strong>32ms</strong></td>
+</tr>
+<tr>
+<td>有熔断 + 降级兜底</td>
+<td>643</td>
+<td>804</td>
+<td>0</td>
+<td><strong>53 (3.5%)</strong></td>
+<td><strong>0ms</strong></td>
+<td><strong>723</strong></td>
+<td>731ms</td>
+</tr>
+</tbody>
+</table>
+
+<strong>收益（三条，全是硬指标）：</strong>
+<ol>
+<li><strong>拒绝率 36.2% → 3.5%</strong>。没有熔断时，25 个 worker 每个都被 774ms 的请求占死，队列打满，超过 1/3 的用户连响应都拿不到。有熔断时只有 3.5% 被拒。</li>
+<li><strong>故障期用户等待 774ms → 0ms</strong>。熔断后请求在微秒级返回兜底，用户感知是"页面秒开，只是相关文章那块显示的是热门文章"。</li>
+<li><strong>下游调用 1296 → 723（-44%）</strong>。熔断期间你一次都没去打扰那个正在垂死挣扎的下游。</li>
+</ol>
+
+<strong>代价（必须诚实写出来）：</strong>
+<ol>
+<li><strong>恢复探测延迟从 32ms 变成 731ms</strong>。没有熔断时，下游一恢复你立刻就知道；有熔断时，得等冷却期结束 + 探针成功。这 700ms 里用户看到的还是兜底数据。<strong>这是熔断的固有代价，无法消除，只能通过调小 <code>cooldown</code> 来缓解——但调小又会增加下游被二次打死的风险。</strong></li>
+<li>本次实验中熔断触发了 4 次（说明出现了"半开→探测失败→重新熔断"的震荡）。生产环境要监控这个指标：<strong>频繁开合说明 <code>cooldown</code> 或 <code>threshold</code> 配得不对</strong>。</li>
+</ol>
+
+所以熔断不是免费的。它的本质是<strong>用"恢复慢一点"换"故障期间不雪崩、用户始终有响应"</strong>。对于核心依赖，这个交换非常值；对于一分钟能挂十次的抖动型依赖，你可能更需要的是重试预算而不是熔断。
+<h3>4.4 熔断 vs 重试预算：怎么选</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>熔断</th>
+<th>重试预算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>判定依据</td>
+<td>失败率</td>
+<td>重试占比</td>
+</tr>
+<tr>
+<td>动作</td>
+<td>全量拒绝</td>
+<td>按比例拒绝重试</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>长时间、明确的故障</td>
+<td>短时间、轻微的抖动</td>
+</tr>
+<tr>
+<td>恢复速度</td>
+<td>慢（等冷却 + 探针）</td>
+<td>快（每个请求都在试）</td>
+</tr>
+<tr>
+<td>误伤</td>
+<td>高（一刀切）</td>
+<td>低（细粒度）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>两个都要。</strong> 它们解决的是不同时间尺度的问题：重试预算处理秒级的抖动（不误伤、恢复快），熔断处理分钟级的故障（保护彻底、停止踩踏）。成熟的客户端库（Envoy、Sentinel、Resilience4j、Hystrix）都是两者一起实现。
+<hr>
+<h2>5. 降级：熔断之后，你到底给用户什么</h2>
+
+熔断只是一个开关。开关合上之后，<strong>你给用户返回什么</strong>，才是真正决定用户体验的部分。
+
+看实验 D 的数据：有熔断组有 804 个请求走了降级。如果降级 = 返回 500，那这 804 个用户和没熔断时一样惨，<strong>熔断就白做了</strong>。
+<h3>5.1 降级不是错误，是"次优答案"</h3>
+
+回到开头的例子：文章详情页的"相关文章"模块挂了。合理的降级是什么？
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">related_articles</span><span class="p">(</span><span class="n">article_id</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">6</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;相关文章：四级降级链。&quot;&quot;&quot;</span>
+    <span class="n">breaker</span> <span class="o">=</span> <span class="n">breakers</span><span class="p">[</span><span class="s2">&quot;recommend&quot;</span><span class="p">]</span>
+
+    <span class="c1"># ① 正常路径</span>
+    <span class="k">if</span> <span class="n">breaker</span><span class="o">.</span><span class="n">allow</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">call_recommend</span><span class="p">(</span><span class="n">article_id</span><span class="p">,</span> <span class="n">limit</span><span class="p">)</span>   <span class="c1"># 带 timeout + deadline</span>
+            <span class="n">breaker</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rec:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="mi">3600</span><span class="p">)</span>  <span class="c1"># 顺手缓存，作为后续降级源</span>
+            <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="s2">&quot;realtime&quot;</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">breaker</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># ② 上次成功的缓存快照（哪怕过期）——最常用、最有效</span>
+    <span class="n">stale</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rec:</span><span class="si">{</span><span class="n">article_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">stale</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">stale</span><span class="p">,</span> <span class="s2">&quot;stale_cache&quot;</span>
+
+    <span class="c1"># ③ 全局热门文章（与本文无关，但至少是个像样的列表）</span>
+    <span class="n">hot</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;global_hot_articles&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">hot</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">hot</span><span class="p">[:</span><span class="n">limit</span><span class="p">],</span> <span class="s2">&quot;global_hot&quot;</span>
+
+    <span class="c1"># ④ 最后兜底：同分类最新文章（本地 DB 查询，不依赖任何外部服务）</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Article</span>
+    <span class="n">fallback</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+        <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+            <span class="n">category_id</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span><span class="o">.</span><span class="n">category_id</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">exclude</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">article_id</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">)[:</span><span class="n">limit</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">fallback</span><span class="p">,</span> <span class="s2">&quot;same_category&quot;</span>
+</code></pre></div>
+
+
+关键在于返回值的第二个元素——<strong>降级标记</strong>。它有两个用处：
+<ol>
+<li><strong>前端可以据此 UI 降级</strong>（比如"相关文章"模块标题改成"热门文章"，或者干脆隐藏这个模块）。</li>
+<li><strong>监控可以统计降级率</strong>。降级率是比错误率更敏感的健康指标——它会在错误率还是 0 的时候就开始上涨。</li>
+</ol>
+<h3>5.2 四种降级策略怎么选</h3>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>适用场景</th>
+<th>优点</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>返回缓存快照</strong>（可过期）</td>
+<td>读多写少、容忍短暂陈旧</td>
+<td>数据仍与用户相关，体验最好</td>
+<td>要有"上次成功"的缓存才可用</td>
+</tr>
+<tr>
+<td><strong>返回通用兜底</strong></td>
+<td>个性化推荐、广告位</td>
+<td>永远可用</td>
+<td>与用户无关，体验一般</td>
+</tr>
+<tr>
+<td><strong>关闭该功能</strong></td>
+<td>非核心装饰模块</td>
+<td>最诚实</td>
+<td>功能缺失</td>
+</tr>
+<tr>
+<td><strong>异步补 / 排队</strong></td>
+<td>写操作（发券、入账）</td>
+<td>不丢数据</td>
+<td>复杂度高，需要消息队列表</td>
+</tr>
+</tbody>
+</table>
+
+写操作的降级（同步转异步）要格外小心：它把"立刻失败"变成"稍后成功"，用户看到的反馈必须相应调整（"处理中"而不是"成功"）。而且它依赖消息队列的可靠性——本系列的<a href="/article/mq-reliable-delivery-deep-dive/">MQ 可靠投递实测</a>讲过这里面的坑。
+<h3>5.3 一条铁律：降级路径本身不能再有外部依赖</h3>
+
+<strong>降级路径上不能调任何可能失败的东西。</strong> 我见过最离谱的 bug：降级逻辑里查了一次数据库，数据库也慢，于是降级路径比主路径还慢。
+<div class="codehilite"><pre><span></span><code><span class="c1"># 错误：降级路径依赖了 Redis</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_user_level</span><span class="p">(</span><span class="n">uid</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">call_risk_api</span><span class="p">(</span><span class="n">uid</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;level:</span><span class="si">{</span><span class="n">uid</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;normal&quot;</span>   <span class="c1"># Redis 挂了怎么办？</span>
+
+<span class="c1"># 正确：降级路径只用进程内常量</span>
+<span class="n">_DEFAULT_LEVEL</span> <span class="o">=</span> <span class="s2">&quot;normal&quot;</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_user_level</span><span class="p">(</span><span class="n">uid</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">call_risk_api</span><span class="p">(</span><span class="n">uid</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_DEFAULT_LEVEL</span>
+</code></pre></div>
+
+
+如果兜底数据确实需要定期更新，那就<strong>后台异步刷新到进程内变量</strong>，而不是在降级路径上同步读。
+<hr>
+<h2>6. 舱壁隔离：别让一个慢依赖拖死另一个健康依赖</h2>
+
+前面所有机制都假设"只有一个下游"。真实服务通常有一堆：数据库、Redis、推荐服务、风控服务、支付网关……
+
+如果它们共享一个线程池，那么<strong>任何一个变慢，都会把整个池子占满，拖死所有其他依赖</strong>——哪怕其他依赖全都健康。
+<h3>6.1 实验 F</h3>
+
+场景：A（慢依赖，RT 1s）和 B（健康依赖，RT 30ms），各 25 个并发客户端，6 秒：
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>A（慢）p95</th>
+<th><strong>B（健康）p50</strong></th>
+<th>B p95</th>
+<th><strong>B 吞吐</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>共享线程池（20）</td>
+<td>820ms</td>
+<td><strong>436ms</strong></td>
+<td>477ms</td>
+<td><strong>61.4/s</strong></td>
+</tr>
+<tr>
+<td>隔离线程池（10+10）</td>
+<td>1232ms</td>
+<td><strong>76ms</strong></td>
+<td>92ms</td>
+<td><strong>283.5/s</strong></td>
+</tr>
+</tbody>
+</table>
+
+<strong>本来 30ms 的健康依赖 B，在共享池下被拖到 436ms——慢了 14.5 倍。吞吐从 283.5 掉到 61.4，跌了 78%。</strong>
+
+隔离之后：B 的 p50 回到 76ms（略高于 30ms 是因为 10 个 worker 也有排队），吞吐 4.6 倍。
+
+<strong>代价</strong>：A 自己的吞吐从 277 降到 165（-40%），因为它分到的资源从"抢到的 20 个"变成了"固定的 10 个"。
+
+这个代价是<strong>完全正确</strong>的——舱壁的设计哲学就是：<strong>牺牲已经不健康的依赖，保住健康的依赖。</strong> 在资源有限时，让慢的依赖少占一点、让快的依赖跑满，总吞吐一定更高。
+<h3>6.2 怎么实现</h3>
+
+三个层次，从重到轻：
+
+<strong>① 进程级隔离（最彻底）</strong>：不同依赖用不同的微服务/容器。成本最高，隔离最干净。
+
+<strong>② 线程池隔离（中等）</strong>：每个依赖一个独立线程池。
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+
+<span class="n">POOLS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;recommend&quot;</span><span class="p">:</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">thread_name_prefix</span><span class="o">=</span><span class="s2">&quot;rec&quot;</span><span class="p">),</span>
+    <span class="s2">&quot;risk&quot;</span><span class="p">:</span>      <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">thread_name_prefix</span><span class="o">=</span><span class="s2">&quot;risk&quot;</span><span class="p">),</span>
+    <span class="s2">&quot;payment&quot;</span><span class="p">:</span>   <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">thread_name_prefix</span><span class="o">=</span><span class="s2">&quot;pay&quot;</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">call_isolated</span><span class="p">(</span><span class="n">dep</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">POOLS</span><span class="p">[</span><span class="n">dep</span><span class="p">]</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">3.0</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">DependencyError</span><span class="p">(</span><span class="n">dep</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>③ 信号量隔离（最轻量）</strong>：共用一个池，但用信号量限制每个依赖的并发数。开销最小，但不能防止"线程被慢调用占住"的问题（只能限制数量）。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+<span class="n">LIMITS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;recommend&quot;</span><span class="p">:</span> <span class="n">threading</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span>
+    <span class="s2">&quot;risk&quot;</span><span class="p">:</span>      <span class="n">threading</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span>
+    <span class="s2">&quot;payment&quot;</span><span class="p">:</span>   <span class="n">threading</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">20</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">call_with_limit</span><span class="p">(</span><span class="n">dep</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">sem</span> <span class="o">=</span> <span class="n">LIMITS</span><span class="p">[</span><span class="n">dep</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sem</span><span class="o">.</span><span class="n">acquire</span><span class="p">(</span><span class="n">blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">DependencyBusy</span><span class="p">(</span><span class="n">dep</span><span class="p">)</span>      <span class="c1"># 立刻失败，不排队</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">sem</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</code></pre></div>
+
+
+选型建议：<strong>核心依赖（支付、风控）用线程池隔离，非核心依赖（推荐、统计）用信号量隔离。</strong> 信号量隔离在超限时不排队、直接失败，正好符合"非核心功能该让路"的语义。
+<hr>
+<h2>7. 四件套组合：一条链路的完整配置表</h2>
+
+单个机制都会配了，难点在于<strong>把它们配成一个自洽的系统</strong>。最常见的错误是各配各的，结果出现"网关 5s 超时，服务 10s 超时，DB 30s 超时"这种<strong>下游比上游还能等</strong>的荒唐配置。
+<h3>7.1 超时预算：从上往下递减</h3>
+
+原则：<strong>每一层的超时必须严格小于它的调用方，且留出重试和降级的余量。</strong>
+
+假设用户可接受的页面加载上限是 2 秒：
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>超时</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>浏览器 / App</td>
+<td>2000ms</td>
+<td>用户可感知上限</td>
+</tr>
+<tr>
+<td>CDN / 网关</td>
+<td>1800ms</td>
+<td>留 200ms 网络抖动</td>
+</tr>
+<tr>
+<td>应用服务（整体 deadline）</td>
+<td>1500ms</td>
+<td>留 300ms 给网关返回</td>
+</tr>
+<tr>
+<td>├─ 数据库查询</td>
+<td>300ms</td>
+<td>单条 SQL</td>
+</tr>
+<tr>
+<td>├─ Redis</td>
+<td>50ms</td>
+<td>本地缓存，必须极快</td>
+</tr>
+<tr>
+<td>├─ 推荐服务（非核心）</td>
+<td>300ms，1 次重试</td>
+<td>超时即降级</td>
+</tr>
+<tr>
+<td>└─ 风控服务（核心）</td>
+<td>500ms，不重试</td>
+<td>非幂等，且失败要人工介入</td>
+</tr>
+</tbody>
+</table>
+
+配的时候记住一条：<strong>下游超时 ≥ 上游超时 是配置错误</strong>。因为上游已经放弃了，下游还在算，白白浪费资源——这正是实验 A 里"下游峰值并发 320 vs 20"的成因。
+<h3>7.2 按依赖重要度分类配置</h3>
+<table>
+<thead>
+<tr>
+<th>依赖类型</th>
+<th>超时</th>
+<th>重试</th>
+<th>熔断</th>
+<th>降级</th>
+<th>舱壁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>核心读</strong>（用户资料、商品详情）</td>
+<td>P99×2</td>
+<td>1 次，带抖动</td>
+<td>阈值 0.7（谨慎）</td>
+<td>缓存快照</td>
+<td>线程池</td>
+</tr>
+<tr>
+<td><strong>核心写</strong>（下单、支付）</td>
+<td>P99×3</td>
+<td><strong>0 次</strong>（除非有幂等键）</td>
+<td>阈值 0.8</td>
+<td>转异步</td>
+<td>线程池</td>
+</tr>
+<tr>
+<td><strong>非核心读</strong>（推荐、广告）</td>
+<td>300ms（硬上限）</td>
+<td>1 次</td>
+<td>阈值 0.3（激进）</td>
+<td>通用兜底 / 隐藏模块</td>
+<td>信号量</td>
+</tr>
+<tr>
+<td><strong>旁路</strong>（埋点、统计）</td>
+<td>100ms</td>
+<td><strong>0 次</strong></td>
+<td>阈值 0.5</td>
+<td><strong>直接丢弃</strong></td>
+<td>信号量</td>
+</tr>
+</tbody>
+</table>
+
+两个容易忽略的点：
+<ul>
+<li><strong>旁路依赖（埋点、日志上报）永远不该重试，也不该阻塞主流程。</strong> 它挂了不影响用户，但重试会放大流量。用信号量限制并发，超了直接丢。</li>
+<li><strong>核心写的重试次数是 0，除非配了幂等键。</strong> 宁可让用户看到"下单失败，请重试"，也不要静默生成两笔订单。</li>
+</ul>
+<h3>7.3 一个组装示例</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># resilience.py —— 把四件套串起来</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">resilient_call</span><span class="p">(</span><span class="n">dep</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fallback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">retries</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                   <span class="n">base_backoff</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">breaker</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pool</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;出站调用的统一入口：超时 + deadline + 重试 + 抖动 + 预算 + 熔断 + 降级。&quot;&quot;&quot;</span>
+    <span class="n">deadline</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">timeout</span> <span class="o">*</span> <span class="p">(</span><span class="n">retries</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># 整体预算</span>
+
+    <span class="k">for</span> <span class="n">attempt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">retries</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">attempt</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># ① 抖动退避（仅在预算允许时）</span>
+            <span class="k">if</span> <span class="n">budget</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">budget</span><span class="o">.</span><span class="n">allow</span><span class="p">():</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;dep=</span><span class="si">%s</span><span class="s2"> retry denied by budget&quot;</span><span class="p">,</span> <span class="n">dep</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">base_backoff</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">attempt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))))</span>
+
+        <span class="c1"># ② 熔断：明知死了就不打</span>
+        <span class="k">if</span> <span class="n">breaker</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">breaker</span><span class="o">.</span><span class="n">allow</span><span class="p">():</span>
+            <span class="k">break</span>
+
+        <span class="n">remaining</span> <span class="o">=</span> <span class="n">deadline</span> <span class="o">-</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">remaining</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">break</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># ③ 超时：单次不超过剩余预算</span>
+            <span class="k">if</span> <span class="n">pool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="n">remaining</span><span class="p">,</span> <span class="n">timeout</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">fn</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">breaker</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">breaker</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">budget</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">budget</span><span class="o">.</span><span class="n">record_success</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">result</span><span class="p">,</span> <span class="s2">&quot;ok&quot;</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">breaker</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">breaker</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;dep=</span><span class="si">%s</span><span class="s2"> attempt=</span><span class="si">%s</span><span class="s2"> failed: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">dep</span><span class="p">,</span> <span class="n">attempt</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+
+    <span class="c1"># ④ 降级</span>
+    <span class="k">if</span> <span class="n">fallback</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">fallback</span><span class="p">()</span> <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">fallback</span><span class="p">)</span> <span class="k">else</span> <span class="n">fallback</span><span class="p">),</span> <span class="s2">&quot;degraded&quot;</span>
+    <span class="k">raise</span> <span class="n">DependencyError</span><span class="p">(</span><span class="n">dep</span><span class="p">)</span>
+</code></pre></div>
+
+
+这个函数不到 40 行，但把本文所有机制串起来了。重点是<strong>顺序</strong>：先问预算 → 再问熔断 → 才发请求 → 带上剩余 deadline → 失败后走降级。顺序错了就会退化成"配了个寂寞"。
+<hr>
+<h2>8. 上线 Checklist + 高频 FAQ</h2>
+<h3>Checklist</h3>
+
+<strong>超时</strong>
+<ul>
+<li>[ ] <strong>每一个出站调用都有显式超时</strong>——<code>requests</code>、<code>redis</code>、<code>psycopg2</code>、数据库连接全部检查一遍</li>
+<li>[ ] <code>requests</code> 用的是 <code>timeout=(connect, read)</code> 元组，不是一个数字</li>
+<li>[ ] 有整体 deadline，重试 N 次的总耗时不会超过上游超时</li>
+<li>[ ] 超时值满足"下游 &lt; 上游"的递减关系，不存在下游比上游还能等的配置</li>
+<li>[ ] Django 配了 <code>statement_timeout</code>，gunicorn <code>timeout</code> 小于负载均衡超时</li>
+</ul>
+
+<strong>重试</strong>
+<ul>
+<li>[ ] 非幂等接口要么不重试，要么带了幂等键</li>
+<li>[ ] 只重试瞬时故障（<code>408/429/5xx</code>、连接错误），<code>4xx</code> 业务错误不重试</li>
+<li>[ ] 退避带<strong>全抖动</strong>，且每个客户端用独立的随机源</li>
+<li>[ ] 配了重试预算（建议 10%~20%），且有 <code>floor</code> 防止锁死</li>
+<li>[ ] 尊重响应里的 <code>Retry-After</code> 头</li>
+</ul>
+
+<strong>熔断</strong>
+<ul>
+<li>[ ] 有 <code>min_calls</code> 下限，防止低流量误熔断</li>
+<li>[ ] 半开状态放的是<strong>有限探针</strong>，不是直接全量放行</li>
+<li>[ ] 熔断状态有监控和告警（开合次数、当前状态、拒绝数）</li>
+<li>[ ] 每个依赖独立熔断，不是一个 breaker 管所有</li>
+</ul>
+
+<strong>降级</strong>
+<ul>
+<li>[ ] 每个非核心依赖都有降级路径，且<strong>降级路径本身没有外部依赖</strong></li>
+<li>[ ] 降级返回带标记，前端能据此调整 UI</li>
+<li>[ ] 降级率有监控——它比错误率更早发现问题</li>
+</ul>
+
+<strong>舱壁</strong>
+<ul>
+<li>[ ] 核心依赖与非核心依赖不共享线程池</li>
+<li>[ ] 旁路依赖（埋点、统计）用信号量隔离且超限即丢弃</li>
+</ul>
+
+<strong>演练</strong>
+<ul>
+<li>[ ] 做过一次真实的故障注入演练（关掉一个依赖，看服务是否还活着）</li>
+<li>[ ] 知道每个依赖的 P99，超时值是基于数据而不是拍脑袋</li>
+</ul>
+<h3>FAQ</h3>
+
+<strong>Q：超时到底设多少合适？</strong>
+
+A：从<strong>依赖的 P99</strong> 出发，取 P99 的 2~3 倍。比如依赖 P99 是 80ms，超时设 200~250ms。设成 P99 的 1 倍会误杀正常请求（P99 意味着 1% 的请求本来就超过这个时间），设成 10 倍就失去了保护意义。然后<strong>用整体 deadline 反推校正</strong>：如果链路总预算是 1.5s，某个依赖分到 300ms 但它的 P99 是 500ms，那说明这个依赖不适合放在同步链路里，应该改成异步或预计算。
+
+<strong>Q：重试会让请求变慢，用户能接受吗？</strong>
+
+A：<strong>重试不应该让用户感知到。</strong> 只有在"单次超时远小于用户可感知阈值"时重试才有意义。如果单次调用 1s、重试 3 次就是 4s，用户早就关页面了——这种情况下重试毫无价值，应该直接降级。经验法则：<strong>只有当 <code>单次超时 × (重试次数+1)</code> 仍小于用户可接受延迟的 1/3 时，重试才是划算的。</strong>
+
+<strong>Q：熔断和降级是不是一回事？</strong>
+
+A：不是。熔断是<strong>决策</strong>（判断要不要调下游），降级是<strong>结果</strong>（不调的时候给用户什么）。只做熔断不做降级，等于把 502 换成了更快的 502——实验 D 里那 804 个降级请求如果返回的是错误，熔断的收益就只剩"下游减载 44%"了。
+
+<strong>Q：多实例部署时，熔断状态要共享吗？</strong>
+
+A：<strong>不要。</strong> 每个实例维护自己的熔断器更好。原因有三：(1) 熔断器是本地快速判断，引入 Redis 会让它变成一个新的依赖，而这个依赖挂了熔断器就废了；(2) 各实例观察到的下游状态本来就不同（网络分区、灰度批次）；(3) 全局状态需要原子操作，增加复杂度和延迟。代价是各实例的熔断时机不一致，但这通常无害——反正熔断是"宁可多熔一个，不可少熔一个"。
+
+<strong>Q：已经有了限流，还需要这些吗？</strong>
+
+A：需要，它们管的方向相反。限流管"别人打我"，这四件套管"我打别人"。一个常见的错误认知是"我限流了所以很安全"——但限流挡不住"你的 100 个请求全部卡在同一个慢依赖上"。反过来，出站治理也替代不了限流。<strong>两者都要。</strong>
+
+<strong>Q：单体应用（没有微服务）需要这些吗？</strong>
+
+A：<strong>需要，而且更需要。</strong> 单体应用同样要调数据库、Redis、对象存储、第三方 API。你的数据库就是一个"下游"，一个慢查询就能拖死整个连接池——这正是"没设超时"的经典场景。实际上本文实验 A 的模型（20 worker + 慢依赖）在单体应用里完全适用，把"推荐服务"换成"一条没走索引的 SQL"，结论一模一样。
+
+<strong>Q：熔断的 <code>cooldown</code> 设多长？</strong>
+
+A：从<strong>依赖的典型恢复时间</strong>出发。如果一个依赖通常是 30 秒内自愈，<code>cooldown</code> 设 5~10s；如果是需要人工介入的故障，可以设 60s。判断依据看监控：<strong>如果熔断频繁开合（实验中出现了 4 次），说明 <code>cooldown</code> 太短</strong>——下游还没恢复你就去探测，探测失败又熔上，白白消耗资源。
+
+<strong>Q：这些都要自己写吗？有现成库吗？</strong>
+
+A：有，而且优先用现成的。Java 有 Resilience4j / Sentinel / Hystrix；Go 有 <code>gobreaker</code> / <code>sony/gobreaker</code>；Python 有 <code>tenacity</code>（重试）、<code>pybreaker</code>（熔断）、<code>aiobreaker</code>。如果用了服务网格（Istio / Envoy），超时、重试、熔断、舱壁可以<strong>全部在 Sidecar 层配置</strong>，业务代码一行都不用写——这是最理想的方案，因为配置集中、语言无关、可热更新。本文的手写实现是为了把原理讲透，<strong>生产环境优先用 Envoy 或成熟库</strong>。
+<hr>
+<h2>小结</h2>
+
+回到开头那次事故。整篇文章可以压缩成一张对照表：
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>回答的问题</th>
+<th>不加会怎样</th>
+<th>实测代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>超时</strong></td>
+<td>等多久算太久？</td>
+<td>下游恢复了你还瘫着</td>
+<td>5 秒零吞吐（下游只抖 3 秒）</td>
+</tr>
+<tr>
+<td><strong>重试</strong></td>
+<td>失败要不要再来一次？</td>
+<td>成功率提升，但会放大故障</td>
+<td>放大 ×4，<strong>自身吞吐 -88%</strong></td>
+</tr>
+<tr>
+<td><strong>抖动</strong></td>
+<td>什么时候重试？</td>
+<td>恢复瞬间惊群，二次打死下游</td>
+<td>峰值 1200 vs 520 QPS</td>
+</tr>
+<tr>
+<td><strong>重试预算</strong></td>
+<td>总共能重试多少？</td>
+<td>无效重试吃光线程池</td>
+<td>加预算后自身吞吐 <strong>×3.6</strong></td>
+</tr>
+<tr>
+<td><strong>熔断</strong></td>
+<td>明知死了还打吗？</td>
+<td>持续踩踏 + 队列打满</td>
+<td>拒绝率 36.2% vs 3.5%</td>
+</tr>
+<tr>
+<td><strong>降级</strong></td>
+<td>不打的话给用户什么？</td>
+<td>熔断白做，还是 502</td>
+<td>804 个请求能否被救回</td>
+</tr>
+<tr>
+<td><strong>舱壁</strong></td>
+<td>一个慢依赖能占多少资源？</td>
+<td>健康依赖被陪葬</td>
+<td>B 延迟 436ms vs 76ms</td>
+</tr>
+</tbody>
+</table>
+
+如果只记三句话：
+<ol>
+<li>
+
+<strong>超时是唯一没有商量余地的。</strong> 没设超时的出站调用就是一颗定时炸弹，它不爆只是因为下游还没抖过。而且记住——超时保护的是你自己，不是下游。
+</li>
+<li>
+
+<strong>重试是唯一会放大流量的机制，所以它必须被节制。</strong> 加抖动（削峰 57%）和加预算（放大 ×4 → ×1.04，自身吞吐 ×3.6）这两件事，成本极低，收益极大。而且重试的前提永远是幂等。
+</li>
+<li>
+
+<strong>熔断的收益是"用户始终有响应"，代价是"恢复慢一点"。</strong> 它必须和降级配对使用——没有降级的熔断，只是把慢 502 变成了快 502。
+</li>
+</ol>
+
+最后说一个容易被忽略的事实：<strong>这套机制在平时 100% 的时间里都是"没用"的。</strong> 它不像缓存能提速、不像索引能省钱，它在风平浪静时完全隐形。所以它的价值只在故障发生的那几分钟体现——而那几分钟，往往决定了用户对你这个系统的全部印象。
+<hr>
+
+<em>本文的全部实测数据均可复现：压测脚本在 <code>tools/bench_resilience.py</code>（Python 纯标准库，真实多线程 + 真实 sleep，无第三方依赖）。六个实验各自独立，可用 <code>--only A|B|C|D|E|F</code> 单独运行。文中所有代码均为可运行的简化实现，用于说明原理；生产环境建议改用 Envoy / Resilience4j / Sentinel 等成熟组件。</em></div></div></noscript>
+  </body>
+</html>
