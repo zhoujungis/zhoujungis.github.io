@@ -4,7 +4,7 @@ slug: "api-gateway-deep-dive"
 category_id: null
 tags: ["后端", "微服务", "API网关", "架构设计", "高可用"]
 status: "published"
-cover_image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop"
+cover_image: "https://images.unsplash.com/photo-1563986768609-322da13575f2?w=1200&q=80&auto=format&fit=crop"
 ---
 
 # API 网关实战：认证、限流、路由、协议转换的统一入口设计

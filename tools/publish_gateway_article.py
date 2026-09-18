@@ -36,7 +36,7 @@ ARTICLE_EXCERPT = (
     "Kong/APISIX/Spring Cloud Gateway/Envoy 选型对比 + 上线 Checklist。"
 )
 ARTICLE_COVER = (
-    "https://images.unsplash.com/photo-1558494949-ef010cbdcc31"
+    "https://images.unsplash.com/photo-1563986768609-322da13575f2"
     "?w=1200&q=80&auto=format&fit=crop"
 )
 
