@@ -1,11 +1,9 @@
-"""Publish the API Gateway deep-dive article.
+"""Publish the API versioning deep-dive article.
 
 Usage:
-    python tools/publish_gateway_article.py
-    python tools/publish_gateway_article.py --cover https://...
+    python tools/publish_versioning_article.py
 
 Idempotent by slug: an existing article is updated instead of duplicated.
-Tags are resolved by slug first, then by name, to avoid near-duplicate tags.
 """
 
 import argparse
@@ -22,21 +20,20 @@ API = API_URL
 SOURCE = (
     Path(__file__).resolve().parent.parent
     / "article"
-    / "api-gateway-deep-dive.md"
+    / "api-versioning-deep-dive.md"
 )
 
 ARTICLE_TITLE = (
-    "API 网关实战：认证、限流、路由、协议转换的统一入口设计"
+    "API 还在用 /v1、/v2？——接口版本管理的演进与实战策略"
 )
-ARTICLE_SLUG = "api-gateway-deep-dive"
+ARTICLE_SLUG = "api-versioning-deep-dive"
 ARTICLE_EXCERPT = (
-    "从单体到微服务的跨切关注点统一方案：网关核心能力全景 + "
-    "JWT/OAuth2/mTLS 认证决策 + 令牌桶/漏桶三层限流设计 + "
-    "路径/Header/权重路由与灰度发布 + gRPC/WebSocket 协议转换 + "
-    "Kong/APISIX/Spring Cloud Gateway/Envoy 选型对比 + 上线 Checklist。"
+    "四种版本控制策略对比 + 兼容性变更 vs 不兼容变更判断树 + "
+    "版本发布/共存/废弃/下线全生命周期 + gRPC Protobuf 与 GraphQL 的版本差异 + "
+    "五个常见坑与上线 Checklist。"
 )
 ARTICLE_COVER = (
-    "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40"
+    "https://images.unsplash.com/photo-1517694712202-14dd9538aa97"
     "?w=1200&q=80&auto=format&fit=crop"
 )
 
@@ -44,10 +41,10 @@ CATEGORY = {"name": "技术教程", "slug": "tech", "description": "技术教程
 
 TAGS = [
     {"slug": "backend-dev", "name": "后端"},
-    {"slug": "microservices", "name": "微服务"},
-    {"slug": "api-gateway", "name": "API网关"},
+    {"slug": "api-design", "name": "API设计"},
     {"slug": "architecture", "name": "架构设计"},
-    {"slug": "high-availability", "name": "高可用"},
+    {"slug": "microservices", "name": "微服务"},
+    {"slug": "rest", "name": "REST"},
 ]
 
 
@@ -156,7 +153,7 @@ def main():
     content = strip_frontmatter(SOURCE.read_text(encoding="utf-8"))
     print(f"Source: {SOURCE.name} ({len(content)} chars)")
 
-    chinese = len(re.findall(r"[一-鿿㐀-䶿]", content))
+    chinese = len(re.findall(r"[一-鿿鿿㐀-䶿]", content))
     english = len(re.findall(r"[a-zA-Z]+", content))
     print(f"Reading time (backend formula): {max(1, (chinese + english) // 250 + 1)} min")
 
