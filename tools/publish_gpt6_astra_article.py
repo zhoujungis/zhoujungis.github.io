@@ -14,7 +14,7 @@ from _auth import API_URL, get_token
 
 API = API_URL
 CONTENT_FILE = Path(__file__).parent / "gpt6_astra_article_content.md"
-ARTICLE_TITLE = "GPT-6 Astra 发布：OpenAI 喊出“欢迎来到 AGI 时代”，开发者需要知道的八件事"
+ARTICLE_TITLE = "GPT-6 Astra 发布：开发者需要知道的八件事"
 ARTICLE_SLUG = "gpt-6-astra-release-2026"
 ARTICLE_EXCERPT = (
     "OpenAI 9 月 3 日发布 GPT-6 Astra，Greg Brockman 单方面宣布“欢迎来到 AGI 时代”。"

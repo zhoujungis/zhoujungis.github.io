@@ -1,5 +1,5 @@
 ---
-title: "灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测）"
+title: "灰度到 20%，一半用户功能消失了——特性开关实战"
 slug: "feature-flag-progressive-delivery"
 category_id: null
 tags: ["后端", "灰度发布", "特性开关", "架构设计"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测）
+# 灰度到 20%，一半用户功能消失了——特性开关实战
 
 > 适用读者：做过后端上线、被"发布即出事""回滚要十分钟"折磨过的工程师
 > 技术栈：Python 3.13 实测（纯标准库）；分桶算法与框架无关，Django / Spring Boot / Go 通用

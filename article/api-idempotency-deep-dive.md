@@ -1,5 +1,5 @@
 ---
-title: "用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）"
+title: "用户只是双击了一下，订单多了 7 条——接口幂等"
 slug: "api-idempotency-deep-dive"
 category_id: null
 tags: ["后端", "数据库", "并发", "幂等"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）
+# 用户只是双击了一下，订单多了 7 条——接口幂等
 
 > 适用读者：写过下单/支付/表单接口，被"用户双击""回调重发""MQ 重复消费"坑过的后端工程师
 > 技术栈：Python + SQL（SQLite 实测）；方案不绑定框架，Django / Spring Boot / Go 通用

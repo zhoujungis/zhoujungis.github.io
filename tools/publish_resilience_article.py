@@ -25,10 +25,7 @@ SOURCE = (
     / "resilience-timeout-retry-circuit-breaker.md"
 )
 
-ARTICLE_TITLE = (
-    "下游只抖了 3 秒，我的服务被拖死 5 秒——"
-    "超时、重试、熔断、降级实战（含并发实测）"
-)
+ARTICLE_TITLE = "下游只抖 3 秒，我的服务被拖死——超时与熔断实战"
 ARTICLE_SLUG = "resilience-timeout-retry-circuit-breaker-deep-dive"
 ARTICLE_EXCERPT = (
     "六组真实并发实测：不设超时导致下游恢复后服务仍 5 秒零吞吐，"

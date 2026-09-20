@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/" />
-    <meta property="og:title" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）" />
+    <meta property="og:title" content="事务回滚了，邮件照样发出去——Django 事务深水区" />
     <meta property="og:description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
     <meta property="og:url" content="https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/" />
     <meta property="og:site_name" content="个人博客-代码与生活" />
@@ -18,7 +18,7 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）" />
+    <meta name="twitter:title" content="事务回滚了，邮件照样发出去——Django 事务深水区" />
     <meta name="twitter:description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
     <link rel="alternate" type="application/rss+xml" title="个人博客-代码与生活 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
@@ -26,7 +26,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
-    <title>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） | 个人博客-代码与生活</title>
+    <title>事务回滚了，邮件照样发出去——Django 事务深水区 | 个人博客-代码与生活</title>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -77,11 +77,11 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T10:39:13.728721+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）","description":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:39:13.728721+08:00","dateModified":"2026-09-14T10:40:16.570367+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"事务回滚了，邮件照样发出去——Django 事务深水区","description":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:39:13.728721+08:00","dateModified":"2026-09-20T18:59:54.001829+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/"}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）</h1>
+    <noscript><div class="ns-article"><h1>事务回滚了，邮件照样发出去——Django 事务深水区</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）</h1>
 <blockquote>
 
 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，"并发三件套"的最后一篇。

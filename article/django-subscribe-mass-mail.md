@@ -1,5 +1,5 @@
 ---
-title: "别让一个坏邮箱毒死整批群发：邮件订阅的三次加固"
+title: "别让一个坏邮箱毒死整批群发：三次加固"
 slug: "django-subscribe-mass-mail"
 category_id: null
 tags: ["Django", "后端", "安全", "数据库"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 别让一个坏邮箱毒死整批群发：邮件订阅的三次加固
+# 别让一个坏邮箱毒死整批群发：三次加固
 
 > 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 `订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发`。听起来简单，但这条链路上每个环节都埋过雷。
 

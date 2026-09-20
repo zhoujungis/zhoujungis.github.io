@@ -1,5 +1,5 @@
 ---
-title: "API 网关实战：认证、限流、路由、协议转换的统一入口设计"
+title: "API 网关实战：认证、限流与路由的统一入口"
 slug: "api-gateway-deep-dive"
 category_id: null
 tags: ["后端", "微服务", "API网关", "架构设计", "高可用"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# API 网关实战：认证、限流、路由、协议转换的统一入口设计
+# API 网关实战：认证、限流与路由的统一入口
 
 > 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师
 > 技术栈：原理与语言无关，文中涉及 Kong / APISIX / Spring Cloud Gateway / Envoy 对比

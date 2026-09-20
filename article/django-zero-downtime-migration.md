@@ -1,5 +1,5 @@
 ---
-title: "上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）"
+title: "上线那一刻，数据库在重建整张表——零停机迁移"
 slug: "django-zero-downtime-migration"
 category_id: null
 tags: ["Django", "后端", "数据库", "性能优化"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）
+# 上线那一刻，数据库在重建整张表——零停机迁移
 
 > 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你"给 `(status, is_top DESC, created_at DESC)` 补一条索引"，这一篇讲的就是**那条索引怎么上线**——以及为什么大多数人上线的姿势，会把整张表锁死几十秒。
 > 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；MySQL 8 / PostgreSQL 的对照单独成节。

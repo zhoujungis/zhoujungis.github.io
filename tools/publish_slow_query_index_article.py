@@ -36,7 +36,7 @@ SOURCE = (
     / "django-slow-query-index-tuning.md"
 )
 
-ARTICLE_TITLE = "索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）"
+ARTICLE_TITLE = "索引建了，为什么排序还是没用上？——慢查询实战"
 ARTICLE_SLUG = "django-slow-query-index-tuning"
 ARTICLE_EXCERPT = (
     "N+1 修完了，列表页只剩 2 条 SQL，为什么还是慢？造 100 万行实测发现："

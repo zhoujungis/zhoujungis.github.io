@@ -19,7 +19,7 @@ from _auth import API_URL, get_token
 
 API = API_URL
 CONTENT_FILE = Path(__file__).parent / "halo_music_article_content.md"
-ARTICLE_TITLE = "Halo 音乐广场技术拆解：用 Cloudflare 构建多音源在线音乐应用"
+ARTICLE_TITLE = "Halo 音乐广场技术拆解：多音源在线音乐应用"
 ARTICLE_SLUG = "halo-music-square-architecture"
 ARTICLE_EXCERPT = (
     "从统一 HALO Track 数据结构出发，拆解 Halo 音乐广场如何用 Cloudflare Pages、"

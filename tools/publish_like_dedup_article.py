@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "django-anon-like-dedup.md"
 
-ARTICLE_TITLE = "为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计"
+ARTICLE_TITLE = "为什么我敢让匿名用户点赞：五层防刷设计"
 ARTICLE_SLUG = "django-anon-like-dedup"
 ARTICLE_EXCERPT = (
     "把点赞接口开放给匿名用户需要五层防线：DRF 限流、IP+UA 24小时滑动窗口去重、"

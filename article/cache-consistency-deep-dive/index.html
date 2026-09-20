@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/cache-consistency-deep-dive/" />
-    <meta property="og:title" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）" />
+    <meta property="og:title" content="先删缓存还是先删库？——缓存一致性实战" />
     <meta property="og:description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
     <meta property="og:url" content="https://zhoujungis.github.io/article/cache-consistency-deep-dive/" />
     <meta property="og:site_name" content="个人博客-代码与生活" />
@@ -18,7 +18,7 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）" />
+    <meta name="twitter:title" content="先删缓存还是先删库？——缓存一致性实战" />
     <meta name="twitter:description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
     <link rel="alternate" type="application/rss+xml" title="个人博客-代码与生活 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
@@ -26,7 +26,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
-    <title>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） | 个人博客-代码与生活</title>
+    <title>先删缓存还是先删库？——缓存一致性实战 | 个人博客-代码与生活</title>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -77,11 +77,11 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T17:27:46.601358+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）","description":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被\"缓存和数据库对不上\"\"缓存一挂数据库就崩\"坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间","image":"https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T17:27:46.601358+08:00","dateModified":"2026-09-14T17:27:46.601401+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cache-consistency-deep-dive/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先删缓存还是先删库？——缓存一致性实战","description":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被\"缓存和数据库对不上\"\"缓存一挂数据库就崩\"坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间","image":"https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T17:27:46.601358+08:00","dateModified":"2026-09-20T18:59:43.063341+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cache-consistency-deep-dive/"}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）</h1>
+    <noscript><div class="ns-article"><h1>先删缓存还是先删库？——缓存一致性实战</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）</h1>
 <blockquote>
 
 适用读者：给接口加过 Redis 缓存、被"缓存和数据库对不上""缓存一挂数据库就崩"坑过的后端工程师

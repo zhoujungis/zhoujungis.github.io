@@ -1,5 +1,5 @@
 ---
-title: "300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）"
+title: "300 个并发只该打 1 次库：穿透、击穿与雪崩"
 slug: "cache-trio-deep-dive"
 category_id: null
 tags: ["Redis", "缓存", "后端", "性能优化"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）
+# 300 个并发只该打 1 次库：穿透、击穿与雪崩
 
 > 适用读者：已经给接口加过 Redis 缓存、知道"缓存空值/互斥锁/TTL 抖动"这三个名词，但在真实流量面前还是心里没底的后端工程师
 > 技术栈：Redis 7 + Python 3.13；原理与并发模型不绑定语言，Go / Java 同样适用

@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "distributed-id-deep-dive.md"
 
-ARTICLE_TITLE = "主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID"
+ARTICLE_TITLE = "分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万"
 ARTICLE_SLUG = "distributed-id-deep-dive"
 ARTICLE_EXCERPT = (
     "10 万 ID 注入 200 次 NTP 时钟回拨实测：无防护雪花碰撞 10000 条，守护版 0 碰撞但会透支未来时间戳。"

@@ -23,10 +23,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "cache-trio-deep-dive.md"
 
-ARTICLE_TITLE = (
-    "300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶"
-    "（布隆过滤器、singleflight 与热点 key）"
-)
+ARTICLE_TITLE = "300 个并发只该打 1 次库：穿透、击穿与雪崩"
 ARTICLE_SLUG = "cache-trio-deep-dive"
 ARTICLE_EXCERPT = (
     "缓存空值挡不住随机 UUID、互斥锁会把线程池占满、TTL 抖动救不了 Redis 整体宕机："

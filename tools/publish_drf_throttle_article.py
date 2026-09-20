@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "drf-pagination-cache-throttle.md"
 
-ARTICLE_TITLE = "列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解"
+ARTICLE_TITLE = "列表接口从 800ms 到 80ms：分页、缓存与限流"
 ARTICLE_SLUG = "drf-pagination-cache-throttle"
 ARTICLE_EXCERPT = (
     "一次 page_size=500 直接打挂博客的事故复盘：DRF 分页封顶与列表瘦身、"

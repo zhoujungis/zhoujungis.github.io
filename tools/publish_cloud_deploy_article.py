@@ -17,7 +17,7 @@ from _auth import API_URL, get_token
 API = API_URL
 CONTENT_FILE = Path(__file__).parent / "cloud_deploy_article_content.md"
 
-ARTICLE_TITLE = "国内外云部署全攻略：国内云、海外 VPS 与 Cloudflare 免费全家桶怎么选"
+ARTICLE_TITLE = "国内外云部署全攻略：国内云、海外 VPS 怎么选"
 ARTICLE_SLUG = "cloud-deployment-guide-cn-vs-global"
 ARTICLE_EXCERPT = (
     "国内三大云价格战打到了几十元一年，海外 VPS 免备案遍地开花，"

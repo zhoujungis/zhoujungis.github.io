@@ -1,4 +1,4 @@
-# 登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS
+# 登录态 1 小时就掉？Django + Vue 双 Token 认证实战
 
 > 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios
 > 代码来源：真实博客 `backend/blog_api/settings.py`、`backend/blog_api/urls.py`、`frontend/src/stores/auth.js`、`frontend/src/api/client.js`、`frontend/src/router/index.js`，全部可运行

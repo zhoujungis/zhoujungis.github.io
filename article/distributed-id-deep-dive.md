@@ -1,5 +1,5 @@
 ---
-title: "主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID"
+title: "分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万"
 slug: "distributed-id-deep-dive"
 category_id: null
 tags: ["后端", "分布式系统", "数据库", "算法"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 主键又冲突了？分布式 ID 实测：UUID 页分裂之痛、雪花时钟回拨 1 万次碰撞、号段模式 20 次往返扛 20 万 ID
+# 分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万
 
 > 适用读者：系统从单机走向多实例部署，开始纠结"主键用什么"的后端工程师
 > 技术栈：Python 纯标准库实测；原理与语言无关，MySQL / PostgreSQL / 各种 NoSQL 通用

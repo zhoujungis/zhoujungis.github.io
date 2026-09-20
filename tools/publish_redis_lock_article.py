@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "redis-distributed-lock-deep-dive.md"
 
-ARTICLE_TITLE = "Redis 分布式锁：从 SETNX 到 Redlock，一次讲透正确姿势与失效边界"
+ARTICLE_TITLE = "Redis 分布式锁：一次讲透正确姿势与失效边界"
 ARTICLE_SLUG = "redis-distributed-lock-deep-dive"
 ARTICLE_EXCERPT = (
     "优惠券被超卖 137 单？从 SETNX 天真版到 SET NX PX + Lua + 看门狗，"

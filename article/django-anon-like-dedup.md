@@ -1,5 +1,5 @@
 ---
-title: "为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计"
+title: "为什么我敢让匿名用户点赞：五层防刷设计"
 slug: "django-anon-like-dedup"
 category_id: null
 tags: ["Django", "后端", "DRF", "安全", "数据库"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计
+# 为什么我敢让匿名用户点赞：五层防刷设计
 
 > 这篇博客的点赞接口是匿名可调用的：`POST /api/articles/<slug>/like/`，不需要登录。上一篇讲的是"敢渲染"，这一篇讲的是"敢被点"——**把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少**。
 

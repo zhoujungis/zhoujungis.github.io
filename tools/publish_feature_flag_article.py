@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "feature-flag-progressive-delivery.md"
 
-ARTICLE_TITLE = "灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测）"
+ARTICLE_TITLE = "灰度到 20%，一半用户功能消失了——特性开关实战"
 ARTICLE_SLUG = "feature-flag-progressive-delivery"
 ARTICLE_EXCERPT = (
     "灰度从 10% 扩到 20%，为什么一半用户的功能突然消失？动态取模分桶实测只有 48.2% 用户保持，"

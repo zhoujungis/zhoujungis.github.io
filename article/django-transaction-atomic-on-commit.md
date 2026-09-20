@@ -1,5 +1,5 @@
 ---
-title: "事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）"
+title: "事务回滚了，邮件照样发出去——Django 事务深水区"
 slug: "django-transaction-atomic-on-commit"
 category_id: null
 tags: ["Django", "后端", "数据库", "性能优化"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）
+# 事务回滚了，邮件照样发出去——Django 事务深水区
 
 > 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，"并发三件套"的最后一篇。
 > 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 / PostgreSQL 差异处会单独标注。

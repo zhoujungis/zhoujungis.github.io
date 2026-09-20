@@ -17,7 +17,7 @@ from _auth import API_URL, get_token
 API = API_URL
 CONTENT_FILE = Path(__file__).parent / "happy_games_article_content.md"
 
-ARTICLE_TITLE = "快乐小游戏 Happy Games：24 款零框架小游戏的全栈实践与一键部署指南"
+ARTICLE_TITLE = "快乐小游戏：24 款零框架小游戏的全栈实践"
 ARTICLE_SLUG = "happy-games-24-games-zero-framework-guide"
 ARTICLE_EXCERPT = (
     "纯 HTML/CSS/JS 零框架、零构建、自包含游戏设计，集成 GNU Go WASM、Alpha-Beta 剪枝、"

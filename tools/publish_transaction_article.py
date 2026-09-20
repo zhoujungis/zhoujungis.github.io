@@ -26,7 +26,7 @@ SOURCE = (
     / "django-transaction-atomic-on-commit.md"
 )
 
-ARTICLE_TITLE = "事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测）"
+ARTICLE_TITLE = "事务回滚了，邮件照样发出去——Django 事务深水区"
 ARTICLE_SLUG = "django-transaction-atomic-on-commit"
 ARTICLE_EXCERPT = (
     "post_save 里同步群发邮件：请求被 SMTP 拖住几十秒，事务回滚了邮件照样出。"

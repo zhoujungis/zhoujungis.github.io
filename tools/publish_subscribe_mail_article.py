@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "django-subscribe-mass-mail.md"
 
-ARTICLE_TITLE = "别让一个坏邮箱毒死整批群发：邮件订阅的三次加固"
+ARTICLE_TITLE = "别让一个坏邮箱毒死整批群发：三次加固"
 ARTICLE_SLUG = "django-subscribe-mass-mail"
 ARTICLE_EXCERPT = (
     "订阅接口到群发通知的完整链路加固：validate_email 前置拦坏邮箱、"

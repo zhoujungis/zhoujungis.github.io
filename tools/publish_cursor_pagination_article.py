@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "cursor-pagination-deep-dive.md"
 
-ARTICLE_TITLE = "为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战"
+ARTICLE_TITLE = "为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页"
 ARTICLE_SLUG = "cursor-pagination-deep-dive"
 ARTICLE_EXCERPT = (
     "慢查询日志里一条 LIMIT 20 OFFSET 500000 的 SQL，把深分页问题从头讲清："

@@ -1,4 +1,4 @@
-# 敢让匿名用户评论的底气：Django 评论系统的七层防线实战
+# 敢让匿名用户评论的底气：七层防线实战
 
 > 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere
 > 代码来源：真实博客 `backend/comments/` 全应用 + `frontend/src/components/CommentForm.vue` / `CommentList.vue`，全部可运行

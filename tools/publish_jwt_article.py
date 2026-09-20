@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "django-jwt-dual-token-auth.md"
 
-ARTICLE_TITLE = "登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS"
+ARTICLE_TITLE = "登录态 1 小时就掉？Django + Vue 双 Token 认证实战"
 ARTICLE_SLUG = "django-jwt-dual-token-auth"
 ARTICLE_EXCERPT = (
     "Access 60分钟+Refresh 1天的双 Token 全链路：SimpleJWT 配置、"

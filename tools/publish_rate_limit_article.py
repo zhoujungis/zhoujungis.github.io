@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "rate-limit-algorithms-deep-dive.md"
 
-ARTICLE_TITLE = "限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个"
+ARTICLE_TITLE = "限流算法实测：固定窗口 2 倍溢出、令牌桶突刺"
 ARTICLE_SLUG = "rate-limit-algorithms-deep-dive"
 ARTICLE_EXCERPT = (
     "四种限流算法全部实现并实测：固定窗口在边界处实测 2 倍溢出（20/20 全过），"

@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "django-comment-system-guide.md"
 
-ARTICLE_TITLE = "敢让匿名用户评论的底气：Django 评论系统的七层防线实战"
+ARTICLE_TITLE = "敢让匿名用户评论的底气：七层防线实战"
 ARTICLE_SLUG = "django-comment-system-guide"
 ARTICLE_EXCERPT = (
     "一夜 40 条广告逼出的重做：草稿 guard、honeypot蜜罐、3/min限流、"

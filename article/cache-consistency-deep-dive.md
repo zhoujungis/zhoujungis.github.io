@@ -1,5 +1,5 @@
 ---
-title: "先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）"
+title: "先删缓存还是先删库？——缓存一致性实战"
 slug: "cache-consistency-deep-dive"
 category_id: null
 tags: ["Redis", "缓存", "后端", "性能优化"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）
+# 先删缓存还是先删库？——缓存一致性实战
 
 > 适用读者：给接口加过 Redis 缓存、被"缓存和数据库对不上""缓存一挂数据库就崩"坑过的后端工程师
 > 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用

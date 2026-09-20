@@ -21,7 +21,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "mq-reliable-delivery-deep-dive.md"
 
-ARTICLE_TITLE = "消息凭空消失排查记：MQ 可靠投递实测——三种配置丢消息率 0.62%、0.49%、0"
+ARTICLE_TITLE = "消息凭空消失排查记：MQ 可靠投递实测"
 ARTICLE_SLUG = "mq-reliable-delivery-deep-dive"
 ARTICLE_EXCERPT = (
     "10 万条消息注入网络丢包、Broker 宕机、消费者崩溃三类故障实测："

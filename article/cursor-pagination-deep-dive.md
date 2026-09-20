@@ -1,5 +1,5 @@
 ---
-title: "为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战"
+title: "为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页"
 slug: "cursor-pagination-deep-dive"
 category_id: null
 tags: ["Django", "后端", "DRF", "数据库"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战
+# 为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页
 
 > **适用读者**：列表接口翻得越深越慢、慢查询日志里频繁出现 `LIMIT ... OFFSET ...` 的后端工程师
 > **技术栈**：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准

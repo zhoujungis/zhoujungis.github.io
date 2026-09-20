@@ -1,5 +1,5 @@
 ---
-title: "消息凭空消失排查记：MQ 可靠投递实测——三种配置丢消息率 0.62%、0.49%、0"
+title: "消息凭空消失排查记：MQ 可靠投递实测"
 slug: "mq-reliable-delivery-deep-dive"
 category_id: null
 tags: ["后端", "消息队列", "高可用", "架构设计"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 消息凭空消失排查记：MQ 可靠投递实测——三种配置丢消息率 0.62%、0.49%、0
+# 消息凭空消失排查记：MQ 可靠投递实测
 
 > 适用读者：用 MQ 做过异步解耦，但说不清"消息到底会不会丢、丢在哪"的后端工程师
 > 技术栈：Python 纯标准库模拟链路 + 实测数据；原理与语言无关，RabbitMQ / RocketMQ / Kafka / Redis Stream 通用

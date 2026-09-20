@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-zero-downtime-migration/" />
-    <meta property="og:title" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）" />
+    <meta property="og:title" content="上线那一刻，数据库在重建整张表——零停机迁移" />
     <meta property="og:description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
     <meta property="og:url" content="https://zhoujungis.github.io/article/django-zero-downtime-migration/" />
     <meta property="og:site_name" content="个人博客-代码与生活" />
@@ -18,7 +18,7 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）" />
+    <meta name="twitter:title" content="上线那一刻，数据库在重建整张表——零停机迁移" />
     <meta name="twitter:description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
     <link rel="alternate" type="application/rss+xml" title="个人博客-代码与生活 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
@@ -26,7 +26,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
-    <title>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） | 个人博客-代码与生活</title>
+    <title>上线那一刻，数据库在重建整张表——零停机迁移 | 个人博客-代码与生活</title>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -77,11 +77,11 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T10:50:42.720034+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）","description":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:50:42.720034+08:00","dateModified":"2026-09-14T10:50:42.720059+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-zero-downtime-migration/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"上线那一刻，数据库在重建整张表——零停机迁移","description":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:50:42.720034+08:00","dateModified":"2026-09-20T19:00:06.201743+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-zero-downtime-migration/"}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）</h1>
+    <noscript><div class="ns-article"><h1>上线那一刻，数据库在重建整张表——零停机迁移</h1><div class="ns-meta">2026/9/14 · Zhou Jun</div><div class="markdown-body"><h1>上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）</h1>
 <blockquote>
 
 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你"给 <code>(status, is_top DESC, created_at DESC)</code> 补一条索引"，这一篇讲的就是<strong>那条索引怎么上线</strong>——以及为什么大多数人上线的姿势，会把整张表锁死几十秒。

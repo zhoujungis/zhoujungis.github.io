@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="API 网关实战：认证、限流、路由、协议转换的统一入口设计 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师 技术栈：原理与语言无关，文中涉及 Kong / APISIX / Spring Cloud Gateway / Envoy 对比 阅读时间：约 25 分钟 | 难度：中级 | 收获：网关核心" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/api-gateway-deep-dive/" />
-    <meta property="og:title" content="API 网关实战：认证、限流、路由、协议转换的统一入口设计" />
+    <meta property="og:title" content="API 网关实战：认证、限流与路由的统一入口" />
     <meta property="og:description" content="API 网关实战：认证、限流、路由、协议转换的统一入口设计 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师 技术栈：原理与语言无关，文中涉及 Kong / APISIX / Spring Cloud Gateway / Envoy 对比 阅读时间：约 25 分钟 | 难度：中级 | 收获：网关核心" />
     <meta property="og:url" content="https://zhoujungis.github.io/article/api-gateway-deep-dive/" />
     <meta property="og:site_name" content="个人博客-代码与生活" />
@@ -18,7 +18,7 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="API 网关实战：认证、限流、路由、协议转换的统一入口设计" />
+    <meta name="twitter:title" content="API 网关实战：认证、限流与路由的统一入口" />
     <meta name="twitter:description" content="API 网关实战：认证、限流、路由、协议转换的统一入口设计 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师 技术栈：原理与语言无关，文中涉及 Kong / APISIX / Spring Cloud Gateway / Envoy 对比 阅读时间：约 25 分钟 | 难度：中级 | 收获：网关核心" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
     <link rel="alternate" type="application/rss+xml" title="个人博客-代码与生活 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
@@ -26,7 +26,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
-    <title>API 网关实战：认证、限流、路由、协议转换的统一入口设计 | 个人博客-代码与生活</title>
+    <title>API 网关实战：认证、限流与路由的统一入口 | 个人博客-代码与生活</title>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -77,11 +77,11 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-18T10:32:43.643674+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"API 网关实战：认证、限流、路由、协议转换的统一入口设计","description":"API 网关实战：认证、限流、路由、协议转换的统一入口设计 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师 技术栈：原理与语言无关，文中涉及 Kong / APISIX / Spring Cloud Gateway / Envoy 对比 阅读时间：约 25 分钟 | 难度：中级 | 收获：网关核心","image":"https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-18T10:32:43.643674+08:00","dateModified":"2026-09-18T10:47:30.859384+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/api-gateway-deep-dive/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"API 网关实战：认证、限流与路由的统一入口","description":"API 网关实战：认证、限流、路由、协议转换的统一入口设计 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师 技术栈：原理与语言无关，文中涉及 Kong / APISIX / Spring Cloud Gateway / Envoy 对比 阅读时间：约 25 分钟 | 难度：中级 | 收获：网关核心","image":"https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-18T10:32:43.643674+08:00","dateModified":"2026-09-20T19:01:16.807061+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/api-gateway-deep-dive/"}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>API 网关实战：认证、限流、路由、协议转换的统一入口设计</h1><div class="ns-meta">2026/9/18 · Zhou Jun</div><div class="markdown-body"><h1>API 网关实战：认证、限流、路由、协议转换的统一入口设计</h1>
+    <noscript><div class="ns-article"><h1>API 网关实战：认证、限流与路由的统一入口</h1><div class="ns-meta">2026/9/18 · Zhou Jun</div><div class="markdown-body"><h1>API 网关实战：认证、限流、路由、协议转换的统一入口设计</h1>
 <blockquote>
 
 适用读者：正在从单体走向微服务、或者多个后端服务需要统一入口的工程师

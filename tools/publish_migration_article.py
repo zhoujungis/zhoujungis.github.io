@@ -26,7 +26,7 @@ SOURCE = (
     / "django-zero-downtime-migration.md"
 )
 
-ARTICLE_TITLE = "上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测）"
+ARTICLE_TITLE = "上线那一刻，数据库在重建整张表——零停机迁移"
 ARTICLE_SLUG = "django-zero-downtime-migration"
 ARTICLE_EXCERPT = (
     "加一个布尔字段，Django 在 SQLite 上会建新表、拷全表、删旧表、改名——8381 ms，"

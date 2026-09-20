@@ -16,7 +16,7 @@ from _auth import API_URL, get_token
 API = API_URL
 CONTENT_FILE = Path(__file__).parent / "ibgda_article_content.md"
 
-ARTICLE_TITLE = "不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半"
+ARTICLE_TITLE = "不靠英伟达网卡：国产 GPU 直通方案实测"
 ARTICLE_SLUG = "ibgda-domestic-gpu-rdma-demo-waic2026"
 ARTICLE_EXCERPT = (
     "WAIC 2026 上，奇异摩尔首次亮相即交出五份硬核成绩单。"

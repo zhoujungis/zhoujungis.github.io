@@ -1,4 +1,4 @@
-# 列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解
+# 列表接口从 800ms 到 80ms：分页、缓存与限流
 
 > 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis）
 > 代码来源：真实博客后端 `backend/blog_api/settings.py`、`backend/articles/views.py`，全部可运行

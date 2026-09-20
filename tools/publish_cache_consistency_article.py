@@ -23,7 +23,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "cache-consistency-deep-dive.md"
 
-ARTICLE_TITLE = "先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测）"
+ARTICLE_TITLE = "先删缓存还是先删库？——缓存一致性实战"
 ARTICLE_SLUG = "cache-consistency-deep-dive"
 ARTICLE_EXCERPT = (
     "用户改了昵称刷新还是旧的？从 Cache-Aside 的四条路线与不一致窗口时序推演，"

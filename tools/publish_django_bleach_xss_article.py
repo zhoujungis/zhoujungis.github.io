@@ -23,7 +23,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "django-bleach-xss-defense.md"
 
-ARTICLE_TITLE = "为什么我敢在 Django 博客里渲染用户的 Markdown：一条完整的 XSS 防线"
+ARTICLE_TITLE = "为什么我敢渲染用户的 Markdown：一条 XSS 防线"
 ARTICLE_SLUG = "django-bleach-xss-defense"
 ARTICLE_EXCERPT = (
     "从受控渲染、bleach 三层白名单（标签/属性/协议）、外链加固到从消毒 HTML 提取摘要，"

@@ -20,7 +20,7 @@ from _auth import API_URL, get_token
 API = API_URL
 SOURCE = Path(__file__).resolve().parent.parent / "article" / "api-idempotency-deep-dive.md"
 
-ARTICLE_TITLE = "用户只是双击了一下，订单多了 7 条——接口幂等与防重复提交实战（含并发实测）"
+ARTICLE_TITLE = "用户只是双击了一下，订单多了 7 条——接口幂等"
 ARTICLE_SLUG = "api-idempotency-deep-dive"
 ARTICLE_EXCERPT = (
     "为什么 if not exists 防不住双击？TOCTOU 窗口实测：8 并发生成 8 条订单。"

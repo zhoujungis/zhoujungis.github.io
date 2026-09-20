@@ -1,5 +1,5 @@
 ---
-title: "索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）"
+title: "索引建了，为什么排序还是没用上？——慢查询实战"
 slug: "django-slow-query-index-tuning"
 category_id: null
 tags: ["Django", "后端", "数据库", "性能优化"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://zhoujungis.github.io/photos/django-slow-query-index-cover.svg"
 ---
 
-# 索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测）
+# 索引建了，为什么排序还是没用上？——慢查询实战
 
 > 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但**条数少，不等于快**。
 > 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；原理对 MySQL 8 / PostgreSQL 同样成立，文中会标注差异。

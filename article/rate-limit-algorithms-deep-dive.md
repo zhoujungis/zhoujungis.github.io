@@ -1,5 +1,5 @@
 ---
-title: "限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个"
+title: "限流算法实测：固定窗口 2 倍溢出、令牌桶突刺"
 slug: "rate-limit-algorithms-deep-dive"
 category_id: null
 tags: ["后端", "限流", "算法", "高并发"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# 限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个
+# 限流算法实测：固定窗口 2 倍溢出、令牌桶突刺
 
 > 适用读者：给接口加过限流、但说不清"为什么选这个算法"的后端工程师
 > 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用

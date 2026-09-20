@@ -1,5 +1,5 @@
 ---
-title: "Redis 分布式锁：从 SETNX 到 Redlock，一次讲透正确姿势与失效边界"
+title: "Redis 分布式锁：一次讲透正确姿势与失效边界"
 slug: "redis-distributed-lock-deep-dive"
 category_id: null
 tags: ["Redis", "后端", "分布式", "并发"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop"
 ---
 
-# Redis 分布式锁：从 SETNX 到 Redlock，一次讲透正确姿势与失效边界
+# Redis 分布式锁：一次讲透正确姿势与失效边界
 
 > 适用读者：写过 CRUD、被超卖/重复下单/定时任务重复执行坑过的后端工程师
 > 技术栈：Redis 7 + Python / Java 双示例，不绑定 Django，Spring Boot / Go 同样适用

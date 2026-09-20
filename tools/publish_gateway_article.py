@@ -25,9 +25,7 @@ SOURCE = (
     / "api-gateway-deep-dive.md"
 )
 
-ARTICLE_TITLE = (
-    "API 网关实战：认证、限流、路由、协议转换的统一入口设计"
-)
+ARTICLE_TITLE = "API 网关实战：认证、限流与路由的统一入口"
 ARTICLE_SLUG = "api-gateway-deep-dive"
 ARTICLE_EXCERPT = (
     "从单体到微服务的跨切关注点统一方案：网关核心能力全景 + "

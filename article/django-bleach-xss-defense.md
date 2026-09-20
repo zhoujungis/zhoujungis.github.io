@@ -1,5 +1,5 @@
 ---
-title: "为什么我敢在 Django 博客里渲染用户的 Markdown：一条完整的 XSS 防线"
+title: "为什么我敢渲染用户的 Markdown：一条 XSS 防线"
 slug: "django-bleach-xss-defense"
 category_id: null
 tags: ["Django", "后端", "安全", "XSS", "Markdown"]
@@ -7,7 +7,7 @@ status: "published"
 cover_image: ""
 ---
 
-# 为什么我敢在 Django 博客里渲染用户的 Markdown：一条完整的 XSS 防线
+# 为什么我敢渲染用户的 Markdown：一条 XSS 防线
 
 > 这篇博客的后端是 Django + DRF，前端是 Vue 3。文章以 Markdown 存储在数据库里，读接口返回渲染好的 `html_content` 让前端直接展示。也就是说——**用户的 Markdown 会被我执行成 HTML**。
 
