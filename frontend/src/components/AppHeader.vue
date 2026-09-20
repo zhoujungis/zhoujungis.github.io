@@ -1,10 +1,10 @@
 <template>
   <header class="app-header">
     <div class="header-inner">
-      <router-link to="/" class="logo" aria-label="Zhou Jun 博客首页" @click="closeMenus">
-        <span class="logo-mark">ZJ</span>
+      <router-link to="/" class="logo" aria-label="博客首页" @click="closeMenus">
+        <span class="logo-mark">Blog</span>
         <span class="logo-copy">
-          <strong>Zhou Jun</strong>
+          <strong>个人博客</strong>
           <small>FIELD NOTES</small>
         </span>
       </router-link>
@@ -173,7 +173,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   background: $accent-pink;
   border-radius: 50%;
   font-family: $font-mono;
-  font-size: 0.76rem;
+  font-size: 0.62rem;
   font-weight: 700;
 }
 

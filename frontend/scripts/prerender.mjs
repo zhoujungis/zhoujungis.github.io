@@ -228,7 +228,7 @@ function upsertMeta(html, attr, key, content) {
 
 function renderArticlePage(template, article) {
   const url = `${SITE_ORIGIN}/article/${article.slug}/`
-  const title = `${article.title} | ZhouJun's Blog`
+  const title = `${article.title} | 个人博客-代码与生活`
   const description = (article.excerpt || article.title).slice(0, 160)
   const isoDate = article.created_at || ''
   const cover = article.cover_image || `${SITE_ORIGIN}/og-image.jpg`
@@ -308,7 +308,7 @@ function renderHomePage(template, articles) {
     )
     .join('\n')
   const noscript =
-    `<noscript><div class="ns-home-list"><h1>Zhou Jun · 技术与生活笔记</h1>` +
+    `<noscript><div class="ns-home-list"><h1>个人博客-代码与生活</h1>` +
     `<p>最新文章（静态快照，完整体验请启用 JavaScript）：</p><ul>\n${items}\n</ul></div></noscript>`
   let html = template
   // The shell is a build artifact reused across builds, so on every rebuild

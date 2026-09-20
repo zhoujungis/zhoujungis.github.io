@@ -4,13 +4,13 @@
  */
 export function useSEO(options = {}) {
   const {
-    title = "ZhouJun's Blog",
+    title = '个人博客-代码与生活',
     description = 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学',
     image = '',
     url = window.location.href,
   } = options
 
-  const fullTitle = title === "ZhouJun's Blog" ? title : `${title} | ZhouJun's Blog`
+  const fullTitle = title === '个人博客-代码与生活' ? title : `${title} | 个人博客-代码与生活`
 
   // Update document title
   document.title = fullTitle
@@ -58,7 +58,7 @@ export function useSEO(options = {}) {
  * Prevents the previous page's title/og from leaking onto the next page.
  */
 export const DEFAULT_SEO = {
-  title: "ZhouJun's Blog",
+  title: '个人博客 · ZhouJun',
   description: 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学',
   image: '',
   url: '',

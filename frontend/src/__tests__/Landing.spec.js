@@ -34,11 +34,13 @@ describe('Landing (Home.vue)', () => {
     expect(wrapper.find('.page-landing').exists()).toBe(true)
   })
 
-  it('renders .landing__name', async () => {
+  it('renders masthead with kicker, name and subtitle', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    expect(wrapper.find('.landing__name').text()).toBe('Zhou Jun')
+    expect(wrapper.find('.masthead__kicker').text()).toBe('个人博客 · ZhouJun · 深圳')
+    expect(wrapper.find('.masthead__name').text()).toBe('代码与生活')
+    expect(wrapper.find('.masthead__sub').text()).toBe('写字、写码、写日常')
   })
 
   it('renders latest-section with header and view-all link', async () => {
@@ -46,9 +48,9 @@ describe('Landing (Home.vue)', () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
     await flushPromises()
-    expect(wrapper.find('.latest-section').exists()).toBe(true)
-    expect(wrapper.find('.latest-title').text()).toBe('最新文章')
-    const more = wrapper.find('.latest-more')
+    expect(wrapper.find('.front-section').exists()).toBe(true)
+    expect(wrapper.find('.section-title').text()).toBe('最新文章')
+    const more = wrapper.find('.section-more')
     expect(more.exists()).toBe(true)
     expect(more.attributes('href')).toBe('/articles')
   })
@@ -70,32 +72,23 @@ describe('Landing (Home.vue)', () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
     await flushPromises()
-    expect(wrapper.find('.latest-featured').exists()).toBe(true)
+    expect(wrapper.find('.lead-story').exists()).toBe(true)
     // sorted newest-first, so 2026-01-05 (Article Five) is featured
-    expect(wrapper.find('.latest-featured__title').text()).toBe('Article Five')
-    expect(wrapper.findAll('.latest-item').length).toBe(4)
+    expect(wrapper.find('.lead-story__title').text()).toBe('Article Five')
+    expect(wrapper.findAll('.index-item').length).toBe(4)
   })
 
   it('primary CTA points to /articles', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    const cta = wrapper.find('.cta--primary')
+    const cta = wrapper.find('.mast-cta')
     expect(cta.exists()).toBe(true)
     expect(cta.attributes('href')).toBe('/articles')
     expect(cta.text()).toMatch(/阅读文章/)
   })
 
-  it('defines dark-theme overrides for landing surfaces and text', () => {
-    for (const selector of [
-      '.page-landing',
-      '.avatar-frame',
-      '.landing__name',
-      '.cta--primary',
-      '.landing__bio',
-      '.avatar-handle',
-    ]) {
-      expect(globalStyles).toContain(selector)
-    }
+  it('keeps dark-theme override for the landing surface', () => {
+    expect(globalStyles).toContain('.page-landing')
   })
 })

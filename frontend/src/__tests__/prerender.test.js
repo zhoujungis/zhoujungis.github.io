@@ -70,7 +70,7 @@ describe('renderArticlePage SEO tags', () => {
 
   it('escapes the title in <title>', () => {
     const html = renderArticlePage(SHELL, ARTICLE)
-    expect(html).toContain('<title>Hello &lt;World&gt; | ZhouJun&#39;s Blog</title>')
+    expect(html).toContain('<title>Hello &lt;World&gt; | 个人博客-代码与生活</title>')
   })
 })
 

@@ -3,11 +3,11 @@
     <!-- ── 刊头 Masthead ── -->
     <header class="masthead">
       <div class="masthead__main">
-        <p class="masthead__kicker">个人博客 · 深圳</p>
-        <h1 class="masthead__name">Zhou Jun</h1>
-        <p class="masthead__sub">技术与生活笔记</p>
+        <p class="masthead__kicker">个人博客 · ZhouJun · 深圳</p>
+        <h1 class="masthead__name">代码与生活</h1>
+        <p class="masthead__sub">写字、写码、写日常</p>
         <p class="masthead__lede">
-          写代码，也写文章。这里收录我在 AI、全栈开发与日常生活里的实践、踩坑与思考。
+          这里记录我做过的项目、踩过的坑，以及生活里值得留下的一两件事。
         </p>
       </div>
       <aside class="masthead__aside" aria-label="站点信息">
