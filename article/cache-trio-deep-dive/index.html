@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key） 适用读者：已经给接口加过 Redis 缓存、知道&quot;缓存空值/互斥锁/TTL 抖动&quot;这三个名词，但在真实流量面前还是心里没底的后端工程师 技术栈：Redis 7 + Python 3.13；原理与并发模型" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/cache-trio-deep-dive/" />
+    <meta property="og:title" content="300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）" />
+    <meta property="og:description" content="300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key） 适用读者：已经给接口加过 Redis 缓存、知道&quot;缓存空值/互斥锁/TTL 抖动&quot;这三个名词，但在真实流量面前还是心里没底的后端工程师 技术栈：Redis 7 + Python 3.13；原理与并发模型" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/cache-trio-deep-dive/" />
+    <meta property="og:site_name" content="个人博客-代码与生活" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）" />
+    <meta name="twitter:description" content="300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key） 适用读者：已经给接口加过 Redis 缓存、知道&quot;缓存空值/互斥锁/TTL 抖动&quot;这三个名词，但在真实流量面前还是心里没底的后端工程师 技术栈：Redis 7 + Python 3.13；原理与并发模型" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客-代码与生活 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key） | 个人博客-代码与生活</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-D9bWDC_W.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CnmLoTT6.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-20T11:52:35.354334+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）","description":"300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key） 适用读者：已经给接口加过 Redis 缓存、知道\"缓存空值/互斥锁/TTL 抖动\"这三个名词，但在真实流量面前还是心里没底的后端工程师 技术栈：Redis 7 + Python 3.13；原理与并发模型","image":"https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-20T11:52:35.354334+08:00","dateModified":"2026-09-20T11:52:35.354374+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cache-trio-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）</h1><div class="ns-meta">2026/9/20 · Zhou Jun</div><div class="markdown-body"><h1>300 个并发只该打 1 次库：穿透/击穿/雪崩的生产级进阶（布隆过滤器、singleflight 与热点 key）</h1>
+<blockquote>
+
+适用读者：已经给接口加过 Redis 缓存、知道"缓存空值/互斥锁/TTL 抖动"这三个名词，但在真实流量面前还是心里没底的后端工程师
+技术栈：Redis 7 + Python 3.13；原理与并发模型不绑定语言，Go / Java 同样适用
+阅读时间：约 25 分钟 | 难度：中高级 | 收获：布隆过滤器的参数推导与内存账、singleflight 的并发合并、热点 key 探测与三层防线
+前置阅读：《<a href="/article/cache-consistency-deep-dive/">先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战</a>》——那篇讲的是"三兄弟是什么、三种常规解法"；这一篇假设你已经知道那些，只讲<strong>上线之后才会遇到的那部分</strong>
+</blockquote>
+<h2>前言：基础题会做，不代表线上不出事</h2>
+
+上一篇文章里，穿透用"缓存空值"或"布隆过滤器"、击穿用"互斥锁"、雪崩用"TTL 抖动"——每个问题都能在五分钟内背出答案。
+
+但线上事故从来不按教科书出题。它长这样：
+<ul>
+<li>你给不存在的 ID 缓存了空值，攻击者换成<strong>每天几百万个不同的随机 UUID</strong>，每个只查一次，空值缓存全是一批只读一次的垃圾，内存被撑爆，而且<strong>一次都没挡住穿透</strong>；</li>
+<li>你给热点 key 加了互斥锁，流量高峰时 300 个线程全在等同一把锁，锁带来了新问题：<strong>等待队列把线程池占满</strong>，接口整体超时；</li>
+<li>你给所有缓存加了 ±10% 的 TTL 抖动，看起来已经分散了，结果 Redis 主从切换花了 40 秒，<strong>整个缓存层直接消失</strong>，抖动再随机也没用。</li>
+</ul>
+
+这篇是进阶篇，只讲四件基础篇没讲透的事：
+
+<strong>目录</strong>
+<ul>
+<li>两起事故复盘：防护措施为什么失效</li>
+<li>布隆过滤器一次讲透：误判率、内存账、能不能删</li>
+<li>空值缓存的进阶治理：和布隆过滤器打组合拳</li>
+<li>singleflight：把 300 次并发回源压成 1 次</li>
+<li>热点 key：探测手段与四种治理方案</li>
+<li>雪崩进阶：TTL 抖动只是第一层</li>
+<li>三层防线与监控指标</li>
+<li>FAQ</li>
+</ul>
+<hr>
+<h2>1. 两起事故复盘：防护措施为什么失效</h2>
+<h3>1.1 事故一：空值缓存被"一次性 UUID"撑爆</h3>
+
+某详情页接口，QPS 平时 800。上线时按教科书做了防护：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;item:</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">item_id</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s2">&quot;NULL&quot;</span><span class="p">,</span> <span class="n">ex</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>      <span class="c1"># 缓存空值，防穿透</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">serialize</span><span class="p">(</span><span class="n">item</span><span class="p">)),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">serialize</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+</code></pre></div>
+
+
+事故当天，攻击者用随机 UUID 刷 <code>/api/items/&lt;uuid&gt;/</code>：
+<div class="codehilite"><pre><span></span><code>GET /api/items/7f3a9c1e-.../   → 404，写入 item:7f3a9c1e-... = &quot;NULL&quot;
+GET /api/items/2b8d0f44-.../   → 404，写入 item:2b8d0f44-... = &quot;NULL&quot;
+...
+</code></pre></div>
+
+
+<strong>每个 key 只被查一次，永远不会有第二次命中。</strong> 空值缓存不但没挡住请求（每次都是 miss，每次都查库），还额外付出了两个代价：
+<table>
+<thead>
+<tr>
+<th>代价</th>
+<th>具体表现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内存</td>
+<td>每个 key + value + Redis 对象开销约 100 字节，300 万次请求 ≈ 300 MB，全是垃圾</td>
+</tr>
+<tr>
+<td>淘汰</td>
+<td>大量一次性 key 挤占内存，触发了 <strong>volatile-lru 淘汰，把正常业务的热点 key 一起挤出去了</strong></td>
+</tr>
+</tbody>
+</table>
+
+事后看，<strong>空值缓存防的是"重复查同一个不存在的 ID"，防不住"查不存在且永不重复的 ID"</strong>。前者是爬虫翻页，后者是攻击者。两种流量形态，需要两种武器——这就是布隆过滤器要出场的地方（第 2 章）。
+<h3>1.2 事故二：互斥锁把线程池占满了</h3>
+
+第二个事故更隐蔽。热点商品缓存加了互斥锁重建：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_product</span><span class="p">(</span><span class="n">pid</span><span class="p">):</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;product:</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;lock:product:</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nx</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ex</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>     <span class="c1"># 抢到锁的才回源</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">load_product</span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>                            <span class="c1"># 慢查询，80ms</span>
+            <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;product:</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">data</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">redis</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;lock:product:</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>                                            <span class="c1"># 没抢到，睡一会儿再重试</span>
+    <span class="k">return</span> <span class="n">get_product</span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>                                     <span class="c1"># 递归重试</span>
+</code></pre></div>
+
+
+结果：缓存过期瞬间，300 个请求同时进来，1 个回源、299 个进入 <code>sleep(0.05)</code> 后递归。这批线程在等待期间<strong>仍然占用 Web 容器的线程/worker</strong>，而 <code>load_product</code> 因为数据库此时被打满，从 80ms 涨到 800ms。
+
+递归重试 + sleep 的最坏情况是一个请求重试十几次，线程迟迟不释放，<strong>后续所有请求（包括不需要缓存的接口）都排不上队</strong>——这就是典型的"用锁做击穿防护，结果把击穿变成了雪崩"。
+
+这个案例的正确解法不是"把锁的过期时间调短"，而是<strong>进程内合并（singleflight）</strong>：等待的请求不需要"轮询重试"，而是<strong>直接挂起在第一个请求的结果上</strong>，结果出来一次性唤醒，不消耗轮询。第 4 章给实现。
+<h3>1.3 事故三（半起）：抖动做好了，Redis 挂了</h3>
+
+第三个案例没有真的出大事，因为验证过降级。批量预热脚本在凌晨 3 点刷新 20 万个缓存 key，TTL 都是 30 分钟固定值——理论上 3:30 会集体过期。加了随机抖动后，过期点被摊平在 3:00–4:00。
+
+<strong>看起来问题解决了。</strong> 但做压测时发现另一种雪崩：<code>redis-cli DEBUG SLEEP 30</code> 模拟 Redis 阻塞 30 秒，缓存层整体不可用——此时<strong>不管 TTL 抖得多均匀，所有请求都会穿透到 DB</strong>，抖动完全没有意义。
+
+所以雪崩要分两种形态治理：<strong>key 集体过期用抖动</strong>，<strong>Redis 整体不可用用多级缓存 + 熔断降级</strong>。第 6 章展开。
+<hr>
+<h2>2. 布隆过滤器一次讲透：误判率、内存账、能不能删</h2>
+<h3>2.1 原理：一次"可能不存在"的快速判断</h3>
+
+布隆过滤器的结构简单到可以在面试里手画：
+<div class="codehilite"><pre><span></span><code>m 位的位数组（全部初始为 0）：
+  [0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0]
+
+add(&quot;alice&quot;)，用 k=3 个哈希算出 3 个位置 1、5、11：
+  [0][1][0][0][0][1][0][0][0][0][0][1][0][0][0][0]
+      1           5              11
+
+add(&quot;bob&quot;)，哈希到 5、9、14：
+  [0][1][0][0][0][1][0][0][0][1][0][1][0][0][1][0]
+      1           5         9    11      14
+
+查询 &quot;carol&quot;，哈希到 5、9、11 —— 三位都是 1 → &quot;可能存在&quot;
+查询 &quot;dave&quot;， 哈希到 2、9、14 —— 第 2 位是 0 → &quot;一定不存在&quot; ✅
+</code></pre></div>
+
+
+两条铁律：
+<ol>
+<li><strong>说不存在，一定不存在</strong>（假阴性率为 0）——这是它能当防护的前提；</li>
+<li><strong>说存在，可能不存在</strong>（有假阳性，即误判）——误判只是让请求多走一次缓存/DB，不影响正确性。</li>
+</ol>
+
+这就是它和"缓存空值"的本质区别：<strong>布隆过滤器用一个几 MB 的位数组，覆盖了整个 ID 空间</strong>。攻击者的随机 UUID 也一样会被判定为"一定不存在"直接挡掉，<strong>不需要为每个不存在的 ID 存一个 key</strong>——第 1.1 节的事故从根上不会发生。
+<h3>2.2 参数推导：误判率和内存怎么换算</h3>
+
+设：
+<ul>
+<li><code>n</code> = 预计要放的元素个数</li>
+<li><code>m</code> = 位数组位数</li>
+<li><code>k</code> = 哈希函数个数</li>
+</ul>
+
+插入 n 个元素后，某一位仍为 0 的概率是 <code>(1 - 1/m)^(kn) ≈ e^(-kn/m)</code>，因此查询时 k 位<strong>都被误置为 1</strong> 的概率是：
+<div class="codehilite"><pre><span></span><code>p ≈ (1 - e^(-kn/m))^k
+</code></pre></div>
+
+
+<strong>固定 p 和 n，最优的两个参数：</strong>
+<div class="codehilite"><pre><span></span><code>m = -n · ln(p) / (ln 2)²        # 位数组大小
+k = (m / n) · ln 2              # 哈希个数
+</code></pre></div>
+
+
+代入最优解还有个漂亮的结论：<strong>每个元素只需要 <code>-ln(p)/ln2 ≈ 1.44·log2(1/p)</code> 位</strong>，且<strong>无论 n 和 p 怎么变，最优时位数组恰好有一半是 1</strong>（<code>k = m/n·ln2</code> 时 <code>e^(-kn/m) = 1/2</code>）。
+
+这个公式值多少钱？算一笔账：
+<table>
+<thead>
+<tr>
+<th>目标误判率 p</th>
+<th>每元素位数 m/n</th>
+<th>最优 k</th>
+<th>100 万元素的位数组</th>
+<th>100 万请求的误判量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5%</td>
+<td>6.2</td>
+<td>4</td>
+<td>0.78 MB</td>
+<td>5 万</td>
+</tr>
+<tr>
+<td>1%</td>
+<td>9.6</td>
+<td>7</td>
+<td>1.20 MB</td>
+<td>1 万</td>
+</tr>
+<tr>
+<td>0.1%</td>
+<td>14.4</td>
+<td>10</td>
+<td>1.80 MB</td>
+<td>1000</td>
+</tr>
+</tbody>
+</table>
+
+<strong>100 万个 ID 用 1.2 MB 就能买到 99% 的准确率。</strong> 对比第 1.1 节的空值缓存方案：300 万个空值要 300 MB，还防不住。这个数量级的差距，就是"业界为什么都上布隆过滤器"的全部理由。
+<h3>2.3 实测：理论值和实测值差多少</h3>
+
+上面是理论。我在本机跑了一遍验证（<code>tools/bench_cache_trio.py</code>，n = 10 万，双重哈希 <code>h1 + i·h2</code>）：
+<div class="codehilite"><pre><span></span><code>── E2  bloom filter: n = 100,000 items ──
+    target p   m (bits)   m/n   k   memory    measured FP   theoretical
+      0.050     623,523    6.2   4    0.08MB      5.0270%      5.0269%
+      0.010     958,506    9.6   7    0.12MB      1.0220%      1.0039%
+      0.001   1,437,759   14.4  10    0.18MB      0.1030%      0.1000%
+</code></pre></div>
+
+
+实测误判率和理论值几乎完全吻合（0.1% 那一档实测 0.1030%，理论 0.1000%）。这说明<strong>公式可以直接拿来算容量</strong>，不需要打余量到夸张的程度——但工程上仍然建议<strong>按预期元素数的 1.3–2 倍配位数组</strong>，因为：
+<ul>
+<li>n 超配后误判率是<strong>非线性上升</strong>的（插入超过设计容量后，位数组越来越满，p 会迅速恶化）；</li>
+<li>线上元素数很难预估准，尤其是"用户 ID 空间"这种会自然增长的量。</li>
+</ul>
+<h3>2.4 生产四问</h3>
+
+<strong>问题一：误判了会怎样？</strong>
+
+误判 = 一个不存在的 ID 被判定为"可能存在"。这时的行为是：<strong>继续走正常的缓存/DB 查询路径，最后返回空</strong>——和没有布隆过滤器时的行为完全一样。也就是说：
+<blockquote>
+
+<strong>布隆过滤器的误判不会导致错误结果，只会让 1% 的请求多打一次库。</strong>
+</blockquote>
+
+它把"100% 的恶意流量穿透"降级为"p 比例的流量穿透"，剩下的由缓存空值兜底——这就是下面第 3 章讲的组合拳。
+
+<strong>问题二：标准布隆过滤器能删元素吗？</strong>
+
+<strong>不能。</strong> 位数组里一位可能被多个元素共享，把某一位清 0 会<strong>误伤其他元素</strong>，产生假阴性——而假阴性意味着"把存在的数据判断为不存在"，这是正确性事故。
+
+需要删的场景有两条路：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>原理</th>
+<th>代价</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>计数布隆过滤器 Counting Bloom</td>
+<td>每位换成计数器（通常 4 bit）</td>
+<td>内存 ×4，计数溢出仍需处理</td>
+<td>删除频繁、量不大</td>
+</tr>
+<tr>
+<td>布谷鸟过滤器 Cuckoo Filter</td>
+<td>存指纹，支持删除</td>
+<td>实现复杂，装填率上限 ~95%</td>
+<td>新项目、需要删除</td>
+</tr>
+<tr>
+<td><strong>定期整体重建（推荐）</strong></td>
+<td>数据删除后，用 DB 全量重新灌一次</td>
+<td>需要双缓冲</td>
+<td><strong>绝大多数业务</strong></td>
+</tr>
+</tbody>
+</table>
+
+绝大多数业务里，"ID 被删了但布隆过滤器里还在"根本无所谓——被删的 ID 查询时只是多打一次库返回空，比引入计数布隆的复杂度划算得多。真要删，用<strong>版本化 + 定期重建</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">rebuild_bloom</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">version</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;全量重建到新 key，再原子切换指针。老 key 保留 TTL 后由 Redis 自动清理。&quot;&quot;&quot;</span>
+    <span class="n">bloom</span> <span class="o">=</span> <span class="n">BloomFilter</span><span class="p">(</span><span class="n">expected_items</span><span class="o">=</span><span class="n">count_rows</span><span class="p">(</span><span class="n">model</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">fp_rate</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">pk</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;pk&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">iterator</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">5000</span><span class="p">):</span>
+        <span class="n">bloom</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">pk</span><span class="p">))</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;bloom:</span><span class="si">{</span><span class="n">model</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:v</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">bloom</span><span class="o">.</span><span class="n">dumps</span><span class="p">(),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">86400</span><span class="p">)</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;bloom:</span><span class="si">{</span><span class="n">model</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:current&quot;</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>      <span class="c1"># 原子切换</span>
+</code></pre></div>
+
+
+<strong>问题三：怎么和写路径保持一致？</strong>
+
+布隆过滤器的"存在集合"必须覆盖数据库里所有合法 ID。三条路径：
+<ol>
+<li><strong>写数据库的同时 <code>add</code></strong>（同步，最常见）；</li>
+<li><strong>消费 binlog 异步 <code>add</code></strong>（和缓存失效同一套管道，见旧文 2.5 节）；</li>
+<li><strong>冷启动/重建时全量灌</strong>。</li>
+</ol>
+
+顺序上有个安全原则：<strong>先写库，后 add 到布隆</strong>。反过来的话，如果 add 成功而写库失败，布隆里会多一个不存在的 ID——后果只是白白放过一次穿透，是安全的失败方向；而如果写库成功、add 失败（漏了一个合法 ID），会导致<strong>正常数据被判定为不存在</strong>，这是要避免的。所以重建/补偿任务必须能容忍"布隆略滞后于库"。
+
+<strong>问题四：Redis 没有 RedisBloom 模块怎么办？</strong>
+
+用 bitmap 手写，本质就是 <code>SETBIT</code> / <code>GETBIT</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">bloom_add</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">bloom_indexes</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="n">r</span><span class="o">.</span><span class="n">setbit</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">bloom_might_contain</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">getbit</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">bloom_indexes</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+</code></pre></div>
+
+
+代价是 k 次 <code>GETBIT</code> 就是 k 次网络往返（k=7 时挺贵）。两个优化：
+<ul>
+<li><strong>本地缓存一版布隆过滤器</strong>（内存几 MB，QPS 高时收益极大，第 5 章讲本地缓存的统一做法）；</li>
+<li>用 <strong>Lua 脚本</strong>把多次 <code>GETBIT</code> 合成一次往返；</li>
+<li>或者直接用 <strong>RedisBloom 模块</strong>的 <code>BF.ADD</code> / <code>BF.EXISTS</code>，它内部用 C 实现，还支持 <code>BF.RESERVE</code> 指定误判率和扩容行为。</li>
+</ul>
+<h3>2.5 一份可以抄的实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BloomFilter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;标准布隆过滤器：double hashing（Kirsch–Mitzenmacher）。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expected_items</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">fp_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="o">-</span><span class="n">expected_items</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">fp_rate</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">/</span> <span class="n">expected_items</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bits</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_indexes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+        <span class="n">h1</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">digest</span><span class="p">[:</span><span class="mi">8</span><span class="p">],</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span>
+        <span class="n">h2</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">digest</span><span class="p">[</span><span class="mi">8</span><span class="p">:</span><span class="mi">16</span><span class="p">],</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span> <span class="o">|</span> <span class="mi">1</span>     <span class="c1"># 保证 h2 为奇数</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">h1</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">h2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bits</span><span class="p">[</span><span class="n">idx</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">]</span> <span class="o">|=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">idx</span> <span class="o">&amp;</span> <span class="mi">7</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">might_contain</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bits</span><span class="p">[</span><span class="n">idx</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">]</span> <span class="o">&gt;&gt;</span> <span class="p">(</span><span class="n">idx</span> <span class="o">&amp;</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
+</code></pre></div>
+
+
+用双重哈希构造 k 个哈希函数（<code>h1 + i·h2</code>），比真的算 k 次 SHA256 快一个数量级，误判率与理论值的偏差可以忽略——第 2.3 节的实测就是这份实现跑出来的。
+<hr>
+<h2>3. 空值缓存的进阶治理：和布隆过滤器打组合拳</h2>
+
+布隆过滤器解决"不存在的 ID"，但有一类数据它管不了：<strong>业务上合法存在、只是当前没有数据</strong>的场景（比如"这个用户今天还没有签到记录"）。这类请求会绕过布隆（ID 在集合里），仍然需要空值缓存。
+
+空值缓存的两个坑，在第 1.1 节已经见过，这里给解法：
+
+<strong>坑一：一次性 key 撑爆内存。</strong> 对策不是禁止缓存空值，而是<strong>给空值设更短的 TTL + 在网关层做形态校验</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">UUID_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>           <span class="c1"># 形态先校验，随机字符串直接挡掉</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">bloom</span><span class="o">.</span><span class="n">might_contain</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>     <span class="c1"># 不存在的 ID 挡在布隆层</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;item:</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">item_id</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s2">&quot;NULL&quot;</span><span class="p">,</span> <span class="n">ex</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>        <span class="c1"># 空值 TTL 要短（30s，不是 60s+）</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">serialize</span><span class="p">(</span><span class="n">item</span><span class="p">)),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">serialize</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+</code></pre></div>
+
+
+注意三层防护的顺序和各自的 TTL 设计：
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>挡什么</th>
+<th>TTL / 成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数形态校验</td>
+<td>明显非法的输入</td>
+<td>几乎零成本，最优先</td>
+</tr>
+<tr>
+<td>布隆过滤器</td>
+<td>不存在的 ID（含随机 ID）</td>
+<td>固定内存，7 次 GETBIT 或本地版零成本</td>
+</tr>
+<tr>
+<td>空值缓存</td>
+<td>合法但暂无数据</td>
+<td>短 TTL（30s），给数据"补上"的机会</td>
+</tr>
+</tbody>
+</table>
+
+<strong>坑二：内存被空值污染。</strong> 如果 Redis 实例容量有限，建议把空值 key 放到<strong>独立实例或独立 DB</strong>，让淘汰策略只影响空值集合，不会把业务热点 key 挤出去。这个隔离很便宜，但能避免"防护措施引发二次事故"。
+<hr>
+<h2>4. singleflight：把 300 次并发回源压成 1 次</h2>
+<h3>4.1 互斥锁方案的三个代价</h3>
+
+回到第 1.2 节。用锁 + 轮询做击穿防护，代价有三：
+<ol>
+<li><strong>轮询浪费</strong>：299 个线程反复 <code>sleep</code> + <code>GET</code>，每次都在消耗 CPU 和 Redis QPS；</li>
+<li><strong>线程占用</strong>：等锁期间请求线程被占着，线程池打满会拖垮整个服务；</li>
+<li><strong>雪上加霜</strong>：回源变慢时，轮询次数反而增加，压力正反馈。</li>
+</ol>
+
+核心问题是：<strong>等待者明明可以"直接拿到第一个请求的结果"，却选择了一遍遍去问"好了没"。</strong>
+<h3>4.2 进程内合并：singleflight</h3>
+
+Go 的 <code>golang.org/x/sync/singleflight</code> 是标准解法。Python 里没有官方版本，但自己写只要 40 行：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_Flight</span><span class="p">:</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;event&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">error</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FlightGroup</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;并发合并：同一 key 的同时刻回源只有一个真正执行，其余共享它的结果。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mu</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inflight</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Flight</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">loader</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">:</span>
+            <span class="n">flight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inflight</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">leader</span> <span class="o">=</span> <span class="n">flight</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">leader</span><span class="p">:</span>
+                <span class="n">flight</span> <span class="o">=</span> <span class="n">_Flight</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_inflight</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">flight</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">leader</span><span class="p">:</span>                      <span class="c1"># 追随者：挂起等领导者的结果</span>
+            <span class="n">flight</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">flight</span><span class="o">.</span><span class="n">error</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">flight</span><span class="o">.</span><span class="n">error</span>          <span class="c1"># 错误也共享（error sharing）</span>
+            <span class="k">return</span> <span class="n">flight</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">flight</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">loader</span><span class="p">()</span>         <span class="c1"># 领导者：只有我回源</span>
+            <span class="k">return</span> <span class="n">flight</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">flight</span><span class="o">.</span><span class="n">error</span> <span class="o">=</span> <span class="n">e</span>
+            <span class="k">raise</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_inflight</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">flight</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>              <span class="c1"># 先发布结果，再唤醒追随者</span>
+</code></pre></div>
+
+
+接进缓存读取路径：
+<div class="codehilite"><pre><span></span><code><span class="n">flights</span> <span class="o">=</span> <span class="n">FlightGroup</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_product</span><span class="p">(</span><span class="n">pid</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;product:</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">():</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">load_product</span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>                      <span class="c1"># 300 个请求，这里只跑 1 次</span>
+        <span class="n">redis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">ex</span><span class="o">=</span><span class="mi">300</span> <span class="o">+</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">60</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="k">return</span> <span class="n">flights</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">load</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>4.3 实测：300 个并发，DB 调用从 300 次变成 2 次</h3>
+<div class="codehilite"><pre><span></span><code>── E1  singleflight: 300 concurrent misses, DB latency 20 ms ──
+    no singleflight (naive)  DB calls:   300  wall time:     66.1 ms  amplification: x1.00
+    singleflight             DB calls:     2  wall time:     50.9 ms  amplification: x0.01
+</code></pre></div>
+
+
+<strong>并发度 ×300 的重复回源被压到了 2 次</strong>，墙钟时间基本不变（50.9ms vs 66.1ms，就是那次真回源的耗时）。墙钟时间不变很关键：说明省下的是<strong>纯浪费</strong>的那 299 次，而不是把请求变得更慢。
+
+<strong>为什么是 2 次而不是 1 次？</strong> 这是个值得讲清的细节：领导者在 <code>finally</code> 里先 <code>pop</code> 掉 flight，再 <code>event.set()</code>。在这<strong>两个语句之间的微秒级窗口</strong>里，一个新到的请求没看到 in-flight，于是自己当领导者又发起了一次回源。
+
+这个"多出来的 1 次"不是 bug，而是 singleflight 的固有边界：<strong>它合并的是"同一时刻已经在等待的请求"，不是"一段时间窗口内的所有请求"</strong>。想彻底合并可以加双检缓存（<code>load()</code> 里先再 <code>GET</code> 一次再回源），但对生产来说，把它当"放大倍数从 300 降到 2"理解就足够了。
+<h3>4.4 两层防线：本地合并 + 分布式锁</h3>
+
+singleflight 是<strong>进程级</strong>的：一台机器上 300 个请求合并成 1 次，但 10 台机器就是 10 次回源。所以生产上通常是两层：
+<div class="codehilite"><pre><span></span><code>请求 → 进程内 singleflight（合并本机并发）
+     → 仍未命中 → Redis 分布式锁（跨机器合并，见旧文）
+     → 拿到锁 → 回源 + 回填
+     → 没拿到锁 → 短暂等待后读缓存（不要无脑轮询）
+</code></pre></div>
+
+
+两层各自的职责要说清楚：
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>合并范围</th>
+<th>失败时的降级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>singleflight</td>
+<td>单进程内并发</td>
+<td>无锁无竞争，纯内存操作</td>
+</tr>
+<tr>
+<td>Redis 分布式锁</td>
+<td>跨进程</td>
+<td>拿不到锁直接读缓存/返回旧值</td>
+</tr>
+</tbody>
+</table>
+
+还有一点容易踩：<strong>singleflight 里要加超时</strong>。如果领导者的回源卡住（DB 慢查询 30 秒），299 个追随者会一起挂在那里。给 <code>flight.event.wait()</code> 传超时（比如 500ms），超时后走降级路径返回旧值或默认值：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="ow">not</span> <span class="n">leader</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">flight</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>     <span class="c1"># 超时不再傻等</span>
+        <span class="k">raise</span> <span class="n">CacheMissTimeout</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+</code></pre></div>
+
+<hr>
+<h2>5. 热点 key：探测手段与四种治理方案</h2>
+<h3>5.1 危害：不是 Redis 被打满，而是"单个分片"被打满</h3>
+
+热点 key 的真正麻烦在于 <strong>Redis Cluster 按 key 哈希分片</strong>：一个爆款商品的 key 会固定落在某一个分片上，<strong>整个集群 32 个分片，扛住的是其中 1 个</strong>。表现是"集群总 CPU 只有 30%，但 p99 已经飞了"——因为那一个分片的 CPU 是 100%。
+
+同理还有 <strong>Redis 单线程模型</strong>：所有命令串行执行，单个 key 的 5 万 QPS 会把所有其他命令排队在它后面。
+<h3>5.2 探测：三种手段</h3>
+<table>
+<thead>
+<tr>
+<th>手段</th>
+<th>做法</th>
+<th>优缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>客户端埋点统计</td>
+<td>在缓存客户端里按 key 前缀计数，定期上报</td>
+<td>最准、能看到 key 名；需要改客户端</td>
+</tr>
+<tr>
+<td><code>redis-cli --hotkeys</code></td>
+<td>基于 LFU 的采样统计</td>
+<td>零改造；需要 <code>maxmemory-policy allkeys-lfu</code>，采样有偏差</td>
+</tr>
+<tr>
+<td>代理层统计（如代理/自研网关）</td>
+<td>在 Redis 代理上按 key 聚合</td>
+<td>对业务透明；多一层组件</td>
+</tr>
+</tbody>
+</table>
+
+生产推荐 <strong>客户端 top-N 上报</strong>：按 key 前缀聚合（<code>product:*</code>、<code>user:*</code>），每分钟输出 Top 20，落监控看板。<strong>光有探测不够，一定要配告警</strong>——热点是"提前不知道，事后才知道"的典型。
+<h3>5.3 治理一：本地缓存（收益最大、最通用）</h3>
+
+既然热点 key 就那几个，把它们放进<strong>进程内 LRU</strong>，一次 Redis 都不用查。E3 实测（1 万次请求、1000 个 key、幂律分布、Redis 1ms）：
+<div class="codehilite"><pre><span></span><code>── E3  local cache: 10,000 requests over 1,000 keys (skewed popularity), Redis latency 1.0 ms ──
+    no local cache                   Redis ops:   10,000  Redis time:     10000 ms  p95 latency:  1.820 ms  L1 hit-rate: 0.0%
+    with L1 (cap 10% keys, TTL 1s)   Redis ops:    4,770  Redis time:      4770 ms  p95 latency:  1.938 ms  L1 hit-rate: 52.3%
+</code></pre></div>
+
+
+<strong>只用 10% 的 key 空间（100 个 key）就拦掉了 52% 的 Redis 请求</strong>——因为分布是长尾的，头部 key 贡献了绝大部分流量。代码就是一个带 TTL 的 LRU：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">cachetools</span><span class="w"> </span><span class="kn">import</span> <span class="n">TTLCache</span>
+
+<span class="n">l1</span> <span class="o">=</span> <span class="n">TTLCache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>      <span class="c1"># 1 秒足够，越短越安全</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_product</span><span class="p">(</span><span class="n">pid</span><span class="p">):</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;product:</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">hit</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">hit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">hit</span>                            <span class="c1"># 零次 Redis 往返</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">load_from_redis_or_db</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">l1</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="n">value</span>
+</code></pre></div>
+
+
+本地缓存的<strong>代价是一致性</strong>：进程内这份数据的过期时间最多滞后 L1 TTL。所以：
+<ul>
+<li>L1 TTL 要<strong>远小于</strong> Redis TTL（比如 L1 = 1s，Redis = 300s）；</li>
+<li>对<strong>绝对不能脏读</strong>的数据（余额、库存扣减）不要放 L1；秒杀这类"读多写少但必须准"的，用"L1 只放元数据、真实库存走 Redis 原子操作"。</li>
+</ul>
+<h3>5.4 治理二：key 打散（写多份）</h3>
+
+读多写少的热点，本地缓存就够了。<strong>写热点</strong>（点赞数、计数）则需要把 key 拆成 N 份，随机读写：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">incr_hot_counter</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">n_shards</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">):</span>
+    <span class="n">redis</span><span class="o">.</span><span class="n">incr</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">#</span><span class="si">{</span><span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="n">n_shards</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>     <span class="c1"># 均匀散到 8 个 key</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">read_hot_counter</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">n_shards</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">redis</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">#</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_shards</span><span class="p">))</span>
+</code></pre></div>
+
+
+这会带来两个新的取舍：<strong>读要聚合 N 次</strong>（N 越大读越贵），<strong>计数不再是精确的单一值</strong>（如果读的时候有并发写，会读到跨分片的不一致快照）。所以打散只用于<strong>可以容忍最终一致、且读不频繁</strong>的计数场景。
+<h3>5.5 治理三&amp;四：逻辑过期与只读副本</h3>
+<ul>
+<li><strong>逻辑过期</strong>：key 永不物理过期，value 里带 <code>expire_at</code>，读到已过期的数据时<strong>直接返回旧值</strong>，同时异步触发刷新。适合"数据可以短暂陈旧，但绝不能有回源抖动"的场景（首页榜单）。</li>
+<li><strong>读写分离 + 多副本</strong>：热点 key 复制到多个 Redis 副本，读请求随机打到副本上。这是<strong>代理层方案</strong>（如 Redis 集群代理），业务无感，但引入复制延迟。</li>
+</ul>
+<h3>5.6 一张表选完</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>首选方案</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>读热点、可容忍 1s 陈旧</td>
+<td>本地缓存 L1</td>
+<td>收益最大、改造成本最低</td>
+</tr>
+<tr>
+<td>读热点、必须实时</td>
+<td>逻辑过期 + 异步刷新</td>
+<td>不回源、不抖动</td>
+</tr>
+<tr>
+<td>写热点计数</td>
+<td>key 打散</td>
+<td>把单分片写压力摊到 N 个分片</td>
+</tr>
+<tr>
+<td>极端热点、读多写多</td>
+<td>代理层多副本/自研网关</td>
+<td>对业务透明，代价是组件复杂度</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>6. 雪崩进阶：TTL 抖动只是第一层</h2>
+<h3>6.1 形态一：key 集体过期——抖动幅度怎么定</h3>
+
+TTL 抖动的标准写法（旧文有）是给基础 TTL 加随机量。但<strong>抖多少</strong>是有讲究的：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">ttl_with_jitter</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">base</span> <span class="o">+</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">base</span> <span class="o">//</span> <span class="mi">4</span><span class="p">))</span>    <span class="c1"># +0 ~ +25%</span>
+</code></pre></div>
+
+
+原则：
+<ul>
+<li><strong>抖动幅度 ≥ 回源能承受的恢复时间</strong>。如果 20 万个 key 在 60 秒内陆续过期，回源峰值是 <code>20万×QPS/key / 60s</code>，要让 DB 扛得住；</li>
+<li><strong>抖动的基准要按 key 分组错开</strong>，比如"用户维度缓存"按 <code>user_id % 8</code> 分成 8 个批次，每批落在不同的分钟段；</li>
+<li>对<strong>批量预热</strong>的 key，不要让预热脚本用同一时刻的 TTL，<strong>在预热时就写入抖动后的过期时间</strong>。</li>
+</ul>
+
+最狠的一招是<strong>错峰预热</strong>：把预热任务从"一次性刷 20 万个 key"改成"分批 + 带抖动 TTL"，让过期曲线天然平滑，从源头消灭集体失效。
+<h3>6.2 形态二：Redis 整体不可用——这是另一种雪崩</h3>
+
+这是第 1.3 节提到的形态：抖动只管"过期时间分布"，管不了"缓存层整体消失"。此时要做三件事：
+
+<strong>一、多级缓存（L1 本地 + L2 Redis）。</strong> 第 5.3 节的本地缓存在这里变成<strong>救命层</strong>：Redis 挂的 30 秒里，L1 命中率越高，穿透到 DB 的流量越少。这也是为什么"能上 L1 的业务就上 L1"——它同时治热点和治雪崩。
+
+<strong>二、熔断降级（必须做，且必须演练）。</strong> Redis 不可用时，调用方要有明确的降级策略，而不是无限等待：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_product</span><span class="p">(</span><span class="n">pid</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">redis_get_product</span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">RedisTimeout</span><span class="p">,</span> <span class="ne">ConnectionError</span><span class="p">):</span>
+        <span class="n">breaker</span><span class="o">.</span><span class="n">record_failure</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">breaker</span><span class="o">.</span><span class="n">is_open</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">fallback_product</span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>       <span class="c1"># 兜底：静态数据 / 旧值 / 默认值</span>
+        <span class="k">raise</span>
+</code></pre></div>
+
+
+<strong>三、客户端超时要短。</strong> Redis 客户端默认超时往往是秒级，Redis 阻塞时这会让请求线程全部挂起。<strong>Redis 超时设 50–100ms</strong>，快速失败快速降级，这是最容易漏掉但也最救命的一行配置。
+<h3>6.3 兜底数据：给"最坏情况"准备一份答案</h3>
+
+降级路径要返回什么，必须在<strong>上线前</strong>定好，而不是事故时临时拍：
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>降级返回值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>商品详情</td>
+<td>缓存过的旧值（长 TTL 的兜底 key）</td>
+</tr>
+<tr>
+<td>首页榜单</td>
+<td>静态化的榜单快照（每 5 分钟刷一次到本地文件/配置中心）</td>
+</tr>
+<tr>
+<td>用户个性化</td>
+<td>非个性化默认列表</td>
+</tr>
+<tr>
+<td>强一致数据（库存/余额）</td>
+<td>直接失败（返回"系统繁忙"），<strong>不要返回可能错误的数</strong></td>
+</tr>
+</tbody>
+</table>
+
+最后一行是重点：<strong>降级不是所有数据都返回默认值</strong>。像库存这种，返回 0 会让用户下单失败，返回旧值会导致超卖——正确做法是<strong>明确拒绝服务</strong>，把错误暴露出来，而不是用错误数据掩盖。
+<hr>
+<h2>7. 三层防线与监控指标</h2>
+
+把全文的防护按"请求经过的层"重新排一遍，这是上线时真正要核对的东西：
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>防穿透</th>
+<th>防击穿</th>
+<th>防雪崩</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>接入层</td>
+<td>参数形态校验、限流、黑白名单</td>
+<td>热点请求限流</td>
+<td>全局限流保护下游</td>
+</tr>
+<tr>
+<td>应用层</td>
+<td>布隆过滤器、空值缓存（短 TTL）</td>
+<td>singleflight、分布式锁 + 超时</td>
+<td>熔断、降级、L1 本地缓存</td>
+</tr>
+<tr>
+<td>缓存层</td>
+<td>—</td>
+<td>逻辑过期、热点不倒扣</td>
+<td>TTL 抖动、错峰预热、多副本/集群</td>
+</tr>
+<tr>
+<td>数据层</td>
+<td>—</td>
+<td>回源接口自身的兜底超时</td>
+<td>连接池限流、只读副本</td>
+</tr>
+</tbody>
+</table>
+
+<strong>必须配的五个监控指标：</strong>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>为什么看它</th>
+<th>报警线参考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缓存命中率（按 key 前缀）</td>
+<td>命中率骤降 = 穿透或大面积失效</td>
+<td>相对基线下降 20%</td>
+</tr>
+<tr>
+<td>回源 QPS / DB QPS</td>
+<td>缓存防护是否失效的直接信号</td>
+<td>超过基线 3 倍</td>
+</tr>
+<tr>
+<td>Redis 慢查询 &amp; 单分片 CPU</td>
+<td>热点 key 的典型特征</td>
+<td>单分片 &gt; 70% 持续 1 分钟</td>
+</tr>
+<tr>
+<td>Redis 连接超时数</td>
+<td>Redis 阻塞/故障的早期信号</td>
+<td>非零即报</td>
+</tr>
+<tr>
+<td>布隆过滤器误判率（抽样统计）</td>
+<td>容量不足的前兆</td>
+<td>超过设计值 2 倍</td>
+</tr>
+</tbody>
+</table>
+
+<strong>上线 Checklist（进阶版）：</strong>
+<ul>
+<li>[ ] 不存在 ID 的流量形态确认过：是"翻页重复"还是"随机不重复"？（决定空值缓存够不够）</li>
+<li>[ ] 布隆过滤器容量按预期元素的 1.3–2 倍配置，重建路径演练过</li>
+<li>[ ] 热点 key 的读取路径有 singleflight 或 L1，且 <code>wait()</code> 有超时</li>
+<li>[ ] 缓存重建的分布式锁有兜底（拿不到锁不等死）</li>
+<li>[ ] TTL 抖动幅度经过回源能力估算，不是随手写的 <code>random(0, 60)</code></li>
+<li>[ ] Redis 客户端超时 ≤100ms，并有对应降级分支</li>
+<li>[ ] Redis 挂掉/latency 抖动 30 秒的演练做过，降级返回值语义确认过</li>
+<li>[ ] 上面五个监控指标在告警系统里都配了</li>
+</ul>
+<hr>
+<h2>8. FAQ</h2>
+
+<strong>Q1：布隆过滤器的误判会导致数据不一致吗？</strong>
+不会。误判只是让请求多走一次缓存/DB，最终结果和没有它时一致。它唯一的影响是"少挡了一部分流量"。
+
+<strong>Q2：为什么不用布隆过滤器替代空值缓存？</strong>
+两者解决不同问题：布隆管"ID 不存在"，空值管"ID 合法但当前没数据"（比如今天还没签到）。布隆不能表达"这个 key 暂时没有数据"，所以两者是组合而非替代。
+
+<strong>Q3：singleflight 和分布式锁是不是重复了？</strong>
+不重复，作用域不同：singleflight 合并<strong>单进程</strong>并发（零成本），分布式锁合并<strong>跨进程</strong>回源。生产上通常是 singleflight 在前、分布式锁在后，前者拦掉 99% 的重复。
+
+<strong>Q4：本地缓存 L1 会不会把一致性搞坏？</strong>
+会引入"最多滞后 L1 TTL"的窗口。所以 L1 TTL 要显著小于 Redis TTL（1s vs 300s），并且绝对不允许脏读的数据（余额、库存扣减）不进 L1。
+
+<strong>Q5：热点 key 探测有没有低成本方案？</strong>
+先用 <code>redis-cli --hotkeys</code>（需 LFU 策略）零改造看一轮；确认有热点后，再决定要不要在客户端做 top-N 上报。不要一上来就上自研代理层。
+
+<strong>Q6：TTL 抖动会不会导致缓存命中率下降？</strong>
+会有轻微下降（过期点被打散，某时刻总有更多 key 处于待过期状态），但相对"整点集体失效"的代价可以忽略。真正要调的是抖动幅度和批次划分，而不是取消抖动。
+
+<strong>Q7：文章里的实测脚本在哪？</strong>
+<code>tools/bench_cache_trio.py</code>，跑 <code>python tools/bench_cache_trio.py</code> 即可复现 E1/E2/E3 的全部数字——它在进程内模拟 Redis 与 DB 的延迟，不依赖真实 Redis，因为这里测量的（回源放大倍数、误判率、命中率）是并发与概率性质，跟具体存储无关。
+<hr>
+<h2>结语</h2>
+
+回头看，基础篇和进阶篇的区别不是"知不知道布隆过滤器"，而是三件事：
+<ol>
+<li><strong>知道每种方案的边界在哪</strong>——空值缓存防不住随机 ID，抖动防不住 Redis 整体挂，互斥锁会把线程池占满；</li>
+<li><strong>能算账</strong>——布隆过滤器 100 万 ID 只要 1.2MB，本地缓存用 10% 的 key 空间能拦 52% 的流量，这些是可以拿公式和实测算出来的，不是"感觉够了"；</li>
+<li><strong>有兜底</strong>——所有防护都会失效，失效时返回什么数据，必须在事故前就写好。</li>
+</ol>
+
+如果你想从这份材料里只带走一句话：<strong>缓存的每一层防护都在做"用一点点可接受的错误，换巨大的吞吐"——误判率 1%、数据陈旧 1 秒、放大倍数从 300 降到 2，都是这个交易的不同标价。</strong></div></div></noscript>
+  </body>
+</html>
