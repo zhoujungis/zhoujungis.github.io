@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/cursor-pagination-deep-dive/" />
+    <meta property="og:title" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战" />
+    <meta property="og:description" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/cursor-pagination-deep-dive/" />
+    <meta property="og:site_name" content="个人博客-代码与生活" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战" />
+    <meta name="twitter:description" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客-代码与生活 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 | 个人博客-代码与生活</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-D9bWDC_W.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CnmLoTT6.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-20T10:48:56.311332+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战","description":"为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅","image":"https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-20T10:48:56.311332+08:00","dateModified":"2026-09-20T10:48:56.311597+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cursor-pagination-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战</h1><div class="ns-meta">2026/9/20 · Zhou Jun</div><div class="markdown-body"><h1>为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战</h1>
+<blockquote>
+
+<strong>适用读者</strong>：列表接口翻得越深越慢、慢查询日志里频繁出现 <code>LIMIT ... OFFSET ...</code> 的后端工程师
+<strong>技术栈</strong>：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准
+<strong>阅读时间</strong>：约 18 分钟 | <strong>难度</strong>：中级 | <strong>收获</strong>：一套"什么时候换游标分页、怎么换、坑在哪"的完整方案
+</blockquote>
+<h2>前言：慢查询日志里的一条 SQL</h2>
+
+事情的起因是慢查询日志里的一条 SQL：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">article</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">500000</span><span class="p">;</span>
+</code></pre></div>
+
+
+这是博客文章列表接口的查询。数据量刚过百万时一切正常，但随着文章表慢慢长大，用户翻到第两万多页（搜索引擎爬虫和某些"一直往下刷"的客户端很喜欢这么干）时，这条 SQL 的耗时从 3ms 一路涨到了 2 秒以上，数据库 CPU 跟着抖动，所有走同一个连接池的请求都被拖慢。
+
+第一反应通常是"加索引"。但索引是有的——<code>(created_at DESC, id DESC)</code> 就是为了这条 ORDER BY 建的。加了索引还这么慢，说明问题不在"没走索引"，而在 <code>OFFSET</code> 这个东西本身的工作方式。
+
+这篇文章把深分页这个问题从头到尾讲清楚：OFFSET 到底慢在哪、游标分页为什么能根治、生产环境落地时的那些坑，以及什么时候不该用它。
+<h2>1. OFFSET 到底慢在哪：把"跳过"想成"读完再扔"</h2>
+
+很多人对 <code>LIMIT 20 OFFSET 500000</code> 的直觉是"数据库直接跳到第 500001 条"。<strong>这个直觉是错的</strong>。SQL 里没有"随机访问第 N 行"这种通用能力，数据库实际做的是：
+<ol>
+<li>按索引顺序读出第 1 ~ 500020 行（或回表取出需要的列）；</li>
+<li>把前 500000 行<strong>全部丢弃</strong>；</li>
+<li>返回剩下的 20 行。</li>
+</ol>
+
+也就是说，OFFSET 的工作量 = offset + limit。页码越深，要"读完再扔"的行越多，耗时线性上涨。这正是它 O(offset) 复杂度的来源。
+
+用 PostgreSQL 验证一下，100 万行的表，同样的 LIMIT，只改 OFFSET：
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">ANALYZE</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">article</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="c1">-- Limit  (cost=0.56..0.86 rows=20 width=xx) (actual time=0.03..0.09 rows=20)</span>
+
+<span class="k">EXPLAIN</span><span class="w"> </span><span class="k">ANALYZE</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">article</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">500000</span><span class="p">;</span>
+<span class="c1">-- Limit  (cost=10022.44..10022.74 rows=20 width=xx) (actual time=612.4..612.5 rows=20)</span>
+</code></pre></div>
+
+
+执行计划里能看到，第二条的启动成本（cost 前段）非常高——数据库在 Limit 节点开始"过滤"之前，先把 50 万行扫了一遍。如果 SELECT 的列不在索引里，还要每行做一次回表，代价更大。
+
+有一个常见的"优化"是把查询改写成延迟关联（deferred join），先在覆盖索引上把主键筛出来，再回表：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">title</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">article</span><span class="w"> </span><span class="n">a</span>
+<span class="k">JOIN</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">article</span>
+<span class="w">    </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="w">    </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="k">OFFSET</span><span class="w"> </span><span class="mi">500000</span>
+<span class="p">)</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">id</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+
+
+这确实能把回表次数从 500020 次降到 20 次，通常能快一个数量级。<strong>但它没有改变 O(offset) 的本质</strong>——子查询依然要扫过 50 万个索引条目。数据再涨、页码再深，延迟关联也会慢到不可用。它是"缓解"，不是"根治"。
+<h2>2. 一道简单的数学题</h2>
+
+把 OFFSET 的问题量化一下。假设列表页每页 20 条，用户翻到第 p 页时，数据库要处理的行数是 <code>20 × p</code>：
+<table>
+<thead>
+<tr>
+<th>页码</th>
+<th>OFFSET</th>
+<th>扫描行数</th>
+<th>100 万行表实测耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 1 页</td>
+<td>0</td>
+<td>20</td>
+<td>~0.1 ms</td>
+</tr>
+<tr>
+<td>第 100 页</td>
+<td>1,980</td>
+<td>2,000</td>
+<td>~3 ms</td>
+</tr>
+<tr>
+<td>第 1,000 页</td>
+<td>19,980</td>
+<td>20,000</td>
+<td>~25 ms</td>
+</tr>
+<tr>
+<td>第 10,000 页</td>
+<td>199,980</td>
+<td>200,000</td>
+<td>~250 ms</td>
+</tr>
+<tr>
+<td>第 25,000 页</td>
+<td>499,980</td>
+<td>500,000</td>
+<td>~600 ms+</td>
+</tr>
+</tbody>
+</table>
+
+（实测数据为 PostgreSQL 15，SSD，覆盖索引扫描的大致量级，仅供参考。）
+
+问题不只是单次查询慢。深分页请求往往集中在少数客户端（爬虫、批量拉数据的脚本、无限滚动的瀑布流），它们会连续发起一串越来越深的分页请求，把数据库缓冲池里真正有用的热点数据反复挤出去，<strong>拖慢的是全站所有查询</strong>。这也是为什么深分页经常和"数据库 CPU 突刺"一起出现在告警里。
+<h2>3. 游标分页的核心思想：把"第几页"换成"上一页最后一条"</h2>
+
+OFFSET 分页的语义是"跳过前 N 条"。游标分页（keyset pagination，也叫游标/滚动分页）换了一种提问方式：
+<blockquote>
+
+"我不告诉你跳过多少条，我告诉你<strong>上一页最后一条是什么</strong>，你从它后面继续给我 20 条。"
+</blockquote>
+
+回到上面的例子，客户端第一次请求拿到第 1 页后，把最后一条的排序键（<code>created_at</code>, <code>id</code>）带回来，服务端据此构造查询：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">article</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="p">(</span><span class="n">created_at</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;2026-09-01 12:00:00+08&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">86400</span><span class="p">)</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>(created_at, id) &lt; (x, y)</code> 是行值比较（row value comparison），语义是字典序比较：<code>created_at &lt; x</code>，或者 <code>created_at = x AND id &lt; y</code>。
+
+这个查询的执行路径完全不同：索引是按 <code>(created_at DESC, id DESC)</code> 有序存放的，定位到 <code>(x, y)</code> 的位置就是一次索引 seek，之后顺序读 20 条即止。<strong>无论翻到多深，扫描的行数永远恒定为 limit</strong>，复杂度从 O(offset) 变成 O(1)（相对页深而言）。
+
+对照理解：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>OFFSET 分页</th>
+<th>游标分页</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>定位方式</td>
+<td>跳过 N 条（读完再扔）</td>
+<td>索引 seek 到起点</td>
+</tr>
+<tr>
+<td>复杂度</td>
+<td>O(offset)，随页深线性恶化</td>
+<td>O(limit)，与页深无关</td>
+</tr>
+<tr>
+<td>客户端传参</td>
+<td>page=N</td>
+<td>cursor（上一页末尾的排序键）</td>
+</tr>
+<tr>
+<td>跳到任意页</td>
+<td>支持</td>
+<td>天然不支持</td>
+</tr>
+<tr>
+<td>翻页中插入新数据</td>
+<td>会看到重复行</td>
+<td>不会重复（下一节细说）</td>
+</tr>
+<tr>
+<td>依赖条件</td>
+<td>无</td>
+<td>排序键上有合适索引，且键值唯一</td>
+</tr>
+</tbody>
+</table>
+<h2>4. 最简实现：自增主键游标</h2>
+
+如果列表恰好按 <code>id</code> 倒序（很多"最新动态"类列表就是），游标分页可以简单到只有一行 WHERE：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">article</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">86400</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+
+
+Django ORM 写法：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_page</span><span class="p">(</span><span class="n">last_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">):</span>
+    <span class="n">qs</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;-id&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">last_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">qs</span> <span class="o">=</span> <span class="n">qs</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__lt</span><span class="o">=</span><span class="n">last_id</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">qs</span><span class="p">[:</span><span class="n">size</span><span class="p">])</span>
+</code></pre></div>
+
+
+这个版本适合当理解游标分页的起点，但直接上生产有两个问题：
+<ol>
+<li><strong>只支持按 id 排序</strong>。产品上常见的"按发布时间排序、时间相同时按 id 稳定"需要复合排序键；</li>
+<li><strong>游标裸奔</strong>。客户端可以随意猜测和构造 <code>last_id</code>，对于"动态流"这类接口，等于把内部主键暴露出去，还容易被脚本遍历。</li>
+</ol>
+
+这两个问题，就是第 5 节要解决的事。
+<h2>5. 生产级落地的五个细节</h2>
+<h3>5.1 排序键必须"唯一且稳定"——复合游标</h3>
+
+只按 <code>created_at</code> 排序有一个致命细节：<strong>时间戳可能重复</strong>（同一秒/同一毫秒发布多条，或者 <code>created_at</code> 只有秒级精度）。如果游标只带 <code>created_at</code>，翻页边界正好落在重复值中间时，这些行要么丢、要么重。
+
+解法是加一个 tie-breaker，把排序键做成复合键 <code>(created_at, id)</code>——<code>id</code> 唯一，保证整体排序全序唯一；<code>created_at</code> 满足业务排序需求。索引也照此建：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_article_feed</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">article</span><span class="w"> </span><span class="p">(</span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span><span class="p">);</span>
+</code></pre></div>
+
+
+对应的 WHERE，在 PostgreSQL 里可以直接用行值比较（PG 优化器能正确展开它）：
+<div class="codehilite"><pre><span></span><code><span class="k">WHERE</span><span class="w"> </span><span class="p">(</span><span class="n">created_at</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;2026-09-01 12:00:00+08&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">86400</span><span class="p">)</span>
+</code></pre></div>
+
+
+MySQL 8 的优化器对行值构造器（row constructor）的索引利用不理想，建议手动展开成等价的 OR 形式：
+<div class="codehilite"><pre><span></span><code><span class="k">WHERE</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="s1">&#39;2026-09-01 12:00:00&#39;</span>
+<span class="w">   </span><span class="k">OR</span><span class="w"> </span><span class="p">(</span><span class="n">created_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;2026-09-01 12:00:00&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">86400</span><span class="p">)</span>
+</code></pre></div>
+
+
+（注意是 OR，不是 AND，也别写反比较方向——这是游标分页最常见的 bug 来源。）
+<h3>5.2 游标要做成不透明字符串，并加签名</h3>
+
+游标不应该让客户端传裸的 <code>last_id=86400</code>，而应该是一个服务端签发、客户端原样回传的不透明字符串，例如：
+<div class="codehilite"><pre><span></span><code>cursor=gAAAAABnZxk3...（base64url）
+</code></pre></div>
+
+
+服务端编码和解码：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">base64</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">hmac</span><span class="o">,</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+
+<span class="n">_SECRET</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">SECRET_KEY</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">encode_cursor</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="n">sig</span> <span class="o">=</span> <span class="n">hmac</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">_SECRET</span><span class="p">,</span> <span class="n">raw</span><span class="p">,</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()[:</span><span class="mi">8</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="o">.</span><span class="n">urlsafe_b64encode</span><span class="p">(</span><span class="n">sig</span> <span class="o">+</span> <span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_cursor</span><span class="p">(</span><span class="n">cursor</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cursor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">urlsafe_b64decode</span><span class="p">(</span><span class="n">cursor</span> <span class="o">+</span> <span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">cursor</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span><span class="p">))</span>
+        <span class="n">sig</span><span class="p">,</span> <span class="n">raw</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="mi">8</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="mi">8</span><span class="p">:]</span>
+        <span class="n">expected</span> <span class="o">=</span> <span class="n">hmac</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">_SECRET</span><span class="p">,</span> <span class="n">raw</span><span class="p">,</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()[:</span><span class="mi">8</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">hmac</span><span class="o">.</span><span class="n">compare_digest</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">expected</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;bad signature&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;无效的游标&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+签名的作用有两层：防止客户端篡改游标去"遍历"不该遍历的数据；也防止乱传的排序键让数据库走全表扫描（配合下面的白名单校验，双保险）。
+<h3>5.3 NULL 值排序的坑</h3>
+
+如果排序键可能为 NULL（比如草稿文章没有 <code>published_at</code>），必须先弄清数据库的默认行为：
+<ul>
+<li><strong>PostgreSQL</strong>：<code>DESC</code> 排序时 NULL 默认排在<strong>最前面</strong>（等价于 <code>NULLS FIRST</code>）；</li>
+<li><strong>MySQL</strong>：<code>DESC</code> 时 NULL 排在<strong>最后面</strong>。</li>
+</ul>
+
+两个库行为相反，跨库迁移时会直接翻车。建议显式声明，别依赖默认值：
+<div class="codehilite"><pre><span></span><code><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="n">NULLS</span><span class="w"> </span><span class="k">LAST</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span>
+</code></pre></div>
+
+
+或者更干脆：在表上把排序键定义为 <code>NOT NULL DEFAULT xxx</code>，让游标永远不碰 NULL。含 NULL 的排序键 + 游标分页 = 难以复现的"偶发丢数据"，能避开就避开。
+<h3>5.4 "翻页期间数据在变"的快照语义</h3>
+
+OFFSET 分页有个隐蔽的毛病：翻到第 3 页时有人发了新文章，所有行整体后移，第 2 页看过的内容会再次出现在第 3 页。游标分页天然免疫这个问题——游标锚定的是"上一页最后一条的位置"，中间插入了多少新行都不影响下一次查询的起点。这也是信息流类产品全部使用游标分页的根本原因。
+
+但注意它不是银弹：
+<ul>
+<li><strong>新增</strong>：不丢不重，游标分页天然正确；</li>
+<li><strong>删除</strong>：如果上一页的最后一条被删了，游标依然有效（WHERE 条件仍然能定位到正确区间，因为比较是基于排序键的值而不是行的存在性）——这是用 <code>(created_at, id)</code> 这种"值游标"相对用主键位置的好处；</li>
+<li><strong>排序键被更新</strong>（比如按 <code>updated_at</code> 排序，而这条数据刚被编辑过）：它可能"跳"到更早的位置，导致客户端看到重复。按会被更新的字段排序时要想清楚这个语义，能按不可变字段（<code>created_at</code>、<code>id</code>）排序就不要按 <code>updated_at</code>。</li>
+</ul>
+<h3>5.5 总数怎么办：COUNT 的代价与"没有下一页"探测</h3>
+
+OFFSET 分页可以顺手返回总页数，客户端也因此习惯了"共 1,024 条，跳到最后一页"。换成游标分页后，这些都要重新设计：
+<ul>
+<li><strong>精确 COUNT(*) 是另一种深分页</strong>。PG 的 count 需要扫全表或全索引，百万行表上一次 count 就是几百毫秒，缓存命中率还低；</li>
+<li><strong>用估算值</strong>：PG 从 <code>pg_class.reltuples</code>、MySQL 从 <code>SHOW TABLE STATUS</code> 的 Rows 列拿行数估算，展示成"约 100 万+"，成本接近零；</li>
+<li><strong>判断有没有下一页</strong>：标准做法是每次多取一条——<code>LIMIT 21</code> 取 21 条，取满 21 条说明还有下一页，只返回前 20 条。免去一次单独的 exists 查询。</li>
+</ul>
+
+产品设计上接受这个变化：<strong>无限滚动/加载更多</strong>用游标分页；<strong>跳页 + 精确总数</strong>（比如管理后台）保留 OFFSET 分页。两者不冲突，按场景选。
+<h2>6. 一个可直接抄的 DRF 实现</h2>
+
+DRF 自带的 <code>CursorPagination</code> 已经实现了签名游标，但只支持单一 <code>ordering</code> 且游标结构是私有的。下面的自定义分页类支持复合排序键、双向翻页（上一页/下一页），游标带 HMAC 签名：
+<div class="codehilite"><pre><span></span><code><span class="c1"># core/pagination.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">base64</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">hmac</span><span class="o">,</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">BasePagination</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.response</span><span class="w"> </span><span class="kn">import</span> <span class="n">Response</span>
+
+<span class="n">SECRET</span> <span class="o">=</span> <span class="s2">&quot;换成一个独立的 32 位以上随机串&quot;</span>  <span class="c1"># 不要复用 SECRET_KEY</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sign</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">hmac</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">SECRET</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span> <span class="n">raw</span><span class="p">,</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()[:</span><span class="mi">8</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">encode_cursor</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="o">.</span><span class="n">urlsafe_b64encode</span><span class="p">(</span><span class="n">_sign</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="o">+</span> <span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_cursor</span><span class="p">(</span><span class="n">cursor</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cursor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">urlsafe_b64decode</span><span class="p">(</span><span class="n">cursor</span> <span class="o">+</span> <span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">cursor</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span><span class="p">))</span>
+        <span class="n">sig</span><span class="p">,</span> <span class="n">raw</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="mi">8</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="mi">8</span><span class="p">:]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">hmac</span><span class="o">.</span><span class="n">compare_digest</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">_sign</span><span class="p">(</span><span class="n">raw</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;无效的游标参数&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">KeysetPagination</span><span class="p">(</span><span class="n">BasePagination</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;按 (created_at, id) 倒序的游标分页。</span>
+<span class="sd">    前提：模型上有 (created_at, id) 索引，且两个字段均 NOT NULL。&quot;&quot;&quot;</span>
+
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="n">cursor_query_param</span> <span class="o">=</span> <span class="s2">&quot;cursor&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">paginate_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">queryset</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">request</span> <span class="o">=</span> <span class="n">request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">page_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_page_size</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">decode_cursor</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cursor_query_param</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+        <span class="c1"># 游标携带上一页末尾的 (created_at, id)；</span>
+        <span class="c1"># d=next 表示向更旧翻，prev 表示向更新翻</span>
+        <span class="n">direction</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;d&quot;</span><span class="p">,</span> <span class="s2">&quot;next&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;t&quot;</span> <span class="ow">in</span> <span class="n">cur</span><span class="p">:</span>
+            <span class="n">ts</span><span class="p">,</span> <span class="n">pid</span> <span class="o">=</span> <span class="n">cur</span><span class="p">[</span><span class="s2">&quot;t&quot;</span><span class="p">],</span> <span class="n">cur</span><span class="p">[</span><span class="s2">&quot;i&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;next&quot;</span><span class="p">:</span>
+                <span class="n">queryset</span> <span class="o">=</span> <span class="n">queryset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+                    <span class="n">Q</span><span class="p">(</span><span class="n">created_at__lt</span><span class="o">=</span><span class="n">ts</span><span class="p">)</span> <span class="o">|</span> <span class="n">Q</span><span class="p">(</span><span class="n">created_at</span><span class="o">=</span><span class="n">ts</span><span class="p">,</span> <span class="n">id__lt</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;-created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;-id&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># prev：取上一页 = 取该位置之前(更新方向)的 size 条后反转</span>
+                <span class="n">queryset</span> <span class="o">=</span> <span class="n">queryset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+                    <span class="n">Q</span><span class="p">(</span><span class="n">created_at__gt</span><span class="o">=</span><span class="n">ts</span><span class="p">)</span> <span class="o">|</span> <span class="n">Q</span><span class="p">(</span><span class="n">created_at</span><span class="o">=</span><span class="n">ts</span><span class="p">,</span> <span class="n">id__gt</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;id&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">direction</span> <span class="o">=</span> <span class="s2">&quot;next&quot;</span>
+            <span class="n">queryset</span> <span class="o">=</span> <span class="n">queryset</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;-created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;-id&quot;</span><span class="p">)</span>
+
+        <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">queryset</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>  <span class="c1"># 多取 1 条探测下一页</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">has_next</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">rows</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;prev&quot;</span><span class="p">:</span>
+            <span class="n">rows</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">=</span> <span class="n">rows</span>
+        <span class="k">return</span> <span class="n">rows</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_paginated_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">first</span><span class="p">,</span> <span class="n">last</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="k">else</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">cur_of</span><span class="p">(</span><span class="n">direction</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">row</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">encode_cursor</span><span class="p">({</span><span class="s2">&quot;d&quot;</span><span class="p">:</span> <span class="n">direction</span><span class="p">,</span> <span class="s2">&quot;t&quot;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">created_at</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(),</span> <span class="s2">&quot;i&quot;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([</span>
+            <span class="p">(</span><span class="s2">&quot;next&quot;</span><span class="p">,</span> <span class="n">cur_of</span><span class="p">(</span><span class="s2">&quot;next&quot;</span><span class="p">,</span> <span class="n">last</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_next</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;previous&quot;</span><span class="p">,</span> <span class="n">cur_of</span><span class="p">(</span><span class="s2">&quot;prev&quot;</span><span class="p">,</span> <span class="n">first</span><span class="p">)</span> <span class="k">if</span> <span class="n">first</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;results&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">),</span>
+        <span class="p">]))</span>
+</code></pre></div>
+
+
+（记得 <code>from django.db.models import Q</code>。）
+
+配套的索引和视图：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="p">[</span><span class="n">models</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;-created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;-id&quot;</span><span class="p">])]</span>
+        <span class="c1"># PG 里 (-created_at, -id) 索引同样支持 ASC 查询的反向扫描，一个索引够用</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ModelViewSet</span><span class="p">):</span>
+    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="n">pagination_class</span> <span class="o">=</span> <span class="n">KeysetPagination</span>
+</code></pre></div>
+
+
+客户端的使用方式变成：
+<div class="codehilite"><pre><span></span><code>GET /api/articles?                  → 第一页，返回 {next, previous, results}
+GET /api/articles?cursor=gAAAAAB... → 下一页，cursor 原样传上一次响应里的 next
+</code></pre></div>
+
+
+如果不想自己维护这套逻辑，DRF 内置的 <code>CursorPagination</code> 也可以直接用——它同样基于签名游标，只是在"指定排序字段的灵活性"上弱一些，用之前读一遍它的源码确认游标结构和排序键的选择（它的默认游标依赖 <code>created_at</code>，跨分页期间字段值被更新时同样适用 5.4 节的语义讨论）。
+<h2>7. 改造前后的性能对比</h2>
+
+同一张 100 万行的文章表（PostgreSQL 15，覆盖索引），每页 20 条：
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>OFFSET 分页</th>
+<th>延迟关联</th>
+<th>游标分页</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 1 页</td>
+<td>~0.1 ms</td>
+<td>~0.2 ms</td>
+<td>~0.2 ms</td>
+</tr>
+<tr>
+<td>第 1,000 页</td>
+<td>~25 ms</td>
+<td>~4 ms</td>
+<td>~0.3 ms</td>
+</tr>
+<tr>
+<td>第 10,000 页</td>
+<td>~250 ms</td>
+<td>~35 ms</td>
+<td>~0.3 ms</td>
+</tr>
+<tr>
+<td>第 25,000 页</td>
+<td>~600 ms</td>
+<td>~90 ms</td>
+<td>~0.3 ms</td>
+</tr>
+<tr>
+<td>全链路爬完 5 万页总耗时</td>
+<td>数十分钟</td>
+<td>数分钟</td>
+<td>约 2 分钟（受网络 RTT 限制）</td>
+</tr>
+</tbody>
+</table>
+
+三个观察：
+<ol>
+<li><strong>游标分页的成本是一条水平线</strong>，与页深完全无关——这是它相对另外两个方案的本质优势；</li>
+<li><strong>延迟关联是廉价的止血手段</strong>：改动只有一条 SQL，在页深不超过几千时收益明显，适合作为"暂时不能改接口"时的过渡方案；</li>
+<li>爬虫场景下，游标分页让"全量拉取"的成本从随数据量平方增长，变成线性增长——这次改造后，搜索引擎抓取对数据库的压力几乎降为零。</li>
+</ol>
+<h2>8. 什么时候不要用游标分页</h2>
+
+游标分页不是万金油，出现这些情况时，OFFSET（或干脆不分页）可能更合适：
+<ul>
+<li><strong>用户需要跳页和精确总数</strong>：管理后台、报表类页面，翻页 UI 是"第 3 页 / 共 47 页"。这类场景数据量通常可控，OFFSET + 合理索引 + 延迟关联足够；</li>
+<li><strong>结果集很小</strong>：几百行的字典表，直接全量返回加客户端分页，省掉所有服务端分页的复杂度；</li>
+<li><strong>排序必须由动态计算决定</strong>：按"热度 = 点赞×2 + 评论"这类计算字段排序，且计算无法落到索引上，游标定位就无从谈起——要么把热度物化成列并建索引，要么接受慢查询加缓存；</li>
+<li><strong>接口已经稳定运行、页深很浅</strong>：改造成本（客户端配合改传参）大于收益，先用延迟关联止血即可。</li>
+</ul>
+
+一个务实的迁移路径：<strong>老接口不动，新接口直接游标分页；最深的那个流量入口（通常是信息流/列表 API）优先改造</strong>。深分页流量往往高度集中在一两个接口上，改造一两个接口就能消掉大部分慢查询。
+<h2>上线 Checklist</h2>
+<ul>
+<li>[ ] 排序键是否唯一且稳定？复合键 <code>(created_at, id)</code>，tie-breaker 必须有</li>
+<li>[ ] <code>(created_at, id)</code> 上的索引建了吗？方向与 ORDER BY 一致</li>
+<li>[ ] 排序键两个字段都 NOT NULL 了吗？含 NULL 时显式声明 NULLS LAST</li>
+<li>[ ] 游标加 HMAC 签名 + base64url 了吗？非法游标返回 400 而不是 500</li>
+<li>[ ] <code>LIMIT size + 1</code> 探测下一页，而不是单独发 exists 查询</li>
+<li>[ ] 总数改为估算值或干脆去掉，产品确认接受"不能跳页"</li>
+<li>[ ] MySQL 下行值比较是否展开为 OR 形式？</li>
+<li>[ ] 客户端文档写清楚：cursor 原样回传，不解析、不过期重试要重置到第一页</li>
+<li>[ ] 慢查询日志确认深分页 SQL 消失，压测翻 1000 页对比耗时</li>
+</ul>
+<h2>结语</h2>
+
+深分页的本质是一句话：<strong>OFFSET 让数据库为"跳过"买单，游标让数据库为"定位"干活</strong>。跳过的成本随页深线性增长，而 B+ 树上定位一次的成本是常数。
+
+改造本身不难——一个复合排序键、一个签名游标、一个 <code>LIMIT n+1</code> 的探测，两三百行代码。真正的工作量在于说服产品和客户端接受"不能跳页"的交互变化，以及梳理清楚排序字段的快照语义。把这两件事想清楚，剩下的都是体力活。
+
+如果你的慢查询日志里也开始出现深分页 SQL，希望这篇能帮你一次改到位。</div></div></noscript>
+  </body>
+</html>
