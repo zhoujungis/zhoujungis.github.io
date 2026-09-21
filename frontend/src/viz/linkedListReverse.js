@@ -24,8 +24,16 @@
  */
 
 import { buildSteps } from './linkedListSteps'
+import {
+  ensureChromeStyles,
+  removeChromeStyles,
+  renderRichText,
+  createControls,
+  createPlayer,
+  svgEl as svg,
+  svgArrow,
+} from './widgetChrome'
 
-const SVG_NS = 'http://www.w3.org/2000/svg'
 const STYLE_ID = 'llv-styles'
 
 // ── 布局常量（SVG 用户单位）────────────────────────────────────────────────
@@ -48,83 +56,22 @@ const PLAY_MS = 1150
 
 let instances = 0
 
-/**
- * 把 [1,2,3,4,5] 这样的数组展开成"每一步的状态快照"。
- * 逻辑本身在 ./linkedListSteps.js（纯函数，有单测），这里只负责画。
- */
-function svg(tag, attrs) {
-  const node = document.createElementNS(SVG_NS, tag)
-  if (attrs) {
-    for (const key in attrs) node.setAttribute(key, attrs[key])
-  }
-  return node
-}
-
-/** 一条带箭头的连线：直线 + 手画的三角箭头（比 marker 可靠，也不用管 context-stroke） */
-function edgeGroup(fromX, toX, y, dir) {
-  const head = 9
-  const g = svg('g', { class: 'llv-edge' })
-  const tipX = dir > 0 ? toX : fromX
-  const tailX = dir > 0 ? fromX : toX
-  g.appendChild(svg('line', { class: 'llv-edge__line', x1: tailX, y1: y, x2: tipX - dir * head, y2: y }))
-  g.appendChild(
-    svg('path', {
-      class: 'llv-edge__head',
-      d: `M ${tipX} ${y} L ${tipX - dir * head} ${y - 5.5} L ${tipX - dir * head} ${y + 5.5} Z`,
-    }),
-  )
-  return g
-}
-
-/**
- * 把说明文字里的 `反引号片段` 渲染成等宽 <code>。
- *
- * 为什么不用 innerHTML：desc 里会拼进 values，虽然眼下都是数字，但
- * 一个能被外部数据影响、又直接喂给 innerHTML 的地方就是隐患。手动切分后
- * 逐个建节点，成本很低，也彻底堵掉这类问题。
- */
-function renderRichText(container, text) {
-  container.textContent = ''
-  const parts = String(text).split('`')
-  parts.forEach((part, i) => {
-    if (!part) return
-    if (i % 2 === 1) {
-      const code = document.createElement('code')
-      code.textContent = part
-      container.appendChild(code)
-    } else {
-      container.appendChild(document.createTextNode(part))
-    }
-  })
-}
+/** 一条带箭头的连线，只是给共用的 svgArrow 起个短名字 */
+const edgeGroup = (fromX, toX, y, dir) => svgArrow(fromX, toX, y, dir, 'llv-edge')
 
 const STYLES = `
+/* 只有这块 SVG 的样式是 LC 206 专属的；容器 / 说明 / 控制条在外壳里
+   （widgetChrome.js 的 .viz*），两个动画共用。 */
 .llv {
   --llv-prev: var(--accent, #3f6b57);
   --llv-curr: var(--accent-secondary, #a45f45);
   --llv-next: #c89a46;
   --llv-edge: var(--text-secondary, #657168);
-  margin: 1.6em 0;
-  padding: 16px 16px 12px;
-  background: var(--surface-muted, #ecefe8);
-  border: 1px solid var(--glass-border, #dce2da);
-  border-radius: 10px;
 }
 html.theme-dark .llv {
   --llv-next: #d9b063;
 }
-.llv__stage {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-.llv__svg {
-  display: block;
-  width: 100%;
-  min-width: 460px;
-  height: auto;
-  font-family: inherit;
-}
+.llv__svg { min-width: 460px; }
 .llv-node__box {
   fill: var(--surface, #fff);
   stroke: var(--glass-border, #dce2da);
@@ -191,70 +138,13 @@ html.theme-dark .llv {
 .llv-chip--curr .llv-chip__text { fill: #fff; }
 .llv-chip--next .llv-chip__box { fill: var(--llv-next); }
 .llv-chip--next .llv-chip__text { fill: #2a2113; }
-.llv__desc {
-  margin: 14px 0 0;
-  padding: 0;
-  min-height: 3.2em;
-  color: var(--text-primary, #1f2a24);
-  font-size: 0.9rem;
-  line-height: 1.75;
-}
-.llv__desc code {
-  padding: 1px 5px;
-  background: rgba(101, 113, 104, 0.16);
-  border-radius: 4px;
-  font-size: 0.85em;
-}
-.llv__bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--glass-border, #dce2da);
-}
-.llv__btn {
-  padding: 7px 14px;
-  color: var(--text-primary, #1f2a24);
-  background: var(--surface, #fff);
-  border: 1px solid var(--glass-border, #dce2da);
-  border-radius: 7px;
-  font-size: 0.82rem;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
-}
-.llv__btn:hover:not(:disabled) {
-  color: var(--accent, #3f6b57);
-  border-color: var(--accent, #3f6b57);
-}
-.llv__btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.llv__btn--play {
-  color: #fff;
-  background: var(--accent, #3f6b57);
-  border-color: var(--accent, #3f6b57);
-  font-weight: 600;
-}
-.llv__btn--play:hover:not(:disabled) { color: #fff; opacity: 0.88; }
-.llv__count {
-  margin-left: auto;
-  color: var(--text-secondary, #657168);
-  font-size: 0.78rem;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-}
-@media (max-width: 560px) {
-  .llv { padding: 12px 10px 10px; }
-  .llv__desc { font-size: 0.85rem; }
-  .llv__count { width: 100%; margin-left: 0; text-align: right; }
-}
 @media (prefers-reduced-motion: reduce) {
   .llv-chip, .llv-edge, .llv-node__box { transition: none; }
 }
 `
 
 function ensureStyles() {
+  ensureChromeStyles() // 容器 / 说明 / 控制条，和别的动画共用
   if (document.getElementById(STYLE_ID)) return
   const style = document.createElement('style')
   style.id = STYLE_ID
@@ -300,14 +190,14 @@ export function mountLinkedListReverse(host, options = {}) {
 
   // ── 一次性把 SVG 骨架建好，之后只改属性/类名，这样 CSS 过渡才能生效 ──────
   const root = document.createElement('div')
-  root.className = 'llv'
+  root.className = 'viz llv'
 
   const stage = document.createElement('div')
-  stage.className = 'llv__stage'
+  stage.className = 'viz__stage'
   root.appendChild(stage)
 
   const svgRoot = svg('svg', {
-    class: 'llv__svg',
+    class: 'viz__svg llv__svg',
     viewBox: `0 0 ${width} ${HEIGHT}`,
     role: 'img',
     'aria-label': `反转链表推演动画：${values.join(' → ')}`,
@@ -392,40 +282,18 @@ export function mountLinkedListReverse(host, options = {}) {
   const chipCurr = makeChip('curr', 'curr')
   svgRoot.append(chipNext, chipPrev, chipCurr)
 
-  // 说明文字 + 控制条
+  // 说明文字 + 控制条（外壳见 widgetChrome.js）
   const desc = document.createElement('p')
-  desc.className = 'llv__desc'
+  desc.className = 'viz__desc'
   desc.setAttribute('aria-live', 'polite')
   root.appendChild(desc)
 
-  const bar = document.createElement('div')
-  bar.className = 'llv__bar'
-  const btnPrev = document.createElement('button')
-  btnPrev.type = 'button'
-  btnPrev.className = 'llv__btn'
-  btnPrev.textContent = '上一步'
-  const btnPlay = document.createElement('button')
-  btnPlay.type = 'button'
-  btnPlay.className = 'llv__btn llv__btn--play'
-  btnPlay.textContent = '播放'
-  const btnNext = document.createElement('button')
-  btnNext.type = 'button'
-  btnNext.className = 'llv__btn'
-  btnNext.textContent = '下一步'
-  const btnReset = document.createElement('button')
-  btnReset.type = 'button'
-  btnReset.className = 'llv__btn'
-  btnReset.textContent = '重置'
-  const count = document.createElement('span')
-  count.className = 'llv__count'
-  bar.append(btnPrev, btnPlay, btnNext, btnReset, count)
-  root.appendChild(bar)
+  const controls = createControls()
+  root.appendChild(controls.root)
 
   host.textContent = ''
   host.appendChild(root)
 
-  let index = Math.min(Math.max(0, Math.trunc(options.initialStep) || 0), steps.length - 1)
-  let timer = null
   let observer = null
 
   function setChip(chip, tick, x, cy, show, tickTopY, tickBottomY) {
@@ -442,9 +310,7 @@ export function mountLinkedListReverse(host, options = {}) {
     }
   }
 
-  function render() {
-    const step = steps[index]
-
+  function paint(index, step) {
     // 节点高亮
     for (let i = 0; i < n; i += 1) {
       const g = nodeGroups[i]
@@ -499,58 +365,15 @@ export function mountLinkedListReverse(host, options = {}) {
     )
 
     renderRichText(desc, step.desc)
-    count.textContent = `第 ${index + 1} / ${steps.length} 步`
-    btnPrev.disabled = index === 0
-    btnNext.disabled = index === steps.length - 1
-    btnReset.disabled = index === 0 && !timer
   }
 
-  function stop() {
-    if (timer) {
-      clearInterval(timer)
-      timer = null
-    }
-    btnPlay.textContent = '播放'
-    btnPlay.classList.add('llv__btn--play')
-  }
-
-  function play() {
-    if (timer) return
-    if (index === steps.length - 1) index = 0
-    btnPlay.textContent = '暂停'
-    timer = setInterval(() => {
-      if (index >= steps.length - 1) {
-        stop()
-        render()
-        return
-      }
-      index += 1
-      render()
-    }, PLAY_MS)
-    render()
-  }
-
-  function goTo(delta) {
-    stop()
-    index = Math.min(steps.length - 1, Math.max(0, index + delta))
-    render()
-  }
-
-  const onPlay = () => (timer ? stop() : play())
-  const onPrev = () => goTo(-1)
-  const onNext = () => goTo(1)
-  const onReset = () => {
-    stop()
-    index = 0
-    render()
-  }
-
-  btnPlay.addEventListener('click', onPlay)
-  btnPrev.addEventListener('click', onPrev)
-  btnNext.addEventListener('click', onNext)
-  btnReset.addEventListener('click', onReset)
-
-  render()
+  const player = createPlayer({
+    steps,
+    controls,
+    intervalMs: PLAY_MS,
+    onRender: paint,
+  })
+  player.jumpTo(Math.trunc(options.initialStep) || 0)
 
   // 滚动到可见时自动播一次 —— 读者不用先找播放键
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -561,7 +384,7 @@ export function mountLinkedListReverse(host, options = {}) {
           if (entry.isIntersecting) {
             observer.disconnect()
             observer = null
-            play()
+            player.play()
             return
           }
         }
@@ -573,20 +396,17 @@ export function mountLinkedListReverse(host, options = {}) {
 
   return {
     destroy() {
-      stop()
       if (observer) {
         observer.disconnect()
         observer = null
       }
-      btnPlay.removeEventListener('click', onPlay)
-      btnPrev.removeEventListener('click', onPrev)
-      btnNext.removeEventListener('click', onNext)
-      btnReset.removeEventListener('click', onReset)
+      player.destroy()
       host.textContent = ''
       delete host.dataset.llvMounted
       instances -= 1
       if (instances <= 0) {
         document.getElementById(STYLE_ID)?.remove()
+        removeChromeStyles()
       }
     },
   }

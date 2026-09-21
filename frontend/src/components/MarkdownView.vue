@@ -7,6 +7,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import DOMPurify from 'dompurify'
 import { stripLeadingDuplicateTitle } from '@/utils/articleHtml'
 import { mountLinkedListReverse } from '@/viz/linkedListReverse'
+import { mountMergeTwoLists } from '@/viz/mergeTwoLists'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -293,6 +294,7 @@ async function processEnhancements() {
 // 加新动画时：实现一个同签名的模块，在这里注册一行。
 const VIZ_MOUNTERS = {
   'algo-viz--lc206': mountLinkedListReverse,
+  'algo-viz--lc21': mountMergeTwoLists,
 }
 
 let vizHandles = []
