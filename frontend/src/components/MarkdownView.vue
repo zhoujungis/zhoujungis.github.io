@@ -215,32 +215,55 @@ async function processEnhancements() {
     }
   })
 
-  // KaTeX: render $$...$$ blocks. Text-node walking so copy-button wrappers
-  // attached afterward aren't wiped by an innerHTML rewrite.
+  // KaTeX: render $...$ / $$...$$ inside text nodes.
+  //
+  // The node is SPLIT on the delimiters rather than handed to KaTeX whole.
+  // `delimiters` is an option of renderMathInElement (the auto-render contrib),
+  // NOT of renderToString — passing it here is silently ignored, so KaTeX tried
+  // to parse the entire node *including* the `$` signs and emitted a red
+  // <span class="katex-error"> for every formula:
+  //   ParseError: KaTeX parse error: Can't use function '$' in math mode
+  // Inline math was worse than block: the whole surrounding sentence got
+  // swallowed into the same error span, so a paragraph with one formula turned
+  // red from end to end.
+  //
+  // Text-node walking (instead of an innerHTML rewrite of the container) keeps
+  // copy-button wrappers and table markup intact.
+  //
   // P1: only treat a node as math when it contains real $...$ / $$...$$
   // delimiters — a lone literal "$" (prices etc.) must not pull down KaTeX.
-  const MATH_RE = /\$\$[\s\S]+?\$\$|\$[^\s$](?:[^$]*[^\s$])?\$/
+  const MATH_SPLIT_RE = /(\$\$[\s\S]+?\$\$|\$[^\s$](?:[^$]*[^\s$])?\$)/
   const walker = document.createTreeWalker(bodyRef.value, NodeFilter.SHOW_TEXT)
   const toProcess = []
   let node
   while ((node = walker.nextNode())) {
-    if (node.nodeValue && MATH_RE.test(node.nodeValue)) toProcess.push(node)
+    if (!node.nodeValue || !MATH_SPLIT_RE.test(node.nodeValue)) continue
+    // Never touch code: shell snippets and regexes are full of literal `$`.
+    if (node.parentElement?.closest('pre, code')) continue
+    toProcess.push(node)
   }
   if (toProcess.length) {
     try {
       const katex = await loadKatex()
       for (const textNode of toProcess) {
-        const html = katex.renderToString(textNode.nodeValue, {
-          displayMode: false,
-          throwOnError: false,
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false },
-          ],
-        })
-        const wrapper = document.createElement('span')
-        wrapper.innerHTML = html
-        textNode.parentNode.replaceChild(wrapper, textNode)
+        const frag = document.createDocumentFragment()
+        for (const part of textNode.nodeValue.split(MATH_SPLIT_RE)) {
+          if (!part) continue
+          const isBlock = part.startsWith('$$') && part.endsWith('$$') && part.length > 3
+          const isInline = !isBlock && part.startsWith('$') && part.endsWith('$') && part.length > 2
+          if (!isBlock && !isInline) {
+            frag.appendChild(document.createTextNode(part))
+            continue
+          }
+          const tex = part.slice(isBlock ? 2 : 1, isBlock ? -2 : -1)
+          const span = document.createElement('span')
+          span.innerHTML = katex.renderToString(tex, {
+            displayMode: isBlock,
+            throwOnError: false,
+          })
+          frag.appendChild(span)
+        }
+        textNode.parentNode.replaceChild(frag, textNode)
       }
     } catch (e) {
       console.warn('KaTeX failed to load/render:', e?.message || e)
@@ -375,6 +398,18 @@ watch(() => props.html, () => {
   :deep(.table-scroll) {
     margin: 1.2em 0;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  // Display math: KaTeX ships .katex-display as a centred block, but a long
+  // derivation still exceeds the column width on a phone. Scroll it inside its
+  // own box the same way a wide table is handled, instead of letting it widen
+  // the page (and with it the fixed header — same failure as the table case).
+  // Note: do NOT set font-size on .katex — KaTeX's own `font: normal 1.21em`
+  // shorthand is what sizes the math, and overriding just the size shrinks it.
+  :deep(.katex-display) {
+    margin: 1.2em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
   :deep(table) {

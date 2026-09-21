@@ -66,6 +66,14 @@ cd ..
 echo "==> Committing and pushing..."
 git add -A
 git commit -m "deploy: update site $(date +%Y-%m-%d_%H:%M)" || echo "No changes to commit"
-git push origin master
+# ~/.gitconfig sets `credential.helper =` (an EMPTY value), which resets the
+# accumulated helper chain to nothing. With no helper configured git cannot
+# reach the stored GitHub token and fails with:
+#   fatal: could not read Username for 'https://github.com': terminal prompts disabled
+# Git for Windows' GCM (git-credential-manager, in /mingw64/bin) does hold a
+# credential for github.com, so name it explicitly for this single command
+# instead of rewriting the user's global config. Swap `manager` for `store`,
+# `cache`, or a `gh`-based helper if that is what you use.
+git -c credential.helper=manager push origin master
 
 echo "==> Deployed to GitHub Pages!"
