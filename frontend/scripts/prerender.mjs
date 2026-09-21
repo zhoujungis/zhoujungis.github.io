@@ -37,6 +37,8 @@ import {
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// Shared with MarkdownView.vue so the live view and the no-JS snapshot agree.
+import { stripLeadingDuplicateTitle } from '../src/utils/articleHtml.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -289,7 +291,13 @@ function renderArticlePage(template, article) {
   // No-JS fallback content, sanitized at build time (defense in depth — see
   // sanitizeHtml). Vue mounts on #app and replaces it for JS users, so this
   // is never double-rendered on screen.
-  const safeBody = sanitizeHtml(article.html_content || '')
+  // The block below emits its own <h1>, and the Markdown body opens with
+  // `# <title>` too — strip that duplicate or the snapshot ships two identical
+  // headings (same fix as MarkdownView.vue, same helper).
+  const safeBody = stripLeadingDuplicateTitle(
+    sanitizeHtml(article.html_content || ''),
+    article.title,
+  )
   const noscript =
     `<noscript><div class="ns-article">` +
     `<h1>${escapeHtml(article.title)}</h1>` +

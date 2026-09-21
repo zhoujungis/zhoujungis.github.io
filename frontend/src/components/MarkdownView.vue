@@ -5,10 +5,14 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DOMPurify from 'dompurify'
+import { stripLeadingDuplicateTitle } from '@/utils/articleHtml'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
   html: { type: String, default: '' },
+  // The template already renders the title; passing it here lets us drop a body
+  // heading that merely repeats it. See utils/articleHtml.js for the numbers.
+  title: { type: String, default: '' },
 })
 
 const bodyRef = ref(null)
@@ -16,12 +20,17 @@ const bodyRef = ref(null)
 // Defense-in-depth: backend already sanitizes html_content via bleach, but
 // any existing article in the DB was stored before that. Sanitize again on
 // render to neutralize any leftover <script>/onclick= before v-html executes.
+// Strip the duplicate title AFTER sanitizing — bleach/DOMPurify may rewrite the
+// leading tag, so matching on the raw source would be fragile.
 const sanitizedHtml = computed(() =>
-  DOMPurify.sanitize(props.html, {
-    ADD_ATTR: ['target', 'rel'],
-    FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
-    FORBID_ATTR: ['onerror', 'onload', 'onclick'],
-  })
+  stripLeadingDuplicateTitle(
+    DOMPurify.sanitize(props.html, {
+      ADD_ATTR: ['target', 'rel'],
+      FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
+      FORBID_ATTR: ['onerror', 'onload', 'onclick'],
+    }),
+    props.title,
+  )
 )
 
 // Copy-button icons were duplicated as raw strings four times; keep one copy.

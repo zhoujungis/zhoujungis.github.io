@@ -101,8 +101,12 @@
             <img :src="article.cover_image" :alt="article.title" />
           </div>
 
-          <!-- Markdown body -->
-          <MarkdownView :html="article.html_content || article.content || ''" />
+          <!-- Markdown body. `title` lets MarkdownView drop a leading <h1>
+               that just repeats .article-title above. -->
+          <MarkdownView
+            :html="article.html_content || article.content || ''"
+            :title="article.title"
+          />
 
           <!-- Prev / Next navigation -->
           <nav v-if="article.prev_article || article.next_article" class="article-nav">
