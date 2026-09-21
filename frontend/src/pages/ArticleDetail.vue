@@ -363,6 +363,17 @@ onUnmounted(() => {
 .detail-layout {
   display: flex;
   gap: 32px;
+  // Measured at 1440px: the page container is 1120 wide (max-width 1160 minus
+  // 20px padding each side) but the content only needs 800 + 32 + 240 = 1072.
+  // `.detail-main`'s max-width: 800px stops `flex: 1` from taking the remaining
+  // 848px, so 48px of slack sat INSIDE the layout: the sidebar ended at 1232
+  // while the header/footer container ends at 1300 — a 20px inset on the left
+  // but 68px on the right, i.e. visibly asymmetric.
+  // `space-between` spends that slack on the gutter instead, so both insets are
+  // 20px and the 800px reading measure (deliberate) stays intact.
+  // Gutter goes 32 → 80px; below 1023px the sidebar is display:none, leaving a
+  // single flex item, so this has no effect there.
+  justify-content: space-between;
   align-items: flex-start;
 }
 
