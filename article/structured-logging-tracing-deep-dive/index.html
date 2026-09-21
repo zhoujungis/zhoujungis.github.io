@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="300 行日志里，只有 6 行是你的 适用读者：线上排过障、被 grep 和时间窗口折磨过的后端工程师；正在纠结&quot;日志要不要上 JSON&quot;&quot;要不要引 OTel&quot;的架构决策者 技术栈：Python 3.13（CPython）实测；结论与语言无关，Java / Go 的 logging 库有同样的形状 阅读时间：约 32 " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/structured-logging-tracing-deep-dive/" />
+    <meta property="og:title" content="300 行日志里，只有 6 行是你的" />
+    <meta property="og:description" content="300 行日志里，只有 6 行是你的 适用读者：线上排过障、被 grep 和时间窗口折磨过的后端工程师；正在纠结&quot;日志要不要上 JSON&quot;&quot;要不要引 OTel&quot;的架构决策者 技术栈：Python 3.13（CPython）实测；结论与语言无关，Java / Go 的 logging 库有同样的形状 阅读时间：约 32 " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/structured-logging-tracing-deep-dive/" />
+    <meta property="og:site_name" content="一蓑烟雨任平生" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="300 行日志里，只有 6 行是你的" />
+    <meta name="twitter:description" content="300 行日志里，只有 6 行是你的 适用读者：线上排过障、被 grep 和时间窗口折磨过的后端工程师；正在纠结&quot;日志要不要上 JSON&quot;&quot;要不要引 OTel&quot;的架构决策者 技术栈：Python 3.13（CPython）实测；结论与语言无关，Java / Go 的 logging 库有同样的形状 阅读时间：约 32 " />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
+    <link rel="alternate" type="application/rss+xml" title="一蓑烟雨任平生 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>300 行日志里，只有 6 行是你的 | 一蓑烟雨任平生</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DGlp7m5F.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.F_343maS.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-21T11:36:53.180115+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"300 行日志里，只有 6 行是你的","description":"300 行日志里，只有 6 行是你的 适用读者：线上排过障、被 grep 和时间窗口折磨过的后端工程师；正在纠结\"日志要不要上 JSON\"\"要不要引 OTel\"的架构决策者 技术栈：Python 3.13（CPython）实测；结论与语言无关，Java / Go 的 logging 库有同样的形状 阅读时间：约 32 ","image":"https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-21T11:36:53.180115+08:00","dateModified":"2026-09-21T11:41:40.475336+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/structured-logging-tracing-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>300 行日志里，只有 6 行是你的</h1><div class="ns-meta">2026/9/21 · Zhou Jun</div><div class="markdown-body"><h1>300 行日志里，只有 6 行是你的</h1>
+<blockquote>
+
+适用读者：线上排过障、被 <code>grep</code> 和时间窗口折磨过的后端工程师；正在纠结"日志要不要上 JSON""要不要引 OTel"的架构决策者
+技术栈：Python 3.13（CPython）实测；结论与语言无关，Java / Go 的 logging 库有同样的形状
+阅读时间：约 32 分钟 | 难度：中级到高级 | 收获：一组可复现的实测数字 + 一个"该优化哪里"的排序 + 一份落地清单
+前置阅读：无。所有数字都由 <code>tools/bench_observability.py</code> 在本机跑出，脚本随文附上
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：凌晨两点，300 行日志里找 6 行</li>
+<li>日志有三笔账，别混在一起算</li>
+<li>JSON 比文本贵 40%，不是数量级</li>
+<li>真正贵的不是 JSON，是时间戳</li>
+<li>真正的大头：写路径贵 24.5 倍</li>
+<li>logging 的每条开销：55% 花在"猜自己是谁"</li>
+<li>批量大小：一个被证伪的假设</li>
+<li>这台机器上的数字，要打几折</li>
+<li>读日志的速度不是选型理由</li>
+<li>request-id：13 倍的生成成本，但绝对值不重要</li>
+<li>六行日志 vs 300 行噪声</li>
+<li>采样：随机丢 1%，你就丢了 98% 的错误</li>
+<li>落地清单</li>
+<li>FAQ</li>
+<li>结语</li>
+</ul>
+<hr>
+<h2>前言：凌晨两点，300 行日志里找 6 行</h2>
+
+线上报了个 500。你知道大概是 20 分钟前的事，知道是 <code>GET /api/articles/</code> 这个接口。然后你打开日志文件，敲下：
+<div class="codehilite"><pre><span></span><code>grep<span class="w"> </span><span class="s2">&quot;api/articles&quot;</span><span class="w"> </span>app.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;ERROR&quot;</span>
+</code></pre></div>
+
+
+出来一堆。你缩小时间窗口，加了 <code>sed -n</code> 取行号范围，翻到那一刻，看到几十条交错的记录——因为这台机器同时还在处理别的请求。你得靠"感觉"去判断哪几行属于同一个请求。
+
+我模拟了这个场景。一条 <code>gateway → article-svc → db-proxy</code> 的三跳链路，400 个请求，每个请求产生 6 行日志。然后我去捞其中<strong>某一个</strong>请求：
+<div class="codehilite"><pre><span></span><code>不用 request-id，只能按时间窗口捞（+/-1s）：
+    捞出来            : 300 行
+    其中属于这个请求的 : 6 行
+    噪声比            : 50 : 1
+</code></pre></div>
+
+
+<strong>50 比 1。</strong> 你捞出来 300 行，真正要看的只有 6 行。这还是我为了演示刻意把并发压到 400 个请求的情况；线上 QPS 高一个数量级，这个比例就再差一个数量级。
+
+这篇文章要回答三个问题，都用实测数字：
+<ol>
+<li>日志写成 JSON 到底贵多少？——<strong>比文本贵 40%，不是数量级</strong></li>
+<li>日志真正的成本在哪里？——<strong>在写路径，<code>logging.FileHandler</code> 比缓冲裸写贵 24.5 倍</strong></li>
+<li>加上 request-id 之后，能不能真的定位到一个请求？——<strong>能，而且这是唯一可靠的办法</strong></li>
+</ol>
+
+先说结论，如果你只想看排序：
+<table>
+<thead>
+<tr>
+<th>你打算做的优化</th>
+<th>实测收益</th>
+<th>值不值得</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>把逐行 flush 改成批量 flush</td>
+<td>日志写入快 <strong>17.6x</strong></td>
+<td>值得，最高优先级</td>
+</tr>
+<tr>
+<td>换掉 <code>logging.FileHandler</code>，自己管缓冲</td>
+<td>同上，且不用改业务代码</td>
+<td>值得</td>
+</tr>
+<tr>
+<td>关掉 <code>logging</code> 的调用栈查找</td>
+<td>每条省 <strong>55%</strong> 的 logging 开销</td>
+<td>看场景，有坑</td>
+</tr>
+<tr>
+<td>从文本换到 JSON</td>
+<td><strong>慢 40%</strong>（不是变快）</td>
+<td>别为了性能换，为了可解析性换</td>
+</tr>
+<tr>
+<td>用正则而不是 <code>json.loads</code> 读日志</td>
+<td>快 2.6x，但只省 0.17 秒</td>
+<td>不值得，选型别考虑这条</td>
+</tr>
+<tr>
+<td>随机采样 1% 降日志量</td>
+<td>日志量降到 1%，但<strong>扔掉 98% 的错误</strong></td>
+<td>别这么干</td>
+</tr>
+</tbody>
+</table>
+
+下面逐个说，每个数字都告诉你它是怎么测出来的。
+<h2>1. 先说清楚：日志有三笔账，别混在一起算</h2>
+
+大部分"日志性能"的讨论之所以吵不出结果，是因为把三件不同的事混成了一个数：
+<ul>
+<li><strong>格式成本</strong>：把一条记录变成一行字符串。纯 CPU，与磁盘无关。</li>
+<li><strong>写路径成本</strong>：把这行字符串送进文件。系统调用、缓冲、flush 策略。</li>
+<li><strong>关联成本</strong>：让这行日志能被找到、被串起来。request-id、trace-id、上下文。</li>
+</ul>
+
+三笔账的量级差得很远。混在一起测，你会得到"日志慢"这种没有信息量的结论。所以我的基准脚本把实验也拆开：E1a 测格式，E1b 测写路径，E1c 解剖 <code>logging</code> 自己的开销，E2 测读回，E3 测关联，E4 测 id 生成，E5 测采样。
+
+数据是一条真实形状的请求日志记录：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+    <span class="s2">&quot;ts&quot;</span><span class="p">:</span> <span class="mf">1756000000.123</span><span class="p">,</span>          <span class="c1"># 浮点时间戳</span>
+    <span class="s2">&quot;level&quot;</span><span class="p">:</span> <span class="s2">&quot;INFO&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;req&quot;</span><span class="p">:</span> <span class="s2">&quot;a3f9c1e08b2d4756&quot;</span><span class="p">,</span>     <span class="c1"># 16 hex 字符的 request-id</span>
+    <span class="s2">&quot;logger&quot;</span><span class="p">:</span> <span class="s2">&quot;api.views&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="s2">&quot;/api/articles&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s2">&quot;duration_ms&quot;</span><span class="p">:</span> <span class="mf">12.34</span><span class="p">,</span>
+    <span class="s2">&quot;user_id&quot;</span><span class="p">:</span> <span class="mi">12345</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+两种写法：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 文本（logfmt 风格，带标签）</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">as_text</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">localtime</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="s2">&quot;ts&quot;</span><span class="p">]))</span>
+    <span class="n">ms</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">r</span><span class="p">[</span><span class="s2">&quot;ts&quot;</span><span class="p">]</span> <span class="o">%</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ts</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">ms</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;level&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;req=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;req&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> logger=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;logger&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> method=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;path=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> status=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;duration_ms=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;duration_ms&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> user_id=</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;user_id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+
+<span class="c1"># JSON</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">as_json</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">))</span>
+</code></pre></div>
+
+<h2>2. JSON 比文本贵 40%，不是数量级</h2>
+
+先看 E1a，纯 CPU，100,000 次，完全不落盘：
+<div class="codehilite"><pre><span></span><code><span class="gh">方式                               total    ns/rec     vs 文本      离散度</span>
+<span class="gh">-------------------------------------------------------------------</span>
+as_text(r)  f-string            0.262s      2617     1.00x      48%
+as_json(r)  json.dumps          0.367s      3670     1.40x      43%
+logging TextFormatter           0.264s      2639     1.01x      95%
+logging JsonFormatter           0.402s      4023     1.54x      67%
+
+JSON 序列化比 f-string 文本贵 +40%，绝对值差 1053 ns/条
+</code></pre></div>
+
+
+<strong>JSON 贵 40%，绝对差 1.05 微秒。</strong>
+
+这个数字推翻了一个很常见的说法。网上经常看到"JSON 日志性能差一个数量级"，但这个说法要么是在拿 <code>json.dumps</code> 跟最省的字符串拼接比（连时间格式化都省掉），要么是测量本身被别的东西污染了。
+
+我自己就被污染过一次。同一段代码，早先测出来是 <code>as_text 3762 / as_json 8077</code>，<strong>2.15 倍</strong>。我差点就这么写进文章。后来发现那次运行整轮都落在机器的负载尖峰里——校准任务显示机器比正常慢 1.68 倍，而且四个 case 的离散度分别是 107% / 181% / 122% / 141%。同一个实验在干净窗口重跑，比值稳定在 1.31–1.40 倍。
+
+<strong>这就是为什么我在每个实验里都塞了一个固定的纯 CPU 校准任务。</strong>它不参与结论，只回答一个问题：这次运行的机器状态，配不配让我相信这些数字。
+
+顺带一提，<code>logging.JsonFormatter</code> 比裸 <code>json.dumps</code> 又贵一点（4023 vs 3670），因为要先从 <code>LogRecord</code> 上把字段 <code>getattr</code> 出来拼一个 dict。这 350 纳秒是 <code>logging</code> 框架的过路费。
+<h3>2.1 字段顺序几乎不影响，别在这上面纠结</h3>
+
+<code>json.dumps</code> 的编码器是 C 实现的，9 个字段的 dict 序列化本身很快。你把字段按长度排序、按访问频率排序，省下来的时间在噪声里根本看不出来。真想让 JSON 更快，<code>separators=(",", ":")</code> 去掉空格是有效的（我一直在用），<code>ensure_ascii=False</code> 避免中文转义也是有效的——但这都属于"顺手做对"，不是优化项。
+<h2>3. 真正贵的不是 JSON，是时间戳</h2>
+
+继续看 E1a 的最后一行：
+<div class="codehilite"><pre><span></span><code>其中 time.localtime + strftime 占 1514 ns/条（文本路径的 58%）
+</code></pre></div>
+
+
+<strong>文本路径 2617 纳秒里，1514 纳秒花在把浮点时间戳转成人类可读字符串上，占 58%。</strong>
+
+而 JSON 路径直接把浮点 <code>ts</code> 塞进输出，根本不转换。所以如果把时间格式化从文本路径里去掉，两者的差距会瞬间消失。
+
+这解释了一个反直觉的现象：<strong>很多人以为"JSON 日志更慢"，其实是因为文本日志在偷偷做时间格式化，而 JSON 日志没做。</strong>你比的是两件不同的事。
+
+如果你的日志量大到需要优化格式，正确的问题不是"JSON 还是文本"，而是：
+<ul>
+<li>时间戳真的需要人类可读吗？存 Unix 时间戳（浮点或毫秒整数），让查看工具去格式化。这一项就能砍掉一半以上的格式成本。</li>
+<li>需要人类可读的话，能不能缓存？同一秒内的日志用同一个格式化结果——大多数日志系统的秒级时间戳，一秒内几千条是常态。</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 秒级时间戳缓存：一秒内只格式化一次</span>
+<span class="n">_last_sec</span><span class="p">,</span> <span class="n">_last_str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fast_ts</span><span class="p">(</span><span class="n">ts</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">_last_sec</span><span class="p">,</span> <span class="n">_last_str</span>
+    <span class="n">sec</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">sec</span> <span class="o">!=</span> <span class="n">_last_sec</span><span class="p">:</span>
+        <span class="n">_last_sec</span> <span class="o">=</span> <span class="n">sec</span>
+        <span class="n">_last_str</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">localtime</span><span class="p">(</span><span class="n">sec</span><span class="p">))</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_last_str</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="nb">int</span><span class="p">((</span><span class="n">ts</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="p">)</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+
+这不是什么高深技巧，只是"知道自己钱花在哪"的直接结果。而 90% 的性能优化讨论之所以空转，就是因为没人先去看那 58%。
+<h2>4. 真正的大头：写路径贵 24.5 倍</h2>
+
+格式之争只值 1 微秒。接下来这个值 <strong>12 微秒</strong>。
+
+E1b 把内容固定成同一条 JSON 行，只变写路径。每轮 2,000 行，7 轮交错取最优：
+<div class="codehilite"><pre><span></span><code><span class="gh">写盘方式                              最快      us/行     vs 缓冲      离散度</span>
+<span class="gh">-----------------------------------------------------------------</span>
+裸写 + 64KB 缓冲                   1.01ms      0.50     1.00x      13%
+裸写 + 每条 flush                  5.44ms      2.72     5.41x       9%
+logging FileHandler           24.67ms     12.33    24.51x       5%
+logging 批量 flush              17.70ms      8.85    17.59x      10%
+</code></pre></div>
+
+
+拆开看：
+<ul>
+<li><strong>裸写 + 64KB 缓冲</strong>：0.50 微秒/行。这是地板——数据进内存缓冲，<code>write()</code> 系统调用每 64KB 才发生一次。</li>
+<li><strong>裸写 + 每条 flush</strong>：2.72 微秒/行，<strong>5.4 倍</strong>。只多做了一件事：每条写完就 <code>flush()</code>。成本全在系统调用。</li>
+<li><strong><code>logging.FileHandler</code></strong>：12.33 微秒/行，<strong>24.5 倍</strong>。</li>
+</ul>
+
+第三行是这篇文章最想让你记住的一行。<strong>Python 的 <code>logging.FileHandler</code> 默认每写一条记录就 flush 一次。</strong>这不是配置项，是硬编码的行为：
+<div class="codehilite"><pre><span></span><code><span class="c1"># CPython logging/__init__.py, StreamHandler</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+        <span class="n">stream</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stream</span>
+        <span class="n">stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">msg</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminator</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>          <span class="c1"># ← 每一条记录都调用</span>
+    <span class="k">except</span> <span class="ne">RecursionError</span><span class="p">:</span>
+        <span class="k">raise</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">handleError</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>self.flush()</code> 在 <code>StreamHandler.emit</code> 里，不在 <code>FileHandler</code> 里。也就是说 <code>logging.StreamHandler</code> 的所有子类——<code>FileHandler</code>、<code>RotatingFileHandler</code>、<code>TimedRotatingFileHandler</code>——全都继承了"每条 flush"这个行为。
+
+它为什么这么设计？因为日志的语义是"出事了要能立刻看到"。进程被 <code>kill -9</code>，缓冲里的日志就没了。对于"崩溃前的最后一条日志"这种场景，逐条 flush 是对的。
+
+<strong>但代价是：你的日志写入比它需要的慢 17 倍。</strong>
+
+第四行给了出路：<strong>同一个 <code>logging</code> 框架，只把 handler 换成自己写的批量 flush 版本，从 24.5 倍降到 17.6 倍。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BufferedHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;批量 flush，而不是每条 flush。&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">batch</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stream</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span> <span class="n">buffering</span><span class="o">=</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">16</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">batch</span> <span class="o">=</span> <span class="n">batch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">record</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stream</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stream</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div>
+
+
+注意这里还有个细节：<code>logging.Handler</code> 的 <code>emit</code> 不应该自己吞掉 flush 语义，而应该把它交给一个明确的策略。"丢最多 1,000 行日志"和"慢 17 倍"，大多数服务会选前者——但前提是你<strong>知道</strong>自己在做这个选择。
+<h3>4.1 为什么剩下的 17.6 倍降不下来</h3>
+
+批量 flush 之后还有 17.6 倍，说明 <code>logging</code> 框架本身也在收费。这就引到 E1c。
+<h2>5. logging 的每条开销：55% 花在"猜自己是谁"</h2>
+
+E1c 用 <code>NullHandler</code>——零 I/O，纯测框架开销，50,000 次：
+<div class="codehilite"><pre><span></span><code><span class="gh">变体                                             total      ns/条</span>
+<span class="gh">--------------------------------------------------------------</span>
+纯 Python 循环（基线）                               0.001s        29
+log.info(msg)  默认                             0.350s      6993
+log.info(msg)  _srcfile=None                  0.158s      3168
+log.info(msg)  + logThreads/Processes 关掉      0.142s      2843
+绕过 Logger，直接 handler.handle(LogRecord)        0.086s      1717
+
+logging 净开销（减去基线）  : 6964 ns/条
+  findCaller()             : 3825 ns/条  （占 55%）
+  thread/pid/进程名         : 325 ns/条  （占 5%）
+  剩下的 Logger/handler    : 2814 ns/条
+直接 handler.handle() 只要 : 1688 ns/条  —— 比走 Logger 快 4.1x
+</code></pre></div>
+
+
+<strong><code>log.info("...")</code> 一条 6993 纳秒。其中 3825 纳秒——55%——花在 <code>findCaller()</code> 上。</strong>
+
+<code>findCaller()</code> 是干什么的？它要回答"这条日志是从哪个文件、哪一行打出来的"。为了这个，它得从当前栈帧往回走，找到第一个不属于 <code>logging</code> 模块自己的帧，取它的文件名和行号：
+<div class="codehilite"><pre><span></span><code><span class="c1"># CPython logging/__init__.py, Logger.findCaller</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">findCaller</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stack_info</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">currentframe</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">f</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">f_back</span>
+    <span class="n">orig_f</span> <span class="o">=</span> <span class="n">f</span>
+    <span class="k">while</span> <span class="n">f</span> <span class="ow">and</span> <span class="n">stacklevel</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">f_back</span>
+        <span class="n">stacklevel</span> <span class="o">-=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">orig_f</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="s2">&quot;(unknown file)&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;(unknown function)&quot;</span><span class="p">,</span> <span class="kc">None</span>
+    <span class="k">while</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s2">&quot;f_code&quot;</span><span class="p">):</span>
+        <span class="n">co</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">f_code</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normcase</span><span class="p">(</span><span class="n">co</span><span class="o">.</span><span class="n">co_filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="n">_srcfile</span><span class="p">:</span>      <span class="c1"># ← 一路跳过 logging 自己的帧</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">f_back</span>
+            <span class="k">continue</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+
+在 Windows 上 <code>os.path.normcase</code> 还要把 <code>/</code> 换成 <code>\</code> 并转小写。栈越深，走得越久。
+
+<code>_srcfile = None</code> 之后，<code>findCaller</code> 第一行就短路返回 <code>(None, 0, None, None)</code>，于是从 6993 掉到 3168 纳秒。
+
+<strong>所以"要不要关掉它"？</strong>
+
+这里有个真实的取舍。文件名和行号是排障时最有用的字段之一——<code>api.views:142</code> 直接把你送到那一行。为了省 3.8 微秒把它关掉，换来"日志里只有 logger 名字，得自己去搜代码"，通常不划算。
+
+但有个例外值得说：<strong>如果你的日志里已经带了足够的结构化字段（request-id、路径、状态码），行号的价值会下降。</strong>排查时你先按 request-id 把链路捞出来，看到 <code>db-proxy</code> 报了超时，然后你去那个服务的代码里找——这时候 <code>logger=db_proxy</code> 就够了，行号是锦上添花。
+
+最后一个数字：<strong>绕过 <code>Logger</code>，直接 <code>handler.handle(LogRecord)</code>，只要 1717 纳秒，比走 <code>Logger</code> 快 4.1 倍。</strong>这 4.1 倍里，3.8 微秒是 <code>findCaller</code>，剩下的是 filters 和 <code>callHandlers</code> 的遍历。如果你在写高频日志（比如每请求几十条），用 <code>handler.handle()</code> 自己构造 <code>LogRecord</code> 是能拿到真实收益的——代价是你自己负责格式和字段。
+<h2>6. 批量大小：一个被证伪的假设</h2>
+
+我原本以为"批量越大测量越准"，写了个实验去验证，结果<strong>假设被自己的数据推翻了</strong>，但推翻的过程本身有价值，所以留着。
+
+E1d 扫批量大小，测每行 flush 成本：
+<div class="codehilite"><pre><span></span><code>      行数   raw us/行   flush us/行      比值      离散度
+----------------------------------------------
+     500       1.01        13.96   13.8x      21%
+   2,000       0.52        13.65   26.3x       7%
+  10,000       0.38        13.06   34.4x       4%
+  50,000       0.34        12.94   37.6x       2%
+
+每行 flush 成本 12.9–14.0 us，跨 100x 批量基本不变
+</code></pre></div>
+
+
+<strong>每行 flush 成本在 500 到 50,000 行的范围内几乎恒定：12.9 到 14.0 微秒。</strong>这直接证明了成本来自"每行一次系统调用"，与字节数无关——所以你在小批量上测出来的数，可以放心外推到生产规模。
+
+那为什么比值从 13.8 倍涨到 37.6 倍？因为分母在变。裸写的 open/close 是一个固定开销，行数越多，摊到每行越少；而 <code>flush()</code> 是纯每行成本，不会跟着变便宜。<strong>比值上升是分母的现象，不是分子的。</strong>
+
+至于我原来那个"大批量导致不稳定"的假设——有一次运行确实在 50,000 行处给出 179% 的离散度，看着像验证。后来在更安静的机器上重跑，同一段代码同一个批量，离散度 13%。<strong>那次 179% 是负载尖峰恰好砸在大批量那一轮上，不是大批量的性质。</strong>
+<h2>7. 这台机器上的数字，要打几折</h2>
+
+必须单独说这一节，因为上面所有数字都来自同一台机器，而这台机器的测量环境<strong>不受我控制</strong>。
+
+我写了个探针：一段固定的纯 CPU 循环，重复 12 次。
+<div class="codehilite"><pre><span></span><code>us per call, 12 sequential reps:
+  9339 9023 8858 9129 9059 9360 9450 9337 9543 9339 9382 9922
+  min=8858  median=9339  max=9922  spread=12.0%
+</code></pre></div>
+
+
+<strong>同一段代码，单进程内 12% 的抖动。</strong>
+
+再看跨会话的同一段代码：
+<div class="codehilite"><pre><span></span><code>min=8858   （第一次）
+min=9514
+min=9149
+min=8948
+</code></pre></div>
+
+
+连"取 12 次的最小值"这个估计量本身，跨进程都有 <strong>7%</strong> 的不确定度。
+
+有一次更夸张：同一段纯 CPU 循环，噪声底从 12% 涨到 <strong>56.9%</strong>，min 从 8858 涨到 9627 微秒。二十分钟后，同一台机器，同一个脚本。
+
+<strong>结论：这台机器分辨不出小于约 10% 的差异。</strong>
+
+这个事实约束了这篇文章的写法：
+<ol>
+<li><strong>只引用大比值。</strong>JSON/文本 1.40 倍、FileHandler/缓冲 24.5 倍、findCaller 占 55%——这些都远在噪声之上。任何 10% 以内的差异，我一律不写成结论。</li>
+<li><strong>每个计时结果旁边都标离散度。</strong>你能看到那次运行有多可信。</li>
+<li><strong>每个实验里放一个校准任务。</strong>它测的是机器状态，不是被测代码。</li>
+<li><strong>取多轮交错的最小值。</strong>不是平均值——平均值包含干扰，最小值最接近"没有干扰时的真实成本"。</li>
+</ol>
+
+关于第 4 点，我踩过一个坑值得说：<strong>最初我是"一个 case 跑到底，再跑下一个 case"，结果排名会翻转。</strong>同一个 logging 模式，三次运行分别测出 19、20.5、27 微秒/行——单调变差，因为进程在运行过程中越来越慢（机器上别的东西在抢 CPU）。后来的做法是<strong>交错</strong>：每一轮把每个 case 各跑一次，这样所有 case 承受同样的漂移，再取每轮的最优。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">interleaved_series</span><span class="p">(</span><span class="n">cases</span><span class="p">,</span> <span class="n">rounds</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;交错跑，保留全部样本。&quot;&quot;&quot;</span>
+    <span class="n">series</span> <span class="o">=</span> <span class="p">{</span><span class="n">label</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">cases</span><span class="p">}</span>
+    <span class="n">gc_was_on</span> <span class="o">=</span> <span class="n">gc</span><span class="o">.</span><span class="n">isenabled</span><span class="p">()</span>
+    <span class="n">gc</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rounds</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">cases</span><span class="p">:</span>
+                <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+                <span class="n">fn</span><span class="p">()</span>
+                <span class="n">series</span><span class="p">[</span><span class="n">label</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">gc_was_on</span><span class="p">:</span>
+            <span class="n">gc</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">series</span>
+</code></pre></div>
+
+
+还有个更隐蔽的坑：<strong>E1a 里的 <code>only_time</code> 一开始是单独测的，没并进交错集合。</strong>干净机器上它给出 54% 的合理占比，机器一忙就给出 <strong>91%</strong> 这种荒谬数字——因为两个数字来自不同的轮次、不同的负载状态。并进同一个集合之后就稳定在 54–58%。
+
+<strong>如果你只能从这篇文章带走一件事，就带走这个：先测你的噪声底，再谈你的优化。</strong>一个不知道噪声底的性能数字，不是一个数字。
+<h2>8. 读日志的速度不是选型理由</h2>
+
+E2 回答一个运维问题：<code>path == /api/articles</code> 的 <code>duration_ms</code> 的 p99 是多少？100,000 行，两种读法：
+<div class="codehilite"><pre><span></span><code>approach                       time   us/line   result
+---------------------------------------------   ------
+纯文本 + 正则                      0.11s      1.08   p99=101.17ms
+JSON + json.loads             0.28s      2.81   p99=101.17ms
+真实值（内存里算的）                                      p99=101.17ms
+
+正则 比 json.loads 快 2.59x —— 扫 100,000 行的绝对值差距只有 0.17s
+</code></pre></div>
+
+
+两种都算对了（<code>p99=101.17ms</code>，和内存里的真值一致）。正则快 2.59 倍，但绝对值差 <strong>0.17 秒</strong>。
+
+0.17 秒。这是你扫 10 万行日志的差距。而日志分析通常跑在离线任务里，或者按需触发——0.17 秒不值得作为选型依据。<strong>"文本日志读起来更快"这个论点，在这组数字面前站不住。</strong>
+
+那什么才是选型依据？同一个实验的第二部分：
+<div class="codehilite"><pre><span></span><code><span class="n">schema</span><span class="w"> </span>漂移：上游把<span class="w"> </span><span class="n">duration_ms</span><span class="w"> </span>改名成<span class="w"> </span><span class="n">dur_ms</span>，对前<span class="w"> </span><span class="m">20</span><span class="p">,</span><span class="m">000</span><span class="w"> </span>条重新跑一遍
+<span class="w">  </span>纯文本<span class="w"> </span><span class="o">+</span><span class="w"> </span>正则<span class="w"> </span><span class="o">:</span><span class="w"> </span>命中<span class="w"> </span><span class="m">0</span><span class="w"> </span>条，抛错<span class="w"> </span><span class="m">0</span><span class="w"> </span>次<span class="w">   </span><span class="o">&lt;-</span><span class="w"> </span>静默。<span class="n">pipeline</span><span class="w"> </span>里看起来只是「这段时间没数据」
+<span class="w">  </span><span class="n">JSON</span><span class="w"> </span>取值<span class="w">     </span><span class="o">:</span><span class="w"> </span>命中<span class="w"> </span><span class="m">0</span><span class="w"> </span>条，抛错<span class="w"> </span><span class="m">20</span><span class="p">,</span><span class="m">000</span><span class="w"> </span>次<span class="w">   </span><span class="o">&lt;-</span><span class="w"> </span>响。炸得难看，但至少炸了
+</code></pre></div>
+
+
+<strong>这才是真正的区别，而且它不是性能问题，是正确性问题。</strong>
+
+上游把字段名从 <code>duration_ms</code> 改成 <code>dur_ms</code>。你的正则还在找 <code>duration_ms=([\d.]+)</code>，于是：
+<ul>
+<li><strong>纯文本</strong>：正则不匹配，<code>vals</code> 列表为空，你的代码算出 p99 = 0 或者直接跳过。<strong>没有异常，没有告警，没有日志。</strong>你在 dashboard 上看到的是"这个接口这段时间没有数据"——你会以为是流量掉了，去查网关，查 LB，查了三个小时。</li>
+<li><strong>JSON</strong>：<code>d["duration_ms"]</code> 抛 <code>KeyError</code>，20,000 次。炸得很难看。但你<strong>五分钟内就知道字段改名了</strong>。</li>
+</ul>
+
+<strong>在日志这件事上，"安静地错"比"响亮地错"贵得多。</strong>因为日志系统是你在出故障时唯一的依靠，一个会静默失效的日志 pipeline 比没有日志更危险——它让你以为你有数据。
+
+这就是 JSON 日志真正的理由。不是为了快（它更慢），不是为了时髦，是为了<strong>schema 变更会立刻暴露</strong>。你为此付出 40% 的格式开销，换来的是"数据不对时你能知道"。
+
+如果你想保留文本日志的可读性又想要这个保障，有个折中：<strong>用文本格式，但每条日志带一个 schema 版本号</strong>，读的时候校验。
+<div class="codehilite"><pre><span></span><code><span class="mf">2026</span><span class="o">-</span><span class="mf">09</span><span class="o">-</span><span class="mf">21</span><span class="w"> </span><span class="mf">02</span><span class="p">:</span><span class="mf">14</span><span class="p">:</span><span class="mf">03</span><span class="p">,</span><span class="mf">412</span><span class="w"> </span><span class="n">INFO</span><span class="w"> </span><span class="n">schema</span><span class="o">=</span><span class="n">v2</span><span class="w"> </span><span class="n">req</span><span class="o">=</span><span class="n">a3f9</span><span class="mf">...</span><span class="w"> </span><span class="n">path</span><span class="o">=/</span><span class="n">api</span><span class="o">/</span><span class="n">articles</span><span class="w"> </span><span class="n">duration_ms</span><span class="o">=</span><span class="mf">12.34</span>
+</code></pre></div>
+
+
+读的时候先检查 <code>schema=v2</code> 在不在，不在就报警。成本是一点格式时间，收益是"不会静默失效"。
+<h2>9. request-id：13 倍的生成成本，但绝对值不重要</h2>
+
+要串起链路，先得有 id。E4 测了五种生成方式，200,000 次，7 轮交错：
+<div class="codehilite"><pre><span></span><code><span class="gh">方式                                         最快     ns/op      离散度</span>
+<span class="gh">----------------------------------------------------------------</span>
+uuid.uuid4()            (36 字符)        0.352s      1761      10%
+uuid.uuid4().hex        (32 字符)        0.271s      1357      11%
+secrets.token_hex(8)    (16 字符)        0.043s       216       4%
+os.urandom(8).hex()     (16 字符)        0.026s       132       4%
+进程号 + 计数器          (短)                 0.049s       243       4%
+
+uuid4 比 os.urandom(8).hex() 贵 13.3x
+</code></pre></div>
+
+
+<code>uuid.uuid4()</code> 1761 纳秒，<code>os.urandom(8).hex()</code> 132 纳秒，<strong>差 13.3 倍</strong>。
+
+但先别急着换。<strong>13.3 倍的绝对值差是 1.6 微秒。</strong>一个请求打一次 request-id，1.6 微秒在请求总耗时（通常是毫秒级）里的占比是千分之一。这个优化对绝大多数服务毫无意义。
+
+真正该看的是另一件事——<strong>碰撞概率</strong>：
+<div class="codehilite"><pre><span></span><code><span class="err">碰撞概率（生日问题，</span><span class="n">n</span><span class="w"> </span><span class="err">个随机</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="err">全部互不相同的概率）：</span>
+<span class="w">  </span><span class="mi">16</span><span class="w"> </span><span class="n">hex</span><span class="w"> </span><span class="err">字符</span><span class="w">      </span><span class="err">每天</span><span class="w">   </span><span class="mi">100</span><span class="w"> </span><span class="err">万</span><span class="w"> </span><span class="err">个</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">撞一次的概率约</span><span class="w"> </span><span class="mf">2.71e-08</span>
+<span class="w">  </span><span class="mi">16</span><span class="w"> </span><span class="n">hex</span><span class="w"> </span><span class="err">字符</span><span class="w">      </span><span class="err">每天</span><span class="w">    </span><span class="mi">10</span><span class="w"> </span><span class="err">亿</span><span class="w"> </span><span class="err">个</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">撞一次的概率约</span><span class="w"> </span><span class="mf">2.71e-02</span>
+<span class="w">  </span><span class="n">uuid4</span><span class="w">          </span><span class="err">每天</span><span class="w">   </span><span class="mi">100</span><span class="w"> </span><span class="err">万</span><span class="w"> </span><span class="err">个</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">撞一次的概率约</span><span class="w"> </span><span class="mf">1.47e-27</span>
+<span class="w">  </span><span class="n">uuid4</span><span class="w">          </span><span class="err">每天</span><span class="w">    </span><span class="mi">10</span><span class="w"> </span><span class="err">亿</span><span class="w"> </span><span class="err">个</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">撞一次的概率约</span><span class="w"> </span><span class="mf">1.47e-21</span>
+</code></pre></div>
+
+
+16 个 hex 字符 = 64 bit。按生日问题，每天 10 亿个 id 时碰撞概率约 <strong>2.7%</strong>。
+
+2.7% 听起来很小，但注意这是<strong>每天</strong>的概率。累积一个月，撞一次的概率是 1 - (1-0.027)^30 ≈ <strong>56%</strong>。
+
+而撞了之后会怎样？<strong>两条不同的请求会共享一个 request-id，你把它们的日志混在一起看。</strong>排查时你会看到一条自相矛盾的链路：两个 <code>enter</code> 没有对应的 <code>exit</code>，或者时间顺序颠倒。你会怀疑代码有 bug，而实际上是 id 撞了。
+
+<code>uuid4</code> 是 128 bit，同样的量级下碰撞概率是 1.47e-21——<strong>小到可以忽略</strong>。
+
+所以这里的选择是：
+<ul>
+<li><strong>如果日志要跨机器聚合、要长期保留</strong>（几十亿条），用 128 bit。<code>uuid.uuid4()</code> 或 <code>secrets.token_hex(16)</code>。</li>
+<li><strong>如果只在单机、短期窗口内排查</strong>（每天百万级），16 hex 字符够用，且便宜 13 倍。</li>
+</ul>
+
+<strong>唯一不能选的是"进程号 + 计数器"这种方案跨机器用</strong>——两个进程重启后会从同一个计数器开始，必然碰撞。它只在单机、单进程生命周期内有效。
+
+顺便说个实际的用法：<code>uuid4().hex</code> 比 <code>str(uuid4())</code> 快 22%（1357 vs 1761），因为省掉了加连字符的格式化。日志里带不带连字符无所谓，用 <code>.hex</code> 就好。
+<h2>10. 六行日志 vs 300 行噪声</h2>
+
+回到开头那个问题。E3 起了一个真的三跳链路——<code>gateway → article-svc → db-proxy</code>，每跳是一个真实的 HTTP server，请求在跳之间透传 <code>X-Request-Id</code>：
+<div class="codehilite"><pre><span></span><code>全链路日志总行数<span class="w">          </span>:<span class="w"> </span><span class="mi">2</span>,<span class="mi">400</span>（<span class="mi">400</span><span class="w"> </span>个请求<span class="w"> </span><span class="nv">x</span><span class="w"> </span><span class="mi">6</span>.<span class="mi">0</span><span class="w"> </span>行）
+单个请求的完整链路<span class="w">        </span>:<span class="w"> </span><span class="mi">6</span><span class="w"> </span>行
+<span class="w">    </span><span class="nv">gateway</span><span class="w">      </span><span class="nv">enter</span>
+<span class="w">    </span><span class="nv">article</span><span class="o">-</span><span class="nv">svc</span><span class="w">  </span><span class="nv">enter</span>
+<span class="w">    </span><span class="nv">db</span><span class="o">-</span><span class="nv">proxy</span><span class="w">     </span><span class="nv">enter</span>
+<span class="w">    </span><span class="nv">db</span><span class="o">-</span><span class="nv">proxy</span><span class="w">     </span><span class="k">exit</span><span class="w">   </span><span class="mi">0</span>.<span class="mi">002</span>
+<span class="w">    </span><span class="nv">article</span><span class="o">-</span><span class="nv">svc</span><span class="w">  </span><span class="k">exit</span><span class="w">   </span><span class="mi">0</span>.<span class="mi">853</span>
+<span class="w">    </span><span class="nv">gateway</span><span class="w">      </span><span class="k">exit</span><span class="w">   </span><span class="mi">2</span>.<span class="mi">223</span>
+</code></pre></div>
+
+
+<strong>带 request-id 的话，你拿到的是这 6 行，按链路顺序排好。</strong>而且每一跳的耗时是自明的：<code>db-proxy</code> 花了 0.002ms，<code>article-svc</code> 花了 0.853ms——<strong>问题在 article-svc，不在数据库。</strong>这个判断在 3 秒内完成。
+
+不带 request-id 的话：
+<div class="codehilite"><pre><span></span><code>不用 request-id，只能按时间窗口捞（+/-1s）：
+    捞出来            : 300 行
+    其中属于这个请求的 : 6 行
+    噪声比            : 50 : 1
+</code></pre></div>
+
+
+而且这 300 行<strong>没有顺序保证</strong>——你的 gateway、article-svc、db-proxy 是三个不同的进程，各自写各自的文件（或者同一个文件但交错）。你得先按进程分开，再按时间排序，再靠"这个 enter 和哪个 exit 配对"去猜。
+
+<strong>"给每个请求加一个 id"是这篇文章里性价比最高的建议。</strong>它不需要换日志格式，不需要引入任何中间件，不需要 OTel，不需要 Jaeger。就一个 header，一个 <code>contextvars</code> 或者一个 <code>threading.local</code>，加一个 <code>logging.Filter</code>：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">contextvars</span><span class="o">,</span><span class="w"> </span><span class="nn">uuid</span><span class="o">,</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="n">_request_id</span> <span class="o">=</span> <span class="n">contextvars</span><span class="o">.</span><span class="n">ContextVar</span><span class="p">(</span><span class="s2">&quot;request_id&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RequestIdFilter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Filter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="n">record</span><span class="o">.</span><span class="n">req</span> <span class="o">=</span> <span class="n">_request_id</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+<span class="c1"># 应用启动时挂一次</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">RequestIdFilter</span><span class="p">())</span>
+
+<span class="c1"># 每个请求进来时</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">_request_id</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">[:</span><span class="mi">16</span><span class="p">])</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+
+<code>contextvars</code> 在 asyncio 和线程池下都是对的，比 <code>threading.local</code> 安全——这是很多人踩过的坑：用 <code>threading.local</code> 存 request-id，在 <code>async def</code> 里会因为协程切换而串号。
+<h3>10.1 别用端到端延迟去量一个 header 的成本</h3>
+
+我在 E3 里顺手测了"带 request-id vs 不带"的端到端延迟。为了让"带 id"那一趟不是永远最后一个跑（那样任何冷热变化都会被算到 header 头上），我把不带 id 的 pass 跑了<strong>三次</strong>，夹住中间那趟带 id 的：
+<div class="codehilite"><pre><span></span><code>                                   p50       p99      mean   (ms)
+--------------------------------------------------------
+不带 id（第 1 次）                    2.80     41.60      9.33
+不带 id（第 2 次）                    2.66     39.42      8.26
+带 X-Request-Id                  7.78     41.49     11.80
+不带 id（第 3 次）                   19.36     52.76     17.87
+
+三次「不带 id」之间的抖动 : p50 16.70ms / p99 13.34ms
+「带 id」相对三者均值的偏移 : p50 -0.50ms / p99 -3.11ms
+</code></pre></div>
+
+
+看第 1 行和第 4 行：<strong>它们跑的是完全相同的代码，p50 差了 7 倍</strong>（2.80 vs 19.36）。而"带 id"相对均值的偏移是 <strong>-0.50ms</strong>，远小于这个抖动。
+
+结论很清楚：
+<ul>
+<li><strong>同一配置的三次运行之间，抖动有 16.70ms。</strong>你要测的信号（一个 header 的解析成本）是<strong>微秒级</strong>。噪声比信号大三个数量级。</li>
+<li><strong>"带 id"的偏移（-0.50ms）比抖动（16.70ms）小 33 倍</strong>，所以这个实验根本测不出任何东西。</li>
+</ul>
+
+而在另一次运行里，同样的代码给出的偏移是 <strong>+12.21ms</strong>——符号都是反的。<strong>符号会翻转，就说明你测的是机器冷热，不是 header。</strong>
+
+<strong>想用端到端延迟去量一个 header 的成本，噪声比信号大好几个数量级。</strong>这类问题只能在 E4 那种微基准里回答。这是我见过最多人浪费时间的地方——花两天时间做 A/B 压测，最后测出来的是自己机器的负载曲线。
+<h2>11. 采样：随机丢 1%，你就丢了 98% 的错误</h2>
+
+日志量太大的标准答案是"采样"。E5 模拟 10,000 个请求，1% 出错，正常请求 4 行日志，出错请求额外 3 行：
+<div class="codehilite"><pre><span></span><code><span class="gh">策略                              行数     相对 A       体积      错误保留</span>
+<span class="gh">--------------------------------------------------------------</span>
+A 全量                        40,318   100.0%     6.8MB    100.0%
+B 随机 1%                        418     1.0%     0.1MB      1.9%
+C 随机 1% + 错误全留               1,146     2.8%     0.2MB    100.0%
+D C + 慢请求全留                  1,190     3.0%     0.2MB    100.0%
+</code></pre></div>
+
+
+<strong>策略 B：随机采样 1%。日志量降到 1.0%——同时也把 98.1% 的错误扔掉了。</strong>
+
+这就是随机采样的陷阱。它看起来公平（每条日志被保留的概率一样），但你的目标是"出故障时要有数据"，而故障恰恰是稀有事件。均匀采样会按比例地丢掉它们。
+
+<strong>策略 C 才是对的：随机采样 1%，但错误级别的日志全部保留。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">should_log</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">sampled_ok</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">&gt;=</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>          <span class="c1"># 错误永远保留</span>
+    <span class="k">return</span> <span class="n">sampled_ok</span>        <span class="c1"># 其余按 1% 采</span>
+</code></pre></div>
+
+
+效果：日志量 2.8%，<strong>错误保留 100%</strong>。比全量省了 97% 的体积，一个错误都没丢。
+
+策略 D 再进一步：慢请求（比如 p99 以上）也全留。日志量 3.0%，多花 0.2 个百分点，换来"性能问题也有完整现场"。<strong>这 0.2% 是整篇文章里最便宜的一笔投资。</strong>
+
+还有一点值得说：<strong>采样决策要在请求入口做一次，然后在整个请求生命周期内保持。</strong>不能在每条日志上独立掷骰子——那样一个请求的 4 行日志会有的被留有的被丢，你拿到的是残缺的链路，比没有更让人困惑。
+<div class="codehilite"><pre><span></span><code><span class="c1"># 每个请求进来时决定一次，然后全程复用</span>
+<span class="n">sampled</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mf">0.01</span>
+<span class="n">_request_sampled</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sampled</span><span class="p">)</span>
+</code></pre></div>
+
+<h2>12. 落地清单</h2>
+
+按性价比排序，每条都对应上面某个实测数字：
+
+<strong>立刻做（收益大、风险低）</strong>
+<ul>
+<li>[ ] <strong>把逐条 flush 换成批量 flush。</strong>自定义 handler，<code>batch=1000</code> 或按时间（比如 1 秒）。实测 <strong>17.6x</strong>。代价是崩溃时可能丢最后一批。</li>
+<li>[ ] <strong>给每个请求加 request-id。</strong>一个 header + <code>contextvars</code> + <code>logging.Filter</code>。噪声比从 50:1 降到 1:1。这是排障体验的分水岭。</li>
+<li>[ ] <strong>采样时错误全留。</strong><code>level &gt;= ERROR</code> 直接放行，其余按比例。日志量 2.8%，错误保留 100%。</li>
+<li>[ ] <strong>检查你的时间戳格式化。</strong>如果它在格式成本里占 50% 以上（很可能），考虑存 Unix 时间戳，或者按秒缓存格式化结果。</li>
+</ul>
+
+<strong>值得做（需要一点改动）</strong>
+<ul>
+<li>[ ] <strong>日志写 JSON，理由是可解析性不是性能。</strong>它会慢 40%，但它会在 schema 漂移时<strong>报错</strong>而不是静默给出空结果。</li>
+<li>[ ] <strong>request-id 用 128 bit 还是 64 bit，按保留周期和聚合范围决定。</strong>跨机器长期保留就用 128 bit；64 bit 在每天 10 亿条的量级上，一个月的碰撞概率约 56%。</li>
+<li>[ ] <strong>确认采样决策在请求入口做一次。</strong>别在每条日志上独立掷骰子。</li>
+</ul>
+
+<strong>看情况（有坑）</strong>
+<ul>
+<li>[ ] <strong>关掉 <code>findCaller()</code>（<code>logging._srcfile = None</code>）省 55% 的 logging 开销。</strong>但你会失去文件名和行号。只在日志字段足够丰富、且你在写高频日志时才考虑。</li>
+<li>[ ] <strong>绕过 <code>Logger</code> 直接用 <code>handler.handle()</code>，快 4.1 倍。</strong>适合高频日志路径，代价是手动构造 <code>LogRecord</code>。</li>
+</ul>
+
+<strong>别做</strong>
+<ul>
+<li>[ ] <strong>别为了性能从 JSON 换回文本。</strong>省下的 40% 格式成本是 1 微秒，代价是失去 schema 校验。</li>
+<li>[ ] <strong>别用正则 vs <code>json.loads</code> 的速度做选型。</strong>差 0.17 秒，两种都能接受。</li>
+<li>[ ] <strong>别用端到端压测去量一个 header 或一个日志字段的成本。</strong>噪声比信号大三个数量级。</li>
+<li>[ ] <strong>别在没有噪声底的情况下相信任何性能数字。</strong>包括这篇文章的——先跑一次 <code>tools/bench_observability.py</code>，看你的机器给什么数。</li>
+</ul>
+<h2>13. FAQ</h2>
+
+<strong>Q：为什么不直接上 OpenTelemetry / Jaeger / ELK？</strong>
+
+A：可以上，而且如果团队规模够，应该上。但这篇文章测的所有量——格式成本、写路径成本、id 生成成本、关联效果——<strong>在这些系统底下依然存在</strong>。Filebeat / Promtail / OTel Collector 最终也是调 <code>write()</code>；它们解决的是"日志去哪"的问题，不是"写一条日志要花多少微秒"的问题。而且很多团队的实际路径是：先加 request-id（零依赖），发现 80% 的排障问题解决了，再决定要不要引入完整栈。<strong>先做那个零依赖的版本，你才知道自己缺什么。</strong>
+
+<strong>Q：批量 flush 会丢日志，怎么权衡？</strong>
+
+A：看你怕什么。怕"进程被 kill -9 时丢最后 1000 条"——那就用较短的时间窗口而不是条数窗口（比如每 200ms flush 一次），最坏丢 200ms 的日志。怕"日志写入拖慢请求"——那就用条数窗口。<strong>两个都怕的话，关键路径（错误、支付、认证）用同步 flush，其余用批量。</strong><code>logging</code> 支持按 logger 名挂不同 handler，很容易做到。
+
+<strong>Q：JSON 日志人眼没法读，怎么办？</strong>
+
+A：工具链问题，不是格式问题。<code>jq</code> 一行就能美化：
+<div class="codehilite"><pre><span></span><code>tail<span class="w"> </span>-f<span class="w"> </span>app.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;select(.level==&quot;ERROR&quot;)&#39;</span>
+</code></pre></div>
+
+
+比 <code>grep "ERROR" | grep "api/articles" | sed -n '1200,1400p'</code> 好用得多。<strong>"文本日志更好读"这个直觉，通常来自还没配工具。</strong>
+
+<strong>Q：<code>contextvars</code> 和 <code>threading.local</code> 到底差在哪？</strong>
+
+A：<code>threading.local</code> 按线程隔离，<code>contextvars</code> 按协程上下文隔离。在 <code>async def</code> 里，多个协程跑在同一个线程上，<code>threading.local</code> 会被它们互相覆盖——A 请求的 id 出现在 B 请求的日志里。这种 bug 极难发现，因为它只在并发时出现。<strong>用 <code>contextvars</code>，不要用 <code>threading.local</code>。</strong>
+
+<strong>Q：这套数字能直接套到我的服务上吗？</strong>
+
+A：<strong>比值可以，绝对值不要。</strong>"FileHandler 比缓冲裸写贵 24.5 倍"这个结论来自 CPython 的实现（<code>emit</code> 里硬编码了 <code>self.flush()</code>），换语言后机制不同但形状类似。而"12.33 微秒/行"这个绝对值，取决于你的磁盘、文件系统、杀毒软件、机器负载——我这台机器上同样的代码测出过 12.33 和 20.88 两个值，差 1.7 倍。<strong>跑一次脚本，拿你自己机器的数。</strong>
+
+<strong>Q：为什么文章里到处是"离散度"和"校准任务"？</strong>
+
+A：因为这台机器的噪声底是 12%，跨会话能涨到 57%。不标出来，读者会把噪声当成结论。<strong>校准任务是我在一个被污染的运行里差点写出"JSON 慢 2.15 倍"之后加的。</strong>那次运行的校准显示机器慢 1.68 倍，四个 case 的离散度 107%–181%——如果我没看这两个数，这篇文章里就会有一条错的结论。
+<h2>结语</h2>
+
+这篇文章最想说的其实不是"用 JSON"或者"用 request-id"，而是一个顺序问题：
+
+<strong>先测量，再优化。而且要知道你的测量有多可信。</strong>
+
+上面那些数字里，最反直觉的两个是：
+<ul>
+<li><strong>JSON 只贵 40%</strong>（我一开始以为是 2 倍，那是测量污染）</li>
+<li><strong><code>logging.FileHandler</code> 贵 24.5 倍</strong>（几乎没人讨论这个，因为它在标准库的 <code>emit()</code> 里，不在文档里）</li>
+</ul>
+
+如果只能改一处，改写路径——17.6 倍的收益，几行代码，不动业务逻辑。如果只能加一样东西，加 request-id——零依赖，把 50:1 的噪声比降到 1:1。
+
+至于格式之争，放过它吧。那 1 微秒不值得。
+<hr>
+
+所有数字由 <code>tools/bench_observability.py</code> 在本机跑出，脚本随文附上，可直接运行：
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>tools/bench_observability.py
+python<span class="w"> </span>tools/bench_observability.py<span class="w"> </span>--only<span class="w"> </span>e1b,e4<span class="w">    </span><span class="c1"># 单跑某个实验</span>
+</code></pre></div>
+
+
+环境：Windows 11 (10.0.26200)，Python 3.13.14 (CPython)，AMD64，12 逻辑核。
+
+<strong>注意：这台机器的噪声底是 12%（跨会话最高 57%）。</strong>脚本里每个计时实验都带离散度，并且每个实验都会跑一个固定的校准任务。<strong>请先看这两个数，再决定要不要相信任何一行的绝对值。</strong>比值比绝对值稳得多——同样的实验跑两遍，绝对值漂 15%，比值稳在 10% 以内。</div></div></noscript>
+  </body>
+</html>
