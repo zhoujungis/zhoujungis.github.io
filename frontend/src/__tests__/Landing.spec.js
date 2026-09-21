@@ -38,9 +38,15 @@ describe('Landing (Home.vue)', () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    expect(wrapper.find('.masthead__kicker').text()).toBe('个人博客 · ZhouJun · 深圳')
+    expect(wrapper.find('.masthead__kicker').text()).toBe('ZhouJun · 深圳')
     expect(wrapper.find('.masthead__name').text()).toBe('代码与生活')
-    expect(wrapper.find('.masthead__sub').text()).toBe('写字、写码、写日常')
+    expect(wrapper.find('.masthead__sub').text()).toBe('写字、写码、写日常。')
+
+    // 自述三句，一句一行
+    const lede = wrapper.findAll('.masthead__lede p').map((p) => p.text())
+    expect(lede).toHaveLength(3)
+    expect(lede[0]).toBe('代码的世界非黑即白，生活的画布斑驳陆离。')
+    expect(lede[2]).toBe('世界很大，我想把这些亲历的创造与感动，妥帖地存放于此。')
   })
 
   it('renders latest-section with header and view-all link', async () => {

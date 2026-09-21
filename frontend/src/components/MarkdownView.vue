@@ -37,6 +37,25 @@ function markCopied(btn) {
   }, 2000)
 }
 
+// A wide markdown table must scroll inside its own box instead of stretching
+// the page. Tables have a min-content width driven by their cells, so
+// `width: 100%` does not stop a 6-column table from overflowing: measured a
+// 475px table inside a 362px column → 99px of horizontal page overflow at
+// 390px, which also widened the fixed header (its containing block is the
+// viewport, so it grew to 489px). A scroll wrapper is the only fix that keeps
+// the table layout intact — `display: block` on the table itself would drop
+// `border-collapse: collapse` onto an anonymous table box.
+function wrapTables() {
+  if (!bodyRef.value) return
+  bodyRef.value.querySelectorAll('table').forEach((table) => {
+    if (table.parentElement?.classList.contains('table-scroll')) return
+    const wrapper = document.createElement('div')
+    wrapper.className = 'table-scroll'
+    table.parentNode.insertBefore(wrapper, table)
+    wrapper.appendChild(table)
+  })
+}
+
 function attachCopyButtons() {
   if (!bodyRef.value) return
   const blocks = bodyRef.value.querySelectorAll('pre')
@@ -230,11 +249,11 @@ async function processEnhancements() {
 }
 
 onMounted(() => {
-  nextTick(() => { processEnhancements(); attachCopyButtons() })
+  nextTick(() => { processEnhancements(); wrapTables(); attachCopyButtons() })
 })
 
 watch(() => props.html, () => {
-  nextTick(() => { processEnhancements(); attachCopyButtons() })
+  nextTick(() => { processEnhancements(); wrapTables(); attachCopyButtons() })
 })
 </script>
 
@@ -334,7 +353,12 @@ watch(() => props.html, () => {
     color: #315544;
     padding: 2px 7px; border-radius: 4px;
     font-size: 0.85em; font-family: $font-mono;
+    // Long unbreakable tokens in inline code (paths, identifiers, URLs) wrap
+    // instead of pushing the document wider than the viewport.
+    overflow-wrap: anywhere;
   }
+  // Code blocks have their own scroll container — never wrap their lines.
+  :deep(pre code) { overflow-wrap: normal; }
 
   // Blockquote
   :deep(blockquote) {
@@ -346,10 +370,16 @@ watch(() => props.html, () => {
     p { margin: 0; }
   }
 
-  // Tables
+  // Tables — the scroll wrapper carries the margin so the table can scroll
+  // edge-to-edge inside it without the margin being clipped.
+  :deep(.table-scroll) {
+    margin: 1.2em 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   :deep(table) {
     width: 100%; border-collapse: collapse;
-    margin: 1.2em 0; border-radius: $radius-md;
+    margin: 0; border-radius: $radius-md;
     overflow: hidden; background: $bg-card;
     border: 1px solid $glass-border;
   }
@@ -433,6 +463,9 @@ watch(() => props.html, () => {
     :deep(h2) { font-size: 1.3rem; }
     :deep(h3) { font-size: 1.15rem; }
     :deep(pre) { padding: 12px 14px; padding-right: 40px; font-size: 0.8rem; }
+    // Tighter cells shrink the table's min-content width, so fewer tables
+    // need to scroll at all on a phone.
+    :deep(th), :deep(td) { padding: 8px 10px; font-size: 0.82rem; }
   }
 }
 </style>

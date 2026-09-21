@@ -162,16 +162,7 @@
           </section>
         </article>
 
-        <!-- Mobile TOC (collapsible, hidden on desktop) -->
-        <details class="mobile-toc">
-          <summary class="mobile-toc-toggle">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            目录
-          </summary>
-          <TocNav :html="article.html_content || article.content || ''" />
-        </details>
-
-        <!-- Desktop TOC sidebar -->
+        <!-- Desktop TOC sidebar (hidden below 1024px — no TOC on mobile) -->
         <aside class="detail-sidebar">
           <TocNav :html="article.html_content || article.content || ''" />
         </aside>
@@ -377,6 +368,10 @@ onUnmounted(() => {
   max-width: 800px;
 }
 
+// 目录只在桌面端以侧栏形式出现；移动端不展示目录。
+// 曾经的 .mobile-toc 是 .detail-layout 的 flex 兄弟节点，其内部 .toc-nav
+// 固定 240px 宽，会在窄屏右侧硬占一列，把正文挤到左边——这就是“文章右边
+// 一大片空白”的根因。删掉它以后，≤1023px 只有 .detail-main 一个 flex 项。
 .detail-sidebar {
   position: sticky;
   top: 80px;
@@ -387,38 +382,6 @@ onUnmounted(() => {
   @media (max-width: 1023px) {
     display: none;
   }
-}
-
-// Mobile TOC (visible only on small screens)
-.mobile-toc {
-  display: none;
-  margin-bottom: 20px;
-  border: 1px solid $glass-border;
-  border-radius: $glass-radius;
-  background: $bg-card;
-
-  @media (max-width: 1023px) {
-    display: block;
-  }
-}
-
-.mobile-toc-toggle {
-  padding: 12px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: $neon-cyan;
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  user-select: none;
-  &::-webkit-details-marker { display: none; }
-}
-
-.mobile-toc .toc-nav {
-  width: 100%;
-  padding: 0 16px 16px;
 }
 
 // ============ Article header ============

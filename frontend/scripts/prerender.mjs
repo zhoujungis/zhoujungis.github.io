@@ -46,6 +46,9 @@ const API_BASE =
   process.env.PRERENDER_API_BASE ||
   'https://zhoujun123.pythonanywhere.com/api/'
 const SITE_ORIGIN = process.env.PRERENDER_ORIGIN || 'https://zhoujungis.github.io'
+// Site name — keep in sync with src/utils/seo.js (SITE_NAME), index.html and
+// public/manifest.json.
+const SITE_NAME = '一蓑烟雨任平生'
 // Bounded concurrency for detail fetches — PythonAnywhere is a small host,
 // so stay polite. Override with PRERENDER_CONCURRENCY if needed.
 const CONCURRENCY = Math.max(
@@ -228,7 +231,7 @@ function upsertMeta(html, attr, key, content) {
 
 function renderArticlePage(template, article) {
   const url = `${SITE_ORIGIN}/article/${article.slug}/`
-  const title = `${article.title} | 个人博客-代码与生活`
+  const title = `${article.title} | ${SITE_NAME}`
   const description = (article.excerpt || article.title).slice(0, 160)
   const isoDate = article.created_at || ''
   const cover = article.cover_image || `${SITE_ORIGIN}/og-image.jpg`
@@ -308,7 +311,7 @@ function renderHomePage(template, articles) {
     )
     .join('\n')
   const noscript =
-    `<noscript><div class="ns-home-list"><h1>个人博客-代码与生活</h1>` +
+    `<noscript><div class="ns-home-list"><h1>${escapeHtml(SITE_NAME)}</h1>` +
     `<p>最新文章（静态快照，完整体验请启用 JavaScript）：</p><ul>\n${items}\n</ul></div></noscript>`
   let html = template
   // The shell is a build artifact reused across builds, so on every rebuild

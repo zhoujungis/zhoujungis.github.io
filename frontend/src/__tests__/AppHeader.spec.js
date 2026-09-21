@@ -19,8 +19,9 @@ describe('AppHeader', () => {
     const router = withRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(AppHeader, { global: { plugins: [router] } })
-    expect(wrapper.find('.logo').text()).toContain('个人博客')
-    expect(wrapper.find('.logo').text()).toContain('Blog')
+    expect(wrapper.find('.logo').text()).toContain('一蓑烟雨任平生')
+    expect(wrapper.find('.logo').text()).toContain('ZhouJun·ShenZhen')
+    expect(wrapper.find('.logo-mark').attributes('src')).toBe('/icons/icon-192.png')
   })
 
   it('renders nav link 「文章」 pointing to /articles', async () => {

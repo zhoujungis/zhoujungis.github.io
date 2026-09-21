@@ -1,11 +1,18 @@
 <template>
   <header class="app-header">
     <div class="header-inner">
-      <router-link to="/" class="logo" aria-label="博客首页" @click="closeMenus">
-        <span class="logo-mark">Blog</span>
+      <router-link to="/" class="logo" aria-label="一蓑烟雨任平生 · 返回首页" @click="closeMenus">
+        <img
+          class="logo-mark"
+          :src="logoIcon"
+          alt="一蓑烟雨任平生"
+          width="38"
+          height="38"
+          decoding="async"
+        />
         <span class="logo-copy">
-          <strong>个人博客</strong>
-          <small>FIELD NOTES</small>
+          <strong>一蓑烟雨任平生</strong>
+          <small>ZhouJun·ShenZhen</small>
         </span>
       </router-link>
 
@@ -95,6 +102,11 @@ const drawerOpen = ref(false)
 const moreOpen = ref(false)
 const scrollLock = useScrollLock()
 
+// Public asset (frontend/public/icons/icon-192.png). Kept in a binding on
+// purpose: a static `src="/..."` gets rewritten by the Vue asset transform
+// at compile time, which breaks `fileURLToPath` under vitest on Windows.
+const logoIcon = '/icons/icon-192.png'
+
 const primaryLinks = [
   { path: '/', label: '首页' },
   { path: '/articles', label: '文章' },
@@ -165,16 +177,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .logo-mark {
-  display: grid;
-  place-items: center;
+  display: block;
+  flex: 0 0 38px;
   width: 38px;
   height: 38px;
-  color: #fff;
-  background: $accent-pink;
   border-radius: 50%;
-  font-family: $font-mono;
-  font-size: 0.62rem;
-  font-weight: 700;
+  object-fit: cover;
 }
 
 .logo-copy {
@@ -182,8 +190,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   flex-direction: column;
   line-height: 1.05;
 
-  strong { color: inherit; font-size: 0.98rem; font-weight: 700; }
-  small { margin-top: 5px; color: $text-secondary; font-family: $font-mono; font-size: 0.56rem; letter-spacing: 0.12em; }
+  strong { color: inherit; font-size: 0.98rem; font-weight: 700; letter-spacing: 0.02em; }
+  small {
+    margin-top: 5px;
+    color: $text-secondary;
+    font-family: $font-mono;
+    font-size: 0.56rem;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
 }
 
 .nav-desktop {
@@ -383,8 +398,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   .nav-desktop,
   .desktop-theme { display: none; }
   .hamburger { display: inline-flex; }
-  .logo-mark { width: 34px; height: 34px; }
-  .logo-copy small { display: none; }
+  .logo-mark { flex: 0 0 34px; width: 34px; height: 34px; }
+  // 移动端保留副标题（ZhouJun·ShenZhen）——它是品牌识别的一部分，
+  // 之前在这里 display:none 掉了。收窄字距以便整行放得下。
+  .logo-copy small { letter-spacing: 0.06em; }
   .search-button { display: none; }
 }
 

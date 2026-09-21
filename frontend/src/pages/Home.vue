@@ -3,12 +3,14 @@
     <!-- ── 刊头 Masthead ── -->
     <header class="masthead">
       <div class="masthead__main">
-        <p class="masthead__kicker">个人博客 · ZhouJun · 深圳</p>
+        <p class="masthead__kicker">ZhouJun · 深圳</p>
         <h1 class="masthead__name">代码与生活</h1>
-        <p class="masthead__sub">写字、写码、写日常</p>
-        <p class="masthead__lede">
-          这里记录我做过的项目、踩过的坑，以及生活里值得留下的一两件事。
-        </p>
+        <p class="masthead__sub">写字、写码、写日常。</p>
+        <div class="masthead__lede">
+          <p class="lede__lead">代码的世界非黑即白，生活的画布斑驳陆离。</p>
+          <p>我习惯在逻辑与语法的缝隙里敲下项目的迭代，也习惯在字里行间打捞生活的琐碎与诗意。</p>
+          <p>世界很大，我想把这些亲历的创造与感动，妥帖地存放于此。</p>
+        </div>
       </div>
       <aside class="masthead__aside" aria-label="站点信息">
         <div class="aside-stat">
@@ -356,13 +358,13 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 }
 
 .masthead__name {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: var(--text-primary);
   font-family: $serif;
-  font-size: clamp(2.8rem, 7vw, 4.4rem);
+  font-size: clamp(1.9rem, 4vw, 2.9rem);
   font-weight: 900;
-  line-height: 1.02;
-  letter-spacing: -0.015em;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
 }
 
 .masthead__sub {
@@ -374,12 +376,47 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   letter-spacing: 0.3em;
 }
 
+// 自述三句：题记式排版。
+// 左侧一道向下渐隐的竖线做视觉锚点，首句用衬线 + 主色提上来当题眼，
+// 后两句退成次级色，形成 1 + 2 的节奏，避免三行同重灰字糊成一片。
+// max-width 用 em（≈633px）而不是原来的 56ch —— 56ch 对中文只有 ~412px，
+// 最长那句 39 字会被折断；每句独占一行才是作者写下的节奏。
 .masthead__lede {
-  max-width: 56ch;
-  margin: 14px 0 0;
+  position: relative;
+  max-width: 44em;
+  margin: 20px 0 0;
+  padding-left: 18px;
   color: var(--text-secondary);
-  font-size: 0.92rem;
-  line-height: 1.75;
+  font-size: 0.88rem;
+  line-height: 1.85;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 5px;
+    bottom: 5px;
+    width: 3px;
+    background: linear-gradient(
+      to bottom,
+      var(--accent-secondary) 0%,
+      var(--accent-secondary) 42%,
+      transparent 100%
+    );
+  }
+
+  p { margin: 0; }
+  p + p { margin-top: 4px; }
+
+  .lede__lead {
+    margin-bottom: 9px;
+    color: var(--text-primary);
+    font-family: $serif;
+    font-size: 1.06rem;
+    font-weight: 700;
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+  }
 }
 
 .masthead__bar {
@@ -887,11 +924,15 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 
 @media (max-width: 520px) {
   .page-landing { width: calc(100% - 24px); }
-  .masthead__name { font-size: 2.5rem; }
+  // 标题字号交给上面的 clamp 统一控制，这里不再覆盖（原 2.5rem 会比 clamp 下限还大）
   .masthead__sub { letter-spacing: 0.14em; }
   .masthead__aside { gap: 20px; }
   .aside-stat__value { font-size: 1.2rem; }
-  .masthead__bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  // 移动端保持单行：阅读文章 CTA 在左，GitHub/Email/RSS 在右。
+  // 收窄 CTA 内边距与社交入口间距，保证 320px 宽也不换行。
+  .masthead__bar { gap: 10px; }
+  .masthead__nav { gap: 12px; }
+  .mast-cta { padding: 8px 16px; letter-spacing: 0.04em; }
   .index-item__link { grid-template-columns: 1fr auto; }
   .index-item__date { grid-column: 1 / -1; order: -1; }
   .column-row { grid-template-columns: 1fr; gap: 12px; padding: 18px 0; }

@@ -1,16 +1,27 @@
 /**
+ * Site name used as the title suffix and og:site_name.
+ * Single source of truth — keep in sync with:
+ *   - index.html (<title>, og:title, og:site_name, twitter:title, RSS title)
+ *   - public/manifest.json ("name" / "short_name")
+ *   - scripts/prerender.mjs (SITE_NAME)
+ */
+export const SITE_NAME = '一蓑烟雨任平生'
+
+const SITE_DESCRIPTION = 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学'
+
+/**
  * Set SEO meta tags dynamically.
  * Usage: useSEO({ title: '...', description: '...', image: '...', url: '...' })
  */
 export function useSEO(options = {}) {
   const {
-    title = '个人博客-代码与生活',
-    description = 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学',
+    title = SITE_NAME,
+    description = SITE_DESCRIPTION,
     image = '',
     url = window.location.href,
   } = options
 
-  const fullTitle = title === '个人博客-代码与生活' ? title : `${title} | 个人博客-代码与生活`
+  const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`
 
   // Update document title
   document.title = fullTitle
@@ -58,8 +69,8 @@ export function useSEO(options = {}) {
  * Prevents the previous page's title/og from leaking onto the next page.
  */
 export const DEFAULT_SEO = {
-  title: '个人博客 · ZhouJun',
-  description: 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学',
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
   image: '',
   url: '',
 }
