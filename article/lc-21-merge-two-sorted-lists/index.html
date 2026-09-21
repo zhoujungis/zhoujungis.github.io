@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 21】合并两个有序链表：哑结点到底替你扛了什么 适用读者 ：链表题能看懂答案、自己一写就崩的人；以及准备面试、想把这题答出层次的人 技术栈 ：Python 为主，迭代与递归都附 Java 版 难度 ：简单（但它是 LC 23、LC 148 的地基，面试官都爱从这里起跳） 收获 ：哑结点的真实价值、一份不丢节点的" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-21-merge-two-sorted-lists/" />
+    <meta property="og:title" content="【LC 21】合并两个有序链表：哑结点到底替你扛了什么" />
+    <meta property="og:description" content="【LC 21】合并两个有序链表：哑结点到底替你扛了什么 适用读者 ：链表题能看懂答案、自己一写就崩的人；以及准备面试、想把这题答出层次的人 技术栈 ：Python 为主，迭代与递归都附 Java 版 难度 ：简单（但它是 LC 23、LC 148 的地基，面试官都爱从这里起跳） 收获 ：哑结点的真实价值、一份不丢节点的" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-21-merge-two-sorted-lists/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-21-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 21】合并两个有序链表：哑结点到底替你扛了什么" />
+    <meta name="twitter:description" content="【LC 21】合并两个有序链表：哑结点到底替你扛了什么 适用读者 ：链表题能看懂答案、自己一写就崩的人；以及准备面试、想把这题答出层次的人 技术栈 ：Python 为主，迭代与递归都附 Java 版 难度 ：简单（但它是 LC 23、LC 148 的地基，面试官都爱从这里起跳） 收获 ：哑结点的真实价值、一份不丢节点的" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-21-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 21】合并两个有序链表：哑结点到底替你扛了什么 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-H7f3SR65.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-21T16:20:56.806476+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 21】合并两个有序链表：哑结点到底替你扛了什么","description":"【LC 21】合并两个有序链表：哑结点到底替你扛了什么 适用读者 ：链表题能看懂答案、自己一写就崩的人；以及准备面试、想把这题答出层次的人 技术栈 ：Python 为主，迭代与递归都附 Java 版 难度 ：简单（但它是 LC 23、LC 148 的地基，面试官都爱从这里起跳） 收获 ：哑结点的真实价值、一份不丢节点的","image":"https://zhoujungis.github.io/photos/lc-21-cover.png","datePublished":"2026-09-21T16:20:56.806476+08:00","dateModified":"2026-09-21T16:20:56.806515+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-21-merge-two-sorted-lists/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 21】合并两个有序链表：哑结点到底替你扛了什么</h1><div class="ns-meta">2026/9/21 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：链表题能看懂答案、自己一写就崩的人；以及准备面试、想把这题答出层次的人
+<strong>技术栈</strong>：Python 为主，迭代与递归都附 Java 版
+<strong>难度</strong>：简单（但它是 LC 23、LC 148 的地基，面试官都爱从这里起跳）
+<strong>收获</strong>：哑结点的真实价值、一份不丢节点的迭代模板、递归写法的调用栈推演，以及「合并 K 个」的三种姿势
+</blockquote>
+<h2>题目</h2>
+
+将两个<strong>升序</strong>链表合并为一个新的<strong>升序</strong>链表并返回。新链表是通过<strong>拼接</strong>给定的两个链表的所有节点组成的。
+<div class="codehilite"><pre><span></span><code>输入：l1 = [1,2,4]，l2 = [1,3,4]
+输出：[1,1,2,3,4,4]
+</code></pre></div>
+
+
+链表节点的定义（和上一篇 LC 206 一致，后面所有代码都用它）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+
+注意题目里「<strong>拼接</strong>」两个字：不是让你 new 出一串新节点把值抄过去，而是<strong>把原来的节点重新串起来</strong>。值一个都不改，改的只有 <code>next</code> 指针的指向。
+
+这道题标着「简单」，通过率也确实高。但我见过不少人——包括一些刷了三百题的——在这题上写出过这两种代码：一种是接节点的时候把半条链接丢了；一种是写了五个 <code>if</code> 去处理「头节点到底是谁」，然后漏掉其中一种情况。
+
+简单题的坑从来不在算法上，在<strong>边界的完整性</strong>上。这篇就把这两个坑拆开看，然后给你一个坑都踩不到的写法。
+<hr>
+<h2>一、先把「合并」翻译成指针操作</h2>
+<h3>1.1 数组合并靠挪元素，链表合并靠改指向</h3>
+
+数组怎么做归并？双指针比大小，把小的抄进新数组。<strong>元素是要被复制搬运的</strong>，因为数组靠下标组织，你没法「把 a[2] 挂到 b 数组后面」。
+
+链表不一样。链表的节点散落在堆里，唯一的组织方式是 <code>next</code> 指针。所以「把节点 X 放进结果链表」这件事，翻译成指针操作只有一句：
+<div class="codehilite"><pre><span></span><code><span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">X</span>    <span class="c1"># X 接到结果尾部</span>
+</code></pre></div>
+
+
+没有复制，没有搬移，就是<strong>改一根指针</strong>。这也是为什么链表版归并的空间复杂度能做到 O(1)——结果链表用的全是现成的节点。
+<h3>1.2 每一轮只做一件事：选一个人出场</h3>
+
+两条链表都是升序的，所以<strong>全局最小的元素，只可能出现在两条链表的头部</strong>。这就是合并的全部依据：
+<ol>
+<li>比较 <code>l1</code> 和 <code>l2</code> 的头节点，<strong>小的那个</strong>就是当前全局最小；</li>
+<li>把它接到结果链表尾部，它对应的指针后移一格；</li>
+<li>重复，直到某一条链表走空；</li>
+<li>另一条剩下的部分<strong>直接整段接上</strong>——它本来就是有序的，而且每个值都不小于已接的所有值。</li>
+</ol>
+
+第 4 步是这道题最容易被忽略的一步，后面细说。
+<hr>
+<h2>二、这道「简单」题的两个坑</h2>
+<h3>坑一：接节点的时候，把后面半条链接丢了</h3>
+
+链表节点的 <code>next</code> 只有一个格子。你把节点接到 <code>tail.next</code> 上之前，如果它后面还挂着东西，而你又需要用到那些东西——必须先把路记下来。
+
+典型的错误是这样（伪代码）：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 错误示范</span>
+<span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span>          <span class="c1"># l1 接上结果链表</span>
+<span class="n">l1</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">next</span>            <span class="c1"># 再往后走</span>
+</code></pre></div>
+
+
+这两行顺序<strong>是对的</strong>。但初学者常写成下面的变体：先让 <code>l1 = l1.next</code> 再接，或者接完之后忘了前移 <code>tail</code>，下一轮又往<strong>同一个</strong> <code>tail</code> 后面接——上一个节点直接被覆盖，从结果链表里消失了。后者不会报错、不会异常，只有在输出的时候你才发现结果只有一两个节点。
+
+<strong>判断标准很简单：改动任何一根 <code>next</code> 之前，先问自己「改完之后我还回得去吗」。</strong>
+<h3>坑二：第一个节点接谁，是不确定的</h3>
+
+假设不用任何技巧，直接开写。第一轮比较 <code>1</code> 和 <code>1</code>（两个头部），取 <code>l1</code> 的 <code>1</code> 当结果头。看起来没问题？把输入换成 <code>l2 = [0, 3]</code> 呢——头是 <code>l2</code> 的 <code>0</code>。
+
+也就是说<strong>结果的头节点可能来自任何一条链表的任何位置</strong>，没有哑结点的写法只能靠特判：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 没有哑结点的写法：先花大力气确定头</span>
+<span class="k">if</span> <span class="n">l1</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">l2</span>
+<span class="k">if</span> <span class="n">l2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">l1</span>
+<span class="k">if</span> <span class="n">l1</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;=</span> <span class="n">l2</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+    <span class="n">head</span> <span class="o">=</span> <span class="n">l1</span>
+    <span class="n">l1</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">next</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">head</span> <span class="o">=</span> <span class="n">l2</span>
+    <span class="n">l2</span> <span class="o">=</span> <span class="n">l2</span><span class="o">.</span><span class="n">next</span>
+<span class="n">tail</span> <span class="o">=</span> <span class="n">head</span>
+<span class="k">while</span> <span class="n">l1</span> <span class="ow">and</span> <span class="n">l2</span><span class="p">:</span>
+    <span class="o">...</span>  <span class="c1"># 和正式循环一模一样的逻辑</span>
+<span class="k">return</span> <span class="n">head</span>
+</code></pre></div>
+
+
+数一下：4 个特判分支 + 一个和正式循环几乎重复的初始化逻辑。重复意味着两处要同步维护，而同步维护的代码迟早改挂一处。
+
+<strong>哑结点解决的就是这个</strong>。
+<hr>
+<h2>三、哑结点：把「第一个节点」变成「普通节点」</h2>
+
+哑结点（dummy node）是一个<strong>不存任何有效数据</strong>的节点，值随便填，它的唯一工作是<strong>预先占住结果链表的头</strong>：
+<div class="codehilite"><pre><span></span><code>dummy → ? → ? → ? → ∅     ← 结果链表，头被 dummy 占住了
+tail ——^                 ← tail 永远指向结果链表当前最后一个节点
+</code></pre></div>
+
+
+有了它，之后每接一个节点，都是「接在 <code>tail</code> 后面」这个<strong>普通操作</strong>——第一个接进来的节点，和第二十个接进来的节点，走的是<strong>完全相同的代码路径</strong>。不再有任何「它是不是第一个」的判断。
+
+最后返回的时候，真正的头是 <code>dummy.next</code>——dummy 自己只是个占位符，不进结果。
+
+顺手理一下 <code>tail</code> 这个角色：它负责维护「<strong>已拼接部分的边界</strong>」。所有拼接动作都发生在 <code>tail</code> 身后，<code>tail</code> 之前的部分永远完整、永远有序、永远不再被碰。这个「维护一条已处理区边界」的思想，和 LC 206 里的 <code>prev</code> 指针是同一个东西——上一篇反转链表里的 <code>prev</code>，维护的是「已反转部分的头」。
+
+下面这段动画把 <code>1→2→4</code> 和 <code>1→3→4</code> 合并的<strong>完整 13 步</strong>演了一遍：绿色来自 A 链表，橙色来自 B 链表，虚线框是哑结点。注意看 <code>tail</code> 每一步怎么走、收尾那一歩「整段接上」长什么样。
+<div class="algo-viz algo-viz--lc21"></div>
+
+
+看完动画，你应该对三个画面有印象：<strong>compare 时两个候选节点同时高亮</strong>、<strong>take 时节点飞进结果行并且颜色暴露了它的出身</strong>、<strong>收尾时 B 剩下的那个 <code>4</code> 整段亮起来一次性接入</strong>。带着这三个画面，我们读代码。
+<hr>
+<h2>四、迭代解法：逐行拆解</h2>
+<h3>4.1 Python</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="p">:</span> <span class="n">ListNode</span><span class="p">,</span> <span class="n">l2</span><span class="p">:</span> <span class="n">ListNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ListNode</span><span class="p">:</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>              <span class="c1"># 占位符，值无所谓</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">dummy</span>                     <span class="c1"># tail 永远指向结果链表最后一个节点</span>
+    <span class="k">while</span> <span class="n">l1</span> <span class="ow">and</span> <span class="n">l2</span><span class="p">:</span>                 <span class="c1"># 两条都还有货，才需要比较</span>
+        <span class="k">if</span> <span class="n">l1</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;=</span> <span class="n">l2</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>         <span class="c1"># 相等时取 l1，保证稳定性</span>
+            <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span>           <span class="c1"># l1 的头接上结果</span>
+            <span class="n">l1</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">next</span>             <span class="c1"># l1 后移（先接，再走，顺序不能反）</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l2</span>
+            <span class="n">l2</span> <span class="o">=</span> <span class="n">l2</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span>             <span class="c1"># tail 前移到新接的节点——忘了这行就是大事故</span>
+    <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span> <span class="k">if</span> <span class="n">l1</span> <span class="k">else</span> <span class="n">l2</span>     <span class="c1"># 一方走空，另一方整段接上</span>
+    <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>                <span class="c1"># dummy 是占位符，真正的头在它后面</span>
+</code></pre></div>
+
+
+8 行有效代码。每一行都在干什么，对着动画再过一遍：
+<ul>
+<li><code>tail.next = l1</code> + <code>l1 = l1.next</code>：这就是坑一的安全顺序——<strong>先接、再走</strong>。接的时候 <code>l1</code> 还指着它，接完 <code>l1</code> 才挪走，没有任何信息丢失。</li>
+<li><code>tail = tail.next</code>：坑一的第二半。接完新节点，边界要跟着走，否则下一轮又覆盖旧节点。</li>
+<li><code>tail.next = l1 if l1 else l2</code>：坑四里的「最容易被忽略的一步」。循环退出的原因是<strong>某一方走空了</strong>，另一方剩下的节点一个都没接呢——整段接上。因为对方本来有序，而且头部的值不小于已拼接的所有值，直接接就是对的。</li>
+</ul>
+<h3>4.2 Java</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeTwoLists</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">l1</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">l2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">l2</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1</span><span class="p">;</span>
+<span class="w">            </span><span class="n">l1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">            </span><span class="n">l2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">l1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>4.3 拿示例走一遍</h3>
+
+<code>l1 = 1→2→4</code>，<code>l2 = 1→3→4</code>：
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>比较</th>
+<th>动作</th>
+<th>结果链表</th>
+<th>之后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1 vs 1</td>
+<td>1 ≤ 1，接 l1 的 1</td>
+<td>dummy→1</td>
+<td>l1=2→4，tail=1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2 vs 1</td>
+<td>2 &gt; 1，接 l2 的 1</td>
+<td>dummy→1→1</td>
+<td>l2=3→4，tail=1'</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2 vs 3</td>
+<td>2 ≤ 3，接 l1 的 2</td>
+<td>dummy→1→1→2</td>
+<td>l1=4，tail=2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>4 vs 3</td>
+<td>4 &gt; 3，接 l2 的 3</td>
+<td>dummy→1→1→2→3</td>
+<td>l2=4，tail=3</td>
+</tr>
+<tr>
+<td>5</td>
+<td>4 vs 4</td>
+<td>4 ≤ 4，接 l1 的 4</td>
+<td>dummy→1→1→2→3→4</td>
+<td><strong>l1 走空</strong>，tail=4</td>
+</tr>
+<tr>
+<td>收尾</td>
+<td>—</td>
+<td>l1 空，l2 剩 4 整段接上</td>
+<td>dummy→1→1→2→3→4→4</td>
+<td>返回 dummy.next</td>
+</tr>
+</tbody>
+</table>
+
+第 5 轮值得盯一眼：<code>l1</code> 的 <code>4</code> 接上去之后 <code>l1</code> 走空，循环退出——但 <code>l2</code> 的 <code>4</code> <strong>还悬在结果外面</strong>。没有收尾那行，输出就是 <code>1→1→2→3→4</code>，少了最后一个节点。这是这题提交记录里最常见的 Wrong Answer，没有之一。
+<h3>4.4 边界全过一遍</h3>
+<ul>
+<li><strong>一方为空</strong>（<code>l1 = []</code>）：<code>while</code> 条件直接不成立，<code>tail.next = l2</code> 原样接上整条，返回。<strong>不需要任何特判</strong>——无哑结点写法里那 4 个分支，被哑结点无声地吞掉了。</li>
+<li><strong>双方都空</strong>：<code>tail.next = l2</code>（也就是 <code>None</code>），返回 <code>dummy.next</code> 即 <code>None</code>。也对。</li>
+<li><strong>长度悬殊</strong>（<code>[1,5,9]</code> 和 <code>[2]</code>）：循环 2 轮后 <code>l2</code> 走空，<code>l1</code> 剩 <code>5→9</code> 整段接上。和示例同一个形状。</li>
+<li><strong>相等值</strong>：<code>1 vs 1</code> 取 <code>l1</code>。取 <code>l2</code> 结果也对（值相等），但 <code>&lt;=</code> 有个说法叫<strong>稳定性</strong>——相等时先入者先出。合并链表本身看不出差别，可这个习惯会原样带进归并排序：<strong>稳定性是归并排序作为「稳定排序」的立身之本</strong>，而归并里干这活的正是这段合并代码。</li>
+</ul>
+<hr>
+<h2>五、递归解法：三行核心，栈要还债</h2>
+<h3>5.1 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="p">:</span> <span class="n">ListNode</span><span class="p">,</span> <span class="n">l2</span><span class="p">:</span> <span class="n">ListNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ListNode</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">l1</span><span class="p">:</span>                       <span class="c1"># 一方空了，返回另一方</span>
+        <span class="k">return</span> <span class="n">l2</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">l2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">l1</span>
+    <span class="k">if</span> <span class="n">l1</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;=</span> <span class="n">l2</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>             <span class="c1"># 小的当头，它的 next 指向「剩下的合并结果」</span>
+        <span class="n">l1</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="o">.</span><span class="n">next</span><span class="p">,</span> <span class="n">l2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">l1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">l2</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="p">,</span> <span class="n">l2</span><span class="o">.</span><span class="n">next</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">l2</span>
+</code></pre></div>
+
+
+Java：
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeTwoLists</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">l1</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">l2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">l1</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">l1</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="p">.</span><span class="na">next</span><span class="p">,</span><span class="w"> </span><span class="n">l2</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">l1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">l2</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="p">,</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">next</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>5.2 为什么这是对的</h3>
+
+读懂递归只问一个问题：<strong><code>mergeTwoLists(l1, l2)</code> 的契约是什么？</strong>——「把这两条有序链表合并好，返回合并后的头」。
+
+那么 <code>l1.val &lt;= l2.val</code> 时，全局最小就是 <code>l1</code> 的头，它一定是新链表的第一个节点。剩下的部分呢？<code>l1.next</code> 那半条和整条 <code>l2</code> 的合并——<strong>和原问题一模一样，只是规模小了一格</strong>。把子问题的答案接到 <code>l1.next</code> 上，返回 <code>l1</code>，契约兑现。
+
+递归的边界，恰好就是那两个「一方为空」的情况：空链表和任何链表合并，结果就是那条链表本身——<strong>这题的递归边界就是数学上的单位元</strong>。
+<h3>5.3 调用栈推演：<code>1→2→4</code> × <code>1→3→4</code></h3>
+
+压栈阶段（每层只做一件事：选出头，把剩下的交给下一层）：
+<div class="codehilite"><pre><span></span><code>merge(124, 134)   1≤1，头=1   → 等 merge(24, 134)
+  merge(24, 134)  2&gt;1，头=1&#39;  → 等 merge(24, 34)
+    merge(24, 34)  2≤3，头=2  → 等 merge(4, 34)
+      merge(4, 34)  4&gt;3，头=3 → 等 merge(4, 4)
+        merge(4, 4) 4≤4，头=4 → 等 merge(∅, 4)
+          merge(∅, 4) → 返回 4      ← 触底
+</code></pre></div>
+
+
+回溯阶段（逐层把头接回去）：
+<div class="codehilite"><pre><span></span><code><span class="nv">merge</span><span class="ss">(</span>∅,<span class="w"> </span><span class="mi">4</span><span class="ss">)</span><span class="w">    </span>返回<span class="w"> </span><span class="mi">4</span>
+<span class="nv">merge</span><span class="ss">(</span><span class="mi">4</span>,<span class="w"> </span><span class="mi">4</span><span class="ss">)</span><span class="w">    </span><span class="mi">4</span>.<span class="k">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w">   </span>返回<span class="w"> </span><span class="mi">4</span>→<span class="mi">4</span>
+<span class="nv">merge</span><span class="ss">(</span><span class="mi">4</span>,<span class="w"> </span><span class="mi">34</span><span class="ss">)</span><span class="w">   </span><span class="mi">3</span>.<span class="k">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w">   </span>返回<span class="w"> </span><span class="mi">3</span>→<span class="mi">4</span>→<span class="mi">4</span>
+<span class="nv">merge</span><span class="ss">(</span><span class="mi">24</span>,<span class="w"> </span><span class="mi">34</span><span class="ss">)</span><span class="w">  </span><span class="mi">2</span>.<span class="k">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="w">   </span>返回<span class="w"> </span><span class="mi">2</span>→<span class="mi">3</span>→<span class="mi">4</span>→<span class="mi">4</span>
+<span class="nv">merge</span><span class="ss">(</span><span class="mi">24</span>,<span class="w"> </span><span class="mi">134</span><span class="ss">)</span><span class="w"> </span><span class="mi">1</span><span class="s1">&#39;.next = 2  返回 1&#39;</span>→<span class="mi">2</span>→<span class="mi">3</span>→<span class="mi">4</span>→<span class="mi">4</span>
+<span class="nv">merge</span><span class="ss">(</span><span class="mi">124</span>,<span class="mi">134</span><span class="ss">)</span><span class="w"> </span><span class="mi">1</span>.<span class="k">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="s1">&#39;  返回 1→1&#39;</span>→<span class="mi">2</span>→<span class="mi">3</span>→<span class="mi">4</span>→<span class="mi">4</span>
+</code></pre></div>
+
+
+压到最深是 5 层，<strong>恰好等于节点总数</strong>。这不是巧合：每层递归消耗一个节点，递归深度 = m + n。
+<h3>5.4 递归的账单</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>迭代</th>
+<th>递归</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td>O(m+n)</td>
+<td>O(m+n)</td>
+</tr>
+<tr>
+<td>额外空间</td>
+<td><strong>O(1)</strong></td>
+<td><strong>O(m+n) 栈帧</strong></td>
+</tr>
+<tr>
+<td>可读性</td>
+<td>略啰嗦</td>
+<td>极短</td>
+</tr>
+<tr>
+<td>工程风险</td>
+<td>无</td>
+<td>长链表爆栈</td>
+</tr>
+</tbody>
+</table>
+
+Python 默认递归深度限制约 1000 层，两条各 600 节点的链表就能把它顶爆（<code>RecursionError</code>）。所以工程上无脑选迭代；递归的价值在于<strong>面试里证明你理解合并的自相似结构</strong>——以及它是下一节 LC 23 分治解法的零件。
+<hr>
+<h2>六、复杂度</h2>
+
+<strong>迭代</strong>：时间 O(m+n)——每个节点恰好被 <code>tail</code> 摸一次、被比较一次；空间 O(1)——只多了 <code>dummy</code> 和 <code>tail</code> 两个指针。
+
+<strong>递归</strong>：时间同上；空间 O(m+n)——调用栈，上面推演过了。
+
+注意 O(1) 这件事值得在面试里主动说：<strong>链表版的归并不需要辅助数组，空间比数组版归并少一个 O(n)</strong>。这正是后面 LC 148（排序链表）要求 O(1) 空间解法时，必须用链表归并的原因。
+<hr>
+<h2>七、追问：合并 K 个呢？（LC 23）</h2>
+
+这道题在面试里几乎从不单独出现，它的标准续命方式是：「<strong>那如果是 K 条链表呢？</strong>」（LeetCode 23，困难）。
+<h3>7.1 笨办法：复用本题，两两顺序合并</h3>
+
+拿着本题的解法，从 <code>lists[0]</code> 开始逐条往后合：
+<div class="codehilite"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">lists</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">lst</span> <span class="ow">in</span> <span class="n">lists</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">lst</span><span class="p">)</span>
+</code></pre></div>
+
+
+对，但慢。第 i 轮合并时，<code>result</code> 已经长到约 <code>i·N</code> 个节点（K 条各长 N），每轮都是 O(iN)，总时间 <strong>O(k²N)</strong>。瓶颈在于：早期接进 result 的节点，会被后面每一轮<strong>反复摸一遍</strong>。
+<h3>7.2 分治：两两配对，轮数从 k 变成 log k</h3>
+
+第一轮 K 条两两配对合并成 K/2 条，第二轮 K/4 条……像锦标赛一样，总共 ⌈log k⌉ 轮，每轮总工作量都是 O(N)（所有节点恰好被摸一次），总时间 <strong>O(N log k)</strong>。LeetCode 官方题解管这个叫「分治合并」，结构上就是归并排序的归并树倒过来。
+<h3>7.3 最小堆：只把 K 个头放进堆</h3>
+
+更常见的面试写法。关键观察：<strong>任何时刻，全局最小只可能是 K 条链表各自的头</strong>——和本题「最小只能在两个头部产生」是同一件事的 K 元版。所以堆里<strong>永远只放 K 个节点</strong>，不用装下全部 N 个：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">dummy</span>
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">head</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>     <span class="c1"># K 个头入堆</span>
+        <span class="k">if</span> <span class="n">head</span><span class="p">:</span>
+            <span class="c1"># ListNode 没法比较大小，塞个序号 i 垫背：</span>
+            <span class="c1"># 值相同时按 i 比，永远不会比较到 node 本身</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">head</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">head</span><span class="p">))</span>
+    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
+        <span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+        <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">node</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+时间 O(N log k)——每个节点进出堆各一次，堆里始终只有 K 个元素；空间 O(k)。
+
+<strong>注意结构上的传承</strong>：dummy、tail、先接再走、比较取小——堆版和本题迭代版<strong>骨架完全一样</strong>，只是「选最小的头」从一个 <code>if</code> 变成了堆。你把 LC 21 吃透，LC 23 的三种写法里有两种是白送的。
+<h3>7.4 顺手埋个钩子</h3>
+
+本题真正的「大号应用场景」是 <strong>LC 148 排序链表</strong>：链表归并排序 = 快慢指针找中点 + 递归排两半 + <strong>本题的合并作为 merge 步骤</strong>。要求 O(1) 额外空间时，只有链表归并能做到（自底向上迭代版），而它的核心就是本文第四节的 8 行代码。所以面试官问这题，深层动机经常是探一探你后面能不能接住 148。
+<hr>
+<h2>八、常见坑清单</h2>
+
+提交前 / 写完代码后按这个清单过一遍：
+<ol>
+<li><strong>收尾忘了整段接上</strong>：<code>tail.next = l1 if l1 else l2</code> 漏掉，长输入直接少一截。本题 WA 排行榜第一名。</li>
+<li><strong><code>tail</code> 忘了前移</strong>：所有节点都往同一个 <code>tail</code> 后面接，前面的被覆盖，输出只剩一两个节点，还可能成环。</li>
+<li><strong><code>while</code> 条件写成 <code>or</code></strong>：<code>while l1 or l2</code> 进循环后取 <code>l1.val</code>，<code>l1</code> 是 <code>None</code> 就当场 <code>AttributeError</code>。循环条件必须是 <code>and</code>，把「一方走空」交给收尾处理。</li>
+<li><strong>先走后接</strong>：<code>l1 = l1.next</code> 写在 <code>tail.next = l1</code> 前面，节点还没接上指针就挪走了，直接丢节点。</li>
+<li><strong>相等值用 <code>&lt;</code></strong>：结果不错，但稳定性没了，而且面试官会问一句「为什么这里用 <code>&lt;=</code>」——答案在 4.4 节。</li>
+<li><strong>递归版用在超长链表上</strong>：栈深 O(m+n)，Python 里约 1000 层就到顶。面试可以写递归，但要主动说清这个代价，然后说「工程实现用迭代」。</li>
+<li><strong>new 新节点抄值</strong>：题目要求拼接原节点；抄值的写法多花 O(m+n) 空间，还可能被面试官认为没读懂题。</li>
+</ol>
+<hr>
+<h2>九、面试怎么答</h2>
+
+<strong>30 秒版本</strong>：
+<blockquote>
+
+哑结点 + tail 指针的迭代。循环里比较两个头，小的接到 tail 后面、指针后移、tail 前移；循环退出说明一方走空，另一方剩余部分整段接上——因为有序且都不小于已拼接部分。时间 O(m+n)，空间 O(1)，dummy.next 就是答案。
+</blockquote>
+
+<strong>追问预判</strong>：
+<ul>
+<li>「为什么需要哑结点？」→ 第一个节点的来源不确定，没有它就得为「头是谁」写一串特判；有了它，第一个节点和后面的节点走同一条代码路径。</li>
+<li>「还有别的写法吗？」→ 递归，三行核心；但栈深 O(m+n)，长链表会爆，工程上选迭代。</li>
+<li>「相等值取哪边？」→ 任意一边都对，习惯取 l1 保稳定，这个习惯在归并排序里是必需品。</li>
+<li>「K 条链表怎么合？」→ 顺序两两 O(k²N) → 分治两两 O(N log k) → 最小堆 O(N log k)/空间 O(k)，堆里只放 K 个头。</li>
+<li>「链表归并和数组归并的区别？」→ 链表拼接不改值、不改数组，合并这步 O(1) 额外空间——这是 LC 148 能做 O(1) 空间排序的原因。</li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+把这篇和上一篇 LC 206 放在一起看，会发现两个「简单」题其实在教同一件事：<strong>指针操作的本质是维护边界</strong>。206 里的 <code>prev</code> 守着「已反转区」，21 里的 <code>tail</code> 守着「已拼接区」——所有危险动作都发生在边界身后，边界之前的东西永远完整、永远不用再回头检查。
+
+所谓「写链表题不慌」，不是背下多少模板，而是每动一根指针之前都清楚：它属于已处理区，还是待处理区，这一改会不会把回头的路堵死。
+
+下一篇大概率是 LC 148——把这两题拼起来，你就有了一个 O(1) 空间的链表归并排序。刷题这条线，到那里才算真正串成串。</div></div></noscript>
+  </body>
+</html>
