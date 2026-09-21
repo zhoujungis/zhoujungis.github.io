@@ -11,7 +11,6 @@ function withRouter() {
       { path: '/', name: 'Home', component: { template: '<div />' } },
       { path: '/articles', name: 'Articles', component: { template: '<div />' } },
       { path: '/archives', name: 'Archives', component: { template: '<div />' } },
-      { path: '/algo', name: 'Algorithms', component: { template: '<div />' } },
       { path: '/footprints', name: 'Footprints', component: { template: '<div />' } },
     ],
   })
@@ -37,16 +36,14 @@ describe('AppHeader', () => {
     expect(articleLink.attributes('href')).toBe('/articles')
   })
 
-  it('主导航顺序为 首页 / 文章 / 归档 / 算法 / 足迹', async () => {
+  it('主导航顺序为 首页 / 文章 / 归档 / 足迹', async () => {
     const router = withRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(AppHeader, { global: { plugins: [router] } })
-    // 只取主导航的前 5 个链接 —— 后面还有「探索」按钮和搜索/主题图标
+    // 只取主导航的前 4 个链接 —— 后面还有「探索」按钮和搜索/主题图标
     const labels = wrapper.findAll('.nav-desktop .nav-link')
-      .slice(0, 5)
+      .slice(0, 4)
       .map((a) => a.text())
-    expect(labels).toEqual(['首页', '文章', '归档', '算法', '足迹'])
-    const algo = wrapper.findAll('.nav-link').find(a => a.text() === '算法')
-    expect(algo.attributes('href')).toBe('/algo')
+    expect(labels).toEqual(['首页', '文章', '归档', '足迹'])
   })
 })

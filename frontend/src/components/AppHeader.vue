@@ -111,7 +111,6 @@ const primaryLinks = [
   { path: '/', label: '首页' },
   { path: '/articles', label: '文章' },
   { path: '/archives', label: '归档' },
-  { path: '/algo', label: '算法' },
   { path: '/footprints', label: '足迹' },
 ]
 

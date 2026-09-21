@@ -126,19 +126,6 @@
       </div>
     </section>
 
-    <!-- ── 专栏：算法解读 ── -->
-    <section class="algo-section" aria-label="算法解读">
-      <header class="section-head">
-        <h2 class="section-title">算法解读</h2>
-        <router-link to="/algo" class="section-more">
-          全部题解
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </router-link>
-      </header>
-
-      <AlgorithmList :items="algorithms" />
-    </section>
-
     <!-- ── 专栏：最新项目 ── -->
     <section class="column-section" aria-label="最新项目">
       <header class="section-head">
@@ -191,8 +178,6 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { getArticles } from '@/api/articles'
 import { resolveListFallback, saveListCache, cacheNoticeText } from '@/utils/articleCache'
 import { catLabel, tagLabel } from '@/utils/labels'
-import { ALGORITHMS } from '@/data/algorithms'
-import AlgorithmList from '@/components/AlgorithmList.vue'
 
 const latestArticles = ref([])
 const totalCount = ref(0)
@@ -200,12 +185,6 @@ const loading = ref(true)
 const loadError = ref(null)
 const cacheNotice = ref('')
 const coverBroken = reactive({})
-
-// 题单是静态数据（见 src/data/algorithms.js），不依赖后端接口，
-// 所以即使 API 挂了「算法解读」区块也照常显示。
-// 首页只放最新的两题，完整题单在 /algo（点标题右侧「全部题解」过去）。
-const ALGO_ON_HOME = 2
-const algorithms = computed(() => ALGORITHMS.slice(0, ALGO_ON_HOME))
 
 const featured = computed(() => latestArticles.value[0] || null)
 const restArticles = computed(() => latestArticles.value.slice(1))
@@ -541,14 +520,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
     border-bottom-color: var(--accent-secondary);
     svg { transform: translateX(2px); }
   }
-}
-
-// ── 专栏：算法解读 ──
-// 排在「最新文章」之后、「最新项目」之前。题单是静态数据，不受 API 影响。
-// 列表本身是公共组件 AlgorithmList（题解页 /algo 也用同一个）。
-.algo-section {
-  margin-top: 56px;
-  animation: reveal 0.45s ease both;
 }
 
 // ── 头版头条 + 刊目 ──

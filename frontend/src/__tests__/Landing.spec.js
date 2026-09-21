@@ -56,65 +56,12 @@ describe('Landing (Home.vue)', () => {
     await flushPromises()
     const front = wrapper.find('.front-section')
     expect(front.exists()).toBe(true)
-    // Scope to the section: 刊头之后还有「算法解读」，它也有自己的 .section-title，
-    // 不限定作用域的话断言会取到第一个区块的标题。
+    // 断言限定在区块内：首页除了「最新文章」还有「最新项目」，都带 .section-title，
+    // 不限定作用域的话取到的是 DOM 里第一个，加区块就会误伤。
     expect(front.find('.section-title').text()).toBe('最新文章')
     const more = front.find('.section-more')
     expect(more.exists()).toBe(true)
     expect(more.attributes('href')).toBe('/articles')
-  })
-
-  it('renders 算法解读 section below 最新文章', async () => {
-    const router = makeRouter()
-    await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
-    await flushPromises()
-
-    const algo = wrapper.find('.algo-section')
-    expect(algo.exists()).toBe(true)
-    expect(algo.find('.section-title').text()).toBe('算法解读')
-    // 区块右侧是「全部题解 →」/algo
-    expect(algo.find('.section-more').attributes('href')).toBe('/algo')
-
-    // 题单是静态数据，API 挂掉也照样显示
-    const items = algo.findAll('.algo-item')
-    expect(items.length).toBeGreaterThan(0)
-
-    const first = items[0]
-    expect(first.find('.algo-item__id').text().replace(/\s+/g, ' ')).toBe('LC 206')
-    expect(first.find('.algo-item__title').text()).toBe('反转链表')
-    expect(first.find('.algo-item__level').text()).toBe('简单')
-
-    // 位置：必须在「最新文章」之后
-    const order = wrapper.findAll('.front-section, .algo-section')
-    expect(order[0].classes()).toContain('front-section')
-    expect(order[1].classes()).toContain('algo-section')
-  })
-
-  it('首页最多只放两条算法题，发布状态决定能不能点', async () => {
-    const { ALGORITHMS } = await import('@/data/algorithms')
-    const router = makeRouter()
-    await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
-    await flushPromises()
-
-    const items = wrapper.findAll('.algo-item')
-    expect(items.length).toBeLessThanOrEqual(2)
-    expect(items.length).toBe(Math.min(2, ALGORITHMS.length))
-
-    // 已发布 → 可点；未发布 → 不可点 + 「待发布」徽章
-    // （后端还没有这篇文章时做成链接，点进去只会是 404 错误页）
-    const first = items[0]
-    const link = first.find('.algo-item__link')
-    if (ALGORITHMS[0].published) {
-      expect(link.attributes('href')).toBe(`/article/${ALGORITHMS[0].slug}`)
-      expect(first.find('.algo-item__pending').exists()).toBe(false)
-      expect(link.classes()).not.toContain('is-pending')
-    } else {
-      expect(link.attributes('href')).toBeUndefined()
-      expect(link.classes()).toContain('is-pending')
-      expect(first.find('.algo-item__pending').text()).toBe('待发布')
-    }
   })
 
   it('shows featured + list when latest articles are returned', async () => {
