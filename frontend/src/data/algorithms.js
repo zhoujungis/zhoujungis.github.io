@@ -29,7 +29,7 @@ export const ALGORITHMS = [
     companies: ['字节', '腾讯', '美团'],
     summary: '三指针迭代、递归两种写法，再连考 K 个一组反转（LC 25）—— 从「指针为什么会丢」讲起。',
     date: '2026-09-21',
-    published: false,
+    published: true,
   },
 ]
 

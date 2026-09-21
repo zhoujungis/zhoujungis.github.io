@@ -91,7 +91,7 @@ describe('Landing (Home.vue)', () => {
     expect(order[1].classes()).toContain('algo-section')
   })
 
-  it('首页最多只放两条算法题，未发布的渲染成不可点的行', async () => {
+  it('首页最多只放两条算法题，发布状态决定能不能点', async () => {
     const { ALGORITHMS } = await import('@/data/algorithms')
     const router = makeRouter()
     await router.push('/'); await router.isReady()
@@ -100,13 +100,20 @@ describe('Landing (Home.vue)', () => {
 
     const items = wrapper.findAll('.algo-item')
     expect(items.length).toBeLessThanOrEqual(2)
+    expect(items.length).toBe(Math.min(2, ALGORITHMS.length))
 
-    // published: false 时不能是链接 —— 后端还没这篇文章，点进去只会 404
+    // 已发布 → 可点；未发布 → 不可点 + 「待发布」徽章
+    // （后端还没有这篇文章时做成链接，点进去只会是 404 错误页）
     const first = items[0]
-    expect(first.find('.algo-item__link').attributes('href')).toBeUndefined()
-    if (!ALGORITHMS[0].published) {
-      expect(first.find('.algo-item__pending').exists()).toBe(true)
-      expect(first.find('.algo-item__link').classes()).toContain('is-pending')
+    const link = first.find('.algo-item__link')
+    if (ALGORITHMS[0].published) {
+      expect(link.attributes('href')).toBe(`/article/${ALGORITHMS[0].slug}`)
+      expect(first.find('.algo-item__pending').exists()).toBe(false)
+      expect(link.classes()).not.toContain('is-pending')
+    } else {
+      expect(link.attributes('href')).toBeUndefined()
+      expect(link.classes()).toContain('is-pending')
+      expect(first.find('.algo-item__pending').text()).toBe('待发布')
     }
   })
 

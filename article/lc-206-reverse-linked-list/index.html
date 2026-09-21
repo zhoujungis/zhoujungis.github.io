@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-206-reverse-linked-list/" />
+    <meta property="og:title" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪" />
+    <meta property="og:description" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-206-reverse-linked-list/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-206-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪" />
+    <meta name="twitter:description" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-206-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 206】反转链表：指针一改就断链，问题到底出在哪 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-UVur5bdD.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.BjT7JvGK.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-21T15:14:08.603142+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 206】反转链表：指针一改就断链，问题到底出在哪","description":"【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC ","image":"https://zhoujungis.github.io/photos/lc-206-cover.png","datePublished":"2026-09-21T15:14:08.603142+08:00","dateModified":"2026-09-21T15:14:08.603182+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-206-reverse-linked-list/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 206】反转链表：指针一改就断链，问题到底出在哪</h1><div class="ns-meta">2026/9/21 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人
+<strong>技术栈</strong>：Python 为主，迭代解法与 LC 25 附 Java 版
+<strong>难度</strong>：简单（但追问可以一路问到「困难」）
+<strong>收获</strong>：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC 92、LC 25、LC 24
+</blockquote>
+<h2>题目</h2>
+
+给你单链表的头节点 <code>head</code>，请你反转链表，并返回反转后的链表。
+<div class="codehilite"><pre><span></span><code>输入：head = [1,2,3,4,5]
+输出：[5,4,3,2,1]
+</code></pre></div>
+
+
+链表节点的定义（后面所有代码都用它）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+
+这道题在 LeetCode 上标着「简单」，在面试里出现频率又高得离谱——字节、腾讯、美团、快手，几乎每家的链表题都从它开始。但它之所以被反复考，<strong>不是因为答案难，而是因为它能精确地筛出「你到底是理解了指针，还是背了代码」</strong>。
+
+背下来的版本，面试官稍微一改（改成反转前 n 个、反转区间、K 个一组）就散了。理解了的版本，这些变体只是同一件事换个边界。
+
+所以这篇不急着给答案。我们先把「反转」这两个字翻译成指针操作，再让动画一步步演给你看。
+<hr>
+<h2>一、先把「反转」翻译成指针操作</h2>
+<h3>1.1 链表和数组，差在哪</h3>
+
+数组里反转很简单：两个下标从两头往中间走，交换 <code>a[i]</code> 和 <code>a[n-1-i]</code>，走完就完了。因为数组里<strong>位置是连续的</strong>，你知道第 5 个元素在哪。
+
+链表不是。链表的节点在内存里可以散得到处都是，<strong>每个节点只知道「我的下一个是谁」，不知道「我前面是谁」，也不知道自己是第几个</strong>。
+
+这就是一切麻烦的根源：你手里只有 <code>head</code> 一根线头，拽着它才能摸到整条链子。
+<h3>1.2 反转 = 把每个节点的 next 掉个头</h3>
+
+假设原来的链表是：
+<div class="codehilite"><pre><span></span><code><span class="mf">1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">3</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">5</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="err">∅</span>
+</code></pre></div>
+
+
+反转之后要变成：
+<div class="codehilite"><pre><span></span><code>∅ ← 1 ← 2 ← 3 ← 4 ← 5
+</code></pre></div>
+
+
+换个方向看，其实就是：
+<div class="codehilite"><pre><span></span><code><span class="mf">5</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">3</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="err">∅</span>
+</code></pre></div>
+
+
+所以「反转链表」这四个字，翻译成指针操作只有一句话：
+<blockquote>
+
+<strong>把每个节点的 <code>next</code> 从「指向后面那个」改成「指向前面那个」。</strong>
+</blockquote>
+
+一共 5 个节点，就要改 5 次 <code>next</code>。听起来毫无难度——<strong>难的是改的时机</strong>。
+<h3>1.3 一个生活化的比喻</h3>
+
+把链表想成一排人蒙着眼睛手拉手，每个人只知道自己右手拉着谁。
+
+现在你要让整排人转过身去，变成反方向站。问题来了：<strong>当你松开右手、准备去拉左边那个人的时候，你原来右边是谁，你就永远不知道了。</strong> 因为你的全部记忆就是「右手拉着的那个人」。
+
+所以正确做法只有一条：
+<ol>
+<li><strong>先记住</strong>：右手拉的是谁（<code>next = curr.next</code>）；</li>
+<li><strong>再转身</strong>：改成左手去拉原来左边的人（<code>curr.next = prev</code>）；</li>
+<li><strong>再移动</strong>：两个人各往前站一步，处理下一个。</li>
+</ol>
+
+漏掉第 1 步，链子当场断掉——这就是标题里说的「指针一改就断链」。
+<hr>
+<h2>二、动画：看着指针一步步掉头</h2>
+
+道理讲完了，但指针这种东西，光看文字很难在脑子里转起来。下面这个动画把 <code>[1,2,3,4,5]</code> 的完整推演过程拆成了 16 步，可以单步前进/后退，也可以直接播放。
+
+留意三件事：
+<ul>
+<li><strong>三个指针的位置</strong>：<code>prev</code> 永远在 <code>curr</code> 后面一格，<code>next</code> 只是临时记住的位置；</li>
+<li><strong>箭头的方向</strong>：每处理完一个节点，它和前面那个节点之间的箭头就翻一次；</li>
+<li><strong>两个 ∅ 的位置</strong>：一开始空指针在链表最右边（<code>5</code> 的后面），全部反转完之后，空指针跑到了最左边（<code>1</code> 的前面）——因为原来的头节点变成了尾节点。</li>
+</ul>
+<div class="algo-viz algo-viz--lc206"></div>
+
+
+看完动画你应该能发现：<strong>整个过程里，任何一个时刻都没有「断链」的瞬间</strong>。<code>next</code> 指针的作用就是在你要改 <code>curr.next</code> 之前，先把通往后面的路留个记号。
+<blockquote>
+
+想自己走一遍的话，拿张纸画五个方格，标上 1~5，然后严格按 ①②③ 三步走。纸上推一遍，比看十遍代码有用。
+</blockquote>
+<hr>
+<h2>三、迭代解法：三个指针</h2>
+<h3>3.1 三个指针各管什么</h3>
+<table>
+<thead>
+<tr>
+<th>指针</th>
+<th>含义</th>
+<th>初始值</th>
+<th>循环结束时的值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prev</code></td>
+<td>已经反转好的那一段的<strong>头</strong></td>
+<td><code>None</code></td>
+<td>新链表的头（答案）</td>
+</tr>
+<tr>
+<td><code>curr</code></td>
+<td>正在处理的节点</td>
+<td><code>head</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>next</code></td>
+<td>临时存放 <code>curr</code> 原本的下一个</td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+</tr>
+</tbody>
+</table>
+
+记住一句话：<strong><code>prev</code> 和 <code>curr</code> 之间，永远隔着一道「已反转 / 未反转」的分界线。</strong>
+<div class="codehilite"><pre><span></span><code>        prev          curr
+         ↓             ↓
+∅ ← 4 ← 3        1 → 2 → 3 → 4 → 5
+     └─ 已反转 ─┘  └──── 未反转 ────┘
+</code></pre></div>
+
+
+每次循环，分界线往右挪一格，直到 <code>curr</code> 走出链表。
+<h3>3.2 逐行拆解</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reverseList</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="n">prev</span> <span class="o">=</span> <span class="kc">None</span>          <span class="c1"># 反转后的尾节点，它的 next 必须是空</span>
+    <span class="n">curr</span> <span class="o">=</span> <span class="n">head</span>          <span class="c1"># 从原头节点开始</span>
+
+    <span class="k">while</span> <span class="n">curr</span><span class="p">:</span>          <span class="c1"># curr 走到 None 就结束</span>
+        <span class="n">nxt</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>  <span class="c1"># ① 先记住下一个</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span> <span class="c1"># ② 掉头</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>      <span class="c1"># ③ prev 前移</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>       <span class="c1"># ④ curr 前移</span>
+
+    <span class="k">return</span> <span class="n">prev</span>          <span class="c1"># 注意：返回 prev，不是 curr</span>
+</code></pre></div>
+
+
+逐行说清楚：
+
+<strong><code>prev = None</code></strong> —— 为什么不是 <code>prev = head</code>？因为反转之后，原来的头节点 <code>1</code> 会变成<strong>尾节点</strong>，而尾节点的 <code>next</code> 必须是空。所以 <code>prev</code> 一开始就站在「空」的位置上，等第一次 <code>curr.next = prev</code> 执行时，<code>1.next</code> 自然就被改成了空。
+
+<strong><code>nxt = curr.next</code>（① 先记住）</strong> —— 整个算法的命门。因为下一行就要把 <code>curr.next</code> 改掉了，不先存下来，后面的节点就永远找不到了。
+
+<strong><code>curr.next = prev</code>（② 掉头）</strong> —— 真正干活的一行。<code>curr</code> 的箭头从「指向后面」改成「指向前面」。
+
+<strong><code>prev = curr</code>（③ 前移）</strong> —— 注意顺序！必须先执行 ② 再执行 ③。如果反过来先移动 <code>prev</code>，那 ② 里用到的 <code>prev</code> 就已经是错的值了。
+
+<strong><code>curr = nxt</code>（④ 前移）</strong> —— 用 ① 存下的值前进，不能用 <code>curr.next</code>（它已经被改过了，现在指向后面）。
+
+<strong><code>return prev</code></strong> —— 循环结束时 <code>curr</code> 是 <code>None</code>，<code>prev</code> 停在原链表的最后一个节点上，而它正是反转后的头节点。<strong>这里写错是最高频的低级错误。</strong>
+<h3>3.3 完整推演表</h3>
+
+拿 <code>[1,2,3,4,5]</code> 走一遍：
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>① <code>curr</code></th>
+<th>① <code>nxt</code> 记住</th>
+<th>② <code>curr.next</code> 改成</th>
+<th>③ <code>prev</code></th>
+<th>④ <code>curr</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始</td>
+<td>1</td>
+<td>—</td>
+<td>—</td>
+<td>∅</td>
+<td>1</td>
+</tr>
+<tr>
+<td>第 1 轮</td>
+<td>1</td>
+<td>2</td>
+<td>∅</td>
+<td>1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>第 2 轮</td>
+<td>2</td>
+<td>3</td>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+</tr>
+<tr>
+<td>第 3 轮</td>
+<td>3</td>
+<td>4</td>
+<td>2</td>
+<td>3</td>
+<td>4</td>
+</tr>
+<tr>
+<td>第 4 轮</td>
+<td>4</td>
+<td>5</td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+</tr>
+<tr>
+<td>第 5 轮</td>
+<td>5</td>
+<td>∅</td>
+<td>4</td>
+<td>5</td>
+<td>∅</td>
+</tr>
+</tbody>
+</table>
+
+第 5 轮结束后 <code>curr</code> 变成 <code>∅</code>，循环退出，返回 <code>prev = 5</code>。此时整条链是 <code>5 → 4 → 3 → 2 → 1 → ∅</code>。
+<h3>3.4 边界情况</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>过程</th>
+<th>返回</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>head = None</code></td>
+<td><code>while</code> 一次都不进</td>
+<td><code>prev = None</code>，正确</td>
+</tr>
+<tr>
+<td><code>head = [7]</code>（单节点）</td>
+<td>循环 1 次：<code>7.next = None</code>，<code>prev = 7</code>，<code>curr = None</code></td>
+<td><code>7</code>，正确</td>
+</tr>
+<tr>
+<td><code>head = [1,2]</code></td>
+<td>循环 2 次</td>
+<td><code>2 → 1</code>，正确</td>
+</tr>
+</tbody>
+</table>
+
+<strong>这三种情况都不需要单独写 <code>if</code>。</strong> 这是迭代解法比递归解法舒服的地方——递归必须显式处理空和单节点，迭代天然覆盖。
+<h3>3.5 Java 版</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">reverseList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w">  </span><span class="c1">// ① 先记住</span>
+<span class="w">            </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span><span class="w">          </span><span class="c1">// ② 掉头</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span><span class="w">               </span><span class="c1">// ③ 前移</span>
+<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nxt</span><span class="p">;</span><span class="w">                </span><span class="c1">// ④ 前移</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用），如果提到循环外面复用同一个变量，逻辑上没错但可读性会差一些。另外注意：Java 没有 Python 的元组赋值，所以这四行<strong>不能像 Python 那样压成一行</strong>——顺序是真的有讲究。
+<hr>
+<h2>四、递归解法</h2>
+<h3>4.1 换个角度：先让后面的人转过身</h3>
+
+迭代是「从头往后」，递归可以反过来想：
+<blockquote>
+
+假设 <code>reverseList(head.next)</code> 已经帮你把<strong>后面那一整段</strong>反转好了，并且返回了新的头节点。你现在只需要处理 <code>head</code> 这一个节点——把它接到反转后那段的<strong>末尾</strong>去。
+</blockquote>
+
+这里有个关键点要想清楚：<code>reverseList(head.next)</code> 返回的是<strong>新的头</strong>（也就是原链表的尾节点），而 <code>head.next</code> 这个节点，在反转之后变成了那一段的<strong>尾</strong>。
+
+所以：
+<ul>
+<li><code>head.next.next = head</code> —— 让「反转后那段的尾」指向 <code>head</code>；</li>
+<li><code>head.next = None</code> —— <code>head</code> 成为新的尾节点，它的 <code>next</code> 必须清空。</li>
+</ul>
+<h3>4.2 调用栈推演</h3>
+
+以 <code>[1,2,3]</code> 为例，把递归的展开和回收完整写出来：
+<div class="codehilite"><pre><span></span><code>reverseList(1)
+  │ head.next = 2，不是终止条件 → 先不管自己，去问 reverseList(2)
+  │
+  ├─ reverseList(2)
+  │    │ head.next = 3，不是终止条件 → 去问 reverseList(3)
+  │    │
+  │    └─ reverseList(3)
+  │         └─ head.next == None → 终止，返回 3
+  │            ★ 这个 3 就是整个链表反转后的新头，一路原样传回去
+  │
+  │  ★ 回到 reverseList(2)：newHead = 3
+  │    head.next.next = head   →  3.next = 2
+  │    head.next = None        →  2.next = ∅
+  │    返回 3                   此时链是 3 → 2 → ∅
+  │
+★ 回到 reverseList(1)：newHead = 3
+  head.next.next = head        →  2.next = 1
+  head.next = None             →  1.next = ∅
+  返回 3                         此时链是 3 → 2 → 1 → ∅
+</code></pre></div>
+
+
+两个容易看错的地方：
+<ol>
+<li><strong><code>newHead</code> 从头到尾都是同一个节点</strong>（原链表的尾节点）。每一层递归只是把它原样往上抛，真正干活的是 <code>head.next.next = head</code> 这两行。</li>
+<li><strong>递归是「先走到最深处，再从最深处往回改指针」</strong>。所以指针的修改顺序和迭代是反的：迭代先改 <code>1.next</code>，递归最后才改 <code>1.next</code>。</li>
+</ol>
+<h3>4.3 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reverseList</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="c1"># 终止条件：空链表，或者只剩一个节点</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">head</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">head</span>
+
+    <span class="n">new_head</span> <span class="o">=</span> <span class="n">reverseList</span><span class="p">(</span><span class="n">head</span><span class="o">.</span><span class="n">next</span><span class="p">)</span>  <span class="c1"># 先把后面整段反转好</span>
+    <span class="n">head</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">head</span>              <span class="c1"># 让后面的尾节点指向自己</span>
+    <span class="n">head</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>                   <span class="c1"># 自己成为新的尾节点</span>
+    <span class="k">return</span> <span class="n">new_head</span>                    <span class="c1"># 新头节点一路原样传回去</span>
+</code></pre></div>
+
+
+<strong>终止条件为什么是 <code>if not head or not head.next</code>？</strong>
+<ul>
+<li><code>not head</code>：处理空链表。没有这个判断，下一行的 <code>head.next</code> 会直接抛 <code>AttributeError</code>。</li>
+<li><code>not head.next</code>：只剩一个节点，它自己就是反转后的结果，直接返回。</li>
+</ul>
+
+这两个条件是「或」的关系，缺一不可。只写 <code>not head.next</code>，输入 <code>None</code> 时会崩；只写 <code>not head</code>，单节点链表会多递归一层（虽然也能跑对，但会多一次无意义的调用）。
+<h3>4.4 Java 版</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">reverseList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">newHead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">reverseList</span><span class="p">(</span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">);</span>
+<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">newHead</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>4.5 递归的代价</h3>
+
+递归写法更短、更「优雅」，但面试里如果你只写递归，通常会被追问一句：<strong>「空间复杂度是多少？」</strong>
+
+答案是 <strong>O(n)</strong>——不是因为你开了数组，而是因为<strong>函数调用栈</strong>。<code>n</code> 个节点就会压 <code>n</code> 层栈帧。
+
+所以：
+<ul>
+<li>链表长度只有几万时，Python 默认递归深度（1000）就会先炸掉，报 <code>RecursionError</code>；</li>
+<li>Java 默认栈大约能撑几千到一万层，也会 <code>StackOverflowError</code>；</li>
+<li>真实工程里处理长链表，<strong>必须用迭代</strong>。</li>
+</ul>
+
+面试时标准答法是：<strong>「递归 O(n) 空间，迭代 O(1) 空间；如果没有特别要求，我写迭代。」</strong>
+<hr>
+<h2>五、追问：K 个一组反转（LC 25）</h2>
+
+面试官问完递归，下一句大概率是：
+<blockquote>
+
+「那如果改成每 K 个一组反转，不足 K 个保持原样呢？」
+</blockquote>
+
+对应 LeetCode 25 题，难度直接从「简单」跳到「困难」。但如果你已经理解了 206，这题其实只是<strong>把 206 做了三件事</strong>。
+<h3>5.1 把大问题拆成三个动作</h3>
+
+以 <code>head = [1,2,3,4,5]</code>，<code>k = 2</code> 为例，答案是 <code>[2,1,4,3,5]</code>。
+<div class="codehilite"><pre><span></span><code>原链表： 1 → 2 → 3 → 4 → 5 → ∅
+
+第一组 [1,2] 反转：  2 → 1
+第二组 [3,4] 反转：  4 → 3
+剩下的 [5] 不足 2 个：保持原样
+
+拼起来： 2 → 1 → 4 → 3 → 5 → ∅
+</code></pre></div>
+
+
+所以整件事拆成三个动作：
+<ol>
+<li><strong>数够 K 个</strong>：从当前位置往后数 <code>k</code> 个，如果中途遇到 <code>None</code>，说明剩下不足 K 个，<strong>直接返回，不再处理</strong>；</li>
+<li><strong>组内反转</strong>：把这一段的 <code>next</code> 掉头——和 206 一模一样；</li>
+<li><strong>接回去</strong>：让上一组的尾节点指向这一组的新头，再让这一组的尾节点（原来的组头）指向下一组的头。</li>
+</ol>
+
+难点全在 <strong>第 3 步的连接</strong>，因为反转之后「头变尾、尾变头」，指针很容易接反。
+<h3>5.2 哑结点：为什么必须有</h3>
+
+第一组反转之后，<code>head</code> 指向的节点不再是链表的头了。如果没有一个「站在链表外面」的锚点，你没法优雅地把第一组的新头接上去。
+
+所以引入<strong>哑结点（dummy node）</strong>：
+<div class="codehilite"><pre><span></span><code><span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>   <span class="c1"># 哑结点指向原来的头</span>
+</code></pre></div>
+
+
+它不参与反转，只是提供一个固定的起点。最后返回 <code>dummy.next</code> 就是答案。
+
+这也是链表题的一个通用技巧：<strong>只要涉及「头节点可能被换掉」，就先加一个哑结点。</strong> 它能把「改头」和「改中间」这两种情况统一成一种。
+<h3>5.3 迭代实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reverseKGroup</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>
+    <span class="n">group_prev</span> <span class="o">=</span> <span class="n">dummy</span>          <span class="c1"># 上一组的尾节点（也是这一组头节点的前驱）</span>
+
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="c1"># ── 1. 数够 k 个 ──</span>
+        <span class="n">kth</span> <span class="o">=</span> <span class="n">group_prev</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+            <span class="n">kth</span> <span class="o">=</span> <span class="n">kth</span><span class="o">.</span><span class="n">next</span>
+            <span class="k">if</span> <span class="n">kth</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># 剩下不足 k 个，保持原样，直接结束</span>
+                <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+
+        <span class="n">group_next</span> <span class="o">=</span> <span class="n">kth</span><span class="o">.</span><span class="n">next</span>   <span class="c1"># 下一组的头节点</span>
+
+        <span class="c1"># ── 2. 组内反转 ──</span>
+        <span class="c1"># prev 的初值设成 group_next，这样反转完，这一组的尾节点</span>
+        <span class="c1"># 天然就接上了下一组，不需要额外处理。</span>
+        <span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="n">group_next</span><span class="p">,</span> <span class="n">group_prev</span><span class="o">.</span><span class="n">next</span>
+        <span class="k">while</span> <span class="n">curr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">group_next</span><span class="p">:</span>
+            <span class="n">nxt</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+            <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span>
+            <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>
+            <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>
+
+        <span class="c1"># ── 3. 接回去 ──</span>
+        <span class="c1"># 反转后：kth 成了这一组的头，group_prev.next（原来的组头）成了这一组的尾</span>
+        <span class="n">group_tail</span> <span class="o">=</span> <span class="n">group_prev</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">group_prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">kth</span>   <span class="c1"># 上一组 → 这一组的新头</span>
+        <span class="n">group_prev</span> <span class="o">=</span> <span class="n">group_tail</span> <span class="c1"># 这一组的尾，成为下一组的 group_prev</span>
+</code></pre></div>
+
+
+第 2 步里 <code>prev</code> 初值设成 <code>group_next</code> 是个很妙的细节：这样反转完之后，这一组原来的头节点（现在的尾节点）的 <code>next</code> 已经指向下一组的头了，<strong>第 3 步的连接工作省掉一半</strong>。
+
+推演一遍 <code>[1,2,3,4,5]</code>、<code>k=2</code>：
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th><code>group_prev</code></th>
+<th>找到的 <code>kth</code></th>
+<th><code>group_next</code></th>
+<th>反转后</th>
+<th>整条链</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始</td>
+<td><code>dummy</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>d → 1 → 2 → 3 → 4 → 5</code></td>
+</tr>
+<tr>
+<td>第 1 轮</td>
+<td><code>d</code></td>
+<td><code>2</code></td>
+<td><code>3</code></td>
+<td><code>2 → 1</code></td>
+<td><code>d → 2 → 1 → 3 → 4 → 5</code></td>
+</tr>
+<tr>
+<td>第 2 轮</td>
+<td><code>1</code></td>
+<td><code>4</code></td>
+<td><code>5</code></td>
+<td><code>4 → 3</code></td>
+<td><code>d → 2 → 1 → 4 → 3 → 5</code></td>
+</tr>
+<tr>
+<td>第 3 轮</td>
+<td><code>3</code></td>
+<td>数不到 2 个</td>
+<td>—</td>
+<td>直接返回</td>
+<td>返回 <code>d.next</code> = <code>2 → 1 → 4 → 3 → 5</code></td>
+</tr>
+</tbody>
+</table>
+<h3>5.4 递归实现</h3>
+
+递归版本更好背，也更能看出「分组」这个结构：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reverseKGroup</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="c1"># 1. 先确认这一组够 k 个；不够就原样返回</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">head</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">head</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="c1"># 2. 反转这一组的前 k 个节点</span>
+    <span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">head</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+        <span class="n">nxt</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>
+    <span class="c1"># 此时：prev 是这一组的新头，head 是这一组的尾，curr 是下一组的头</span>
+
+    <span class="c1"># 3. 这一组的尾，接上「后面剩下的部分」递归处理的结果</span>
+    <span class="n">head</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">reverseKGroup</span><span class="p">(</span><span class="n">curr</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">prev</span>
+</code></pre></div>
+
+
+第 3 步是整段代码的关键：<code>head</code> 现在是这一组的尾节点，让它指向「后面所有组处理完之后的结果」。
+<h3>5.5 Java 版</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">reverseKGroup</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">head</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">groupPrev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 1. 数够 k 个</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">kth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">groupPrev</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">kth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kth</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">kth</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">groupNext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kth</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 2. 组内反转</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">groupNext</span><span class="p">;</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">groupPrev</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">groupNext</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">                </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span>
+<span class="w">                </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nxt</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 3. 接回去</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">groupTail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">groupPrev</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">groupPrev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kth</span><span class="p">;</span>
+<span class="w">            </span><span class="n">groupPrev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">groupTail</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>5.6 边界：为什么是「不足 K 个保持原样」</h3>
+
+这是题目明确要求的，也是最容易写错的地方。两种错误写法：
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 错误 1：不足 k 个也反转了</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+    <span class="n">kth</span> <span class="o">=</span> <span class="n">kth</span><span class="o">.</span><span class="n">next</span>          <span class="c1"># 中途 kth 变成 None，下一轮直接 AttributeError</span>
+
+<span class="c1"># ❌ 错误 2：忘记检查，把剩下的当成完整一组处理</span>
+<span class="n">kth</span> <span class="o">=</span> <span class="n">group_prev</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+    <span class="n">kth</span> <span class="o">=</span> <span class="n">kth</span><span class="o">.</span><span class="n">next</span>
+<span class="c1"># 如果 kth 是 None，下面 group_next = kth.next 直接崩</span>
+</code></pre></div>
+
+
+正确写法必须<strong>在循环里检查</strong>，一碰到 <code>None</code> 就返回，不能等循环结束再检查。
+<hr>
+<h2>六、复杂度对比</h2>
+<table>
+<thead>
+<tr>
+<th>解法</th>
+<th>时间</th>
+<th>空间</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>206 迭代</td>
+<td>O(n)</td>
+<td><strong>O(1)</strong></td>
+<td>首选，任何长度都安全</td>
+</tr>
+<tr>
+<td>206 递归</td>
+<td>O(n)</td>
+<td>O(n) 调用栈</td>
+<td>代码短，但长链表会爆栈</td>
+</tr>
+<tr>
+<td>25 迭代</td>
+<td>O(n)</td>
+<td><strong>O(1)</strong></td>
+<td>首选</td>
+</tr>
+<tr>
+<td>25 递归</td>
+<td>O(n)</td>
+<td>O(n/k) 调用栈</td>
+<td>每 k 个一组，栈深是组数</td>
+</tr>
+</tbody>
+</table>
+
+时间都是 O(n) 很好理解：每个节点恰好被访问一次、<code>next</code> 恰好被改一次。空间差异才是面试的考点。
+<hr>
+<h2>七、常见坑</h2>
+
+按踩到的频率排序：
+
+<strong>1. 忘了先存 <code>next</code>，链子直接断</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 反例</span>
+<span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span>
+<span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>   <span class="c1"># 这里 curr 已经是 prev 了，整条链丢了</span>
+</code></pre></div>
+
+
+<strong>2. 返回 <code>curr</code> 而不是 <code>prev</code></strong>
+
+循环结束时 <code>curr</code> 是 <code>None</code>，返回它就返回了个空链表。
+
+<strong>3. 递归里漏掉 <code>head.next = None</code></strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 漏了这一行</span>
+<span class="n">head</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">head</span>
+<span class="k">return</span> <span class="n">new_head</span>
+</code></pre></div>
+
+
+后果是形成<strong>环</strong>：<code>1 → 2</code> 变成 <code>2 → 1</code>，而 <code>1</code> 的 <code>next</code> 还指着 <code>2</code>。这时链表是 <code>2 → 1 → 2 → 1 → ...</code> 无限循环，打印的时候会死循环。
+
+<strong>4. 递归终止条件写不全</strong>
+<ul>
+<li>只写 <code>if not head.next</code> → 输入 <code>None</code> 时崩；</li>
+<li>只写 <code>if not head</code> → 单节点链表会多递归一层。</li>
+</ul>
+
+<strong>5. LC 25 里把「不足 k 个」的判断放在循环外面</strong>
+
+必须一碰到 <code>None</code> 就返回，不能等数完再判断。
+
+<strong>6. LC 25 里接错指针</strong>
+
+记住反转后的对应关系：<strong>原来的组头变成组尾，原来的第 k 个变成组头。</strong>
+<hr>
+<h2>八、面试怎么答</h2>
+
+如果面试官直接甩出 206，不要上来就写代码。推荐这个顺序：
+<ol>
+<li><strong>先确认输入输出</strong>：「输入是头节点，返回反转后的头节点，对吗？空链表返回空？」</li>
+<li><strong>说出核心思路</strong>：「用三个指针，<code>prev</code> 指向已反转段的头，<code>curr</code> 指向待处理节点，每轮先存 <code>next</code> 再掉头。」</li>
+<li><strong>主动提边界</strong>：「空链表和单节点都不用特判，循环天然覆盖。」</li>
+<li><strong>写完再讲复杂度</strong>：「时间 O(n)，空间 O(1)。」</li>
+<li><strong>主动抛追问</strong>：「如果要求 K 个一组反转，思路是把 206 重复做，加一个哑结点处理组间连接——要展开吗？」</li>
+</ol>
+
+第 5 步是关键。面试官问「递归怎么写」，其实是在看你能不能把同一个问题换个角度重新表述；问「K 个一组」，是在看你能不能把复杂问题拆成已知问题的组合。
+
+<strong>这道题考的不是链表，是你能不能把「指针操作」这件事讲清楚。</strong>
+<hr>
+<h2>结语</h2>
+
+把三道题放在一起看，会发现它们其实是同一件事：
+<table>
+<thead>
+<tr>
+<th>题目</th>
+<th>变化的部分</th>
+<th>不变的部分</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>206 反转链表</td>
+<td>从头反到尾</td>
+<td>先记住 → 再掉头 → 后前移</td>
+</tr>
+<tr>
+<td>92 反转链表 II</td>
+<td>只反一段，前后要接上</td>
+<td>同上 + 哑结点</td>
+</tr>
+<tr>
+<td>25 K 个一组反转</td>
+<td>分段反，段间要接上</td>
+<td>同上 + 哑结点 + 数够 k 个</td>
+</tr>
+</tbody>
+</table>
+
+<strong>变化的是边界，不变的是那三步。</strong>
+
+所以下次再遇到链表反转的变体，先别慌着写代码。问自己两个问题：
+<ol>
+<li>这次要反转的是<strong>哪一段</strong>？</li>
+<li>反转完之后，<strong>这一段的前后要接谁</strong>？</li>
+</ol>
+
+把这两个问题回答清楚，代码自然就出来了。
+<hr>
+<blockquote>
+
+本文的推演动画是页面里的交互组件，可以单步回放。如果你想照着它手推一遍，拿张纸画五个格子就行——<strong>在纸上推一遍，胜过看十遍代码。</strong>
+</blockquote></div></div></noscript>
+  </body>
+</html>
