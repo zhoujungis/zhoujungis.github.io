@@ -1,17 +1,17 @@
 <template>
   <header class="app-header">
     <div class="header-inner">
-      <router-link to="/" class="logo" aria-label="一蓑烟雨任平生 · 返回首页" @click="closeMenus">
+      <router-link to="/" class="logo" aria-label="个人博客Blog · 返回首页" @click="closeMenus">
         <img
           class="logo-mark"
           :src="logoIcon"
-          alt="一蓑烟雨任平生"
+          alt="个人博客Blog"
           width="38"
           height="38"
           decoding="async"
         />
         <span class="logo-copy">
-          <strong>一蓑烟雨任平生</strong>
+          <strong>个人博客Blog</strong>
           <small>ZhouJun·ShenZhen</small>
         </span>
       </router-link>

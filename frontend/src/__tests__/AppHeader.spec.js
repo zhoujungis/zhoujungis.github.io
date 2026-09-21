@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
+import { SITE_NAME } from '../utils/seo'
 
 function withRouter() {
   const router = createRouter({
@@ -19,7 +20,7 @@ describe('AppHeader', () => {
     const router = withRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(AppHeader, { global: { plugins: [router] } })
-    expect(wrapper.find('.logo').text()).toContain('一蓑烟雨任平生')
+    expect(wrapper.find('.logo').text()).toContain(SITE_NAME)
     expect(wrapper.find('.logo').text()).toContain('ZhouJun·ShenZhen')
     expect(wrapper.find('.logo-mark').attributes('src')).toBe('/icons/icon-192.png')
   })

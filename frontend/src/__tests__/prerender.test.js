@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  SITE_NAME,
   sanitizeHtml,
   upsertMeta,
   renderArticlePage,
@@ -70,7 +71,7 @@ describe('renderArticlePage SEO tags', () => {
 
   it('escapes the title in <title>', () => {
     const html = renderArticlePage(SHELL, ARTICLE)
-    expect(html).toContain('<title>Hello &lt;World&gt; | 一蓑烟雨任平生</title>')
+    expect(html).toContain(`<title>Hello &lt;World&gt; | ${SITE_NAME}</title>`)
   })
 })
 
