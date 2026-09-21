@@ -30,16 +30,36 @@
   --skeleton-dot: rgba(31, 42, 36, 0.12);
 }
 
+// ── 禁止页面缩放（移动端）─────────────────────────────────────────────────
+// 三层配合，因为没有任何单一手段在所有浏览器上都管用：
+//
+//   1. viewport meta 的 `maximum-scale=1, user-scalable=no`（index.html /
+//      public/404.html）—— 老版 Android 与 iOS < 10 认它。
+//   2. 这里的 `touch-action: pan-x pan-y` —— Chrome / Android / Edge /
+//      三星浏览器认它，同时挡掉捏合缩放和双击缩放。
+//   3. main.js 里拦 `gesturestart` —— iOS 10 起 Safari **故意忽略**
+//      `user-scalable=no`（无障碍考虑），只能靠这个非标准事件。
+//
+// 为什么是 `pan-x pan-y` 而不是 `none`：`none` 会把滚动一起禁掉。
+// 这个值只允许平移，捏合被拒。`touch-action` 不继承，但子元素的有效值是
+// 「自身值与所有祖先值求交集」，所以写在 html/body 上就覆盖了整页 ——
+// 同时 `pan-x` 仍在集合里，`.table-scroll`、`.katex-display`、
+// 代码块这些 `overflow-x: auto` 的横向滚动不受影响。
+//
+// 注意：这会让正文文字无法放大，与 WCAG 1.4.4（文字需可放大到 200%）冲突，
+// 属于明知取舍 —— 站点有独立的浅色/深色与字号体系，不靠手势缩放兜底。
 html {
   min-width: 320px;
   scroll-behavior: smooth;
   scroll-padding-top: 84px;
+  touch-action: pan-x pan-y;
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   overflow-x: hidden;
+  touch-action: pan-x pan-y;
   font-family: $font-main;
   font-size: 16px;
   line-height: 1.7;
