@@ -157,7 +157,7 @@
 
 先给最有用、也最常被忽略的定律。
 
-$L = \lambda W$
+$$L = \lambda W$$
 <ul>
 <li>$L$：系统里平均有多少个任务（并发数）</li>
 <li>$\lambda$：平均到达率（任务/秒）</li>
@@ -181,7 +181,7 @@ L = 60（从服务端 in-flight 计数读出来）
 
 如果 SLA 要求 p50 延迟 50ms，而你的服务平均处理时间是 20ms，那么：
 
-$L = \lambda W = \lambda \times 0.05$
+$$L = \lambda W = \lambda \times 0.05$$
 
 在 1000 req/s 下，$L = 50$ 个并发。如果线程池只有 32 个线程，你会在 640 req/s 就开始排队——<strong>Little's Law 直接告诉你线程池该开多大</strong>。
 
@@ -192,13 +192,13 @@ $L = \lambda W = \lambda \times 0.05$
 
 定义利用率：
 
-$\rho = \frac{\lambda}{\mu} = \lambda \cdot \mathbb{E}[S]$
+$$\rho = \frac{\lambda}{\mu} = \lambda \cdot \mathbb{E}[S]$$
 
 其中 $\mu$ 是服务率（每秒能处理多少个），$\mathbb{E}[S]$ 是平均服务时间。注意 $\rho$ 是<strong>负载强度</strong>，不是"CPU 利用率"——虽然两者通常接近。
 
 对最基础的 M/M/1 队列（单服务台、泊松到达、指数服务时间），平均响应时间是：
 
-$W = \frac{1}{\mu - \lambda} = \frac{\mathbb{E}[S]}{1 - \rho}$
+$$W = \frac{1}{\mu - \lambda} = \frac{\mathbb{E}[S]}{1 - \rho}$$
 
 把 $\mathbb{E}[S]$ 归一化成 1，看看延迟怎么随利用率变化：
 <table>
@@ -279,7 +279,7 @@ $W = \frac{1}{\mu - \lambda} = \frac{\mathbb{E}[S]}{1 - \rho}$
 
 第 3 点值得展开：<strong>利用率的不均衡会放大延迟</strong>。假设 8 台机器平均 45%，但其中一台 70%：
 
-$\text{均衡时延迟} = \frac{1}{1-0.45} = 1.82, \qquad \text{最忙那台} = \frac{1}{1-0.70} = 3.33$
+$$\text{均衡时延迟} = \frac{1}{1-0.45} = 1.82, \qquad \text{最忙那台} = \frac{1}{1-0.70} = 3.33$$
 
 那台机器慢 83%。如果请求会扇出（比如一个页面要问多个分片），整体延迟由最慢的那台决定。<strong>所以扩容时要看的是最大利用率，不是平均利用率。</strong>
 <h2>3. Kendall 记号与两个基础模型</h2>
@@ -330,13 +330,13 @@ $\text{均衡时延迟} = \frac{1}{1-0.45} = 1.82, \qquad \text{最忙那台} = 
 所以 <strong>M/M/1</strong> 就是"泊松到达、指数服务、单服务台、无限队列、FCFS"。<strong>M/M/c</strong> 是多服务台。
 <h3>3.1 M/M/1 的完整解</h3>
 
-$L = \frac{\rho}{1-\rho}, \quad W = \frac{\mathbb{E}[S]}{1-\rho}, \quad W_q = \frac{\rho \cdot \mathbb{E}[S]}{1-\rho}, \quad L_q = \frac{\rho^2}{1-\rho}$
+$$L = \frac{\rho}{1-\rho}, \quad W = \frac{\mathbb{E}[S]}{1-\rho}, \quad W_q = \frac{\rho \cdot \mathbb{E}[S]}{1-\rho}, \quad L_q = \frac{\rho^2}{1-\rho}$$
 
 四个量之间的关系全部由 Little's Law 串起来：$L = \lambda W$，$L_q = \lambda W_q$，$W = W_q + \mathbb{E}[S]$。<strong>只要记住 $W$ 那一个公式，其余三个都能推出来。</strong>
 
 还有一个容易被忽略的量——<strong>系统里超过 $n$ 个任务的概率</strong>：
 
-$P(L &gt; n) = \rho^{n+1}$
+$$P(L &gt; n) = \rho^{n+1}$$
 
 $\rho = 0.9$ 时，系统里有超过 10 个任务的概率是 $0.9^{11} = 31\%$。有超过 20 个的概率是 $0.9^{21} = 10.9\%$。<strong>这就是为什么尾延迟对利用率极其敏感</strong>：$\rho$ 每上升一点，长队列的概率指数级上升。
 <h3>3.2 M/M/c：多服务台</h3>
@@ -345,11 +345,11 @@ $\rho = 0.9$ 时，系统里有超过 10 个任务的概率是 $0.9^{11} = 31\%$
 
 <strong>等待概率</strong>（Erlang C 公式）：
 
-$C(c, a) = \frac{\dfrac{a^c}{c!}\cdot\dfrac{c}{c-a}}{\displaystyle\sum_{k=0}^{c-1}\frac{a^k}{k!} + \frac{a^c}{c!}\cdot\frac{c}{c-a}}$
+$$C(c, a) = \frac{\dfrac{a^c}{c!}\cdot\dfrac{c}{c-a}}{\displaystyle\sum_{k=0}^{c-1}\frac{a^k}{k!} + \frac{a^c}{c!}\cdot\frac{c}{c-a}}$$
 
 排队时间：
 
-$W_q = \frac{C(c,a)}{c\mu - \lambda} = C(c,a) \cdot \frac{\mathbb{E}[S]}{c - a}$
+$$W_q = \frac{C(c,a)}{c\mu - \lambda} = C(c,a) \cdot \frac{\mathbb{E}[S]}{c - a}$$
 
 这个公式的工程含义在第 5 节展开——它解释了<strong>为什么"多几台小的"比"一台大的"好</strong>。
 <h2>4. 方差比均值重要：P-K 公式</h2>
@@ -360,7 +360,7 @@ M/M/1 假设服务时间是指数的，也就是变异系数 $C_s = \sigma_S / \
 
 对 M/G/1（一般服务时间分布、单服务台），排队时间由 <strong>Pollaczek-Khinchine 公式</strong>给出：
 
-$W_q = \frac{\rho}{1-\rho} \cdot \frac{1 + C_s^2}{2} \cdot \mathbb{E}[S]$
+$$W_q = \frac{\rho}{1-\rho} \cdot \frac{1 + C_s^2}{2} \cdot \mathbb{E}[S]$$
 
 对比一下就能看出关键：M/M/1 的 $W_q = \frac{\rho}{1-\rho}\mathbb{E}[S]$，正好是 $C_s = 1$ 时 $(1+C_s^2)/2 = 1$ 的特例。
 
@@ -437,17 +437,17 @@ $W_q = \frac{\rho}{1-\rho} \cdot \frac{1 + C_s^2}{2} \cdot \mathbb{E}[S]$
 
 <strong>方案 A：1 台大机器，能力 10 req/s。</strong>
 
-$a = 9, \quad c = 1, \quad \rho = 0.9$
+$$a = 9, \quad c = 1, \quad \rho = 0.9$$
 
 M/M/1 下 $W_q = \frac{0.9}{0.1} \times 0.5 = 4.5$s，总响应时间 $W = 5.0$s。
 
 <strong>方案 B：10 台小机器，每台能力 1 req/s。</strong>
 
-$a = 9, \quad c = 10, \quad \rho = 0.9$
+$$a = 9, \quad c = 10, \quad \rho = 0.9$$
 
 先算 Erlang C：
 
-$C(10, 9) = \frac{\frac{9^{10}}{10!}\cdot\frac{10}{10-9}}{\sum_{k=0}^{9}\frac{9^k}{k!} + \frac{9^{10}}{10!}\cdot 10}$
+$$C(10, 9) = \frac{\frac{9^{10}}{10!}\cdot\frac{10}{10-9}}{\sum_{k=0}^{9}\frac{9^k}{k!} + \frac{9^{10}}{10!}\cdot 10}$$
 
 数值计算：$\frac{9^{10}}{10!} = \frac{3486784401}{3628800} = 960.8643$，乘以 $10$ 得 $9608.643$。
 
@@ -455,11 +455,11 @@ $\sum_{k=0}^{9}\frac{9^k}{k!} = 1 + 9 + 40.5 + 121.5 + 273.375 + 492.075 + 738.1
 
 所以：
 
-$C(10,9) = \frac{9608.643}{4759.818 + 9608.643} = \frac{9608.643}{14368.461} = 0.6687$
+$$C(10,9) = \frac{9608.643}{4759.818 + 9608.643} = \frac{9608.643}{14368.461} = 0.6687$$
 
 排队时间：
 
-$W_q = 0.6687 \times \frac{0.5}{10 - 9} = 0.334\text{s}$
+$$W_q = 0.6687 \times \frac{0.5}{10 - 9} = 0.334\text{s}$$
 
 总响应时间 $W = 0.334 + 0.5 = 0.83$s。
 
@@ -580,7 +580,7 @@ Erlang C 曲线还有一个更实用的推论。看同一套负载下，单台�
 
 <strong>正确的做法</strong>：合并全部 10100 个请求再算 p99。第 2 分钟有约 100 个请求超过 1000ms，第 1 分钟有约 1 个超过 10ms。合并后第 101 个最慢的请求来自第 2 分钟，所以：
 
-$p99_\text{合并} \approx 1000\text{ms}$
+$$p99_\text{合并} \approx 1000\text{ms}$$
 
 <strong>505ms 和 1000ms，差了一倍。</strong>而"平均各窗口的 p99"这个做法在监控系统里极其常见。
 
@@ -597,7 +597,7 @@ $p99_\text{合并} \approx 1000\text{ms}$
 
 假设一个页面要调 $N$ 个后端服务，每个服务有 $p$ 的概率变慢（比如 $p = 0.01$，即各自的 p99）。假设独立：
 
-$P(\text{页面变慢}) = 1 - (1-p)^N$
+$$P(\text{页面变慢}) = 1 - (1-p)^N$$
 <table>
 <thead>
 <tr>
@@ -652,11 +652,11 @@ $P(\text{页面变慢}) = 1 - (1-p)^N$
 
 如果一个任务有 $p$ 的比例可以并行化，用 $n$ 个执行单元：
 
-$S(n) = \frac{1}{(1-p) + \dfrac{p}{n}}$
+$$S(n) = \frac{1}{(1-p) + \dfrac{p}{n}}$$
 
 $n \to \infty$ 时的上限：
 
-$\lim_{n \to \infty} S(n) = \frac{1}{1-p}$
+$$\lim_{n \to \infty} S(n) = \frac{1}{1-p}$$
 <table>
 <thead>
 <tr>
@@ -746,7 +746,7 @@ Amdahl 定律有个缺陷：它假设加机器没有副作用。现实中不是�
 
 Gunther 的<strong>通用可扩展定律（Universal Scalability Law, USL）</strong>加了两项：
 
-$C(N) = \frac{N}{1 + \alpha(N-1) + \beta N(N-1)}$
+$$C(N) = \frac{N}{1 + \alpha(N-1) + \beta N(N-1)}$$
 <ul>
 <li>$\alpha$：<strong>争用系数</strong>（contention）——串行化导致的排队，线性增长</li>
 <li>$\beta$：<strong>一致性系数</strong>（coherency）——节点间的数据同步/通信，<strong>二次增长</strong></li>
@@ -756,14 +756,14 @@ $\beta = 0$ 时它退化成 Amdahl 的形式。$\beta &gt; 0$ 时，曲线不再
 
 对 $C(N)$ 求极值，得到<strong>最优节点数</strong>：
 
-$N^\ast = \sqrt{\frac{1-\alpha}{\beta}}$
+$$N^\ast = \sqrt{\frac{1-\alpha}{\beta}}$$
 
 超过 $N^\ast$ 之后，吞吐<strong>下降</strong>——这叫<strong>回退扩展（retrograde scaling）</strong>。
 <h3>8.1 算一个例子</h3>
 
 取 $\alpha = 0.05$（5% 的争用），$\beta = 0.001$（一致性成本）：
 
-$N^\ast = \sqrt{\frac{1 - 0.05}{0.001}} = \sqrt{950} \approx 30.8$
+$$N^\ast = \sqrt{\frac{1 - 0.05}{0.001}} = \sqrt{950} \approx 30.8$$
 <table>
 <thead>
 <tr>
@@ -835,7 +835,7 @@ $N^\ast = \sqrt{\frac{1 - 0.05}{0.001}} = \sqrt{950} \approx 30.8$
 
 设原始失败率 $f$，最多重试 $k$ 次（即最多 $k+1$ 次尝试），每次重试的负载期望是：
 
-$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$
+$$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
 <table>
 <thead>
 <tr>
@@ -1057,18 +1057,18 @@ $\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$
 
 <strong>注意这是 M/M/1 的数字。</strong>如果你的服务时间方差大（$C_s &gt; 1$），实际放大倍数要乘上第 4 节的因子。$C_s = 3$ 时，70% 利用率下的延迟放大不是 3.3 倍，而是：
 
-$W_q = \frac{0.7}{0.3} \times \frac{1 + 9}{2} \times \mathbb{E}[S] = 2.33 \times 5 \times \mathbb{E}[S] = 11.7 \times \mathbb{E}[S]$
+$$W_q = \frac{0.7}{0.3} \times \frac{1 + 9}{2} \times \mathbb{E}[S] = 2.33 \times 5 \times \mathbb{E}[S] = 11.7 \times \mathbb{E}[S]$$
 
 <strong>同一个 70%，方差大的服务延迟放大是 11.7 倍而不是 3.3 倍。</strong>所以先测你的 $C_s$。
 <h3>11.2 容量计算公式</h3>
 
 需要的实例数：
 
-$N = \left\lceil \frac{\lambda \cdot \mathbb{E}[S]}{\rho_\text{target}} \right\rceil$
+$$N = \left\lceil \frac{\lambda \cdot \mathbb{E}[S]}{\rho_\text{target}} \right\rceil$$
 
 例：峰值 500 req/s，平均处理 80ms，目标利用率 70%：
 
-$N = \left\lceil \frac{500 \times 0.08}{0.7} \right\rceil = \left\lceil 57.1 \right\rceil = 58$
+$$N = \left\lceil \frac{500 \times 0.08}{0.7} \right\rceil = \left\lceil 57.1 \right\rceil = 58$$
 
 <strong>但这个数字有三个陷阱：</strong>
 <ol>
@@ -1107,7 +1107,7 @@ $N = \left\lceil \frac{500 \times 0.08}{0.7} \right\rceil = \left\lceil 57.1 \ri
 
 A：能用，但要知道误差方向。真实流量通常<strong>比泊松更突发</strong>（突发性可以用 $C_a^2$ 描述，泊松是 $C_a^2 = 1$）。更突发的到达会让队列更长，所以 M/M/1 的公式是<strong>乐观估计</strong>。有个经验公式（Kingman 近似）同时考虑两个变异系数：
 
-$W_q \approx \frac{\rho}{1-\rho} \cdot \frac{C_a^2 + C_s^2}{2} \cdot \mathbb{E}[S]$
+$$W_q \approx \frac{\rho}{1-\rho} \cdot \frac{C_a^2 + C_s^2}{2} \cdot \mathbb{E}[S]$$
 
 $C_a^2 = C_s^2 = 1$ 时它退化成 M/M/1。<strong>这个公式比 M/M/1 实用得多</strong>，因为它把"流量有多突发"和"服务时间有多不稳"都算进去了。
 

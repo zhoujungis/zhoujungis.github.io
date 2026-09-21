@@ -217,6 +217,15 @@ async function fillArticleDetails(articles) {
   if (cacheDirty) saveDetailCache(cache)
 }
 
+// String.replace() pattern-scans a STRING replacement value: `$$` collapses to
+// a literal `$`, `$&` to the match, and `$'`/`$\`` to the surrounding text.
+// Article bodies are full of `$$...$$` display math, so injecting one with a
+// plain string replacement silently rewrote every block formula into inline
+// math in the prerendered snapshot (and mangled any `$` in a title or excerpt).
+// A FUNCTION replacement is never pattern-scanned, so it is always literal —
+// use this for every replacement that carries data.
+const literal = (replacement) => () => replacement
+
 // Replace-or-insert a <meta name|property="key" content="..."> tag: if the
 // shell already has one, swap its content in place; otherwise insert before
 // </head>. Guarantees exactly one tag per key — no duplicate SEO tags.
@@ -225,8 +234,8 @@ function upsertMeta(html, attr, key, content) {
     `<meta\\s+${attr}="${key}"\\s+content="[^"]*"\\s*/?>`,
   )
   const tag = `<meta ${attr}="${key}" content="${escapeHtml(content)}" />`
-  if (re.test(html)) return html.replace(re, tag)
-  return html.replace('</head>', `    ${tag}\n  </head>`)
+  if (re.test(html)) return html.replace(re, literal(tag))
+  return html.replace('</head>', literal(`    ${tag}\n  </head>`))
 }
 
 function renderArticlePage(template, article) {
@@ -237,13 +246,13 @@ function renderArticlePage(template, article) {
   const cover = article.cover_image || `${SITE_ORIGIN}/og-image.jpg`
 
   let html = template
-  html = html.replace(/<title>.*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
+  html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
   // Canonical: REPLACE the shell's site-root canonical in place.
   // (Appending a second <link rel="canonical"> confuses search engines —
   // this was the duplicate-canonical bug.)
   html = html.replace(
     /<link rel="canonical" href="[^"]*" \/>/,
-    `<link rel="canonical" href="${url}" />`,
+    literal(`<link rel="canonical" href="${url}" />`),
   )
   html = upsertMeta(html, 'name', 'description', description)
   html = upsertMeta(html, 'property', 'og:title', article.title)
@@ -275,7 +284,7 @@ function renderArticlePage(template, article) {
 
   // Replace the shell's generic og:type=website with the article one above.
   html = html.replace(/<meta property="og:type" content="website" \/>\s*\n?/, '')
-  html = html.replace('</head>', `${headExtras}\n  </head>`)
+  html = html.replace('</head>', literal(`${headExtras}\n  </head>`))
 
   // No-JS fallback content, sanitized at build time (defense in depth — see
   // sanitizeHtml). Vue mounts on #app and replaces it for JS users, so this
@@ -287,7 +296,7 @@ function renderArticlePage(template, article) {
     `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · Zhou Jun</div>` +
     `<div class="markdown-body">${safeBody}</div>` +
     `</div></noscript>`
-  html = html.replace('<div id="app"></div>', `<div id="app"></div>\n    ${noscript}`)
+  html = html.replace('<div id="app"></div>', literal(`<div id="app"></div>\n    ${noscript}`))
 
   return html
 }
@@ -320,11 +329,11 @@ function renderHomePage(template, articles) {
   // list stays frozen at whatever the first build produced, forever.
   const existing = /<noscript>[\s\S]*?ns-home-list[\s\S]*?<\/noscript>/
   if (existing.test(html)) {
-    html = html.replace(existing, noscript)
+    html = html.replace(existing, literal(noscript))
   } else {
     html = html.replace(
       '<div id="app"></div>',
-      `<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`,
+      literal(`<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`),
     )
   }
   return html
