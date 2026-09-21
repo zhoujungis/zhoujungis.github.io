@@ -54,11 +54,60 @@ describe('Landing (Home.vue)', () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
     await flushPromises()
-    expect(wrapper.find('.front-section').exists()).toBe(true)
-    expect(wrapper.find('.section-title').text()).toBe('最新文章')
-    const more = wrapper.find('.section-more')
+    const front = wrapper.find('.front-section')
+    expect(front.exists()).toBe(true)
+    // Scope to the section: 刊头之后还有「算法解读」，它也有自己的 .section-title，
+    // 不限定作用域的话断言会取到第一个区块的标题。
+    expect(front.find('.section-title').text()).toBe('最新文章')
+    const more = front.find('.section-more')
     expect(more.exists()).toBe(true)
     expect(more.attributes('href')).toBe('/articles')
+  })
+
+  it('renders 算法解读 section below 最新文章', async () => {
+    const router = makeRouter()
+    await router.push('/'); await router.isReady()
+    const wrapper = mount(Home, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const algo = wrapper.find('.algo-section')
+    expect(algo.exists()).toBe(true)
+    expect(algo.find('.section-title').text()).toBe('算法解读')
+    // 区块右侧是「全部题解 →」/algo
+    expect(algo.find('.section-more').attributes('href')).toBe('/algo')
+
+    // 题单是静态数据，API 挂掉也照样显示
+    const items = algo.findAll('.algo-item')
+    expect(items.length).toBeGreaterThan(0)
+
+    const first = items[0]
+    expect(first.find('.algo-item__id').text().replace(/\s+/g, ' ')).toBe('LC 206')
+    expect(first.find('.algo-item__title').text()).toBe('反转链表')
+    expect(first.find('.algo-item__level').text()).toBe('简单')
+
+    // 位置：必须在「最新文章」之后
+    const order = wrapper.findAll('.front-section, .algo-section')
+    expect(order[0].classes()).toContain('front-section')
+    expect(order[1].classes()).toContain('algo-section')
+  })
+
+  it('首页最多只放两条算法题，未发布的渲染成不可点的行', async () => {
+    const { ALGORITHMS } = await import('@/data/algorithms')
+    const router = makeRouter()
+    await router.push('/'); await router.isReady()
+    const wrapper = mount(Home, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const items = wrapper.findAll('.algo-item')
+    expect(items.length).toBeLessThanOrEqual(2)
+
+    // published: false 时不能是链接 —— 后端还没这篇文章，点进去只会 404
+    const first = items[0]
+    expect(first.find('.algo-item__link').attributes('href')).toBeUndefined()
+    if (!ALGORITHMS[0].published) {
+      expect(first.find('.algo-item__pending').exists()).toBe(true)
+      expect(first.find('.algo-item__link').classes()).toContain('is-pending')
+    }
   })
 
   it('shows featured + list when latest articles are returned', async () => {

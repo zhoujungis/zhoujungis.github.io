@@ -3,9 +3,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import DOMPurify from 'dompurify'
 import { stripLeadingDuplicateTitle } from '@/utils/articleHtml'
+import { mountLinkedListReverse } from '@/viz/linkedListReverse'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -280,12 +281,58 @@ async function processEnhancements() {
   }
 }
 
+// ── 算法动画占位符 ─────────────────────────────────────────────────────────
+// 文章正文里写的是一个空 div：
+//     <div class="algo-viz algo-viz--lc206"></div>
+//
+// 为什么不直接把动画写在 markdown 里：正文要过三道清洗（后端 Python-Markdown
+// → bleach → 前端 DOMPurify），而 bleach 的白名单里没有 svg / style / script，
+// div 也只保留 class。所以动画只能在客户端现场构建，文章里只留占位符。
+//
+// key 是占位符的第二个类名；值是挂载函数，返回 { destroy() }。
+// 加新动画时：实现一个同签名的模块，在这里注册一行。
+const VIZ_MOUNTERS = {
+  'algo-viz--lc206': mountLinkedListReverse,
+}
+
+let vizHandles = []
+
+// v-html 会整块换掉 DOM，旧的动画实例必须显式销毁，否则定时器和
+// IntersectionObserver 会留在后台继续跑（切文章时最明显）。
+function unmountViz() {
+  vizHandles.forEach((handle) => {
+    try {
+      handle?.destroy?.()
+    } catch (e) {
+      console.warn('Algo viz teardown failed:', e?.message || e)
+    }
+  })
+  vizHandles = []
+}
+
+function mountViz() {
+  if (!bodyRef.value) return
+  unmountViz()
+  bodyRef.value.querySelectorAll('.algo-viz').forEach((host) => {
+    const key = Object.keys(VIZ_MOUNTERS).find((name) => host.classList.contains(name))
+    if (!key) return
+    try {
+      vizHandles.push(VIZ_MOUNTERS[key](host))
+    } catch (e) {
+      // 动画挂了不能连累正文渲染 —— 占位符留空即可。
+      console.warn('Algo viz failed to mount:', key, e?.message || e)
+    }
+  })
+}
+
 onMounted(() => {
-  nextTick(() => { processEnhancements(); wrapTables(); attachCopyButtons() })
+  nextTick(() => { mountViz(); processEnhancements(); wrapTables(); attachCopyButtons() })
 })
 
+onBeforeUnmount(unmountViz)
+
 watch(() => props.html, () => {
-  nextTick(() => { processEnhancements(); wrapTables(); attachCopyButtons() })
+  nextTick(() => { mountViz(); processEnhancements(); wrapTables(); attachCopyButtons() })
 })
 </script>
 

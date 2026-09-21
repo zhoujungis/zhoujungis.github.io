@@ -172,9 +172,6 @@
         </aside>
       </div>
     </template>
-
-    <!-- JSON-LD Structured Data -->
-    <script type="application/ld+json" v-if="article" v-text="jsonLd"></script>
   </div>
 </template>
 
@@ -258,6 +255,34 @@ const jsonLd = computed(() => {
     publisher: { '@type': 'Person', name: 'Zhou Jun' },
   })
 })
+
+// 这段结构化数据不能写成模板里的 <script type="application/ld+json">：
+// Vue 的 DOM 编译器会**忽略并报错** ——
+//   Tags with side effect (<script> and <style>) are ignored in client
+//   component templates.
+// 客户端组件模板里的 <script> 本来也不会执行。`vite build` 只把它当警告放过去，
+// 所以线上一直没事；`vite dev` 会直接弹 HMR 错误遮罩，把整页盖住。
+// 改成手动建节点塞进 <head>，行为一致（爬虫读到的还是同一段 JSON-LD），
+// 也不再依赖模板能力。
+let jsonLdEl = null
+watch(
+  jsonLd,
+  (data) => {
+    if (!data) {
+      jsonLdEl?.remove()
+      jsonLdEl = null
+      return
+    }
+    if (!jsonLdEl) {
+      jsonLdEl = document.createElement('script')
+      jsonLdEl.type = 'application/ld+json'
+      jsonLdEl.dataset.articleJsonLd = '1'
+      document.head.appendChild(jsonLdEl)
+    }
+    jsonLdEl.textContent = data
+  },
+  { immediate: true },
+)
 
 async function handleLike() {
   if (liked.value || liking.value) return
@@ -346,6 +371,10 @@ watch(() => route.params.slug, () => {
 // Home / Archives / Search after the user navigates away
 onUnmounted(() => {
   resetSEO()
+  // 结构化数据挂在 <head> 上，不跟着组件销毁，必须手动摘掉，
+  // 否则离开文章页后它还留在文档里，描述的是上一篇。
+  jsonLdEl?.remove()
+  jsonLdEl = null
 })
 </script>
 
