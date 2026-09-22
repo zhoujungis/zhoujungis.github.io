@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-141-142-linked-list-cycle/" />
+    <meta property="og:title" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇" />
+    <meta property="og:description" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-141-142-linked-list-cycle/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-141-142-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇" />
+    <meta name="twitter:description" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-141-142-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BPUXLgM4.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-22T14:04:48.629328+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇","description":"【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广","image":"https://zhoujungis.github.io/photos/lc-141-142-cover.png","datePublished":"2026-09-22T14:04:48.629328+08:00","dateModified":"2026-09-22T14:04:48.629367+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-141-142-linked-list-cycle/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇</h1><div class="ns-meta">2026/9/22 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人
+<strong>技术栈</strong>：Python 为主，两种解法都附 Java 版
+<strong>难度</strong>：简单（141）/ 中等（142）—— 但<strong>追问可以很深</strong>
+<strong>收获</strong>：一个能当场写出来的相遇证明；一个被广泛传错的结论的纠正；以及「为什么偏偏是 2 和 1」的两条硬理由
+</blockquote>
+<h2>题目</h2>
+
+<strong>LC 141 环形链表</strong>：给你一个链表的头节点 <code>head</code>，判断链表中是否有环。
+
+<strong>LC 142 环形链表 II</strong>：给定一个链表的头节点 <code>head</code>，返回链表开始入环的第一个节点。如果链表无环，则返回 <code>null</code>。
+
+<strong>进阶（141）</strong>：你能用 O(1) 内存解决此问题吗？
+<div class="codehilite"><pre><span></span><code>输入：head = [3,2,0,-4], pos = 1
+输出：true（141）/ 返回下标为 1 的节点（142）
+解释：链表中有一个环，其尾部连接到第二个节点。
+
+输入：head = [1,2], pos = -1
+输出：false（141）/ null（142）
+解释：链表中没有环。
+</code></pre></div>
+
+
+约束：
+<ul>
+<li>链表中节点的数目范围是 <code>[0, 10^4]</code></li>
+<li><code>-10^5 &lt;= Node.val &lt;= 10^5</code></li>
+<li><code>pos</code> 为 <code>-1</code> 或者链表中的一个有效索引</li>
+<li>142 要求<strong>不允许修改</strong>链表</li>
+</ul>
+
+节点定义沿用前三篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+
+留意两个细节。第一，<strong>节点数可以到 10⁴</strong>——这个量级直接决定了哈希表法的空间开销值不值得。第二，<strong>不允许修改链表</strong>——所以「把走过的节点标记一下」这类做法（改 <code>val</code>、改 <code>next</code> 指向哨兵）全部出局。这两句话把可行解的范围压得很窄，也把 Floyd 判圈推到了台前。
+<hr>
+<h2>一、先把坐标系定下来</h2>
+
+这题的证明之所以让人迷糊，多半是因为符号没统一。先把三个量钉死，后面所有推导都只用它们。
+<h3>1.1 三个符号</h3>
+
+设：
+<ul>
+<li><strong><code>a</code></strong> —— 直段长度，也就是<strong>从头节点走到环入口的步数</strong>。注意「步数」和「下标」在这里恰好相等：head 的下标是 0，入口的下标就是 <code>a</code>。</li>
+<li><strong><code>b</code></strong> —— 环的长度（环里有 <code>b</code> 个节点）。</li>
+<li><strong><code>n</code></strong> —— 节点总数，<code>n = a + b</code>。</li>
+</ul>
+
+再加一个只在证明里出现的量：
+<ul>
+<li><strong><code>x</code></strong> —— 相遇点沿环前进方向到入口的距离（0 ≤ x &lt; b）。</li>
+</ul>
+
+本文的演示链表固定用 <code>1 → 2 → … → 13</code>，入口是节点 5，最后一个节点 13 指回 5。于是：
+<div class="codehilite"><pre><span></span><code>a = 4    （head 是 1，走到入口 5 要 4 步：1→2→3→4→5）
+b = 9    （环是 5→6→7→8→9→10→11→12→13→5，9 个节点）
+n = 13
+</code></pre></div>
+
+
+后面动画和表格里的数字，全部来自这条链表。
+<h3>1.2 最直接的做法：哈希表</h3>
+
+「判断有没有环」最朴素的想法是：<strong>一边走一边把走过的节点记下来，如果撞见一个记过的节点，那就是环。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">hasCycle</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">while</span> <span class="n">head</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">head</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>      <span class="c1"># 又见到它了 → 有环</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">head</span><span class="p">)</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+
+找入口更简单——<strong>第一次重复出现的那个节点就是入口</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detectCycle</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">while</span> <span class="n">head</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">head</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">head</span>       <span class="c1"># 第一次撞见的重复节点 = 环入口</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">head</span><span class="p">)</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+时间复杂度 O(n)，非常干净。但空间是 <strong>O(n)</strong>：最坏情况下（整条链表就是一个环，或者环很大）<code>seen</code> 里要装下几乎全部 n 个节点。
+
+n 最大 10⁴，看着不多。但「O(1) 内存」这道进阶题问的不是「10⁴ 个引用贵不贵」，而是<strong>「能不能不靠额外存储就解决问题」</strong>——在流式数据、内存受限的嵌入式环境里，这是个真问题。而且面试官问出这句话的时候，期待的答案已经写好了：<strong>Floyd 判圈算法</strong>（龟兔赛跑算法）。
+<hr>
+<h2>二、Floyd 判圈：为什么一定相遇</h2>
+<h3>2.1 代码</h3>
+
+两个指针都从头出发，慢指针每步走 1 格，快指针每步走 2 格：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">hasCycle</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">fast</span> <span class="o">=</span> <span class="n">head</span>
+    <span class="k">while</span> <span class="n">fast</span> <span class="ow">and</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>          <span class="c1"># 快指针走得到头，就说明没环</span>
+        <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+        <span class="k">if</span> <span class="n">slow</span> <span class="ow">is</span> <span class="n">fast</span><span class="p">:</span>               <span class="c1"># 相遇 → 有环</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+
+Java 版：
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">hasCycle</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">slow</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">fast</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+代码五行。但「为什么这样一定能相遇」——这才是这题真正的考点。
+<h3>2.2 把「相遇」翻译成一个同余式</h3>
+
+先定义本文唯一要用的距离量：
+<blockquote>
+
+<strong><code>gap</code></strong> = 快指针沿着前进方向，走到慢指针还需要几格。
+</blockquote>
+
+（注意方向：是「快指针去追慢指针」，不是「慢指针去追快指针」。）
+
+分两个阶段看。
+
+<strong>阶段一：慢指针还没进环。</strong> 这时候快指针可能已经进环了，但<strong>两者不可能相遇</strong>——慢指针在直段上，快指针在环里，位置集合根本不相交。所以相遇只可能发生在<strong>慢指针进环之后</strong>。
+
+<strong>阶段二：两个指针都在环上。</strong> 这时候每走一步：
+<ul>
+<li>慢指针沿环前进 1 格；</li>
+<li>快指针沿环前进 2 格；</li>
+<li>所以 <code>gap</code> <strong>每步减少 <code>fastStep - 1</code> 格</strong>。</li>
+</ul>
+
+记 <code>closing = fastStep - 1</code>。对标准的「快 2 慢 1」，<code>closing = 1</code>，<code>gap</code> 每步减 1。
+
+关键在于：环上的距离是<strong>模 b 的</strong>。<code>gap</code> 减到负数不会变成「负距离」，而是绕回环的另一端。所以
+<div class="codehilite"><pre><span></span><code>gap_k = (gap₀ - closing · k) mod b
+</code></pre></div>
+
+
+相遇就是 <code>gap_k = 0</code>。这是一个同余方程：
+<div class="codehilite"><pre><span></span><code>closing · k ≡ gap₀  (mod b)
+</code></pre></div>
+
+
+它有解，当且仅当 <strong><code>gcd(closing, b)</code> 整除 <code>gap₀</code></strong>（数论里的线性同余定理）。
+
+所以问题归结成一句话：<strong><code>gap₀</code> 长什么样？</strong>
+<h3>2.3 关键一步：<code>gap₀</code> 天生就满足整除条件</h3>
+
+<code>gap₀</code> 是「慢指针刚进环那一刻」的 gap。
+
+慢指针走了 <code>a</code> 步到达入口（环上第 0 格）。同一时刻，快指针已经走了 <code>a · fastStep</code> 格，也就是比慢指针多走了
+<div class="codehilite"><pre><span></span><code>a · fastStep - a = a · (fastStep - 1) = a · closing
+</code></pre></div>
+
+
+格。所以快指针在环上的位置是第 <code>(a · closing) mod b</code> 格，而慢指针在第 0 格。于是
+<div class="codehilite"><pre><span></span><code>gap₀ = (-a · closing) mod b
+</code></pre></div>
+
+
+看这个式子。<code>a · closing</code> 是 <code>closing</code> 的倍数；模 <code>b</code> 之后仍然是「<code>closing</code> 的倍数再减去若干个 <code>b</code>」。而 <code>gcd(closing, b)</code> 同时整除 <code>closing</code> 和 <code>b</code>，所以它必然整除 <code>a · closing</code> 也整除 <code>b</code>，于是<strong>它必然整除 <code>gap₀</code></strong>。
+
+整除条件自动成立。<strong>方程一定有解，两指针必然相遇。</strong>
+
+这不是「运气好」或者「试出来的」，而是代数上被锁死的。我把这件事直接枚举验证了一遍：
+<div class="codehilite"><pre><span></span><code><span class="n">backend</span><span class="o">/</span><span class="n">venv</span><span class="o">/</span><span class="n">Scripts</span><span class="o">/</span><span class="n">python</span><span class="o">.</span><span class="n">exe</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="n">count_lc141_work</span><span class="o">.</span><span class="n">py</span>
+</code></pre></div>
+
+
+固定两指针同起点，对 <code>fastStep ∈ {2,3,4,5}</code>、<code>a ∈ [0,14]</code>、<code>b ∈ [1,14]</code> 全组合枚举，共 <strong>210</strong> 组每组：
+<table>
+<thead>
+<tr>
+<th>快指针步数</th>
+<th>closing</th>
+<th>枚举对数</th>
+<th>不相遇对数</th>
+<th>占比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>1</td>
+<td>210</td>
+<td>0</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>210</td>
+<td>0</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>210</td>
+<td>0</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td>210</td>
+<td>0</td>
+<td>0.0%</td>
+</tr>
+</tbody>
+</table>
+
+四行都是 0。
+<h3>2.4 一个被广泛传错的结论</h3>
+
+写这篇文章之前，我原本准备照抄一个流传很广的说法：
+<blockquote>
+
+<strong>（这个说法是错的，下面说为什么。）</strong> 「如果快指针走 3 步、慢指针走 1 步，那么当环长为偶数时，两个指针永远不会相遇。」
+</blockquote>
+
+这个说法<strong>在标准的同起点 Floyd 设定下是错的</strong>。上面那张表就是证据：快 3 慢 1 时，<code>closing = 2</code>，枚举 210 组，<strong>一次都没出现不相遇</strong>。
+
+错在哪？错在<strong>起点</strong>。
+
+那个反例是真的，但它成立的前提是「两个指针从<strong>不同位置</strong>出发」。如果两指针一开始就都在环上、快指针领先 <code>d0</code> 格，那么 <code>d0</code> 是<strong>任意的</strong>，整除条件 <code>gcd(closing, b) | d0</code> 就不再被保证：
+<table>
+<thead>
+<tr>
+<th>环长 b</th>
+<th>closing</th>
+<th>gcd(closing, b)</th>
+<th>d0 = 1</th>
+<th>d0 = 2</th>
+<th>d0 = 3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td>2</td>
+<td>2</td>
+<td>错过</td>
+<td>相遇</td>
+<td>错过</td>
+</tr>
+<tr>
+<td>6</td>
+<td>2</td>
+<td>2</td>
+<td>错过</td>
+<td>相遇</td>
+<td>错过</td>
+</tr>
+<tr>
+<td>8</td>
+<td>2</td>
+<td>2</td>
+<td>错过</td>
+<td>相遇</td>
+<td>错过</td>
+</tr>
+<tr>
+<td>9</td>
+<td>2</td>
+<td>1</td>
+<td>相遇</td>
+<td>相遇</td>
+<td>相遇</td>
+</tr>
+<tr>
+<td>12</td>
+<td>2</td>
+<td>2</td>
+<td>错过</td>
+<td>相遇</td>
+<td>错过</td>
+</tr>
+</tbody>
+</table>
+
+看 <code>b = 6, closing = 2, d0 = 1</code> 这一格：<code>gcd = 2</code> 不整除 1，gap 序列在 1、5、3 之间打转，<strong>永远碰不到 0</strong>。反例是真实的。
+
+但标准 Floyd 是<strong>两指针同起点</strong>，<code>gap₀</code> 被 <code>gcd</code> 锁死，压根走不到这个坑里。<strong>把「不同起点」的结论套到「同起点」上，就是那个流传错误的来源。</strong>
+
+顺带说一句：<code>b = 9</code> 那一行全是「相遇」，因为 <code>gcd(2, 9) = 1</code>，此时无论 <code>d0</code> 是多少都能追上。这也是为什么这个错误说法特别容易「验证成功」——挑一个奇数环长去试，它看起来是对的。
+<h3>2.5 看一眼动画</h3>
+
+下面这个动画把演示链表 <code>1→2→…→13</code>（入口 5、<code>a = 4</code>、<code>b = 9</code>）的判环过程逐步演了一遍。
+
+盯住环里那条<strong>橙色弧线</strong>——它标的就是 <code>gap</code>，也就是「快指针沿前进方向到慢指针还差几格」。<strong>每一步它恰好缩短 1 格</strong>，从 5 一路走到 0：
+<div class="codehilite"><pre><span></span><code>gap 序列：5 → 4 → 3 → 2 → 1 → 0
+</code></pre></div>
+
+<div class="algo-viz algo-viz--lc141"></div>
+
+
+这条弧线就是「一定相遇」的全部直观内容：<code>gap</code> 是模 <code>b</code> 递减的，而模 <code>b</code> 递减<strong>不可能跳过 0</strong>。它必然依次经过 <code>b-1</code>、…、<code>1</code>、<code>0</code>。
+
+第 9 步两指针在节点 10 相遇。核对一下账：慢指针走了 9 步，快指针走了 18 格，多走的 <code>18 - 9 = 9</code> 格正好是<strong>一个环长</strong>。
+<h3>2.6 相遇步数有闭式解</h3>
+
+既然 <code>gap</code> 每步减 <code>closing</code>、模 <code>b</code>，那「慢指针进环后再走几步」就是解 <code>closing · k ≡ -a · closing (mod b)</code>。两边约掉 <code>g = gcd(closing, b)</code> 之后可得：
+<div class="codehilite"><pre><span></span><code>总相遇步数 t = 不小于 a 的最小 (b / gcd(closing, b)) 的倍数
+</code></pre></div>
+
+
+拿演示链表验证：<code>a = 4</code>、<code>b = 9</code>、<code>closing = 1</code>，<code>b / gcd(1, 9) = 9</code>，不小于 4 的最小 9 的倍数是 9。<strong><code>t = 9</code></strong>，和动画一致。
+
+这个闭式解和暴力模拟在 840 组上逐项对照，<strong>不符的有 0 组</strong>：
+<table>
+<thead>
+<tr>
+<th>a</th>
+<th>b</th>
+<th>快 2</th>
+<th>快 3</th>
+<th>快 4</th>
+<th>快 5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>6</td>
+<td>6</td>
+<td>3</td>
+<td>2</td>
+<td>3</td>
+</tr>
+<tr>
+<td>4</td>
+<td>9</td>
+<td>9</td>
+<td>9</td>
+<td>6</td>
+<td>9</td>
+</tr>
+<tr>
+<td>7</td>
+<td>6</td>
+<td>12</td>
+<td>9</td>
+<td>8</td>
+<td>9</td>
+</tr>
+<tr>
+<td>4</td>
+<td>12</td>
+<td>12</td>
+<td>6</td>
+<td>4</td>
+<td>6</td>
+</tr>
+<tr>
+<td>12</td>
+<td>9</td>
+<td>18</td>
+<td>18</td>
+<td>12</td>
+<td>18</td>
+</tr>
+</tbody>
+</table>
+
+表里有个值得注意的地方：<strong>快指针走得快，不代表更早相遇</strong>。<code>a = 7, b = 6</code> 那一行，快 2 要 12 步，快 3 只要 9 步，而快 4 要 8 步——但快 5 又涨回 9 步。因为「多走的格数必须是环长的整数倍」这个约束会随 <code>closing</code> 一起变，步数不是单调的。
+
+<strong>面试提醒</strong>：如果面试官只问 141，答到「<code>gap</code> 每步减 1、必然经过 0」就足够了。但如果你能顺手写出 <code>gap₀ = (-a · closing) mod b</code> 这一步，说明你是真懂而不是背的。
+<hr>
+<h2>三、LC 142：入口到底在哪</h2>
+<h3>3.1 从相遇点能推出什么</h3>
+
+设相遇点距入口 <code>x</code> 步（沿环前进方向，0 ≤ x &lt; b）。
+
+相遇那一刻，两个指针走过的距离是：
+<ul>
+<li>慢指针：<code>a + x</code>（直段 <code>a</code> 步，再在环上走 <code>x</code> 步）</li>
+<li>快指针：<code>2(a + x)</code>（慢指针走的每一步，它都走两步）</li>
+</ul>
+
+而快指针比慢指针多走的部分，<strong>必然是环长的整数倍</strong>（因为两个指针最终落在同一个节点上，多走的只能是绕圈）：
+<div class="codehilite"><pre><span></span><code><span class="mf">2</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="err">·</span><span class="w"> </span><span class="n">b</span><span class="w">        </span><span class="err">（</span><span class="n">m</span><span class="w"> </span><span class="n">是某个正整数</span><span class="err">）</span>
+</code></pre></div>
+
+
+把 <code>a + x = m·b</code> 改写成模 <code>b</code> 的形式：
+<div class="codehilite"><pre><span></span><code>a ≡ -x ≡ b - x   (mod b)
+</code></pre></div>
+
+
+<strong>这一步就是整道题的钥匙。</strong> 它的意思是：
+<blockquote>
+
+从 head 走 <code>a</code> 步到入口；从相遇点走 <code>b - x</code> 步也到入口。两者相差的恰好是整数圈。
+</blockquote>
+
+所以第二阶段的做法就顺理成章了：
+<ul>
+<li>把 <code>ptr1</code> 放回 head；</li>
+<li><code>ptr2</code> 留在相遇点；</li>
+<li><strong>两个指针都改成每步走 1 格</strong>；</li>
+<li>它们相遇的地方，就是入口。</li>
+</ul>
+
+因为 <code>ptr1</code> 走 <code>a</code> 步到入口，而 <code>ptr2</code> 走 <code>a</code> 步也到入口（<code>a ≡ b - x</code>，差整数圈），<strong>两条路一样长</strong>。
+<h3>3.2 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detectCycle</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">fast</span> <span class="o">=</span> <span class="n">head</span>
+    <span class="k">while</span> <span class="n">fast</span> <span class="ow">and</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+        <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+        <span class="k">if</span> <span class="n">slow</span> <span class="ow">is</span> <span class="n">fast</span><span class="p">:</span>                 <span class="c1"># 第一阶段：找到相遇点</span>
+            <span class="n">ptr1</span><span class="p">,</span> <span class="n">ptr2</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">slow</span>      <span class="c1"># ptr1 回 head，ptr2 留在相遇点</span>
+            <span class="k">while</span> <span class="n">ptr1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">ptr2</span><span class="p">:</span>      <span class="c1"># 第二阶段：同速前进</span>
+                <span class="n">ptr1</span> <span class="o">=</span> <span class="n">ptr1</span><span class="o">.</span><span class="n">next</span>
+                <span class="n">ptr2</span> <span class="o">=</span> <span class="n">ptr2</span><span class="o">.</span><span class="n">next</span>
+            <span class="k">return</span> <span class="n">ptr1</span>                  <span class="c1"># 相遇处即入口</span>
+    <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+Java 版：
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">detectCycle</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">slow</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">fast</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">ptr1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">ptr2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">;</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">ptr1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">ptr2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">ptr1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ptr1</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="n">ptr2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ptr2</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">ptr1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+整个算法<strong>没有用任何额外存储</strong>，只有四个指针变量，与 n 无关。
+<h3>3.3 看一眼动画</h3>
+
+同一个链表 <code>1→2→…→13</code>，接着第一阶段的相遇点往下演。
+
+左边那条<strong>绿色标尺</strong>是 <code>ptr1</code> 从 head 到入口还差几步，环里那条<strong>橙色弧线</strong>是 <code>ptr2</code> 从相遇点绕到入口还差几步。<strong>两个读数是同步递减的</strong>：
+<div class="codehilite"><pre><span></span><code>ptr1：4 → 3 → 2 → 1 → 0
+ptr2：4 → 3 → 2 → 1 → 0
+</code></pre></div>
+
+<div class="algo-viz algo-viz--lc142"></div>
+
+
+演示链表特意选成 <code>a = b - x = 4</code>（<code>a = 4</code>、<code>b = 9</code>、<code>x = 5</code>），所以两条路<strong>一样长</strong>，两个读数严格同步。走满 4 步，两个指针同时落在节点 5——那就是入口。
+
+这不是巧合，是刻意挑的：<code>a</code> 和 <code>b - x</code> 只要求<strong>同余</strong>，不要求相等。选成相等，动画上「两条路一样长」这件事才是肉眼可见的。
+<h3>3.4 一个容易漏掉的边界：<code>a = 0</code></h3>
+
+如果<strong>头节点本身就在环上</strong>，那么 <code>a = 0</code>，入口就是 head。此时相遇点也正好是入口（<code>x = 0</code>），两个指针一开始就重合——<code>ptr1</code> 一步都不用走。
+
+代码上不用特判，<code>while ptr1 is not ptr2</code> 一进来条件就不成立，直接返回 <code>head</code>。但<strong>解释的时候要提一句</strong>，否则读者会以为「一定会有第二阶段的行走」。这也是我那个动画状态机里单独给 <code>a === 0</code> 留一帧 <code>found</code> 的原因。
+
+另一个边界：<strong>空链表</strong>（<code>n = 0</code>）和<strong>单节点自环</strong>（<code>b = 1</code>）。前者两题都直接返回 <code>false</code> / <code>null</code>；后者 <code>b = 1</code> 意味着环里只有一个节点，它自己指向自己——画图时不能用一条零长度的线表示，得画成一段弧，否则渲染出来什么都看不见。
+<hr>
+<h2>四、为什么偏偏是 2 和 1</h2>
+
+到这里，代码和证明都齐了。但面试官最爱追问的一句还没答：
+<blockquote>
+
+为什么慢指针走 1、快指针走 2？走 3 行不行？
+</blockquote>
+
+行。<strong>但 2 和 1 是最优的，理由有两条，而且是两条独立的理由。</strong>
+<h3>4.1 第一条：相对速度必须为正</h3>
+
+<code>closing = fastStep - 1</code>。如果 <code>fastStep = 1</code>，那么 <code>closing = 0</code>——两个指针<strong>每步走一样多</strong>，<code>gap</code> 永远不变。它们会一直保持初始距离，永远不相遇。
+
+所以 <code>fastStep ≥ 2</code> 是硬门槛。而 <strong>2 是满足这个条件的最小值</strong>——快指针每步跳过的节点最少，常数最优。
+<h3>4.2 第二条：<code>closing = 1</code> 才让 LC 142 成立</h3>
+
+这条更重要，也更容易被忽略。
+
+回头看 3.1 节的推导。我们得到 <code>a + x = m·b</code> 这一步，用到了「快指针走的步数恰好是慢指针的两倍」。<strong>如果快指针走 3 格，这个倍数就变成 3</strong>，于是：
+<div class="codehilite"><pre><span></span><code><span class="mf">3</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="err">·</span><span class="w"> </span><span class="n">b</span>
+</code></pre></div>
+
+
+只能推出 <code>closing · (a + x) ≡ 0 (mod b)</code>，也就是 <code>2(a + x)</code> 是 <code>b</code> 的整数倍——<strong>这推不出 <code>a + x</code> 是 <code>b</code> 的整数倍</strong>。当 <code>b</code> 是偶数时，<code>a + x</code> 完全可以是 <code>b/2</code> 的奇数倍，此时 <code>a ≡ b - x</code> 就不成立了。
+
+<code>a ≡ b - x</code> 不成立意味着什么？意味着<strong>「<code>ptr1</code> 回 head、两者同速前进」这个解法直接失效</strong>——<code>ptr1</code> 走到入口时，<code>ptr2</code> 不在那儿。
+
+我把这件事也枚举了一遍，统计「第二阶段能否成功」的比例：
+<table>
+<thead>
+<tr>
+<th>快指针步数</th>
+<th>closing</th>
+<th>枚举对数</th>
+<th><code>(a+x) mod b ≠ 0</code> 的对数</th>
+<th>成立占比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>1</td>
+<td>210</td>
+<td>0</td>
+<td>100.0%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>210</td>
+<td>55</td>
+<td>73.8%</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>210</td>
+<td>41</td>
+<td>80.5%</td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td>210</td>
+<td>65</td>
+<td>69.0%</td>
+</tr>
+</tbody>
+</table>
+
+<strong>只有快 2 慢 1 是 100.0%。</strong> 快 3 慢 1 有 55 组（26.2%）会让 LC 142 的解法失效，快 5 慢 1 更糟，31% 失效。
+<h3>4.3 两条理由合起来</h3>
+<table>
+<thead>
+<tr>
+<th>要求</th>
+<th>满足的 <code>fastStep</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>相对速度必须为正（<code>closing ≥ 1</code>）</td>
+<td>≥ 2</td>
+</tr>
+<tr>
+<td>LC 142 的「回 head 同速前进」必须成立（<code>gcd(closing, b) = 1</code> 对任意 b）</td>
+<td><code>closing = 1</code>，即 <code>fastStep = 2</code></td>
+</tr>
+<tr>
+<td>两者交集</td>
+<td><strong>只有 2</strong></td>
+</tr>
+</tbody>
+</table>
+
+所以「2 和 1」不是随手选的惯例，而是<strong>同时满足两条约束的唯一取值</strong>。
+
+如果面试官只考 141，那第一条理由就够了（快 2 是相对速度为正的最小值，常数最优）。但如果两题连着考——<strong>这才是美团那类「考环入口」的岗位真正想问的东西</strong>——第二条理由才是分水岭。
+<hr>
+<h2>五、O(1) 空间那句话怎么答</h2>
+
+进阶要求问的是「O(1) 内存」，所以最后把账算清楚。
+<h3>5.1 空间账</h3>
+<ul>
+<li><strong>哈希表法</strong>：<code>seen</code> 里最多装 <code>n</code> 个节点引用 → <strong>O(n) 空间</strong>。</li>
+<li><strong>Floyd 判圈</strong>：全程只有 <code>slow</code> / <code>fast</code> 两个指针变量（142 再加 <code>ptr1</code> / <code>ptr2</code>）→ <strong>O(1) 空间</strong>，与 <code>n</code> 完全无关。</li>
+</ul>
+
+演示链表 <code>n = 13</code> 个节点，哈希表最坏要存 13 个引用，Floyd 永远是 2 个。
+<h3>5.2 时间账</h3>
+
+Floyd 并不比哈希表慢，仍然是 O(n)：
+<ul>
+<li><strong>判环阶段</strong>：慢指针进环最多走 <code>a</code> 步；进环后 <code>gap</code> 每步减 1、模 <code>b</code>，最多 <code>b - 1</code> 步追上。总计 <code>O(a + b) = O(n)</code>。</li>
+<li><strong>找入口阶段</strong>：<code>ptr1</code> 从 head 走 <code>a</code> 步，<code>ptr2</code> 走 <code>a</code> 步，也是 <code>O(n)</code>。</li>
+</ul>
+
+演示链表实测：判环阶段 <code>9</code> 步，找入口阶段 <code>4</code> 步，<strong>两个阶段一共 35 次指针移动</strong>——而链表只有 13 个节点。多出来的是快指针的 18 格和第二阶段的两条 4 步。
+<h3>5.3 汇总</h3>
+<table>
+<thead>
+<tr>
+<th>做法</th>
+<th>时间</th>
+<th>空间</th>
+<th>能否用于 142</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>哈希表</td>
+<td>O(n)</td>
+<td><strong>O(n)</strong></td>
+<td>能（第一个重复节点即入口）</td>
+</tr>
+<tr>
+<td>Floyd 判圈</td>
+<td>O(n)</td>
+<td><strong>O(1)</strong></td>
+<td>能（加第二阶段）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>结论</strong>：O(n) 时间和 O(1) 空间可以同时成立，代价是常数更大、且必须能改指针（所以「不允许修改链表」这条约束不影响 Floyd，它只动指针不动节点）。
+<hr>
+<h2>六、面试速答</h2>
+
+把上面的东西压成一段能在 90 秒内说完的话：
+<blockquote>
+
+141 用 Floyd 判圈：慢指针每步 1 格、快指针每步 2 格，都从头出发。设慢指针进环那一刻快指针领先它 <code>gap₀</code> 格，之后每步这个距离减 1——因为是<strong>模环长</strong>递减的，它必然经过 0，所以一定相遇。
+
+为什么不是快 3？两条理由。一是相对速度必须为正，所以至少 2；二是 142 的「回 head 同速前进」要求 <code>closing = 1</code>，也就是快 2 慢 1，否则环长为偶数时推导会断。两条取交集，只有 2 和 1。
+
+142 接着用相遇点：相遇时慢指针走了 <code>a + x</code>、快指针走了 <code>2(a + x)</code>，差值必然是环长整数倍，所以 <code>a + x = m·b</code>，即 <code>a ≡ b - x (mod b)</code>。于是把一个指针放回 head、两者同速前进，走 <code>a</code> 步后同时落在入口。
+
+空间是 O(1)，只有几个指针变量，跟链表长度无关。
+</blockquote>
+
+如果被追问「那快 3 慢 1 到底会不会相遇」——<strong>会</strong>。只要两指针同起点，任何 <code>fastStep ≥ 2</code> 都必然相遇（<code>gap₀</code> 天生被 <code>gcd</code> 整除）。网上那个「环长为偶数时永不相遇」的说法，是把「两指针不同起点」的结论错套到标准 Floyd 上了。
+<hr>
+<h2>七、本文的数字都是怎么来的</h2>
+
+正文里的每个数字——相遇步数、gap 序列、枚举组数、成立占比——都由同一个脚本产出，可以自己跑：
+<div class="codehilite"><pre><span></span><code>backend/venv/Scripts/python.exe<span class="w"> </span>tools/count_lc141_work.py
+</code></pre></div>
+
+
+<strong>为什么是计数不是计时</strong>：步数、距离、下标都是<strong>确定性算术</strong>，同一份输入跑一百遍都是同一个数，不受机器负载影响。计时在这台机器上的噪声底是 12%，跨会话能涨到 57%，那种数字没有可复现性。
+
+脚本里做了四件事：
+<ol>
+<li>用下标模型模拟标准 Floyd，暴力求出真实相遇步数；</li>
+<li>对 <code>fastStep ∈ {2,3,4,5}</code> × <code>a ∈ [0,14]</code> × <code>b ∈ [1,14]</code> 全枚举，统计不相遇对数（<strong>四行都是 0</strong>）；</li>
+<li>验证 <code>gap₀ = (-a · closing) mod b</code> 永远被 <code>gcd(closing, b)</code> 整除（<strong>840 组，0 例外</strong>）；</li>
+<li>统计 <code>closing ≥ 2</code> 时 LC 142 第二阶段的失效比例（<strong>快 3 慢 1 已经漏掉 26.2%</strong>）。</li>
+</ol>
+
+第 3 条是「必然相遇」的代数证明的机器验证，第 4 条是「为什么必须是 2 和 1」的机器验证。两条都不是靠说服，是靠枚举。
+<hr>
+
+<strong>三篇前作的对应关系</strong>：LC 206 讲的是「指针怎么反向」，LC 21 / LC 23 讲的是「哑结点 + 尾指针怎么接」，这一篇讲的是「两个指针的<strong>速度差</strong>能推出什么」。链表题的三大套路——<strong>反向、拼接、追及</strong>——到这里就齐了。</div></div></noscript>
+  </body>
+</html>
