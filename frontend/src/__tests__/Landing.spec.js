@@ -46,7 +46,14 @@ describe('Landing (Home.vue)', () => {
     const lede = wrapper.findAll('.masthead__lede p').map((p) => p.text())
     expect(lede).toHaveLength(3)
     expect(lede[0]).toBe('代码的世界非黑即白，生活的画布斑驳陆离。')
-    expect(lede[2]).toBe('世界很大，我想把这些亲历的创造与感动，妥帖地存放于此。')
+    expect(lede[1]).toBe(
+      '我习惯在逻辑与语法的缝隙里敲下项目的迭代，让一行行冰冷的字符在编译中苏醒，长出骨骼与灵魂；' +
+        '也习惯在字里行间打捞生活的琐碎与诗意，将那些转瞬即逝的感动，揉进咖啡的余温和晚霞的褶皱里。',
+    )
+    expect(lede[2]).toBe(
+      '世界很大，潮汐来去，我想把这些亲历的创造与感动，妥帖地存放于此。' +
+        '这里没有宏大的叙事，只有一行行代码的生长，和一个普通灵魂在尘世里，认真生活的痕迹。',
+    )
   })
 
   it('renders latest-section with header and view-all link', async () => {
