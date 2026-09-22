@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 23】合并 K 个升序链表：堆里到底该放几个节点 适用读者 ：已经会 LC 21（合并两个有序链表），想把这题从「背模板」推进到「说清复杂度」的人 技术栈 ：Python 为主，三种解法都附 Java 版 难度 ：困难（但难点不在代码，在 为什么是 O(N log k) ） 收获 ：顺序 / 分治 / 最小堆三" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-23-merge-k-sorted-lists/" />
+    <meta property="og:title" content="【LC 23】合并 K 个升序链表：堆里到底该放几个节点" />
+    <meta property="og:description" content="【LC 23】合并 K 个升序链表：堆里到底该放几个节点 适用读者 ：已经会 LC 21（合并两个有序链表），想把这题从「背模板」推进到「说清复杂度」的人 技术栈 ：Python 为主，三种解法都附 Java 版 难度 ：困难（但难点不在代码，在 为什么是 O(N log k) ） 收获 ：顺序 / 分治 / 最小堆三" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-23-merge-k-sorted-lists/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-23-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 23】合并 K 个升序链表：堆里到底该放几个节点" />
+    <meta name="twitter:description" content="【LC 23】合并 K 个升序链表：堆里到底该放几个节点 适用读者 ：已经会 LC 21（合并两个有序链表），想把这题从「背模板」推进到「说清复杂度」的人 技术栈 ：Python 为主，三种解法都附 Java 版 难度 ：困难（但难点不在代码，在 为什么是 O(N log k) ） 收获 ：顺序 / 分治 / 最小堆三" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-23-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 23】合并 K 个升序链表：堆里到底该放几个节点 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CXUT6zxK.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-22T11:08:31.741406+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 23】合并 K 个升序链表：堆里到底该放几个节点","description":"【LC 23】合并 K 个升序链表：堆里到底该放几个节点 适用读者 ：已经会 LC 21（合并两个有序链表），想把这题从「背模板」推进到「说清复杂度」的人 技术栈 ：Python 为主，三种解法都附 Java 版 难度 ：困难（但难点不在代码，在 为什么是 O(N log k) ） 收获 ：顺序 / 分治 / 最小堆三","image":"https://zhoujungis.github.io/photos/lc-23-cover.png","datePublished":"2026-09-22T11:08:31.741406+08:00","dateModified":"2026-09-22T11:08:31.741687+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-23-merge-k-sorted-lists/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 23】合并 K 个升序链表：堆里到底该放几个节点</h1><div class="ns-meta">2026/9/22 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：已经会 LC 21（合并两个有序链表），想把这题从「背模板」推进到「说清复杂度」的人
+<strong>技术栈</strong>：Python 为主，三种解法都附 Java 版
+<strong>难度</strong>：困难（但难点不在代码，在<strong>为什么是 O(N log k)</strong>）
+<strong>收获</strong>：顺序 / 分治 / 最小堆三种做法的完整对比、一份可复现的比较次数实测表，以及一个反直觉的结论——<strong>小 k 时堆反而最慢</strong>
+</blockquote>
+<h2>题目</h2>
+
+给你一个链表数组，每个链表都已经按升序排列。请你将所有链表合并到一个升序链表中，返回合并后的链表。
+<div class="codehilite"><pre><span></span><code>输入：lists = [[1,4,5],[1,3,4],[2,6]]
+输出：[1,1,2,3,4,5,6]
+解释：将所有链表合并到一个升序链表中，得到 1→1→2→3→4→5→6
+
+输入：lists = []
+输出：[]
+
+输入：lists = [[]]
+输出：[]
+</code></pre></div>
+
+
+约束：
+<ul>
+<li><code>k == lists.length</code></li>
+<li><code>0 &lt;= k &lt;= 10^4</code></li>
+<li><code>0 &lt;= lists[i].length &lt;= 500</code></li>
+<li><code>-10^4 &lt;= lists[i][j] &lt;= 10^4</code></li>
+<li><code>lists[i]</code> 按升序排列</li>
+<li><code>lists[i].length</code> 的总和不超过 <code>10^4</code></li>
+</ul>
+
+节点定义沿用前两篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+
+留意约束里的两个数字：<strong>k 可以到 10⁴，但所有链表的节点总数不超过 10⁴</strong>。这两句话放在一起，其实已经把「朴素做法会死在哪」提示出来了——后面细说。
+<hr>
+<h2>一、先把「贵在哪」算清楚</h2>
+<h3>1.1 这题是 LC 21 的 K 元版</h3>
+
+上一篇 LC 21 我们拿到的是这段 8 行代码：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mergeTwoLists</span><span class="p">(</span><span class="n">l1</span><span class="p">,</span> <span class="n">l2</span><span class="p">):</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">dummy</span>
+    <span class="k">while</span> <span class="n">l1</span> <span class="ow">and</span> <span class="n">l2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">l1</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;=</span> <span class="n">l2</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+            <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span>
+            <span class="n">l1</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">next</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l2</span>
+            <span class="n">l2</span> <span class="o">=</span> <span class="n">l2</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span> <span class="k">if</span> <span class="n">l1</span> <span class="k">else</span> <span class="n">l2</span>
+    <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+LC 23 要做的就是把它用 K-1 次（或更多次）。所以本文不再重复哑结点、<code>tail</code> 指针、先接再走这些东西——<strong>那部分的地基在上一篇</strong>，这里只讨论「怎么用这 8 行代码」以及「用几次」。
+<h3>1.2 最直觉的做法：顺序两两合并</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lists</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">lists</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">lst</span> <span class="ow">in</span> <span class="n">lists</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">lst</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+
+
+对，能过。但慢。
+
+慢在哪？<strong>早期接进 <code>result</code> 的节点，会被后面每一轮反复摸一遍。</strong>
+
+设 K 条链表每条长 n，总节点数 N = k·n。第 i 轮合并时，<code>result</code> 已经长到约 <code>i·n</code> 个节点，这一轮要遍历 <code>i·n + n</code> 个节点。把 K-1 轮加起来：
+<div class="codehilite"><pre><span></span><code>总访问次数 ≈ n·(2 + 3 + … + k) = n · (k(k+1)/2 − 1) ≈ N·k/2
+</code></pre></div>
+
+
+<strong>这就是 O(k²N) 的来源</strong>——不是 O(kN)，是 k²N。因为每一轮的成本随 i 线性增长，而轮数也是 k，两次累加就出了平方。
+
+一个具体的数：k = 1000、每条 10 个节点（N = 10,000）时，顺序合并要摸 <strong>4,543,137</strong> 次比较。而同样的 N，换成分治只要 <strong>97,987</strong> 次。差了 46 倍。
+<h3>1.3 分治：把轮数从 k 压到 log k</h3>
+
+问题出在「一条一条往后接」——每接一条，前面接好的都要再走一遍。
+
+那就换个接法：<strong>两两配对</strong>。
+<div class="codehilite"><pre><span></span><code>第 1 轮：k 条 → k/2 条     （每两条合并成一条）
+第 2 轮：k/2 条 → k/4 条
+…
+第 r 轮：链表条数减半，直到剩 1 条
+</code></pre></div>
+
+
+条数每次减半，所以只需要 <strong>⌈log₂k⌉</strong> 轮。而每一轮里，所有节点加起来恰好被摸一次，单轮成本 O(N)。乘起来：
+<div class="codehilite"><pre><span></span><code>总时间 = O(N · log k)
+</code></pre></div>
+
+
+k = 1000 时 log₂k ≈ 10，也就是<strong>十轮</strong>——而不是顺序做法的 999 轮。
+<h3>1.4 最小堆：换个角度想「下一个该出谁」</h3>
+
+分治是「改变合并的顺序」，堆是「换掉选择的方式」。
+
+回到 LC 21 的核心观察：<strong>全局最小的元素只可能出现在两条链表的头部</strong>。这个观察在 K 元下依然成立，只是从「两个头部」变成「K 个头部」：
+<blockquote>
+
+任何时刻，全局最小的元素，一定是 K 条链表各自当前头部里的最小值。
+</blockquote>
+
+所以我们要的其实是一台机器：<strong>能随时塞进一个新元素、随时取出最小的那个</strong>。这正是优先队列（堆）的职责。
+
+时间账：每个节点被取出一次、被塞入一次，共 2N 次堆操作，每次 O(log k)——注意是 <strong>log k 而不是 log N</strong>，因为堆里最多只有 k 个元素。总时间 <strong>O(N log k)</strong>。
+<h3>1.5 三笔账放在一起</h3>
+
+上面都是渐近分析。但渐近分析有个毛病：它把常数藏起来了，而<strong>小 k 的时候常数说了算</strong>。所以我写了个脚本 <code>tools/count_lc23_work.py</code>，把三种解法各实现一遍，用带计数的比较键统计<strong>真实的比较次数</strong>。
+
+为什么是计数不是计时：计数是确定性算术，同一份输入跑一百遍都是同一个数，不受机器负载影响；计时在这台机器上的噪声底是 12%，跨会话能涨到 57%，那种数字没有可复现性。
+<div class="codehilite"><pre><span></span><code>backend/venv/Scripts/python.exe<span class="w"> </span>tools/count_lc23_work.py
+</code></pre></div>
+
+
+结果：
+<table>
+<thead>
+<tr>
+<th>k</th>
+<th>每条 n</th>
+<th>N</th>
+<th>顺序合并</th>
+<th>分治</th>
+<th>最小堆</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td>8</td>
+<td>32</td>
+<td>67</td>
+<td><strong>59</strong></td>
+<td>97</td>
+</tr>
+<tr>
+<td>8</td>
+<td>100</td>
+<td>800</td>
+<td>3,476</td>
+<td><strong>2,391</strong></td>
+<td>3,844</td>
+</tr>
+<tr>
+<td>100</td>
+<td>100</td>
+<td>10,000</td>
+<td>500,165</td>
+<td><strong>68,611</strong></td>
+<td>86,005</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>10</td>
+<td>10,000</td>
+<td>4,543,137</td>
+<td><strong>97,987</strong></td>
+<td>116,530</td>
+</tr>
+</tbody>
+</table>
+
+最后两行的 N 都是 10,000，只是 k 差了 10 倍。看顺序合并那一列：<strong>500,165 → 4,543,137，涨了 9 倍</strong>；分治只从 68,611 涨到 97,987，堆从 86,005 涨到 116,530。这就是 O(k²N) 和 O(N log k) 被隔离出来的样子。
+
+但还有两件反直觉的事，这张表同样摆出来了：
+<ol>
+<li><strong>k = 4 的时候，顺序合并只比分治慢 14%，而最小堆慢了 64%。</strong> 堆不是银弹——建堆、上浮、下沉都是实打实的比较，k 小的时候「两两比较」比「维护一个堆」便宜得多。</li>
+<li><strong>分治在每一档都赢过最小堆。</strong> 两者同为 O(N log k)，但分治的比较次数一直最少。原因在第三节末尾展开。</li>
+</ol>
+<hr>
+<h2>二、最小堆：关键不在堆，在「堆里放几个」</h2>
+<h3>2.1 先把一个错误做法排除掉</h3>
+
+既然要「随时取最小」，一个很自然的想法是：<strong>把全部 N 个节点都塞进堆，然后一个个弹出来。</strong>
+
+这写法没错，结果也对。但它的时间是 <strong>O(N log N)</strong> ——你花了 O(N log N) 去把一个已经「分成 K 段有序」的序列重新排了一遍序。
+
+<strong>这等于把题目给的条件扔了。</strong> 题目特意告诉你「每条链表已经升序」，这个条件的价值就是让你不必做全排序。K = N 时（每条链表只有一个节点），O(N log k) 就退化成了 O(N log N)，此时这个「优化」和直接对数组排序没有区别。
+<h3>2.2 所以堆里只放 K 个节点</h3>
+
+正确的做法基于 1.4 节那个观察：<strong>全局最小只在 K 个头部产生</strong>。因此：
+<ul>
+<li>堆的初始内容：<strong>K 条链表各自的头节点</strong>，别的什么都不放；</li>
+<li>每轮：弹出堆顶（当前全局最小），接到结果链表尾部；</li>
+<li>然后把这个节点所在链表的<strong>下一个节点</strong>塞进堆；</li>
+<li>堆空则结束。</li>
+</ul>
+
+<strong>堆的大小永远不超过 K。</strong> 这是 O(N log k) 里那个 k 的全部来源——不是 log N，是 log k。
+
+这条不变式值得在面试里主动说出来，因为它正是这题的分水岭：能说出「堆里只放 K 个」的人，是真的理解了为什么复杂度里是 log k。
+<h3>2.3 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">dummy</span>
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># 建堆：K 个头部入堆</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">head</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">head</span><span class="p">:</span>                                    <span class="c1"># 空链表直接跳过</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">head</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">head</span><span class="p">))</span>
+
+    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
+        <span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>          <span class="c1"># 取出全局最小</span>
+        <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">node</span>                            <span class="c1"># 接到结果尾部</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>                               <span class="c1"># 该链表前移一格</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+几个细节，每一个都是坑：
+
+<strong>① 元组里的 <code>i</code> 不是装饰品。</strong> <code>heapq</code> 用 <code>&lt;</code> 比较元素。两个元素是元组时，Python 会先比第一个元素；如果相等，就继续比第二个。如果堆里存的是 <code>(val, node)</code>，值相等时 Python 会去比较 <code>node</code> ——而 <code>ListNode</code> 没有定义 <code>__lt__</code>，直接抛 <code>TypeError: '&lt;' not supported between instances of 'ListNode' and 'ListNode'</code>。
+
+塞一个<strong>互不相同的整数</strong> <code>i</code> 垫背，比较在第二个元素上就分出胜负了，永远走不到 <code>node</code>。这就是「值相同时按链表序号定序」——顺带还让结果可复现。
+
+<strong>② <code>heapq</code> 是小顶堆。</strong> Python 的 <code>heapq</code> 只有 <code>heappush</code> / <code>heappop</code> / <code>heapify</code>，而且<strong>是最小堆</strong>。这正是本题要的（取最小）。如果需要大顶堆，得自己把值取负再塞进去。
+
+Java 那边同理：<code>PriorityQueue</code> 默认是<strong>小顶堆</strong>（注意 Java 的命名容易让人以为默认是大顶堆，其实不是）；要改顺序得传 <code>Comparator</code>。
+
+<strong>③ 建堆的复杂度。</strong> 逐个 <code>heappush</code> 是 O(k log k)；用 <code>heapify</code> 一次性建堆是 O(k)。这里 k ≤ N，无论哪种都只是常数因子，不影响 O(N log k) 的量级。面试里被追问时可以提一句，但不必为它纠结。
+
+<strong>④ 空链表要在入堆前跳过。</strong> <code>head</code> 是 <code>None</code> 的时候取 <code>head.val</code> 会直接崩。<code>[[], []]</code> 这种输入在测试用例里是有的。
+<h3>2.4 看着它跑一遍</h3>
+
+下面这个动画把 4 条链表 <code>[1,4] [2,5] [3,6] [0,7]</code> 的完整过程演了一遍。四条各两个节点，结果正好是 0 到 7。
+
+右边那棵树就是堆。<strong>盯住它的大小</strong>：从头到尾最多 4 个节点，而且随着链表被取空会越来越小。左侧每行的实线框是该链表当前的头部——<strong>这些高亮的头部，就是堆里那 K 个候选</strong>。
+<div class="algo-viz algo-viz--lc23"></div>
+
+
+对着动画读代码，几件事会变得很直观：堆顶出堆之后，末位元素补到根再下沉；新头入堆之后沿父链上浮；堆里换了人的那两个槽会被加粗标出来。
+<h3>2.5 堆数组推演表</h3>
+
+把动画里堆数组的变化抄成表（<code>(值, 来自哪条链表)</code>）：
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>出堆</th>
+<th>结果链表</th>
+<th>入堆</th>
+<th>堆数组（下标 0 是堆顶）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>建堆</td>
+<td>—</td>
+<td>∅</td>
+<td>1/A 2/B 3/C 0/D</td>
+<td><code>0/D, 1/A, 3/C, 2/B</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>0/D</td>
+<td>0</td>
+<td>7/D</td>
+<td><code>1/A, 2/B, 3/C, 7/D</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>1/A</td>
+<td>0→1</td>
+<td>4/A</td>
+<td><code>2/B, 4/A, 3/C, 7/D</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>2/B</td>
+<td>0→1→2</td>
+<td>5/B</td>
+<td><code>3/C, 4/A, 7/D, 5/B</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>3/C</td>
+<td>0→1→2→3</td>
+<td>6/C</td>
+<td><code>4/A, 5/B, 7/D, 6/C</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>4/A</td>
+<td>…→4</td>
+<td>—（A 已空）</td>
+<td><code>5/B, 6/C, 7/D</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>5/B</td>
+<td>…→5</td>
+<td>—（B 已空）</td>
+<td><code>6/C, 7/D</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>6/C</td>
+<td>…→6</td>
+<td>—（C 已空）</td>
+<td><code>7/D</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>7/D</td>
+<td>0→1→2→3→4→5→6→7</td>
+<td>—（D 已空）</td>
+<td><code>∅</code></td>
+</tr>
+</tbody>
+</table>
+
+两处值得多看一眼：
+<ul>
+<li><strong>第 1 轮建堆后的堆数组是 <code>0/D, 1/A, 3/C, 2/B</code></strong>，不是 <code>0,1,2,3</code>。堆数组的顺序是「堆序」不是「值序」——它只保证父节点不大于子节点，不保证整体有序。别把堆数组当成排序结果读。</li>
+<li><strong>第 5 到 8 轮没有入堆</strong>，因为对应的链表已经取空了。堆的大小从 4 一路缩到 0，这也说明<strong>堆里元素个数是动态的，上界是 K</strong>。</li>
+</ul>
+<h3>2.6 边界情况</h3>
+<ul>
+<li><strong><code>lists = []</code></strong>：建堆循环一次都不进，堆为空，<code>while</code> 不执行，返回 <code>dummy.next</code> 即 <code>None</code>。<strong>不需要特判</strong>——这和 LC 21 里哑结点吞掉特判是同一个套路。</li>
+<li><strong><code>lists = [[]]</code></strong>：同上，<code>head</code> 为假被跳过，返回 <code>None</code>。</li>
+<li><strong><code>lists</code> 里混着空链表</strong>：只有非空的头部进堆，逻辑不变。</li>
+<li><strong><code>k = 1</code></strong>：堆里永远只有 1 个元素，退化成顺着链表走一遍，O(N)。符合预期。</li>
+<li><strong>值相等</strong>：靠元组第二个元素 <code>i</code> 定序。注意 <code>i</code> 用的是<strong>链表序号</strong>而不是全局序号，所以相等值会按「链表编号小的先出」排列——结果是确定的，但不必是稳定的（题目没要求稳定）。</li>
+</ul>
+<h3>2.7 Java 版</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">ListNode</span><span class="o">[]</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// PriorityQueue 默认就是小顶堆；这里按节点值排序</span>
+<span class="w">    </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">ListNode</span><span class="o">&gt;</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="o">=</span>
+<span class="w">        </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">val</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">val</span><span class="p">));</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">head</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">heap</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">        </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
+<span class="w">        </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意 Java 版的堆里直接放 <code>ListNode</code> 本身，<strong>不需要</strong>像 Python 那样塞一个序号垫背。原因是 Java 传了显式的 <code>Comparator</code>，比较逻辑由你定义，不会退化成去比较 <code>ListNode</code> 对象本身。Python 的 <code>heapq</code> 没有 <code>key</code> 参数，所以才必须靠元组做手脚——这是两个语言在这题上唯一真正不同的地方。
+<hr>
+<h2>三、分治：轮数就是 log k</h2>
+<h3>3.1 归并树</h3>
+
+分治的做法是把 K 条链表看成一排，每一轮两两配对合并：
+<div class="codehilite"><pre><span></span><code>输入    [7] [2] [5] [1] [8] [3] [6] [4]        8 条
+          ╲╱      ╲╱      ╲╱      ╲╱
+第 1 轮 [2 7]  [1 5]  [3 8]  [4 6]             4 条
+            ╲───╱      ╲───╱
+第 2 轮  [1 2 5 7]   [3 4 6 8]                 2 条
+              ╲───────╱
+第 3 轮  [1 2 3 4 5 6 7 8]                     1 条
+</code></pre></div>
+
+
+这个形状就是<strong>归并排序的归并树倒过来</strong>。注意每一层的节点总数都是 8，变的只是分组的粒度：1 个一组 → 2 个一组 → 4 个一组。所以<strong>每层的宽度是一样的，只是条数在减半</strong>——「轮数 = ⌈log₂k⌉」这句话，看图比看公式清楚得多。
+<div class="algo-viz algo-viz--lc23dc"></div>
+
+<h3>3.2 代码</h3>
+
+<strong>递归版</strong>（最好写，也最好讲）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lists</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">merge_range</span><span class="p">(</span><span class="n">lists</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">lists</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_range</span><span class="p">(</span><span class="n">lists</span><span class="p">,</span> <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">lo</span> <span class="o">==</span> <span class="n">hi</span><span class="p">:</span>                              <span class="c1"># 只剩一条，直接返回</span>
+        <span class="k">return</span> <span class="n">lists</span><span class="p">[</span><span class="n">lo</span><span class="p">]</span>
+    <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">merge_range</span><span class="p">(</span><span class="n">lists</span><span class="p">,</span> <span class="n">lo</span><span class="p">,</span> <span class="n">mid</span><span class="p">)</span>        <span class="c1"># 排左半边</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="n">merge_range</span><span class="p">(</span><span class="n">lists</span><span class="p">,</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span>   <span class="c1"># 排右半边</span>
+    <span class="k">return</span> <span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>         <span class="c1"># 合并两半（LC 21 的代码）</span>
+</code></pre></div>
+
+
+读递归还是那个老办法：问清楚 <code>merge_range(lists, lo, hi)</code> 的契约是什么——「把 <code>lists[lo..hi]</code> 这一段合并成一条有序链表，返回它的头」。那么把区间从中间切开，两边各自兑现契约，再用 LC 21 合并两个结果，契约就兑现了。
+
+<strong>递归的账单</strong>：递归深度是 ⌈log₂k⌉ 层，所以额外空间是 O(log k) 栈帧——比堆解法的 O(k) 还小。但 Python 里 k 很大时…其实 log₂(10⁴) ≈ 14 层，完全不会爆栈。这是分治在空间上的一个隐性优势。
+
+<strong>迭代版</strong>（自底向上，没有递归栈，额外空间 O(1)）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lists</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="n">lists</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">nxt</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">level</span><span class="p">),</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+                <span class="n">nxt</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">level</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">level</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nxt</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>          <span class="c1"># 轮空，原样进下一轮</span>
+        <span class="n">level</span> <span class="o">=</span> <span class="n">nxt</span>
+    <span class="k">return</span> <span class="n">level</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+<h3>3.3 奇数条的轮空</h3>
+
+<code>k</code> 是奇数时，最后一轮会剩下一条配不上对。<strong>处理方式是原样带进下一轮，不是丢掉。</strong>
+
+这一点写错的方式很隐蔽：如果 <code>nxt.append(...)</code> 只写在 <code>if</code> 分支里，奇数条时最后一条会被静默丢弃——结果少一截，而且只有 k 为奇数时才复现。上面代码里那个 <code>else: nxt.append(level[i])</code> 就是为它存在的。
+
+（顺带一个反直觉点：轮空的那条链表<strong>不会被摸</strong>。所以「每轮 O(N)」在奇数 k 时其实是「每轮 ≤ O(N)」，是个上界。<code>count_lc23_work.py</code> 里统计的就是真实被摸到的节点数，不是按 N 估的。）
+<h3>3.4 分治和堆同为 O(N log k)，为什么分治的比较次数一直更少</h3>
+
+回到 1.5 节那张表：k = 1000 时，分治 97,987 次比较，堆 116,530 次。分治一直赢。
+
+原因是两者对「每个节点要花多少次比较」的算法不同：
+<ul>
+<li><strong>堆</strong>：每个节点入堆一次、出堆一次，每次操作最多走 log₂k 层，每层一次比较 → 每个节点约 <strong>2·log₂k</strong> 次比较。</li>
+<li><strong>分治</strong>：每个节点在每一轮里参与一次合并，每轮最多被比较一次 → 每个节点约 <strong>log₂k</strong> 次比较。</li>
+</ul>
+
+堆多出来的那一倍，就是「维护堆结构」本身的成本（上浮 + 下沉）。
+
+但堆有一个分治比不了的优势，藏在同一份脚本的第二列——<strong>节点访问次数</strong>：
+<table>
+<thead>
+<tr>
+<th>k = 1000，N = 10,000</th>
+<th>比较次数</th>
+<th>节点访问次数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分治</td>
+<td>97,987</td>
+<td>99,840</td>
+</tr>
+<tr>
+<td>最小堆</td>
+<td>116,530</td>
+<td><strong>19,000</strong></td>
+</tr>
+</tbody>
+</table>
+
+分治要摸 99,840 次节点，堆只要 19,000 次——因为<strong>每个节点在堆里只进出一次</strong>，而分治里每个节点每一轮都要被搬到新的结果链表上，一共搬了约 log₂k 遍。
+
+<strong>比较少 vs 搬运少</strong>，这是两个不同的成本。在链表上「搬运」只是改几根指针（O(1)），所以这个差异不影响复杂度；但如果把同样的思路用在<strong>数组</strong>上，搬运就是实打实的内存拷贝，堆的「少搬运」优势会立刻显现出来。面试里能主动讲清这个区别，比背下两个 O(N log k) 有分量得多。
+<hr>
+<h2>四、三种做法总账</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>顺序两两合并</th>
+<th>分治两两合并</th>
+<th>最小堆</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td>O(k²N) 或写作 O(N·k)</td>
+<td><strong>O(N log k)</strong></td>
+<td><strong>O(N log k)</strong></td>
+</tr>
+<tr>
+<td>额外空间</td>
+<td>O(1)</td>
+<td>O(1)（迭代）/ O(log k)（递归）</td>
+<td>O(k)</td>
+</tr>
+<tr>
+<td>k = 1000 时的比较次数</td>
+<td>4,543,137</td>
+<td>97,987</td>
+<td>116,530</td>
+</tr>
+<tr>
+<td>k = 4 时的比较次数</td>
+<td><strong>67</strong></td>
+<td>59</td>
+<td>97</td>
+</tr>
+<tr>
+<td>代码量</td>
+<td>最少（复用 LC 21）</td>
+<td>中</td>
+<td>中</td>
+</tr>
+<tr>
+<td>稳定性</td>
+<td>稳定</td>
+<td>稳定</td>
+<td>取决于比较键（本例按链表序号定序）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>什么时候选哪个：</strong>
+<ul>
+<li><strong>k 很小（比如 ≤ 8）</strong>：直接用顺序合并。代码最短，实测比较次数和分治几乎持平，还省掉了建堆。别为了「看起来高级」而引入堆。</li>
+<li><strong>k 大、N 大</strong>：分治或堆。两者同阶，分治比较次数更少、空间更小；堆的写法更「顺」，而且它天然适合<strong>流式</strong>场景——比如 K 路归并排序的外排（external sort），或者数据源是 K 个无法一次性读入的流。堆只需要同时持有 K 个头部，分治则需要同时持有 K 条链表的全部内容。</li>
+<li><strong>面试</strong>：先给分治或堆，再主动补一句「如果 k 很小，顺序合并反而更好」——这句话比多写一个解法更能说明你在按情况判断，而不是背题。</li>
+</ul>
+<hr>
+<h2>五、常见坑</h2>
+
+写完代码按这个清单过一遍：
+<ol>
+<li><strong><code>TypeError: '&lt;' not supported between instances of 'ListNode'</code></strong> —— 堆里存了 <code>(val, node)</code> 而没有序号垫背，遇到相等值就崩。这是本题 Python 版最高频的报错。</li>
+<li><strong>把 N 个节点全塞进堆</strong> —— 结果对，但退化成 O(N log N)，白瞎了「每条链表已升序」这个条件。</li>
+<li><strong>建堆时没判空</strong> —— <code>lists</code> 里混着空链表时取 <code>head.val</code> 直接崩。<code>for</code> 循环里那句 <code>if head</code> 不能省。</li>
+<li><strong>忘了把新头入堆</strong> —— 弹出堆顶之后不补位，堆很快就空了，结果只输出前面几个节点。</li>
+<li><strong>分治里丢掉奇数条的最后一条</strong> —— <code>nxt.append</code> 只写在 <code>if i + 1 &lt; len(level)</code> 分支里。只有 k 为奇数才复现，很容易漏测。</li>
+<li><strong><code>lists = []</code> 没特判</strong> —— 堆解法靠 <code>while heap</code> 天然兜住；但顺序合并的 <code>result = lists[0]</code> 和分治的 <code>level[0]</code> 都会 <code>IndexError</code>。</li>
+<li><strong>递归版里忘了 <code>if not lists: return None</code></strong> —— <code>merge_range(lists, 0, -1)</code> 会走进 <code>lo == hi</code> 都不成立的分支。</li>
+<li><strong>以为 <code>heapq</code> 是大顶堆</strong> —— 它是<strong>小顶堆</strong>，本题正好要小的；要大的得取负。Java 的 <code>PriorityQueue</code> 也默认是小顶堆。</li>
+</ol>
+<hr>
+<h2>六、面试怎么答</h2>
+
+<strong>30 秒版本（以最小堆为例）</strong>：
+<blockquote>
+
+用一个最小堆维护 K 条链表当前的头部。建堆时把 K 个头放进去；每轮弹出堆顶接到结果链表尾部，然后把这个节点所在链表的下一个节点补进堆。堆里始终不超过 K 个元素，每个节点进出堆各一次，每次 O(log k)，所以总时间 O(N log k)，空间 O(k)。K 个头部以外的节点不用进堆——这是 log k 里那个 k 的来源。
+</blockquote>
+
+<strong>追问预判</strong>：
+<ul>
+<li><strong>「为什么不是 O(N log N)？」</strong> → 因为堆里只放 K 个头部，不是全部 N 个节点。放全部就是全排序，把题目给的有序条件浪费了。</li>
+<li><strong>「分治和堆哪个好？」</strong> → 同阶。分治的比较次数更少（每节点约 log k 次 vs 堆的 2·log k 次），空间也更小；堆的节点访问次数更少（每节点只进出一次），适合流式 / 外排场景。</li>
+<li><strong>「顺序合并为什么是 O(k²N)？」</strong> → 第 i 轮要遍历已经接好的 i·n 个节点，累加起来是 n·k(k+1)/2 量级。</li>
+<li><strong>「k 很小时呢？」</strong> → 顺序合并反而更好。实测 k = 4 时它只比分治慢 14%，而堆慢了 64%。</li>
+<li><strong>「Python 里为什么要塞一个序号？」</strong> → <code>heapq</code> 比较元组时会依次比较各元素，值相等时会去比较 <code>ListNode</code>，而它没有 <code>__lt__</code>，直接 <code>TypeError</code>。Java 因为要显式传 <code>Comparator</code>，不需要这一步。</li>
+<li><strong>「怎么处理空链表？」</strong> → 建堆时跳过，逻辑天然兼容；<code>lists</code> 本身为空时靠 <code>while heap</code> 或提前返回兜住。</li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+把 LC 21 和 LC 23 放在一起看，这题其实在教一件事：<strong>同一份子程序，用不同的组织方式调用，复杂度能差一个数量级。</strong>
+
+LC 21 那 8 行代码一个字没改，只是从「一条一条往后接」换成「两两配对」，复杂度就从 O(k²N) 掉到 O(N log k)；再换成「K 个头部放堆里」，同样是 O(N log k)，但换来了流式处理的可能。真正难的部分从来不是那 8 行，是<strong>你选择怎么调用它</strong>。
+
+另一个值得记住的教训是 1.5 节那张表：渐近复杂度只告诉你 k 变大以后会怎样，它不管 k = 4 的时候谁快。<strong>「O(N log k) 更优」不等于「堆在这道题的每个输入上都更快」</strong>——实测 k = 4 时堆是三种做法里最慢的。面试官如果问「你会选哪个」，说「看 k 多大」比直接背「堆」要好。
+
+上一篇 LC 206 讲的是「指针操作的本质是维护边界」，LC 21 讲的是「哑结点把特例变成通例」，这一篇讲的是「复杂度取决于你怎么调用子程序」。三篇连起来，链表这条线的骨架就基本齐了。
+
+下一篇大概率是 LC 148（排序链表）——把 LC 21 的合并和 LC 206 的指针操作拼起来，你就能拿到一个 O(1) 额外空间的链表归并排序。</div></div></noscript>
+  </body>
+</html>
