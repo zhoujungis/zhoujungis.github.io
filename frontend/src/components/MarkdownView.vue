@@ -13,6 +13,7 @@ import { mountMergeKDCLists } from '@/viz/mergeKDCLists'
 import { mountCycleDetect } from '@/viz/cycleDetect'
 import { mountCycleEntry } from '@/viz/cycleEntry'
 import { mountRemoveNthFromEnd } from '@/viz/removeNthFromEnd'
+import { mountReorderList } from '@/viz/reorderList'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -305,6 +306,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc141': mountCycleDetect,
   'algo-viz--lc142': mountCycleEntry,
   'algo-viz--lc19': mountRemoveNthFromEnd,
+  'algo-viz--lc143': mountReorderList,
 }
 
 let vizHandles = []
