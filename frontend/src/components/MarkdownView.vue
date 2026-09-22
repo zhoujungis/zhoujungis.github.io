@@ -8,6 +8,8 @@ import DOMPurify from 'dompurify'
 import { stripLeadingDuplicateTitle } from '@/utils/articleHtml'
 import { mountLinkedListReverse } from '@/viz/linkedListReverse'
 import { mountMergeTwoLists } from '@/viz/mergeTwoLists'
+import { mountMergeKLists } from '@/viz/mergeKLists'
+import { mountMergeKDCLists } from '@/viz/mergeKDCLists'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -295,6 +297,8 @@ async function processEnhancements() {
 const VIZ_MOUNTERS = {
   'algo-viz--lc206': mountLinkedListReverse,
   'algo-viz--lc21': mountMergeTwoLists,
+  'algo-viz--lc23': mountMergeKLists,
+  'algo-viz--lc23dc': mountMergeKDCLists,
 }
 
 let vizHandles = []
