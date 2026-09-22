@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-143-reorder-list/" />
+    <meta property="og:title" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过" />
+    <meta property="og:description" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-143-reorder-list/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-143-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过" />
+    <meta name="twitter:description" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-143-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-B9N6U7sf.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-22T16:02:59.738619+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过","description":"【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最","image":"https://zhoujungis.github.io/photos/lc-143-cover.png","datePublished":"2026-09-22T16:02:59.738619+08:00","dateModified":"2026-09-22T16:02:59.738655+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-143-reorder-list/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过</h1><div class="ns-meta">2026/9/22 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等（单看每步都是简单题，合起来考的是拆问题的能力）
+<strong>收获</strong>：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最容易踩的成环陷阱
+</blockquote>
+<h2>题目</h2>
+
+给定一个单链表 <code>L</code>：<code>L0 → L1 → … → Ln-1 → Ln</code>，重新排列为：<code>L0 → Ln → L1 → Ln-1 → L2 → Ln-2 → …</code>。<strong>不能只是修改节点内部的值，须实际改动节点。</strong>
+<div class="codehilite"><pre><span></span><code>输入：head = [1,2,3,4]
+输出：[1,4,2,3]
+</code></pre></div>
+
+
+链表节点的定义（后面所有代码都用它）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+
+这道题在拼多多 2025 后端面经和美团测开岗都出现过，出现频率比它「中等」的标签暗示的要高。原因很实在：<strong>它是链表三件套的合成题</strong>——面试官用它一次能问出你会不会快慢指针、会不会反转、会不会合并，还能顺带看你有没有「先拆后做」的习惯。
+
+而且题目里那句「不能只改值」不是废话，它是整道题的题眼。
+<hr>
+<h2>一、先把「重排」翻译成指针操作</h2>
+<h3>1.1 结果长什么样</h3>
+
+把 <code>[1,2,3,4]</code> 重排成 <code>[1,4,2,3]</code>，画出来是这样的：
+<div class="codehilite"><pre><span></span><code>重排前：  1 → 2 → 3 → 4 → ∅
+重排后：  1 → 4 → 2 → 3 → ∅
+              ↑ 从尾巴上拽下来，插进前半段的缝里
+</code></pre></div>
+
+
+规律很直白：<strong>前半段顺序不变，后半段被倒过来，然后一个一个插进前半段的缝隙里。</strong>
+<div class="codehilite"><pre><span></span><code>前半段：1 → 2
+后半段：3 → 4      倒过来 →  4 → 3
+交替插入：1 → 4 → 2 → 3
+</code></pre></div>
+
+
+再验证奇数长度 <code>[1,2,3,4,5]</code>：前半 <code>1 → 2 → 3</code>，后半 <code>4 → 5</code> 倒过来 <code>5 → 4</code>，交替插入 → <code>1 → 5 → 2 → 4 → 3</code>。中间那个 <code>3</code> 留在前半段末尾，不动。
+<h3>1.2 为什么「改值」不算数</h3>
+
+如果允许改值，这题会退化成一道数组模拟题：把节点值读进数组，按下标重排，再写回去。全程 <code>next</code> 一个没动 —— 那考的就是数组下标，不是链表。
+
+题目明确要求<strong>实际改动节点</strong>，等价于要求你：把后半段的节点<strong>摘下来</strong>，再按新顺序<strong>接回去</strong>。所以整件事只有三根指针要动，没有一个 <code>val</code> 需要写。
+
+顺带一句：就算题目没写这句要求，面试时也<strong>不要</strong>提「用数组存下来再重排」的方案。它的空间是 O(n)，而正解能做到 O(1)。主动提它等于自己递把柄。
+<h3>1.3 一个比喻</h3>
+
+把链表想成一队手拉手的小朋友，编号 1 到 n。重排之后要变成：<code>1号</code> 拉 <code>n号</code>，<code>n号</code> 拉 <code>2号</code>，<code>2号</code> 拉 <code>n-1号</code>……
+
+直接让这么多人同时换手肯定乱套。能干的做法是三步走：
+<ol>
+<li><strong>先找到正中间那个</strong>，把队伍一分为二；</li>
+<li><strong>让后半队集体转身</strong>，变成从 n 到中间的顺序；</li>
+<li><strong>两队交替插人</strong>：前队出一个、后队出一个、前队出一个……</li>
+</ol>
+
+这每一步，都恰好是 LeetCode 上已经做过的一道题。
+<hr>
+<h2>二、拆成三步：每步都是做过的题</h2>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>干什么</th>
+<th>对应题目</th>
+<th>关键技巧</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 找中点</td>
+<td>把链表切成前后两段</td>
+<td>LC 876 链表的中间结点</td>
+<td>快慢指针，<code>fast</code> 一次两格、<code>slow</code> 一次一格</td>
+</tr>
+<tr>
+<td>② 反转后半段</td>
+<td>把后半段倒过来</td>
+<td><strong>LC 206 反转链表</strong></td>
+<td><code>先记住 → 再掉头 → 后前移</code></td>
+</tr>
+<tr>
+<td>③ 交替合并</td>
+<td>两段一个隔一个地接起来</td>
+<td>LC 21 合并两个有序链表（的插入动作）</td>
+<td>每次改两个 <code>next</code></td>
+</tr>
+</tbody>
+</table>
+
+<strong>这就是这道题的全部难度：看出它其实是三道题。</strong> 每一步单独拎出来都是「简单」，合起来标「中等」，标的是「拆」这个动作。
+<h3>2.1 第 ① 步：中点到底取在哪</h3>
+
+用快慢指针：
+<div class="codehilite"><pre><span></span><code><span class="n">slow</span><span class="p">,</span> <span class="n">fast</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span>
+<span class="k">while</span> <span class="n">fast</span> <span class="ow">and</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+<code>fast</code> 起步比 <code>slow</code> 多一格，配合 <code>while fast and fast.next</code> 这个条件，能让 <strong><code>slow</code> 停在「前半段的最后一个节点」上</strong>——这是我们要的位置，因为接下来要从它后面断开。
+<ul>
+<li>长度 4：<code>slow</code> 停在 <code>2</code>，前半 <code>1 → 2</code>，后半 <code>3 → 4</code>；</li>
+<li>长度 5：<code>slow</code> 停在 <code>3</code>，前半 <code>1 → 2 → 3</code>（中间节点归前半段），后半 <code>4 → 5</code>。</li>
+</ul>
+
+为什么中间节点要归前半段？因为后半段要被反转、再被插进缝隙。如果中间节点进了后半段，它会被插到末尾去；而正确结果里，中间节点应该待在原位不动。这是个很容易搞反的细节——<strong>奇数长度时中点归前半段</strong>。
+<h3>2.2 第 ② 步：断开，然后再反转</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">second</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+<span class="n">slow</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># ← 断开！少这一行就会成环</span>
+</code></pre></div>
+
+
+<strong>这一行是整个算法里最不起眼、但最要命的一行。</strong> 它把一条链彻底切成了两条互不相干的链。少了它，前半段的尾巴还搭在后半段上，第 ③ 步合并时会把两个指针绕成一个环，链表从此走不到头。
+
+断完之后，反转后半段：
+<div class="codehilite"><pre><span></span><code><span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">second</span>
+<span class="k">while</span> <span class="n">curr</span><span class="p">:</span>
+    <span class="n">nxt</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span>
+    <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>
+    <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>
+</code></pre></div>
+
+
+和 LC 206 逐字一样，只是起点从 <code>head</code> 换成了 <code>second</code>，终点从「走到 <code>None</code>」还是「走到 <code>None</code>」。反转完，<code>prev</code> 站在新的段头（原来的尾节点）上。
+<h3>2.3 第 ③ 步：交替合并</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">prev</span>
+<span class="k">while</span> <span class="n">second</span><span class="p">:</span>
+    <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="n">first</span><span class="o">.</span><span class="n">next</span><span class="p">,</span> <span class="n">second</span><span class="o">.</span><span class="n">next</span>   <span class="c1"># 先把两条链的下家都记住</span>
+    <span class="n">first</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">second</span>                <span class="c1"># 前半这个 → 后半这个</span>
+    <span class="n">second</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">t1</span>                   <span class="c1"># 后半这个 → 前半的下家</span>
+    <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span>             <span class="c1"># 两个指针各自往前</span>
+</code></pre></div>
+
+
+每一轮做两件事：把后半段的一个节点插进来，再把它接回前半段的下一个节点。<strong>循环条件写 <code>while second</code> 就够了</strong>——后半段不会比前半段长，它用完了就结束，剩下的前半段尾巴自然带着。
+
+注意 <code>first</code> 不需要判空：后半段每插入一个都要接一个前半节点，<code>first</code> 和 <code>second</code> 是同步消耗的，而前半段只会更长。
+<hr>
+<h2>三、动画：看着 4 被拽到 1 后面</h2>
+
+下面这个动画把 <code>[1,2,3,4]</code> 的全程拆成了 10 步，三个阶段分成三种颜色标注。留意三件事：
+<ul>
+<li><strong>找中点</strong>：<code>fast</code> 一次跨两格、<code>slow</code> 一次一格，<code>fast</code> 冲出链表时 <code>slow</code> 正好停在前半段末尾；</li>
+<li><strong>断开 + 反转</strong>：后半段整体下移一行、箭头逐个掉头，<code>3</code> 的箭头翻过来指回 <code>4</code>；</li>
+<li><strong>交替合并</strong>：后半段的节点一个一个「跳」回上行，插进前半段的缝隙里，指针跟着重连。</li>
+</ul>
+<div class="algo-viz algo-viz--lc143"></div>
+
+
+看完动画可以数一下指针移动次数：<code>fast</code> 走 <code>⌊L/2⌋</code> 次大步，<code>slow</code> 走同样次数的小步，反转后半段 <code>L/2</code> 个节点，合并再改 <code>L</code> 次 <code>next</code>。<strong>每个节点在整个流程里被访问的次数是常数</strong>——这就是 O(L) 的来源。
+<hr>
+<h2>四、完整代码</h2>
+<h3>4.1 Python</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reorderList</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">head</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+        <span class="k">return</span>                      <span class="c1"># 长度 0/1，无需重排</span>
+
+    <span class="c1"># ① 找中点：slow 停在前半段的最后一个节点</span>
+    <span class="n">slow</span><span class="p">,</span> <span class="n">fast</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">while</span> <span class="n">fast</span> <span class="ow">and</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+        <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="c1"># ② 断开 + 反转后半段</span>
+    <span class="n">second</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">slow</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>                <span class="c1"># 断开，否则合并时会成环</span>
+    <span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">second</span>
+    <span class="k">while</span> <span class="n">curr</span><span class="p">:</span>
+        <span class="n">nxt</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>
+
+    <span class="c1"># ③ 交替合并</span>
+    <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">prev</span>
+    <span class="k">while</span> <span class="n">second</span><span class="p">:</span>
+        <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="n">first</span><span class="o">.</span><span class="n">next</span><span class="p">,</span> <span class="n">second</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">first</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">second</span>
+        <span class="n">second</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">t1</span>
+        <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span>
+</code></pre></div>
+
+
+<strong>开头那个 <code>if not head or not head.next</code> 要不要写？</strong> 建议写。长度为 1 时后面三步虽然不会崩（<code>slow</code> 和 <code>fast</code> 都停在唯一节点上，后半段为空，合并循环不进），但显式返回能让意图清楚，也让长度为 0 的输入不至于在 <code>slow.next</code> 上炸掉。面试时说一句「长度 0 和 1 直接返回」，比让它隐式跑通更稳。
+<h3>4.2 完整推演表</h3>
+
+<code>head = [1,2,3,4]</code>：
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>动作</th>
+<th>前半段</th>
+<th>后半段</th>
+<th>结果链</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>1 → 2 → 3 → 4</code></td>
+</tr>
+<tr>
+<td>① 找中点</td>
+<td><code>slow</code> 走到 <code>2</code>，<code>fast</code> 走到 <code>4</code></td>
+<td><code>1 → 2</code></td>
+<td><code>3 → 4</code></td>
+<td></td>
+</tr>
+<tr>
+<td>② 断开</td>
+<td><code>2.next = None</code></td>
+<td><code>1 → 2</code></td>
+<td><code>3 → 4</code></td>
+<td>两条独立链</td>
+</tr>
+<tr>
+<td>② 反转</td>
+<td><code>3.next = None</code>，<code>4.next = 3</code></td>
+<td><code>1 → 2</code></td>
+<td><code>4 → 3</code></td>
+<td></td>
+</tr>
+<tr>
+<td>③ 合并 1</td>
+<td><code>1.next = 4</code></td>
+<td><code>1</code></td>
+<td><code>4 → 3</code></td>
+<td><code>1 → 4</code></td>
+</tr>
+<tr>
+<td>③ 合并 2</td>
+<td><code>4.next = 2</code></td>
+<td><code>2</code></td>
+<td><code>3</code></td>
+<td><code>1 → 4 → 2</code></td>
+</tr>
+<tr>
+<td>③ 合并 3</td>
+<td><code>2.next = 3</code></td>
+<td>—</td>
+<td><code>3</code></td>
+<td><code>1 → 4 → 2 → 3</code></td>
+</tr>
+<tr>
+<td>③ 合并 4</td>
+<td><code>3.next = None</code>，<code>second</code> 为空</td>
+<td>—</td>
+<td>—</td>
+<td><code>1 → 4 → 2 → 3</code> ✓</td>
+</tr>
+</tbody>
+</table>
+<h3>4.3 Java 版</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">reorderList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// ① 找中点</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// ② 断开 + 反转后半段</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">second</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 断开</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">second</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span>
+<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nxt</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// ③ 交替合并</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="n">second</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">second</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">t1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">first</span><span class="p">.</span><span class="na">next</span><span class="p">,</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">second</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">first</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">second</span><span class="p">;</span>
+<span class="w">            </span><span class="n">second</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t1</span><span class="p">;</span>
+<span class="w">            </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t1</span><span class="p">;</span>
+<span class="w">            </span><span class="n">second</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t2</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意 Java 版返回值是 <code>void</code>——题目只要求就地重排，不返回新头节点（头节点始终是原来的 <code>head</code>）。这一点和 LC 206 不一样，<strong>别顺手 <code>return head</code></strong>。
+<hr>
+<h2>五、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>前半段</th>
+<th>后半段</th>
+<th>结果</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[1]</code></td>
+<td><code>1</code></td>
+<td>空</td>
+<td><code>1</code></td>
+<td>开头直接返回</td>
+</tr>
+<tr>
+<td><code>[1,2]</code></td>
+<td><code>1</code></td>
+<td><code>2</code></td>
+<td><code>1 → 2</code></td>
+<td>后半只有一个，反转等于没变</td>
+</tr>
+<tr>
+<td><code>[1,2,3]</code></td>
+<td><code>1 → 2</code></td>
+<td><code>3</code></td>
+<td><code>1 → 3 → 2</code></td>
+<td>中点 <code>2</code> 归前半段</td>
+</tr>
+<tr>
+<td><code>[1,2,3,4]</code></td>
+<td><code>1 → 2</code></td>
+<td><code>3 → 4</code></td>
+<td><code>1 → 4 → 2 → 3</code></td>
+<td>演示用例</td>
+</tr>
+<tr>
+<td><code>[1,2,3,4,5]</code></td>
+<td><code>1 → 2 → 3</code></td>
+<td><code>4 → 5</code></td>
+<td><code>1 → 5 → 2 → 4 → 3</code></td>
+<td>中间节点 <code>3</code> 不动</td>
+</tr>
+</tbody>
+</table>
+
+重点看 <code>[1,2,3]</code> 和 <code>[1,2,3,4,5]</code> 这两个奇数长度：<strong>中点归前半段</strong>这一条约定，决定了后半段长度一定是 <code>⌊L/2⌋</code>、前半段是 <code>⌈L/2⌉</code>。反过来取，结果会多出一个「中间节点被搬到末尾」的错误。
+
+如果担心自己记反，用 <code>[1,2,3]</code> 验一下就行：正确答案是 <code>1 → 3 → 2</code>（<code>2</code> 留在原位）。如果跑出来是 <code>1 → 2 → 3</code> 原样没动，说明后半段被判成了空——中点取到 <code>1</code> 上去了。
+<hr>
+<h2>六、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>找中点</td>
+<td>O(L/2)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>反转后半段</td>
+<td>O(L/2)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>交替合并</td>
+<td>O(L/2)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td><strong>O(L)</strong></td>
+<td><strong>O(1)</strong></td>
+</tr>
+</tbody>
+</table>
+
+空间是 O(1) 的关键在于：<strong>全程只用了 <code>slow/fast/prev/curr/first/second</code> 这几个指针变量</strong>，没有开数组、没有用栈、没有递归。递归版反转（如果你手滑写了递归）会立刻把空间抬到 O(L/2)，而且长链表有爆栈风险——这也是为什么反转那一步必须写迭代。
+<hr>
+<h2>七、常见坑</h2>
+
+按踩到的频率排序：
+
+<strong>1. 忘写 <code>slow.next = None</code>，链表成环</strong>
+
+这是本题第一大坑。少了断开，前半段的尾巴还连着后半段；反转之后，后半段的原头节点（现在的尾）指向 <code>None</code>，但前半段尾的 <code>next</code> 依然指着它。合并时指针一绕，就形成一个闭环。
+
+后果很隐蔽：LeetCode 上直接 <code>Time Limit Exceeded</code>（判题机遍历链表走不出去），而不是给你一个清晰的报错。<strong>看到 TLE 先怀疑成环，别急着改算法。</strong>
+
+<strong>2. 中点取反了，中间节点跑去了后半段</strong>
+
+奇数长度时结果会错。判定方法：用 <code>[1,2,3]</code> 自查，正确是 <code>1 → 3 → 2</code>。
+
+<strong>3. 反转那步用了递归</strong>
+
+空间变 O(L/2)，长链表爆栈。迭代写法的四行顺序（<code>记住 → 掉头 → prev 前移 → curr 前移</code>）必须熟到能默出来。
+
+<strong>4. 合并循环写成了 <code>while first</code></strong>
+
+前半段更长，<code>first</code> 走到 <code>None</code> 时后半段可能还没插完，甚至会空指针。条件必须是 <code>while second</code>——<strong>以后半段为准</strong>，它短，它用完就结束。
+
+<strong>5. 合并时顺序写反：<code>second.next = t1</code> 写在 <code>first.next = second</code> 前面</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 顺序错了</span>
+<span class="n">second</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">t1</span>      <span class="c1"># 先把 second 的下家改了</span>
+<span class="n">first</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">second</span>   <span class="c1"># 但 t1 已经在上一行被用过，语义变了</span>
+</code></pre></div>
+
+
+必须先把两条链的「下家」都存进 <code>t1/t2</code>，再改指针。这也是为什么代码里 <code>t1, t2 = first.next, second.next</code> 一定要写在最前面——<strong>改指针之前先把路记住</strong>，和反转链表里那个 <code>nxt = curr.next</code> 是同一个道理。
+
+<strong>6. 以为要返回新头节点</strong>
+
+头节点从头到尾都是 <code>head</code>，不需要返回。Java 签名是 <code>void</code>，Python 写 <code>return</code> 或不写都行，但别 <code>return head</code>。
+<hr>
+<h2>八、面试怎么答</h2>
+<ol>
+<li><strong>先复述目标</strong>：「前半段不变，后半段倒过来插进缝隙；只能改指针，不能改值。」</li>
+<li><strong>直接说拆分</strong>：「这题拆三步：快慢指针找中点把链切成两段、迭代反转后半段、然后交替合并。」</li>
+<li><strong>主动点出断开</strong>：「找完中点要先 <code>slow.next = None</code> 断开，不然后面会成环。」</li>
+<li><strong>报复杂度</strong>：「三次线性扫描，时间 O(L)，全程只用常数个指针，空间 O(1)。」</li>
+<li><strong>抛出追问</strong>：「这三步分别是 LC 876、LC 206、LC 21 的子问题；如果换成数组版本（比如 LC 的『重排数组』变体），思路是一维数组双指针——要展开吗？」</li>
+</ol>
+
+面经里常见的两个追问，提前想好：
+<ul>
+<li><strong>「为什么不能用数组？」</strong> —— 可以用，但空间 O(n)；题目要求实际改动节点，考察的就是原地重排的能力。</li>
+<li><strong>「合并那步能不能先拼成一条再整体调整？」</strong> —— 不能。交替插入的顺序必须一个一个来，因为每次插入都要改两个 <code>next</code>（前半节点指向后半节点、后半节点指回前半的下家）。</li>
+</ul>
+
+<strong>这道题考的不是链表操作，是你能不能把没见过的问题拆成见过的问题。</strong>
+<hr>
+<h2>结语</h2>
+
+把三张拼图摆在一起：
+<table>
+<thead>
+<tr>
+<th>题目</th>
+<th>在这道题里扮演的角色</th>
+<th>单独刷时的编号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>找中点</td>
+<td>把链表一分为二</td>
+<td>LC 876</td>
+</tr>
+<tr>
+<td>反转链表</td>
+<td>把后半段倒过来</td>
+<td>LC 206</td>
+</tr>
+<tr>
+<td>交替合并</td>
+<td>两段落错拼接</td>
+<td>LC 21 的插入动作</td>
+</tr>
+</tbody>
+</table>
+
+<strong>组合本身就是解法。</strong> 链表题里这种「合成题」不少：LC 25（K 个一组反转）= 206 + 分组连接；LC 143 = 876 + 206 + 21；LC 61（旋转链表）= 快慢指针定位 + 接成环再断开。
+
+所以下次遇到看起来没见过的链表题，先别急着想新算法。问自己两个问题：
+<ol>
+<li>最终形态能不能拆成<strong>几个已知变换的组合</strong>？</li>
+<li>每个变换的<strong>接缝在哪</strong>（哪个节点要断开、哪个节点要重连）？</li>
+</ol>
+
+把这两问答清楚，剩下的就是三道做过的简单题。
+<hr>
+<blockquote>
+
+本文的推演动画是页面里的交互组件，可以单步回放。想自己验证的话，拿纸画四个格子，按「切两半 → 后半倒过来 → 一个隔一个插」走一遍——<strong>在纸上推一遍，胜过看十遍代码。</strong>
+</blockquote></div></div></noscript>
+  </body>
+</html>
