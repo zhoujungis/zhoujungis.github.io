@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但&quot;为什么这样能对上&quot;值得想清楚） 收获 ： a + c + b == b + c + " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-160-intersection-of-two-linked-lists/" />
+    <meta property="og:title" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了" />
+    <meta property="og:description" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但&quot;为什么这样能对上&quot;值得想清楚） 收获 ： a + c + b == b + c + " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-160-intersection-of-two-linked-lists/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-160-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了" />
+    <meta name="twitter:description" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但&quot;为什么这样能对上&quot;值得想清楚） 收获 ： a + c + b == b + c + " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-160-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-ZphJhF5x.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-22T18:22:37.459801+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了","description":"【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但\"为什么这样能对上\"值得想清楚） 收获 ： a + c + b == b + c + ","image":"https://zhoujungis.github.io/photos/lc-160-cover.png","datePublished":"2026-09-22T18:22:37.459801+08:00","dateModified":"2026-09-22T18:22:37.459829+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-160-intersection-of-two-linked-lists/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</h1><div class="ns-meta">2026/9/22 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：简单（代码只有 5 行，但"为什么这样能对上"值得想清楚）
+<strong>收获</strong>：<code>a + c + b == b + c + a</code> 这个同构替换，以及它为什么天然给出 O(1) 空间
+</blockquote>
+<h2>题目</h2>
+
+给你两个单链表的头节点 <code>headA</code> 和 <code>headB</code>，请你找出并返回两个单链表相交的<strong>起始节点</strong>。如果两个链表不存在相交节点，返回 <code>null</code>。
+
+图示两个链表在节点 <code>c1</code> 开始相交：
+<div class="codehilite"><pre><span></span><code>A:        a1 → a2
+                 ↘
+                   c1 → c2 → c3
+                 ↗
+B:   b1 → b2 → b3
+</code></pre></div>
+
+
+题目数据<strong>保证</strong>整个链式结构中不存在环。
+
+<strong>注意</strong>，函数返回结果后，链表必须<strong>保持其原始结构</strong>。
+<div class="codehilite"><pre><span></span><code>输入：intersectVal = 8, listA = [4,1,8,4,5], listB = [5,6,1,8,4,5], skipA = 2, skipB = 3
+输出：Intersected at &#39;8&#39;
+
+输入：intersectVal = 2, listA = [1,9,1,2,4], listB = [3,2,4], skipA = 3, skipB = 1
+输出：Intersected at &#39;2&#39;
+
+输入：intersectVal = 0, listA = [2,6,4], listB = [1,5], skipA = 3, skipB = 2
+输出：No intersection
+</code></pre></div>
+
+
+<strong>进阶</strong>：你能否设计一个时间复杂度 <code>O(n + m)</code>、仅用 <code>O(1)</code> 内存的解决方案？
+<blockquote>
+
+出处备注：字节、阿里等面试中作为链表基础题频繁出现，通常紧跟"两数之和"式的热身出现，用来考察你能不能把"两个不等长的序列对齐"这件事转化成一行代码。
+</blockquote>
+
+链表节点的定义（后面所有代码都用它）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+<hr>
+<h2>一、先想清楚「相交」到底是什么意思</h2>
+<h3>1.1 相交的判据是节点，不是值</h3>
+
+这是这题最容易踩的第一个坑。看这个例子：
+<div class="codehilite"><pre><span></span><code>A:  1 → 2 → 3
+B:  5 → 3 → 6
+</code></pre></div>
+
+
+两个链里都有 <code>3</code>，它们相交吗？<strong>不相交。</strong> 那是两个不同的节点，只是值恰好都是 3。
+<div class="codehilite"><pre><span></span><code>A:        1 → 2 ─┐
+                 ↓
+                 3 → 4 → 5
+                 ↑
+B:        6 → 7 ─┘
+</code></pre></div>
+
+
+这个才叫相交 —— 两条链从节点 <code>4</code> 开始<strong>共享同一批节点</strong>，<code>next</code> 指针指向的是同一个对象。
+<div class="codehilite"><pre><span></span><code>A: 1 → 2 → 3 → 4 → 5
+              ↗
+B:      6 → 7
+</code></pre></div>
+
+<blockquote>
+
+注意这是一个 <strong>Y 字形</strong>，不是 X 字形。两个单链表一旦相交，后面就<strong>必须完全重合</strong>——因为每个节点只有一个 <code>next</code>。这是单链表的结构决定的，也是一个很重要的直觉。
+</blockquote>
+
+<strong>所以"相交起始节点"的定义是：两条链第一次汇到同一个节点上的那个节点。</strong> 换句话说：两条链共享的那段<strong>后缀的起点</strong>。
+<h3>1.2 朴素解法为什么不够好</h3>
+
+你可能会想到两种做法：
+
+<strong>做法一：哈希表。</strong> 先遍历 A，把所有节点塞进 <code>set</code>，再遍历 B，第一个命中的就是答案。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getIntersectionNode</span><span class="p">(</span><span class="n">headA</span><span class="p">,</span> <span class="n">headB</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">headA</span>
+    <span class="k">while</span> <span class="n">cur</span><span class="p">:</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">headB</span>
+    <span class="k">while</span> <span class="n">cur</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">cur</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cur</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+时间 <code>O(n + m)</code>，但空间 <code>O(n)</code> —— 不满足进阶要求。
+
+<strong>做法二：先算长度差。</strong> 分别量出两条链的长度 <code>lenA</code>、<code>lenB</code>，让长的先走 <code>|lenA - lenB|</code> 步，然后两个指针同步前进，第一个相等的节点就是答案。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getIntersectionNode</span><span class="p">(</span><span class="n">headA</span><span class="p">,</span> <span class="n">headB</span><span class="p">):</span>
+    <span class="n">lenA</span><span class="p">,</span> <span class="n">lenB</span> <span class="o">=</span> <span class="n">length</span><span class="p">(</span><span class="n">headA</span><span class="p">),</span> <span class="n">length</span><span class="p">(</span><span class="n">headB</span><span class="p">)</span>
+    <span class="c1"># 长的先走差值，对齐到&quot;距离末尾一样远&quot;</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+
+时间 <code>O(n + m)</code>，空间 <code>O(1)</code> —— <strong>完全正确，而且很直观</strong>。这是标准答案之一。
+
+但要让短的指针从<strong>头</strong>出发、长的先走一段，代码里得有分支判断谁长谁短，还要写两遍几乎一样的循环，约 20 行。
+<h3>1.3 核心洞察：让两个指针走一样长的路</h3>
+
+先看一个更简单的视角。
+
+要让两个指针同时到达相交点，需要它们<strong>距离末尾一样远</strong>。做法二就是硬把这件事做出来：让长的先走一段。
+
+而接下来这个做法，连"谁长谁短"都不用判断：
+<blockquote>
+
+<strong>pA 从 A 的头出发，走完 A 就去走 B 的头；
+pB 从 B 的头出发，走完 B 就去走 A 的头。
+两者每次各走一格。</strong>
+</blockquote>
+
+设 A 的独有段长度是 <code>a</code>、B 的独有段长度是 <code>b</code>、公共段长度是 <code>c</code>：
+<div class="codehilite"><pre><span></span><code>A:  a1 → a2 → ...  (a 个)
+                     ↘
+                       c1 → c2 → ...  (c 个)
+                     ↗
+B:  b1 → b2 → ...  (b 个)
+</code></pre></div>
+
+<ul>
+<li><strong>pA 走的路</strong>：A 的独有段 <code>a</code> 步 + 公共段 <code>c</code> 步 + B 的独有段 <code>b</code> 步 = <code>a + c + b</code></li>
+<li><strong>pB 走的路</strong>：B 的独有段 <code>b</code> 步 + 公共段 <code>c</code> 步 + A 的独有段 <code>a</code> 步 = <code>b + c + a</code></li>
+</ul>
+
+<strong>这两个数是同一个数。</strong> 加法交换律 —— 就这么简单。
+
+路程相等、速度相等（都是一次一格），出发时间相同，那么它们<strong>必然同时到达终点</strong>。而那个"终点"就是相交点：
+<div class="codehilite"><pre><span></span><code><span class="nl">pA</span><span class="p">:</span><span class="w">  </span><span class="n">a1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">a2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">c1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">c2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">b1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">b2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="o">[</span><span class="n">c1</span><span class="o">]</span><span class="w">  </span><span class="err">←</span><span class="w"> </span><span class="n">走</span><span class="w"> </span><span class="n">a</span><span class="o">+</span><span class="n">c</span><span class="o">+</span><span class="n">b</span><span class="w"> </span><span class="n">步后停在</span><span class="w"> </span><span class="n">c1</span>
+<span class="nl">pB</span><span class="p">:</span><span class="w">  </span><span class="n">b1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">b2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">c1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">c2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">a1</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">a2</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="o">[</span><span class="n">c1</span><span class="o">]</span><span class="w">  </span><span class="err">←</span><span class="w"> </span><span class="n">走</span><span class="w"> </span><span class="n">b</span><span class="o">+</span><span class="n">c</span><span class="o">+</span><span class="n">a</span><span class="w"> </span><span class="n">步后也停在</span><span class="w"> </span><span class="n">c1</span>
+<span class="w">                                     </span><span class="err">↑</span>
+<span class="w">                                  </span><span class="n">同时落在</span><span class="w"> </span><span class="n">c1</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code>pA 的路：  A独有(a)  ──→  公共(c)  ──→  B独有(b)
+pB 的路：  B独有(b)  ──→  公共(c)  ──→  A独有(a)
+                        ↑
+              两条路长度都用 a+b+c 表示
+</code></pre></div>
+
+
+<strong>这就把"对齐两个不等长的序列"变成了"两条路本来一样长"</strong> —— 不用判断谁长谁短，不用分支，不用写两遍循环。
+
+同理，如果两条链不相交（<code>c = 0</code>），两者各走 <code>a + b</code> 步后<strong>同时到达 <code>null</code></strong> —— 于是返回 <code>null</code>。不相交的情况也被同一套逻辑自然地覆盖了。
+<hr>
+<h2>二、这个想法的代码只有五行</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">getIntersectionNode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">headA</span><span class="p">:</span> <span class="n">ListNode</span><span class="p">,</span> <span class="n">headB</span><span class="p">:</span> <span class="n">ListNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ListNode</span><span class="p">]:</span>
+        <span class="n">pA</span><span class="p">,</span> <span class="n">pB</span> <span class="o">=</span> <span class="n">headA</span><span class="p">,</span> <span class="n">headB</span>
+        <span class="k">while</span> <span class="n">pA</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">pB</span><span class="p">:</span>          <span class="c1"># 比的是&quot;是不是同一个节点&quot;，不是值</span>
+            <span class="n">pA</span> <span class="o">=</span> <span class="n">pA</span><span class="o">.</span><span class="n">next</span> <span class="k">if</span> <span class="n">pA</span> <span class="k">else</span> <span class="n">headB</span>   <span class="c1"># 走完 A 就换到 B 的头</span>
+            <span class="n">pB</span> <span class="o">=</span> <span class="n">pB</span><span class="o">.</span><span class="n">next</span> <span class="k">if</span> <span class="n">pB</span> <span class="k">else</span> <span class="n">headA</span>   <span class="c1"># 走完 B 就换到 A 的头</span>
+        <span class="k">return</span> <span class="n">pA</span>                    <span class="c1"># 要么是相交点，要么是 None</span>
+</code></pre></div>
+
+
+是的，就这么多。<strong>整个算法的全部内容就是"走到头就换到对方头上"。</strong>
+<h3>2.1 为什么循环条件写 <code>while pA is not pB</code></h3>
+
+因为两个指针<strong>一旦相等就一定是答案</strong>，而且这个"相等"有两种可能：
+<ul>
+<li><strong>相交</strong>：两者同时落在相交起始节点上 —— 返回它；</li>
+<li><strong>不相交</strong>：两者同时变成 <code>None</code> —— <code>None is None</code> 成立，循环退出，返回 <code>None</code>。</li>
+</ul>
+
+第二种情况是这段代码最漂亮的地方：<strong>不用为"不相交"写任何特判</strong>。两条链不相交时，两个指针会在走满 <code>a + b</code> 步后手拉手一起掉出链表，<code>pA is pB</code> 恰好成立。
+
+用 <code>!==</code> 或 <code>!=</code> 对比值就错了 —— 值相同的不同节点会被误判成相交（见 1.1）。
+<h3>2.2 为什么"换头"这个操作是合法的</h3>
+
+<code>pA = pA.next if pA else headB</code> 这一行里，<code>pA</code> 从 A 的尾节点（它的 <code>next</code> 是 <code>None</code>）直接跳到了 <code>headB</code>。
+
+这在题目里<strong>完全合法</strong>：
+<ul>
+<li>题目只要求"函数返回结果后链表保持原始结构"。我们<strong>没有改任何 <code>next</code> 指针</strong>，只是让一个指针变量指向了另一个链表的头 —— 这是读操作，不是写操作；</li>
+<li>所以<strong>不需要</strong>像 LC 143 重排链表那样小心翼翼地拆链条、防成环。这里自始至终是两棵独立的链，一个指针从这棵跳到那棵，不产生任何环。</li>
+</ul>
+<blockquote>
+
+顺带说一句：这也解释了为什么这题空间是 <code>O(1)</code> —— 我们只多了两个指针变量。
+</blockquote>
+<h3>2.3 换个角度理解：把两条链首尾相接</h3>
+
+还有一个更"几何"的看法，很多人觉得更好记：
+<div class="codehilite"><pre><span></span><code>把 A 的尾巴接到 B 的头上，把 B 的尾巴接到 A 的头上：
+
+A:  a1 → a2 → c1 → c2 → b1 → b2 → (回到 A 头)
+B:  b1 → b2 → c1 → c2 → a1 → a2 → (回到 B 头)
+</code></pre></div>
+
+
+这两条<strong>串起来的新链长度相等</strong>（都是 <code>a + b + c</code>），而且它们从各自位置出发、"同步前进"的指针，第一次重合的位置一定是 <code>c1</code>。
+
+不过这个说法要小心一点：如果真的去改尾节点的 <code>next</code>，就<strong>破坏了原始结构</strong>（还制造了环）。所以它只是个理解用的心智模型，<strong>代码里千万别真去接</strong>。实际做法就是"指针变量换目标"，不碰链表本身。
+<hr>
+<h2>三、动画：看着两条路同时走到 c1</h2>
+
+下面这个动画把过程拆成 11 帧。留意三件事：
+<ul>
+<li><strong>两条链画成 Y 字</strong>：A 在上、B 在下，各自的独有段从左右两端出发，在同一个节点上合并成一条 —— 共享的那段节点<strong>只画一次</strong>，因为它们在内存里就是同一个节点；</li>
+<li><strong>两个游标同步前进</strong>：pA 和 pB 每帧各走一格，永远不同步落在同一个节点上，直到最后一帧；</li>
+<li><strong>换头那一帧</strong>：走到 ∅ 的游标，会有一条虚线从尾节点绕到对方链表的头上 —— 那是整套解法里唯一一个"反直觉的动作"，值得单独停一帧看清楚。</li>
+</ul>
+<div class="algo-viz algo-viz--lc160"></div>
+
+
+看完动画再回头看 1.3 节那张"两条路"的对比图 —— 画面上就是两个游标各自绕了一圈，最后<strong>同时</strong>落在 <code>4</code> 上。
+<hr>
+<h2>四、完整推演表</h2>
+
+用动画里的例子（<code>a = 3</code>、<code>b = 2</code>、<code>c = 2</code>）：
+<div class="codehilite"><pre><span></span><code>pool 下标: 0=1  1=2  2=3  3=4  4=5  5=6  6=7
+
+A = 1 → 2 → 3 → 4 → 5      独有段 1→2→3，公共段 4→5
+B = 6 → 7 → 4 → 5          独有段 6→7，然后并到同一个 4 上
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>步</th>
+<th>phase</th>
+<th>pA 走到</th>
+<th>pB 走到</th>
+<th>动作</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>A[0] = 1</td>
+<td>B[0] = 6</td>
+<td>—</td>
+<td>两条游标各自就位</td>
+</tr>
+<tr>
+<td>1</td>
+<td>walk</td>
+<td>A[1] = 2</td>
+<td>B[1] = 7</td>
+<td>各走一格</td>
+<td><code>2 != 7</code>，继续</td>
+</tr>
+<tr>
+<td>2</td>
+<td>walk</td>
+<td>A[2] = 3</td>
+<td>B[2] = 4</td>
+<td>各走一格</td>
+<td><code>3 != 4</code>，继续</td>
+</tr>
+<tr>
+<td>3</td>
+<td>walk</td>
+<td>A[3] = 4</td>
+<td>B[3] = 5</td>
+<td>各走一格</td>
+<td><code>4 != 5</code>，继续</td>
+</tr>
+<tr>
+<td>4</td>
+<td>walk</td>
+<td>A[4] = 5</td>
+<td>B 的 ∅</td>
+<td>各走一格</td>
+<td><code>5 != ∅</code>，继续</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>jump</strong></td>
+<td>A[4] = 5</td>
+<td><strong>换到 A 的头</strong> = 1</td>
+<td>pB 走完 B</td>
+<td>pB 从 5 的 <code>next</code> 跳到 1</td>
+</tr>
+<tr>
+<td>6</td>
+<td>walk</td>
+<td>A 的 ∅</td>
+<td>A[1] = 2</td>
+<td>各走一格</td>
+<td><code>∅ != 2</code>，继续</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>jump</strong></td>
+<td><strong>换到 B 的头</strong> = 6</td>
+<td>A[1] = 2</td>
+<td>pA 走完 A</td>
+<td>pA 从 5 的 <code>next</code> 跳到 6</td>
+</tr>
+<tr>
+<td>8</td>
+<td>walk</td>
+<td>B[1] = 7</td>
+<td>A[2] = 3</td>
+<td>各走一格</td>
+<td><code>7 != 3</code>，继续</td>
+</tr>
+<tr>
+<td>9</td>
+<td>walk</td>
+<td>B[2] = 4</td>
+<td>A[3] = 4</td>
+<td>各走一格</td>
+<td><strong><code>4 == 4</code>，重合！</strong></td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>found</strong></td>
+<td>B[2] = 4</td>
+<td>A[3] = 4</td>
+<td>返回</td>
+<td><strong>相交起始节点是 4</strong></td>
+</tr>
+</tbody>
+</table>
+
+数一下：pA 走了 A 的 5 步 + B 上的 2 步 = <strong>7 步</strong>；pB 走了 B 的 4 步 + A 上的 3 步 = <strong>7 步</strong>。<code>a + b + c = 3 + 2 + 2 = 7</code>，正好对上。
+
+<strong>两个游标的总步数相等 —— 这就是它们必然同时到达的原因。</strong>
+
+再看不相交的例子 <code>A = [1,2,3]</code>、<code>B = [4,5]</code>：
+<table>
+<thead>
+<tr>
+<th>步</th>
+<th>phase</th>
+<th>pA</th>
+<th>pB</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>A[0] = 1</td>
+<td>B[0] = 4</td>
+<td>—</td>
+</tr>
+<tr>
+<td>1</td>
+<td>walk</td>
+<td>A[1] = 2</td>
+<td>B[1] = 5</td>
+<td>各走一格</td>
+</tr>
+<tr>
+<td>2</td>
+<td>walk</td>
+<td>A[2] = 3</td>
+<td>B 的 ∅</td>
+<td>各走一格</td>
+</tr>
+<tr>
+<td>3</td>
+<td>jump</td>
+<td>A[2] = 3</td>
+<td>换到 A 的头 = 1</td>
+<td>pB 换头</td>
+</tr>
+<tr>
+<td>4</td>
+<td>walk</td>
+<td>∅</td>
+<td>A[1] = 2</td>
+<td>各走一格</td>
+</tr>
+<tr>
+<td>5</td>
+<td>jump</td>
+<td>换到 B 的头 = 4</td>
+<td>A[1] = 2</td>
+<td>pA 换头</td>
+</tr>
+<tr>
+<td>6</td>
+<td>walk</td>
+<td>B[1] = 5</td>
+<td>A[2] = 3</td>
+<td>各走一格</td>
+</tr>
+<tr>
+<td>7</td>
+<td>walk</td>
+<td>∅</td>
+<td>∅</td>
+<td>各走一格</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>none</strong></td>
+<td>∅</td>
+<td>∅</td>
+<td><strong>同时到 ∅，返回 None</strong></td>
+</tr>
+</tbody>
+</table>
+
+注意第 7 步：两者<strong>同时</strong>变成空 —— <code>while pA is not pB</code> 检测到 <code>None is None</code>，循环退出，返回 <code>None</code>。这里一步特判都不需要。
+<hr>
+<h2>五、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">getIntersectionNode</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">headA</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">headB</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">headA</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">headB</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">pA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">headA</span><span class="p">,</span><span class="w"> </span><span class="n">pB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">headB</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">pA</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">pB</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">                 </span><span class="c1">// 比引用，不是比值</span>
+<span class="w">            </span><span class="n">pA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">pA</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">headB</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">pA</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w">   </span><span class="c1">// 走完 A 就换到 B 的头</span>
+<span class="w">            </span><span class="n">pB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">pB</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">headA</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">pB</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w">   </span><span class="c1">// 走完 B 就换到 A 的头</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">pA</span><span class="p">;</span><span class="w">                          </span><span class="c1">// 相交点，或 null</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 里用 <code>!=</code> 比引用正是我们想要的语义（而 <code>!equals</code> 才是比值）。这一点 Python 和 Java 是一致的：<strong>这题要的永远是引用比较</strong>。
+<hr>
+<h2>六、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>结果</th>
+<th>走几轮循环</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>A = []</code>, <code>B = []</code></td>
+<td><code>None</code></td>
+<td>0 —— <code>null is null</code> 立刻成立</td>
+</tr>
+<tr>
+<td><code>A = [1]</code>, <code>B = []</code></td>
+<td><code>None</code></td>
+<td>2 —— pA 换头后被 pB 的 ∅ 顶掉，两者同时出界</td>
+</tr>
+<tr>
+<td><code>A = [1]</code>, <code>B = [1]</code>（不同节点）</td>
+<td><code>None</code></td>
+<td>2 —— 值相同但引用不同，不误判</td>
+</tr>
+<tr>
+<td><code>A = [1]</code>, <code>B = [1]</code>（同一个节点）</td>
+<td>该节点</td>
+<td>0 —— 头节点就相交，直接命中</td>
+</tr>
+<tr>
+<td><code>A = B</code>（完全同一条链）</td>
+<td><code>headA</code></td>
+<td>0 —— <code>pA is pB</code> 一开始就成立</td>
+</tr>
+<tr>
+<td><code>A = [1,2,3,4,5]</code>, <code>B = [6,7,4,5]</code></td>
+<td>节点 <code>4</code></td>
+<td>7</td>
+</tr>
+<tr>
+<td><code>A = [2,6,4]</code>, <code>B = [1,5]</code></td>
+<td><code>None</code></td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+
+几个要记牢的：
+<ul>
+<li><strong>空链表安全</strong>。<code>headA is None</code> 时循环不执行，直接返回 <code>None</code>。不需要额外特判（Java 版里那句 <code>if (headA == null || headB == null)</code> 是防御性的写法，去掉也能跑对）。</li>
+<li><strong>值相同不算相交</strong>。这是这题最经典的错误答案，务必在面试里主动提一句"我比的是引用"。</li>
+<li><strong>完全同一条链是最快的情况</strong>：头节点就相等，0 轮循环。</li>
+</ul>
+<hr>
+<h2>七、复杂度</h2>
+<ul>
+<li><strong>时间 <code>O(n + m)</code></strong>：两个指针各走 <code>a + b + c</code> 步，最多 <code>n + m</code> 步（<code>n</code>、<code>m</code> 是两条链各自的长度）。每一轮循环里两个指针各前进一格，是常数工作量。</li>
+<li><strong>空间 <code>O(1)</code></strong>：只有 <code>pA</code>、<code>pB</code> 两个指针变量，没有任何数组、哈希表、递归栈。</li>
+</ul>
+
+对比一下哈希表方案：时间同样是 <code>O(n + m)</code>，但空间 <code>O(n)</code> —— 进阶要求写在题干里，就是为了排除掉它。
+<hr>
+<h2>八、常见坑</h2>
+
+<strong>1. 用值比较，不用引用比较。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">pA</span><span class="o">.</span><span class="n">val</span> <span class="o">!=</span> <span class="n">pB</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>      <span class="c1"># 错的！值相同的不同节点会被误判</span>
+</code></pre></div>
+
+
+这是最致命的错误。<code>1.1</code> 节那个 <code>A: 1→2→3</code> / <code>B: 5→3→6</code> 就是专门用来打这个的。<strong>任何时候，链表的"是不是同一个节点"都必须用 <code>is</code> / <code>==</code> 比引用。</strong>
+
+<strong>2. 换头那行写成 <code>pA = pA.next if pA.next else headB</code>。</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">pA</span> <span class="o">=</span> <span class="n">pA</span><span class="o">.</span><span class="n">next</span> <span class="k">if</span> <span class="n">pA</span><span class="o">.</span><span class="n">next</span> <span class="k">else</span> <span class="n">headB</span>    <span class="c1"># 错的！会漏掉最后一格</span>
+</code></pre></div>
+
+
+<code>if pA</code> 判的是<strong>"pA 自己是不是 None"</strong>，也就是"我是不是已经走出链表了"。写成 <code>pA.next</code> 就变成了"我下一个是不是空"，会在最后一个真实节点上就提前换头 —— 少走一格，两条路就不等长了。
+
+<strong>3. 循环条件写 <code>while pA and pB</code>。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">pA</span> <span class="ow">and</span> <span class="n">pB</span><span class="p">:</span>              <span class="c1"># 错的！不相交时会死循环地空转</span>
+</code></pre></div>
+
+
+因为不相交时两者<strong>会同时变成 <code>None</code></strong>，<code>pA and pB</code> 立刻为假，循环退出 —— 看起来"能用"，但它丢掉的是"相交判定"本身：<code>pA is not pB</code> 才同时表达了"还没相遇"和"还没同时出界"。
+
+<strong>4. 忘了这题允许"指针跨链"，以为要改链表。</strong>
+
+有人看到"让 pA 走 B"就以为要把 B 接到 A 的尾巴上。<strong>不要改任何 <code>next</code>。</strong> 题目明确要求保持原始结构，而且真接了会制造环。换个指针指向就行。
+
+<strong>5. 想当然地认为两条链长度相同时才"好办"。</strong>
+
+长度相同确实更简单（同时出发，走到第一个相同节点就是答案），但算法对长度不等<strong>天然成立</strong> —— 这正是 <code>a + c + b == b + c + a</code> 的价值。不要额外加长度相同的特判。
+<hr>
+<h2>九、面试怎么答</h2>
+
+<strong>开口 30 秒给思路</strong>（别一上来就写代码）：
+<blockquote>
+
+目标是让两个指针同时到达相交点。做法是：pA 从 A 出发，走完 A 就接着走 B；pB 从 B 出发，走完 B 就接着走 A。这样 pA 走 <code>A独有 + 公共 + B独有</code>，pB 走 <code>B独有 + 公共 + A独有</code>，两个数相等，所以它们必然同时到达 —— 那个位置就是相交点。如果不相交，两者会同时走到 null。时间 O(n+m)，空间 O(1)。
+</blockquote>
+
+<strong>然后主动交代两个关键点</strong> —— 这是区分"背过答案"和"真懂"的地方：
+<ol>
+<li><strong>比的是引用不是值</strong>。值相同的不同节点不算相交；</li>
+<li><strong>换头不破坏链表结构</strong>。只是指针变量的目标变了，没有动任何 <code>next</code>，所以不产生环，也满足"保持原始结构"的要求。</li>
+</ol>
+
+<strong>追问应对</strong>：
+<ul>
+<li><em>"为什么不相交时不用写特判？"</em> —— 因为两个指针会在走满 <code>a+b</code> 步后同时变成 <code>None</code>，<code>while pA is not pB</code> 恰好成立，循环自然退出。</li>
+<li><em>"能讲讲你已经知道的那种长度差解法吗？"</em> —— 能：先各量一遍长度，长的先走差值，再同步前进。也是 O(n+m)/O(1)，但要判断谁长谁短、循环写两遍。交换游标版没有分支，所以更短。</li>
+<li><em>"如果链表可能成环呢？"</em> —— 那这题的前提就破了：相交起始节点在带环图里定义不唯一。得先做 LC 141/142 那套判环找入口，再谈相交。</li>
+<li><em>"能不能不改变链表结构？"</em> —— 已经没改。真要说的话，长度差解法同样不改结构，两者在这点上都合规。</li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+把链表系列串起来看，这题的位置是这样的：
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>核心动作</th>
+<th>和本题的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 141/142</strong> 环形链表</td>
+<td>快慢指针 + 同速前进找入口</td>
+<td>同一类"让两条路等长"的推导，但那题靠的是同余式</td>
+</tr>
+<tr>
+<td><strong>LC 206</strong> 反转链表</td>
+<td>迭代三行原地反转</td>
+<td>本题<strong>完全不用</strong>，一根 <code>next</code> 都不动</td>
+</tr>
+<tr>
+<td><strong>LC 19</strong> 删除倒数第 N 个</td>
+<td>快慢指针固定间隔</td>
+<td>也是"对齐两个位置"，靠的是先走 n+1 步</td>
+</tr>
+<tr>
+<td><strong>LC 143</strong> 重排链表</td>
+<td>找中点 + 反转 + 合并</td>
+<td>要小心翼翼地防成环，本题反过来：随便跳都不会成环</td>
+</tr>
+<tr>
+<td><strong>LC 160</strong> 相交链表</td>
+<td>交换游标，两条路等长</td>
+<td>本文，代码最短、推导最优雅的一题</td>
+</tr>
+</tbody>
+</table>
+
+这题的优雅之处在于：<strong>它把"对齐两个不等长的序列"这件麻烦事，变成了"两条路本来就一样长"。</strong>
+<div class="codehilite"><pre><span></span><code>pA 的路：  A独有(a) → 公共(c) → B独有(b)     = a + b + c
+pB 的路：  B独有(b) → 公共(c) → A独有(a)     = a + b + c
+</code></pre></div>
+
+
+下次再遇到"两个指针要走一不一样长的路"这类问题，先问自己一句：<strong>能不能各走一段对方的？</strong> 如果能，加法交换律会替你把剩下的事做完。</div></div></noscript>
+  </body>
+</html>
