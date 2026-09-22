@@ -10,6 +10,8 @@ import { mountLinkedListReverse } from '@/viz/linkedListReverse'
 import { mountMergeTwoLists } from '@/viz/mergeTwoLists'
 import { mountMergeKLists } from '@/viz/mergeKLists'
 import { mountMergeKDCLists } from '@/viz/mergeKDCLists'
+import { mountCycleDetect } from '@/viz/cycleDetect'
+import { mountCycleEntry } from '@/viz/cycleEntry'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -299,6 +301,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc21': mountMergeTwoLists,
   'algo-viz--lc23': mountMergeKLists,
   'algo-viz--lc23dc': mountMergeKDCLists,
+  'algo-viz--lc141': mountCycleDetect,
+  'algo-viz--lc142': mountCycleEntry,
 }
 
 let vizHandles = []
