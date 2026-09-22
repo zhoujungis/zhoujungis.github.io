@@ -15,6 +15,7 @@ import { mountCycleEntry } from '@/viz/cycleEntry'
 import { mountRemoveNthFromEnd } from '@/viz/removeNthFromEnd'
 import { mountReorderList } from '@/viz/reorderList'
 import { mountPalindromeList } from '@/viz/palindromeList'
+import { mountIntersectLists } from '@/viz/intersectLists'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -309,6 +310,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc19': mountRemoveNthFromEnd,
   'algo-viz--lc143': mountReorderList,
   'algo-viz--lc234': mountPalindromeList,
+  'algo-viz--lc160': mountIntersectLists,
 }
 
 let vizHandles = []
