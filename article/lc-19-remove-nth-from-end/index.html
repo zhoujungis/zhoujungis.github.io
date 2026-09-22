@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发 适用读者 ：知道快慢指针能找环，但没想明白为什么「先走 n 步」就能定位倒数第 n 个的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（思路一行字，边界一堆坑） 收获 ：「间隔锁死」这个一次扫描定位任意倒数位置的思想，以及它" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-19-remove-nth-from-end/" />
+    <meta property="og:title" content="【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发" />
+    <meta property="og:description" content="【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发 适用读者 ：知道快慢指针能找环，但没想明白为什么「先走 n 步」就能定位倒数第 n 个的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（思路一行字，边界一堆坑） 收获 ：「间隔锁死」这个一次扫描定位任意倒数位置的思想，以及它" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-19-remove-nth-from-end/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-19-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发" />
+    <meta name="twitter:description" content="【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发 适用读者 ：知道快慢指针能找环，但没想明白为什么「先走 n 步」就能定位倒数第 n 个的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（思路一行字，边界一堆坑） 收获 ：「间隔锁死」这个一次扫描定位任意倒数位置的思想，以及它" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-19-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-QCsxm8ZK.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-22T15:19:02.960438+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发","description":"【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发 适用读者 ：知道快慢指针能找环，但没想明白为什么「先走 n 步」就能定位倒数第 n 个的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（思路一行字，边界一堆坑） 收获 ：「间隔锁死」这个一次扫描定位任意倒数位置的思想，以及它","image":"https://zhoujungis.github.io/photos/lc-19-cover.png","datePublished":"2026-09-22T15:19:02.960438+08:00","dateModified":"2026-09-22T15:19:02.960476+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-19-remove-nth-from-end/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发</h1><div class="ns-meta">2026/9/22 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：知道快慢指针能找环，但没想明白为什么「先走 n 步」就能定位倒数第 n 个的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等（思路一行字，边界一堆坑）
+<strong>收获</strong>：「间隔锁死」这个一次扫描定位任意倒数位置的思想，以及它为什么能通吃 LC 876、LC 61、面试题 02.02
+</blockquote>
+<h2>题目</h2>
+
+给你一个链表，删除链表的倒数第 <code>n</code> 个结点，并且返回链表的头结点。要求<strong>一趟扫描</strong>实现。
+<div class="codehilite"><pre><span></span><code>输入：head = [1,2,3,4,5], n = 2
+输出：[1,2,3,5]
+</code></pre></div>
+
+
+链表节点的定义（后面所有代码都用它）：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+
+这道题是 206 反转链表之后，链表双指针的第二块基石。它标着「中等」，但难点根本不在写代码——正解就三行核心逻辑。<strong>难点在于三件事要同时想对</strong>：为什么快指针要先走 <code>n+1</code> 步而不是 <code>n</code> 步、为什么要引入哑结点、以及删掉头节点时代码为什么不会崩。
+
+这三件事，每一件都对应一种典型的错误提交。这篇就把它们挨个说透。
+<hr>
+<h2>一、难在哪：链表不知道自己的长度</h2>
+
+数组里删「倒数第 2 个」是 trivial 的：先算 <code>len - 2</code> 是哪个下标，然后把后面的元素前移。因为<strong>数组随时知道自己的长度</strong>，<code>倒数第 k 个</code> 和 <code>正数第 len-k+1 个</code> 之间是一步换算。
+
+链表不行。链表的节点只知道「我的下一个是谁」，整条链有多长，只有从头到尾走完一遍才知道。而且链表删节点也不是「移动元素」，是<strong>改前驱的指针</strong>：
+<div class="codehilite"><pre><span></span><code>删除 4 之前：  3 → 4 → 5
+删除 4 之后：  3 ------→ 5
+</code></pre></div>
+
+
+所以删「倒数第 n 个」这个问题，本质上是两个子问题：
+<ol>
+<li><strong>定位</strong>：找到倒数第 n 个节点的<strong>前驱</strong>（前驱的 <code>next</code> 一改，删除就完成了）；</li>
+<li><strong>删除</strong>：<code>前驱.next = 前驱.next.next</code>。</li>
+</ol>
+
+第 2 步是一行代码，没有任何悬念。整道题的分量全在第 1 步：<strong>一趟扫描，怎么定位到倒数第 n 个节点的前驱？</strong>
+<hr>
+<h2>二、对照组：两趟扫描怎么解</h2>
+
+先把最直觉的写法摆出来，它是一趟扫法的参照物。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">removeNthFromEnd</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="c1"># 第一趟：数出长度 L</span>
+    <span class="n">length</span><span class="p">,</span> <span class="n">node</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">head</span>
+    <span class="k">while</span> <span class="n">node</span><span class="p">:</span>
+        <span class="n">length</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="c1"># 哑结点：处理「删的就是头节点」</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">dummy</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">length</span> <span class="o">-</span> <span class="n">n</span><span class="p">):</span>     <span class="c1"># 走到倒数第 n+1 个（前驱）</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">node</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+思路很直白：<code>倒数第 n 个</code> = <code>正数第 L-n+1 个</code>，它的前驱是 <code>正数第 L-n 个</code>，从哑结点走 <code>L-n</code> 步就到了。逻辑完全正确，复杂度也还是 O(n)。
+
+但题目要求<strong>一趟扫描</strong>。两趟扫法的问题不在于「慢」，而在于它把「定位」拆成了两次遍历：先量长度，再按换算公式走。<strong>一趟扫法的全部魔法，就是让这两个动作同时发生。</strong>
+
+先记住两趟扫法里的两个要素，等下一趟扫法会原样用到：
+<ul>
+<li>删除靠的是<strong>前驱</strong>，不是待删节点本身；</li>
+<li>哑结点让「删头」不再需要特判——没有它，<code>[1], n=1</code> 这种输入就得单独写 <code>if</code>。</li>
+</ul>
+<hr>
+<h2>三、一趟扫描：把间隔锁死</h2>
+<h3>3.1 核心想法</h3>
+
+一个生活化的比喻：一条长队里想知道「离队尾还有 5 个人」的位置在哪，你不用先数全队多少人。<strong>让两个人保持 5 个人的间距一起往队尾走，前面那个人踩到队尾的那一刻，后面那个人站的位置就是目标。</strong>
+
+翻译成指针语言：
+<ol>
+<li><code>fast</code> 和 <code>slow</code> 都从哑结点出发；</li>
+<li><code>fast</code> 先走 <code>n+1</code> 步——此刻两者的间距是 <code>n+1</code>；</li>
+<li>然后两个指针<strong>同步</strong>前进，一步一格；</li>
+<li><code>fast</code> 走出链表（变成 <code>null</code>）的那一瞬间，<code>slow</code> 停的位置恰好是<strong>倒数第 n+1 个节点</strong>——也就是待删节点的前驱。</li>
+</ol>
+
+为什么间距是 <code>n+1</code> 不是 <code>n</code>？因为我们要停在前驱上。<code>fast</code> 比 <code>slow</code> 多走 <code>n+1</code> 步，同步前进时 <code>slow</code> 始终落后 <code>fast</code> <code>n+1</code> 个位置；<code>fast</code> 落到 <code>null</code>（所有 L 个节点之后），<code>slow</code> 就落在倒数第 <code>n+1</code> 个上，它的 <code>next</code> 正是倒数第 <code>n</code> 个。
+
+一句话总结这个技巧：
+<blockquote>
+
+<strong>先走的指针负责探路，后走的指针负责定位；间距锁死多少，定位就差多少。</strong>
+</blockquote>
+<h3>3.2 为什么能保证同步结束时刚好到位</h3>
+
+用下标验证一遍（0 从哑结点数起，节点 <code>1~L</code>）：
+<ul>
+<li><code>fast</code> 先走 <code>n+1</code> 步，停在节点 <code>n+1</code>（值上就是第 <code>n+1</code> 个节点）；</li>
+<li>两者间距 <code>n+1</code>，同步前进时<strong>永远不变</strong>——这是整个算法的不变量；</li>
+<li><code>fast</code> 从节点 <code>n+1</code> 走到 <code>null</code> 还需要 <code>L-n</code> 步（<code>n = L</code> 时这个数为 0——<code>fast</code> 在先走阶段就已落到 <code>null</code>，<code>slow</code> 不动，正好是删头的情形）；</li>
+<li>同步移动了 <code>L-n</code> 步，<code>slow</code> 从哑结点走到节点 <code>L-n</code>；</li>
+<li>节点 <code>L-n</code> 的倒数编号：它后面还有 <code>n</code> 个节点（<code>L-n+1</code> 到 <code>L</code>），所以它正是<strong>倒数第 n+1 个</strong>。✓</li>
+</ul>
+
+拿演示用例核对：<code>L=5, n=2</code>。<code>fast</code> 先走 3 步停在节点 <code>3</code>，同步走 <code>5-2=3</code> 步，<code>slow</code> 停在节点 <code>3</code>（值 3）——它后面还有 <code>4、5</code> 两个节点，倒数第 3 个，正是节点 <code>4</code> 的前驱。删除后得到 <code>[1,2,3,5]</code>。✓
+
+<strong>「间距不变」是这个算法唯一的不变量。</strong> 面试时能主动说出「这里有个循环不变量」，比多写出十行代码更能证明你是理解的。
+<hr>
+<h2>四、哑结点：把「删头」变成普通情况</h2>
+<h3>4.1 没有 dummy 会发生什么</h3>
+
+先看不加哑结点的版本会多出什么：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">removeNthFromEnd</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">head</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="k">if</span> <span class="n">fast</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>            <span class="c1"># ⚠️ 特判：n 等于链表长度，删的是头节点</span>
+        <span class="k">return</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">head</span>
+    <span class="k">while</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">slow</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
+    <span class="k">return</span> <span class="n">head</span>
+</code></pre></div>
+
+
+<code>head = [1,2], n = 2</code> 走一遍：<code>fast</code> 先走 2 步直接冲出链表变成 <code>None</code>。此时要删的正是头节点自己——<strong>头节点没有前驱，<code>head</code> 已经是它自己的「前驱」了</strong>，只能单独 <code>return head.next</code>。
+
+这就是头节点删除的经典尴尬：普通节点的删除靠前驱，头节点的前驱不存在。
+<h3>4.2 dummy 的作用：凭空造一个前驱</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>
+</code></pre></div>
+
+
+在头节点前面垫一个不存数据的哑结点，链表变成：
+<div class="codehilite"><pre><span></span><code>dummy → 1 → 2 → 3 → 4 → 5 → ∅
+</code></pre></div>
+
+
+原来的头节点 <code>1</code> 有了前驱，<strong>「删头」和「删中间」从此是同一种操作</strong>：都停在前驱、改一个 <code>next</code>。而且 <code>fast</code> 从 <code>dummy</code> 出发走 <code>n+1</code> 步，即使 <code>n</code> 等于链表长度（要删的正是头节点），<code>fast</code> 也只是恰好落到 <code>null</code>——不会越界报错，同步阶段一步不走，<code>slow</code> 原地留在 <code>dummy</code> 上，第 ④ 行就把 <code>dummy.next</code> 从 <code>1</code> 改成了 <code>2</code>。特判整个消失。
+
+这是链表题里 dummy 出场的第二条经典理由（第一条在 LC 25 里：头节点可能被换掉时需要一个固定锚点）。<strong>只要操作可能落在头节点上，就先垫一个 dummy。</strong>
+<hr>
+<h2>五、动画：看着两个指针把 4 挤出去</h2>
+
+下面这个动画把 <code>[1,2,3,4,5]</code>、<code>n=2</code> 的完整过程拆成了 9 步。留意三件事：
+<ul>
+<li><strong>先走的 3 步</strong>：<code>fast</code> 独自前进，拉开 <code>n+1 = 3</code> 的间隔，<code>slow</code> 原地不动；</li>
+<li><strong>间隔线</strong>：同步阶段那条「间隔 3」的标注始终不变——这就是循环不变量；</li>
+<li><strong>最后一步</strong>：<code>3</code> 的箭头从指向 <code>4</code> 变成跨过 <code>4</code> 直指 <code>5</code>，被删节点变灰，但它还挂在内存里——链表题里「删除」从来不是销毁节点，只是<strong>没人再引用它</strong>。</li>
+</ul>
+<div class="algo-viz algo-viz--lc19"></div>
+
+
+看完动画可以注意一个细节：<code>fast</code> 探路时走过的节点数（<code>n+1</code>）加同步阶段走过的步数（<code>L-n</code>），恰好等于 <code>L+1</code>——从 <code>dummy</code> 到 <code>null</code> 的全程。<strong>没有任何节点被访问两次，这就是「一趟」的含义。</strong>
+<hr>
+<h2>六、代码逐行拆解</h2>
+<h3>6.1 Python</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">removeNthFromEnd</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">dummy</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>       <span class="c1"># ① fast 先走 n+1 步</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">dummy</span>                 <span class="c1"># ② slow 从 dummy 出发</span>
+    <span class="k">while</span> <span class="n">fast</span><span class="p">:</span>                  <span class="c1"># ③ 两个指针同步前进</span>
+        <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+
+    <span class="n">slow</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>   <span class="c1"># ④ slow 停在前驱上，摘掉目标节点</span>
+    <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>            <span class="c1"># ⑤ 返回 dummy.next，而不是 head</span>
+</code></pre></div>
+
+
+<strong><code>for _ in range(n + 1)</code>（①）</strong> —— 注意是 <code>n+1</code>。<code>fast</code> 要走到「倒数第 n 个的后一个位置」，这样同步结束时 <code>slow</code> 才停在前驱上。写成 <code>range(n)</code> 是本题最高频的错误，后果见第七节。
+
+<strong><code>slow = dummy</code>（②）</strong> —— 从哑结点出发，不是 <code>head</code>。<code>slow</code> 的初始位置就是「倒数第 L+1 个」（虚拟的头节点前驱），间距由此锁死为 <code>n+1</code>。
+
+<strong><code>while fast</code>（③）</strong> —— 循环条件是 <code>fast</code> 本身，不是 <code>fast.next</code>。因为 <code>fast</code> 先走的那段已经把「停在前驱」的偏差吃掉了，这里让它一路走到 <code>null</code> 即可。（如果 ① 里只走 <code>n</code> 步，这里就得写 <code>while fast.next</code>，两种约定别混用。）
+
+<strong><code>slow.next = slow.next.next</code>（④）</strong> —— 真正的删除。此时 <code>slow</code> 是倒数第 n+1 个节点，<code>slow.next</code> 是倒数第 n 个，跳过它即可。Python 有垃圾回收，被摘下的节点自动回收；Java 交给 GC；C/C++ 才需要手动 <code>free</code>。
+
+<strong><code>return dummy.next</code>（⑤）</strong> —— <strong>必须返回 <code>dummy.next</code>，不是 <code>head</code></strong>。当 <code>n</code> 等于链表长度时，头节点被删掉了，<code>head</code> 指向的节点已经不在链上，返回它就是返回了被删除的垃圾。这是第二个高频错误。
+<h3>6.2 完整推演表</h3>
+
+<code>head = [1,2,3,4,5]</code>，<code>n = 2</code>，<code>L = 5</code>：
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th><code>fast</code></th>
+<th><code>slow</code></th>
+<th>间隔</th>
+<th>链表状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始</td>
+<td><code>dummy</code></td>
+<td><code>dummy</code></td>
+<td>—</td>
+<td><code>d → 1 → 2 → 3 → 4 → 5</code></td>
+</tr>
+<tr>
+<td>先走第 1 步</td>
+<td><code>1</code></td>
+<td><code>dummy</code></td>
+<td>1</td>
+<td></td>
+</tr>
+<tr>
+<td>先走第 2 步</td>
+<td><code>2</code></td>
+<td><code>dummy</code></td>
+<td>2</td>
+<td></td>
+</tr>
+<tr>
+<td>先走第 3 步</td>
+<td><code>3</code></td>
+<td><code>dummy</code></td>
+<td><strong>3</strong></td>
+<td>间隔锁死为 n+1</td>
+</tr>
+<tr>
+<td>同步第 1 步</td>
+<td><code>4</code></td>
+<td><code>1</code></td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td>同步第 2 步</td>
+<td><code>5</code></td>
+<td><code>2</code></td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td>同步第 3 步</td>
+<td><code>∅</code></td>
+<td><code>3</code></td>
+<td>—</td>
+<td>fast 落到 null</td>
+</tr>
+<tr>
+<td>删除</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>3.next</code> 改指向 <code>5</code></td>
+</tr>
+<tr>
+<td>返回</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>1 → 2 → 3 → 5</code> ✓</td>
+</tr>
+</tbody>
+</table>
+
+同步阶段的 <code>slow</code> 落点 <code>3</code>，正是节点 <code>4</code>（倒数第 2 个）的前驱。
+<h3>6.3 Java 版</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">removeNthFromEnd</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">head</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">   </span><span class="c1">// ① 先走 n+1 步</span>
+<span class="w">            </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">              </span><span class="c1">// ③ 同步前进</span>
+<span class="w">            </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w">         </span><span class="c1">// ④ 删除</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w">                  </span><span class="c1">// ⑤ 注意不是 head</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr>
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>过程</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>head = [1], n = 1</code></td>
+<td><code>fast</code> 从 dummy 走 2 步到 <code>null</code>，<code>slow</code> 留在 dummy；<code>dummy.next = dummy.next.next</code> 即 <code>null</code></td>
+<td>返回 <code>null</code> ✓</td>
+</tr>
+<tr>
+<td><code>head = [1,2], n = 2</code>（删头）</td>
+<td><code>fast</code> 走 3 步恰好落到 <code>∅</code>（<code>n</code> 等于链长），同步一步不走，<code>slow</code> 留在 <code>dummy</code>；<code>dummy.next</code> 跳过 <code>1</code> 指向 <code>2</code></td>
+<td>返回 <code>2</code> ✓，无需特判</td>
+</tr>
+<tr>
+<td><code>head = [1,2], n = 1</code>（删尾）</td>
+<td>同步结束时 <code>slow</code> 停在 <code>1</code>，<code>1.next = null</code></td>
+<td>返回 <code>1 → ∅</code> ✓</td>
+</tr>
+</tbody>
+</table>
+
+三个边界<strong>没有一个需要 <code>if</code></strong>——哑结点 + <code>n+1</code> 这套约定把它们全部吸收了。如果发现有边界开始需要特判，多半是这两个约定有一个没设对，回头查比打补丁划算。
+
+题目保证了 <code>1 ≤ n ≤ 链表长度</code>，所以 <code>fast</code> 先走的 <code>n+1</code> 步最多正好落到 <code>null</code>，不会越界。如果面试官放开这个限制（<code>n</code> 可能比链表还长），① 的循环里就要检查 <code>fast</code> 是否提前变 <code>null</code>，直接返回原链表。
+<hr>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>解法</th>
+<th>扫描次数</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两趟（先数长度）</td>
+<td>2 趟</td>
+<td>O(L)</td>
+<td><strong>O(1)</strong></td>
+</tr>
+<tr>
+<td>一趟（快慢指针）</td>
+<td><strong>1 趟</strong></td>
+<td>O(L)</td>
+<td><strong>O(1)</strong></td>
+</tr>
+</tbody>
+</table>
+
+时间都是 O(L)，两趟加起来每个节点也只被访问常数次。<strong>一趟解法的价值不在更快，而在「只对数据流过一遍」</strong>——这个模式能推广到所有「不知道总长度、但想知道倒数第 k 个」的场景：比如只允许顺序读一遍的日志文件、数据流里的倒数第 k 条记录。那种时候「先量长度」根本不成立，间隔锁死是唯一解法。
+<hr>
+<h2>九、常见坑</h2>
+
+按踩到的频率排序：
+
+<strong>1. <code>fast</code> 先走了 <code>n</code> 步而不是 <code>n+1</code> 步，又没改循环条件</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>        <span class="c1"># 只走 n 步</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span>
+<span class="o">...</span>
+<span class="k">while</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>          <span class="c1"># 如果这里还是 while fast，slow 会停在待删节点上</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span>
+<span class="n">slow</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">slow</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>   <span class="c1"># ❌ 删掉的是「倒数第 n+1 个」，方向反了</span>
+</code></pre></div>
+
+
+两种约定都能写出正确代码——「先走 n 步 + <code>while fast.next</code>」或「先走 n+1 步 + <code>while fast</code>」——但<strong>不能混着来</strong>。混用的结果是慢指针差一个身位，删错节点。
+
+<strong>2. 返回 <code>head</code> 而不是 <code>dummy.next</code></strong>
+
+删头节点的用例（<code>[1,2], n=2</code>）会当场挂掉：返回了一个已经不在链上的节点。
+
+<strong>3. 不加 dummy，删头时忘记特判 <code>if fast is None</code></strong>
+
+<code>[1], n=1</code> 或 <code>[1,2], n=2</code> 直接空指针异常。
+
+<strong>4. 把「删除」理解成销毁节点</strong>
+
+<code>slow.next = slow.next.next</code> 之后，被删节点的 <code>next</code> 依然指着链表里的节点。在 C/C++ 里这意味着内存泄漏，也意味着某些 OJ 的「断环检测」会误报。严谨的做法是把被删节点的 <code>next</code> 置空。
+
+<strong>5. 先走阶段没有考虑 <code>n+1</code> 可能正好等于链长加一</strong>
+
+题目保证了 <code>n ≤ L</code>，<code>fast</code> 最多走到 <code>null</code> 就停；但如果面试变体放开了这个约束，<code>for</code> 循环里的 <code>fast.next</code> 会抛空指针。<strong>「题目保证的约束写在哪，防御性检查就该省在哪」——但要能说出来，而不是碰巧没写。</strong>
+<hr>
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先复述定位思路</strong>：「删除靠前驱，所以目标是倒数第 n+1 个节点。」</li>
+<li><strong>说核心技巧</strong>：「快慢指针间隔锁死为 n+1：fast 先走 n+1 步，然后同步前进，fast 到 null 时 slow 正好停在前驱上。」</li>
+<li><strong>主动提哑结点</strong>：「引入 dummy 是为了把『删头』变成普通删除，返回值也统一成 dummy.next。」</li>
+<li><strong>报复杂度</strong>：「一趟扫描，时间 O(L)，空间 O(1)。」</li>
+<li><strong>抛出追问</strong>：「同一套『间隔锁死』还能解决：LC 876 找中点（fast 一次两格，slow 一次一格）、LC 61 旋转链表（定位倒数第 k 个再把尾部接到头部）、面试题 02.02 返回倒数第 k 个节点——要展开吗？」</li>
+</ol>
+
+第 5 步的潜台词：快慢指针不是一个 trick，是一个<strong>家族</strong>。
+<hr>
+<h2>结语</h2>
+
+把快慢指针家族放在一张表里：
+<table>
+<thead>
+<tr>
+<th>题目</th>
+<th>fast 的走法</th>
+<th>slow 的走法</th>
+<th>相遇/停下时得到什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 19 删除倒数第 N 个</td>
+<td>先走 n+1 步，之后一步一格</td>
+<td>一步一格</td>
+<td>倒数第 n+1 个（前驱）</td>
+</tr>
+<tr>
+<td>面试题 02.02 倒数第 k 个</td>
+<td>先走 k 步，之后一步一格</td>
+<td>一步一格</td>
+<td>倒数第 k 个</td>
+</tr>
+<tr>
+<td>LC 876 链表的中间结点</td>
+<td>一步两格</td>
+<td>一步一格</td>
+<td>中点（偶数长度取后半）</td>
+</tr>
+<tr>
+<td>LC 141/142 环形链表</td>
+<td>一步两格</td>
+<td>一步一格</td>
+<td>环内相遇点 / 环入口</td>
+</tr>
+</tbody>
+</table>
+
+<strong>变化的是步频和初速度，不变的是「让两个指针产生可控的相对运动，用其中一个探测，用另一个定位」。</strong>
+
+所以下次遇到「倒数第 k 个」类的题目，先别想数长度。问自己两个问题：
+<ol>
+<li>我需要定位的是<strong>倒数第几个</strong>？（要删除就要多退一步，找前驱）</li>
+<li>两个指针的<strong>间隔和步频</strong>怎么设，才能让探测的那个刚好停在我要的位置？</li>
+</ol>
+
+把间隔当成一次性的初始条件锁死，剩下的就是同步前进——这比任何换算公式都稳。
+<hr>
+<blockquote>
+
+本文的推演动画是页面里的交互组件，可以单步回放。如果想自己验证间隔逻辑，拿纸画六个格子（最左画个 dummy）摆两枚硬币就行——<strong>在纸上推一遍，胜过看十遍代码。</strong>
+</blockquote></div></div></noscript>
+  </body>
+</html>
