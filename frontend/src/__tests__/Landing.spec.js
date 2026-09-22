@@ -34,11 +34,14 @@ describe('Landing (Home.vue)', () => {
     expect(wrapper.find('.page-landing').exists()).toBe(true)
   })
 
-  it('renders masthead with kicker, name and subtitle', async () => {
+  it('renders masthead with name and subtitle', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    expect(wrapper.find('.masthead__kicker').text()).toBe('ZhouJun · 深圳')
+    // 刊头不再有 kicker（「ZhouJun · 深圳」那行连同它上面那道 1px 短线一起删掉了）。
+    // 断言「不存在」而不是直接删掉这行，是为了让这次删除本身也被锁住 ——
+    // 否则以后谁把 kicker 加回来，测试不会响。
+    expect(wrapper.find('.masthead__kicker').exists()).toBe(false)
     expect(wrapper.find('.masthead__name').text()).toBe('代码与生活')
     expect(wrapper.find('.masthead__sub').text()).toBe('写字、写码、写日常。')
 

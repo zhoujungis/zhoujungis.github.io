@@ -3,7 +3,6 @@
     <!-- ── 刊头 Masthead ── -->
     <header class="masthead">
       <div class="masthead__main">
-        <p class="masthead__kicker">ZhouJun · 深圳</p>
         <h1 class="masthead__name">代码与生活</h1>
         <p class="masthead__sub">写字、写码、写日常。</p>
         <div class="masthead__lede">
@@ -340,20 +339,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   color: var(--text-secondary);
   font-family: $font-mono;
   font-size: 0.62rem;
-  letter-spacing: 0.14em;
-}
-
-.masthead__kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--glass-border);
-  color: var(--accent-secondary);
-  font-family: $font-mono;
-  font-size: 0.68rem;
-  font-weight: 600;
   letter-spacing: 0.14em;
 }
 
