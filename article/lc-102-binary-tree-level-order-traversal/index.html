@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-102-binary-tree-level-order-traversal/" />
+    <meta property="og:title" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来" />
+    <meta property="og:description" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-102-binary-tree-level-order-traversal/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-102-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来" />
+    <meta name="twitter:description" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-102-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DQsYcYt8.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-23T14:21:09.196810+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来","description":"【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size ","image":"https://zhoujungis.github.io/photos/lc-102-cover.png","datePublished":"2026-09-23T14:21:09.196810+08:00","dateModified":"2026-09-23T14:21:09.196845+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-102-binary-tree-level-order-traversal/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来</h1><div class="ns-meta">2026/9/23 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基
+<strong>收获</strong>：<code>size = len(queue)</code> 这一行的必要性，以及一个种子怎么写三个变体
+</blockquote>
+<h2>题目</h2>
+
+给你二叉树的根节点 <code>root</code>，返回其节点值的 <strong>层序遍历</strong>（即逐层地，从左到右访问所有节点）。
+<div class="codehilite"><pre><span></span><code>输入：root = [3,9,20,null,null,15,7]
+输出：[[3],[9,20],[15,7]]
+
+输入：root = [1]
+输出：[[1]]
+
+输入：root = []
+输出：[]
+</code></pre></div>
+
+
+注意输出的<strong>嵌套结构</strong>：不是 <code>[3,9,20,15,7]</code>，而是 <code>[[3],[9,20],[15,7]]</code>。
+
+单看题目，这就是 BFS 走一遍。但面试里它几乎不会裸考 —— 带出来的是这一串：
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>题号</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>锯齿形层序遍历</strong></td>
+<td>LC 103</td>
+<td>奇数层从左到右，偶数层从右到左</td>
+</tr>
+<tr>
+<td><strong>二叉树的右视图</strong></td>
+<td>LC 199</td>
+<td>只输出每层最右边的节点</td>
+</tr>
+<tr>
+<td><strong>自底向上的层序遍历</strong></td>
+<td>LC 107</td>
+<td>结果整体上下翻转</td>
+</tr>
+<tr>
+<td><strong>N 叉树的层序遍历</strong></td>
+<td>LC 429</td>
+<td>儿子列表换成 <code>node.children</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+出处备注：华为 2025 暑期面经的<strong>原题就是"之字形层序遍历"</strong>，腾讯、阿里也高频。这题被选中的原因很直接：它只有一层窗口（队列）和两个循环，20 行以内能写完，但<strong>分层的写法对不对，一眼就看得出来</strong>。
+</blockquote>
+
+节点的定义，沿用前几篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TreeNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">left</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">right</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>顺带说一句输入格式</strong>：<code>[3,9,20,null,null,15,7]</code> 是 LeetCode 的层序数组编码，不是随便排的。下标 <code>i</code> 的节点，左孩子在 <code>2i+1</code>、右孩子在 <code>2i+2</code>，空缺位置用 <code>null</code> <strong>占着位</strong>。所以 <code>9</code> 没有孩子（<code>3,4</code> 两位是 <code>null</code>），而 <code>20</code> 的两个孩子在 <code>5,6</code>，对应 <code>15</code> 和 <code>7</code>。这篇后面画的树就是按这个规则还原的。
+</blockquote>
+<hr>
+<h2>一、BFS 三行就能写出"访问顺序"，但分层输出是另一回事</h2>
+<h3>1.1 不带分层的 BFS：先确认你已经会了</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">bfs</span><span class="p">(</span><span class="n">root</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>          <span class="c1"># 出队</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>        <span class="c1"># 访问</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>     <span class="c1"># 左孩子入队</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>    <span class="c1"># 右孩子入队</span>
+    <span class="k">return</span> <span class="n">out</span>
+</code></pre></div>
+
+
+跑一下 <code>[3,9,20,null,null,15,7]</code>，得到 <code>[3, 9, 20, 15, 7]</code> —— 这个顺序是<strong>对的</strong>，层序遍历要的就是它。
+
+问题是：<strong>这五個数字之间的"层边界"在哪？</strong> 光看这个一维数组，你分不清哪几个是同一层的。
+<h3>1.2 队列里天然就分了层，问题是怎么"切"出来</h3>
+
+关键在于队列的一个物理性质：
+<blockquote>
+
+<strong>同一层的节点，在队列里一定是挨在一起的；而且它们一定比下一层的节点先出队。</strong>
+</blockquote>
+
+推进过程是这样的：
+<div class="codehilite"><pre><span></span><code>初始        q = [3]
+出队 3      q = [9, 20]         ← 第 1 层整批进来了
+出队 9      q = [20]            ← 9 没有孩子，不产生新节点
+出队 20     q = [15, 7]         ← 第 2 层整批进来了
+出队 15     q = []
+出队 7      q = []
+</code></pre></div>
+
+
+看第二行：<code>9</code> 和 <code>20</code> 是<strong>连续</strong>排在一起的，中间没有 <code>15</code>、<code>7</code> 插进来。这不是巧合 —— 因为入队的顺序严格是"第 0 层出队时把第 1 层全部入队"，第 1 层出队时才轮到第 2 层。<strong>FIFO 天然保证了这一点。</strong>
+
+所以分层的信息<strong>本来就在队列里</strong>，只是上面那段代码每轮只出队一个、出完就没了。要做的是：<strong>在一层开始的时候，先记下这一层有几个节点。</strong>
+<h3>1.3 那一行：<code>size = len(queue)</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>          <span class="c1"># ★ 进这一层之前，先把当前队列长度存下来</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>  <span class="c1"># ★ 只出队 size 次</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>为什么必须用 <code>size</code>，不能直接写 <code>while q</code>？</strong>
+
+因为内层那个 <code>for</code> 循环是<strong>一边出队、一边入队</strong>的。<code>9</code> 和 <code>20</code> 出队的同一轮里，<code>15</code> 和 <code>7</code> 已经被推进队列了。如果不先把长度存下来，而是拿<strong>实时长度</strong>当循环条件：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>    <span class="c1"># ✗ 错的：len(q) 每一轮都在变</span>
+</code></pre></div>
+
+
+那么第 0 层出队 <code>3</code> 之后 <code>len(q)</code> 变成 2，<code>9</code> 和 <code>20</code> 出队时 <code>len(q)</code> 又涨回去 —— 循环会一直把<strong>下一层</strong>的节点也卷进来，层就分不开了。
+
+把 <code>len(q)</code> 取快照存进 <code>size</code>，这一行同时给了三样东西：
+<ol>
+<li><strong>分层</strong>：<code>size</code> 就是"这一层有几个节点"；</li>
+<li><strong>循环次数</strong>：<code>for _ in range(size)</code> 精确出队这么多次；</li>
+<li><strong>变体的抓手</strong>：后面 103 / 199 全都挂在这个 <code>size</code> 上。</li>
+</ol>
+<blockquote>
+
+一句话记法：<strong>进 while 的那一刻先把队列长度存下来。</strong> 存完之后，内层怎么进出队都不影响这一层的边界了。
+</blockquote>
+<h3>1.4 完整代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">levelOrder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TreeNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span>
+
+        <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>              <span class="c1"># ★ 这一层的节点数，快照</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>      <span class="c1"># 只处理这一层</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>          <span class="c1"># 封层</span>
+
+        <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+<strong>十行，主流程就这些。</strong> 下面几节全部是在这一副骨架上换皮。
+<hr>
+<h2>二、动画：看着 size 把层"框"住</h2>
+
+下面这个动画把 <code>[3,9,20,null,null,15,7]</code> 的全程拆成 15 帧。留意三件事：
+<ul>
+<li><strong>队列条上那个绿色的括号</strong>：它标的就是 <code>size</code> —— 左边是队首（<code>head</code>），括号框住的是"当前这一层还剩几个没出队"。每出队一个，括号就缩短一格；缩到 0 就说明这一层结束了；</li>
+<li><strong>橙色的节点是正在出队的那个</strong>，出完变绿；<strong>绿色实心的是刚入队的</strong>（它们是下一层的成员，此刻正排在队尾）；</li>
+<li><strong>结果区逐行长出来</strong>：每次"封层"（<code>close</code> 帧）才追加一行，所以它长出来的节奏是 <code>[3]</code> → 两行 → 三行，跟树的层一一对应。</li>
+</ul>
+<div class="algo-viz algo-viz--lc102"></div>
+
+
+看动画时可以专门盯住第 4 帧和第 9 帧（两个 <code>close</code> 帧）：<strong>只有在 <code>size</code> 个节点全部出队之后，结果区才会多出一行。</strong> 这就是"分层"在画面上最直接的体现。
+<hr>
+<h2>三、完整推演表</h2>
+
+用动画里的例子：
+<div class="codehilite"><pre><span></span><code>层序数组下标: 0=3  1=9  2=20  3=null  4=null  5=15  6=7
+树：
+        3
+      /   \
+     9     20
+          /  \
+        15    7
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>phase</th>
+<th>队列（队首在左）</th>
+<th>层</th>
+<th>size</th>
+<th>已出队</th>
+<th>动作</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td><code>[]</code> → <code>[3]</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>根节点入队</td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td><strong>enter</strong></td>
+<td><code>[3]</code></td>
+<td>0</td>
+<td><strong>1</strong></td>
+<td>0</td>
+<td><strong>快照 <code>size = 1</code></strong></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>consume</td>
+<td><code>[]</code></td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>出队 <code>3</code>，收集 <code>3</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>enqueue</td>
+<td><code>[9,20]</code></td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td><code>9</code>、<code>20</code> 入队，<strong>排到队尾</strong></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>close</strong></td>
+<td><code>[9,20]</code></td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>封层 → <strong><code>[3]</code></strong></td>
+<td><code>[[3]]</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>enter</strong></td>
+<td><code>[9,20]</code></td>
+<td>1</td>
+<td><strong>2</strong></td>
+<td>0</td>
+<td><strong>快照 <code>size = 2</code></strong></td>
+<td><code>[[3]]</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>consume</td>
+<td><code>[20]</code></td>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+<td>出队 <code>9</code>，收集 <code>9</code>（无孩子）</td>
+<td><code>[[3]]</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>consume</td>
+<td><code>[]</code></td>
+<td>1</td>
+<td>2</td>
+<td>2</td>
+<td>出队 <code>20</code>，收集 <code>20</code></td>
+<td><code>[[3]]</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>enqueue</td>
+<td><code>[15,7]</code></td>
+<td>1</td>
+<td>2</td>
+<td>2</td>
+<td><code>15</code>、<code>7</code> 入队</td>
+<td><code>[[3]]</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>close</strong></td>
+<td><code>[15,7]</code></td>
+<td>1</td>
+<td>2</td>
+<td>2</td>
+<td>封层 → <strong><code>[9,20]</code></strong></td>
+<td><code>[[3],[9,20]]</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>enter</strong></td>
+<td><code>[15,7]</code></td>
+<td>2</td>
+<td><strong>2</strong></td>
+<td>0</td>
+<td><strong>快照 <code>size = 2</code></strong></td>
+<td><code>[[3],[9,20]]</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>consume</td>
+<td><code>[7]</code></td>
+<td>2</td>
+<td>2</td>
+<td>1</td>
+<td>出队 <code>15</code>，收集 <code>15</code>（无孩子）</td>
+<td><code>[[3],[9,20]]</code></td>
+</tr>
+<tr>
+<td>12</td>
+<td>consume</td>
+<td><code>[]</code></td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>出队 <code>7</code>，收集 <code>7</code></td>
+<td><code>[[3],[9,20]]</code></td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>close</strong></td>
+<td><code>[]</code></td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>封层 → <strong><code>[15,7]</code></strong></td>
+<td><code>[[3],[9,20],[15,7]]</code></td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>done</strong></td>
+<td><code>[]</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>队列空，返回</td>
+<td><strong><code>[[3],[9,20],[15,7]]</code></strong></td>
+</tr>
+</tbody>
+</table>
+
+三个 <code>enter</code> 帧的 <code>size</code> 分别是 <code>1 / 2 / 2</code> —— 正好是树三层的节点数。<strong>这就是"分层"的全部秘密，剩下的都是 BFS。</strong>
+<blockquote>
+
+注意第 3 帧和第 8 帧：这两帧的 <code>size</code> 都没有变化（还是 1 和 2），因为<strong>入队不改变"这一层有几个节点"这件事</strong>。<code>size</code> 只是快照，全程不重算。
+
+另外看第 4 帧和第 5 帧、第 9 帧和第 10 帧：<code>close</code> 和紧接着的 <code>enter</code> 帧里队列内容完全一样。不同的是 <code>levelIndex</code> 加一了、<code>consumed</code> 归零了、<code>levelValues</code> 清空了 —— <strong>一个在收尾，一个在开新的一层</strong>。
+</blockquote>
+<hr>
+<h2>四、变体一：LC 103 锯齿形层序遍历</h2>
+
+<strong>要求</strong>：奇数层从左到右，偶数层从右到左。<code>[3,9,20,null,null,15,7]</code> 的答案从 <code>[[3],[9,20],[15,7]]</code> 变成 <strong><code>[[3],[20,9],[15,7]]</code></strong>。
+
+（注：这里的"奇数层 / 偶数层"是按 LeetCode 的说法，<code>root</code> 记为<strong>第 1 层</strong>。换成 0 起的下标就是"第 1、3、5…（下标奇数）层反向"。）
+<h3>4.1 常见写法：先正常收集，再 reverse</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">level</span><span class="p">)</span>      <span class="c1"># 事后翻转</span>
+</code></pre></div>
+
+
+能过，但有两种小毛病：一是"反"这件事发生在事后，跟"入队顺序"这个真正的机制没有对应关系；二是有的面试官会追问"能不能一边收集一边就放对位置"。
+<h3>4.2 换一只头：头插代替事后翻转</h3>
+
+层内节点的<strong>出队顺序永远是左→右</strong>（因为入队一直是 <code>left</code> 先 <code>right</code> 后），这一点不能动。变的是<strong>值往 <code>level</code> 的哪一头放</strong>：
+<div class="codehilite"><pre><span></span><code><span class="n">reversed_layer</span> <span class="o">=</span> <span class="p">(</span><span class="n">level_index</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>     <span class="c1"># 0 起下标，奇数层要反</span>
+
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">reversed_layer</span><span class="p">:</span>
+        <span class="n">level</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>   <span class="c1"># ★ 头插：等价于右→左</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>      <span class="c1"># 尾插：左→右</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+        <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>         <span class="c1"># ★ 入队顺序永远 left → right</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+        <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>头插的法子好在哪</strong>：<code>9</code> 先出队，头插进去是 <code>[9]</code>；<code>20</code> 后出队，头插进去把它顶到前面变成 <code>[20, 9]</code> —— 一个插入动作同时完成了"收集"和"排序"，不需要第二次遍历。
+<blockquote>
+
+⚠️ 最容易写错的点：<strong>队列本身的左右入队顺序永远是 <code>left → right</code>，锯齿只改变"值放进结果的哪一头"。</strong>
+
+<code>20</code> 的孩子 <code>15</code>、<code>7</code> 在锯齿模式下依然按 <code>15 → 7</code> 入队。如果把入队顺序也跟着层数反转，第 2 层（原序）就会变成 <code>[7, 15]</code>，答案直接错。<strong>要反的是输出，不是遍历。</strong>
+</blockquote>
+<h3>4.3 完整代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">zigzagLevelOrder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TreeNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span>
+
+        <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">reverse</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span>        <span class="c1"># 偶数层（下标奇数）要反</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">reverse</span><span class="p">:</span>
+                    <span class="n">level</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+跟 LC 102 的 diff 只有三处：多一个 <code>reverse</code> 变量、<code>append</code> 变成条件二选一、其余不动。<strong><code>size</code> 快照那行完全没碰。</strong>
+<blockquote>
+
+复杂度：<code>list.insert(0, ...)</code> 在 Python 里是 <code>O(k)</code>（k 是当前层节点数），所以最坏情况（完全偏斜、每层 1 个节点）摊还下来整体仍是 <code>O(n)</code>，但树很宽的时候常数项不如"先 append 再 reverse"。要追求稳定，用 <code>collections.deque</code> 的两端操作或者事后 <code>level.reverse()</code> 更稳。<strong>面试时能主动说出这一层，是加分项。</strong>
+</blockquote>
+<hr>
+<h2>五、变体二：LC 199 二叉树的右视图</h2>
+
+<strong>要求</strong>：想象你站在树的右侧，返回从上到下能看到的节点值。也就是<strong>每层最右边那个</strong>。
+
+<code>[3,9,20,null,null,15,7]</code> 的答案是 <strong><code>[3, 20, 7]</code></strong>：第 0 层看 <code>3</code>，第 1 层看 <code>20</code>，第 2 层看 <code>7</code>。
+<h3>5.1 不要为它单写一套逻辑</h3>
+
+这题的诱惑是"再造一个状态机专门算右视图"。但注意：<strong>"每层最后一个"这个信息，在封层那一刻恰好就是 <code>level</code> 的末位元素。</strong> 所以只要在主流程里搭一行就够了：
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+    <span class="n">right_view</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>     <span class="c1"># ★ 就这一行：封层时取末位</span>
+</code></pre></div>
+
+
+<strong>复杂度没变、循环结构没变，加一行就出结果。</strong>
+<h3>5.2 完整代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rightSideView</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TreeNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">right_view</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span>
+
+        <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>            <span class="c1"># 这一层的最后一个</span>
+                    <span class="n">right_view</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">right_view</span>
+</code></pre></div>
+
+
+<code>i == size - 1</code> 和 <code>level[-1]</code> 是同一件事，前者省了一个 <code>level</code> 数组 —— 只要右视图的话用这个更省。
+<h3>5.3 ⚠️ 锯齿 + 右视图会打架</h3>
+
+如果一道题同时要求锯齿输出和右视图（面经里出现过），<strong>别指望复用同一个"最后"</strong>：
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>第 1 层结果</th>
+<th>右视图应取</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>普通（左→右）</td>
+<td><code>[9, 20]</code></td>
+<td>末位 <code>20</code> ✅</td>
+</tr>
+<tr>
+<td><strong>锯齿（右→左）</strong></td>
+<td><strong><code>[20, 9]</code></strong></td>
+<td>末位变成 <code>9</code> ❌，应该还是 <code>20</code></td>
+</tr>
+</tbody>
+</table>
+
+动画里能直接验证这一点：切到锯齿模式后，第 9 帧结果区第二行长成 <code>[20, 9]</code>，同时右视图那一栏显示的是 <code>9</code> —— <strong>因为右视图是"从 <code>levelValues</code> 取末位"算出来的，不是单独遍历树。</strong> 真要两个同时要，右视图得单独按普通顺序算一遍（或者取锯齿结果的<strong>首位</strong>）。
+<blockquote>
+
+这是"变体套变体"最典型的坑：<strong>每个变体都寄生在同一个 <code>size</code> 上，但它们之间不保证正交。</strong> 面试里同时问两个，先问清楚"右视图是按树的左右算，还是按输出顺序算"。
+</blockquote>
+<hr>
+<h2>六、再顺手带两个</h2>
+<h3>6.1 LC 107 自底向上：结果翻一下就行</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="n">res</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>        <span class="c1"># 或者层级遍历时 res.insert(0, level)</span>
+</code></pre></div>
+
+
+<strong>注意</strong>：只翻<strong>层与层之间</strong>的顺序，每层内部的左右顺序<strong>不动</strong>。<code>[[3],[9,20],[15,7]]</code> → <code>[[15,7],[9,20],[3]]</code>。把每层内部也反了，就变成 103 了。
+<h3>6.2 LC 429 N 叉树：把"两个孩子"换成"孩子列表"</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>      <span class="c1"># ★ 唯一改动</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+</code></pre></div>
+
+
+N 叉树节点没有 <code>left</code>/<code>right</code>，只有一个 <code>children</code> 列表。<strong><code>size</code> 快照那一行照抄。</strong>
+<hr>
+<h2>七、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">levelOrder</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">TreeNode</span><span class="o">&gt;</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">root</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">q</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">size</span><span class="p">();</span><span class="w">                    </span><span class="c1">// ★ 快照</span>
+<span class="w">            </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">size</span><span class="p">);</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">size</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">                </span><span class="n">level</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="p">);</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">level</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+锯齿版（Java 比 Python 还干净，<code>LinkedList</code> 两头都能插）：
+<div class="codehilite"><pre><span></span><code><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">q</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">size</span><span class="p">();</span>
+<span class="w">    </span><span class="n">LinkedList</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">    </span><span class="kt">boolean</span><span class="w"> </span><span class="n">reverse</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">res</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">size</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">reverse</span><span class="p">)</span><span class="w"> </span><span class="n">level</span><span class="p">.</span><span class="na">addFirst</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="p">);</span><span class="w">      </span><span class="c1">// 头插</span>
+<span class="w">        </span><span class="k">else</span><span class="w">         </span><span class="n">level</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="p">);</span><span class="w">       </span><span class="c1">// 尾插</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">level</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 里两个提醒：
+<ul>
+<li><strong><code>int size = q.size()</code> 必须取出来</strong>，别在 <code>for</code> 条件里写 <code>i &lt; q.size()</code> —— 那样每轮都会重算，直接踩坑；</li>
+<li><strong><code>ArrayDeque</code> 不允许放 <code>null</code></strong>（<code>LinkedList</code> 可以，但没必要）。这题的入队都带 <code>if</code> 判空，不会踩到。</li>
+</ul>
+<hr>
+<h2>八、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>结果</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td><code>root</code> 为空，直接返回空列表（<strong>别返回 <code>[[]]</code></strong>）</td>
+</tr>
+<tr>
+<td><code>[1]</code></td>
+<td><code>[[1]]</code></td>
+<td><code>size = 1</code>，一层一个节点</td>
+</tr>
+<tr>
+<td><code>[1,2]</code></td>
+<td><code>[[1],[2]]</code></td>
+<td>只有左孩子，第 1 层只有 1 个节点（<code>size = 1</code>）</td>
+</tr>
+<tr>
+<td><code>[1,null,2]</code></td>
+<td><code>[[1],[2]]</code></td>
+<td>只有右孩子，结果和上面一样 —— <strong>位置不同但值序列相同</strong></td>
+</tr>
+<tr>
+<td><code>[1,2,3]</code></td>
+<td><code>[[1],[2,3]]</code></td>
+<td>标准满二叉树两层</td>
+</tr>
+<tr>
+<td><code>1→2→3→...</code>（完全右偏）</td>
+<td><code>[[1],[2],[3],...]</code></td>
+<td>每层只有 1 个节点，层数 = 节点数</td>
+</tr>
+<tr>
+<td><code>[1,2,null,3]</code></td>
+<td><code>[[1],[2],[3]]</code></td>
+<td>左偏 + 空位占槽，深度 3</td>
+</tr>
+<tr>
+<td><code>[1,1,1]</code></td>
+<td><code>[[1],[1,1]]</code></td>
+<td>值相同不影响结构，仍按位置分层</td>
+</tr>
+</tbody>
+</table>
+
+两个容易错的：
+<ul>
+<li><strong><code>[]</code> 返回 <code>[]</code> 不是 <code>[[]]</code></strong>。写 <code>while q</code> 之前没有 <code>if not root</code> 守卫，<code>deque([None])</code> 会先入队一个 <code>None</code>，然后 <code>node.val</code> 直接 <code>AttributeError</code>；</li>
+<li><strong><code>[1,2]</code> 和 <code>[1,null,2]</code> 结果相同</strong>。这说明这题只看<strong>值序列和分层</strong>，不区分左右。但如果换成"返回每层的节点对象"或者考 199 右视图，两者就分开了 —— 做变体时别把这个直觉带过去。</li>
+</ul>
+<hr>
+<h2>九、复杂度</h2>
+<ul>
+<li><strong>时间 <code>O(n)</code></strong>：每个节点恰好入队一次、出队一次。内层的 <code>for _ in range(size)</code> 加起来总共执行 <code>n</code> 次，不是嵌套的独立遍历 —— 这一点和 LC 82 里"内层 while 推的是同一个 <code>curr</code>"是同一类论证；</li>
+<li><strong>空间 <code>O(n)</code></strong>：队列最宽的时候（最底层）会同时持有约 <code>n/2</code> 个节点；结果数组本身也要装 <code>n</code> 个值。所以是 <code>O(n)</code>，不是 <code>O(1)</code>。</li>
+</ul>
+<blockquote>
+
+面试加分点：<strong>能主动区分"队列空间"和"结果空间"。</strong> 队列的峰值是"最宽一层的宽度"，对完全二叉树是 <code>O(n)</code>，但对完全偏斜的树退化成 <code>O(1)</code>。这个观察能直接引出"为什么 BFS 在宽树上更吃内存、DFS 在深树上更吃栈"的讨论。
+</blockquote>
+<hr>
+<h2>十、常见坑</h2>
+
+<strong>1. 拿实时 <code>len(q)</code> 当循环条件。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>    <span class="c1"># ✗ 层会串在一起</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+
+这是这题唯一真正的坑，也是最常见的失分点。<strong>必须 <code>size = len(q)</code> 先存下来。</strong>
+
+<strong>2. 忘了 <code>if not root</code> 守卫。</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span>              <span class="c1"># ✗ root 可能是 None</span>
+<span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+    <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>     <span class="c1"># ✗ AttributeError</span>
+</code></pre></div>
+
+
+<strong>3. 结果返回 <code>[[]]</code> 而不是 <code>[]</code>。</strong>
+
+空树时如果先 <code>res.append(level)</code> 再判断，就会得到一个只含空列表的结果。所以守卫要放在最开头。
+
+<strong>4. 锯齿模式下把入队顺序也反了。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">reverse</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span> <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>   <span class="c1"># ✗ 错的！队列顺序不能跟着反</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>  <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>入队永远 <code>left → right</code>，只反输出的那一头。</strong>
+
+<strong>5. 用 <code>list.pop(0)</code> 当出队。</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">q</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+<span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>                <span class="c1"># ✗ O(n) 的删除，整体退化成 O(n²)</span>
+</code></pre></div>
+
+
+Python 里用 <code>collections.deque.popleft()</code>，Java 里用 <code>ArrayDeque.poll()</code>。<strong>这个坑在大数据量用例上会超时。</strong>
+
+<strong>6. 把"右视图"直接当成"每层最后一个"套到锯齿模式上。</strong>
+
+上一节 5.3 说过：锯齿下 <code>level</code> 的末位是左边那个。<strong>两个变体共用 <code>size</code>，但语义不共用。</strong>
+
+<strong>7. 把输入数组的 <code>null</code> 当节点。</strong>
+
+<code>[3,9,20,null,null,15,7]</code> 里的 <code>null</code> 是<strong>占位符</strong>，代表"这个位置没有节点"。自己手动还原树的时候，<code>9</code> 的两个孩子位是 <code>null</code>，不能给它造出 <code>None</code> 值的孩子节点 —— 那会让第 1 层的 <code>size</code> 变成 4 而不是 2。
+<hr>
+<h2>十一、面试怎么答</h2>
+
+<strong>开口 30 秒给思路</strong>（别一上来就写代码）：
+<blockquote>
+
+用 BFS。关键是分层：进 <code>while</code> 循环的第一件事是把当前队列长度存成 <code>size</code>，因为内层要一边出队一边把下一层节点入队，队列长度一直在变，不存快照就没法确定这一层的边界。然后 <code>for</code> 循环跑 <code>size</code> 次，每次出队一个、收集它的值、把左右孩子按顺序入队。循环结束就是一层结束，把这一层的结果追加到答案里。时间 O(n)，空间 O(n)。
+</blockquote>
+
+<strong>然后主动交代两个变体怎么改</strong>：
+<ol>
+<li><strong>锯齿（103）</strong>：加一个 <code>reverse</code> 判断，<code>append</code> 换成"偶数层头插、奇数层尾插"。<strong>队列的入队顺序永远不变，只反输出那一头</strong>；</li>
+<li><strong>右视图（199）</strong>：封层时取 <code>level[-1]</code>，一行就够，不用单独遍历。</li>
+</ol>
+
+<strong>追问应对</strong>：
+<ul>
+<li><em>"为什么一定要 <code>size</code>？我直接 <code>while q</code> 一轮轮处理不行吗？"</em> —— 不行。因为第 0 层出队时会立刻把第 1 层入队，队列里同时混着两层。不做快照的话，第 1 层的节点会在同一轮里被一起出掉，层就分不开了。</li>
+<li><em>"内层的 <code>for</code> 不会让复杂度变成嵌套吗？"</em> —— 不会。外层 <code>while</code> 的每一轮对应一层，<code>for</code> 的次数加起来正好是 <code>n</code>（每个节点只出队一次），摊还是 <code>O(n)</code>。</li>
+<li><em>"锯齿能不能用递归 + 层号奇偶判断？"</em> —— 能，DFS 带一个 <code>depth</code> 参数，首次到达某层时先建空数组，然后按 <code>depth</code> 奇偶决定 <code>append</code> 还是 <code>insert(0)</code>。但 BFS 更贴题，而且天然是按层顺序的。</li>
+<li><em>"为什么用 deque 不用 list？"</em> —— <code>list.pop(0)</code> 是 <code>O(n)</code>，整个算法会退化成 <code>O(n²)</code>。<code>deque.popleft()</code> 是 <code>O(1)</code>。</li>
+<li><em>"空间为什么是 O(n)？"</em> —— 队列峰值是最宽那一层，最坏（完全二叉树）约 <code>n/2</code>；结果数组本身也要存 <code>n</code> 个值。</li>
+<li><em>"199 的右视图能不能不用 level 数组？"</em> —— 能，<code>if i == size - 1</code> 直接收集，省掉中间数组。</li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+把树系列串起来看，这题的位置是这样的：
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>核心动作</th>
+<th>和本题的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 144 / 94 / 145</strong> 前中后序</td>
+<td>递归 / 显式栈（DFS）</td>
+<td>深度优先的另一半版图</td>
+</tr>
+<tr>
+<td><strong>LC 102</strong> 层序遍历</td>
+<td><code>size = len(q)</code> 快照分层</td>
+<td>本文，整个家族的<strong>地基</strong></td>
+</tr>
+<tr>
+<td><strong>LC 103</strong> 锯齿形</td>
+<td>头插 / 尾插二选一</td>
+<td>只改"值放哪一头"</td>
+</tr>
+<tr>
+<td><strong>LC 199</strong> 右视图</td>
+<td>封层取末位</td>
+<td>只加一行</td>
+</tr>
+<tr>
+<td><strong>LC 107</strong> 自底向上</td>
+<td><code>res[::-1]</code></td>
+<td>只翻层间顺序</td>
+</tr>
+<tr>
+<td><strong>LC 429</strong> N 叉树</td>
+<td><code>for child in node.children</code></td>
+<td>只换入队的来源</td>
+</tr>
+</tbody>
+</table>
+
+这题值得带走的不是那十行代码，而是这个反射：
+<blockquote>
+
+<strong>看到"要按层处理"，先想队列；看到"要分出层的边界"，先把 <code>len(queue)</code> 存下来。</strong>
+</blockquote>
+
+<code>size</code> 快照这一行，是 102 / 103 / 199 / 107 / 429 五道题的<strong>公共祖先</strong>。记住它，剩下的是换皮；记不住它，每一道都得重新想一遍分层。
+<div class="codehilite"><pre><span></span><code><span class="nv">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>[<span class="mi">3</span>]<span class="w">              </span>←<span class="w"> </span>进<span class="w"> </span><span class="k">while</span><span class="w"> </span>前：<span class="nv">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">   </span>↓<span class="w"> </span>出队<span class="w"> </span><span class="mi">3</span>，入队<span class="w"> </span><span class="mi">9</span>、<span class="mi">20</span>
+<span class="nv">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>[<span class="mi">9</span>,<span class="w"> </span><span class="mi">20</span>]<span class="w">          </span>←<span class="w"> </span>下一轮进<span class="w"> </span><span class="k">while</span><span class="w"> </span>前：<span class="nv">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">   </span>↓<span class="w"> </span>出队<span class="w"> </span><span class="mi">9</span>、<span class="mi">20</span>，入队<span class="w"> </span><span class="mi">15</span>、<span class="mi">7</span>
+<span class="nv">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>[<span class="mi">15</span>,<span class="w"> </span><span class="mi">7</span>]<span class="w">          </span>←<span class="w"> </span>再下轮：<span class="nv">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span>
+</code></pre></div>
+
+
+<strong><code>size</code> 就是每一层的边界线。</strong> 它是在进 <code>while</code> 的那一刻被拍下来的快照，拍完之后队列里怎么翻江倒海，都跟这一层无关了。</div></div></noscript>
+  </body>
+</html>
