@@ -19,6 +19,7 @@ import { mountIntersectLists } from '@/viz/intersectLists'
 import { mountRemoveDups2 } from '@/viz/removeDups2'
 import { mountLevelOrder } from '@/viz/levelOrder'
 import { mountLca } from '@/viz/lca'
+import { mountMaxPathSum } from '@/viz/maxPathSum'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -317,6 +318,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc82': mountRemoveDups2,
   'algo-viz--lc102': mountLevelOrder,
   'algo-viz--lc236': mountLca,
+  'algo-viz--lc124': mountMaxPathSum,
 }
 
 let vizHandles = []
