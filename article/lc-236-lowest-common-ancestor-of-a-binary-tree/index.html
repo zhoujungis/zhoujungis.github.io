@@ -1,0 +1,1145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得&quot;边界太多、情况太杂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问&quot;子树里有没有&quot;的后序 " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-236-lowest-common-ancestor-of-a-binary-tree/" />
+    <meta property="og:title" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」" />
+    <meta property="og:description" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得&quot;边界太多、情况太杂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问&quot;子树里有没有&quot;的后序 " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-236-lowest-common-ancestor-of-a-binary-tree/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-236-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」" />
+    <meta name="twitter:description" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得&quot;边界太多、情况太杂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问&quot;子树里有没有&quot;的后序 " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-236-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-23eXL46_.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-23T16:42:52.438933+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」","description":"【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得\"边界太多、情况太杂\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问\"子树里有没有\"的后序 ","image":"https://zhoujungis.github.io/photos/lc-236-cover.png","datePublished":"2026-09-23T16:42:52.438933+08:00","dateModified":"2026-09-23T16:42:52.439168+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-236-lowest-common-ancestor-of-a-binary-tree/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」</h1><div class="ns-meta">2026/9/23 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：会写二叉树递归遍历，但一看这题就觉得"边界太多、情况太杂"的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等（代码 8 行，但<strong>每一行都在考你对递归返回值的理解</strong>）
+<strong>收获</strong>：一个只问"子树里有没有"的后序 DFS，三种返回值的含义，以及 235 / 1650 / 1676 一整串变体
+</blockquote>
+<h2>题目</h2>
+
+给定一个二叉树，找到该树中两个指定节点的<strong>最近公共祖先</strong>（Lowest Common Ancestor，LCA）。
+<blockquote>
+
+最近公共祖先的定义：对于有根树 T 的两个节点 p、q，最近公共祖先表示为一个节点 x，满足 x 是 p、q 的祖先且 <strong>x 的深度尽可能大</strong>（一个节点也可以是它自己的祖先）。
+</blockquote>
+<div class="codehilite"><pre><span></span><code>输入：root = [3,5,1,6,2,0,8,null,null,7,4], p = 5, q = 1
+输出：3
+解释：节点 5 和节点 1 的最近公共祖先是节点 3。
+
+输入：root = [3,5,1,6,2,0,8,null,null,7,4], p = 5, q = 4
+输出：5
+解释：节点 5 和节点 4 的最近公共祖先是节点 5，因为根据定义最近公共祖先节点可以为节点本身。
+</code></pre></div>
+
+
+这题是<strong>二叉树递归的"毕业考"</strong>。它短，但短得很危险 —— 面试官从这一题能看出你三件事：
+<table>
+<thead>
+<tr>
+<th>考点</th>
+<th>题目里对应的那句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>你会不会写<strong>后序</strong>递归（先拿子树答案，再定自己）</td>
+<td>要先知道左右子树的情况，才能判断自己</td>
+</tr>
+<tr>
+<td>你懂不懂<strong>返回值可以有多重含义</strong></td>
+<td>"一个节点也可以是它自己的祖先"</td>
+</tr>
+<tr>
+<td>你会不会<strong>用返回值向上传递信息</strong></td>
+<td>整个过程没有任何全局变量</td>
+</tr>
+</tbody>
+</table>
+
+变体也成串：
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>题号</th>
+<th>差别</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>BST 的 LCA</strong></td>
+<td>LC 235</td>
+<td>利用 BST 有序性，<strong>从上往下一次走到底</strong>，O(h)，不用回溯</td>
+</tr>
+<tr>
+<td><strong>带父指针的 LCA</strong></td>
+<td>LC 1650</td>
+<td>每个节点多一个 <code>parent</code> 指针 → 变成<strong>两条链表求交点</strong></td>
+</tr>
+<tr>
+<td><strong>最深叶节点的最近公共祖先</strong></td>
+<td>LC 1123</td>
+<td>找最深那层叶子的 LCA</td>
+</tr>
+<tr>
+<td><strong>多目标 LCA</strong></td>
+<td>LC 1676</td>
+<td>p、q 变成一个节点数组</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+出处备注：LC 236 是<strong>字节、腾讯、美团</strong>的递归高频题。被选中的原因很直接：<strong>8 行代码，但"返回值到底代表什么"这件事说不清楚的人占大多数。</strong> 面试官最爱追问的那句就是"如果 p 是 q 的祖先呢？"—— 本文第 3 节专门回答它。
+</blockquote>
+
+节点的定义，沿用前几篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TreeNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">left</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">right</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>输入格式提醒</strong>：<code>[3,5,1,6,2,0,8,null,null,7,4]</code> 同样是 LeetCode 的<strong>层序数组编码</strong>（和 LC 102 一样）。下标 <code>i</code> 的节点，左孩子在 <code>2i+1</code>、右孩子在 <code>2i+2</code>，空缺位置用 <code>null</code> 占位。这篇后面画的树就是按这个规则还原的 —— 注意 <code>6</code> 的两个孩子位是 <code>null</code>（它没有孩子），所以 <code>[7,4]</code> 挂在 <code>2</code> 下面，而不是挂在 <code>6</code> 下面。
+</blockquote>
+<hr>
+<h2>一、先说清楚这题到底难在哪</h2>
+<h3>1.1 直觉方案为什么不够好</h3>
+
+最直白的想法是：<strong>把 p 的祖先链和 q 的祖先链都求出来，然后从后往前找第一个公共的。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+    <span class="n">path_p</span><span class="p">,</span> <span class="n">path_q</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>        <span class="c1"># 求从根到 target 的路径</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="ow">is</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span> <span class="ow">or</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">path</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>                      <span class="c1"># 回溯：这条分支里没有</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">path_p</span><span class="p">)</span>
+    <span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">path_q</span><span class="p">)</span>
+    <span class="c1"># 两条路径从根开始逐位比较，最后一个相同的节点就是 LCA</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">path_p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">path_q</span><span class="p">)</span> <span class="ow">and</span> <span class="n">path_p</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="n">path_q</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">path_p</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+</code></pre></div>
+
+
+<strong>这个写法是对的</strong>，时间复杂度也是 <code>O(n)</code>。但有两个问题：
+<ol>
+<li><strong>要遍历两遍</strong>（一遍找 p 的路径，一遍找 q 的路径），而且要用额外的 <code>path</code> 数组存两条链；</li>
+<li>更关键的是，面试官会接着问：<strong>"能不能只遍历一遍、不用辅助数组？"</strong></li>
+</ol>
+
+答案能，而且代码只有 8 行。这就是本文的主角。
+<h3>1.2 换个角度：不问"路径"，问"子树里有没有"</h3>
+
+路径法的思路是"先定位两个目标，再比对祖先链"。递归法则把问题<strong>下沉到每一个节点</strong>，问每个节点一个更朴素的问题：
+<blockquote>
+
+<strong>站在你这个节点往下看，你的子树里能找到 p 和 q 吗？</strong>
+</blockquote>
+
+对每个节点 <code>node</code>，可能的回答只有三种：
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>回答</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>子树里 p、q <strong>一个都没有</strong></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td>子树里<strong>只找到其中一个</strong>（p 或 q）</td>
+<td>返回<strong>找到的那个</strong></td>
+</tr>
+<tr>
+<td>子树里<strong>两个都找到了</strong></td>
+<td>那 <code>node</code> 本身就是 LCA —— 但要往上报的是 <code>node</code> 自己</td>
+</tr>
+</tbody>
+</table>
+
+这第三种情况有个更精确的判据：<strong>左右两边各回来一个非空，说明 p 和 q 分别在 <code>node</code> 的两侧子树里。</strong> 那 <code>node</code> 就是那个"分叉点"，也就是最近的公共祖先。
+
+而第 2 种情况是这题的精髓：<strong>只找到一个的时候，返回的不是答案，而是一个"标记"。</strong> 它在说"我这边有一个，谁是另一个赶紧来找我汇合"。
+<blockquote>
+
+这个区分是整题的钥匙。<strong>"返回值是答案"和"返回值是标记"是两件事</strong>，混在一起想就一定会绕晕。
+</blockquote>
+<h3>1.3 "一个节点也可以是它自己的祖先"怎么办</h3>
+
+题目特意加了这句定义，很多人第一反应是"哦，那要特判 <code>p.parent is q</code> 之类的情况"。
+
+<strong>不需要。</strong> 这句话是靠下面这一行<strong>自动处理</strong>的：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="ow">not</span> <span class="n">node</span> <span class="ow">or</span> <span class="n">node</span> <span class="ow">is</span> <span class="n">p</span> <span class="ow">or</span> <span class="n">node</span> <span class="ow">is</span> <span class="n">q</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">node</span>
+</code></pre></div>
+
+
+拆开看这行在做什么：<strong>递归一旦走到 p（或 q），立刻返回 p 本身，不再往它的子树里走。</strong>
+
+为什么这样就够了？两种可能都覆盖了：
+<ul>
+<li><strong>如果 q 在 p 的子树里</strong>：dfs(p) 返回 p，这个 p 会一路往上冒。上面的祖先拿到"左边是 p"这个标记，再和右边的结果比 —— 而右边的子树里怎么样都不会再有 q 了（因为 q 在 p 底下，已经被 p 这一处返回截断了）。于是 p 一路冒到根，答案就是 p。<strong>自动正确</strong>；</li>
+<li><strong>如果 q 不在 p 的子树里</strong>：那 p 就只是个"标记"，继续往上冒，直到某个节点发现"左右两边都非空"，那个节点才是答案。</li>
+</ul>
+
+所以<strong>这题不需要为"p 是 q 的祖先"单独写分支</strong>。那一行 <code>return node</code> 顺手就把这件事办了 —— 这是这题设计得最漂亮的地方。
+<hr>
+<h2>二、动画：看着返回值一层层往上冒</h2>
+
+下面这个动画把整个过程拆成 23 帧。我们要找的是 <strong><code>p = 6</code>、<code>q = 4</code></strong> 的 LCA（答案是 <strong><code>5</code></strong>）。
+<blockquote>
+
+为什么不用官方第一例的 <code>p = 5, q = 1</code>？因为那组里 <code>5</code> 和 <code>1</code> 恰好是根的两个孩子，递归第二帧就命中、总共只有 8 帧，<strong>根本看不出"后序回溯"的味道</strong>。而 <code>6</code> 和 <code>4</code> 都埋在 <code>5</code> 的子树深处，能把"先钻到底、再一层层往上报"演完整。
+</blockquote>
+
+画面分三块，看的时候分别盯：
+<ul>
+<li><strong>左边的树</strong>：绿色实线是"子树里找到了东西"的节点，灰色虚线是"这棵子树白跑了"（返回 <code>null</code>）的节点。节点左上角的小标签是它<strong>向上报告的返回值</strong>。带红色圆环的是最终答案（分叉点）；</li>
+<li><strong>中间的调用栈</strong>：栈底在下、栈顶在上。栈越往上涨说明递归钻得越深，栈往回收说明在回溯。每行还标了它"卡在哪个阶段"（刚进入 / 等右子树 / 等返回值 / 做判断）；</li>
+<li><strong>底部的传送带</strong>：显示<strong>这一刻正在向上返回的值</strong>，以及它的身份 —— 是 <code>p</code> 的标记、<code>q</code> 的标记，还是已经确定的"答案本身"。</li>
+</ul>
+<div class="algo-viz algo-viz--lc236"></div>
+
+
+看动画时专门盯住三帧：
+<ul>
+<li><strong>第 3 帧（<code>hit</code>）</strong>：进入 <code>6</code>，立刻命中，<strong>不再往下探</strong>（<code>6</code> 是叶子，看不出差别；换成 <code>p = 5</code> 时就能明显看到它的子树根本没被展开）；</li>
+<li><strong>第 12 帧（<code>decide</code>）</strong>：<code>5</code> 发现左子树回来 <code>6</code>、右子树回来 <code>4</code>，<strong>左右都非空 → 分叉点 → 返回自己 <code>5</code></strong>。这一帧是整题的转折点，传送带上第一次出现"答案本身"；</li>
+<li><strong>第 21 帧（<code>decide</code>）</strong>：根 <code>3</code> 也同时是 p、q 的祖先，但它<strong>只有一个非空</strong>（左边冒上来的 <code>5</code>），所以它不是分叉点，只是路过 —— 把 <code>5</code> 继续往上冒。<strong>这就是"最近"两个字的实际体现。</strong></li>
+</ul>
+<hr>
+<h2>三、完整推演表（23 帧逐帧）</h2>
+
+用动画里的例子：
+<div class="codehilite"><pre><span></span><code>层序数组下标: 0=3  1=5  2=1  3=6  4=2  5=0  6=8  7=null  8=null  9=7  10=4
+树：
+            3
+         /     \
+        5       1
+       / \     / \
+      6   2   0   8
+         / \
+        7   4
+    p = 6，q = 4，答案 = 5
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>phase</th>
+<th>聚焦节点</th>
+<th>返回的值</th>
+<th>值的身份</th>
+<th>调用栈（栈底在左）</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>3</td>
+<td>—</td>
+<td>—</td>
+<td><code>[]</code></td>
+<td>初始化，栈空</td>
+</tr>
+<tr>
+<td>1</td>
+<td>recurse</td>
+<td>3</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:enter]</code></td>
+<td><code>3</code> 不是目标，先问左子树</td>
+</tr>
+<tr>
+<td>2</td>
+<td>recurse</td>
+<td>5</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:left, 5:enter]</code></td>
+<td><code>5</code> 不是目标，先问左子树</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>hit</strong></td>
+<td>6</td>
+<td><code>6</code></td>
+<td><strong>p</strong></td>
+<td><code>[3:left, 5:left, 6:enter]</code></td>
+<td>进入 <code>6</code> → <strong>命中 p！立即返回 <code>6</code>，不再下探</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>recurse</td>
+<td>5</td>
+<td><code>6</code></td>
+<td>—</td>
+<td><code>[3:left, 5:left]</code></td>
+<td><code>6</code> 出栈，值写回 <code>5</code> 的左边；<code>5</code> 接着问右子树</td>
+</tr>
+<tr>
+<td>5</td>
+<td>recurse</td>
+<td>2</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:left, 5:right, 2:enter]</code></td>
+<td><code>2</code> 不是目标，先问左子树</td>
+</tr>
+<tr>
+<td>6</td>
+<td>return</td>
+<td>7</td>
+<td><code>null</code></td>
+<td><strong>null</strong></td>
+<td><code>[3:left, 5:right, 2:left, 7:enter]</code></td>
+<td><code>7</code> 是叶子且非目标 → 返回 <code>null</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>recurse</td>
+<td>2</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:left, 5:right, 2:left]</code></td>
+<td><code>7</code> 出栈（<code>null</code> 写回 <code>2</code> 的左边）；<code>2</code> 接着问右子树</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>hit</strong></td>
+<td>4</td>
+<td><code>4</code></td>
+<td><strong>q</strong></td>
+<td><code>[3:left, 5:right, 2:right, 4:enter]</code></td>
+<td>进入 <code>4</code> → <strong>命中 q！返回 <code>4</code></strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td>collect</td>
+<td>2</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:left, 5:right, 2:decide]</code></td>
+<td><code>2</code> 的左右都回来了（左 <code>null</code>、右 <code>4</code>），开始判断</td>
+</tr>
+<tr>
+<td>10</td>
+<td>decide</td>
+<td>2</td>
+<td><code>4</code></td>
+<td><strong>q</strong></td>
+<td><code>[3:left, 5:right, 2:decide]</code></td>
+<td>只有一个非空 → <strong><code>2</code> 不是分叉点</strong>，如实上报 <code>4</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>collect</td>
+<td>5</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:left, 5:decide]</code></td>
+<td><code>5</code> 的左右都回来了（左 <code>6</code>、右 <code>4</code>），开始判断</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>decide</strong></td>
+<td>5</td>
+<td><strong><code>5</code></strong></td>
+<td><strong>lca</strong></td>
+<td><code>[3:left, 5:decide]</code></td>
+<td><strong>左右都非空 → 分叉点！返回自己 <code>5</code></strong>，答案确定</td>
+</tr>
+<tr>
+<td>13</td>
+<td>recurse</td>
+<td>3</td>
+<td><code>5</code></td>
+<td>—</td>
+<td><code>[3:left]</code></td>
+<td><code>5</code> 出栈，值写回 <code>3</code> 的左边；<code>3</code> 接着问右子树</td>
+</tr>
+<tr>
+<td>14</td>
+<td>recurse</td>
+<td>1</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:right, 1:enter]</code></td>
+<td><code>1</code> 不是目标，先问左子树</td>
+</tr>
+<tr>
+<td>15</td>
+<td>return</td>
+<td>0</td>
+<td><code>null</code></td>
+<td><strong>null</strong></td>
+<td><code>[3:right, 1:left, 0:enter]</code></td>
+<td><code>0</code> 是叶子且非目标 → 返回 <code>null</code></td>
+</tr>
+<tr>
+<td>16</td>
+<td>recurse</td>
+<td>1</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:right, 1:left]</code></td>
+<td><code>0</code> 出栈；<code>1</code> 接着问右子树</td>
+</tr>
+<tr>
+<td>17</td>
+<td>return</td>
+<td>8</td>
+<td><code>null</code></td>
+<td><strong>null</strong></td>
+<td><code>[3:right, 1:right, 8:enter]</code></td>
+<td><code>8</code> 是叶子且非目标 → 返回 <code>null</code></td>
+</tr>
+<tr>
+<td>18</td>
+<td>collect</td>
+<td>1</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:right, 1:decide]</code></td>
+<td><code>1</code> 的左右都回来了（<code>null</code>、<code>null</code>），开始判断</td>
+</tr>
+<tr>
+<td>19</td>
+<td>decide</td>
+<td>1</td>
+<td><code>null</code></td>
+<td><strong>null</strong></td>
+<td><code>[3:right, 1:decide]</code></td>
+<td>左右都空 → 返回 <code>null</code>（整棵右子树白跑）</td>
+</tr>
+<tr>
+<td>20</td>
+<td>collect</td>
+<td>3</td>
+<td>—</td>
+<td>—</td>
+<td><code>[3:decide]</code></td>
+<td><code>3</code> 的左右都回来了（左 <code>5</code>、右 <code>null</code>），开始判断</td>
+</tr>
+<tr>
+<td>21</td>
+<td>decide</td>
+<td>3</td>
+<td><code>5</code></td>
+<td><strong>lca</strong></td>
+<td><code>[3:decide]</code></td>
+<td>只有一个非空 → <strong><code>3</code> 不是分叉点</strong>，只是路过，把答案 <code>5</code> 继续向上冒</td>
+</tr>
+<tr>
+<td>22</td>
+<td><strong>done</strong></td>
+<td>5</td>
+<td><code>5</code></td>
+<td><strong>lca</strong></td>
+<td><code>[]</code></td>
+<td>栈空，最终答案是 <code>5</code></td>
+</tr>
+</tbody>
+</table>
+
+几个值得停下来看的地方：
+
+<strong>① 第 3 帧的"不下探"。</strong> 进入 <code>6</code> 立刻返回。如果 <code>q</code> 恰好藏在 <code>6</code> 的子树里，那 <code>6</code> 就该直接当答案 —— 这就是"自己是自己的祖先"。这里 <code>q</code> 不在，所以 <code>6</code> 只是个标记。
+
+<strong>② 第 12 帧的"分叉点"。</strong> <code>5</code> 左边回来 <code>6</code>（p 的标记），右边回来 <code>4</code>（q 的标记）—— <strong>左右都非空，全树唯一一次</strong>。所以 <code>5</code> 就是答案。
+
+<strong>③ 第 21 帧的"路过"。</strong> 根 <code>3</code> 也同时是 p 和 q 的祖先，但它的左边是 <code>5</code>（非空）、右边是 <code>null</code>（空）—— 只有一个非空，说明<strong>两个目标都在同一侧</strong>。所以 <code>3</code> 不是分叉点，只是把 <code>5</code> 继续往上冒。<strong>这正是"最近"的判据：不是"同时包含"，而是"左右分居两侧"。</strong>
+<blockquote>
+
+顺带看第 19 帧：整棵以 <code>1</code> 为根的右子树跑完，返回 <code>null</code>。<strong>递归并没有提前退出</strong> —— 它老老实实把整棵树都走了一遍。这题的 <code>O(n)</code> 就是这么来的，<strong>没有任何剪枝</strong>（因为你不走完就不知道另一侧有没有目标）。
+</blockquote>
+<hr>
+<h2>四、完整代码</h2>
+<h3>4.1 Python 版（8 行主逻辑）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">,</span> <span class="n">q</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TreeNode</span><span class="p">:</span>
+        <span class="c1"># base case 1：空节点</span>
+        <span class="c1"># base case 2：命中 p 或 q —— 立刻返回，不再下探子树</span>
+        <span class="c1">#             （&quot;一个节点也可以是它自己的祖先&quot;就靠这一行）</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span> <span class="ow">or</span> <span class="n">root</span> <span class="ow">is</span> <span class="n">p</span> <span class="ow">or</span> <span class="n">root</span> <span class="ow">is</span> <span class="n">q</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">root</span>
+
+        <span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>    <span class="c1"># 左子树找到了啥</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>  <span class="c1"># 右子树找到了啥</span>
+
+        <span class="k">if</span> <span class="n">left</span> <span class="ow">and</span> <span class="n">right</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">root</span>      <span class="c1"># ★ 左右都非空 = 两个目标分居两侧 = root 就是 LCA</span>
+        <span class="k">return</span> <span class="n">left</span> <span class="ow">or</span> <span class="n">right</span> <span class="c1"># ★ 只有一个非空就如实上报（可能两个都空 → 返回 None）</span>
+</code></pre></div>
+
+
+<strong>就这 8 行。</strong> 但每一行都在承载信息，下面逐个说。
+<h3>4.2 逐行拆解</h3>
+
+<strong><code>if not root or root is p or root is q: return root</code></strong>
+
+三个条件合并在一个 <code>if</code> 里，返回的都是 <code>root</code>（空的时候是 <code>None</code>）：
+<ul>
+<li><code>not root</code>：走到空节点，什么都没找到，返回 <code>None</code>；</li>
+<li><code>root is p or root is q</code>：<strong>命中！立刻返回自己，不再往下探。</strong></li>
+</ul>
+<blockquote>
+
+⚠️ 这里用的是 <code>is</code> 而不是 <code>==</code>。<code>is</code> 比较的是<strong>对象身份</strong>（是不是同一个节点对象），<code>==</code> 比较的是值。如果树里有重复的值（比如两个节点都是 <code>5</code>），用 <code>==</code> 就会把"值等于 5"的节点当成 p，直接错。<strong>树类题目里判断"是不是同一个节点"一律用 <code>is</code>。</strong>
+</blockquote>
+
+<strong><code>left = dfs(root.left)</code> 和 <code>right = dfs(root.right)</code></strong>
+
+<strong>注意顺序：这两行是"先递归、后判断"。</strong> 也就是说，站在 <code>root</code> 视角，它<strong>必须等信息从下面回来</strong>才能做决定 —— 这就是<strong>后序遍历</strong>的特征（先处理子节点，再处理自己）。
+
+<code>left</code> / <code>right</code> 的值就是子树向上汇报的结果，含义见第 1.2 节的三种情况。
+
+<strong><code>if left and right: return root</code></strong>
+
+这是<strong>唯一的"报答案"分支</strong>。<code>left</code> 和 <code>right</code> 都是节点对象（非 <code>None</code>）时，说明：
+<ul>
+<li>左子树里有 p 或 q 之一；</li>
+<li>右子树里也有 p 或 q 之一；</li>
+<li>两边各一个 → <strong>p 和 q 在 <code>root</code> 这里分叉了</strong> → <code>root</code> 就是最近公共祖先。</li>
+</ul>
+
+<strong>为什么"最近"？</strong> 因为递归是自底向上的，第一个发现"左右都非空"的节点（也就是<strong>深度最大</strong>的那个）就会立刻返回自己。再往上的祖先虽然也同时包含 p 和 q，但它们不是第一个发现的 —— 而 <code>root</code> 这个答案会继续向上冒，途中所有的祖先都走"只有一个非空"的分支，<strong>不会覆盖它</strong>。
+
+<strong><code>return left or right</code></strong>
+
+这行同时覆盖两种剩余情况，靠的是 Python 的 <code>or</code> 短路：
+<ul>
+<li><strong>只有一个非空</strong>（比如 <code>left</code> 是节点、<code>right</code> 是 <code>None</code>）：返回那个非空的。含义是"两个目标都在这一侧，我如实上报"；</li>
+<li><strong>两个都空</strong>：<code>left or right</code> 是 <code>None</code>，返回 <code>None</code>。含义是"这棵子树里一个都没有"。</li>
+</ul>
+<blockquote>
+
+<strong><code>left or right</code> 是这题的精简写法</strong>。写全了是这样的：
+
+<code>python
+if left and right:
+    return root
+elif left:
+    return left
+else:
+    return right      # right 可能是节点，也可能是 None</code>
+
+效果完全一样。<code>or</code> 写法少三行，但<strong>面试时建议先写全，确认逻辑后再简化</strong> —— 因为 <code>left or right</code> 有个前提：<code>left</code>、<code>right</code> 只可能是"节点对象"或 <code>None</code>，不会有别的假值。（Python 里 <code>TreeNode</code> 对象没有定义 <code>__bool__</code> / <code>__len__</code>，所以它恒为真。这一点成立，<code>or</code> 才安全。）
+</blockquote>
+<h3>4.3 复杂度</h3>
+<ul>
+<li><strong>时间 <code>O(n)</code></strong>：每个节点恰好被访问一次（<code>dfs</code> 对每个节点只调用一次）。注意<strong>没有任何剪枝</strong> —— 就算在左子树就找到了分叉点，右子树也照样要跑完，因为得知道"另一侧到底有没有目标"；</li>
+<li><strong>空间 <code>O(h)</code></strong>：递归栈的深度等于树高。最坏情况（完全偏斜的树）退化成 <code>O(n)</code>，平衡树是 <code>O(log n)</code>。</li>
+</ul>
+<blockquote>
+
+<strong>和路径法对比</strong>：路径法时间也是 <code>O(n)</code>（两遍），但空间要额外存两条 <code>O(h)</code> 的路径数组，而且是<strong>两遍遍历</strong>。递归法一遍搞定、除递归栈外零额外空间。<strong>这是它更优的地方。</strong>
+</blockquote>
+<hr>
+<h2>五、变体一：LC 235 二叉搜索树的最近公共祖先</h2>
+
+<strong>要求</strong>：树换成 <strong>BST</strong>，找 p、q 的 LCA。
+<h3>5.1 BST 的有序性让"回溯"整个消失了</h3>
+
+BST 有个关键性质：<strong>左子树的值全都小于根，右子树的值全都大于根。</strong>
+
+于是站在任何一个节点看 p 和 q 的值，只有三种情况：
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p.val</code> 和 <code>q.val</code> <strong>都小于</strong> <code>root.val</code></td>
+<td>两个都在<strong>左</strong>边 → 往左走</td>
+</tr>
+<tr>
+<td><code>p.val</code> 和 <code>q.val</code> <strong>都大于</strong> <code>root.val</code></td>
+<td>两个都在<strong>右</strong>边 → 往右走</td>
+</tr>
+<tr>
+<td><strong>一个小于、一个大于</strong>（或其中等于 <code>root.val</code>）</td>
+<td><strong>分叉点就是 <code>root</code></strong> → 返回它</td>
+</tr>
+</tbody>
+</table>
+
+<strong>第三种情况和 LC 236 的判据是同一个道理</strong>（"分居两侧 = 分叉点"），但实现完全不同：
+<ul>
+<li>LC 236 必须<strong>后序</strong>（先钻到底，靠子树返回值判断）—— 因为它不知道 p、q 在哪，只能搜遍全树；</li>
+<li>LC 235 <strong>不需要后序</strong>，也不需要返回值冒泡 —— 它在<strong>当前节点就能直接判断该往哪走</strong>，是<strong>前序</strong>的、一次走一条路。</li>
+</ul>
+<h3>5.2 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">,</span> <span class="n">q</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TreeNode</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span> <span class="ow">and</span> <span class="n">q</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+                <span class="n">root</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span>           <span class="c1"># 两边都小 → 一起往左</span>
+            <span class="k">elif</span> <span class="n">p</span><span class="o">.</span><span class="n">val</span> <span class="o">&gt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span> <span class="ow">and</span> <span class="n">q</span><span class="o">.</span><span class="n">val</span> <span class="o">&gt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+                <span class="n">root</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span>          <span class="c1"># 两边都大 → 一起往右</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">root</span>                <span class="c1"># 分叉了（或其中一个就是 root）</span>
+        <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+<strong>没有递归、没有栈、没有回溯。</strong> 空间 <code>O(1)</code>（迭代版），时间 <code>O(h)</code>。
+<blockquote>
+
+注意 <code>else</code> 分支同时覆盖了"一个左一个右"和"<code>p.val == root.val</code>（或 <code>q.val</code>）"。<strong>后者就是"自己是自己的祖先"在 BST 版里的体现</strong> —— 当 <code>p</code> 正好是当前节点时，<code>p.val &lt; root.val</code> 和 <code>p.val &gt; root.val</code> 都不成立，自然落到 <code>else</code> 返回 <code>root</code>。<strong>又是自动处理的，不用特判。</strong>
+</blockquote>
+
+递归版（更接近 236 的写法，但同样不需要左右都递归）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span> <span class="ow">and</span> <span class="n">q</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">val</span> <span class="o">&gt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span> <span class="ow">and</span> <span class="n">q</span><span class="o">.</span><span class="n">val</span> <span class="o">&gt;</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">root</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>⚠️ 面试高频追问</strong>：<em>"235 能不能直接用 236 的代码？"</em> —— 能跑对，但<strong>浪费了 BST 的性质</strong>：236 是 <code>O(n)</code>，235 的最优解是 <code>O(h)</code>。面试官问 235 就是想看你<strong>有没有用上"有序"这个条件</strong>，直接套 236 等于主动放弃了 <code>O(n)</code> → <code>O(h)</code> 的优化。
+</blockquote>
+<h3>5.3 两者的对照</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 236（普通二叉树）</th>
+<th>LC 235（BST）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>遍历方向</td>
+<td><strong>后序</strong>（自底向上）</td>
+<td><strong>前序</strong>（自顶向下）</td>
+</tr>
+<tr>
+<td>判据</td>
+<td>左右子树返回值<strong>都非空</strong></td>
+<td>p、q 的值<strong>分居 <code>root.val</code> 两侧</strong></td>
+</tr>
+<tr>
+<td>走几条路</td>
+<td>全树都走（<code>O(n)</code>）</td>
+<td>一次走一条（<code>O(h)</code>）</td>
+</tr>
+<tr>
+<td>空间</td>
+<td><code>O(h)</code>（递归栈）</td>
+<td><code>O(1)</code>（迭代）/ <code>O(h)</code>（递归）</td>
+</tr>
+<tr>
+<td>"自己是祖先"</td>
+<td>靠 <code>return root</code> 命中即返回</td>
+<td>靠 <code>else</code> 分支兜住</td>
+</tr>
+</tbody>
+</table>
+
+<strong>一句话记住区别：236 只能"搜"，235 可以"判"。</strong>
+<hr>
+<h2>六、变体二：LC 1650 带父指针的最近公共祖先</h2>
+
+<strong>要求</strong>：节点结构多了一个 <code>parent</code> 指针，仍然求 p、q 的 LCA。
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Node</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="kc">None</span>      <span class="c1"># ★ 多了这个</span>
+</code></pre></div>
+
+<h3>6.1 本质是"两条链表求交点"</h3>
+
+有了 <code>parent</code> 指针，从 p 出发沿着 <code>parent</code> 往上走，能得到一条<strong>从 p 到根的链</strong>；q 同理。<strong>最近公共祖先就是这两条链的第一个交点。</strong>
+<blockquote>
+
+这和 <strong>LC 160 相交链表</strong>（本系列第 8 篇）是<strong>同一道题</strong>：两条链长度不同，找第一个公共节点。
+</blockquote>
+<h3>6.2 代码：复用相交链表的手法</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="n">q</span><span class="p">:</span> <span class="s1">&#39;Node&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Node&#39;</span><span class="p">:</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span>
+        <span class="k">while</span> <span class="n">a</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">b</span><span class="p">:</span>
+            <span class="c1"># 走到头就换到另一条链的起点，两次遍历后长度差被抹平</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">parent</span> <span class="k">else</span> <span class="n">q</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">parent</span> <span class="k">else</span> <span class="n">p</span>
+        <span class="k">return</span> <span class="n">a</span>
+</code></pre></div>
+
+
+<strong>完全就是 LC 160 的双指针解法。</strong> 也可以先求两条链的长度差、让长的先走几步（也是 160 的另一个常见解法）。
+
+用集合的写法更直白：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">while</span> <span class="n">p</span><span class="p">:</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">parent</span>
+    <span class="k">while</span> <span class="n">q</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">parent</span>
+    <span class="k">return</span> <span class="n">q</span>
+</code></pre></div>
+
+<h3>6.3 和 236 的关系</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 236</th>
+<th>LC 1650</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>有没有 <code>parent</code></td>
+<td>没有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>能往上走吗</td>
+<td>不能（只能靠返回值冒泡）</td>
+<td>能（直接沿指针走）</td>
+</tr>
+<tr>
+<td>本质</td>
+<td>后序递归 + 自底向上汇报</td>
+<td><strong>两条链表求交点</strong></td>
+</tr>
+<tr>
+<td>空间</td>
+<td><code>O(h)</code> 递归栈</td>
+<td><code>O(1)</code>（双指针版）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+<strong>关键对比</strong>：1650 之所以能 <code>O(1)</code> 空间，是因为 <code>parent</code> 指针<strong>把"往上走"这件事变成了显式操作</strong>。236 里没有这个指针，"往上"只能靠递归返回值一层层传 —— 这就是为什么 236 必须有"返回值冒泡"这个机制。
+</blockquote>
+<hr>
+<h2>七、再顺手带两个</h2>
+<h3>7.1 LC 1676 多目标 LCA：目标是"全部找到"</h3>
+
+<strong>要求</strong>：给一个节点数组 <code>nodes</code>，求它们<strong>全部</strong>的最近公共祖先。
+
+把 236 的"左右都非空"推广成"<strong>计数器</strong>"：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">nodes</span><span class="p">):</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>      <span class="c1"># 用集合，O(1) 判断</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">target</span><span class="p">:</span>   <span class="c1"># 命中任一目标 → 立刻返回（同 236 的命中即返回）</span>
+                <span class="k">return</span> <span class="n">node</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">left</span> <span class="ow">and</span> <span class="n">right</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">node</span>      <span class="c1"># 左右都有目标 → 分叉点</span>
+            <span class="k">return</span> <span class="n">left</span> <span class="ow">or</span> <span class="n">right</span>
+
+        <span class="k">return</span> <span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>和 236 唯一的区别是 <code>node is p or node is q</code> 换成了 <code>node in target</code>。</strong> 整个骨架一字未改 —— 这也说明 236 的核心机制（返回值冒泡 + 分叉点判据）本身就和"几个目标"无关。
+<blockquote>
+
+注意这里有个前提：多个目标分居左右两侧时，<code>left and right</code> 就成立。但如果<strong>所有目标都在同一侧</strong>，那答案就是那一侧的返回值。逻辑天然成立。
+</blockquote>
+<h3>7.2 LC 1123 最深叶节点的 LCA：目标是"最深的那些"</h3>
+
+<strong>要求</strong>：返回<strong>最深层叶子节点</strong>的最近公共祖先。
+
+这题变成了<strong>带深度信息的后序</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lcaDeepestLeaves</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>         <span class="c1"># (深度, 该子树最深叶子的 LCA)</span>
+            <span class="n">dl</span><span class="p">,</span> <span class="n">nl</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+            <span class="n">dr</span><span class="p">,</span> <span class="n">nr</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">dl</span> <span class="o">&gt;</span> <span class="n">dr</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">dl</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nl</span><span class="p">)</span>      <span class="c1"># 最深叶子只在左边</span>
+            <span class="k">if</span> <span class="n">dr</span> <span class="o">&gt;</span> <span class="n">dl</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">dr</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nr</span><span class="p">)</span>      <span class="c1"># 只在右边</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">dl</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">node</span><span class="p">)</span>        <span class="c1"># 两边一样深 → 分叉点就是 node</span>
+
+        <span class="k">return</span> <span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+</code></pre></div>
+
+
+<strong>又是"分叉点"这个模式</strong>：左右两边的深度相等时，<code>node</code> 就是答案。
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>返回值 / 判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 236</td>
+<td>左右子树<strong>返回值都非空</strong></td>
+</tr>
+<tr>
+<td>LC 1123</td>
+<td>左右子树的<strong>深度相等</strong></td>
+</tr>
+<tr>
+<td>LC 1676</td>
+<td>左右子树<strong>都有目标</strong></td>
+</tr>
+</tbody>
+</table>
+
+<strong>三题共用同一个骨架："后序 + 把子树的结论向上汇报 + 在某个条件下判定自己是答案"。</strong>
+<hr>
+<h2>八、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">q</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 空节点 或 命中目标 → 返回自己（命中即返回，不再下探）</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">q</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">left</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w">  </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">);</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span><span class="w">  </span><span class="c1">// 分叉点</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w">              </span><span class="c1">// 如实上报</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 里两个提醒：
+<ul>
+<li><strong><code>root == p</code> 是引用比较</strong>，和 Python 的 <code>is</code> 对应。<strong>同样不要写成 <code>root.val == p.val</code></strong> —— 有重复值时直接错；</li>
+<li><strong>返回值不能是 <code>null</code> 的语义混淆</strong>：Java 里 <code>null</code> 同时表示"这棵子树没有目标"，而 <code>p</code>/<code>q</code> 本身也永远不可能是 <code>null</code>（题目保证），所以 <code>left != null</code> 这个判断是安全的。</li>
+</ul>
+
+BST 版（迭代，<code>O(1)</code> 空间）：
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">q</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span><span class="w">     </span><span class="c1">// 分叉了，或其中一个就是 root</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr>
+<h2>九、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>结果</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[]</code>（空树）</td>
+<td><code>null</code></td>
+<td><code>not root</code> 直接返回 <code>None</code></td>
+</tr>
+<tr>
+<td><code>[1]</code>，p = q = 1</td>
+<td><code>1</code></td>
+<td>单节点树，它自己就是答案</td>
+</tr>
+<tr>
+<td><code>[1,2]</code>，p = 1, q = 2</td>
+<td><code>1</code></td>
+<td><strong>p 是 q 的祖先</strong> → 答案就是 p</td>
+</tr>
+<tr>
+<td><code>[1,2]</code>，p = 2, q = 1</td>
+<td><code>1</code></td>
+<td>同上（<strong>p、q 位置交换答案不变</strong>）</td>
+</tr>
+<tr>
+<td><code>[1,2,3]</code>，p = 2, q = 3</td>
+<td><code>1</code></td>
+<td>标准的"根处分叉"</td>
+</tr>
+<tr>
+<td><code>[1,2,null,3]</code>，p = 2, q = 3</td>
+<td><code>2</code></td>
+<td><strong>偏斜树</strong>：<code>2</code> 是 <code>3</code> 的祖先</td>
+</tr>
+<tr>
+<td><code>[1,null,2]</code>，p = 1, q = 2</td>
+<td><code>1</code></td>
+<td>只有右孩子，同样走 <code>return root</code> 分支</td>
+</tr>
+<tr>
+<td><code>[1,2,3]</code>，p = 1, q = 1</td>
+<td><code>1</code></td>
+<td><strong>p 和 q 是同一个节点</strong> → 返回它自己</td>
+</tr>
+</tbody>
+</table>
+
+三个容易错的：
+
+<strong>1. 忘记处理"p 是 q 的祖先"。</strong> 这是本题最经典的失分点。<strong>不需要特殊处理</strong> —— <code>if root is p or root is q: return root</code> 那一行已经自动覆盖了（见第 1.3 节）。
+
+<strong>2. 用 <code>==</code> 而不是 <code>is</code>（Java 里用 <code>==</code> 比较对象）。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="ow">not</span> <span class="n">root</span> <span class="ow">or</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">val</span> <span class="ow">or</span> <span class="n">root</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">q</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>   <span class="c1"># ✗ 有重复值时错</span>
+</code></pre></div>
+
+
+<strong>树里允许重复值</strong>，<code>val</code> 相等不代表是同一个节点。必须比身份。
+
+<strong>3. 以为"找到一个目标就能提前返回"。</strong>
+
+如果 p 和 q 分别在根的两侧，那你在左子树找到 p 之后，<strong>仍然必须把右子树跑完</strong>才知道 q 在不在那边。<strong>这题没有任何剪枝空间</strong>，<code>O(n)</code> 是下界。
+<blockquote>
+
+例外情况：如果题目额外保证"p、q 一定在树里"（本题就是这样），<strong>理论上</strong>可以在找到两个目标后提前结束，但那样要引入全局状态（计数器 + 提前退出标记），代码会复杂得多，而且<strong>面试官一般期待的是那个 8 行干净版本</strong>。别为了这点常数优化把代码写乱。
+</blockquote>
+<hr>
+<h2>十、常见坑</h2>
+
+<strong>1. 把"返回值是标记"当成"返回值是答案"。</strong>
+
+这是最核心的认知坑。当 <code>dfs(某节点)</code> 返回 <code>p</code> 时，<strong>它只说"我这边有 p"，不代表这个 <code>p</code> 就是 LCA</strong>。真正的答案只有 <code>if left and right</code> 那一支才产生。
+
+写代码时如果脑子里把两者混为一谈，就会出现"一找到 p 就直接 return p 当答案"这类错误（在 p、q 分居两侧时直接错）。
+
+<strong>2. 用 <code>root.val</code> 比较而不是 <code>root is p</code>。</strong>
+
+见上一节第 2 点。<strong>重复值用例专门用来抓这个。</strong>
+
+<strong>3. 写成"左边没找到就直接返回右边"，漏掉等左边。</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">left</span><span class="p">:</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>   <span class="c1"># ✗ 少了&quot;两边都非空&quot;的判断</span>
+</code></pre></div>
+
+
+<strong>两棵子树必须都跑完</strong>，因为分叉点的判据恰恰是"左右都非空"。必须先把两个结果都拿到手，再判断。
+
+<strong>4. BST 版套用 236 的代码。</strong>
+
+能过，但<strong>放弃了 BST 的有序性</strong>，<code>O(h)</code> 变 <code>O(n)</code>。面试官会追问"能不能更快"。
+
+<strong>5. 递归里用全局变量存"找到的第一个目标"。</strong>
+
+有些解法用一个 <code>found</code> 变量记录"已经找到了一个目标"，找到第二个时就返回 —— <strong>这需要额外处理"第一个目标的祖先链"</strong>，比标准写法复杂且容易错。<strong>标准解不需要任何全局状态。</strong>
+
+<strong>6. Java 里返回 <code>null</code> 的两重含义没分清。</strong>
+
+Java 里 <code>null</code> 既表示"子树里没找到"，又用来表示"空节点"。因为 <code>p</code>、<code>q</code> 保证非 <code>null</code>，所以两者不会冲突 —— 但<strong>心里要清楚这个前提</strong>，题目变了（比如允许 p 为 <code>null</code>）就不成立了。
+<hr>
+<h2>十一、面试怎么答</h2>
+
+<strong>开口 30 秒给思路</strong>（别一上来就写代码）：
+<blockquote>
+
+用后序 DFS。每个节点向上汇报"我的子树里找到了什么"，返回值有三种含义：<code>null</code> 表示一个都没找到；返回 p 或 q 本身表示只找到一个（这只是个标记，不是答案）；返回自己表示我就是分叉点。判据是：如果左右子树返回的值都非空，说明 p、q 分居两侧，当前节点就是最近公共祖先。base case 有两个 —— 空节点返回 <code>null</code>，命中 p 或 q 就直接返回自己、不再下探，这一行顺便就把"一个节点也可以是它自己的祖先"处理掉了。时间 O(n)，空间 O(h)。
+</blockquote>
+
+<strong>然后主动交代变体</strong>：
+<ol>
+<li><strong>BST 版（235）</strong>：利用有序性，<code>p.val</code> 和 <code>q.val</code> 都小就往左、都大就往右、否则当前节点就是答案。<strong>从前序一次走一条路，O(h)。不用回溯</strong>；</li>
+<li><strong>带 parent（1650）</strong>：本质是两条链表求交点，和 160 一样用双指针，<code>O(1)</code> 空间。</li>
+</ol>
+
+<strong>追问应对</strong>：
+<ul>
+<li><em>"如果 p 是 q 的祖先呢？"</em> —— <strong>自动处理了</strong>。递归走到 p 就命中返回 p，不会再往它的子树走；p 一路冒到根，所有祖先都走"只有一个非空"的分支，不会覆盖它。所以答案是 p 本身，符合"自己是自己的祖先"的定义。不需要额外分支。</li>
+<li><em>"为什么要用 <code>is</code> 不用 <code>==</code>？"</em> —— 树里可以有重复值。<code>==</code> 比较值会把"值相同但不同节点"误认成目标。<code>is</code> 比较对象身份，才是正确的。</li>
+<li><em>"能不能提前返回省点时间？"</em> —— 不能有效剪枝。p、q 分居两侧时，必须把右子树跑完才知道 q 在不在。找到分叉点之后确实可以不继续往上（因为答案已经确定），但代价是引入全局状态，代码变复杂，不划算。</li>
+<li><em>"为什么是后序遍历？"</em> —— 因为判断"我是不是分叉点"需要先知道左右子树的情况。信息从下往上流，所以必须后序。</li>
+<li><em>"空间为什么是 O(h)？"</em> —— 递归栈深度等于树高。平衡树 <code>O(log n)</code>，完全偏斜树退化成 <code>O(n)</code>。</li>
+<li><em>"最小的 LCA、最大的 LCA 怎么求？"</em> —— 稍微跑题但常被带出来：BST 里就是"最左叶子和最右叶子的 LCA"，即根（如果不是 BST，就用 236 的通用解）。</li>
+<li><em>"235 和 236 能统一吗？"</em> —— 判据是同一个（"分居两侧"），但 236 只能靠子树返回值搜出来，235 能靠值的大小直接判断。<strong>统一的是思想，不是代码。</strong></li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+把树系列的递归题串起来看，这题的位置是这样的：
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>核心动作</th>
+<th>和本题的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 144 / 94 / 145</strong></td>
+<td>递归 / 显式栈遍历</td>
+<td>递归骨架的起点</td>
+</tr>
+<tr>
+<td><strong>LC 102 / 103 / 199</strong></td>
+<td><code>size = len(q)</code> 快照分层</td>
+<td>BFS 那一半版图</td>
+</tr>
+<tr>
+<td><strong>LC 236</strong></td>
+<td><strong>后序 + 返回值向上冒泡</strong></td>
+<td>本文，<strong>递归返回值考法的毕业考</strong></td>
+</tr>
+<tr>
+<td><strong>LC 235</strong></td>
+<td>利用 BST 有序性前序下钻</td>
+<td>同样判据、不同实现</td>
+</tr>
+<tr>
+<td><strong>LC 1650</strong></td>
+<td>两条链表求交点</td>
+<td>有 parent 指针时的退化形态</td>
+</tr>
+<tr>
+<td><strong>LC 1676 / 1123</strong></td>
+<td>目标换成数组 / 深度</td>
+<td>同一个骨架换判据</td>
+</tr>
+</tbody>
+</table>
+
+这题值得带走的不是那 8 行代码，而是这个反射：
+<blockquote>
+
+<strong>看到"两个节点的关系"要自底向上判断，就先想后序；看到"子树里的信息要传给父亲"，就把返回值当成一个可以承载多重含义的载体。</strong>
+</blockquote>
+
+236 / 235 / 1650 / 1676 / 1123 五道题，<strong>判据全是"分叉点"</strong>：左右两侧各有一个目标，当前节点就是答案。
+<ul>
+<li>236：<strong>左右子树的返回值都非空</strong>；</li>
+<li>235：<strong>p、q 的值分居 <code>root.val</code> 两侧</strong>；</li>
+<li>1650：<strong>两条向上链的第一个交点</strong>；</li>
+<li>1676：<strong>左右子树都有目标</strong>；</li>
+<li>1123：<strong>左右子树的深度相等</strong>。</li>
+</ul>
+
+记住"分叉点"这个形状，剩下的是换判据；记不住它，每一道都得重新想一遍"最近"是什么意思。
+<div class="codehilite"><pre><span></span><code>dfs(node)
+  ├─ 空 / 命中 → 立刻返回（不再下探）
+  ├─ left  = dfs(node.left)     ← 先把左子树的结论拿到手
+  ├─ right = dfs(node.right)    ← 再把右子树的结论拿到手
+  └─ 左右都非空 ? 返回自己 : 如实上报
+        ↑
+   全树唯一的一次&quot;分叉&quot;，就是答案
+</code></pre></div>
+
+
+<strong>返回值是信使，不是答案。</strong> 只有当左右两个信使同时回来的时候，接收它们的那个节点才成为答案。</div></div></noscript>
+  </body>
+</html>
