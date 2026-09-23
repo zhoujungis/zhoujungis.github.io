@@ -17,6 +17,7 @@ import { mountReorderList } from '@/viz/reorderList'
 import { mountPalindromeList } from '@/viz/palindromeList'
 import { mountIntersectLists } from '@/viz/intersectLists'
 import { mountRemoveDups2 } from '@/viz/removeDups2'
+import { mountLevelOrder } from '@/viz/levelOrder'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -313,6 +314,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc234': mountPalindromeList,
   'algo-viz--lc160': mountIntersectLists,
   'algo-viz--lc82': mountRemoveDups2,
+  'algo-viz--lc102': mountLevelOrder,
 }
 
 let vizHandles = []
