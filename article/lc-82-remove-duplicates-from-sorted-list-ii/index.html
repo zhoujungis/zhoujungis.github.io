@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得&quot;删重复&quot;已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-82-remove-duplicates-from-sorted-list-ii/" />
+    <meta property="og:title" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy" />
+    <meta property="og:description" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得&quot;删重复&quot;已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-82-remove-duplicates-from-sorted-list-ii/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-82-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy" />
+    <meta name="twitter:description" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得&quot;删重复&quot;已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-82-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DIvhcuSg.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-23T12:10:22.620460+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy","description":"【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得\"删重复\"已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 ","image":"https://zhoujungis.github.io/photos/lc-82-cover.png","datePublished":"2026-09-23T12:10:22.620460+08:00","dateModified":"2026-09-23T12:10:22.620502+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-82-remove-duplicates-from-sorted-list-ii/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy</h1><div class="ns-meta">2026/9/23 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：做过 LC 83（保留一个），觉得"删重复"已经会了，然后被这题的一个都别留卡住的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等（代码 15 行，但 <code>prev</code> 到底什么时候前进，是最容易写错的地方）
+<strong>收获</strong>：dummy 哨兵「到底在解决什么问题」的准确答案，以及 prev / curr 这对指针的推进规则
+</blockquote>
+<h2>题目</h2>
+
+给你一个已排序的链表的头 <code>head</code>，<strong>删除原始链表中所有重复数字的节点，只留下不同的数字</strong>。
+<div class="codehilite"><pre><span></span><code>输入：head = [1,2,3,3,4,4,5]
+输出：[1,2,5]
+解释：3 和 4 都出现过重复，所以它们一个都不留
+
+输入：head = [1,1,1,2,3]
+输出：[2,3]
+解释：1 出现了三次，全删；2、3 各只出现一次，保留
+</code></pre></div>
+
+
+注意加粗那句：<strong>出现过重复的值，一个都不留</strong>。这跟 LC 83 是两回事 —— 83 是"每个值留一个"，结果会是 <code>[1,2,3,3,4,4,5] → [1,2,3,4,5]</code>。82 要的是 <code>[1,2,5]</code>。
+<blockquote>
+
+出处备注：暑期实习面经里高频出现。这题被选中的原因往往是它和 LC 83 只差一行条件，用来快速分辨"真理解指针"还是"记得模板"。
+</blockquote>
+
+链表节点的定义，沿用前几篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
+</code></pre></div>
+
+<hr>
+<h2>一、先想清楚：为什么这题比 LC 83 难</h2>
+<h3>1.1 排序这个条件给了什么</h3>
+
+链表已经排好序，所以<strong>重复的元素一定挨在一起</strong>。不需要哈希表去统计每个值出现几次，只要顺着走，看到"当前节点和下一个节点值相同"就知道碰上重复了。
+
+这是这题唯一一个"送分"的地方：<strong>判重不用回看，只看邻位</strong>，<code>O(1)</code> 空间是白送的。
+<h3>1.2 真正的难点：删除需要前驱</h3>
+
+删除一个节点 <code>x</code>，在单链表里只有一种做法：
+<div class="codehilite"><pre><span></span><code><span class="n">x</span> <span class="n">的前驱</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+也就是说，<strong>要删一个节点，你必须先拿到它的前驱</strong>。
+
+现在问题来了：LC 83 里，重复时保留第一个、删后面几个 —— 被删的节点总是有前驱的（前驱就是保留下来的那个）。所以 LC 83 里 <code>prev</code> 永远安全。
+
+但 82 要"一个都不留"：重复段里的<strong>第一个节点也要删</strong>。而那一段的第一个节点，它的前驱可能是……<strong>原来的 head 自己</strong>。
+
+最极端的例子：
+<div class="codehilite"><pre><span></span><code>输入：1 → 1 → 2
+输出：2
+</code></pre></div>
+
+
+这里 <code>head</code> 本身（第一个 <code>1</code>）就要被删掉。可 <code>head</code> 没有前驱 —— 你没法执行 <code>head 的前驱.next = head.next</code>，因为 <code>head 的前驱</code> 根本不存在。
+<h3>1.3 dummy 哨兵：给头节点一个人造的"前驱"</h3>
+
+解法是<strong>在头节点前面架一个假的节点</strong>：
+<div class="codehilite"><pre><span></span><code>dummy → 1 → 1 → 2
+</code></pre></div>
+
+
+现在 <code>dummy</code> 就是头节点的前驱了，删第一个 <code>1</code> 变成一次普通的删除操作：<code>dummy.next = 1.next</code>。<strong>没有一个节点是特殊的</strong>。
+<div class="codehilite"><pre><span></span><code><span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">dummy</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">head</span>
+<span class="o">...</span>
+<span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>      <span class="c1"># 返回 dummy.next，而不是 head</span>
+</code></pre></div>
+
+
+两个必须记住的细节：
+<ul>
+<li><strong>返回 <code>dummy.next</code> 而不是 <code>head</code></strong>。因为 <code>head</code> 自己可能已经被摘掉了，那时 <code>head</code> 指向的是一个已经脱离链表的孤儿节点。<code>dummy.next</code> 才永远是正确的答案。</li>
+<li><strong><code>dummy</code> 的值随便填</strong>。它不参与比较，<code>0</code> 只是习惯（有些题解用 <code>-1</code>；如果值域可能到 <code>-1</code>，用一个足够小的负数更稳）。</li>
+</ul>
+<blockquote>
+
+顺便说一句：LC 19（删除倒数第 N 个）也用了 dummy，但那题的理由是"可能要删头节点"。<strong>同一个技巧，同一个动机</strong> —— 只要你意识到"操作可能落到头节点上"，就该条件反射地架一个 dummy。
+</blockquote>
+<hr>
+<h2>二、双指针的推进规则（这一步最容易写错）</h2>
+
+架好 dummy 之后，需要两个指针：
+<ul>
+<li><code>prev</code>：已经确认安全的节点的尾巴，也就是"最后一个<strong>确定要保留</strong>的节点"；</li>
+<li><code>curr</code>：正在检查的位置。</li>
+</ul>
+
+主循环的骨架长这样：
+<div class="codehilite"><pre><span></span><code><span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="n">dummy</span><span class="p">,</span> <span class="n">head</span>
+<span class="k">while</span> <span class="n">curr</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+        <span class="c1"># 发现重复 —— 这里要整段跳掉</span>
+        <span class="o">...</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+<strong>关键在 <code>else</code> 那一支：只有确认 <code>curr</code> 不属于任何重复段时，<code>prev</code> 才跟着前进。</strong>
+
+为什么？因为一旦发现重复，<code>curr</code> 会被推着往前跑（去跳过整段），而 <code>prev</code> 必须<strong>钉在原地</strong> —— 它是那一段的"接回点"。等 <code>curr</code> 跑出重复段了，用 <code>prev.next = curr</code> 一次把中间那整段摘掉。
+
+如果 <code>prev</code> 跟着一起推，中间那几个被摘掉的节点就会出现在 <code>prev</code> 和 <code>curr</code> 之间，<code>prev.next = curr</code> 之后链表里还挂着半截垃圾。
+<h3>2.1 发现重复之后做什么</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+    <span class="n">dup_val</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span>
+    <span class="k">while</span> <span class="n">curr</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">dup_val</span><span class="p">:</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>        <span class="c1"># curr 一路冲到重复段之外</span>
+    <span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">curr</span>            <span class="c1"># 一次接上，中间整段被摘出</span>
+</code></pre></div>
+
+
+注意这里<strong>没有</strong> <code>prev = prev.next</code>。<code>prev</code> 就是不动。
+
+内层 <code>while curr and curr.val == dup_val</code> 里那个 <code>curr and</code> 不能省：如果重复段一直延伸到链表末尾（比如 <code>1 → 2 → 2</code>），<code>curr</code> 会一路跑到 <code>None</code>，没有 <code>curr and</code> 就会在 <code>curr.val</code> 上抛 <code>AttributeError</code>。
+<h3>2.2 为什么内层用「值」比较就够了</h3>
+
+<code>curr.val == dup_val</code> 比的是<strong>值</strong>，不是节点 —— 这和 LC 160 相交链表里"必须比引用"正好相反，值得对照记一下：
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>判据</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 160</strong> 相交链表</td>
+<td>必须比<strong>节点引用</strong></td>
+<td>"共享同一批节点"是引用层面的关系，值相同不算</td>
+</tr>
+<tr>
+<td><strong>LC 82</strong> 删除重复</td>
+<td>比<strong>值</strong>就够了</td>
+<td>题目要求删的就是"重复数字"，判据本身就是值</td>
+</tr>
+</tbody>
+</table>
+
+判据永远跟着<strong>题目在问什么</strong>走，别背成一条死规则。
+<h3>2.3 完整代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">deleteDuplicates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ListNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ListNode</span><span class="p">]:</span>
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>       <span class="c1"># 给头节点造一个前驱</span>
+        <span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="n">dummy</span><span class="p">,</span> <span class="n">head</span>
+
+        <span class="k">while</span> <span class="n">curr</span><span class="p">:</span>
+            <span class="c1"># 发现重复：curr 和下一个值相同</span>
+            <span class="k">if</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+                <span class="n">dup_val</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span>
+                <span class="k">while</span> <span class="n">curr</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">dup_val</span><span class="p">:</span>
+                    <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>     <span class="c1"># 整段跳过</span>
+                <span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">curr</span>         <span class="c1"># 一次摘掉整段；prev 不动</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>              <span class="c1"># 确认安全，prev 才前进</span>
+                <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+
+        <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>                <span class="c1"># 不是 head —— head 可能已被摘</span>
+</code></pre></div>
+
+<hr>
+<h2>三、动画：看着 prev 停在原地等</h2>
+
+下面这个动画把 <code>1 → 2 → 3 → 3 → 4 → 4 → 5</code> 的全程拆成 15 帧。留意三件事：
+<ul>
+<li><strong>最左边那个虚线框是 dummy</strong>：它在内存里并不存在，是解法凭空造出来的前驱。整条链的实际起点是它右边的 <code>1</code>；</li>
+<li><strong>橙色的框是"当前这段重复"</strong>：被框住的节点一会儿要被整段摘掉。框里节点上面那条橙线（<code>curr</code>）会往右跑，而下面那条绿线（<code>prev</code>）<strong>一动不动</strong> —— 这个错位就是本题的全部难点；</li>
+<li><strong>摘链那一帧</strong>：<code>prev</code> 伸出一条橙色虚线弧，跨过整段重复节点落到 <code>curr</code> 上，那条弧就是 <code>prev.next = curr</code> 这个赋值。被摘的节点同时变灰、被打上删除线。</li>
+</ul>
+<div class="algo-viz algo-viz--lc82"></div>
+
+
+看完动画再回头看 2.1 节那句"<code>prev</code> 就是不动"，画面上就是绿线钉在原地、橙线越跑越远。
+<hr>
+<h2>四、完整推演表</h2>
+
+用动画里的例子：
+<div class="codehilite"><pre><span></span><code>pool 下标: 0=1  1=2  2=3  3=3  4=4  5=4  6=5
+1 → 2 → 3 → 3 → 4 → 4 → 5
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>phase</th>
+<th>prev</th>
+<th>curr</th>
+<th>动作</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>dummy</td>
+<td>1</td>
+<td>—</td>
+<td>架好 <code>dummy</code>，<code>prev</code> 落在它身上</td>
+</tr>
+<tr>
+<td>1</td>
+<td>scan</td>
+<td>dummy</td>
+<td>1</td>
+<td>—</td>
+<td><code>1</code> 的下一个 <code>2</code> 不同值，安全</td>
+</tr>
+<tr>
+<td>2</td>
+<td>scan</td>
+<td>1</td>
+<td>2</td>
+<td><code>prev</code> 前进</td>
+<td><code>2</code> 的下一个 <code>3</code> 不同值，安全</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>dup-start</strong></td>
+<td>2</td>
+<td>3</td>
+<td>发现重复</td>
+<td><code>3</code> 和下一个 <code>3</code> 同值，<strong>段长 2</strong>；<code>prev</code> 从此停住</td>
+</tr>
+<tr>
+<td>4</td>
+<td>skip</td>
+<td>2</td>
+<td>3</td>
+<td><code>curr</code> 前进</td>
+<td>后面还有同值的 <code>3</code>，重复段没走完</td>
+</tr>
+<tr>
+<td>5</td>
+<td>skip</td>
+<td>2</td>
+<td>4</td>
+<td><code>curr</code> 前进</td>
+<td>跨出重复段 —— 此刻 <code>curr</code> 在 <code>4</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>unlink</strong></td>
+<td>2</td>
+<td>4</td>
+<td><code>prev.next = curr</code></td>
+<td>两个 <code>3</code> 一起被摘掉，<code>prev</code> 仍在 <code>2</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>advance</td>
+<td>3</td>
+<td>4</td>
+<td><code>prev</code> 前进</td>
+<td><code>prev</code> 跟到 <code>curr</code> 位置上，即将又发现重复</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>dup-start</strong></td>
+<td>3</td>
+<td>4</td>
+<td>发现重复</td>
+<td>第二段重复开始，<strong>段长 2</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td>skip</td>
+<td>3</td>
+<td>4</td>
+<td><code>curr</code> 前进</td>
+<td>后面还有同值的 <code>4</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>skip</td>
+<td>3</td>
+<td>5</td>
+<td><code>curr</code> 前进</td>
+<td>跨出重复段，<code>curr</code> 在 <code>5</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong>unlink</strong></td>
+<td>3</td>
+<td>5</td>
+<td><code>prev.next = curr</code></td>
+<td>两个 <code>4</code> 被摘掉</td>
+</tr>
+<tr>
+<td>12</td>
+<td>advance</td>
+<td>4</td>
+<td>5</td>
+<td><code>prev</code> 前进</td>
+<td>现在 <code>prev</code> 在 <code>5</code> 上</td>
+</tr>
+<tr>
+<td>13</td>
+<td>scan</td>
+<td>4</td>
+<td>5</td>
+<td>—</td>
+<td><code>5</code> 没有下一个，安全</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>done</strong></td>
+<td>dummy</td>
+<td>∅</td>
+<td>返回</td>
+<td><code>curr</code> 到 ∅，返回 <code>dummy.next</code> → <strong><code>1 → 2 → 5</code></strong></td>
+</tr>
+</tbody>
+</table>
+
+数一下每一帧的 prev 是否合理：第 3–6 帧 <code>prev</code> 一直是 <code>2</code>（<strong>四个帧没动过</strong>），第 8–11 帧一直是 <code>3</code>。<strong>"发现重复 → prev 冻结"在这张表里一眼可见。</strong>
+<blockquote>
+
+表里 <code>skip</code> 帧的 <code>curr</code> 有时和上一帧显示同一个值 —— 那是因为<strong>这一帧的动作是"从上一个节点走到当前节点"</strong>，画面停在走完之后的位置。<code>dup-start</code> 是"发现重复"的宣告帧，<code>skip</code> 才是真正执行移动的帧，两者职责不同。
+</blockquote>
+
+再看 <code>1 → 1 → 1 → 2 → 3</code>（头节点就要被删的场景）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>phase</th>
+<th>prev</th>
+<th>curr</th>
+<th>动作</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>dummy</td>
+<td>1</td>
+<td>—</td>
+<td>注意 <code>prev</code> 是 <strong>dummy</strong>，不是 head</td>
+</tr>
+<tr>
+<td>1</td>
+<td><strong>dup-start</strong></td>
+<td>dummy</td>
+<td>1</td>
+<td>发现重复</td>
+<td>第一个 <code>1</code> 和第二个 <code>1</code> 同值，<strong>段长 3</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>skip</td>
+<td>dummy</td>
+<td>1</td>
+<td><code>curr</code> 前进</td>
+<td>后面还有同值的 <code>1</code>，重复段没走完</td>
+</tr>
+<tr>
+<td>3</td>
+<td>skip</td>
+<td>dummy</td>
+<td>1</td>
+<td><code>curr</code> 前进</td>
+<td>还剩一个同值的 <code>1</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>skip</td>
+<td>dummy</td>
+<td>2</td>
+<td><code>curr</code> 前进</td>
+<td>跨出重复段，<code>curr</code> 到 <code>2</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>unlink</strong></td>
+<td>dummy</td>
+<td>2</td>
+<td><code>dummy.next = 2</code></td>
+<td>三个 <code>1</code> 一起被摘 —— <strong><code>head</code> 自己就被删了</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>advance</td>
+<td>1</td>
+<td>2</td>
+<td><code>prev</code> 前进</td>
+<td><code>prev</code> 落到保留下来的 <code>2</code> 上</td>
+</tr>
+<tr>
+<td>7</td>
+<td>scan</td>
+<td>1</td>
+<td>2</td>
+<td>—</td>
+<td><code>2</code> 的下一个 <code>3</code> 不同值，安全</td>
+</tr>
+<tr>
+<td>8</td>
+<td>scan</td>
+<td>2</td>
+<td>3</td>
+<td><code>prev</code> 前进</td>
+<td><code>3</code> 没有下一个，安全</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>done</strong></td>
+<td>dummy</td>
+<td>∅</td>
+<td>返回</td>
+<td><strong><code>2 → 3</code></strong></td>
+</tr>
+</tbody>
+</table>
+
+第 5 帧是整题的题眼：<strong>被删的是原来的头节点，而执行删除的是 <code>dummy.next = 2</code></strong>。没有 dummy，这一步根本写不出来。
+<hr>
+<h2>五、阿里变体：重复的只留一个</h2>
+
+面经里的变体是：<strong>保留重复元素只留一个</strong>，<code>1→1→1→2→3→3→4</code> 变成 <code>1→2→3→4</code>。
+
+注意它是"重复过的值留一个、没重复过的值照常留"，不是"每个值都留一个"（后者是 LC 83）。对 <code>1,1,1,2,3,3,4</code> 来说两者恰好结果不同：
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th><code>1,1,1,2,3,3,4</code> 的结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 82</strong>（重复的全删）</td>
+<td><code>2, 4</code></td>
+</tr>
+<tr>
+<td><strong>阿里变体</strong>（重复的留一个，没重复的照留）</td>
+<td><code>1, 2, 3, 4</code></td>
+</tr>
+<tr>
+<td><strong>LC 83</strong>（每个值都留一个）</td>
+<td><code>1, 2, 3, 4</code></td>
+</tr>
+</tbody>
+</table>
+
+改法只有一处：<strong>接回去的时候不要接到 <code>curr</code>，接到重复段的最后一个节点上</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">deleteDuplicates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ListNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ListNode</span><span class="p">]:</span>
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">head</span><span class="p">)</span>
+        <span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="n">dummy</span><span class="p">,</span> <span class="n">head</span>
+
+        <span class="k">while</span> <span class="n">curr</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+                <span class="n">dup_val</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span>
+                <span class="n">last</span> <span class="o">=</span> <span class="n">curr</span>                  <span class="c1"># 记住这一段的最后一个</span>
+                <span class="k">while</span> <span class="n">curr</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">dup_val</span><span class="p">:</span>
+                    <span class="n">last</span> <span class="o">=</span> <span class="n">curr</span>              <span class="c1"># 一路更新，&quot;最后&quot;自然浮出来</span>
+                    <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+                <span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">last</span>             <span class="c1"># ★ 唯一的改动：接 last 而不是 curr</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">last</span>                  <span class="c1"># prev 也落到这个保留节点上</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>
+                <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+
+        <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+
+
+<code>1→1→1→2→3→3→4</code> 走一遍：三个 <code>1</code> 里留下第三个，<code>prev</code> 落到它身上；<code>2</code> 没重复，照常过去；两个 <code>3</code> 里留下第二个；<code>4</code> 照常留。结果 <code>1 → 2 → 3 → 4</code>。
+<blockquote>
+
+面试里遇到这种"变体"，<strong>先把规则复述一遍再动手</strong>。"重复的留一个"和"每个值留一个"听起来像，结果可能一样也可能不一样 —— 拿 <code>1,1,1,2</code> 试一下就知道差别了。主动说出这层区别，比直接写代码得分高。
+</blockquote>
+<hr>
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">deleteDuplicates</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">head</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">,</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">dupVal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">val</span><span class="p">;</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">dupVal</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w">          </span><span class="c1">// 整段跳过</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span><span class="w">              </span><span class="c1">// 一次摘掉；prev 不动</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span><span class="w">                   </span><span class="c1">// 确认安全，prev 才前进</span>
+<span class="w">                </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code> 比较，<code>==</code> 没问题（如果是 <code>Integer</code> 装箱类型就要用 <code>.equals</code>，别踩这个坑）。
+<hr>
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>结果</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td><code>curr</code> 一开始就是 <code>null</code>，循环不进</td>
+</tr>
+<tr>
+<td><code>[1]</code></td>
+<td><code>[1]</code></td>
+<td>没有下一个，走 <code>else</code> 分支保留</td>
+</tr>
+<tr>
+<td><code>[1,1]</code></td>
+<td><code>[]</code></td>
+<td>头节点整段被删，<code>dummy.next</code> 变 <code>null</code></td>
+</tr>
+<tr>
+<td><code>[1,1,1]</code></td>
+<td><code>[]</code></td>
+<td>三连全删</td>
+</tr>
+<tr>
+<td><code>[1,1,2]</code></td>
+<td><code>[2]</code></td>
+<td><strong>头节点被删</strong> —— dummy 在这里救命</td>
+</tr>
+<tr>
+<td><code>[1,2,2]</code></td>
+<td><code>[1]</code></td>
+<td><strong>尾节点被删</strong> —— 内层 <code>curr and</code> 在这里救命</td>
+</tr>
+<tr>
+<td><code>[1,2,3]</code></td>
+<td><code>[1,2,3]</code></td>
+<td>完全无重复，原样返回</td>
+</tr>
+<tr>
+<td><code>[1,1,2,2]</code></td>
+<td><code>[]</code></td>
+<td>两段重复，全删</td>
+</tr>
+<tr>
+<td><code>[1,2,2,3,3,4]</code></td>
+<td><code>[1,4]</code></td>
+<td>中间两段重复</td>
+</tr>
+</tbody>
+</table>
+
+两个"救命"的点值得单独记：
+<ul>
+<li><strong><code>[1,1,2]</code></strong> 验证 <strong>dummy 必要性</strong>：删除动作落在头节点上，<code>prev</code> 是 dummy。把 dummy 去掉、直接 <code>prev = head</code> 起手，这个用例就会崩。</li>
+<li><strong><code>[1,2,2]</code></strong> 验证 <strong>内层 <code>while curr and ...</code> 的 <code>curr and</code></strong>：重复段延伸到链表末尾，<code>curr</code> 会走到 <code>None</code>。漏掉这个判断，<code>curr.val</code> 直接 <code>AttributeError</code>（Java 里是 <code>NullPointerException</code>）。</li>
+</ul>
+<hr>
+<h2>八、复杂度</h2>
+<ul>
+<li><strong>时间 <code>O(n)</code></strong>：外层 <code>while curr</code> 让 <code>curr</code> 从左到右走一遍；内层的 <code>while curr and curr.val == dup_val</code> 也在推同一个 <code>curr</code>，<strong>不是嵌套的独立循环</strong> —— 每个节点在整个过程中最多被 <code>curr</code> 访问一次。加起来仍是 <code>O(n)</code>。</li>
+<li><strong>空间 <code>O(1)</code></strong>：只多了 <code>dummy</code>、<code>prev</code>、<code>curr</code> 三个变量（Java 里还有内层的 <code>dupVal</code>）。没有哈希表、没有递归栈。</li>
+</ul>
+<blockquote>
+
+那个"内层循环为什么不算嵌套"是很好的加分点。判断方法：看内层循环有没有用到<strong>外层之外的独立游标</strong>。这里内层推的就是外层的 <code>curr</code>，所以是"同一个指针多走几步"，摊还下来仍是线性。
+</blockquote>
+<hr>
+<h2>九、常见坑</h2>
+
+<strong>1. 忘了 dummy，或者返回了 <code>head</code>。</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">prev</span><span class="p">,</span> <span class="n">curr</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">head</span>      <span class="c1"># 错的！head 自己要被删时无从下手</span>
+<span class="o">...</span>
+<span class="k">return</span> <span class="n">head</span>                  <span class="c1"># 错的！head 可能已经是孤儿节点</span>
+</code></pre></div>
+
+
+这是这题第一大坑。判断标准很简单：<strong>只要删除动作可能落在头节点上，就必须架 dummy，且返回 <code>dummy.next</code></strong>。
+
+<strong>2. <code>prev</code> 在重复时跟着 <code>curr</code> 一起前进了。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+    <span class="k">while</span> <span class="n">curr</span> <span class="ow">and</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">curr</span>          <span class="c1"># 错的！prev 不该动</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">next</span>
+    <span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">curr</span>
+</code></pre></div>
+
+
+<code>prev</code> 是"接回点"，必须留在重复段的<strong>前一个</strong>位置。跟着推进的话，中间几个被摘节点会卡在 <code>prev</code> 和 <code>curr</code> 之间。
+
+<strong>3. 内层循环漏掉 <code>curr and</code>。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">curr</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">dup_val</span><span class="p">:</span>    <span class="c1"># 错的！重复段到末尾时 curr 变 None，直接崩</span>
+</code></pre></div>
+
+
+必须写成 <code>while curr and curr.val == dup_val</code>。
+
+<strong>4. 把重复段的判据写成"值在整条链里出现过"。</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>                 <span class="c1"># 错的！这不是 82 的语义</span>
+<span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="o">...</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+
+
+排序链表上判重<strong>只看邻位就够</strong>，不需要统计全局。写成全局统计既慢（要开 <code>O(n)</code> 空间）又容易把 82（全删）和 83（留一个）搞混。
+
+<strong>5. 和 LC 83 的条件搞混。</strong>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>发现重复时</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 83</strong></td>
+<td><code>prev.next = curr.next</code>（删当前）</td>
+<td>每个值留一个</td>
+</tr>
+<tr>
+<td><strong>LC 82</strong></td>
+<td>整段跳到段外，再 <code>prev.next = curr</code></td>
+<td>重复值一个不留</td>
+</tr>
+</tbody>
+</table>
+
+记法：<strong>83 是"踩掉重复的那一个"，82 是"整段铲走"</strong>。82 多了一层"先找到段尾"的循环，代码长一点，语义干净得多。
+
+<strong>6. 忘了这题不用递归。</strong>
+
+递归写链表题很省事，但这题递归要处理的"当前节点是否属于重复段"需要向前看、还要正确回接，写出来比迭代绕得多。而且递归栈是 <code>O(n)</code>，虽然题目没要求 <code>O(1)</code>，但迭代版本来就更短更清晰。
+<hr>
+<h2>十、面试怎么答</h2>
+
+<strong>开口 30 秒给思路</strong>（别一上来就写代码）：
+<blockquote>
+
+链表已经排序，所以重复的一定挨在一起，判重只看邻位就行。难点是"重复的节点一个都不留"，意味着重复段的第一个节点也要删 —— 而它可能是头节点，头节点没有前驱。所以先在头上架一个 dummy 当它的人造前驱。然后双指针：<code>prev</code> 是"最后一个确定保留的节点"，<code>curr</code> 往前探。发现 <code>curr.val == curr.next.val</code> 就记住这个值，让 <code>curr</code> 一路跳到重复段之外，再 <code>prev.next = curr</code> 一次把整段摘掉 —— 这一步 <code>prev</code> 不能动。没重复的时候才 <code>prev = curr</code> 一起前进。最后返回 <code>dummy.next</code>。时间 O(n)，空间 O(1)。
+</blockquote>
+
+<strong>然后主动交代三个易错点</strong> —— 这是区分"背过答案"和"真懂"的地方：
+<ol>
+<li><strong>dummy 是为了让"删头节点"变成一次普通删除</strong>，返回必须用 <code>dummy.next</code>；</li>
+<li><strong><code>prev</code> 只在确认 <code>curr</code> 不属于重复段时才前进</strong>，摘链时它必须停在重复段前面；</li>
+<li><strong>内层循环要写 <code>while curr and curr.val == dup_val</code></strong>，重复段拖到末尾时 <code>curr</code> 会变 <code>None</code>。</li>
+</ol>
+
+<strong>追问应对</strong>：
+<ul>
+<li><em>"内层那个 while 不会让复杂度变成 O(n²) 吗？"</em> —— 不会。内外两层推的是<strong>同一个 <code>curr</code></strong>，每个节点只被访问一次，摊还是 <code>O(n)</code>。</li>
+<li><em>"能不用 dummy 吗？"</em> —— 能，但要单独处理"头节点开始的重复段"：先用一个 while 把头部的重复整段删掉，再进入主循环。多一段特判代码，不如 dummy 干净。</li>
+<li><em>"如果要求重复的留一个呢？"</em> —— 接回的时候接 <code>last</code>（重复段最后一个节点）而不是 <code>curr</code>，其余不变。这就是那个阿里变体。</li>
+<li><em>"复杂度为什么不是 O(n) 空间？"</em> —— 排序保证重复相邻，所以不需要哈希表统计；全程只有三个指针变量。</li>
+<li><em>"这题和 LC 83 的区别？"</em> —— 83 每个值留一个（<code>prev.next = curr.next</code>），82 重复的一个不留（整段跳到段外）。82 多了找段尾的内层循环。</li>
+</ul>
+<hr>
+<h2>结语</h2>
+
+把链表系列串起来看，这题的位置是这样的：
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>核心动作</th>
+<th>和本题的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 206</strong> 反转链表</td>
+<td>迭代三行原地反转</td>
+<td>都靠"先记住再改指"</td>
+</tr>
+<tr>
+<td><strong>LC 19</strong> 删除倒数第 N 个</td>
+<td>快慢指针固定间隔</td>
+<td><strong>同样靠 dummy 解决"删头节点"</strong></td>
+</tr>
+<tr>
+<td><strong>LC 83</strong> 删除排序链表重复元素 I</td>
+<td>每个值留一个</td>
+<td><strong>只差一行条件</strong>，本文的反面</td>
+</tr>
+<tr>
+<td><strong>LC 82</strong> 删除排序链表重复元素 II</td>
+<td>整段跳过后一次摘掉</td>
+<td>本文，dummy 的必要性最直观的一题</td>
+</tr>
+<tr>
+<td><strong>LC 160</strong> 相交链表</td>
+<td>交换游标</td>
+<td>那题比<strong>引用</strong>，这题比<strong>值</strong>，判据各跟着题走</td>
+</tr>
+</tbody>
+</table>
+
+这题最值得带走的东西，不是那 15 行代码，而是这个反射：
+<blockquote>
+
+<strong>看到"可能要删头节点"，先架 dummy。</strong>
+</blockquote>
+
+同样的反射在 LC 19 上是"可能要删头节点"，在 LC 143、234 上是"可能要断开/反转后半段"。链表题的很多麻烦，都是在处理"边界节点没有前驱/没有后继"这类结构缺陷 —— 而<strong>造一个假节点</strong>，往往是成本最低的通用解法。
+<div class="codehilite"><pre><span></span><code>dummy → 1 → 1 → 2
+        ↑
+   head 没有前驱，删不动；
+   给它一个 dummy，就删得动了。
+</code></pre></div>
+
+
+下次再遇到"这个操作在头节点上会失效"的链表题，先问自己一句：<strong>能不能在它前面凭空造一个节点？</strong></div></div></noscript>
+  </body>
+</html>
