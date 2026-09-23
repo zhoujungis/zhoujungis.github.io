@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊 适用读者 ：会写二叉树的后序递归，但一看到「返回值」和「答案」要同时维护就觉得别扭的人 技术栈 ：Python 为主，附 Java 版 难度 ：困难（代码 10 行，但 这 10 行里藏着一个真正的思维跳跃 ） 收获 ：一个「一个节点同时算两个量」的树形" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-124-binary-tree-maximum-path-sum/" />
+    <meta property="og:title" content="【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊" />
+    <meta property="og:description" content="【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊 适用读者 ：会写二叉树的后序递归，但一看到「返回值」和「答案」要同时维护就觉得别扭的人 技术栈 ：Python 为主，附 Java 版 难度 ：困难（代码 10 行，但 这 10 行里藏着一个真正的思维跳跃 ） 收获 ：一个「一个节点同时算两个量」的树形" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-124-binary-tree-maximum-path-sum/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-124-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊" />
+    <meta name="twitter:description" content="【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊 适用读者 ：会写二叉树的后序递归，但一看到「返回值」和「答案」要同时维护就觉得别扭的人 技术栈 ：Python 为主，附 Java 版 难度 ：困难（代码 10 行，但 这 10 行里藏着一个真正的思维跳跃 ） 收获 ：一个「一个节点同时算两个量」的树形" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-124-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BqiBf9Qe.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-23T17:15:09.666656+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊","description":"【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊 适用读者 ：会写二叉树的后序递归，但一看到「返回值」和「答案」要同时维护就觉得别扭的人 技术栈 ：Python 为主，附 Java 版 难度 ：困难（代码 10 行，但 这 10 行里藏着一个真正的思维跳跃 ） 收获 ：一个「一个节点同时算两个量」的树形","image":"https://zhoujungis.github.io/photos/lc-124-cover.png","datePublished":"2026-09-23T17:15:09.666656+08:00","dateModified":"2026-09-23T17:15:09.666693+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-124-binary-tree-maximum-path-sum/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊</h1><div class="ns-meta">2026/9/23 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：会写二叉树的后序递归，但一看到「返回值」和「答案」要同时维护就觉得别扭的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：困难（代码 10 行，但<strong>这 10 行里藏着一个真正的思维跳跃</strong>）
+<strong>收获</strong>：一个「一个节点同时算两个量」的树形 DP 模板，以及 543 / 687 / 1123 一整串同骨架的变体
+</blockquote>
+<h2>题目</h2>
+
+<strong>路径</strong>被定义为一条节点序列，序列中每对相邻节点之间都存在一条边。同一个节点在一条路径序列中<strong>至多出现一次</strong>。该路径<strong>至少包含一个节点</strong>，且<strong>不一定经过根节点</strong>。
+
+<strong>路径和</strong>是路径中各节点值的总和。给你一个二叉树的根节点 <code>root</code>，返回其<strong>最大路径和</strong>。
+<div class="codehilite"><pre><span></span><code>输入：root = [-10,9,20,null,null,15,7]
+输出：42
+解释：最优路径是 15 → 20 → 7，路径和为 15 + 20 + 7 = 42
+
+输入：root = [1,2,3]
+输出：6
+解释：最优路径是 2 → 1 → 3
+
+输入：root = [-3]
+输出：-3
+</code></pre></div>
+
+
+这题是<strong>树形 DP 的分水岭</strong>。它不是那种"多写几个 if 就能过"的题 —— 它要求你想明白一件事：
+<table>
+<thead>
+<tr>
+<th>考点</th>
+<th>题目里对应的那句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>你有没有意识到<strong>「向上汇报的值」和「用来更新答案的值」是两个不同的量</strong></td>
+<td>路径"至多经过一次"同一个节点 + 路径是一条<strong>链</strong></td>
+</tr>
+<tr>
+<td>你会不会<strong>用 <code>max(·, 0)</code> 剪掉负贡献</strong>（这不是防御性编程，是算法的核心优化）</td>
+<td>值可以是负数</td>
+</tr>
+<tr>
+<td>你会不会把 <code>best</code> 初始化成 <code>-Infinity</code> 而不是 <code>0</code></td>
+<td>"路径<strong>至少包含一个节点</strong>"</td>
+</tr>
+</tbody>
+</table>
+
+变体也成串 —— 它们<strong>共用同一个骨架</strong>，只换掉"两个量"的定义：
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>题号</th>
+<th>换成什么量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>二叉树的直径</strong></td>
+<td>LC 543</td>
+<td>量从"节点值之和"换成"<strong>边数</strong>"，且不需要 clamp</td>
+</tr>
+<tr>
+<td><strong>最长同值路径</strong></td>
+<td>LC 687</td>
+<td>量换回"边数"，再加一层"<strong>两端值必须相等</strong>"的约束</td>
+</tr>
+<tr>
+<td><strong>最深叶节点的最近公共祖先</strong></td>
+<td>LC 1123</td>
+<td>量换成"<strong>子树高度</strong>"，拱顶处返回孩子的高度</td>
+</tr>
+<tr>
+<td><strong>二叉树的最大路径乘积</strong></td>
+<td>LC 变体</td>
+<td>量换成"乘积"（<strong>不能盲目 clamp</strong>，负负得正）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+出处备注：LC 124 是<strong>字节、腾讯、阿里</strong>的树形 DP 高频题。被选中的原因很直接：<strong>代码只有 10 行，但"为什么返回值只能选一条胳膊"说不清楚的人占大多数。</strong> 面试官最爱的追问就是"返回值为什么不写成 <code>val + left + right</code>？"—— 本文第 1.3 节专门回答它。
+</blockquote>
+
+节点的定义，沿用前几篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TreeNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">left</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">right</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>输入格式提醒</strong>：<code>[-10,9,20,null,null,15,7]</code> 是 LeetCode 的<strong>层序数组编码</strong>（和 LC 102 / LC 236 一样）。下标 <code>i</code> 的节点，左孩子在 <code>2i+1</code>、右孩子在 <code>2i+2</code>，空缺位置用 <code>null</code> 占位。这棵树画出来是：
+
+<code>-10
+          /   \
+         9     20
+              /  \
+             15    7</code>
+
+<code>9</code> 的两个孩子位是 <code>null</code>（它是叶子），所以 <code>[15, 7]</code> 挂在 <code>20</code> 下面。整棵树只有 5 个节点。
+</blockquote>
+<hr>
+<h2>一、先说清楚这题到底难在哪</h2>
+<h3>1.1 直觉方案为什么不够好</h3>
+
+最直白的想法是：<strong>枚举所有路径，取最大的那个。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxPathSum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">all_paths_from</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>            <span class="c1"># 以 node 为一端的、向下的所有直链</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">lefts</span> <span class="o">=</span> <span class="n">all_paths_from</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="n">rights</span> <span class="o">=</span> <span class="n">all_paths_from</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">lefts</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">rights</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>                       <span class="c1"># 枚举以 node 为&quot;最高点&quot;的所有路径</span>
+        <span class="k">nonlocal</span> <span class="n">best</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">all_paths_from</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">all_paths_from</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">):</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>
+        <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+
+    <span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+
+这个写法<strong>是对的</strong>，但复杂度难看：<code>all_paths_from</code> 会重复遍历子树，整体退化到 O(n²) 甚至更高。n = 3×10⁴ 的时候会超时。
+
+问题出在哪？<strong>它把每棵子树算了无数遍。</strong> 而真正需要的信息，其实只有一个数 —— 这就是后序 DP 能进来的地方。
+<h3>1.2 关键观察：一条路径在树上长什么样</h3>
+
+先看清楚"路径"这个形状。因为<strong>同一个节点至多出现一次</strong>，一条路径在二叉树上的形状只有两种：
+<div class="codehilite"><pre><span></span><code>① 直链（一条胳膊）              ② 拱形（两条胳膊）
+                                  ●  ← 最高点
+        ●                         / \
+        |                        ●   ●
+        ●                        |   |
+        |                        ●   ●
+        ●
+</code></pre></div>
+
+
+<strong>任意一条路径，都存在唯一一个"最高点"节点</strong>（深度最小的那个，也就是拐弯的地方）。
+<ul>
+<li>如果路径是<strong>直链</strong>，最高点就是它的上端点，只有一条"胳膊"往下走；</li>
+<li>如果路径是<strong>拱形</strong>，最高点就是那个拐弯处，有两条胳膊，一条往左、一条往右。</li>
+</ul>
+
+有了这个观察，整个问题就变成了：
+<blockquote>
+
+<strong>对每个节点，算出「以它为最高点的最优路径」，再取所有节点的最大值。</strong>
+</blockquote>
+
+而"以 <code>node</code> 为最高点的最优路径"可以拆成三块：
+<div class="codehilite"><pre><span></span><code>node.val  +  (左子树里最优的那条向下直链)  +  (右子树里最优的那条向下直链)
+</code></pre></div>
+
+
+<strong>注意这里两个量是"向下直链"，不是"子树里的最大路径"！</strong>
+
+这是个极其容易搞混的地方：子树里最优的那条路径可能是拱形的（比如 <code>15 → 20 → 7</code> 就在 <code>20</code> 这棵子树里，它是个拱），但你<strong>没法把一条拱形路径接到父节点上去</strong> —— 接上去就变成树杈了。
+
+接得上去的，只能是<strong>从子树根一路往下走的直链</strong>。所以我们真正需要从子树拿到的，是这个东西：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>     <span class="c1"># 从 node 出发、一路向下的所有直链里，最大的那条的&quot;和&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">),</span> <span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+</code></pre></div>
+
+
+这就能在 O(n) 里自底向上算出来。<strong><code>gain</code> 就是「贡献值」</strong> —— 这棵子树愿意往上贡献多少。
+<h3>1.3 本题唯一真正的难点：两个量必须分开算</h3>
+
+现在把两件事拼起来，你会发现一个节点要同时算<strong>两个不同的东西</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">left</span>  <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">),</span>  <span class="mi">0</span><span class="p">)</span>      <span class="c1"># ← clamp：负贡献直接剪掉</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># ① 以 node 为「拱顶」的完整路径（两条胳膊都用上，用到此为止）</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">left</span> <span class="o">+</span> <span class="n">right</span><span class="p">)</span>
+
+    <span class="c1"># ② 向上汇报的「贡献值」（只能选一条胳膊）</span>
+    <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>形状</th>
+<th>用途</th>
+<th>公式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>返回值 <code>gain</code></strong></td>
+<td>一条<strong>直链</strong>（一条胳膊）</td>
+<td>交给父节点继续往上接</td>
+<td><code>val + max(左, 右)</code></td>
+</tr>
+<tr>
+<td><strong>答案 <code>through</code></strong></td>
+<td>一个<strong>拱形</strong>（两条胳膊）</td>
+<td>以本节点为最高点，<strong>到此为止</strong></td>
+<td><code>val + 左 + 右</code></td>
+</tr>
+</tbody>
+</table>
+
+<strong>面试官最爱问的那句就是：返回值为什么不直接写成 <code>val + left + right</code>？</strong>
+
+答案是：<strong>路径不能拐两次弯。</strong>
+
+想象一下，如果 <code>20</code> 返回 <code>20 + 15 + 7 = 42</code>（两条胳膊都用掉）。父节点 <code>-10</code> 拿到 42，它自己也想拐一次弯接上去，于是算 <code>-10 + 42 = 32</code> —— 但 <code>15 → 20 → 7</code> 这条路径上，<code>20</code> <strong>已经拐过一次弯了</strong>。在 <code>20</code> 那里再往上接到 <code>-10</code>，就变成了：
+<div class="codehilite"><pre><span></span><code>        -10
+       /
+      20
+     /  \
+   15    7
+</code></pre></div>
+
+
+这是<strong>一个分叉的树杈</strong>，不是一条路径 —— 因为 <code>20</code> 在这一条路径里出现了两次（一次作为通往 15 的中转，一次作为通往 7 的中转），违反了"至多出现一次"。
+<div class="codehilite"><pre><span></span><code>✗ 拐两次（不是路径）          ✓ 只拐一次（是路径）
+        -10                          -10
+       /                             /
+      20                           20
+     /  \                          /
+   15    7                        7
+</code></pre></div>
+
+
+所以：<strong>向上汇报时必须"留一手"，只带一条胳膊走</strong>。而 <code>through</code> 之所以能两条胳膊都用，是因为<strong>它就在本节点处结束</strong>，不再往上接了 —— 不需要留手。
+
+一句话记法：<strong>返回一条边，答案一个尖。</strong>
+<h3>1.4 <code>max(gain, 0)</code> 里的那个 0，就是本题的优化本身</h3>
+
+很多人会把 <code>max(gain(node.left), 0)</code> 当成"防御性编程"（"万一子树是 null 呢"）。<strong>不是的。</strong>
+
+那个 <code>0</code> 表达的是一个<strong>决策</strong>：
+<blockquote>
+
+如果一条胳膊的总和是负的，把它接进来只会让路径和<strong>变小</strong>，那不如不接。
+</blockquote>
+<div class="codehilite"><pre><span></span><code>       1
+      / \
+    -5   3
+</code></pre></div>
+
+<ul>
+<li>不剪枝：<code>through = 1 + (-5) + 3 = -1</code></li>
+<li>剪枝后：<code>through = 1 + 0 + 3 = 4</code> ← 正确</li>
+</ul>
+
+<code>gain(-5) = -5</code>，<code>max(-5, 0) = 0</code>，含义是<strong>"别走我这边，从 <code>1</code> 直接往右拐到 <code>3</code> 就好"</strong>。
+
+所以代码里的 <code>max(·, 0)</code> 不是可选的保险，它和 <code>best</code> 的更新是<strong>同等重要的两半</strong>。去掉它，这题就错了。
+<h3>1.5 <code>best</code> 为什么必须初始化成 <code>-Infinity</code></h3>
+
+题目说"路径<strong>至少包含一个节点</strong>"。如果 <code>best</code> 初始化成 <code>0</code>：
+<div class="codehilite"><pre><span></span><code>输入：root = [-3]
+输出：0        ← 错！0 对应&quot;空路径&quot;，但空路径不是合法路径
+正确答案：-3
+</code></pre></div>
+
+
+全负的树是最容易暴露这个 bug 的用例。<strong><code>best</code> 要初始化成 <code>-float('inf')</code></strong>，保证至少有一个节点会被算进去。
+<hr>
+<h2>二、动画：看着贡献值一层层往上冒</h2>
+
+下面这个动画把上面 13 帧推演过程逐帧画出来。图里：
+<ul>
+<li><strong>每个节点上方挂的 <code>gain</code> 标签</strong> = 它向上汇报的贡献值（"冒泡"上来的那个数）；</li>
+<li><strong>金色细圈</strong> = 当前最优路径上的节点；<strong>金色粗圈</strong> = 这条路径的<strong>拱顶</strong>（最高点）；</li>
+<li><strong>虚线圆圈 / 虚线边</strong> = 贡献值 ≤ 0、被 <code>max(·, 0)</code> 剪掉的胳膊；</li>
+<li>下面那条<strong>横幅</strong> = 当前全局最优的 <code>best</code> 和它对应的完整路径。</li>
+</ul>
+<div class="algo-viz algo-viz--lc124"></div>
+
+
+看的时候重点盯三处：
+<ol>
+<li><strong>第 3 帧</strong>，<code>9</code> 报出 <code>gain 9</code>，<code>best</code> 从 <code>-Infinity</code> 变成 <code>9</code>；</li>
+<li><strong>第 9 帧</strong>，<code>20</code> 拿到左右各 <code>15</code> 和 <code>7</code>，算出的 <code>through = 42</code> 直接刷新 <code>best</code>，同时<strong>只报出 <code>gain 35</code></strong>（不是 42）—— 这就是"留一手"；</li>
+<li><strong>第 12 帧</strong>（终帧），看根 <code>-10</code> 的 <code>through = 34</code>：<strong>它比 42 小</strong>，所以根不是答案。这正说明题目那句"<strong>路径不一定经过根节点</strong>"。</li>
+</ol>
+<hr>
+<h2>三、完整推演表（13 帧逐帧）</h2>
+
+下面是动画每一帧的真实数据（<code>L</code> / <code>R</code> 是 clamp <strong>之后</strong>的左右贡献值；<code>through</code> 是拱顶路径和，<code>gain</code> 是向上汇报的贡献值）：
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>阶段</th>
+<th>当前节点</th>
+<th>L</th>
+<th>R</th>
+<th>through</th>
+<th>gain</th>
+<th>best</th>
+<th>栈</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td><code>-10</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>-∞</code></td>
+<td>（空）</td>
+</tr>
+<tr>
+<td>1</td>
+<td>recurse</td>
+<td><code>-10</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>-∞</code></td>
+<td><code>-10:enter</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>update</strong></td>
+<td><code>9</code></td>
+<td>0</td>
+<td>0</td>
+<td><strong>9</strong></td>
+<td><strong>9</strong></td>
+<td><strong>9</strong></td>
+<td><code>-10:left &gt; 9:enter</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>recurse</td>
+<td><code>-10</code></td>
+<td>9</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>9</code></td>
+<td><code>-10:left</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>recurse</td>
+<td><code>20</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>9</code></td>
+<td><code>-10:right &gt; 20:enter</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>update</strong></td>
+<td><code>15</code></td>
+<td>0</td>
+<td>0</td>
+<td><strong>15</strong></td>
+<td><strong>15</strong></td>
+<td><strong>15</strong></td>
+<td><code>-10:right &gt; 20:left &gt; 15:enter</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>recurse</td>
+<td><code>20</code></td>
+<td>15</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>15</code></td>
+<td><code>-10:right &gt; 20:left</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>leaf</td>
+<td><code>7</code></td>
+<td>0</td>
+<td>0</td>
+<td><code>7</code></td>
+<td><code>7</code></td>
+<td><code>15</code></td>
+<td><code>-10:right &gt; 20:right &gt; 7:enter</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>collect</td>
+<td><code>20</code></td>
+<td>15</td>
+<td>7</td>
+<td>—</td>
+<td>—</td>
+<td><code>15</code></td>
+<td><code>-10:right &gt; 20:decide</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>update</strong></td>
+<td><code>20</code></td>
+<td>15</td>
+<td>7</td>
+<td><strong>42</strong></td>
+<td><strong>35</strong></td>
+<td><strong>42</strong></td>
+<td><code>-10:right &gt; 20:decide</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>collect</td>
+<td><code>-10</code></td>
+<td>9</td>
+<td>35</td>
+<td>—</td>
+<td>—</td>
+<td><code>42</code></td>
+<td><code>-10:decide</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>decide</td>
+<td><code>-10</code></td>
+<td>9</td>
+<td>35</td>
+<td><strong>34</strong></td>
+<td><strong>25</strong></td>
+<td><code>42</code></td>
+<td><code>-10:decide</code></td>
+</tr>
+<tr>
+<td>12</td>
+<td>done</td>
+<td><code>20</code></td>
+<td>—</td>
+<td>—</td>
+<td><code>42</code></td>
+<td><code>35</code></td>
+<td><strong>42</strong></td>
+<td>（空）</td>
+</tr>
+</tbody>
+</table>
+
+两行必须对照着看：
+
+<strong>第 9 帧（<code>20</code>）</strong> —— 这就是本题的全部难点：
+<div class="codehilite"><pre><span></span><code>L = 15, R = 7
+through = 20 + 15 + 7 = 42     ← 两条胳膊都用，更新 best（42 &gt; 15，刷新！）
+gain    = 20 + max(15, 7) = 35 ← 只选一条胳膊，交给父节点
+</code></pre></div>
+
+
+<code>through</code> 和 <code>gain</code> <strong>差了整整 7</strong> —— 那个 7 就是"被留下没带走"的右胳膊。
+
+<strong>第 11 帧（<code>-10</code>）</strong> —— 为什么根不是答案：
+<div class="codehilite"><pre><span></span><code>L = 9, R = 35                  ← 右孩子 20 报上来的 gain 是 35，不是 42！
+through = -10 + 9 + 35 = 34    ← 34 &lt; 42，所以 best 保持 42 不动
+gain    = -10 + max(9, 35) = 25
+</code></pre></div>
+
+
+如果第 9 帧 <code>20</code> 错误地报了 <code>42</code>，那么这里就会算成 <code>-10 + 9 + 42 = 41</code> —— 依然小于 42，这一例<strong>看起来</strong>还是对的。但换个树就会崩。这就是为什么"两个量分开算"不能靠"跑通样例"来验证，<strong>必须从原理上理解</strong>。
+<blockquote>
+
+你可以自己构造一个反例感受一下：<code>[1, 2, 3, 4, 5]</code> 这种对称树，如果返回值错误地带上两条胳膊，根的 <code>through</code> 会严重虚高（把子树的拱形路径重复计入），答案会明显偏大。
+</blockquote>
+
+第 12 帧收尾时，栈已清空，<code>best = 42</code>，<code>bestPath = [15, 20, 7]</code> —— 注意<strong>它完全不经过根 <code>-10</code></strong>。
+<hr>
+<h2>四、完整代码</h2>
+<h3>4.1 Python 版（10 行主逻辑）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">maxPathSum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>          <span class="c1"># ← 不能是 0：路径至少含一个节点</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;返回 node 向上汇报的贡献值（一条胳膊的直链最大和）。&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">left</span>  <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">),</span>  <span class="mi">0</span><span class="p">)</span>    <span class="c1"># ← 负贡献直接剪掉</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+            <span class="c1"># ① 以 node 为拱顶的完整路径（两条胳膊），用它更新全局最优</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">left</span> <span class="o">+</span> <span class="n">right</span><span class="p">)</span>
+
+            <span class="c1"># ② 向上汇报的贡献值（只能选一条胳膊）</span>
+            <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+
+        <span class="n">gain</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">best</span>
+</code></pre></div>
+
+<h3>4.2 逐行拆解</h3>
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>为什么不是 0</strong>：见 1.5。全负树会被这个细节一刀毙命。
+<div class="codehilite"><pre><span></span><code><span class="n">left</span>  <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">),</span>  <span class="mi">0</span><span class="p">)</span>
+<span class="n">right</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+
+
+两个 <code>0</code> 就是<strong>剪枝决策</strong>（见 1.4）。注意这里 <code>gain(node.left)</code> 会自动处理 <code>None</code> 的情况（第一行 <code>if not node: return 0</code>），所以不用额外判空。
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">left</span> <span class="o">+</span> <span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>第 ① 个量</strong>：拱顶路径，两条胳膊都用。它<strong>不返回值</strong>，只更新答案。这是"到此为止"的那条路径。
+<div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>第 ② 个量</strong>：向上贡献，只能选一条胳膊。<code>max(left, right)</code> 就是"选更粗的那条胳膊"。
+
+<strong>顺序很重要</strong>：必须先更新 <code>best</code> 再 <code>return</code>，因为 <code>through</code> 是"到此为止"的量，一旦返回就丢掉了。
+<h3>4.3 复杂度</h3>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><strong>O(n)</strong></td>
+<td>每个节点恰好被访问一次</td>
+</tr>
+<tr>
+<td>空间</td>
+<td><strong>O(h)</strong></td>
+<td>递归栈深度 = 树高；最坏（偏斜树）退化成 O(n)</td>
+</tr>
+</tbody>
+</table>
+
+对比 1.1 节的暴力枚举（O(n²) 以上），这就是后序 DP 的价值。
+<hr>
+<h2>五、变体一：LC 543 二叉树的直径</h2>
+<h3>5.1 只换掉"量"的定义</h3>
+
+<strong>LC 543 二叉树的直径</strong>：给你一棵二叉树的根节点，返回该树的<strong>直径</strong> —— 任意两个节点之间最长路径的<strong>边数</strong>。
+
+同一个骨架，只把两个量换掉：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 124</th>
+<th>LC 543</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>返回值 <code>gain</code></td>
+<td><code>val + max(左, 右)</code>（节点值之和）</td>
+<td><code>1 + max(左, 右)</code>（<strong>深度</strong>，即往下能走几层）</td>
+</tr>
+<tr>
+<td>答案 <code>through</code></td>
+<td><code>val + 左 + 右</code></td>
+<td><code>左 + 右</code>（<strong>两条胳膊的长度和 = 边数</strong>）</td>
+</tr>
+<tr>
+<td>需要 clamp 吗</td>
+<td><strong>需要</strong>（值可为负）</td>
+<td><strong>不需要</strong>（深度恒非负）</td>
+</tr>
+</tbody>
+</table>
+<h3>5.2 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">diameterOfBinaryTree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>                      <span class="c1"># ← 这次可以是 0：直径最小就是 0（单节点）</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">depth</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">left</span>  <span class="o">=</span> <span class="n">depth</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>        <span class="c1"># ← 不需要 clamp，深度天然 &gt;= 0</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="n">depth</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best</span><span class="p">,</span> <span class="n">left</span> <span class="o">+</span> <span class="n">right</span><span class="p">)</span>   <span class="c1"># ① 拱顶处：两条胳膊长度相加</span>
+
+            <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>                <span class="c1"># ② 向上：只带最长的一条</span>
+
+        <span class="n">depth</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">best</span>
+</code></pre></div>
+
+<h3>5.3 两者的对照</h3>
+
+<strong>注意 LC 543 里没有 <code>max(·, 0)</code></strong> —— 因为深度不可能为负，那个 clamp 在这里毫无意义。这恰好反证了：<strong>LC 124 里那个 <code>0</code> 是为了"值可为负"这个前提服务的</strong>，不是通用写法。
+
+另外 <code>best</code> 的初值也不同：124 必须 <code>-inf</code>（路径至少一个节点，值可能全负），543 可以用 <code>0</code>（直径最小就是 0）。
+<blockquote>
+
+<strong>面试小技巧</strong>：如果面试官先给你 124 再给你 543，你可以主动说"这是同一个骨架，只是把节点值换成了边数"，然后指出"543 不需要 clamp" —— 这句话能直接证明你是<strong>理解了</strong>而不是<strong>背过了</strong>。
+</blockquote>
+<hr>
+<h2>六、变体二：LC 687 最长同值路径</h2>
+<h3>6.1 再加一层约束</h3>
+
+<strong>LC 687 最长同值路径</strong>：返回树中最长同值路径的<strong>边数</strong>（路径上每个节点值都相同）。
+
+还是同一个骨架，但在"选哪条胳膊"时多加一个条件：<strong>孩子的值必须等于自己的值</strong>。
+<h3>6.2 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">longestUnivaluePath</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">arrow</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;node 向上汇报的、以 node 为起点且值全同的向下链长度（边数）。&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">l</span> <span class="o">=</span> <span class="n">arrow</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">arrow</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+
+            <span class="c1"># 关键差异：孩子值不等于自己 → 这条胳膊断掉，长度归 0</span>
+            <span class="n">left</span>  <span class="o">=</span> <span class="n">l</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span>  <span class="ow">and</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="o">.</span><span class="n">val</span>  <span class="o">==</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span> <span class="ow">and</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="k">else</span> <span class="mi">0</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best</span><span class="p">,</span> <span class="n">left</span> <span class="o">+</span> <span class="n">right</span><span class="p">)</span>     <span class="c1"># ① 拱顶：两条胳膊</span>
+            <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>                      <span class="c1"># ② 向上：一条胳膊</span>
+
+        <span class="n">arrow</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">best</span>
+</code></pre></div>
+
+<h3>6.3 骨架三兄弟对照</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 124</th>
+<th>LC 543</th>
+<th>LC 687</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>返回值（一条胳膊）</td>
+<td><code>val + max(左, 右)</code></td>
+<td><code>1 + max(左, 右)</code></td>
+<td><code>max(左有效, 右有效)</code></td>
+</tr>
+<tr>
+<td>答案（两条胳膊）</td>
+<td><code>val + 左 + 右</code></td>
+<td><code>左 + 右</code></td>
+<td><code>左 + 右</code></td>
+</tr>
+<tr>
+<td>clamp</td>
+<td><strong>需要</strong> <code>max(·, 0)</code></td>
+<td>不需要</td>
+<td>不需要（用条件归零代替）</td>
+</tr>
+<tr>
+<td><code>best</code> 初值</td>
+<td><code>-inf</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td>额外约束</td>
+<td>无</td>
+<td>无</td>
+<td><strong>孩子值必须相等</strong></td>
+</tr>
+</tbody>
+</table>
+
+三题共用同一个 10 行骨架。<strong>掌握了 124，另外两题就是改两行。</strong>
+<hr>
+<h2>七、再顺手带两个</h2>
+<h3>7.1 LC 变体：最大路径乘「乘积」</h3>
+
+如果题目把"和"换成"乘积"，会发生一件危险的事：<strong>不能盲目 clamp。</strong>
+
+<code>-5 × -3 = 15</code>（负负得正），所以一个"负的胳膊"接进来反而可能让乘积变大。这时必须同时维护<strong>最大值和最小值</strong>两个返回值：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>                      <span class="c1"># (最大, 最小)</span>
+    <span class="n">lmax</span><span class="p">,</span> <span class="n">lmin</span> <span class="o">=</span> <span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+    <span class="n">rmax</span><span class="p">,</span> <span class="n">rmin</span> <span class="o">=</span> <span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="c1"># 四个候选：自己的值、自己×左最大、自己×左最小、…… 全排列出极值</span>
+    <span class="n">cands</span> <span class="o">=</span> <span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">*</span> <span class="n">lmax</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">*</span> <span class="n">lmin</span><span class="p">,</span>
+             <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">*</span> <span class="n">rmax</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">*</span> <span class="n">rmin</span><span class="p">]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">best</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">b</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">cands</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">cands</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">cands</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="n">cands</span><span class="p">))</span>
+</code></pre></div>
+
+
+<strong>教训</strong>：<code>max(·, 0)</code> 的 0 是针对"加法"这个运算的<strong>下界</strong>。换运算就得重新推理下界是什么 —— 别把模板当教条。
+<h3>7.2 LC 1123 最深叶节点的最近公共祖先</h3>
+
+这题也用同一套"拱顶"思路，只是两个量的含义换成<strong>高度</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>                   <span class="c1"># (子树高度, 子树内最深叶的 LCA)</span>
+    <span class="n">ld</span><span class="p">,</span> <span class="n">llca</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+    <span class="n">rd</span><span class="p">,</span> <span class="n">rlca</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ld</span> <span class="o">==</span> <span class="n">rd</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">ld</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">node</span><span class="p">)</span>              <span class="c1"># 左右一样深 → 自己就是 LCA（拱顶）</span>
+    <span class="k">if</span> <span class="n">ld</span> <span class="o">&gt;</span> <span class="n">rd</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">ld</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">llca</span><span class="p">)</span>              <span class="c1"># 只带更深的那条（一条胳膊）</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">rlca</span><span class="p">)</span>
+</code></pre></div>
+
+
+看到没有 —— <strong><code>if ld == rd: 自己是拱顶</code> / <code>else: 带走更深的那条</code></strong>，和 124 的 <code>through</code> / <code>gain</code> 是<strong>完全同构</strong>的。
+<hr>
+<h2>八、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MIN_VALUE</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxPathSum</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">gain</span><span class="p">(</span><span class="n">root</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">),</span><span class="w">  </span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// ① 拱顶路径：两条胳膊都用</span>
+<span class="w">        </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">right</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// ② 向上贡献：只选一条胳膊</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>Java 的一个坑</strong>：<code>Integer.MIN_VALUE</code> 在极端情况下可能溢出。如果题目允许路径和接近 <code>-2^31</code>，建议用 <code>long best</code> 或者初始化为 <code>-Integer.MAX_VALUE</code>。LeetCode 124 的数据范围（<code>-1000 &lt;= val &lt;= 1000</code>，节点数 ≤ 3×10⁴）下 <code>Integer.MIN_VALUE</code> 是安全的，但面试时提一句会加分。
+<hr>
+<h2>九、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>输入</th>
+<th>输出</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单节点正数</td>
+<td><code>[1]</code></td>
+<td><code>1</code></td>
+<td><code>through = gain = 1</code></td>
+</tr>
+<tr>
+<td><strong>单节点负数</strong></td>
+<td><code>[-3]</code></td>
+<td><strong><code>-3</code></strong></td>
+<td><strong><code>best</code> 必须是 <code>-inf</code>，不能是 0</strong></td>
+</tr>
+<tr>
+<td>单节点零</td>
+<td><code>[0]</code></td>
+<td><code>0</code></td>
+<td>0 是真值节点，不是 null</td>
+</tr>
+<tr>
+<td>两层满树</td>
+<td><code>[1,2,3]</code></td>
+<td><code>6</code></td>
+<td><code>1 + 2 + 3</code>，三条边都走</td>
+</tr>
+<tr>
+<td>一条正胳膊</td>
+<td><code>[1,-2,3]</code></td>
+<td><code>4</code></td>
+<td>左胳膊被剪，<code>1 + 0 + 3</code></td>
+</tr>
+<tr>
+<td>全负树</td>
+<td><code>[-1,-2,-3]</code></td>
+<td><code>-1</code></td>
+<td>取最大的单节点</td>
+</tr>
+<tr>
+<td>偏斜树（左）</td>
+<td><code>[1,2,null,3]</code></td>
+<td><code>6</code></td>
+<td>直链，<code>through</code> 沿途都是直链</td>
+</tr>
+<tr>
+<td>偏斜树（右）</td>
+<td><code>[1,null,2,null,null,null,3]</code></td>
+<td><code>6</code></td>
+<td>同上，注意 <code>null</code> 占位层级</td>
+</tr>
+</tbody>
+</table>
+
+<strong>最容易错的三个</strong>：
+<ol>
+<li><code>[-3]</code> → 错答 <code>0</code>（<code>best</code> 初值错）</li>
+<li><code>[-1,-2,-3]</code> → 错答 <code>0</code> 或 <code>-2</code>（前者初值错，后者忘了"至少一个节点"）</li>
+<li><code>[1,-2,3]</code> → 错答 <code>2</code>（忘了 <code>max(·, 0)</code> 剪枝，算成 <code>1 + (-2) + 3</code>）</li>
+</ol>
+<hr>
+<h2>十、常见坑</h2>
+
+<strong>坑 1：返回值写成 <code>val + left + right</code></strong>
+
+最经典的错误。表面上跑样例 <code>[-10,9,20,null,null,15,7]</code> 还能得 42（因为根是负数，虚高的值恰好没被选中），但换棵树就崩。
+
+<strong>判断方法</strong>：在心里画一棵对称树 <code>[1,2,3]</code>。正确 <code>gain(1) = 1 + max(2,3) = 4</code>；错误写法 <code>gain(1) = 1 + 2 + 3 = 6</code>。父节点如果存在，拿到 6 就会算出离谱的值。
+
+<strong>坑 2：<code>best</code> 初始化成 <code>0</code></strong>
+
+全负树上必错。<strong>记法</strong>：题目说"至少包含一个节点"，那答案就不可能是"空路径"的 0。
+
+<strong>坑 3：把 <code>max(·, 0)</code> 当成防御性编程</strong>
+
+它不是。<strong>去掉它，<code>[1,-2,3]</code> 会从 4 变成 2。</strong> 见 1.4。
+
+<strong>坑 4：先 <code>return</code> 再更新 <code>best</code></strong>
+<div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>     <span class="c1"># ← 提前返回了</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>                   <span class="c1"># ← 永远执行不到</span>
+</code></pre></div>
+
+
+<code>through</code> 是"到手即用"的量，必须在函数结束前用掉。
+
+<strong>坑 5：<code>None</code> 的 <code>gain</code> 返回什么</strong>
+
+<code>if not node: return 0</code> —— 返回 <strong>0 而不是 <code>-inf</code></strong>。因为空子树"不贡献也不拖累"，<code>max(0, 0) = 0</code> 正好对应"不走这边"。
+<hr>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一步：先定义清楚两个量（这是得分点）</strong>
+<blockquote>
+
+"这题的关键是每个节点要同时算两个不同的量。一个是以<strong>自己为最高点</strong>的完整路径和，用两条胳膊，它只用来更新全局答案；另一个是<strong>向上汇报的贡献值</strong>，只能带一条胳膊走。"
+</blockquote>
+
+<strong>第二步：主动解释"为什么只能带一条胳膊"（这是加分点）</strong>
+<blockquote>
+
+"因为路径不能拐两次弯。父节点拿到返回值后还会再拐一次，如果这里两条胳膊都用掉，父节点再拐就变成树杈了，不是路径。"
+</blockquote>
+
+<strong>第三步：主动提 <code>max(·, 0)</code> 的语义</strong>
+<blockquote>
+
+"这里的 <code>max(gain, 0)</code> 不是判空，是个<strong>剪枝决策</strong> —— 负的胳膊接进来只会让和更小，所以返回 0 表示'别走我这边'。"
+</blockquote>
+
+<strong>第四步：主动提 <code>-inf</code></strong>
+<blockquote>
+
+"<code>best</code> 要初始化成负无穷，因为题目保证路径至少含一个节点、值可以是负数。用 0 的话 <code>[-3]</code> 会错答 0。"
+</blockquote>
+
+<strong>第五步：报复杂度 + 挂钩变体</strong>
+<blockquote>
+
+"时间 O(n)，空间 O(h)。这题和 LC 543 二叉树的直径是同一个骨架，只是把节点值换成边数、并且 543 不需要 clamp。"
+</blockquote>
+
+<strong>如果被追问「能不能不用全局变量？」</strong> —— 可以把 <code>best</code> 装进一个单元素列表或者用返回值 <code>(gain, best)</code> 元组带上：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+    <span class="n">l</span><span class="p">,</span> <span class="n">lb</span> <span class="o">=</span> <span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+    <span class="n">r</span><span class="p">,</span> <span class="n">rb</span> <span class="o">=</span> <span class="n">gain</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">r</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">rb</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">l</span> <span class="o">+</span> <span class="n">r</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>如果被追问「递归会不会爆栈？」</strong> —— 会。偏斜树有 3×10⁴ 个节点时，Python 默认递归深度 1000 会 <code>RecursionError</code>。两个办法：把递归上限调高（<code>sys.setrecursionlimit(1000000)</code>），或者手写显式栈（本文的动画状态机用的就是显式栈，栈帧 <code>{id, stage, from}</code> 配合 <code>stage</code> 机推进，思路和 LC 236 那篇一样）。
+<hr>
+<h2>结语</h2>
+
+LC 124 只有 10 行，但它逼你想清楚一件在别的题里很少被逼着面对的事：
+<blockquote>
+
+<strong>同一个节点，向上汇报和更新答案，可以是两个不同的值。</strong>
+</blockquote>
+
+理解了这一点，<code>max(·, 0)</code> 就不再是"顺手写的保险"，<code>-inf</code> 也不再是"随手写的初值" —— 它们都是这道题的<strong>逻辑本身</strong>。
+
+而这一套「一个节点两个量」的骨架，能一路打通 <strong>543 / 687 / 1123</strong>，甚至换成乘法的变体。下次再看到"树上最长路径"类的题，先问自己两个问题：
+<ol>
+<li><strong>向上汇报的那个量，是什么？</strong>（一条胳膊）</li>
+<li><strong>更新答案的那个量，是什么？</strong>（两条胳膊）</li>
+</ol>
+
+回答完这两句，代码基本就出来了。
+<hr>
+<blockquote>
+
+<strong>系列导航</strong>：本文是「暑期面经汇总」算法系列的第 12 篇。前作：LC 206 反转链表 · LC 21 合并两个有序链表 · LC 23 合并 K 个升序链表 · LC 141/142 环形链表 · LC 19 删除链表倒数第 N 个节点 · LC 143 重排链表 · LC 234 回文链表 · LC 160 相交链表 · LC 82 删除排序链表中的重复元素 II · LC 102 二叉树的层序遍历 · LC 236 二叉树的最近公共祖先。
+</blockquote></div></div></noscript>
+  </body>
+</html>
