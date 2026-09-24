@@ -23,6 +23,7 @@ import { mountMaxPathSum } from '@/viz/maxPathSum'
 import { mountMaxDepth } from '@/viz/maxDepth'
 import { mountInvertTree } from '@/viz/invertTree'
 import { mountLongestSubstr } from '@/viz/longestSubstr'
+import { mountTwoSum } from '@/viz/twoSum'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -325,6 +326,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc104': mountMaxDepth,
   'algo-viz--lc226': mountInvertTree,
   'algo-viz--lc3': mountLongestSubstr,
+  'algo-viz--lc1': mountTwoSum,
 }
 
 let vizHandles = []
