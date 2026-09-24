@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-3-longest-substring-without-repeating-characters/" />
+    <meta property="og:title" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」" />
+    <meta property="og:description" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-3-longest-substring-without-repeating-characters/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-3-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」" />
+    <meta name="twitter:description" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-3-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BNfFHeGv.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-24T09:55:19.144549+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」","description":"【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 ","image":"https://zhoujungis.github.io/photos/lc-3-cover.png","datePublished":"2026-09-24T09:55:19.144549+08:00","dateModified":"2026-09-24T09:55:19.144589+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-3-longest-substring-without-repeating-characters/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」</h1><div class="ns-meta">2026/9/24 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：想学滑动窗口、但被这道题的各种边界情况绕晕过的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等 —— 代码 10 行，但<strong>有一个条件是漏了就必错的</strong>
+<strong>收获</strong>：滑动窗口的两条不变量、<code>left</code> 为什么只能右移，以及 159 / 340 / 424 / 76 / 209 / 438 一整串变体的分岔点
+</blockquote>
+<h2>题目</h2>
+
+给定一个字符串 <code>s</code>，请你找出其中<strong>不含有重复字符的最长子串</strong>的长度。
+<div class="codehilite"><pre><span></span><code>输入：s = &quot;abcabcbb&quot;
+输出：3
+解释：最长无重复子串是 &quot;abc&quot;，长度为 3。
+
+输入：s = &quot;bbbbb&quot;
+输出：1
+解释：最长无重复子串是 &quot;b&quot;，长度为 1。
+
+输入：s = &quot;pwwkew&quot;
+输出：3
+解释：最长无重复子串是 &quot;wke&quot;，长度为 3。注意答案必须是子串（连续的一段），&quot;pwke&quot; 是子序列，不是子串。
+</code></pre></div>
+
+<blockquote>
+
+出处备注：这道题在字节跳动的面经里<strong>长期排第一</strong>（腾讯那边也在前三）。原因很直接 —— 它是滑动窗口的入门模板，<strong>写完只要 10 行，但能同时问出三件事</strong>：你懂不懂"子串必须连续"、你懂不懂"维护什么信息"、你懂不懂"左指针为什么不能回头"。
+</blockquote>
+
+<strong>子串 vs 子序列</strong>，先分清（面试官真的会抓）：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>定义</th>
+<th>例子（<code>"pwwkew"</code>）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>子串</strong></td>
+<td>原串中<strong>连续</strong>的一段</td>
+<td><code>"wke"</code> ✓</td>
+</tr>
+<tr>
+<td>子序列</td>
+<td>保持相对顺序、允许跳过字符</td>
+<td><code>"pwke"</code> —— 它是子序列，<strong>不是子串</strong></td>
+</tr>
+</tbody>
+</table>
+
+这题要的是<strong>子串</strong>。所以答案是 3（<code>"wke"</code>），不是 4（<code>"pwke"</code>）。
+<hr>
+<h2>一、先说清楚这题在考什么</h2>
+<h3>1.1 暴力为什么不划算</h3>
+
+最直白的想法：枚举所有子串，逐个检查有没有重复。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">best</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>                  <span class="c1"># 枚举左端点</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>           <span class="c1"># 枚举右端点</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]))</span> <span class="o">==</span> <span class="n">j</span> <span class="o">-</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">j</span> <span class="o">-</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+
+<strong>O(n³)</strong>（枚举是 n²，每次还要 O(n) 检查重复）。n = 5×10⁴ 时直接超时。
+
+问题在于<strong>枚举本身是浪费的</strong>：如果 <code>s[i..j]</code> 有重复，那么 <code>s[i..j+1]</code>、<code>s[i..j+2]</code>… 全都有重复。这些右端点根本不用试。
+<h3>1.2 换个角度：维护一个"永远合法"的窗口</h3>
+
+不要枚举，而是<strong>维护一个窗口 <code>[left, right]</code>，让它始终满足条件</strong>，然后一路往右推：
+<div class="codehilite"><pre><span></span><code>                left          right
+                 ↓              ↓
+    p  w  w  k  e  w  ...
+       └──────────┘
+        这个窗口里永远没有重复字符
+</code></pre></div>
+
+
+规则只有两条：
+<ol>
+<li><code>right</code> <strong>每次都往右走一格</strong>（把新字符吃进窗口）；</li>
+<li>如果吃进来的字符<strong>在窗口内已经存在</strong>，就让 <code>left</code> 跳到"那个旧位置 + 1"，把它挤出窗口。</li>
+</ol>
+
+两个指针<strong>都只往右走</strong>，所以总共走不超过 <code>2n</code> 步 —— <strong>O(n)</strong>。
+
+这就是<strong>滑动窗口</strong>：一条长度可变的、始终满足某个性质的连续区间。
+<h3>1.3 需要维护什么信息</h3>
+
+要在 O(1) 里回答"新字符在窗口内出现过吗"，就得有一张表。<strong>表里存什么？</strong>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>存什么</th>
+<th>判断"在窗口内"</th>
+<th>收缩方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>lastSeen</code>（本题最优）</strong></td>
+<td>字符 → 它<strong>最后出现的下标</strong></td>
+<td><code>lastSeen[ch] &gt;= left</code></td>
+<td><strong>一步跳到位</strong></td>
+</tr>
+<tr>
+<td><code>set</code>（好理解）</td>
+<td>窗口内的字符集合</td>
+<td><code>ch in win</code></td>
+<td>一步一步挪，边挪边删</td>
+</tr>
+</tbody>
+</table>
+
+两者都是 O(n)，但 <code>lastSeen</code> 版本<strong>没有内层循环</strong>，常数更小 —— 因为左指针是"跳"过去的，不是"挪"过去的。
+
+<strong>关键点</strong>：<code>lastSeen</code> 里存的是<strong>下标</strong>，不是"是否存在"这个布尔值。这个区别就是下一节的全部内容。
+<hr>
+<h2>二、两条不变量（本题的灵魂）</h2>
+
+理解这题的关键，是先立下两条<strong>必须始终成立</strong>的性质：
+<h3>不变量 1：窗口 <code>[left, right]</code> 内永远没有重复字符</h3>
+
+这是"窗口合法"的定义，也是所有长度计算的前提。<code>ans = right - left + 1</code> 只有在窗口合法时才是有意义的答案。
+<h3>不变量 2：<code>left</code> 只往右走，<strong>绝不后退</strong></h3>
+
+这条容易被忽略，但它是<strong>第一条不变量能成立的原因</strong>。
+
+为什么 <code>left</code> 后退会破掉第一条？因为窗口左边界一旦往回退，就把"之前为了去重而挤出去的字符"<strong>又放了回来</strong> —— 而那些字符在窗口右半部分可能还留着。于是窗口里立刻出现重复。
+<div class="codehilite"><pre><span></span><code>把 left 从 2 退回到 1：
+
+   a  b  b  a          窗口 [1,3] = &quot;bba&quot;
+      └─────┘          ← 两个 b！不变量 1 当场破掉
+       ↑
+    倒退到这里
+</code></pre></div>
+
+
+<strong>所以本题真正要写对的，不是"怎么判重"，而是"怎么保证 left 不倒退"。</strong>
+<hr>
+<h2>三、完整代码</h2>
+<h3>3.1 推荐写法：把"是否还在窗口内"显式写出来</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="p">{}</span>                       <span class="c1"># 字符 -&gt; 它最后出现的下标</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+            <span class="c1"># 关键条件：出现过，并且那个位置还在窗口里</span>
+            <span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span> <span class="ow">and</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">left</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>     <span class="c1"># 把它挤出窗口</span>
+            <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">right</span>            <span class="c1"># 记录/更新它的最后位置</span>
+            <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+<strong>这个写法的好处</strong>：判据 <code>last[ch] &gt;= left</code> 把"为什么是这条件"直接摆在代码里。
+<h3>3.2 等价写法：把保护藏进 <code>max</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># ← max 就是那个&quot;不许倒退&quot;</span>
+            <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">right</span>
+            <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+两次写法的区别只在一行：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 写法 A：先判断&quot;是否还在窗口内&quot;，再决定跳不跳</span>
+<span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span> <span class="ow">and</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">left</span><span class="p">:</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+
+<span class="c1"># 写法 B：无条件算一个候选值，再靠 max 拦住倒退</span>
+<span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span><span class="p">:</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>两者完全等价</strong>。写法 A 更"讲道理"，写法 B 更短。<strong>理解要点在于：知道 <code>max</code> 在这里到底在拦什么。</strong>
+<hr>
+<h2>四、动画：看着窗口左右两端一起往右爬</h2>
+
+下面这个动画把上面 10 帧推演过程逐帧画出来。图里：
+<ul>
+<li><strong>一排字符格子</strong> = 原串；<strong>在窗口内的</strong>淡绿底，<strong>已经被挤出窗口的</strong>灰掉；</li>
+<li><strong>橙色格子 + 上方 <code>right</code> 指针</strong> = 这一帧正在处理的字符；</li>
+<li><strong>绿色横条</strong> = 当前窗口 <code>[left, right]</code>，两端标出 <code>L=</code> 和 <code>R=</code>；</li>
+<li><strong>金色下划线</strong> = 目前为止<strong>最优的那个窗口</strong>（答案对应的区间）；</li>
+<li><strong>下方 <code>lastSeen</code> 表</strong> = 每个字符最后出现在哪。<strong>这一帧涉及的字符，卡片会显示"它的旧位置"</strong>（金色数字），方便和讲解对上。</li>
+</ul>
+<div class="algo-viz algo-viz--lc3"></div>
+
+
+看的时候重点盯三处：
+<ol>
+<li><strong>第 4 帧</strong>（下标 3 的 <code>a</code>）：<code>a</code> 上次在下标 0，而 0 还在窗口里 → <code>left</code> <strong>从 0 一步跳到 1</strong>，窗口从 <code>[0,2]</code> 变成 <code>[1,3]</code>。注意左边界是<strong>跳</strong>过去的，不是一格一格挪；</li>
+<li><strong>第 7 帧</strong>（下标 6 的 <code>b</code>）：<code>b</code> 上次在下标 4，<code>left</code> 从 3 跳到 5 —— 跨了两格，把 <code>4</code> 和 <code>5</code> 之间的东西一次全挤出窗口；</li>
+<li><strong><code>ans</code> 从第 4 帧开始就一直是 3，再也没变过</strong>。后面 4 帧窗口一直在缩，但答案不再增长。这正是"窗口长度不等于答案"的直观体现。</li>
+</ol>
+<hr>
+<h2>五、完整推演表（10 帧逐帧）</h2>
+
+下表是动画每一帧的真实数据（默认例 <code>s = "abcabcbb"</code>）：
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>阶段</th>
+<th>right</th>
+<th>字符</th>
+<th>left</th>
+<th>窗口内容</th>
+<th>长度</th>
+<th>ans</th>
+<th>lastSeen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>—</td>
+<td>—</td>
+<td>0</td>
+<td>—</td>
+<td>0</td>
+<td>0</td>
+<td><code>{}</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>expand</td>
+<td>0</td>
+<td><code>a</code></td>
+<td>0</td>
+<td><code>"a"</code></td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td><code>{a:0}</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>expand</td>
+<td>1</td>
+<td><code>b</code></td>
+<td>0</td>
+<td><code>"ab"</code></td>
+<td>2</td>
+<td><strong>2</strong></td>
+<td><code>{a:0, b:1}</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>expand</td>
+<td>2</td>
+<td><code>c</code></td>
+<td>0</td>
+<td><code>"abc"</code></td>
+<td>3</td>
+<td><strong>3</strong></td>
+<td><code>{a:0, b:1, c:2}</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>slide</strong></td>
+<td>3</td>
+<td><code>a</code></td>
+<td><strong>1</strong></td>
+<td><code>"bca"</code></td>
+<td>3</td>
+<td>3</td>
+<td><code>{a:3, b:1, c:2}</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>slide</strong></td>
+<td>4</td>
+<td><code>b</code></td>
+<td><strong>2</strong></td>
+<td><code>"cab"</code></td>
+<td>3</td>
+<td>3</td>
+<td><code>{a:3, b:4, c:2}</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>slide</strong></td>
+<td>5</td>
+<td><code>c</code></td>
+<td><strong>3</strong></td>
+<td><code>"abc"</code></td>
+<td>3</td>
+<td>3</td>
+<td><code>{a:3, b:4, c:5}</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>slide</strong></td>
+<td>6</td>
+<td><code>b</code></td>
+<td><strong>5</strong></td>
+<td><code>"cb"</code></td>
+<td>2</td>
+<td>3</td>
+<td><code>{a:3, b:6, c:5}</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>slide</td>
+<td>7</td>
+<td><code>b</code></td>
+<td><strong>7</strong></td>
+<td><code>"b"</code></td>
+<td>1</td>
+<td>3</td>
+<td><code>{a:3, b:7, c:5}</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>done</td>
+<td>7</td>
+<td>—</td>
+<td>7</td>
+<td><code>"b"</code></td>
+<td>1</td>
+<td><strong>3</strong></td>
+<td><code>{a:3, b:7, c:5}</code></td>
+</tr>
+</tbody>
+</table>
+
+三个值得对照看的行：
+
+<strong>第 3 帧</strong> —— 前三步都是 <code>expand</code>，因为 <code>a</code> / <code>b</code> / <code>c</code> 都是第一次见，窗口一路长到 3，<code>ans</code> 也涨到 3。
+
+<strong>第 4 帧</strong> —— <code>right</code> 走到下标 3，字符又是 <code>a</code>。查表：<code>last['a'] = 0</code>，而 <code>left = 0</code>，<strong><code>0 &gt;= 0</code> 成立 → 它在窗口里</strong>。于是 <code>left = 0 + 1 = 1</code>。
+
+<strong>第 7 帧</strong> —— <code>right = 6</code>，字符 <code>b</code>。<code>last['b'] = 4</code>，<code>left</code> 此刻是 3，<code>4 &gt;= 3</code> 成立 → <code>left = 5</code>。<strong>一次跨过两格</strong>，窗口从 <code>[3,5]</code> 缩到 <code>[5,6]</code>。
+
+注意最后两帧：<code>ans</code> 停在 3 不动了。<strong>窗口在缩，答案不缩</strong> —— 因为 <code>ans</code> 记的是"历史最大值"，不是"当前窗口长度"。
+<hr>
+<h2>六、本题唯一真正的难点：判据里必须有"还在窗口里"这半句</h2>
+
+现在来到全文最关键的一节。
+
+很多人第一次写这题，会写成这样：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span><span class="p">:</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>        <span class="c1"># ❌ 漏掉&quot;这个位置是否还在窗口内&quot;</span>
+</code></pre></div>
+
+
+<strong>判据只用了"字符出现过"，漏掉了"它出现的位置还在窗口里"。</strong> 这行代码对官方给出的三个样例<strong>全部都能过</strong>（<code>"abcabcbb"</code> / <code>"bbbbb"</code> / <code>"pwwkew"</code>），所以很容易以为自己写对了。
+
+它在 <code>"abba"</code> 上会当场暴露。
+<h3>6.1 <code>"abba"</code>：正确 vs 漏判据，逐帧对照</h3>
+
+下表把两种写法并排放。<strong>看第 4 步。</strong>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>right</th>
+<th>字符</th>
+<th>正确处理</th>
+<th>漏判据的写法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td><code>a</code></td>
+<td><code>left = 0</code></td>
+<td><code>left = 0</code></td>
+<td>首次出现，不动</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td><code>b</code></td>
+<td><code>left = 0</code></td>
+<td><code>left = 0</code></td>
+<td>首次出现，不动</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td><code>b</code></td>
+<td><code>left = 2</code></td>
+<td><code>left = 2</code></td>
+<td><code>last[b]=1 &gt;= left=0</code> → 跳。两种写法一致</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td><code>a</code></td>
+<td><strong><code>left = 2</code>（不动）</strong></td>
+<td><strong><code>left = 1</code>（后退！）</strong></td>
+<td><code>last[a]=0</code>，但 <strong><code>0 &lt; left=2</code></strong> → 它已经在窗口外了</td>
+</tr>
+<tr>
+<td>—</td>
+<td>—</td>
+<td>结果</td>
+<td>窗口 <code>[2,3]</code> = <code>"ba"</code>，长度 <strong>2</strong> ✅</td>
+<td>窗口 <code>[1,3]</code> = <code>"bba"</code>，长度 <strong>3</strong> ❌</td>
+<td>漏判据的窗口里有<strong>两个 <code>b</code></strong></td>
+</tr>
+</tbody>
+</table>
+
+第 4 步是关键：<code>a</code> 确实出现过（下标 0），但那个位置<strong>已经被第 3 步的 <code>left = 2</code> 甩到窗口左边去了</strong>。它现在对"窗口内是否有重复"这件事<strong>没有任何影响</strong>。
+
+所以 <code>left</code> 必须<strong>原地不动</strong>。
+
+而漏判据的写法会算出 <code>left = 0 + 1 = 1</code> —— <strong>从 2 退回到 1</strong>。窗口变成 <code>"bba"</code>，里面有两个 <code>b</code>，不变量 1 破了，长度算成 3（虚高）。
+<h3>6.2 再看一个：<code>"abcba"</code></h3>
+<div class="codehilite"><pre><span></span><code>  a  b  c  b  a
+  0  1  2  3  4
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>right</th>
+<th>字符</th>
+<th>正确的 left</th>
+<th>漏判据的 left</th>
+<th>窗口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td><code>a</code></td>
+<td>0</td>
+<td>0</td>
+<td><code>"a"</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td><code>b</code></td>
+<td>0</td>
+<td>0</td>
+<td><code>"ab"</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td><code>c</code></td>
+<td>0</td>
+<td>0</td>
+<td><code>"abc"</code> ← ans = 3</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td><code>b</code></td>
+<td>2</td>
+<td>2</td>
+<td><code>last[b]=1 &gt;= 0</code> → 跳</td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td><code>a</code></td>
+<td><strong>2</strong></td>
+<td><strong>1</strong> ❌</td>
+<td><code>last[a]=0 &lt; left=2</code> → 不该动</td>
+</tr>
+</tbody>
+</table>
+
+正确答案 <strong>3</strong>，漏判据的写法会算出 <strong>4</strong>（窗口 <code>[1,4]</code> = <code>"bcba"</code>，<code>b</code> 重复）。
+<h3>6.3 一句话记住</h3>
+<blockquote>
+
+<strong>判据不是「这个字符出现过」，而是「它上次出现的位置还落在窗口里」。</strong>
+</blockquote>
+
+代码里的两种等价表达：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 直接写出来</span>
+<span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span> <span class="ow">and</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">left</span><span class="p">:</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+
+<span class="c1"># 或者交给 max 拦</span>
+<span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span><span class="p">:</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>面试时如果面试官只给 <code>"abcabcbb"</code> 这种例子，你可以主动说一句</strong>：
+<blockquote>
+
+"这题的关键判据是 <code>last[ch] &gt;= left</code>。很多人只写 <code>if ch in last</code>，在 <code>"abba"</code> 上会让 <code>left</code> 倒退，答案从 2 变成 3。<code>max(left, ...)</code> 就是在拦这个倒退。"
+</blockquote>
+
+这句话能直接把"背过模板"和"真懂"区分开。
+<hr>
+<h2>七、另外两种写法，以及各自的坑</h2>
+<h3>7.1 <code>set</code> + <code>while</code> 收缩：好理解，但常数大</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">win</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="k">while</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">win</span><span class="p">:</span>            <span class="c1"># 一步一步挪，边挪边删</span>
+            <span class="n">win</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">])</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">win</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+<strong>优点</strong>：非常直白 —— "窗口里重复了，就一点点把左边吐出来，直到不重复"。面试紧张时写这个更不容易出错。
+
+<strong>缺点</strong>：左指针是<strong>挪</strong>的，不是<strong>跳</strong>的。虽然总复杂度仍是 O(n)（每个字符最多进出窗口一次），但要扫过更多中间状态，常数比 <code>lastSeen</code> 版大。
+
+<strong>另外</strong>：这个写法里 <code>left</code> 不会倒退 —— 因为 <code>while</code> 循环只会让 <code>left</code> 增大。<strong>它天然满足不变量 2</strong>，代价是牺牲了"一步跳到位"。
+<h3>7.2 ASCII 数组：想快，但<strong>初始值必须是 -1，不能是 0</strong></h3>
+
+如果字符串只含 ASCII 字符，可以用长度 128（或 256）的数组代替哈希表：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="mi">128</span>              <span class="c1"># ⚠️ 必须是 -1，不能是 0</span>
+    <span class="n">left</span><span class="p">,</span> <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">last</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">left</span><span class="p">:</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">last</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">right</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+<strong>这个 <code>-1</code> 是关键</strong>。如果图省事初始化成 <code>0</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">last</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">128</span>               <span class="c1"># ❌</span>
+<span class="c1"># 第一个字符就出事：last[idx] = 0 &gt;= left = 0 → left = 0 + 1 = 1</span>
+<span class="c1"># 窗口凭空跳过第一个字符，答案从 3 变成 2</span>
+</code></pre></div>
+
+
+因为 <code>0</code> 是一个<strong>合法的下标</strong>，"没出现过"和"出现在下标 0"就分不清了。<strong>用 <code>-1</code> 表示"没出现过"</strong>，才能让 <code>last[idx] &gt;= left</code> 这个判据正确工作（<code>-1 &gt;= 0</code> 为假 ✓）。
+<blockquote>
+
+同理，用哈希表时不能写 <code>last.get(ch, 0)</code> —— 那也是把"没出现过"当成"出现在 0"。要么用 <code>ch in last</code> 判断，要么用 <code>last.get(ch, -1)</code>。
+</blockquote>
+<h3>7.3 存"下一个起点"的写法</h3>
+
+还有一种很巧的变体 —— 表里存的不是"当前位置"，而是"<strong>下一次该从这里开始的下标</strong>"：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">nxt</span> <span class="o">=</span> <span class="p">{}</span>                       <span class="c1"># 字符 -&gt; 冲突时 left 应该跳到的位置</span>
+    <span class="n">left</span><span class="p">,</span> <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">nxt</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>     <span class="c1"># 注意 get 的默认值是 0（= 不跳）</span>
+        <span class="n">nxt</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">right</span> <span class="o">+</span> <span class="mi">1</span>                  <span class="c1"># 存&quot;右边界 + 1&quot;</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+这样每轮都无条件 <code>left = max(left, ...)</code>，省掉了 <code>if</code>。<strong>默认值用 <code>0</code></strong> —— 因为这里 <code>0</code> 的含义是"不用跳"，而不是"出现在下标 0"。（和 7.2 的坑刚好相反，注意区分两张表的语义。）
+<hr>
+<h2>八、变体：同一个窗口，换一个"什么算合法"</h2>
+
+滑动窗口的题可以按"<strong>窗口要满足什么性质</strong>"分成两族。LC 3 是"最简单的那族"。
+<h3>8.1 LC 159 / 340：至多 K 个不同字符</h3>
+
+<strong>LC 340</strong>（至多 K 个不同字符的最长子串）：把"无重复"换成"窗口内不同字符数 ≤ K"。
+
+结构完全一样，只把"窗口是否合法"的判断改成<strong>计数</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLongestSubstringKDistinct</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">cnt</span> <span class="o">=</span> <span class="p">{}</span>                        <span class="c1"># 字符 -&gt; 窗口内出现次数</span>
+    <span class="n">left</span><span class="p">,</span> <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">cnt</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">cnt</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">cnt</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">k</span><span class="p">:</span>         <span class="c1"># 不同字符超了 → 收缩</span>
+            <span class="n">cnt</span><span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">]]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">cnt</span><span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">]]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">cnt</span><span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">]]</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+<strong>两个差别</strong>：
+1. 判据从"某个字符 ≥ left"变成"<strong>不同字符总数</strong> &gt; K"；
+2. 所以收缩<strong>必须用 <code>while</code></strong>（可能要连缩好几格），不能一步跳 —— 因为"该跳到哪"没有一个现成的下标。
+
+<strong>LC 159</strong> 是 K = 2 的特例，代码一样。
+<blockquote>
+
+对比 LC 3：LC 3 能"一步跳"是因为<strong>冲突点只有一个明确的坐标</strong>（<code>last[ch] + 1</code>）。
+</blockquote>
+<h3>8.2 LC 424：替换后的最长重复字符</h3>
+
+<strong>LC 424</strong>：最多替换 K 个字符，求能得到的最长重复字符子串。
+
+合法性判据变成一个不等式：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">characterReplacement</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">cnt</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">left</span><span class="p">,</span> <span class="n">ans</span><span class="p">,</span> <span class="n">maxCnt</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">cnt</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">cnt</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">maxCnt</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">maxCnt</span><span class="p">,</span> <span class="n">cnt</span><span class="p">[</span><span class="n">ch</span><span class="p">])</span>
+        <span class="c1"># 窗口长度 - 出现最多的那个字符的次数 = 需要替换的字符数</span>
+        <span class="k">if</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">maxCnt</span> <span class="o">&gt;</span> <span class="n">k</span><span class="p">:</span>
+            <span class="n">cnt</span><span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">]]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+<strong>注意这里用的是 <code>if</code> 不是 <code>while</code></strong> —— 窗口只会"跟着 right 一起长大"，不会缩回去。这是 424 特有的技巧（<code>maxCnt</code> 只增不减，保证窗口长度单调不减）。
+<h3>8.3 LC 76：最小覆盖子串 —— 方向反过来</h3>
+
+前面几题都是求<strong>最长</strong>，LC 76 求的是<strong>最短</strong>的、但必须包含 <code>t</code> 的全部字符的窗口。
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 3（最长）</th>
+<th>LC 76（最短）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>目标</td>
+<td>最大化窗口</td>
+<td>最小化窗口</td>
+</tr>
+<tr>
+<td>扩张 <code>right</code></td>
+<td>每轮必做</td>
+<td>每轮必做</td>
+</tr>
+<tr>
+<td>收缩 <code>left</code></td>
+<td>只在冲突时</td>
+<td><strong>只要窗口还满足条件就缩</strong></td>
+</tr>
+<tr>
+<td>更新答案的时机</td>
+<td>扩张之后</td>
+<td><strong>收缩的时候</strong>（窗口合法性刚要破的那一刻）</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">minWindow</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+    <span class="n">need</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">missing</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>                 <span class="c1"># 还差多少个字符</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">bestLen</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">right</span><span class="p">,</span> <span class="n">ch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">need</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">missing</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="n">need</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">missing</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>          <span class="c1"># 窗口已经覆盖全部所需字符 → 尽情收缩</span>
+            <span class="k">if</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="n">bestLen</span><span class="p">:</span>
+                <span class="n">bestLen</span> <span class="o">=</span> <span class="n">right</span> <span class="o">-</span> <span class="n">left</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+            <span class="n">need</span><span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">]]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">need</span><span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="n">left</span><span class="p">]]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">missing</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">s</span><span class="p">[</span><span class="n">best</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">best</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">bestLen</span> <span class="o">&lt;</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+</code></pre></div>
+
+
+<strong>和 LC 3 对照着看</strong>：LC 3 是"窗口一有问题就修"，LC 76 是"窗口一合法就试着变小"。<strong>同一个骨架，两个相反的目标。</strong>
+<h3>8.4 其他两个近亲</h3>
+<table>
+<thead>
+<tr>
+<th>题号</th>
+<th>窗口性质</th>
+<th>和 LC 3 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 209</strong> 长度最小的子数组</td>
+<td>和 ≥ target</td>
+<td>LC 3 的数组版，且同样是"最短"方向（同 LC 76）</td>
+</tr>
+<tr>
+<td><strong>LC 438</strong> 找到所有字母异位词</td>
+<td>窗口内字符计数 == 模式串计数</td>
+<td>LC 3 的"定长窗口"版（窗口长度被锁死为模式串长度）</td>
+</tr>
+<tr>
+<td><strong>LC 567</strong> 字符串的排列</td>
+<td>同上，但只要一个答案</td>
+<td>438 的简化版</td>
+</tr>
+</tbody>
+</table>
+<h3>8.5 变体关系总表</h3>
+<table>
+<thead>
+<tr>
+<th>题号</th>
+<th>窗口要满足什么</th>
+<th>收缩方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 3</strong></td>
+<td>无重复字符</td>
+<td><strong>一步跳到 <code>last[ch] + 1</code></strong></td>
+</tr>
+<tr>
+<td>LC 159 / 340</td>
+<td>不同字符数 ≤ K</td>
+<td><code>while</code> 一步步缩</td>
+</tr>
+<tr>
+<td>LC 424</td>
+<td>窗口长 - 最多字符数 ≤ K</td>
+<td><code>if</code> 缩一格（窗口单调增长）</td>
+</tr>
+<tr>
+<td>LC 76</td>
+<td>覆盖 t 的全部字符（求最短）</td>
+<td><code>while</code> 缩到不合法为止</td>
+</tr>
+<tr>
+<td>LC 209</td>
+<td>和 ≥ target（求最短）</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+
+<strong>共同骨架</strong>：<code>right</code> 扩张 → 检查合法性 → （可能）收缩 <code>left</code> → 更新答案。
+
+<strong>分岔点只有一个</strong>：<strong>"该收缩到哪里"有没有一个明确的坐标</strong>。LC 3 有（<code>last[ch] + 1</code>），所以能一步跳；其它题没有，只能一格格缩。
+<hr>
+<h2>九、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">lengthOfLongestSubstring</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">128</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">java</span><span class="p">.</span><span class="na">util</span><span class="p">.</span><span class="na">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">last</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">);</span><span class="w">        </span><span class="c1">// ⚠️ -1 不是 0</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">right</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">char</span><span class="w"> </span><span class="n">ch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">right</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">last</span><span class="o">[</span><span class="n">ch</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">left</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">last</span><span class="o">[</span><span class="n">ch</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">            </span><span class="c1">// 一步跳到重复字符的下一位</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">last</span><span class="o">[</span><span class="n">ch</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span>
+<span class="w">            </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>Java 的三个注意点</strong>：
+<ol>
+<li><strong>数组初始值是 <code>0</code>，必须手动填 <code>-1</code></strong> —— Java 数组默认零值，而 <code>0</code> 是合法下标，会把"没出现过"误判成"出现在 0"。</li>
+<li><code>char</code> 可以直接当数组下标（自动转 int），不用 <code>ord()</code>。</li>
+<li><strong>如果题目允许 Unicode 字符，<code>charAt</code> 会拆开代理对</strong>（和 Python 的 <code>s[i]</code> 一样的问题）。稳妥做法是按 <code>codePointAt</code> 遍历，或者用 <code>HashMap&lt;Integer, Integer&gt;</code>。</li>
+</ol>
+<hr>
+<h2>十、边界情况与常见坑</h2>
+<h3>常见坑</h3>
+
+<strong>坑 1：判据漏掉 <code>&gt;= left</code>（§6）⚠️ 最容易错</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">last</span><span class="p">:</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>          <span class="c1"># ❌ left 会倒退</span>
+</code></pre></div>
+
+
+官方三个样例全过，<code>"abba"</code> 立刻错（2 变成 3）。
+
+<strong>坑 2：数组 / 哈希表初始值用 <code>0</code>（§7.2）</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">last</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">128</span>                 <span class="c1"># ❌ 第一个字符就被&quot;假重复&quot;顶掉</span>
+</code></pre></div>
+
+
+用 <code>-1</code>。或者用 <code>last.get(ch, -1)</code>。
+
+<strong>坑 3：把"最长子串"当成"最长子序列"</strong>
+
+<code>"pwwkew"</code> 的 <code>"pwke"</code> 长度 4 是子序列，不是子串。题目要连续。
+
+<strong>坑 4：忘记更新 <code>last[ch] = right</code></strong>
+
+即使这一步构成重复、<code>left</code> 已经跳过了，<strong>当前这个 <code>right</code> 仍然要记进去</strong>（它才是最新位置）。漏掉的话下一次遇到同一个字符会跳到过期的位置。
+
+<strong>坑 5：<code>ans</code> 更新时机</strong>
+
+一定要在<strong>处理完 <code>left</code> 之后</strong>再算 <code>right - left + 1</code>。如果先算再收缩，会算出一个"还没修好的窗口"的长度。
+
+<strong>坑 6：空串 / 单字符</strong>
+
+<code>""</code> → 0，<code>"a"</code> → 1。循环天然处理，但要有心理准备（这题答案可以为 0，不是"至少一个字符"）。
+
+<strong>坑 7：<code>s[i]</code> 拆开 emoji</strong>
+
+Python 里 <code>s[i]</code> 按 UTF-16 码元切，<code>"😀"</code> 会被拆成两个代理项，于是"同一个字符"被当成"两个不同字符"，答案偏大。要按码点遍历（<code>for ch in s</code> 就是按码点 ✓，但 <code>s[i]</code> 不是）。
+
+<strong>判断方法</strong>：
+<div class="codehilite"><pre><span></span><code><span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;😀😀&quot;</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>        <span class="c1"># 4  ← 按码元</span>
+<span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">s</span><span class="p">))</span>   <span class="c1"># 2  ← 错！其实是 1 个字符</span>
+<span class="c1"># 正确：len(set(list(s))) 或直接用 for ch in s</span>
+</code></pre></div>
+
+<h3>边界情况表</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>""</code></td>
+<td><code>0</code></td>
+<td>空串</td>
+</tr>
+<tr>
+<td><code>" "</code></td>
+<td><code>1</code></td>
+<td>空格是正常字符</td>
+</tr>
+<tr>
+<td><code>"a"</code></td>
+<td><code>1</code></td>
+<td>单字符</td>
+</tr>
+<tr>
+<td><code>"aa"</code></td>
+<td><code>1</code></td>
+<td>不是 2</td>
+</tr>
+<tr>
+<td><code>"bbbbb"</code></td>
+<td><code>1</code></td>
+<td>全相同</td>
+</tr>
+<tr>
+<td><code>"abcdefg"</code></td>
+<td><code>7</code></td>
+<td>全不同 → 整串</td>
+</tr>
+<tr>
+<td><code>"abba"</code></td>
+<td><code>2</code></td>
+<td><strong>判据的试金石</strong></td>
+</tr>
+<tr>
+<td><code>"abcba"</code></td>
+<td><code>3</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>"pwwkew"</code></td>
+<td><code>3</code></td>
+<td>官方例</td>
+</tr>
+<tr>
+<td><code>"dvdf"</code></td>
+<td><code>3</code></td>
+<td><code>"vdf"</code>，注意 <code>d</code> 在两端</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一步：先给结论和复杂度</strong>
+<blockquote>
+
+"滑动窗口。右指针一路扩张，把字符吃进窗口；遇到窗口内重复就让左指针跳过那个重复位置。两个指针都只往右走，所以是 O(n)，空间 O(min(n, 字符集))。"
+</blockquote>
+
+<strong>第二步：主动说清维护什么</strong>
+<blockquote>
+
+"维护一张表记每个字符<strong>最后出现的下标</strong>，而不是一个 set。这样左指针能<strong>一步跳到 <code>last[ch] + 1</code></strong>，不用一格格挪。"
+</blockquote>
+
+<strong>第三步：主动说清判据（这是最关键的一句）</strong>
+<blockquote>
+
+"判据是 <code>last[ch] &gt;= left</code> —— <strong>不是"这个字符出现过"，而是"它上次出现的位置还在窗口里"</strong>。因为某个字符可能很久以前出现过、但已经被甩到窗口左边去了，那种情况不构成重复。写成 <code>if ch in last</code> 就会让左指针倒退。"
+</blockquote>
+
+<strong>第四步：主动给反例</strong>
+<blockquote>
+
+"比如 <code>"abba"</code>：走到最后一个 <code>a</code> 时，<code>last['a'] = 0</code>，但 <code>left</code> 已经是 2 —— 这个 0 在窗口外，<code>left</code> 不该动。如果写成无条件跳，<code>left</code> 会退到 1，窗口变成 <code>"bba"</code>，答案错算成 3。"
+</blockquote>
+
+<strong>第五步：如果被追问"为什么左指针不能倒退"</strong>
+<blockquote>
+
+"因为不变量的根基是'窗口内无重复'。左指针后退会把之前挤出去的字符又放回来，窗口里立刻出现重复，之后所有长度都是虚高的。"
+</blockquote>
+
+<strong>如果被追问"能不能不用哈希表"</strong>：
+<blockquote>
+
+"如果限定 ASCII，可以用长度 128 的数组，把哈希换成数组下标，常数更小。但<strong>初始值必须填 -1</strong> —— 填 0 的话，'没出现过'和'出现在下标 0'就分不清了，第一个字符就会被误判成重复。"
+</blockquote>
+
+<strong>如果被追问"还有别的写法吗"</strong>：
+<blockquote>
+
+"有。用 <code>set</code> 加 <code>while</code> 循环一格格收缩，更好理解，总复杂度也是 O(n)，但常数大一些。它的好处是天然不会倒退 —— 因为 <code>while</code> 只会让 <code>left</code> 增大。"
+</blockquote>
+
+<strong>最后一句收尾（体现你见过变体）</strong>：
+<blockquote>
+
+"这个骨架能直接推到 340（至多 K 个不同字符）和 76（最小覆盖子串）。分岔点在于<strong>'该收缩到哪里'有没有一个明确的坐标</strong> —— LC 3 有（<code>last[ch] + 1</code>），所以能一步跳；340 和 76 没有，只能 <code>while</code> 一格格缩。"
+</blockquote>
+<hr>
+<h2>结语</h2>
+
+LC 3 通常被当成"滑动窗口的第一题"，但它其实埋了一个很值得琢磨的点：
+<blockquote>
+
+<strong>判断"要不要动左指针"时，问的不是"这个字符见过吗"，而是"它还在窗口里吗"。</strong>
+</blockquote>
+
+这个区别在官方样例里完全看不出来 —— 三个样例都是"重复字符就在窗口内"的情况，所以你写漏了也能全过。只有 <code>"abba"</code> / <code>"abcba"</code> 这种"旧位置已经被甩出去"的串才会暴露。
+
+而它背后是滑动窗口最根本的一条约束：
+<blockquote>
+
+<strong>左指针只能往右走。</strong> 一旦回头，"窗口内无重复"这个不变量就破了，后面所有结论都不成立。
+</blockquote>
+
+下次写滑动窗口的题，先问自己两个问题：
+<ul>
+<li><strong>窗口要满足什么性质？</strong>（无重复 / 不同字符数 ≤ K / 覆盖某集合）</li>
+<li><strong>这个性质被破坏时，左指针该跳到哪里？</strong> 有明确坐标就能一步跳，没有就老实 <code>while</code>。</li>
+</ul>
+
+回答完这两句，代码基本就出来了。
+<hr>
+<blockquote>
+
+<strong>系列导航</strong>：本文是「暑期面经汇总」算法系列的第 14 篇，也是第一篇<strong>字符串 / 滑动窗口</strong>题。前作：LC 206 反转链表 · LC 21 合并两个有序链表 · LC 23 合并 K 个升序链表 · LC 141/142 环形链表 · LC 19 删除链表倒数第 N 个节点 · LC 143 重排链表 · LC 234 回文链表 · LC 160 相交链表 · LC 82 删除排序链表中的重复元素 II · LC 102 二叉树的层序遍历 · LC 236 二叉树的最近公共祖先 · LC 124 二叉树中的最大路径和 · LC 104/226 二叉树的最大深度 &amp; 翻转二叉树。
+</blockquote></div></div></noscript>
+  </body>
+</html>
