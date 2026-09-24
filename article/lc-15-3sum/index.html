@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写&quot;两数之和&quot;、也觉得&quot;两数之和 II&quot;很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-15-3sum/" />
+    <meta property="og:title" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重" />
+    <meta property="og:description" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写&quot;两数之和&quot;、也觉得&quot;两数之和 II&quot;很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-15-3sum/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-15-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重" />
+    <meta name="twitter:description" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写&quot;两数之和&quot;、也觉得&quot;两数之和 II&quot;很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-15-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BV-ATdtJ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-24T10:32:45.943531+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重","description":"【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写\"两数之和\"、也觉得\"两数之和 II\"很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里","image":"https://zhoujungis.github.io/photos/lc-15-cover.png","datePublished":"2026-09-24T10:32:45.943531+08:00","dateModified":"2026-09-24T10:32:45.943558+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-15-3sum/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重</h1><div class="ns-meta">2026/9/24 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：已经会写"两数之和"、也觉得"两数之和 II"很简单，但每次写三数之和都会在去重上翻车的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：中等 —— 算法骨架十分钟就能背下来，但<strong>去重那两处</strong>，背下来不算真会
+<strong>收获</strong>：排序在这题里真正的作用（不是"查找更快"）、去重为什么只有两处且形态还不一样、双指针单调性的正确性论证，以及 LC 16 / 18 / 259 / 611 / 923 一整条演化路线
+</blockquote>
+<h2>题目</h2>
+
+给你一个整数数组 <code>nums</code>，判断是否存在三元组 <code>[nums[i], nums[j], nums[k]]</code> 满足 <code>i != j</code>、<code>i != k</code> 且 <code>j != k</code>，同时还满足 <code>nums[i] + nums[j] + nums[k] == 0</code>。请你返回所有和为 <code>0</code> 且不重复的三元组。
+
+注意：答案中不可以包含重复的三元组。
+<div class="codehilite"><pre><span></span><code>输入：nums = [-1, 0, 1, 2, -1, -4]
+输出：[[-1, -1, 2], [-1, 0, 1]]
+解释：
+  nums[0] + nums[1] + nums[2] = (-1) + 0 + 1 = 0
+  nums[1] + nums[2] + nums[4] = 0 + 1 + (-1) = 0
+  nums[0] + nums[3] + nums[4] = (-1) + 2 + (-1) = 0
+  不同的三元组是 [-1, 0, 1] 和 [-1, -1, 2]。
+  注意输出的顺序和三元组的顺序并不重要。
+
+输入：nums = [0, 1, 1]
+输出：[]
+
+输入：nums = [0, 0, 0]
+输出：[[0, 0, 0]]
+</code></pre></div>
+
+
+从"两数之和"到"三数之和"，只多了一个数，但复杂度跳了一级、去重难度跳了两级。很多人第一次写这题是这样的：
+<ol>
+<li>想起两数之和用哈希表，于是套过来；</li>
+<li>跑官方样例，答案对了；</li>
+<li>交上去 —— <strong>答案重复</strong>。</li>
+</ol>
+
+然后加一个 <code>set</code> 去重，再交 —— 还是错，因为 <code>set</code> 装不了 <code>list</code>。改成 <code>set of tuple</code>，终于过了，但时间和空间都不好看。
+
+这题的"正确姿势"其实只有一条路，而且它反直觉地<strong>在做完排序之后就不再使用哈希了</strong>。
+<hr>
+<h2>一、先说清楚这题在考什么</h2>
+<h3>1.1 暴力：三重循环</h3>
+
+最直白的写法，枚举三个下标：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">threeSum</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">k</span><span class="p">]])</span>
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+时间 <code>O(n³)</code>。数据量一上去就废。
+
+但比"慢"更致命的是：<strong>这个写法连去重都不会做</strong>。上面这段代码跑官方样例会输出 3 组（其中两组是同一个三元组的排列），而题目要求 2 组。
+
+关于"用值去重"还是"用下标去重"，还有个特别容易搞混的地方：
+<ul>
+<li>题目要求 <strong>下标互不相同</strong>（<code>i != j != k</code>）—— 这是"不能重复使用同一个元素"；</li>
+<li>题目要求 <strong>答案里没有重复的三元组</strong> —— 这是"<code>[-1, 0, 1]</code> 和 <code>[0, 1, -1]</code> 算同一个答案"。</li>
+</ul>
+
+这两个约束是<strong>独立的</strong>，暴力循环的 <code>j = i + 1</code>、<code>k = j + 1</code> 保证了第一条，但完全没管第二条。
+<h3>1.2 固定一个数，退化成"两数之和"</h3>
+
+<code>nums[i] + nums[j] + nums[k] == 0</code> 可以改写成：
+<div class="codehilite"><pre><span></span><code><span class="n">nums</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">-</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+</code></pre></div>
+
+
+也就是说：<strong>枚举一个 <code>i</code>，问题就退化成"在剩下的元素里找两个数，使它们的和等于 <code>-nums[i]</code>"</strong> —— 这正是"两数之和"。
+
+那能不能直接把 LC 1 的哈希表搬过来？<strong>能，但很快就会发现它不划算。</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 哈希版：外层枚举 i，内层再做一次&quot;两数之和&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">threeSumHash</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+    <span class="n">seen_triples</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>                 <span class="c1"># ← 逃不掉的去重</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="o">-</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">target</span> <span class="o">-</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">triple</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">target</span> <span class="o">-</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]]))</span>
+                <span class="n">seen_triples</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">triple</span><span class="p">)</span>  <span class="c1"># ← 只能在这里补去重</span>
+            <span class="n">seen</span><span class="p">[</span><span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span> <span class="o">=</span> <span class="n">j</span>
+    <span class="k">return</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">seen_triples</span><span class="p">]</span>
+</code></pre></div>
+
+
+问题出在两处：
+<ul>
+<li><strong>哈希表回答不了"这组是不是已经出现过了"。</strong> 它只知道"某个值有没有见过、在哪"，不知道"某一个三元组有没有被记录过"。所以你被迫在最后加一个 <code>set of tuple</code> —— 而那一步的代价是 <code>O(n²)</code> 个元组的哈希与拼接。</li>
+<li><strong><code>sorted([...])</code> 又出现了一次。</strong> 为了让 <code>[-1, 0, 1]</code> 和 <code>[0, 1, -1]</code> 变成同一个键，你得给每个三元组排序。既然横竖都躲不开排序，为什么不<strong>一开始就把整个数组排一次</strong>？</li>
+</ul>
+<h3>1.3 正确的路线：先排序，再双指针</h3>
+<div class="codehilite"><pre><span></span><code>① 把整个数组升序排好
+② 外层枚举 i（固定三元组里最小的那个数）
+③ 内层用双指针 l = i + 1、r = n - 1，夹逼出剩下两个数
+</code></pre></div>
+
+
+内层的判据只有三行：
+<ul>
+<li><code>nums[i] + nums[l] + nums[r] &lt; 0</code> → <strong>和太小</strong>，把 <code>l</code> 往右挪（换更大的数）；</li>
+<li><code>nums[i] + nums[l] + nums[r] &gt; 0</code> → <strong>和太大</strong>，把 <code>r</code> 往左挪（换更小的数）；</li>
+<li>等于 <code>0</code> → 记下这一组。</li>
+</ul>
+
+<strong>为什么这么挪不会漏解？</strong> 这题的正确答案论证就在这里，别把它当成"显然"：
+<blockquote>
+
+固定 <code>i</code>，目标是让 <code>nums[l] + nums[r]</code> 等于 <code>-nums[i]</code>。
+
+当 <code>r</code> 停在最右端时，<code>nums[l] + nums[r]</code> 是<strong>以当前 <code>l</code> 为左端时能取到的最大和</strong>（因为 <code>r</code> 是剩下元素里最大的那个）。
+如果连这个最大和都小于目标，那么以 <code>l</code> 为左端的<strong>任何一对</strong>都不可能达标 —— 所以 <code>l</code> 可以放心右移一格，且这一格以后再也不用回头。
+
+对称地，当 <code>l</code> 停在最左端时，<code>nums[l] + nums[r]</code> 是<strong>以当前 <code>r</code> 为右端时能取到的最小和</strong>；如果它都大于目标，<code>r</code> 就可以放心左移。
+</blockquote>
+
+这段论证还顺带证明了另一件事：<strong><code>l</code> 只增、<code>r</code> 只减，两个指针加起来最多走 <code>n</code> 步</strong> —— 所以内层是严格的 <code>O(n)</code>，不是"外层枚举 <code>l</code>、内层枚举 <code>r</code>"的 <code>O(n²)</code>。
+<h3>1.4 排序的真正收益：让相同的数挨在一起</h3>
+
+这是全篇最值得划重点的一句话：
+<blockquote>
+
+<strong>排序在这题里的作用不是"查找更快"（这题压根没有查找），而是让相同的数挨在一起。</strong>
+</blockquote>
+
+有了"相同值相邻"这个性质，去重才从"和一堆组合打交道"退化成"<strong>跟前一个值比一比</strong>"：
+<table>
+<thead>
+<tr>
+<th>想去重的对象</th>
+<th>没有排序</th>
+<th>排好序之后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>重复的起点</td>
+<td>得记住"哪些最小数已经当过 <code>i</code> 了"</td>
+<td><code>nums[i] == nums[i - 1]</code> 一句话</td>
+</tr>
+<tr>
+<td>重复的后续两数</td>
+<td>得把三元组规范化再塞进 <code>set</code></td>
+<td><code>nums[l] == nums[l + 1]</code> 一句话</td>
+</tr>
+<tr>
+<td>三元组内部顺序</td>
+<td>每个答案都要 <code>sorted()</code></td>
+<td>天然就是升序的</td>
+</tr>
+</tbody>
+</table>
+
+整题的去重，就压缩在这<strong>两处 <code>O(1)</code> 的比较</strong>里。
+<hr>
+<h2>二、完整代码</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">threeSum</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>                                     <span class="c1"># ① 排序：让相同的数挨在一起</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>                          <span class="c1"># 留两个位置给 l 和 r</span>
+        <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>                             <span class="c1"># ② 剪枝：最小的都 &gt; 0，后面没戏</span>
+            <span class="k">break</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>        <span class="c1"># ③ 第一处去重：起点重复，整轮跳过</span>
+            <span class="k">continue</span>
+
+        <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">total</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>                              <span class="c1"># 和太小 → 换个更大的</span>
+            <span class="k">elif</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>                              <span class="c1"># 和太大 → 换个更小的</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]])</span>
+                <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>   <span class="c1"># ④ 第二处去重：跳</span>
+                    <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+短短二十行，但有三行是"去重 / 剪枝"性质的（②③④），也就是说：<strong>这题的代码量有三分之一在解决"重复"问题</strong>。
+<div class="algo-viz algo-viz--lc15"></div>
+
+<hr>
+<h2>三、动画怎么看</h2>
+
+画面里有五层信息：
+<ul>
+<li><strong>顶部小字</strong>：原数组 → 已排序。指针的全部坐标都以排序后的数组为准；</li>
+<li><strong>数组格子</strong>：橙色边框是外层锚点 <code>i</code>，绿色是左指针 <code>L</code>，蓝紫是右指针 <code>R</code>；</li>
+<li><strong>金色格子 + 外环</strong>：本帧命中的三个数；<strong>灰色虚线格子</strong>：被去重跳过、不再参与的位置；</li>
+<li><strong>中间的横幅</strong>：当前三数之和与判定结果（<code>&lt; 0</code> 左指针右移 / <code>&gt; 0</code> 右指针左移 / <code>= 0</code> 命中）；</li>
+<li><strong>底部</strong>：已经收集到的三元组。</li>
+</ul>
+
+有两个地方是<strong>刻意设计</strong>的，看的时候留意一下：
+<ol>
+<li><strong><code>L</code> 和 <code>R</code> 的标签分两行放。</strong> 它们分别是 <code>l</code> 和 <code>r</code> 两根指针，一定会靠得越来越近。放在同一行的话，当 <code>r = l + 1</code> 时两个标签会直接叠在一起。</li>
+<li><strong>动画里那唯一一次"跳过"发生在第 12 帧。</strong> <code>i</code> 走到下标 2 时，发现 <code>nums[2]</code> 和上一轮的 <code>nums[1]</code> 都是 <code>-1</code> —— 于是整个内层循环被跳过，对应代码里的 <code>continue</code>。这是全片唯一能"看见"去重动作的地方，因为它恰好触发了第一处去重。</li>
+</ol>
+<hr>
+<h2>四、完整推演表（15 帧逐帧）</h2>
+
+输入 <code>nums = [-1, 0, 1, 2, -1, -4]</code>，排序后 <code>[-4, -1, -1, 0, 1, 2]</code>。
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>阶段</th>
+<th>i</th>
+<th>l</th>
+<th>r</th>
+<th>三数之和</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>init</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>排序完成：<code>[-4, -1, -1, 0, 1, 2]</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>pick-i</code></td>
+<td>0</td>
+<td>1</td>
+<td>5</td>
+<td>—</td>
+<td>固定 <code>-4</code>，在 <code>[1..5]</code> 里找和为 <code>4</code> 的两个数</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>squeeze</code></td>
+<td>0</td>
+<td>2</td>
+<td>5</td>
+<td><code>(-4) + (-1) + 2 = -3</code></td>
+<td>和太小 → <code>l</code> 从 1 移到 2</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>squeeze</code></td>
+<td>0</td>
+<td>3</td>
+<td>5</td>
+<td><code>(-4) + (-1) + 2 = -3</code></td>
+<td>和太小 → <code>l</code> 从 2 移到 3</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>squeeze</code></td>
+<td>0</td>
+<td>4</td>
+<td>5</td>
+<td><code>(-4) + 0 + 2 = -2</code></td>
+<td>和太小 → <code>l</code> 从 3 移到 4</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>squeeze</code></td>
+<td>0</td>
+<td>5</td>
+<td>5</td>
+<td><code>(-4) + 1 + 2 = -1</code></td>
+<td>和太小 → <code>l</code> 从 4 移到 5，<code>l == r</code>，本轮结束</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>pick-i</code></td>
+<td>1</td>
+<td>2</td>
+<td>5</td>
+<td>—</td>
+<td>固定 <code>-1</code>（与上一轮的值不同，不用跳过）</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>hit</code></td>
+<td>1</td>
+<td>2</td>
+<td>5</td>
+<td><code>(-1) + (-1) + 2 = 0</code></td>
+<td><strong>命中</strong>，记录 <code>[-1, -1, 2]</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>dedup</code></td>
+<td>1</td>
+<td>3</td>
+<td>4</td>
+<td>—</td>
+<td>两侧都无重复值，<code>l</code>、<code>r</code> 各向内走一格</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>hit</code></td>
+<td>1</td>
+<td>3</td>
+<td>4</td>
+<td><code>(-1) + 0 + 1 = 0</code></td>
+<td><strong>命中</strong>，记录 <code>[-1, 0, 1]</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>dedup</code></td>
+<td>1</td>
+<td>4</td>
+<td>3</td>
+<td>—</td>
+<td>两侧都无重复值，各走一格后指针交叉，本轮结束</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>skip-i</code></td>
+<td>2</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>nums[2] = -1</code> 与 <code>nums[1]</code> 相同 → <strong>整轮跳过</strong>（第一处去重）</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>pick-i</code></td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+<td>—</td>
+<td>固定 <code>0</code>，在 <code>[4..5]</code> 里找和为 <code>0</code> 的两个数</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>squeeze</code></td>
+<td>3</td>
+<td>4</td>
+<td>4</td>
+<td><code>0 + 1 + 2 = 3</code></td>
+<td>和太大 → <code>r</code> 从 5 移到 4，<code>l == r</code>，本轮结束</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>done</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>结束，答案 <code>[[-1, -1, 2], [-1, 0, 1]]</code></td>
+</tr>
+</tbody>
+</table>
+
+几个值得单独拎出来的观察：
+
+<strong>第一轮（<code>i = 0</code>，值 <code>-4</code>）跑了四次 <code>squeeze</code> 一无所获。</strong> 它把 <code>l</code> 从 1 一路推到 5，每次和都是负的。这说明 <code>-4</code> 太小了 —— 剩下的数里最大的两个是 <code>1</code> 和 <code>2</code>，加起来才 <code>3</code>，够不到需要的 <code>4</code>。这类"注定没结果的起点"是剪枝优化的空间（第七节）。
+
+<strong>第二轮（<code>i = 1</code>）连中两元。</strong> 注意第 8 帧和第 10 帧的 <code>dedup</code> 都显示"两侧都无重复值" —— 官方例里恰好没触发第二处去重。但这两帧<strong>每次命中之后都必然要跑</strong>，它们是算法的固定步骤，只是这次没有可跳的东西。
+
+<strong>第 11 帧是全场唯一一次真去重。</strong> <code>i = 2</code> 的时候，<code>nums[2]</code> 和 <code>nums[1]</code> 都是 <code>-1</code>。假如不跳过，它会用同一个起点把 <code>[-1, 0, 1]</code> 和 <code>[-1, -1, 2]</code> 原样再找一遍 —— 答案就会出现两组重复。
+
+<strong>最后 <code>i = 3</code>（值 <code>0</code>）那一轮会不必要地跑一次。</strong> <code>0 + 1 + 2 = 3 &gt; 0</code>，不可能等于 0。理论上可以在进入内层之前就发现"这个起点加上最大的两个数还是正的"，直接跳过 —— 这就是第七节要说的优化。
+<hr>
+<h2>五、去重：只有两处，形态还不一样</h2>
+
+这是全篇最核心的一节。<strong>把这两处的触发条件、位置、形态都搞清楚，这题才算真会。</strong>
+<h3>5.1 第一处：外层 <code>i</code> 的"事前跳过"</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+    <span class="k">continue</span>
+</code></pre></div>
+
+
+<strong>含义</strong>：这一轮的起点，和上一轮的起点是同一个值。
+
+<strong>为什么整轮都可以跳过</strong>：三元组里 <code>nums[i]</code> 是<strong>最小的那个数</strong>（因为数组升序，<code>l</code> 和 <code>r</code> 都在 <code>i</code> 右边）。既然最小值相同、可选的剩余区间也只是"右边那些"，那这一轮能找出来的三元组，上一轮必然已经全找过了 —— <strong>整轮跳过，不用进内层</strong>。
+
+<strong>形态</strong>：<code>continue</code>，<strong>事前跳过</strong>。还没开始跑就知道它没意义。
+
+<strong><code>i &gt; 0</code> 不能省。</strong> 这不只是"防止第一个元素越界"的问题 —— 在 Python 里 <code>nums[-1]</code> 是<strong>合法</strong>的，它会绕到数组<strong>最后一个元素</strong>。也就是说漏掉 <code>i &gt; 0</code> 的话，<code>i = 0</code> 时比的是 <code>nums[0]</code> 和 <code>nums[n - 1]</code> —— 一个完全是偶然的判断，会随机地跳过或触发第一轮。这种 bug 比直接报错更难查。
+<h3>5.2 第二处：命中后双指针的"事后跳过"</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]])</span>
+<span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>
+    <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+    <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+<span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+</code></pre></div>
+
+
+<strong>含义</strong>：刚刚记下的这一组是 <code>[nums[i], nums[l], nums[r]]</code>。如果 <code>l</code> 右边还贴着和 <code>nums[l]</code> 相同的值，那么<strong>换一个位置当下标、值还是一样</strong>，产出的三元组长得一模一样。
+
+<strong>为什么必须"事后"</strong>：因为你在命中之前<strong>不知道</strong>该从哪里跳 —— 只有拿到一组解，才知道"这一对值已经用过了"。所以形态是 <code>while</code>，而不是 <code>continue</code>。
+
+<strong>为什么去重完还要再各走一步</strong>：两个 <code>while</code> 结束时，<code>l</code> 停在<strong>最后一个</strong>相同值上、<code>r</code> 停在<strong>第一个</strong>相同值上。它们本身仍然是刚刚用过的那两个值，所以必须再各向内走一格，才算真正离开这一对。
+
+<strong><code>while</code> 里的 <code>l &lt; r</code> 不能省</strong>，它同时管两件事：
+<ul>
+<li><strong>防越界</strong>：<code>nums[l + 1]</code> 在 <code>l</code> 已经是最后一个下标时会越界；</li>
+<li><strong>防跑过头</strong>：<code>l</code> 有可能被一路推到 <code>r</code> 上甚至越过 <code>r</code>，那时剩下的是"只有两个元素"的区间，再去跳就会把本该考虑的组合跳掉。</li>
+</ul>
+<h3>5.3 两处对照</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>第一处</th>
+<th>第二处</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>代码</strong></td>
+<td><code>if nums[i] == nums[i-1]: continue</code></td>
+<td><code>while nums[l] == nums[l+1]: l += 1</code></td>
+</tr>
+<tr>
+<td><strong>防线</strong></td>
+<td>挡住"<strong>起点重复</strong>"</td>
+<td>挡住"<strong>配对数重复</strong>"</td>
+</tr>
+<tr>
+<td><strong>时机</strong></td>
+<td><strong>事前</strong> —— 内层还没跑</td>
+<td><strong>事后</strong> —— 已经记了一组</td>
+</tr>
+<tr>
+<td><strong>形态</strong></td>
+<td><code>continue</code>（整轮跳过）</td>
+<td><code>while</code> 跳过 + 各走一步</td>
+</tr>
+<tr>
+<td><strong>删掉会怎样</strong></td>
+<td>每个三元组都出现 <strong>2 次</strong>（<code>-1</code> 出现两次时）</td>
+<td>值重复较多的输入下大量重复</td>
+</tr>
+<tr>
+<td><strong>边界陷阱</strong></td>
+<td><code>i &gt; 0</code></td>
+<td><code>l &lt; r</code></td>
+</tr>
+</tbody>
+</table>
+<h3>5.4 漏掉任何一处的后果</h3>
+
+两处都会导致"答案重复"，但<strong>触发条件完全不同</strong>，所以只用官方样例测，很可能一个都发现不了。
+
+<strong>漏掉第一处</strong>（<code>i</code> 去重）：需要一个"最小数出现多次"的输入。
+<div class="codehilite"><pre><span></span><code>nums = [-1, -1, 2]        排序后还是 [-1, -1, 2]
+  i = 0：l=1, r=2，和 = (-1) + (-1) + 2 = 0 → 记录 [-1, -1, 2]
+  i = 1：l=2, r=2，l == r 直接结束
+</code></pre></div>
+
+
+呃，这个例子里 <code>i = 1</code> 时 <code>l = 2</code>、<code>r = 2</code> 马上就退出了，所以没暴露。换一个：
+<div class="codehilite"><pre><span></span><code>nums = [3, 0, -2, -1, 1, 2]      排序后 [-2, -1, 0, 1, 2, 3]
+  i = 0（值 -2）：找到 [-2, 0, 2]、[-2, -1, 3]
+  i = 1（值 -1）：找到 [-1, 0, 1]
+</code></pre></div>
+
+
+还是没暴露 —— 因为 <code>-2</code> 和 <code>-1</code> 不相等。<strong>要暴露第一处的漏判，必须有"真正重复的最小值"并且它右边还有足够多的元素</strong>：
+<div class="codehilite"><pre><span></span><code><span class="nv">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]<span class="w">      </span>排序后<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]
+<span class="w">  </span>✅<span class="w"> </span>有<span class="w"> </span><span class="nv">i</span><span class="w"> </span>去重：<span class="nv">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span>找到<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]；<span class="nv">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span>被<span class="w"> </span><span class="k">continue</span><span class="w"> </span>跳过<span class="w"> </span>→<span class="w"> </span>共<span class="w"> </span><span class="mi">1</span><span class="w"> </span>组
+<span class="w">  </span>❌<span class="w"> </span>漏<span class="w"> </span><span class="nv">i</span><span class="w"> </span>去重：<span class="nv">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span>时<span class="w"> </span><span class="nv">l</span><span class="o">=</span><span class="mi">2</span>,<span class="w"> </span><span class="nv">r</span><span class="o">=</span><span class="mi">3</span>，<span class="ss">(</span><span class="o">-</span><span class="mi">1</span><span class="ss">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span>→<span class="w"> </span>又记录一次<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]
+<span class="w">                </span>答案变成<span class="w"> </span>[[<span class="o">-</span><span class="mi">1</span>,<span class="mi">0</span>,<span class="mi">1</span>],<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="mi">0</span>,<span class="mi">1</span>]]<span class="w"> </span>——<span class="w"> </span>重复
+</code></pre></div>
+
+
+<strong>漏掉第二处</strong>（双指针去重）：需要一个"配对数发生值碰撞"的输入。
+<div class="codehilite"><pre><span></span><code>nums = [-2, 0, 0, 2, 2]      排序后 [-2, 0, 0, 2, 2]
+  ✅ 有第二处去重：
+       i = 0，l=1, r=4，( -2) + 0 + 2 = 0 → 记录 [-2, 0, 2]
+       L 侧：nums[1] == nums[2]（都是 0）→ l 移到 2
+       R 侧：nums[4] == nums[3]（都是 2）→ r 移到 3
+       各走一步 → l = 3, r = 2，交叉，结束 → 共 1 组
+  ❌ 漏第二处去重：
+       命中后只做 l += 1、r -= 1 → l = 2, r = 3
+       再算：(-2) + 0 + 2 = 0 → 又记录一次 [-2, 0, 2]！答案重复
+</code></pre></div>
+
+
+<strong>注意这两组输入长什么样</strong>：<code>[-1, -1, 0, 1]</code> 和 <code>[-2, 0, 0, 2, 2]</code>。它们的共同点是"重复值恰好落在指针会经过的位置上"。而官方样例 <code>[-1, 0, 1, 2, -1, -4]</code> 排序后是 <code>[-4, -1, -1, 0, 1, 2]</code> —— 两个 <code>-1</code> 是相邻的，但<strong>它们恰好一个当 <code>i</code>、一个当 <code>l</code></strong>，两个去重条件都不会被真正触发。
+
+<strong>所以：跑通官方样例，完全不能证明去重写对了。</strong> 这两组反例应该直接进你的自测用例。
+<hr>
+<h2>六、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><code>O(n²)</code></td>
+<td>排序 <code>O(n log n)</code> + 外层 <code>O(n)</code> × 内层 <code>O(n)</code>；瓶颈在外层每一轮的双指针扫描</td>
+</tr>
+<tr>
+<td>空间</td>
+<td><code>O(1)</code>（不计结果）</td>
+<td>双指针只用了常数个变量</td>
+</tr>
+</tbody>
+</table>
+
+两点补充：
+<ul>
+<li><strong>排序的 <code>O(n log n)</code> 被 <code>O(n²)</code> 吸收了</strong>，它根本不是瓶颈。所以"为了去重而多排一次序"是白赚的 —— 这也是 1.2 节里"既然横竖要排序，不如一开始就排"那句话的底气。</li>
+<li>严格说"空间 <code>O(1)</code>"是<strong>不计排序开销</strong>的说法。Python 的 <code>list.sort()</code> 是 Timsort，需要 <code>O(n)</code> 辅助空间；Java 的 <code>Arrays.sort(int[])</code> 是双轴快排、<code>O(log n)</code> 栈空间。面试时可以主动补一句："不计结果和排序开销是 <code>O(1)</code>。"</li>
+</ul>
+
+把三种写法放在一起看：
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+<th>去重靠什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>暴力三重循环</td>
+<td><code>O(n³)</code></td>
+<td><code>O(1)</code></td>
+<td>几乎没有 —— 答案会直接重复</td>
+</tr>
+<tr>
+<td>哈希 + <code>set</code> 去重</td>
+<td><code>O(n²)</code></td>
+<td><code>O(n)</code></td>
+<td>最后把规范化后的三元组塞进 set</td>
+</tr>
+<tr>
+<td><strong>排序 + 双指针（本解）</strong></td>
+<td><code>O(n²)</code></td>
+<td><code>O(1)</code></td>
+<td>两处 <code>O(1)</code> 的值比较</td>
+</tr>
+</tbody>
+</table>
+
+<strong>注意哈希版和双指针版的时间量级是一样的</strong> —— 双指针胜在常数更小、空间更省、去重逻辑更清晰，而不是"快了一个量级"。面试时说清楚这一点，比笼统地讲"双指针更快"准确得多。
+<h2>七、两个能省时间的剪枝</h2>
+<h3>6.1 <code>nums[i] &gt; 0</code> 就 <code>break</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">break</span>
+</code></pre></div>
+
+
+数组已经升序。如果作为<strong>最小值</strong>的 <code>nums[i]</code> 都已经是正数，那后面两个只会更大，三个正数之和不可能等于 <code>0</code>。
+
+注意这里是 <code>break</code> 而不是 <code>continue</code> —— 因为 <code>nums</code> 递增，后面所有的 <code>nums[i]</code> 也都会是正数，整个外层循环都可以结束了。
+
+官方样例里这一条不会触发（<code>i</code> 只有 0、1、2、3，对应的值是 <code>-4</code>、<code>-1</code>、<code>-1</code>、<code>0</code>，全都不是正数）。但像 <code>[1, 2, 3, 4, 5]</code> 这种输入，<code>i = 0</code> 就能直接结束，省掉整个 <code>O(n²)</code>。
+<h3>6.2 两个"提前看最小值 / 最大值"的剪枝</h3>
+
+在内层循环开始之前，可以先算一下这一轮<strong>可能的和的范围</strong>：
+<div class="codehilite"><pre><span></span><code><span class="n">minimum</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span>      <span class="c1"># 这一轮能凑出的最小和</span>
+<span class="k">if</span> <span class="n">minimum</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">break</span>                                          <span class="c1"># 最小和都 &gt; 0，后面更没戏</span>
+
+<span class="n">maximum</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>            <span class="c1"># 这一轮能凑出的最大和</span>
+<span class="k">if</span> <span class="n">maximum</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">continue</span>                                       <span class="c1"># 最大和都 &lt; 0，这个 i 太小了，换下一个</span>
+</code></pre></div>
+
+
+这两句在"数组很长、正负数分布极端"的时候能省掉大量无效的双指针扫描。<strong>回到第四节的推演表</strong>：第 12 帧（<code>i = 3</code>，值 <code>0</code>）那一轮就是被第二句剪掉的典型 —— <code>0 + 1 + 2 = 3 &gt; 0</code>，最大和都是正的、最小值也不可能是负的，这一轮注定找不到 <code>0</code>。
+
+不过要注意：这两句都是<strong>可选优化</strong>。面试时先把主逻辑写对、去重写对，再补剪枝。<strong>为了剪枝写错边界，得不偿失。</strong>
+<hr>
+<h2>八、变体一：LC 16 最接近的三数之和 / LC 18 四数之和</h2>
+<h3>7.1 LC 16：把 <code>== 0</code> 换成 <code>abs(s - target)</code> 最小</h3>
+
+LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。骨架几乎一模一样，只有命中判定变了：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">threeSumClosest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>          <span class="c1"># 用一个真实的和初始化，别用 inf</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+            <span class="k">continue</span>
+        <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">total</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">abs</span><span class="p">(</span><span class="n">best</span> <span class="o">-</span> <span class="n">target</span><span class="p">):</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="n">total</span>
+            <span class="k">if</span> <span class="n">total</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+                <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="n">target</span><span class="p">:</span>
+                <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">target</span>                        <span class="c1"># 差为 0，已经不可能更好了</span>
+
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+
+三点差异值得注意：
+<ul>
+<li><strong>不再需要第二处去重</strong>。因为返回的是"一个和"，重复的组合只会算出同一个和，不影响结果。去重只在"返回所有解"的场景下才是必需品。</li>
+<li><strong>可以提前 <code>return</code></strong>。一旦 <code>total == target</code>，差值已经是理论最优的 <code>0</code>，再找也不会有更好的。</li>
+<li><strong><code>best</code> 的初始化要用一个真实存在的和</strong>，或者用 <code>float('inf')</code>。用 <code>0</code> 初始化会错，因为 <code>abs(0 - target)</code> 在某些输入下比真实答案更小。</li>
+</ul>
+<h3>7.2 LC 18：四数之和 = 外面再套一层</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">fourSum</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">3</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">a</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">a</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+            <span class="k">continue</span>                                 <span class="c1"># 第一层去重</span>
+        <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">b</span> <span class="o">&gt;</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">b</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                <span class="k">continue</span>                             <span class="c1"># 第二层去重</span>
+            <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">b</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+                <span class="n">total</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">total</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+                    <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">elif</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="n">target</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">a</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">b</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]])</span>
+                    <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>
+                        <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                        <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+                    <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+复杂度 <code>O(n³)</code>。<strong>去重的模式完全一致</strong>：外层每多套一层，就多一句"和外层前一个比一比"；最内层仍然是"命中后跳重复"。
+
+注意第二层的判断是 <code>b &gt; a + 1</code> 而不是 <code>b &gt; 0</code> —— 因为 <code>b</code> 的起点是 <code>a + 1</code>，要在<strong>同一个 <code>a</code> 内部</strong>做去重，所以第一个 <code>b</code>（等于 <code>a + 1</code>）不需要检查前一个。
+
+这个细节很能说明问题：<strong>去重语句的边界条件，取决于"这一段循环的起点在哪"</strong>，不能无脑照抄 <code>&gt; 0</code>。
+<hr>
+<h2>九、变体二：从"和为 0"到"小于 target"—— 259 / 611 / 923</h2>
+
+同一套"排序 + 固定 + 双指针"，换个判定条件就是新题：
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>判定条件</th>
+<th>输出</th>
+<th>关键差异</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 15</strong></td>
+<td><code>sum == 0</code></td>
+<td>所有不重复的三元组</td>
+<td>去重是全部难点</td>
+</tr>
+<tr>
+<td><strong>LC 16</strong></td>
+<td><code>abs(sum - target)</code> 最小</td>
+<td>最接近的和</td>
+<td>不需要去重，可提前返回</td>
+</tr>
+<tr>
+<td><strong>LC 18</strong></td>
+<td><code>sum == target</code></td>
+<td>所有不重复的四元组</td>
+<td>多套一层循环</td>
+</tr>
+<tr>
+<td><strong>LC 259</strong></td>
+<td><code>sum &lt; target</code></td>
+<td><strong>满足条件的组数</strong></td>
+<td>单调性能直接"批量计数"</td>
+</tr>
+<tr>
+<td><strong>LC 611</strong></td>
+<td>两边之和 &gt; 第三边</td>
+<td>能组成三角形的个数</td>
+<td>判定换成长度约束，逻辑同构</td>
+</tr>
+<tr>
+<td><strong>LC 923</strong></td>
+<td><code>sum == target</code></td>
+<td><strong>组数（要乘重复个数）</strong></td>
+<td>输出从"集合"变成"计数"</td>
+</tr>
+</tbody>
+</table>
+
+<strong>LC 259 是这一组里最有意思的变体</strong> —— 它把双指针的单调性用到了极致：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">threeSumSmaller</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+                <span class="c1"># ⭐ 关键：l 固定时，从 l+1 到 r 的全都能配上 nums[l]</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="n">r</span> <span class="o">-</span> <span class="n">l</span>
+                <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">count</span>
+</code></pre></div>
+
+
+当 <code>nums[i] + nums[l] + nums[r] &lt; target</code> 成立时，因为数组升序，<code>nums[l]</code> 配上 <code>l+1</code> 到 <code>r</code> 之间的<strong>任何一个</strong>下标，和都只会更小 —— 也就是说 <strong><code>r - l</code> 组解一次性成立</strong>，不用逐个枚举。
+
+<strong>这才是"有序"真正的威力</strong>：不只是"能移动指针"，而是"能一句话数出一整段"。LC 3 滑动窗口里的"一步跳"、LC 259 这里的"一次数一段"，本质上是同一件事：<strong>利用单调性把 O(n) 的枚举压缩成 O(1) 的结论。</strong>
+<hr>
+<h2>十、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">threeSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">nums</span><span class="p">);</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w">                          </span><span class="c1">// 剪枝</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">   </span><span class="c1">// 第一处去重</span>
+
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">total</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">l</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">total</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">r</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="p">));</span>
+<span class="w">                    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">l</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="n">l</span><span class="o">++</span><span class="p">;</span><span class="w">   </span><span class="c1">// 第二处去重</span>
+<span class="w">                    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">r</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="n">r</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">l</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">r</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 版有个额外注意点：<code>Arrays.asList(nums[i], nums[l], nums[r])</code> 里的三个 <code>int</code> 会被自动装箱成 <code>Integer</code>，<strong>这是合法的</strong>（<code>Arrays.asList(T...)</code> 会按 <code>Integer</code> 处理）。但如果写成 <code>Arrays.asList(nums)</code>（传整个 <code>int[]</code>），因为 <code>int[]</code> 是一个 <code>Object</code> 而不是 <code>T[]</code>，会得到一个<strong>只有一个元素的 <code>List&lt;int[]&gt;</code></strong> —— 这是 Java 里非常经典的一个坑。
+
+同理，<code>Arrays.sort(int[])</code> 用的是双轴快速排序（<code>O(log n)</code> 栈空间），而 <code>Arrays.sort(T[])</code> 用的是 Timsort（<code>O(n)</code> 空间）。这些细节在讨论"空间复杂度到底是 O(1) 还是 O(n)"的时候会用到。
+<hr>
+<h2>十一、边界情况与常见坑</h2>
+<h3>边界情况</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[]</code>、<code>[1]</code>、<code>[1, 2]</code></td>
+<td><code>[]</code></td>
+<td>元素不足 3 个，直接返回空</td>
+</tr>
+<tr>
+<td><code>[0, 1, 1]</code></td>
+<td><code>[]</code></td>
+<td>有 3 个但凑不出 0</td>
+</tr>
+<tr>
+<td><code>[0, 0, 0]</code></td>
+<td><code>[[0, 0, 0]]</code></td>
+<td>全是 0，只有一组</td>
+</tr>
+<tr>
+<td><code>[0, 0, 0, 0]</code></td>
+<td><code>[[0, 0, 0]]</code></td>
+<td><strong>只输出一组</strong> —— 靠第一处去重挡住</td>
+</tr>
+<tr>
+<td><code>[1, 2, 3]</code></td>
+<td><code>[]</code></td>
+<td>全正数，<code>i = 0</code> 就被 <code>break</code> 剪掉</td>
+</tr>
+<tr>
+<td><code>[-1, 0, 1]</code></td>
+<td><code>[[-1, 0, 1]]</code></td>
+<td>正好三个数且命中</td>
+</tr>
+</tbody>
+</table>
+<h3>常见坑</h3>
+
+<strong>坑 1：在 <code>for i</code> 里漏掉 <code>i &gt; 0</code></strong>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>     <span class="c1"># ❌ i = 0 时，Python 会取到 nums[-1]（最后一个元素）</span>
+</code></pre></div>
+
+
+Python 里 <code>nums[-1]</code> 不会报错，它会绕回数组末尾。所以这个 bug 表现为"随机的第一轮被跳过或不被跳过"，比直接崩溃更难查。
+
+<strong>坑 2：第二处去重的 <code>while</code> 漏掉 <code>l &lt; r</code></strong>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>   <span class="c1"># ❌ l 是最后一个下标时越界</span>
+    <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div>
+
+
+而且即使没越界，<code>l</code> 也可能被推到 <code>r</code> 之外，把本该保留的组合跳掉。
+
+<strong>坑 3：去重完忘了各走一步</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span> <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span> <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+<span class="c1"># ❌ 少了 l += 1 和 r -= 1</span>
+</code></pre></div>
+
+
+两个 <code>while</code> 结束时，<code>l</code> 停在<strong>最后一个</strong>相同值上 —— 那还是刚刚用过的值。不各走一步的话，下一轮算出来还是同一组，<strong>死循环</strong>。
+
+<strong>坑 4：JavaScript 里 <code>Array.prototype.sort</code> 默认按字符串排序</strong>
+
+这一条是语言特有的，但在 JS 里写这题一定会撞上：
+<div class="codehilite"><pre><span></span><code><span class="p">[</span><span class="o">-</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">4</span><span class="p">].</span><span class="nx">sort</span><span class="p">()</span><span class="w">          </span><span class="c1">// → [-1, -1, -4, 0, 1, 2]  ❌ 字符串序</span>
+<span class="p">[</span><span class="mf">10</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">].</span><span class="nx">sort</span><span class="p">()</span><span class="w">                     </span><span class="c1">// → [1, 10, 2]             ❌ &quot;-1&quot; &lt; &quot;-4&quot;</span>
+<span class="p">[</span><span class="o">-</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">4</span><span class="p">].</span><span class="nx">sort</span><span class="p">((</span><span class="nx">a</span><span class="p">,</span><span class="w"> </span><span class="nx">b</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">a</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">b</span><span class="p">)</span><span class="w">   </span><span class="c1">// → [-4, -1, -1, 0, 1, 2]  ✅</span>
+</code></pre></div>
+
+
+默认比较器会把元素转成字符串再比。于是 <code>-4</code> 会排在 <code>-1</code> 后面（因为字符 <code>'4' &gt; '1'</code>），整个双指针的单调性假设直接失效 —— <strong>代码不报错，只是答案悄悄错了</strong>。
+
+还有一点：<code>sort()</code> 是<strong>原地排序</strong>，会改掉调用方传进来的数组。写工具函数时要记得先拷贝。
+
+<strong>坑 5：用哈希做，然后在最后补 <code>set</code> 去重</strong>
+
+技术上能过，但要额外付出 <code>O(n²)</code> 个元组的构造与哈希。既然排序早晚要做（见 1.2 节），不如一开始就排序，让去重退化成两次 <code>O(1)</code> 的比较。
+
+<strong>坑 6：把"下标互不相同"和"三元组不重复"混为一谈</strong>
+<ul>
+<li>下标互不相同 → 靠 <code>l = i + 1</code>、<code>r = n - 1</code> 和 <code>l &lt; r</code> 保证，<strong>这部分代码本来就对</strong>；</li>
+<li>三元组不重复 → 靠两处去重保证，<strong>这才是要额外写的地方</strong>。</li>
+</ul>
+
+如果你发现答案里有 <code>[0, 0, 0]</code> 这种"看起来下标重复"的结果 —— 那不是 bug，只要能找到三个不同下标的 <code>0</code>，它就是一组合法答案。<strong>判据是下标，不是值。</strong>
+<hr>
+<h2>十二、面试怎么答</h2>
+
+被问到"三数之和"时，一个能拿满分的回答顺序大致是：
+<ol>
+<li>
+
+<strong>先说暴力与它的两个缺陷</strong>。"三重循环 <code>O(n³)</code>；而且它连去重都不会做 —— 保证下标不同靠的是 <code>j = i + 1</code>，但保证答案不重复需要额外逻辑。"
+</li>
+<li>
+
+<strong>说清为什么不用哈希。</strong> "可以用，外层固定一个数之后内层就是两数之和。但哈希回答不了'这个三元组出现过没有'，最后还得拿 <code>set</code> 去重；而且为了让 <code>[-1,0,1]</code> 和 <code>[0,1,-1]</code> 变成同一个键，每个答案都要排序 —— 既然横竖要排序，不如一开始就排一次。"
+</li>
+<li>
+
+<strong>说双指针的正确性论证</strong>（这段能明显区分"背过"和"想过"）："<code>r</code> 在最右端时 <code>nums[l] + nums[r]</code> 是以当前 <code>l</code> 为左端能取到的最大和；如果它都小于目标，那以 <code>l</code> 为左端的任何一对都不行，所以 <code>l</code> 可以放心右移。对称地，<code>l</code> 在最左端时是最小和，太大就让 <code>r</code> 左移。这也顺带证明了两个指针合计最多走 <code>n</code> 步，内层是严格 <code>O(n)</code>。"
+</li>
+<li>
+
+<strong>主动点出去重的两处</strong>，并说清为什么形态不同："一处在外层、事前跳过，用 <code>continue</code>；一处在内层、命中后跳过，用 <code>while</code>。前者挡'起点重复'，后者挡'配对数重复'。"
+</li>
+<li>
+
+<strong>提边界</strong>："<code>i &gt; 0</code> 不能省，否则 Python 会取到 <code>nums[-1]</code>；<code>while</code> 里的 <code>l &lt; r</code> 不能省，防越界也防跳过头。"
+</li>
+<li>
+
+<strong>最后给剪枝</strong>："<code>nums[i] &gt; 0</code> 就直接 <code>break</code>；更进一步可以提前算这一轮的最小三数和与最大三数和，<code>&gt; 0</code> 就 <code>break</code>、<code>&lt; 0</code> 就 <code>continue</code>。"
+</li>
+<li>
+
+<strong>如果面试官继续追问</strong>，顺势把变体串起来："16 是换成最近的和，不需要去重还能提前返回；18 是外面多套一层，去重模式完全一样；259 是把'和等于'换成'和小于'，这时单调性能一次数出一整段 —— <code>count += r - l</code>。"
+</li>
+</ol>
+<hr>
+<h2>结语</h2>
+
+三数之和是一道"骨架简单、细节致命"的题。
+
+它的骨架（排序 + 固定一个数 + 双指针）十分钟就能背下来，但它的难点（去重）<strong>背下来不算会</strong> —— 因为去重的两处，形态不同、时机不同、边界陷阱也不同，而且<strong>官方样例恰好一个都不会触发</strong>。
+
+写这篇文章时我反复想的是同一件事：
+<blockquote>
+
+<strong>排序在这题里的价值，不在"查找更快"，而在"让相同的数挨在一起"。</strong>
+</blockquote>
+
+一旦相同的数挨在一起，"去重"就退化成了"跟前一个值比一比" —— 两处 <code>O(1)</code> 的比较，解决了这题 80% 的难度。
+
+这个视角还能往前推一步：<strong>滑动窗口、双指针、二分，本质都是"利用有序性把枚举换成结论"</strong>。LC 3 的"一步跳"是这样，LC 259 的"一次数一段"也是这样。<strong>有序性本身不产生答案，它产生的是"可以跳过的空间"。</strong>
+
+自测一下，别只跑官方样例：
+<div class="codehilite"><pre><span></span><code><span class="k">assert</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threeSum</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">4</span><span class="p">]))</span> <span class="o">==</span> <span class="p">[[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+<span class="k">assert</span> <span class="n">threeSum</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]]</span>          <span class="c1"># 第一处去重</span>
+<span class="k">assert</span> <span class="n">threeSum</span><span class="p">([</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="p">[[</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span>     <span class="c1"># 第二处去重</span>
+<span class="k">assert</span> <span class="n">threeSum</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="p">[[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>       <span class="c1"># 第一处去重（另一个角度）</span>
+<span class="k">assert</span> <span class="n">threeSum</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="p">[]</span>                      <span class="c1"># 剪枝</span>
+</code></pre></div>
+
+
+这五行比跑十遍官方样例有用。</div></div></noscript>
+  </body>
+</html>
