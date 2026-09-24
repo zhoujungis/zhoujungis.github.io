@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道&quot;我到底有没有真懂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-104-226-max-depth-and-invert-binary-tree/" />
+    <meta property="og:title" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子" />
+    <meta property="og:description" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道&quot;我到底有没有真懂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-104-226-max-depth-and-invert-binary-tree/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-104-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子" />
+    <meta name="twitter:description" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道&quot;我到底有没有真懂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-104-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CjAcrf9Y.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-24T09:36:34.801787+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子","description":"【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道\"我到底有没有真懂\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就","image":"https://zhoujungis.github.io/photos/lc-104-cover.png","datePublished":"2026-09-24T09:36:34.801787+08:00","dateModified":"2026-09-24T09:36:34.801820+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-104-226-max-depth-and-invert-binary-tree/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子</h1><div class="ns-meta">2026/9/24 · Zhou Jun</div><div class="markdown-body"><h1>【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子</h1>
+<blockquote>
+
+<strong>适用读者</strong>：刚学完二叉树递归，想知道"我到底有没有真懂"的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：简单 —— 但两道题的正确率都没那么高，原因在下面
+<strong>收获</strong>：把「树的递归」这件事拆成两种模式（后序汇报 vs 就地改结构），顺带打穿 111 / 110 / 543 / 101 / 951 一整串变体
+</blockquote>
+<h2>题目</h2>
+
+这两道题放在一起讲，因为它们正好是<strong>树递归的两种模式</strong>，而且边界情况会互相照应。
+<h3>LC 104 二叉树的最大深度</h3>
+
+给定一个二叉树 <code>root</code>，返回其<strong>最大深度</strong>。最大深度是指从根节点到最远叶子节点的最长路径上的节点数。
+<div class="codehilite"><pre><span></span><code>输入：root = [3,9,20,null,null,15,7]
+输出：3
+
+输入：root = [1,null,2]
+输出：2
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code>       3                ← 第 1 层
+      / \
+     9   20             ← 第 2 层
+        /  \
+       15   7           ← 第 3 层
+</code></pre></div>
+
+<h3>LC 226 翻转二叉树</h3>
+
+给你一棵二叉树的根节点 <code>root</code>，翻转这棵二叉树，并返回其根节点。
+<div class="codehilite"><pre><span></span><code>输入：root = [4,2,7,1,3,6,9]
+输出：[4,7,2,9,6,3,1]
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code>        4                        4
+       / \                      / \
+      2   7        →           7   2
+     / \ / \                  / \ / \
+    1  3 6  9                9  6 3  1
+</code></pre></div>
+
+<blockquote>
+
+对，就是那个<strong>传说中 Homebrew 作者写不出来、被 Google 拒了</strong>的题。
+</blockquote>
+
+节点的定义，沿用前几篇：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TreeNode</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">left</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">right</span>
+</code></pre></div>
+
+<blockquote>
+
+<strong>输入格式提醒</strong>：<code>[3,9,20,null,null,15,7]</code> 是 LeetCode 的<strong>层序数组编码</strong>（和 LC 102 / 236 / 124 一样）。下标 <code>i</code> 的节点，左孩子在 <code>2i+1</code>、右孩子在 <code>2i+2</code>，空缺位置用 <code>null</code> 占位。所以上面这棵树里 <code>9</code> 的两个孩子位是 <code>null</code>（它是叶子），<code>[15, 7]</code> 挂在 <code>20</code> 下面。
+</blockquote>
+<hr>
+<h2>一、这两题为什么放在一起</h2>
+
+因为它们的形式几乎一样（都是三五行递归），但<strong>"递归顺序"的重要性恰好相反</strong>：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 104 最大深度</th>
+<th>LC 226 翻转二叉树</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>递归里要做的事</td>
+<td>先问左右子树的高度，再<strong>算自己</strong></td>
+<td><strong>换掉自己的两个孩子</strong></td>
+</tr>
+<tr>
+<td>顺序能不能变</td>
+<td><strong>不能</strong>，必须后序</td>
+<td><strong>可以</strong>，前序后序都对</td>
+</tr>
+<tr>
+<td>为什么</td>
+<td>自己高度<strong>依赖</strong>子树的返回值</td>
+<td>每个节点<strong>独立</strong>操作，谁先谁后都不干涉</td>
+</tr>
+<tr>
+<td>返回的是什么</td>
+<td>一个数（子树高度）</td>
+<td>不需要返回值（就地改结构）</td>
+</tr>
+<tr>
+<td>有没有全局变量</td>
+<td>没有，答案就是根算出来的那个数</td>
+<td>不需要</td>
+</tr>
+</tbody>
+</table>
+
+一句话概括这个对照：
+<blockquote>
+
+<strong>104 是"信息从下往上冒"，226 是"从上往下挨个改"。</strong>
+
+前者的顺序是<strong>被迫</strong>的（拿不到子树答案就没法算自己）；后者的顺序是<strong>自由的</strong>（因为每个节点的活儿互不相干）—— 而这恰恰是 226 唯一的坑所在。
+</blockquote>
+<hr>
+<h2>二、LC 104：那个 <code>1</code> 不能少</h2>
+<blockquote>
+
+出处备注：LC 104 就是<strong>美团</strong>面经里那道「求二叉树的高度」。它被反复问，不是因为难，而是因为它足够短 —— 面试官想看的不是你能不能写出来（人人都会），而是你能不能把「为什么必须是后序」「那个 <code>1</code> 代表什么」「会不会爆栈」这三件事讲清楚。
+</blockquote>
+<h3>2.1 三行代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">maxDepth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">maxDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">maxDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+</code></pre></div>
+
+
+短到没什么可讲的 —— 除了那个 <code>1</code>。
+<h3>2.2 <code>1</code> 是什么：把自己这一层算上</h3>
+
+<code>max(self.maxDepth(root.left), self.maxDepth(root.right))</code> 给出的是<strong>子树的高度</strong>，也就是"从孩子往下最多还能走几层"。但是题目要的是"从 <strong>当前节点</strong> 往下最多能走几层" —— 差的就是自己这一层。
+<div class="codehilite"><pre><span></span><code>       3          maxDepth(9)  = 1   ← 9 自己往下只有 1 层
+      / \         maxDepth(20) = 2   ← 20 → 15（或 7）是 2 层
+     9   20       max(1, 2)    = 2
+        /  \      1 + 2        = 3   ← 加上&quot;3&quot;自己这一层
+       15   7
+</code></pre></div>
+
+
+<strong>如果漏掉那个 <code>1</code>，全树都返回 0。</strong> 这是个"写出来一眼能发现"的错误，但在递归题里，同类错误（返回值的语义差一层）非常常见 —— LC 543 直径的"边数 vs 节点数"就是这个坑的升级版。
+<h3>2.3 为什么<strong>必须</strong>后序</h3>
+
+因为"子树高度"是<strong>从下面冒上来的信息</strong>，父节点手里没有，只能先下去要。
+
+硬要用先序（自顶向下）也能写：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxDepth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">depth</span><span class="p">):</span>          <span class="c1"># 把&quot;当前深度&quot;当参数传下去</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span> <span class="k">return</span>
+        <span class="n">depth</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ans</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ans</span><span class="p">,</span> <span class="n">depth</span><span class="p">)</span>
+        <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">depth</span><span class="p">)</span>
+        <span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">depth</span><span class="p">)</span>
+    <span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ans</span>
+</code></pre></div>
+
+
+能过，但绕了一圈，而且<strong>拿不到"子树高度"这个中间量</strong> —— 后面 LC 110 平衡二叉树那种"顺便判断左右子树高度差"的需求就做不了了。所以：
+<blockquote>
+
+<strong>凡是"父节点的答案依赖子树答案"的题，后序几乎是唯一选择。</strong>
+<strong>凡是"需要沿途累加一个参数"的题，先序更自然。</strong>
+</blockquote>
+
+这句话值得记住。它区分了树递归的两大类，比背模板管用。
+<h3>2.4 另一种写法：BFS 数层数</h3>
+
+深度还有一个完全不用递归的算法 —— 层序遍历，每走完一层就 +1：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">maxDepth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="n">root</span><span class="p">])</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+            <span class="n">depth</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>        <span class="c1"># ← 关键：先锁住这一层的节点数（LC 102 的坑）</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>  <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span> <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">depth</span>
+</code></pre></div>
+
+
+<strong>什么时候选 BFS？</strong> 当树<strong>很深</strong>而递归会爆栈的时候。Python 默认递归深度限制是 1000，一棵 3 万节点的偏斜树用递归必挂；BFS 没有这个问题。
+
+<strong>代价</strong>：BFS 的空间是 O(树的最大宽度)，最坏 O(n/2)；而 DFS 递归是 O(树高)，平衡树上是 O(log n)。所以两者各有胜场，不是"哪个更高级"。
+<blockquote>
+
+这也正好呼应 LC 102：那个题的 <code>size = len(queue)</code> 快照，在这里又用了一次（<code>for _ in range(len(q))</code>）。<strong>不锁住长度，内层一边出队一边入队，层就串了。</strong>
+</blockquote>
+<hr>
+<h2>三、动画：看着高度一层层往上冒</h2>
+
+下面这个动画把上面 11 帧推演过程逐帧画出来。图里：
+<ul>
+<li><strong>节点上方挂的 <code>h=2</code></strong> = 这个节点算出来的高度（浅绿色边表示已经算完，橙色表示"这一帧刚算出来"）；</li>
+<li><strong>橙色粗边</strong> = 当前递归正在走的那条路径（一眼看出"钻到哪一层了"）；</li>
+<li><strong>橙色粗圈</strong> = 当前聚焦的节点；</li>
+<li>底部横幅左边是这一帧的计算式，右边是<strong>最终答案</strong> —— 注意它在根算完之前一直是 <strong><code>?</code></strong>。</li>
+</ul>
+<div class="algo-viz algo-viz--lc104"></div>
+
+
+看的时候重点盯三处：
+<ol>
+<li><strong>第 3 帧</strong>：<code>9</code> 是叶子，报出 <code>h=1</code> —— 高度是从叶子开始往上冒的；</li>
+<li><strong>第 9 帧</strong>：<code>20</code> 拿到左右各 <code>1</code>，算出 <code>1 + max(1, 1) = 2</code>；</li>
+<li><strong>第 10 帧</strong>：根 <code>3</code> 算出 <code>1 + max(1, 2) = 3</code>，<strong>答案 <code>?</code> 在这一刻才变成 <code>3</code></strong>。</li>
+</ol>
+
+第 3 点很值得玩味：<strong>在根算完之前，没有任何一帧能说出最终答案</strong>。对比 LC 124 里的 <code>best</code> —— 那个是"一路取最大值"、中途不断被刷新，是完全相反的节奏。
+<hr>
+<h2>四、LC 104 完整推演表（11 帧逐帧）</h2>
+
+下表是动画每一帧的真实数据（<code>左</code> / <code>右</code> 是子树回报的高度，空子树记 <code>0</code>）：
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>阶段</th>
+<th>当前</th>
+<th>左</th>
+<th>右</th>
+<th>自己的 h</th>
+<th>答案</th>
+<th>递归栈（栈底在左）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td><code>3</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>?</code></td>
+<td>（空）</td>
+</tr>
+<tr>
+<td>1</td>
+<td>recurse</td>
+<td><code>3</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>?</code></td>
+<td><code>3:enter</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>leaf</strong></td>
+<td><code>9</code></td>
+<td>0</td>
+<td>0</td>
+<td><strong>1</strong></td>
+<td><code>?</code></td>
+<td><code>3:left &gt; 9:enter</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>recurse</td>
+<td><code>3</code></td>
+<td>1</td>
+<td>—</td>
+<td>—</td>
+<td><code>?</code></td>
+<td><code>3:left</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>recurse</td>
+<td><code>20</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>?</code></td>
+<td><code>3:right &gt; 20:enter</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>leaf</strong></td>
+<td><code>15</code></td>
+<td>0</td>
+<td>0</td>
+<td><strong>1</strong></td>
+<td><code>?</code></td>
+<td><code>3:right &gt; 20:left &gt; 15:enter</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>recurse</td>
+<td><code>20</code></td>
+<td>1</td>
+<td>—</td>
+<td>—</td>
+<td><code>?</code></td>
+<td><code>3:right &gt; 20:left</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>leaf</td>
+<td><code>7</code></td>
+<td>0</td>
+<td>0</td>
+<td><code>1</code></td>
+<td><code>?</code></td>
+<td><code>3:right &gt; 20:right &gt; 7:enter</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>compute</strong></td>
+<td><code>20</code></td>
+<td>1</td>
+<td>1</td>
+<td><strong>2</strong></td>
+<td><code>?</code></td>
+<td><code>3:right &gt; 20:decide</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>compute</strong></td>
+<td><code>3</code></td>
+<td>1</td>
+<td>2</td>
+<td><strong>3</strong></td>
+<td><strong><code>3</code></strong></td>
+<td><code>3:decide</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>done</td>
+<td><code>3</code></td>
+<td>—</td>
+<td>—</td>
+<td>3</td>
+<td><code>3</code></td>
+<td>（空）</td>
+</tr>
+</tbody>
+</table>
+
+两行必须对照着看：
+
+<strong>第 8 帧（<code>20</code>）</strong> —— 左右都是 <code>1</code>，取 <code>max</code> 得 1，再加自己：
+<div class="codehilite"><pre><span></span><code>h = 1 + max(1, 1) = 2
+</code></pre></div>
+
+
+<strong>第 9 帧（根 <code>3</code>）</strong> —— 左右<strong>不一样</strong>（1 和 2），这时候 <code>max</code> 才有意义：
+<div class="codehilite"><pre><span></span><code>h = 1 + max(1, 2) = 3      ← 取高的那 2 条，再加自己
+</code></pre></div>
+
+
+如果这棵树左右一样高，就看不出"取大的"这个动作了。官方例专门挑了 <code>9</code>（叶子）和 <code>20</code>（有两层）作对比，就是为了让 <code>max</code> 的取舍看得见。
+
+第 10 帧收尾时栈已清空，<code>h=3</code> 从根报出来 —— 这就是答案。
+<hr>
+<h2>五、LC 104 的三个变体</h2>
+<h3>5.1 LC 111 最小深度：把 <code>min</code> 直接套上去就错了 ⚠️</h3>
+
+<strong>这是 104 最重要的一节。</strong> 很多人做完 104，看到"最小深度"就顺手把 <code>max</code> 改成 <code>min</code>：
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 错的</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">minDepth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span> <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+</code></pre></div>
+
+
+<strong>这行代码对大多数测试用例都能过</strong>，但遇到"只有一侧孩子"的树就崩：
+<div class="codehilite"><pre><span></span><code>       1
+      /
+     2
+</code></pre></div>
+
+<ul>
+<li><code>minDepth(2)</code> = 1</li>
+<li><code>minDepth(null)</code> = 0 ← 问题就在这</li>
+<li><code>1 + min(1, 0) = 1</code> ← <strong>错答 1</strong></li>
+</ul>
+
+正确答案是 <strong>2</strong>（路径是 <code>1 → 2</code>，两个节点）。
+
+<strong>为什么错？</strong> 因为<strong>空子树不是叶子</strong>。
+
+题目说的是"根节点到<strong>最近叶子节点</strong>的最短路径"。而 <code>null</code> 不是一个节点，它<strong>代表"这条路根本不存在"</strong>，不能拿来参与 <code>min</code> 比较 —— 它给出的那个 0 会伪造出一条"长度为 0 的假路径"。
+
+注意 <code>max</code> 为什么不会犯这个错：<code>max(1, 0) = 1</code> 恰好把 0 淘汰了。所以<strong>同样一个"空子树记 0"的约定位，在 <code>max</code> 下无害、在 <code>min</code> 下致命。</strong>
+
+正确写法是<strong>先把单侧空的情况摘出来</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">minDepth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="c1"># 只有右子树：必须往右走，不能把空的左边当成&quot;更短的路径&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+        <span class="c1"># 只有左子树：同理</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="c1"># 两边都在，这时候 min 才有意义</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+</code></pre></div>
+
+
+这四行的语义是：<strong>"最小深度只统计到真正的叶子为止，半路的内部节点不是终点。"</strong>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>错误写法</th>
+<th>正确写法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[1]</code></td>
+<td>1 ✓</td>
+<td>1 ✓</td>
+</tr>
+<tr>
+<td><code>[1,2]</code></td>
+<td><strong>1</strong> ✗</td>
+<td><strong>2</strong> ✓</td>
+</tr>
+<tr>
+<td><code>[1,null,2]</code></td>
+<td><strong>1</strong> ✗</td>
+<td><strong>2</strong> ✓</td>
+</tr>
+<tr>
+<td><code>[1,2,null,3]</code></td>
+<td><strong>1</strong> ✗</td>
+<td><strong>3</strong> ✓</td>
+</tr>
+<tr>
+<td><code>[3,9,20,null,null,15,7]</code></td>
+<td>2 ✓（碰巧对）</td>
+<td>2 ✓</td>
+</tr>
+</tbody>
+</table>
+
+<strong>面试时如果只给你一道题，很可能是 111 而不是 104</strong> —— 因为 104 写不错，111 才筛人。
+<h3>5.2 LC 110 平衡二叉树：返回值兼作状态</h3>
+
+<strong>LC 110</strong>：判断一棵二叉树是否是<strong>高度平衡</strong>的（每个节点的左右两个子树的高度差的绝对值不超过 1）。
+
+这题必须用后序，而且正好是 104 的骨架直接扩展：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">isBalanced</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">height</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;返回子树高度；一旦发现不平衡就返回 -1（哨兵）&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">lh</span> <span class="o">=</span> <span class="n">height</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">lh</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>              <span class="c1"># ← 提前剪枝：左边已经不平衡，不用再看右边</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="n">rh</span> <span class="o">=</span> <span class="n">height</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">rh</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">lh</span> <span class="o">-</span> <span class="n">rh</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>      <span class="c1"># ← 就是这一步在&quot;顺便判断&quot;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">lh</span><span class="p">,</span> <span class="n">rh</span><span class="p">)</span>    <span class="c1"># ← 104 的原式</span>
+
+        <span class="k">return</span> <span class="n">height</span><span class="p">(</span><span class="n">root</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+
+<strong>这题的设计很值得学</strong>：返回值本来是"高度"（一个非负数），这里<strong>借用 <code>-1</code> 表示"已经不满足了"</strong> —— 一个返回值同时承载了"数值"和"状态"两种信息。
+<blockquote>
+
+这和 LC 236 里"返回值有三种身份"、LC 124 里"返回值只管一条胳膊"是同一类技巧：
+<strong>返回值的语义可以比"它字面上是什么"更丰富。</strong> 树形递归的题，难点十有八九在这里。
+</blockquote>
+
+时间复杂度 O(n)（每个节点访问一次），空间 O(h)。
+<h3>5.3 LC 543 二叉树的直径</h3>
+
+这个在 LC 124 那篇已经详细讲过，一句话带过：<strong>同一个"两条胳膊"的骨架，把节点值之和换成边数，而且不需要 clamp</strong>（深度不可能为负）。
+<hr>
+<h2>六、LC 226 翻转二叉树</h2>
+<h3>6.1 先说这段著名的公案</h3>
+
+2015 年 6 月，Homebrew 的作者 <strong>Max Howell</strong> 去 Google 面试 iOS 岗。他后来在 Twitter 上说：
+<blockquote>
+
+Google: 90% of our engineers use the software you wrote (Homebrew), but you can't invert a binary tree on a whiteboard, so …（原话结尾是一个脏字。）
+</blockquote>
+
+（大意：Google 说我们 90% 的工程师都在用你写的 Homebrew，但你没法在白板上翻转一棵二叉树，所以你还是滚吧。）
+
+这条推文炸了。Google 自己的工程师 Randy Luecke 在下面问"我们真的问了你那个问题？"，<code>Jonathan Blow</code> 则表示"翻转二叉树是很基础的数据结构题，答不出来我也一样不录用"。Howell 后来也补充说过：当时收到的反馈里其实还有多项弱点，那条推文是为了传播效果简化过的。
+
+这段公案值得放在这里，是因为它精准地展示了这道题的"尴尬"：
+<blockquote>
+
+<strong>它只有五行，没有任何算法洞察，会二叉树和递归的人两分钟就能写完。
+但它确实在筛人 —— 筛的是"你对递归这件事熟不熟到不需要思考"。</strong>
+</blockquote>
+<h3>6.2 五行代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">invertTree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TreeNode</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span>   <span class="c1"># 换掉自己的两个孩子</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>                     <span class="c1"># 递归左边</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>                    <span class="c1"># 递归右边</span>
+        <span class="k">return</span> <span class="n">root</span>
+</code></pre></div>
+
+
+<strong>这题真正在考什么？</strong> 一句话：
+<blockquote>
+
+<strong>遍历每个节点，把它的两个孩子交换一次。</strong>
+</blockquote>
+
+就这么简单。想清楚这一句，代码自然就有了 —— 甚至连"什么时候交换"都不需要纠结，因为：
+<h3>6.3 顺序真的无所谓 —— 但有一个位置是雷</h3>
+
+<strong>前序写法</strong>（先换自己，再递归两个孩子）：
+<div class="codehilite"><pre><span></span><code><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span>   <span class="c1"># 先换</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>                      <span class="c1"># 递归的是&quot;交换后&quot;的左</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+</code></pre></div>
+
+
+<strong>后序写法</strong>（先递归两个孩子，再换自己）：
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>                      <span class="c1"># 递归的是&quot;交换前&quot;的左</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+<span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span>   <span class="c1"># 后换</span>
+</code></pre></div>
+
+
+<strong>两个都对。</strong> 因为每个节点的操作是"换自己的两个孩子"，这件事<strong>不依赖子树的状态</strong>，也不改变"有哪些节点"，所以谁先谁后都不干涉。
+
+<strong>但是下面这种就一定错：</strong>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ❌ 把交换插在两个递归中间</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>                      <span class="c1"># 先把左子树翻好了</span>
+<span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span>   <span class="c1"># 再交换 —— 左子树白翻了！</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>                     <span class="c1"># 这里进的是&quot;从没翻过的&quot;那棵</span>
+</code></pre></div>
+
+
+问题出在<strong>变量 <code>root.left</code> 指向的东西变了</strong>：
+<ul>
+<li>第一行递归的是<strong>原来的左子树</strong>，它翻好了；</li>
+<li>第二行一交换，这个"翻好的左子树"跑到右边去了；</li>
+<li>第三行 <code>root.right</code> 现在指的是<strong>翻好的那棵</strong> —— 于是它被<strong>翻了第二次</strong>（等于白翻）；</li>
+<li>而<strong>真正的右子树一次都没被翻</strong>。</li>
+</ul>
+
+结果：左右两棵子树各自的状态完全错乱。
+<blockquote>
+
+<strong>规则：交换要么放在两次递归之前，要么放在之后，绝不能夹在中间。</strong>
+根因是"交换会改变 <code>root.left</code> / <code>root.right</code> 的指向"，而递归调用又依赖这两个引用 —— 用变了引用的变量去递归，语义就崩了。
+</blockquote>
+<h3>6.4 一个漂亮的等价说法：路径逐位取反</h3>
+
+翻转二叉树还有一个极优雅的等价描述 —— <strong>把每个节点从根到它的路径逐位取反（左变右、右变左）</strong>：
+<div class="codehilite"><pre><span></span><code><span class="w"> </span><span class="n">节点</span><span class="w">   </span><span class="n">原路径</span><span class="w">     </span><span class="n">翻转后</span>
+<span class="w">  </span><span class="mi">2</span><span class="w">     </span><span class="o">[</span><span class="n">L</span><span class="o">]</span><span class="w">    </span><span class="err">→</span><span class="w">   </span><span class="o">[</span><span class="n">R</span><span class="o">]</span>
+<span class="w">  </span><span class="mi">7</span><span class="w">     </span><span class="o">[</span><span class="n">R</span><span class="o">]</span><span class="w">    </span><span class="err">→</span><span class="w">   </span><span class="o">[</span><span class="n">L</span><span class="o">]</span>
+<span class="w">  </span><span class="mi">1</span><span class="w">     </span><span class="o">[</span><span class="n">L,L</span><span class="o">]</span><span class="w">  </span><span class="err">→</span><span class="w">   </span><span class="o">[</span><span class="n">R,R</span><span class="o">]</span>
+<span class="w">  </span><span class="mi">3</span><span class="w">     </span><span class="o">[</span><span class="n">L,R</span><span class="o">]</span><span class="w">  </span><span class="err">→</span><span class="w">   </span><span class="o">[</span><span class="n">R,L</span><span class="o">]</span>
+<span class="w">  </span><span class="mi">6</span><span class="w">     </span><span class="o">[</span><span class="n">R,L</span><span class="o">]</span><span class="w">  </span><span class="err">→</span><span class="w">   </span><span class="o">[</span><span class="n">L,R</span><span class="o">]</span>
+<span class="w">  </span><span class="mi">9</span><span class="w">     </span><span class="o">[</span><span class="n">R,R</span><span class="o">]</span><span class="w">  </span><span class="err">→</span><span class="w">   </span><span class="o">[</span><span class="n">L,L</span><span class="o">]</span>
+</code></pre></div>
+
+
+<strong>本文的动画就是按这个等价说法做的</strong> —— 状态机不存"节点该画在哪"，只存每个节点相对父亲的左右角色；位置由"沿 parent 链拼出路径 → 算列号"推出来。所以交换一次就是改一个角色的值，节点的横坐标自然跳到镜子里的位置。
+
+附带一个漂亮的推论：<strong>翻转是自逆运算</strong> —— 翻两次就还原了。因为"逐位取反"做两次就是原值。
+<hr>
+<h2>七、动画：看着树真的翻过去</h2>
+
+下面这个动画的关键在于 —— <strong>节点是真的会换位置的</strong>。这和系列里其它树动画不一样（那些树都是静态的，只有颜色在变）：
+<ul>
+<li><strong>橙色虚线弧 + 双向箭头</strong> = 这一帧正在互换的两个孩子；</li>
+<li><strong>橙色粗圈</strong> = 当前聚焦的节点；<strong>橙色粗边</strong> = 当前递归路径；</li>
+<li><strong>淡绿填充的节点</strong> = 已经翻转过的（它的两个孩子已经交换）；</li>
+<li>右下角进度条实时显示 <code>已换 x/y 个非叶节点</code>。</li>
+</ul>
+<div class="algo-viz algo-viz--lc226"></div>
+
+
+看的时候重点盯三处：
+<ol>
+<li><strong>第 2 帧</strong>：<code>4</code> 交换它的两个孩子 —— <code>2</code> 和 <code>7</code> 对调，<strong>两棵子树整体跟着挪过去</strong>，这是"翻"这件事最直观的一刻；</li>
+<li><strong>第 4 帧</strong>：交换 <code>7</code> 的孩子时，只动 <code>6</code> 和 <code>9</code>，<strong><code>7</code> 的位置不变</strong> —— 因为每一层的交换只管自己这一层；</li>
+<li><strong>第 12 帧</strong>：全部节点都变绿，整棵树成了原树的镜像。</li>
+</ol>
+
+顺带注意动画里的<strong>叶子节点也会被"访问"</strong>（第 5、7、9、11 帧）：它们的孩子都是 <code>null</code>，<strong>交换两个 <code>null</code> 是空操作</strong> —— 所以真正发生变化的只有非叶节点。进度条上的分母 <code>3</code> 就是这个意思。
+<hr>
+<h2>八、LC 226 完整推演表（12 帧逐帧）</h2>
+
+下表是动画每一帧的真实数据（用的是前序写法：<strong>先交换自己，再递归</strong>）：
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>阶段</th>
+<th>当前</th>
+<th>这一帧做了什么</th>
+<th>已换</th>
+<th>递归深度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td><code>4</code></td>
+<td>从根开始</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>1</td>
+<td><strong>swap</strong></td>
+<td><code>4</code></td>
+<td>交换 <code>2</code> ↔ <code>7</code></td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>swap</strong></td>
+<td><code>7</code></td>
+<td>交换 <code>6</code> ↔ <code>9</code></td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>leaf</td>
+<td><code>9</code></td>
+<td>叶子，交换空操作</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>descend</td>
+<td><code>7</code></td>
+<td>左子树翻完，进右子树 <code>6</code></td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>leaf</td>
+<td><code>6</code></td>
+<td>叶子，交换空操作</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>6</td>
+<td>descend</td>
+<td><code>4</code></td>
+<td><code>7</code> 这棵翻完，进右子树 <code>2</code></td>
+<td>2</td>
+<td>0</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>swap</strong></td>
+<td><code>2</code></td>
+<td>交换 <code>1</code> ↔ <code>3</code></td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>8</td>
+<td>leaf</td>
+<td><code>3</code></td>
+<td>叶子，交换空操作</td>
+<td>3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>9</td>
+<td>descend</td>
+<td><code>2</code></td>
+<td>左子树翻完，进右子树 <code>1</code></td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>10</td>
+<td>leaf</td>
+<td><code>1</code></td>
+<td>叶子，交换空操作</td>
+<td>3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>11</td>
+<td>done</td>
+<td><code>4</code></td>
+<td><strong>翻转完成</strong></td>
+<td>3</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+
+两个容易看错的点：
+
+<strong>第 2 帧和第 7 帧的"进哪边"</strong> —— 前序写法里，递归左孩子时，进的是<strong>交换后</strong>的左孩子（也就是原来的右孩子）：
+<div class="codehilite"><pre><span></span><code>第 1 帧：4 交换 → 左孩子从 2 变成 7
+第 2 帧：递归进&quot;左孩子&quot;，进的是 7，不是 2
+</code></pre></div>
+
+
+所以动画里的访问顺序是 <code>4 → 7 → 9 → 6 → 2 → 3 → 1</code>，看起来"先右后左"，其实严格是"先左后右" —— 只是左右已经被换过了。<strong>这也是那段"交换不能夹在两个递归中间"的坑的另一种表现</strong>：只要你在递归里用 <code>root.left</code>，就必须清楚它此刻指的是谁。
+
+反过来，如果写成后序（先递归再交换），访问顺序会变成 <code>1 → 3 → 2 → 6 → 9 → 7 → 4</code>，<strong>但从下往上换</strong>，最终结果完全一样。你可以自己改成后序跑一遍感受一下 —— 这正是"顺序无所谓"的实证。
+<hr>
+<h2>九、LC 226 的两个变体</h2>
+<h3>9.1 LC 101 对称二叉树：本质就是"自己等于翻转后的自己"</h3>
+
+<strong>LC 101</strong>：判断一棵二叉树是否<strong>轴对称</strong>。
+
+想清楚它和 226 的关系：一棵树轴对称，等价于"<strong>它翻转之后和自己长得一样</strong>"。所以判据是<strong>镜像递归</strong> —— 同时拿两棵子树往下走，一边往左、一边往右：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">isSymmetric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">mirror</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">a</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">b</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>                <span class="c1"># 都空 → 这一路对上</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">a</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">b</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>               <span class="c1"># 一空一不空 → 对不上</span>
+            <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">val</span> <span class="o">!=</span> <span class="n">b</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>               <span class="c1"># 值不一样 → 对不上</span>
+            <span class="c1"># 关键：比较的是&quot;a 的左 ↔ b 的右&quot;和&quot;a 的右 ↔ b 的左&quot;</span>
+            <span class="k">return</span> <span class="n">mirror</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">right</span><span class="p">)</span> <span class="ow">and</span> <span class="n">mirror</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">mirror</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span> <span class="k">if</span> <span class="n">root</span> <span class="k">else</span> <span class="kc">True</span>
+</code></pre></div>
+
+
+<strong>注意那个 <code>mirror(a.left, b.right) and mirror(a.right, b.left)</code></strong> —— 交叉比较才是"镜像"。写成 <code>mirror(a.left, b.left)</code> 就变成判断"两棵树完全相同"（那是 LC 100）了。
+
+<strong>和 226 的关系</strong>：226 是<strong>动手翻</strong>，101 是<strong>判断能不能翻成一样</strong>。一个改结构，一个只比较。
+<h3>9.2 LC 951 等价翻转二叉树</h3>
+
+<strong>LC 951</strong>：判断两棵树能否<strong>通过若干次翻转左右孩子</strong>变得相同。
+
+同一个镜像思路，但多一个分叉 —— <strong>每个节点可以选择"翻"或者"不翻"</strong>，两种都要试：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">flipEquiv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root1</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">,</span> <span class="n">root2</span><span class="p">:</span> <span class="n">TreeNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">root2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">root2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">root1</span><span class="o">.</span><span class="n">val</span> <span class="o">!=</span> <span class="n">root2</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="c1"># 要么两边都不翻，要么两边都翻 —— 各试一次</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">left</span><span class="p">,</span>  <span class="n">root2</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>  <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">right</span><span class="p">))</span> <span class="ow">or</span> \
+               <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">left</span><span class="p">,</span>  <span class="n">root2</span><span class="o">.</span><span class="n">right</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">left</span><span class="p">))</span>
+</code></pre></div>
+
+
+和 101 对比一下就明白了：<strong>101 是"必须对称"（只有交叉那一支），951 是"翻或不翻都行"（两支都要试）。</strong>
+<h3>9.3 变体关系总表</h3>
+<table>
+<thead>
+<tr>
+<th>题号</th>
+<th>和 104 / 226 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 111</strong> 最小深度</td>
+<td>104 的<strong>陷阱版</strong>：空子树不是叶子，<code>min</code> 不能直接套</td>
+</tr>
+<tr>
+<td><strong>LC 110</strong> 平衡二叉树</td>
+<td>104 的<strong>扩展版</strong>：返回值兼作状态（<code>-1</code> 哨兵）</td>
+</tr>
+<tr>
+<td><strong>LC 543</strong> 直径</td>
+<td>104 的<strong>双臂版</strong>：换成边数、不需要 clamp（见 LC 124 那篇）</td>
+</tr>
+<tr>
+<td><strong>LC 101</strong> 对称二叉树</td>
+<td>226 的<strong>判断版</strong>：只比较，不修改</td>
+</tr>
+<tr>
+<td><strong>LC 100</strong> 相同的树</td>
+<td>101 的<strong>退化版</strong>：不交叉比较，就是逐位相等</td>
+</tr>
+<tr>
+<td><strong>LC 951</strong> 等价翻转</td>
+<td>226 的<strong>搜索版</strong>：每个节点"翻或不翻"两种都要试</td>
+</tr>
+</tbody>
+</table>
+
+<strong>一个提醒</strong>：101 / 951 的形状和 226 明显不同（前者是<strong>双指针同步下潜</strong>，后者是<strong>单指针就地修改</strong>），所以本文没有给动画开 <code>mode</code> 硬塞进去 —— 那会误导人以为它们能共用一套代码。<strong>形似的题可以合并讲，形不似的题要分开写。</strong>
+<hr>
+<h2>十、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1">// LC 104</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxDepth</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxDepth</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">),</span><span class="w"> </span><span class="n">maxDepth</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// LC 111 —— 注意四个分支</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">minDepth</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">),</span><span class="w"> </span><span class="n">minDepth</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// LC 226</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">invertTree</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">tmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">;</span><span class="w">          </span><span class="c1">// Java 不能像 Python 那样一行交换，得借临时变量</span>
+<span class="w">        </span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">;</span>
+<span class="w">        </span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tmp</span><span class="p">;</span>
+<span class="w">        </span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">        </span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>Java 的两个注意点</strong>：
+<ol>
+<li><strong>交换要借临时变量</strong> —— Python 的 <code>a, b = b, a</code> 是元组解包，Java 没有对应语法，直接 <code>root.left = root.right; root.right = root.left;</code> 会把两边都变成同一个，是<strong>极高频的错误</strong>。</li>
+<li><code>invertTree</code> 的返回类型是 <code>TreeNode</code> 而不是 <code>void</code> —— 题目要求返回根节点。递归调用时可以忽略返回值（因为结构是就地改的），但<strong>外层必须 <code>return root</code></strong>，方便链式调用和空树情形。</li>
+</ol>
+<hr>
+<h2>十一、边界情况与常见坑</h2>
+<h3>边界情况（两题都要过一遍）</h3>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>LC 104 输出</th>
+<th>LC 226 输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>空树 <code>[]</code></td>
+<td><code>0</code></td>
+<td><code>null</code>（原地返回，不报错）</td>
+</tr>
+<tr>
+<td>单节点 <code>[1]</code></td>
+<td><code>1</code></td>
+<td><code>[1]</code>（不变）</td>
+</tr>
+<tr>
+<td>只有左孩子 <code>[1,2]</code></td>
+<td><code>2</code></td>
+<td><code>[1,null,2]</code>（孩子换到右边）</td>
+</tr>
+<tr>
+<td>只有右孩子 <code>[1,null,2]</code></td>
+<td><code>2</code></td>
+<td><code>[1,2]</code>（孩子换到左边）</td>
+</tr>
+<tr>
+<td>偏斜链 <code>[1,2,null,3]</code></td>
+<td><code>3</code></td>
+<td>链的朝向反转</td>
+</tr>
+<tr>
+<td>负数值 / <code>0</code> 值</td>
+<td>不受影响（只看结构，不看值）</td>
+<td>不受影响</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+<strong>104 和 226 都不受节点值影响</strong> —— 这是它们比 124（要考虑负数剪枝）简单的地方。
+</blockquote>
+<h3>常见坑（编号对照上面各节）</h3>
+
+<strong>坑 1：104 漏掉那个 <code>1</code>（§2.2）</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>      <span class="c1"># ← 漏了 1，全树返回 0</span>
+</code></pre></div>
+
+
+<strong>坑 2：111 直接套 <code>min</code>（§5.1）⚠️ 最容易错</strong>
+
+<code>[1,2]</code> 会错答 <code>1</code>。<strong>空子树不是叶子，不能参与 <code>min</code>。</strong>
+
+<strong>坑 3：110 忘记剪枝</strong>
+
+发现不平衡后应该立刻返回 <code>-1</code> 并<strong>跳过剩余子树</strong>，否则复杂度会退化（虽然仍是 O(n)，但常数大很多），而且代码更难读。
+
+<strong>坑 4：226 把交换夹在两个递归中间（§6.3）⚠️ 最隐蔽</strong>
+
+代码能跑、小样例可能还对，但结果错乱。<strong>根因是 <code>root.left</code> 的指向被交换改了。</strong>
+
+<strong>坑 5：226 忘记返回 <code>root</code></strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">invertTree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span> <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">left</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">invertTree</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+    <span class="c1"># ← 忘了 return root，函数返回 None</span>
+</code></pre></div>
+
+
+<strong>坑 6：101 的镜像比较写成非交叉</strong>
+
+<code>mirror(a.left, b.left)</code> 是"两棵树相同"（LC 100），不是"镜像"。必须交叉。
+
+<strong>坑 7：递归爆栈</strong>
+
+深度 3 万+ 的偏斜树，Python 默认递归上限 1000，会 <code>RecursionError</code>。可以调高上限（<code>sys.setrecursionlimit(1000000)</code>），或者 104 直接用 BFS（§2.4），226 改成显式栈的迭代写法。
+
+<strong>坑 8：把"节点数"和"边数"搞混</strong>
+
+104 返回的是<strong>节点数</strong>（根到最远叶子的节点个数）。543 直径返回的是<strong>边数</strong>。两者的差别正好是 1 —— 这就是 543 里 <code>return 1 + max(...)</code> 那一步的存在理由。
+<hr>
+<h2>十二、面试怎么答</h2>
+<h3>104 最大深度</h3>
+
+<strong>第一句就把两个要点说出来</strong>：
+<blockquote>
+
+"后序递归。返回 <code>1 + max(左子树高度, 右子树高度)</code>，那个 <code>1</code> 是把自己这一层算上。"
+</blockquote>
+
+<strong>如果面试官追问"能不能用别的顺序"</strong>：
+<blockquote>
+
+"先序也能做，但要额外传一个 <code>depth</code> 参数自顶向下累加。不过那样就拿不到'子树高度'这个中间量了 —— 110 平衡二叉树需要这个量，所以后序是更通用的选择。"
+</blockquote>
+
+<strong>如果追问"会不会爆栈"</strong>：
+<blockquote>
+
+"会。深偏斜树会爆 Python 的默认递归上限。可以改成层序遍历（BFS）数层数，空间换 O(树宽)，或者显式栈。"
+</blockquote>
+
+<strong>然后主动提 111</strong>（这是加分项）：
+<blockquote>
+
+"顺便说一句，111 最小深度不能把 <code>max</code> 换成 <code>min</code> —— 空子树会被当成深度 0，伪造出一条假路径。<code>[1,2]</code> 这种只有一侧孩子的树会错答 1，正确是 2。得先把单侧空的情况单独摘出来处理。"
+</blockquote>
+<h3>226 翻转二叉树</h3>
+
+<strong>先把核心一句话说出来</strong>：
+<blockquote>
+
+"本质就是遍历每个节点，把它的两个孩子交换一次。"
+</blockquote>
+
+<strong>然后主动讲顺序（这是这道题唯一的考点）</strong>：
+<blockquote>
+
+"所以遍历顺序其实无所谓 —— 前序（先换再递归）和后序（先递归再换）都对，因为每个节点是独立地换自己的两个孩子。<strong>但交换不能夹在两个递归中间</strong> —— 那样会让已经翻好的子树白翻一遍，因为这个引用被交换改掉了。"
+</blockquote>
+
+<strong>如果面试官问"怎么证明顺序无所谓"</strong>：
+<blockquote>
+
+"因为交换操作是就地修改、不依赖子树状态；而每个节点又恰好被访问一次。两者交换顺序只会改变'交换发生的时刻'，不会改变'每个节点被交换了一次'这个事实。"
+</blockquote>
+
+<strong>如果被问"翻两次会怎样"</strong>：
+<blockquote>
+
+"还原。翻转等价于把每个节点的路径逐位取反（左变右、右变左），取反两次就是原值。所以这是个自逆运算。"
+</blockquote>
+<h3>两题连着问时的收尾</h3>
+<blockquote>
+
+"这两题正好是树递归的两种模式：<strong>104 的答案依赖子树返回值，所以顺序被迫后序；226 每个节点独立操作，所以顺序自由</strong>。判断一道树题该用哪种顺序，看'父节点的答案是否依赖子树'就够了。"
+</blockquote>
+<hr>
+<h2>结语</h2>
+
+104 和 226 都是 LeetCode 上的 easy，通常被视为"树的入门题"。但它们各自藏着一颗钉子：
+<ul>
+<li><strong>104 的钉子长在 111 上</strong> —— "空子树不是叶子"这句话，很多人做了几十道树题都没真正分清。<code>max</code> 侥幸掩盖了它，<code>min</code> 一下就露馅。</li>
+<li><strong>226 的钉子长在"交换的位置"上</strong> —— 五行代码里，只有"夹在两个递归中间"这一种写法是错的，而它错得很隐蔽。</li>
+</ul>
+
+如果要从这两题里带走一句最有用的东西，我选这句：
+<blockquote>
+
+<strong>树形递归里最值钱的判断是："父节点的答案，是不是依赖子树的返回值？"</strong>
+
+<strong>依赖 → 后序（104 / 110 / 111 / 236 / 124）。</strong>
+<strong>不依赖 → 顺序自由（226 / 102 / 100）。</strong>
+</blockquote>
+
+想清楚这一点，绝大多数树题都能在两分钟内定下骨架 —— 剩下的就只是边界情况了。
+<hr>
+<blockquote>
+
+<strong>系列导航</strong>：本文是「暑期面经汇总」算法系列的第 13 篇。前作：LC 206 反转链表 · LC 21 合并两个有序链表 · LC 23 合并 K 个升序链表 · LC 141/142 环形链表 · LC 19 删除链表倒数第 N 个节点 · LC 143 重排链表 · LC 234 回文链表 · LC 160 相交链表 · LC 82 删除排序链表中的重复元素 II · LC 102 二叉树的层序遍历 · LC 236 二叉树的最近公共祖先 · LC 124 二叉树中的最大路径和。
+</blockquote></div></div></noscript>
+  </body>
+</html>
