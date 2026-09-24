@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己 适用读者 ：刚开始刷题、或者一直觉得&quot;这题不就是两重循环吗&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但它是 哈希表思路的入门课 ，而且藏着两句不能颠倒的代码 收获 ：一次遍历 + 哈希表为什么是 O(n)、 if nee" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-1-two-sum/" />
+    <meta property="og:title" content="【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己" />
+    <meta property="og:description" content="【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己 适用读者 ：刚开始刷题、或者一直觉得&quot;这题不就是两重循环吗&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但它是 哈希表思路的入门课 ，而且藏着两句不能颠倒的代码 收获 ：一次遍历 + 哈希表为什么是 O(n)、 if nee" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-1-two-sum/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-1-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己" />
+    <meta name="twitter:description" content="【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己 适用读者 ：刚开始刷题、或者一直觉得&quot;这题不就是两重循环吗&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但它是 哈希表思路的入门课 ，而且藏着两句不能颠倒的代码 收获 ：一次遍历 + 哈希表为什么是 O(n)、 if nee" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-1-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BIV57qX7.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-24T10:12:47.253996+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己","description":"【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己 适用读者 ：刚开始刷题、或者一直觉得\"这题不就是两重循环吗\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但它是 哈希表思路的入门课 ，而且藏着两句不能颠倒的代码 收获 ：一次遍历 + 哈希表为什么是 O(n)、 if nee","image":"https://zhoujungis.github.io/photos/lc-1-cover.png","datePublished":"2026-09-24T10:12:47.253996+08:00","dateModified":"2026-09-24T10:12:47.254040+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-1-two-sum/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己</h1><div class="ns-meta">2026/9/24 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：刚开始刷题、或者一直觉得"这题不就是两重循环吗"的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：简单 —— 但它是<strong>哈希表思路的入门课</strong>，而且藏着两句不能颠倒的代码
+<strong>收获</strong>：一次遍历 + 哈希表为什么是 O(n)、<code>if need in seen</code> 和 <code>seen[x] = i</code> 为什么不能换序，以及 LC 167 / 15 / 18 / 454 一整串"n 数之和"的演化路线
+</blockquote>
+<h2>题目</h2>
+
+给定一个整数数组 <code>nums</code> 和一个整数目标值 <code>target</code>，请你在该数组中找出<strong>和为目标值的那两个整数</strong>，并返回它们的数组下标。
+
+你可以假设<strong>每种输入只会对应一个答案</strong>，但是，数组中<strong>同一个元素在答案里不能重复出现</strong>。
+<div class="codehilite"><pre><span></span><code>输入：nums = [2, 7, 11, 15], target = 9
+输出：[0, 1]
+解释：因为 nums[0] + nums[1] == 9，返回 [0, 1]。
+
+输入：nums = [3, 2, 4], target = 6
+输出：[1, 2]
+
+输入：nums = [3, 3], target = 6
+输出：[0, 1]
+</code></pre></div>
+
+
+这题是绝大多数人的<strong>第一道 LeetCode</strong>。它短、好懂、样例一眼就能算出来 —— 但也正因为如此，很多人用两重循环写完就翻篇了，没注意到它其实在教三件更重要的事：
+<table>
+<thead>
+<tr>
+<th>考点</th>
+<th>题目里对应的那句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>把"两重循环"换成<strong>"查表"</strong>，是哈希表的全部意义</td>
+<td>返回值是<strong>下标</strong>，不是值</td>
+</tr>
+<tr>
+<td><strong>顺序不能颠倒</strong>：先查表，再登记自己</td>
+<td>"同一个元素在答案里<strong>不能重复出现</strong>"</td>
+</tr>
+<tr>
+<td>"只有一个答案"这个前提<strong>不是装饰品</strong></td>
+<td>"每种输入只会对应<strong>一个</strong>答案"</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>一、先说清楚这题在考什么</h2>
+<h3>1.1 暴力：两重循环</h3>
+
+最直白的写法，选一个 <code>i</code>，再往后一个个试 <code>j</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">twoSum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[]</span>
+</code></pre></div>
+
+
+<strong>O(n²)</strong>。n = 10⁴ 时是 10⁸ 次运算，勉强能过；但这题的定位是"诱导你想到更快的方法"。
+
+注意 <code>for j in range(i + 1, n)</code> 里的 <strong><code>i + 1</code></strong> —— 这个 <code>+1</code> 就是"同一个元素不能重复使用"在暴力写法里的体现（只往后看，不看自己）。
+<h3>1.2 换个问法：站在 i 的位置，问"我缺的那个数之前来过吗"</h3>
+
+把思路反过来：
+<blockquote>
+
+不要问"<code>i</code> 和 <code>j</code> 加起来是不是 <code>target</code>"，
+而是问"<strong>我需要的那个数 <code>target - nums[i]</code>，在我左边出现过吗？</strong>"
+</blockquote>
+
+这么一问，问题就从"两两组合"变成了"<strong>查找一个值在不在</strong>"—— 而"查一个值在不在"有 O(1) 的做法：<strong>哈希表</strong>。
+
+于是只需要一次遍历：
+<div class="codehilite"><pre><span></span><code>i = 0:   x = 2，我需要 9 - 2 = 7。我左边有什么？什么都没有。→ 把 2 记下来
+i = 1:   x = 7，我需要 9 - 7 = 2。我左边有什么？有 2（下标 0）！→ 命中，返回 [0, 1]
+</code></pre></div>
+
+
+<strong>O(n)</strong> 一遍扫完。
+<h3>1.3 哈希表里存什么</h3>
+<table>
+<thead>
+<tr>
+<th>存什么</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>值 → <strong>它的下标</strong></td>
+<td>因为题目要返回<strong>下标</strong>，所以必须记住"这个值出现在哪"</td>
+</tr>
+<tr>
+<td>值 → 出现次数</td>
+<td>不够 —— 拿不到下标</td>
+</tr>
+</tbody>
+</table>
+
+所以表是 <code>{值: 下标}</code>。这也是为什么这题不能用 <code>set</code>：<code>set</code> 只能回答"在不在"，回答不了"在哪"。
+<hr>
+<h2>二、完整代码</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">twoSum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>                          <span class="c1"># 值 -&gt; 它的下标</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+            <span class="n">need</span> <span class="o">=</span> <span class="n">target</span> <span class="o">-</span> <span class="n">x</span>
+            <span class="k">if</span> <span class="n">need</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>               <span class="c1"># ① 先在我左边找</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">],</span> <span class="n">i</span><span class="p">]</span>
+            <span class="n">seen</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>                    <span class="c1"># ② 再把自己记进去</span>
+        <span class="k">return</span> <span class="p">[]</span>
+</code></pre></div>
+
+
+<strong>只有 6 行</strong>，但每一句都有讲究：
+<div class="codehilite"><pre><span></span><code><span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
+</code></pre></div>
+
+
+表里装的是"<strong>已经见过的</strong>元素"。<strong>注意它一开始是空的</strong> —— 空表意味着 <code>i = 0</code> 时什么也查不到，这很重要。
+<div class="codehilite"><pre><span></span><code><span class="n">need</span> <span class="o">=</span> <span class="n">target</span> <span class="o">-</span> <span class="n">x</span>
+</code></pre></div>
+
+
+我要的那个数。<strong>不要</strong>在这里纠结"<code>i</code> 和 <code>j</code> 谁大谁小"—— 因为查表天然只会查到左边的元素。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">need</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">],</span> <span class="n">i</span><span class="p">]</span>
+</code></pre></div>
+
+
+<strong>先查。</strong> 命中就返回。注意返回顺序：<code>seen[need]</code> 一定在 <code>i</code> 左边，所以 <code>[seen[need], i]</code> 天然是升序的。
+<div class="codehilite"><pre><span></span><code><span class="n">seen</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+</code></pre></div>
+
+
+<strong>再存。</strong> 这两句的先后顺序就是本文的全部重点。
+<hr>
+<h2>三、动画：看着表一步步长起来</h2>
+
+下面这个动画把上面 6 帧推演过程逐帧画出来。图里：
+<ul>
+<li><strong>一排格子</strong>是 <code>nums</code>；<strong>当前正在处理的元素</strong>橙色高亮，<strong>已经登记进表的</strong>淡绿底，<strong>答案的两个元素</strong>金色 + 外环；</li>
+<li><strong>上方 <code>i=</code> 指针</strong>指向当前元素；</li>
+<li><strong>下方 <code>seen</code> 卡片表</strong>显示 <code>值 → 下标</code>：刚存进去的绿色、被查中的金色；</li>
+<li><strong>答案连线</strong>把命中的两个格子连起来；</li>
+<li>底部横幅实时显示"我需要 <code>target - x</code> 等于几、查表结果如何"。</li>
+</ul>
+<div class="algo-viz algo-viz--lc1"></div>
+
+
+看的时候重点盯三处：
+<ol>
+<li><strong>第 2 帧</strong>（<code>i = 0</code>）：算出来"我需要 7"，然后查表 —— <strong>表是空的</strong>。为什么会空？因为 <code>i = 0</code> 是你遇到的第一个元素，左边没有任何东西。这一帧的存在本身就说明了"<strong>查表只能查到左边</strong>"；</li>
+<li><strong>第 3 帧</strong>：把 <code>2 → 0</code> 登记进表。<strong>这一步发生在查表之后</strong>；</li>
+<li><strong>第 4 帧</strong>（<code>i = 1</code>）：需要 <code>9 - 7 = 2</code>，一查 —— 表里下标 0 就是它。于是返回 <code>[0, 1]</code>。</li>
+</ol>
+
+第 3 帧和第 4 帧之间，就是"先查再存"这五个字的全部含义。
+<hr>
+<h2>四、完整推演表（6 帧逐帧）</h2>
+
+下表是动画每一帧的真实数据（<code>nums = [2, 7, 11, 15]</code>，<code>target = 9</code>）：
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>阶段</th>
+<th>i</th>
+<th>x</th>
+<th>need = target − x</th>
+<th>查表结果</th>
+<th>seen（这帧之后）</th>
+<th>答案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>{}</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>1</td>
+<td><strong>miss</strong></td>
+<td>0</td>
+<td>2</td>
+<td>7</td>
+<td>表是空的，没有 7</td>
+<td><code>{}</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>put</strong></td>
+<td>0</td>
+<td>2</td>
+<td>—</td>
+<td>—</td>
+<td><code>{2 → 0}</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>hit</strong></td>
+<td>1</td>
+<td>7</td>
+<td>2</td>
+<td><strong>命中，下标 0</strong></td>
+<td><code>{2 → 0}</code></td>
+<td><strong><code>[0, 1]</code></strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>verify</td>
+<td>1</td>
+<td>7</td>
+<td>—</td>
+<td>验证 <code>2 + 7 = 9</code> ✓</td>
+<td><code>{2 → 0}</code></td>
+<td><code>[0, 1]</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>done</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>{2 → 0}</code></td>
+<td><code>[0, 1]</code></td>
+</tr>
+</tbody>
+</table>
+
+两个值得对照看的点：
+
+<strong>第 1 帧和第 2 帧是分开的两件事。</strong> "查表"和"登记"是两个动作，动画把它们拆成两帧就是为了让你看清<strong>先后顺序</strong>：
+<div class="codehilite"><pre><span></span><code>第 1 帧：查表 → 表里是 {}          ← 此刻还没有 2
+第 2 帧：登记 → 表里变成 {2: 0}    ← 2 是在&quot;查完之后&quot;才进去的
+</code></pre></div>
+
+
+如果顺序反过来，第 1 帧就会变成"表里已经有 <code>{2: 0}</code> 了"，然后拿 <code>need = 7</code> 去查…… 嗯，这个例子里查不到 7，所以看起来没问题。<strong>这正是这题最阴的地方</strong> —— 见下一节。
+
+<strong>第 3 帧之后就没有第 4 轮了。</strong> 因为 <code>i = 2</code>（值 11）已经用不着查了 —— 题目保证"只有一个答案"，找到就能立刻返回。
+<hr>
+<h2>五、本题唯一真正的难点：「先查再存」，顺序不能反</h2>
+
+把两句调换一下，代码看起来同样"合理"：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">seen</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>                        <span class="c1"># ❌ 先存</span>
+    <span class="n">need</span> <span class="o">=</span> <span class="n">target</span> <span class="o">-</span> <span class="n">x</span>
+    <span class="k">if</span> <span class="n">need</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">],</span> <span class="n">i</span><span class="p">]</span>
+</code></pre></div>
+
+
+它错在哪？
+
+<strong>当 <code>target == 2 * x</code> 时</strong>，<code>need = target - x = x</code> —— 你要找的就是你自己。而"先存"意味着<strong>自己已经被放进表里了</strong>，于是一查就中，返回的 <code>seen[need]</code> 就是 <code>i</code>：
+<div class="codehilite"><pre><span></span><code>返回 [i, i]  ← 同一个元素被用两次
+</code></pre></div>
+
+<h3>5.1 <code>[3, 3]</code> 配 <code>target = 6</code>：逐帧对照</h3>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>i</th>
+<th>x</th>
+<th>✅ 先查再存</th>
+<th>❌ 先存再查</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>3</td>
+<td>查表：<code>{}</code> → 没有 3 → 继续</td>
+<td>登记 <code>3 → 0</code>；查 <code>need = 3</code> → <strong>表里有！下标 0</strong></td>
+</tr>
+<tr>
+<td>—</td>
+<td>—</td>
+<td>结果</td>
+<td>登记 <code>3 → 0</code>，进入第 2 轮</td>
+<td><strong>返回 <code>[0, 0]</code></strong> ← 同一个元素用了两次 ❌</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td>3</td>
+<td>查表：<code>{3:0}</code> → 命中下标 0 → 返回 <code>[0, 1]</code> ✅</td>
+<td>（已经错着返回了）</td>
+</tr>
+</tbody>
+</table>
+
+错误写法在两个下标相同时，<strong>答案本身就是非法的</strong> —— 它违反的是题目那句"同一个元素在答案里不能重复出现"，而不是"算错了和"。
+<h3>5.2 触发条件：<code>target == 2 * x</code></h3>
+
+这个 bug 不是"偶尔错"，它有<strong>精确的触发条件</strong>：<strong>当前元素恰好是目标值的一半</strong>。
+
+用这个条件去检查两组官方样例，会看到一个很有意思的结果：
+<table>
+<thead>
+<tr>
+<th>样例</th>
+<th>target</th>
+<th>数组里有没有 <code>target / 2</code>？</th>
+<th>错误写法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[2, 7, 11, 15]</code>, <code>target = 9</code></td>
+<td>9</td>
+<td><strong>没有</strong>（9 ÷ 2 = 4.5，不是整数）</td>
+<td><strong>照样返回 <code>[0, 1]</code></strong> —— 掩盖了 bug ⚠️</td>
+</tr>
+<tr>
+<td><code>[3, 2, 4]</code>, <code>target = 6</code></td>
+<td>6</td>
+<td><strong>有</strong>（6 ÷ 2 = 3，在下标 0）</td>
+<td>返回 <code>[0, 0]</code> —— 当场暴露 ✅</td>
+</tr>
+<tr>
+<td><code>[3, 3]</code>, <code>target = 6</code></td>
+<td>6</td>
+<td>有</td>
+<td>返回 <code>[0, 0]</code> —— 暴露 ✅</td>
+</tr>
+</tbody>
+</table>
+
+<strong>看到问题了吗</strong>：官方给的<strong>第一组</strong>样例（<code>[2, 7, 11, 15]</code> 配 <code>9</code>）是<strong>唯一一组</strong>不触发这个 bug 的 —— 因为 9 的一半不是整数，数组里不存在"目标值的一半"。
+
+于是一个很危险的情况出现了：
+<blockquote>
+
+<strong>用错误写法跑第一组样例，得到正确答案 <code>[0, 1]</code>，你会以为自己写对了。</strong>
+</blockquote>
+
+这和"写完就过样例"的刷题习惯直接冲突。<strong>结论：这题不能靠上面那组官方样例来验证，必须自己构造 <code>target = 2 * x</code> 的用例。</strong>
+<h3>5.3 一句话记住</h3>
+<blockquote>
+
+<strong>先问"前面有我缺的那个数吗"，再把自己登记进去。</strong>
+</blockquote>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">need</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>        <span class="c1"># ① 先查 —— 此刻表里只有左边的东西</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">],</span> <span class="n">i</span><span class="p">]</span>
+<span class="n">seen</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>             <span class="c1"># ② 再存</span>
+</code></pre></div>
+
+<h3>5.4 为什么"先查再存"就自动满足了"不重复使用同一元素"</h3>
+
+这是这题最值得想明白的一层。
+
+题目要求"同一个元素不能在答案里出现两次"。在暴力写法里，靠的是 <code>for j in range(i + 1, n)</code> 这个 <code>+1</code>；而在哈希表写法里，<strong>它是被"先查再存"自动保证的</strong>：
+<blockquote>
+
+查表发生的那一刻，<code>seen</code> 里装的<strong>只有 <code>nums[0..i-1]</code></strong> —— 也就是"当前元素左边的所有东西"。
+所以任何命中的下标必然 <code>&lt; i</code>，<strong>不可能是自己</strong>。
+</blockquote>
+
+换句话说：<strong>"先查再存"这个顺序，同时干了两件事</strong> ——
+<ol>
+<li>让查找变成 O(1)（这是哈希表本身的功劳）；</li>
+<li>让"不重复用同一元素"这条约束<strong>不需要额外判断就成立</strong>（这是顺序的功劳）。</li>
+</ol>
+
+如果改成"先存再查"，第 2 点就没了，你就必须像下面这种写法一样额外加一句 <code>!= i</code> 判断。
+<hr>
+<h2>六、另一种写法：先建完整张表，再查</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">twoSum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>       <span class="c1"># 第一遍：把整张表建好</span>
+            <span class="n">seen</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>       <span class="c1"># 第二遍：再查</span>
+            <span class="n">need</span> <span class="o">=</span> <span class="n">target</span> <span class="o">-</span> <span class="n">x</span>
+            <span class="k">if</span> <span class="n">need</span> <span class="ow">in</span> <span class="n">seen</span> <span class="ow">and</span> <span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">]</span> <span class="o">!=</span> <span class="n">i</span><span class="p">:</span>    <span class="c1"># ← 必须排除自己</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">]]</span>
+        <span class="k">return</span> <span class="p">[]</span>
+</code></pre></div>
+
+
+<strong>它能对</strong>，但代价是：
+<ol>
+<li><strong>要扫两遍</strong>（虽然还是 O(n)，但常数翻倍）；</li>
+<li><strong>必须显式写 <code>seen[need] != i</code></strong> —— 也就是把"不重复用同一元素"变成一个需要人肉维护的判断，而不是让它自动成立；</li>
+<li><strong>表里存的是"最后一个下标"</strong>，重复值会互相覆盖。比如 <code>[3, 3, 3]</code> 配 <code>target = 6</code>，表里只剩 <code>{3: 2}</code>，返回 <code>[0, 2]</code> —— 依然对，但如果题目要求的是"所有答案对"，这种覆盖就会漏解。</li>
+</ol>
+
+<strong>所以推荐第一种（先查再存）</strong>：一遍扫完、约束自动满足、重复值也不怕（表里还没被后来的覆盖就命中了）。
+<blockquote>
+
+<strong>一句话对比</strong>：
+<strong>先查再存 = 边走边问</strong>（表只装左边的，天然不会问到自己）；
+<strong>先建再查 = 先拍照再核对</strong>（表装了全部，必须自己排除自己）。
+</blockquote>
+<hr>
+<h2>七、变体一：LC 167 有序数组 → 换双指针，省掉整张表</h2>
+
+<strong>LC 167 两数之和 II — 输入有序数组</strong>：数组<strong>已经是升序</strong>的，要求返回下标（题目叫"下标从 1 开始"，所以要 <code>+1</code>）。
+
+既然有序，哈希表就<strong>不必要</strong>了 —— 用<strong>双指针</strong>，空间从 O(n) 降到 <strong>O(1)</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">twoSum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">numbers</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">numbers</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;</span> <span class="n">right</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">numbers</span><span class="p">[</span><span class="n">left</span><span class="p">]</span> <span class="o">+</span> <span class="n">numbers</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">right</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>       <span class="c1"># 题目要求 1-based</span>
+            <span class="k">if</span> <span class="n">s</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>                          <span class="c1"># 和太小 → 左指针右移（换更大的数）</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>                         <span class="c1"># 和太大 → 右指针左移（换更小的数）</span>
+        <span class="k">return</span> <span class="p">[]</span>
+</code></pre></div>
+
+
+<strong>为什么有序就能这么干？</strong> 因为数组有序，<code>left</code> 往右走会让和<strong>变大</strong>，<code>right</code> 往左走会让和<strong>变小</strong> —— 两个方向都是<strong>单调</strong>的。所以可以"根据当前和偏大还是偏小，确定性地移动某一侧"，一步都不浪费。
+<h3>7.1 两题逐项对照</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>LC 1</strong>（无序）</th>
+<th><strong>LC 167</strong>（有序）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>解法</td>
+<td>哈希表</td>
+<td><strong>双指针</strong></td>
+</tr>
+<tr>
+<td>时间</td>
+<td>O(n)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td><strong>空间</strong></td>
+<td><strong>O(n)</strong></td>
+<td><strong>O(1)</strong></td>
+</tr>
+<tr>
+<td>关键动作</td>
+<td>先查再存</td>
+<td>和偏大→右指针左移；偏小→左指针右移</td>
+</tr>
+<tr>
+<td>需要额外约束吗</td>
+<td>不需要（顺序自动保证）</td>
+<td>不需要（<code>left &lt; right</code> 保证不撞）</td>
+</tr>
+</tbody>
+</table>
+
+<strong>这张表本身就是一道面试题</strong>：题目从"无序"变成"有序"，信息量增加了，所以可以用更省的办法。<strong>有序这个前提不是白给的，它是可以被利用的。</strong>
+<h3>7.2 和 LC 3 滑动窗口是同一个思想</h3>
+
+上一篇文章讲的 LC 3（滑动窗口）用的是完全一样的心法：
+<blockquote>
+
+<strong>利用单调性，让指针只往一个方向走，永远不回头。</strong>
+</blockquote>
+<ul>
+<li>LC 3 里：<code>left</code> 只往右，因为"窗口左边的字符已经被排除了，回头就会引入重复"；</li>
+<li>LC 167 里：<code>left</code> 只往右、<code>right</code> 只往左，因为"和只会单调变化"。</li>
+</ul>
+
+<strong>"指针能不能只往一个方向走"是这两个算法的共同根基。</strong> 想清楚这一点，这两族题就串起来了。
+<hr>
+<h2>八、变体二：n 数之和的演化路线</h2>
+
+LC 1 是"两数之和"。把"两数"推广出去，就长出了一整条题链：
+<table>
+<thead>
+<tr>
+<th>题号</th>
+<th>题目</th>
+<th>做法</th>
+<th>和 LC 1 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 170</strong></td>
+<td>两数之和 III — 数据结构设计</td>
+<td><code>add</code> 记值→次数；<code>find</code> 遍历表查补数</td>
+<td>LC 1 的"可重复调用版"，要注意 <code>need == x</code> 时次数要 ≥ 2</td>
+</tr>
+<tr>
+<td><strong>LC 653</strong></td>
+<td>两数之和 IV — 输入 BST</td>
+<td>中序遍历得到有序数组 → 变 LC 167；或遍历时用哈希</td>
+<td>LC 1 套了个树壳，中序之后就回到本题</td>
+</tr>
+<tr>
+<td><strong>LC 15</strong></td>
+<td>三数之和</td>
+<td><strong>排序</strong> + 固定一个数 + <strong>双指针</strong></td>
+<td>两数之和（LC 167 双指针版）外面再套一层循环，O(n²)</td>
+</tr>
+<tr>
+<td><strong>LC 18</strong></td>
+<td>四数之和</td>
+<td>排序 + 两层固定 + 双指针</td>
+<td>类推，O(n³)</td>
+</tr>
+<tr>
+<td><strong>LC 454</strong></td>
+<td>四数相加 II</td>
+<td><strong>分组哈希</strong>：A+B 的所有和存表，C+D 的和去查</td>
+<td>LC 1 的"两次哈希"版 —— 把四个数组拆成两组，各做一次本题</td>
+</tr>
+</tbody>
+</table>
+
+<strong>演化逻辑只有一条</strong>：
+<blockquote>
+
+<strong>固定的数增加一个 → 复杂度多一维；剩下的"两数"始终用 O(n) 的 LC 1 或 LC 167 收尾。</strong>
+</blockquote>
+
+以 LC 15 三数之和为例：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">threeSum</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>     <span class="c1"># 跳过重复的固定数</span>
+            <span class="k">continue</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;</span> <span class="n">right</span><span class="p">:</span>                       <span class="c1"># ← 这里就是 LC 167</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">left</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">left</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span><span class="p">]])</span>
+                <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;</span> <span class="n">right</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">left</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">left</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>                     <span class="c1"># 跳过重复</span>
+                <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;</span> <span class="n">right</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">s</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+<strong>注意 LC 15 里"排序"有两个作用</strong>：① 让双指针能用（有序才单调）；② 让"跳过重复答案"变得容易（相同的数挨在一起）。所以 LC 15 用的是<strong>"排序 + 双指针"</strong>而不是哈希 —— 因为要<strong>去重</strong>，哈希反而麻烦。
+
+<strong>这就是"为什么 LC 1 用哈希、LC 15 用双指针"的答案</strong>：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>用哈希？</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 1</td>
+<td>✅ 哈希</td>
+<td>无序、只要一个答案、要求返回原下标</td>
+</tr>
+<tr>
+<td>LC 167</td>
+<td>双指针（也能哈希）</td>
+<td>有序 → 可以省空间</td>
+</tr>
+<tr>
+<td>LC 15</td>
+<td><strong>必须排序 + 双指针</strong></td>
+<td>要<strong>去重</strong>，排序后相邻元素可比，哈希做不到</td>
+</tr>
+<tr>
+<td>LC 454</td>
+<td>✅ 分组哈希</td>
+<td>四个数组互相独立，没有"同一下标"的约束</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>九、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">twoSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">seen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">       </span><span class="c1">// 值 -&gt; 下标</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">need</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">seen</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">need</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">                    </span><span class="c1">// ① 先查</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">seen</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">need</span><span class="p">),</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="p">};</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">seen</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span><span class="w">                            </span><span class="c1">// ② 再存</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="p">{};</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>Java 的三个注意点</strong>：
+<ol>
+<li><strong>必须用 <code>Map&lt;Integer, Integer&gt;</code>，不能用 <code>Set&lt;Integer&gt;</code></strong> —— 题目要返回下标，<code>Set</code> 只回答"在不在"。</li>
+<li><strong><code>containsKey</code> 而不是 <code>get(...) != null</code></strong> —— 虽然 <code>Integer</code> 可以是 <code>null</code>，但 <code>containsKey</code> 语义更清楚，也避免了"值为 0 时被误判"的隐患。</li>
+<li><strong><code>new int[] {}</code> 而不是 <code>null</code></strong> —— LeetCode 上返回 <code>null</code> 也行，但空数组更安全（调用方不用判空）。</li>
+</ol>
+
+如果只在 ASCII 范围内、并且可以接受数组下标化，也可以用数组代替哈希（本题不适用，因为值可能是大数或负数）。
+<hr>
+<h2>十、边界情况与常见坑</h2>
+<h3>边界情况</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[2,7,11,15]</code>, <code>9</code></td>
+<td><code>[0,1]</code></td>
+<td>官方样一：<strong>恰好不触发"自匹配"bug</strong> ⚠️</td>
+</tr>
+<tr>
+<td><code>[3,2,4]</code>, <code>6</code></td>
+<td><code>[1,2]</code></td>
+<td>官方样二：<code>3</code> 是 6 的一半 → <strong>会触发</strong></td>
+</tr>
+<tr>
+<td><code>[3,3]</code>, <code>6</code></td>
+<td><code>[0,1]</code></td>
+<td>两个相同值，常见陷阱</td>
+</tr>
+<tr>
+<td><code>[0,0]</code>, <code>0</code></td>
+<td><code>[0,1]</code></td>
+<td>值为 0 <strong>不是假值</strong>，别用 <code>if not seen.get(...)</code></td>
+</tr>
+<tr>
+<td><code>[-1,-2,-3,-4,-5]</code>, <code>-8</code></td>
+<td><code>[2,4]</code></td>
+<td>负数正常处理</td>
+</tr>
+<tr>
+<td><code>[0,4,3,0]</code>, <code>0</code></td>
+<td><code>[0,3]</code></td>
+<td>两个 0 分散在两端</td>
+</tr>
+<tr>
+<td><code>[1,3,4,2]</code>, <code>6</code></td>
+<td><code>[2,3]</code></td>
+<td>答案在末尾，前面的都不能用</td>
+</tr>
+</tbody>
+</table>
+<h3>常见坑</h3>
+
+<strong>坑 1：先存再查（§5）⚠️ 最隐蔽</strong>
+
+触发条件是 <code>target == 2 * x</code>。<strong>官方第一组样例恰好不触发，会让你误以为写对了。</strong>
+
+<strong>坑 2：用 <code>set</code> 而不是字典</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>          <span class="c1"># ❌ 只能回答&quot;在不在&quot;，拿不到下标</span>
+</code></pre></div>
+
+
+题目要返回<strong>下标</strong>，必须存 <code>值 → 下标</code>。
+
+<strong>坑 3：把"值"当假值判断</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">seen</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">need</span><span class="p">):</span>              <span class="c1"># ❌ 当 need == 0、而 seen[0] == 0 时，</span>
+                                <span class="c1">#    取到 0 是假值，判断会失败</span>
+<span class="k">if</span> <span class="n">need</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>                <span class="c1"># ✅</span>
+<span class="k">if</span> <span class="n">seen</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">need</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># ✅ 也可以</span>
+</code></pre></div>
+
+
+<code>[0, 0]</code> 配 <code>target = 0</code> 就会踩这个坑。
+
+<strong>坑 4：返回顺序反了</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">seen</span><span class="p">[</span><span class="n">need</span><span class="p">]]</span>     <span class="c1"># 下标可能是降序的</span>
+</code></pre></div>
+
+
+<code>seen[need]</code> 一定在 <code>i</code> 左边，所以返回 <code>[seen[need], i]</code> 才是升序。虽然 LeetCode 对顺序宽容，但<strong>面试时返回降序会被追问</strong>。
+
+<strong>坑 5：忘记"只有一个答案"这个前提</strong>
+
+题目保证唯一解，所以可以<strong>命中就 return</strong>。如果要找<strong>所有</strong>答案对：
+- 不能提前 <code>return</code>；
+- <code>seen</code> 得存"值 → <strong>下标列表</strong>"（不能只存一个下标，否则重复值会漏解）。
+
+<strong>坑 6：<code>target - x</code> 溢出（其他语言）</strong>
+
+Java / C++ 里 <code>target - x</code> 可能溢出 <code>int</code>。本题数据范围安全，但如果边界接近 <code>Integer.MIN_VALUE</code>，要开 <code>long</code>。
+<hr>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一步：先给结论和复杂度</strong>
+<blockquote>
+
+"一次遍历加一个哈希表。表里存'值 → 下标'；每走到一个元素，先算 <code>target - x</code>，看看它在不在表里，在就返回，不在就把自己存进去。时间 O(n)，空间 O(n)。"
+</blockquote>
+
+<strong>第二步：主动说清"为什么是 O(n)"</strong>
+<blockquote>
+
+"暴力是 O(n²)，因为它在枚举组合。换成哈希之后，问题从'两两组合'变成了'查一个值在不在'，而这一步是 O(1)，所以整体降成 O(n)。"
+</blockquote>
+
+<strong>第三步：主动说清两句话的顺序（这是最关键的一句）</strong>
+<blockquote>
+
+"关键是<strong>先查再存</strong>。查表的时候表里只有当前元素<strong>左边</strong>的，所以任何命中下标都 <code>&lt; i</code>，不可能是自己 —— <strong>'同一元素不能重复使用'这条约束就自动满足了</strong>，不需要额外判断。"
+</blockquote>
+
+<strong>第四步：主动给反例</strong>
+<blockquote>
+
+"如果反过来先存再查，当 <code>target == 2 * x</code> 时就会查到<strong>自己</strong>，返回 <code>[i, i]</code>。比如 <code>[3, 3]</code> 配 <code>target = 6</code>，错误写法返回 <code>[0, 0]</code>。而且注意：官方给的第一组样例 <code>[2,7,11,15]</code> 配 <code>9</code> <strong>恰好不会触发</strong>（9 的一半不是整数），所以这个 bug 靠跑那个样例是发现不了的。"
+</blockquote>
+
+<strong>如果被追问"数组有序呢"</strong>：
+<blockquote>
+
+"有序的话哈希就不必要了，可以<strong>双指针</strong>：和偏小就左指针右移、偏大就右指针左移，因为有序保证了单调性。空间从 O(n) 降到 O(1)。这就是 LC 167。"
+</blockquote>
+
+<strong>如果被追问"三数之和还能用哈希吗"</strong>：
+<blockquote>
+
+"能用但不好用 —— 因为三数之和要求<strong>答案去重</strong>，而哈希很难处理'同一组解被不同下标重复找到'的问题。所以 LC 15 走的是<strong>排序 + 双指针</strong>：排序既让双指针能用，又让相同的数挨在一起、方便跳过重复。"
+</blockquote>
+
+<strong>如果被追问"要找所有答案对怎么办"</strong>：
+<blockquote>
+
+"那就不能命中即返回，要把整表跑完；而且 <code>seen</code> 得存'值 → 下标列表'，不能只存一个下标，否则重复值会漏解。"
+</blockquote>
+<hr>
+<h2>结语</h2>
+
+LC 1 是很多人的第一道题，也是很多人"写了十几行就再也没回头看"的题。但它真正教的东西只有两点：
+<blockquote>
+
+<strong>① 把"枚举组合"换成"查表" —— 这就是哈希表的全部意义。</strong>
+
+<strong>② 顺序不能颠倒：先查自己缺什么，再把自己登记进去。</strong>
+</blockquote>
+
+第二点尤其容易被忽略，因为<strong>官方给的第一组样例恰好把它掩盖了</strong>：
+<div class="codehilite"><pre><span></span><code>[2, 7, 11, 15]  target = 9      ← 9 的一半不是整数，永远不会&quot;自匹配&quot;
+</code></pre></div>
+
+
+用错误写法跑这一组，你会拿到正确答案 <code>[0, 1]</code>，然后心满意足地提交。
+
+所以下次写这题时，不妨顺手加一句自测：
+<div class="codehilite"><pre><span></span><code><span class="k">assert</span> <span class="n">twoSum</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>      <span class="c1"># 而不是 [0, 0]</span>
+</code></pre></div>
+
+
+<strong>能通过你自己构造的反例，才叫写对了。</strong>
+<hr>
+<blockquote>
+
+<strong>系列导航</strong>：本文是「暑期面经汇总」算法系列的第 15 篇。前作：LC 206 反转链表 · LC 21 合并两个有序链表 · LC 23 合并 K 个升序链表 · LC 141/142 环形链表 · LC 19 删除链表倒数第 N 个节点 · LC 143 重排链表 · LC 234 回文链表 · LC 160 相交链表 · LC 82 删除排序链表中的重复元素 II · LC 102 二叉树的层序遍历 · LC 236 二叉树的最近公共祖先 · LC 124 二叉树中的最大路径和 · LC 104/226 二叉树的最大深度 &amp; 翻转二叉树 · LC 3 无重复字符的最长子串。
+</blockquote></div></div></noscript>
+  </body>
+</html>
