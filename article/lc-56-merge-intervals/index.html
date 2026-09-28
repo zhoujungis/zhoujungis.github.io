@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」 以数组 intervals 表示若干个区间的集合，其中单个区间为 intervals[i] = [starti, endi] 。请你合并所有重叠的区间，并返回一个与输入区间数量最少的区间数组，且这些区间不重叠。 示例： [[1,3],[2,6],[8,1" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-56-merge-intervals/" />
+    <meta property="og:title" content="【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」" />
+    <meta property="og:description" content="【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」 以数组 intervals 表示若干个区间的集合，其中单个区间为 intervals[i] = [starti, endi] 。请你合并所有重叠的区间，并返回一个与输入区间数量最少的区间数组，且这些区间不重叠。 示例： [[1,3],[2,6],[8,1" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-56-merge-intervals/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-56-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」" />
+    <meta name="twitter:description" content="【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」 以数组 intervals 表示若干个区间的集合，其中单个区间为 intervals[i] = [starti, endi] 。请你合并所有重叠的区间，并返回一个与输入区间数量最少的区间数组，且这些区间不重叠。 示例： [[1,3],[2,6],[8,1" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-56-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-B6zF2Jjz.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-28T15:08:54.126914+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」","description":"【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」 以数组 intervals 表示若干个区间的集合，其中单个区间为 intervals[i] = [starti, endi] 。请你合并所有重叠的区间，并返回一个与输入区间数量最少的区间数组，且这些区间不重叠。 示例： [[1,3],[2,6],[8,1","image":"https://zhoujungis.github.io/photos/lc-56-cover.png","datePublished":"2026-09-28T15:08:54.126914+08:00","dateModified":"2026-09-28T15:08:54.126948+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-56-merge-intervals/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」</h1><div class="ns-meta">2026/9/28 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+以数组 <code>intervals</code> 表示若干个区间的集合，其中单个区间为 <code>intervals[i] = [starti, endi]</code>。请你合并所有重叠的区间，并返回一个与输入区间数量最少的区间数组，且这些区间不重叠。
+示例：<code>[[1,3],[2,6],[8,10],[15,18]]</code> → <code>[[1,6],[8,10],[15,18]]</code>。
+</blockquote>
+
+区间题家族的入口。它给的思维模板 —— <strong>先把区间按端点排序，再线性扫一遍</strong> —— 直接通向 435（删除最少区间）、452（最少的箭）、57（插入区间）等一整族题。
+<h2>一、暴力为什么慢：重叠是" pairwise"的</h2>
+
+判断两个区间 <code>[a1,a2]</code> 和 <code>[b1,b2]</code> 是否重叠，只要一句 <code>a1 &lt;= b2 &amp;&amp; b1 &lt;= a2</code>。麻烦在于候选对的数量：n 个区间有 <code>n(n-1)/2</code> 对，合并产生的结果还会改变后续的比较对象，暴力做法又难写又慢（O(n²)）。
+
+突破口是问一句：<strong>两个"八竿子打不着"的区间，有必要互相比较吗？</strong>
+<h2>二、排序之后的结构性免费</h2>
+
+把区间按<strong>左端点</strong>排序。设扫描到区间 <code>[s, e]</code> 时，前面已经合并出一个"当前合并区间" <code>[curStart, curEnd]</code>。关键性质：
+<blockquote>
+
+<strong>排序后，<code>s</code> 是目前见过的最大左端点。如果 <code>s &gt; curEnd</code>，那么 <code>[s,e]</code> 和更早的任何区间都不可能重叠</strong> —— 因为更早那些区间的 end 全都 <code>&lt;= curEnd</code>（否则它们早就该被并进当前合并区间了）。
+</blockquote>
+
+所以"和前面所有区间比一遍"可以塌缩成<strong>只和当前合并区间比一次</strong>：
+<ul>
+<li><code>s &lt;= curEnd</code> → 够得着，<strong>延伸</strong>：<code>curEnd = max(curEnd, e)</code>；</li>
+<li><code>s &gt; curEnd</code> → 够不着，<strong>收段</strong>：当前合并区间进结果，<code>[s,e]</code> 开一段新的。</li>
+</ul>
+
+每个区间只参与一次判断，扫描是严格 O(n)；瓶颈全在排序的 O(n log n)。<strong>总复杂度 O(n log n)，主要成本买断了后面所有判断的合法性。</strong>
+<h3>2.1 动画与逐帧推演</h3>
+
+官方例 <code>[[1,3],[2,6],[8,10],[15,18]]</code>（与状态机 <code>mergeIntervalsSteps.js</code> 的 7 帧实际输出逐行核对过）：
+<div class="algo-viz algo-viz--lc56"></div>
+
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>阶段</th>
+<th>当前合并区间</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>—</td>
+<td>原始输入；计划：排序 → 线性扫描</td>
+</tr>
+<tr>
+<td>1</td>
+<td>sort</td>
+<td>—</td>
+<td>排序完成（本例输入已有序）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>start</td>
+<td><code>[1,3]</code></td>
+<td>第一段直接入座</td>
+</tr>
+<tr>
+<td>3</td>
+<td>extend</td>
+<td><code>[1,6]</code></td>
+<td><code>2 &lt;= 3</code> → 延伸为 <code>[1,6]</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>close</td>
+<td><code>[8,10]</code></td>
+<td><code>8 &gt; 6</code> → 收 <code>[1,6]</code>，新开 <code>[8,10]</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>close</td>
+<td><code>[15,18]</code></td>
+<td><code>15 &gt; 10</code> → 收 <code>[8,10]</code>，新开 <code>[15,18]</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>done</td>
+<td><code>[15,18]</code></td>
+<td>最后一段收进结果，答案 3 段</td>
+</tr>
+</tbody>
+</table>
+
+两个值得盯住的瞬间：
+<ul>
+<li><strong>第 3 帧</strong>：<code>[2,6]</code> 的 start 是 2，够得着当前区间 <code>[1,3]</code> 的 end 3 —— 延伸成 <code>[1,6]</code>。注意 end 取的是 <code>max(3, 6) = 6</code>。</li>
+<li><strong>第 4 帧</strong>：<code>[8,10]</code> 的 start 8 &gt; 6 —— 收段。此刻 <code>[1,6]</code> <strong>永远定格</strong>：后面区间的 start 只会更大，再也不可能有区间够得着它。这就是"收段"这个词的确切含义。</li>
+</ul>
+<h2>三、三个必踩的坑</h2>
+<h3>3.1 端点相触算重叠（<code>&lt;=</code> 不是 <code>&lt;</code>）</h3>
+
+<code>[1,4]</code> 和 <code>[4,5]</code> 要合并成 <code>[1,5]</code> —— 题面的"重叠"包含<strong>端点相触</strong>。所以判断是 <code>s &lt;= curEnd</code>。写成 <code>&lt;</code> 的话，<code>[1,4],[4,5]</code> 会被错拆成两段：
+<blockquote>
+
+这个 bug 和本系列反复出现的模式一样：<strong>官方样例恰好测不出来</strong> —— 官方例里没有端点相触的区间。要自测，就用 <code>[1,4],[4,5]</code>。
+</blockquote>
+<h3>3.2 延伸必须取 max，不能直接覆盖</h3>
+
+当前区间 <code>[1,6]</code>，来一个 <code>[2,3]</code> —— start 2 &lt;= 6，重叠；但它的 end 是 3，<strong>比 curEnd 还小</strong>（整体被罩住）。直接 <code>curEnd = 3</code> 会把合并区间<strong>缩</strong>回去，后面 <code>[5,7]</code> 就会被错误地拆开。正确写法：
+<div class="codehilite"><pre><span></span><code><span class="n">cur_end</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">cur_end</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+</code></pre></div>
+
+
+状态机的不变量测试专门钉了这条：<strong>每一帧里，所有已处理区间都必须被"当前合并区间 ∪ 已收结果"覆盖</strong> —— 用 <code>[1,10],[2,3],[4,5],[6,7]</code>（四个区间并成一段）验证。
+<h3>3.3 结果要新造数组，别污染输入</h3>
+
+结果里的区间如果是输入区间的<strong>引用</strong>（比如直接 <code>result.append(cur)</code> 之后又去改 <code>cur[1]</code>），调用方的原数据就被改了。Java 里尤其要 <code>new int[]{s, e}</code>。另外 Python 的 <code>intervals.sort()</code> 是原地排序 —— 如果调用方不允许改输入顺序，先 <code>sorted(intervals)</code> 拷一份。
+<h2>四、正确性：为什么"收段"之后那段永远定格</h2>
+
+这是面试里真正值钱的一问。归纳论证：
+<ul>
+<li><strong>初始</strong>：第一段成为当前合并区间，它罩住了已处理的全部区间；</li>
+<li><strong>每步 extend</strong>：新区间与当前区间重叠，<code>max</code> 保证新的 <code>curEnd</code> 仍然罩住全部已处理区间；</li>
+<li><strong>每步 close</strong>：<code>s &gt; curEnd</code> 且排序保证后面的 start 更大 → 后面的区间和当前合并区间、以及它罩住的任何区间都不可能重叠 → 当前合并区间的边界<strong>不再受任何未来输入影响</strong>，可以定格收段。</li>
+</ul>
+
+这条不变量（"已处理区间永远被当前合并区间罩住"）也是状态机单测的核心断言。
+<h2>五、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td>O(n log n)</td>
+<td>排序 O(n log n) + 扫描 O(n)；瓶颈在排序</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(log n) 或 O(n)</td>
+<td>排序栈空间（不计输出）；Python 的 Timsort 需 O(n) 辅助</td>
+</tr>
+</tbody>
+</table>
+
+不排序有没有更快的？没有通用解 —— 区间合并本质上依赖"左端点有序"这个信息，它必须由比较排序（或按值域的桶/基数排序，若端点范围有限）给出。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">intervals</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">));</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">curStart</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">intervals</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">curEnd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">intervals</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">intervals</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">intervals</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">intervals</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">curEnd</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">                       </span><span class="c1">// 端点相触也算重叠</span>
+<span class="w">                </span><span class="n">curEnd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">curEnd</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">);</span><span class="w">        </span><span class="c1">// 延伸取 max</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">result</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">curStart</span><span class="p">,</span><span class="w"> </span><span class="n">curEnd</span><span class="p">});</span><span class="w">  </span><span class="c1">// 新造数组</span>
+<span class="w">                </span><span class="n">curStart</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
+<span class="w">                </span><span class="n">curEnd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">result</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">curStart</span><span class="p">,</span><span class="w"> </span><span class="n">curEnd</span><span class="p">});</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="na">toArray</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">0</span><span class="o">][]</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h2>七、变体：一整族"排序 + 扫描"</h2>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>变的是什么</th>
+<th>怎么想</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 57 插入区间</strong></td>
+<td>输入<strong>已排序</strong>，插入一个新区间</td>
+<td>不用重新排序：左边不重叠的直接收，重叠的并进新区间，右边直接接上</td>
+</tr>
+<tr>
+<td><strong>LC 435 无重叠区间</strong></td>
+<td>反过来问：最少删几个区间让全体不重叠</td>
+<td>按右端点排序 + 贪心保留 end 最小的 —— 换一根轴的同一模板</td>
+</tr>
+<tr>
+<td><strong>LC 452 用最少数量的箭引爆气球</strong></td>
+<td>区间是气球，一只箭在 x 处爆所有含 x 的气球</td>
+<td>按右端点排序，箭打在当前最右端点处</td>
+</tr>
+<tr>
+<td><strong>LC 986 区间列表的交集</strong></td>
+<td>两个<strong>已排序</strong>区间列表求交集</td>
+<td>双指针各指一个，<code>lo = max(两 start)</code>、<code>hi = min(两 end)</code>，<code>lo &lt;= hi</code> 就是交集</td>
+</tr>
+<tr>
+<td><strong>LC 228 汇总区间</strong></td>
+<td>不合并，把连续段写成 <code>"a-&gt;b"</code> 字符串</td>
+<td>同样的排序 + 扫描，收段时机不同</td>
+</tr>
+</tbody>
+</table>
+
+<strong>家族共性</strong>：区间题先问一句"按哪个端点排序"—— 56 按<strong>左</strong>端点（合并要罩住全部）、435/452 按<strong>右</strong>端点（贪心留余地最大的）、986 干脆不排（输入已排）。排序键选对，剩下的都是线性扫描。
+
+57 值得单独展开：它的输入<strong>已经按左端点排好</strong>，所以连排序都省了，扫描时把"新区间"当作当前合并区间的初始值 —— 左边够不着的段直接收，碰到的就并进新区间，一旦够不着，右边剩下的原样接上。整个算法只有一次线性扫描：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>   <span class="c1"># 左边：完全在新区间左侧</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">new</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>  <span class="c1"># 中间：与新区间有重叠，并进来</span>
+        <span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">new</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">new</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n</span><span class="p">:</span>                                 <span class="c1"># 右边：原样接上</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">out</span>
+</code></pre></div>
+
+
+对比 56 的流程会发现：<strong>57 就是"排好序的 56 跳过排序、把第一段换成 new"</strong> —— 这也是为什么这两题在面试里经常连着出。
+<h2>八、面试怎么答</h2>
+<ul>
+<li><strong>先说排序</strong>：按左端点排序，O(n log n)，这一步买断了后面判断的合法性；</li>
+<li><strong>再说扫描</strong>：只和当前合并区间比一次 —— <code>s &lt;= curEnd</code> 延伸（取 max），否则收段新开；</li>
+<li><strong>主动补两句</strong>：端点相触算重叠（用 <code>[1,4],[4,5]</code> 自测）；结果要新造数组；</li>
+<li><strong>自测</strong>：<code>merge([[1,3],[2,6],[8,10],[15,18]]) == [[1,6],[8,10],[15,18]]</code> 且 <code>merge([[1,4],[4,5]]) == [[1,5]]</code>；</li>
+<li><strong>一句话总结</strong>：<strong>排序把"可能重叠的对"从 O(n²) 对压缩成"每个区间只比一次"</strong> —— 区间题的排序不是惯例，是算法本体。</li>
+</ul>
+<hr>
+
+<em>系列上一篇：<a href="/article/lc-347-top-k-frequent-elements/">【LC 347】前 K 个高频元素</a>。本文动画 7 帧，与状态机单测（23 例，与排序扫描 / 暴力连通分量两个独立参考解三向交叉验证）逐行核对过。</em></div></div></noscript>
+  </body>
+</html>
