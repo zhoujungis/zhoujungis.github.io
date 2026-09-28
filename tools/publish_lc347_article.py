@@ -1,25 +1,27 @@
-"""Publish the LC 215 (Kth Largest Element / quickselect) article — the nineteenth algorithm entry.
+"""Publish the LC 347 (Top K Frequent Elements / bucket sort) article — the twentieth algorithm entry.
 
 Usage:
-    backend/venv/Scripts/python.exe tools/publish_lc215_article.py --dry-run
-    backend/venv/Scripts/python.exe tools/publish_lc215_article.py
+    backend/venv/Scripts/python.exe tools/publish_lc347_article.py --dry-run
+    backend/venv/Scripts/python.exe tools/publish_lc347_article.py
 
 Idempotent by slug: an existing article is updated instead of duplicated.
 
-Source Markdown: ``article/lc-215-kth-largest-element-in-an-array.md``.
+Source Markdown: ``article/lc-347-top-k-frequent-elements.md``.
 
-One animation: ``algo-viz--lc215`` (quickselect, 14 frames, Lomuto partition).
-The LC 347 sibling lives in its own article (lc-347-top-k-frequent-elements).
+One animation: ``algo-viz--lc347`` (frequency buckets, 13 frames).
+The LC 215 sibling lives in its own article (lc-215-kth-largest-element).
 
-The official samples are [3,2,1,5,6,4] k=2 -> 5 and
-[3,2,3,1,2,4,5,5,6] k=4 -> 4 (the latter pins down
-"position, not distinct value" — easy to misread).
+The problem demands complexity better than O(n log n): after counting,
+frequency is naturally in [1, n] — use it as the bucket index and sorting
+becomes free. Total O(n). The Tencent follow-up (massive-data TopK) is
+covered with the hash-bucket divide-and-conquer playbook.
 
-Same guard set as the rest of the series:
+Same guard set as publish_lc215_article.py:
 - TOC check / viz check / number check / cover check.
-- number check spine: the n-k index conversion, "position not distinct value",
-  the two worst cases (sorted + fixed pivot, all-equal + Lomuto), the
-  heap-vs-quickselect four-dimension table, and the massive-data playbook.
+- number check spine: "frequency is naturally in [1, n]", the bucket-index
+  identity (bucket f holds values whose count is exactly f), collecting from
+  the high end until k, the heap O(n log k) alternative, and the massive-data
+  hash-bucket divide & conquer.
 - cover check: cover is a repo file; deploy first, then publish.
 """
 
@@ -39,87 +41,70 @@ API = API_URL
 SOURCE = (
     Path(__file__).resolve().parent.parent
     / "article"
-    / "lc-215-kth-largest-element-in-an-array.md"
+    / "lc-347-top-k-frequent-elements.md"
 )
 
-ARTICLE_TITLE = "【LC 215】数组中的第 K 个最大元素：快速选择只在回答「我排第几」"
-ARTICLE_SLUG = "lc-215-kth-largest-element"
+ARTICLE_TITLE = "【LC 347】前 K 个高频元素：频率是天然的桶下标"
+ARTICLE_SLUG = "lc-347-top-k-frequent-elements"
 ARTICLE_EXCERPT = (
-    "快速排序做一次分区之后有一件事是确定的：枢轴落在它最终的排序位置上 —— "
-    "而这个位置就是它的排名。于是找第 k 大变成一个判断题：枢轴到位就结束，"
-    "没到位就只进一边。"
-    "本文讲透位置即排名的完整论证、n-k 换算的 off-by-one 陷阱"
-    "（写成 k-1 找的是第 k 小，对称数组样例测不出来）、"
-    "有序数组与全相同元素两个最坏情况与随机化/三路分区/introselect、"
-    "堆 O(n log k) 的四维对照（时间/空间/流式/改不改原数组），"
-    "以及 10 亿个数找前 100 大的工程方案。附 14 帧可回放推演动画。"
+    "题目要求优于 O(n log n)，而哈希计数之后藏着一步结构性免费："
+    "一个元素的出现频率天然落在 [1, n] 之间 —— 键的值域就是数组下标范围，"
+    "按频率分桶根本不需要比较排序，建 n+1 个桶直接丢，"
+    "收集时从高频端往低频端扫，收满 k 个停，总计 O(n)。"
+    "本文讲透桶排序的推演、堆 O(n log k) 的取舍、"
+    "以及腾讯海量变体（出现次数最多的前 K 个元素）的哈希分桶分治。"
+    "附 13 帧可回放推演动画。"
 )
 # 自制封面（tools/make_lc236_cover.py 生成），仓库文件，必须先部署才可访问。
-ARTICLE_COVER = "https://zhoujungis.github.io/photos/lc-215-cover.png"
+ARTICLE_COVER = "https://zhoujungis.github.io/photos/lc-347-cover.png"
 
 CATEGORY = {"name": "算法", "slug": "algorithm", "description": "算法题解与推演"}
 
 TAGS = [
     {"slug": "algorithm", "name": "算法"},
     {"slug": "topk", "name": "TopK"},
+    {"slug": "hash-table", "name": "哈希表"},
     {"slug": "leetcode", "name": "LeetCode"},
     {"slug": "interview", "name": "面试"},
 ]
 
 # 文章正文里必须出现的关键数字/标识，用来兜住「正文被改坏了」这类事故。
 EXPECTED_FIGURES = [
-    "LC 215",
-    "LC 973",
-    "LC 703",
     "LC 347",
+    "LC 215",
+    "LC 692",
+    "LC 451",
+    "LC 295",
     "LC 3",
-    "LC 462",
-    "快速选择",
+    "桶排序",
     "小根堆",
     "大根堆",
-    "分区",
-    "枢轴",
-    "三路分区",
-    "随机化",
-    "Lomuto",
-    "荷兰国旗",
-    "TLE",
-    "BFPRT",
-    "introselect",
-    "[3,2,1,5,6,4]",
-    "[3,2,3,1,2,4,5,5,6]",
-    "[1, 2, 3, 4, 5, 6]",
-    "[5,5,5,5,5,5]",
-    "n - k",
-    "n-k",
-    "k - 1",
-    "pivotIdx",
+    "计数",
+    "哈希分桶",
+    "外部排序",
+    "分治",
+    "频率",
+    "桶下标",
+    "[1,1,1,2,2,3]",
+    "Counter",
+    "topKFrequent",
     "heapq",
     "heappush",
     "PriorityQueue",
-    "findKthLargest",
-    "我排第几",
-    "位置即排名",
-    "只进一边",
-    "位置不是不同值",
-    "各占各的位置",
-    "10 亿",
-    "前 100 大",
+    "merge",
+    "收满 k 个停",
+    "频率并列",
     "数据流",
     "流式",
-    "随机访问",
     "O(n log k)",
     "O(n log n)",
-    "O(n²)",
     "O(n)",
-    "O(1)",
     "O(k)",
-    "O(n + k log n)",
-    "改原数组",
+    "O(m log m)",
 ]
 
 # 动画占位符必须活下来
-VIZ_PLACEHOLDER_CLASSES = ["algo-viz--lc215"]
+VIZ_PLACEHOLDER_CLASSES = ["algo-viz--lc347"]
 
 # 与 backend/articles/models.py 逐字一致
 MARKDOWN_EXTENSIONS = ["fenced_code", "codehilite", "tables", "extra", "toc"]
@@ -351,7 +336,7 @@ def main():
     if not args.skip_cover_check and not cover_is_live(args.cover):
         raise SystemExit(
             "Cover URL is not reachable — refusing to publish.\n"
-            "  This cover is a repo file (photos/lc-215-cover.png),\n"
+            "  This cover is a repo file (photos/lc-347-cover.png),\n"
             "  so it only becomes reachable AFTER the deploy that ships it.\n"
             "  Deploy first, then publish. Override with --skip-cover-check only if\n"
             "  you are certain the same deploy carries the image."
