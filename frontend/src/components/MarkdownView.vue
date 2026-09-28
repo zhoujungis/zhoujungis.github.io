@@ -25,6 +25,8 @@ import { mountInvertTree } from '@/viz/invertTree'
 import { mountLongestSubstr } from '@/viz/longestSubstr'
 import { mountTwoSum } from '@/viz/twoSum'
 import { mountThreeSum } from '@/viz/threeSum'
+import { mountTrappingRainWater } from '@/viz/trappingRainWater'
+import { mountTrappingRainStack } from '@/viz/trappingRainStack'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -329,6 +331,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc3': mountLongestSubstr,
   'algo-viz--lc1': mountTwoSum,
   'algo-viz--lc15': mountThreeSum,
+  'algo-viz--lc42': mountTrappingRainWater,
+  'algo-viz--lc42stack': mountTrappingRainStack,
 }
 
 let vizHandles = []
