@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：&quot;设计一个算法来统计海量数据中出现次数最多的前 K 个" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-347-top-k-frequent-elements/" />
+    <meta property="og:title" content="【LC 347】前 K 个高频元素：频率是天然的桶下标" />
+    <meta property="og:description" content="【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：&quot;设计一个算法来统计海量数据中出现次数最多的前 K 个" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-347-top-k-frequent-elements/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-347-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 347】前 K 个高频元素：频率是天然的桶下标" />
+    <meta name="twitter:description" content="【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：&quot;设计一个算法来统计海量数据中出现次数最多的前 K 个" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-347-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 347】前 K 个高频元素：频率是天然的桶下标 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-IE8QQqJq.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-28T14:32:39.009563+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 347】前 K 个高频元素：频率是天然的桶下标","description":"【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：\"设计一个算法来统计海量数据中出现次数最多的前 K 个","image":"https://zhoujungis.github.io/photos/lc-347-cover.png","datePublished":"2026-09-28T14:32:39.009563+08:00","dateModified":"2026-09-28T14:32:39.009606+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-347-top-k-frequent-elements/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 347】前 K 个高频元素：频率是天然的桶下标</h1><div class="ns-meta">2026/9/28 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+给定一个整数数组 <code>nums</code> 和一个整数 <code>k</code>，请返回其中出现频率前 <code>k</code> 高的元素，要求时间复杂度<strong>优于</strong> O(n log n)。
+示例：<code>[1,1,1,2,2,3]</code>, <code>k=2</code> → <code>[1,2]</code>。
+腾讯变体原题："设计一个算法来统计海量数据中出现次数最多的前 K 个元素。"
+</blockquote>
+
+上一篇 <a href="/article/lc-215-kth-largest-element/">LC 215</a> 讲了 TopK 在<strong>值轴</strong>上的选择（快速选择）。这一篇换一根轴：键从"值"换成"<strong>频率</strong>" —— 就是这一换，出现了快速选择没有的结构性免费。
+<h2>一、题目与语义</h2>
+<h3>1.1 门槛：优于 O(n log n)</h3>
+
+先哈希计数一遍（O(n)），数出每个值出现的频率。这一步没有任何技巧。剩下的问题是：<strong>按频率挑出前 k 个值</strong> —— 又是一个 TopK。
+
+如果这时对 <code>(值, 频率)</code> 对按频率排个序，O(n log n)，题目就卡在这：<strong>必须优于 O(n log n)</strong>。所以候选只剩两条路：
+<ul>
+<li>小根堆：O(n log k) —— k 小时够快；</li>
+<li><strong>桶排序：O(n)</strong> —— 这题真正的正解，也是本文的主角。</li>
+</ul>
+<h3>1.2 语义：返回的是 k 个不同的值</h3>
+
+和 LC 215 的"重复各占位置"正好相反：<strong>347 返回的是 k 个不同的元素</strong>，每个值只出现一次。两题题面像，语义却镜像 —— 做的时候别串。
+
+（LC 215 里官方例 2 专门钉死了"第 k 大是位置不是不同值"；347 这里反过来，返回的是 distinct 值集合。）
+
+题目保证答案唯一，所以不会出现"频率并列卡在边界上"的歧义。
+<h2>二、桶排序：频率是天然的桶下标</h2>
+<h3>2.1 核心观察</h3>
+
+计数完成之后，一个值的出现频率<strong>最少是 1、最多是 n</strong>（全体都是它）—— 也就是说：
+<blockquote>
+
+<strong>频率天然落在 <code>[1, n]</code> 这个小整数区间里。</strong>
+</blockquote>
+
+要排序的键恰好是一个范围已知的小整数 —— 这正是<strong>计数排序</strong>的前提。于是"按频率排序"免费：建 <code>n+1</code> 个桶，<strong>频率是多少就丢进下标多少的桶</strong>，一次比较都不用做。收集时从桶 <code>n</code> 往桶 <code>1</code> 扫，收满 k 个停。
+
+对比一下：堆每插一个元素要 O(log k)，桶入桶是实打实的 O(1)。<strong>当你发现要排序的键恰好是一个很小的整数范围，排序就可以免费</strong> —— 这个思想和计数排序同源。
+<h3>2.2 逐帧推演</h3>
+
+官方例：<code>[1,1,1,2,2,3]</code>，<code>k = 2</code>。
+<div class="algo-viz algo-viz--lc347"></div>
+
+
+13 帧（与状态机 <code>bucketTopKSteps.js</code> 逐行核对过）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>阶段</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>计划三步：计数、入桶、收集</td>
+</tr>
+<tr>
+<td>1-3</td>
+<td>count</td>
+<td>数出 <code>1→3 次</code>、<code>2→2 次</code>、<code>3→1 次</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>bucket</td>
+<td><code>1</code> 进桶 f=3</td>
+</tr>
+<tr>
+<td>5</td>
+<td>bucket</td>
+<td><code>2</code> 进桶 f=2</td>
+</tr>
+<tr>
+<td>6</td>
+<td>bucket</td>
+<td><code>3</code> 进桶 f=1</td>
+</tr>
+<tr>
+<td>7</td>
+<td>collect</td>
+<td>扫 f=6：空桶，跳过</td>
+</tr>
+<tr>
+<td>8</td>
+<td>collect</td>
+<td>扫 f=5：空桶，跳过</td>
+</tr>
+<tr>
+<td>9</td>
+<td>collect</td>
+<td>扫 f=4：空桶，跳过</td>
+</tr>
+<tr>
+<td>10</td>
+<td>collect</td>
+<td>桶 f=3 里的 <code>1</code> 收入 → 已收 1/2</td>
+</tr>
+<tr>
+<td>11</td>
+<td>collect</td>
+<td>桶 f=2 里的 <code>2</code> 收入 → <strong>收满 2/2，停</strong></td>
+</tr>
+<tr>
+<td>12</td>
+<td>done</td>
+<td>答案 <code>[1, 2]</code></td>
+</tr>
+</tbody>
+</table>
+
+看第 7-9 帧：<strong>那三个空桶不是浪费</strong> —— 它们是"从高频往低频扫"这个动作的字面展示。频率 6、5、4 都没有对应的值，说明这个数组里没有元素出现那么多次；收集指针扫过它们，正说明桶下标和频率一一对应、不重不漏。
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">freq</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+    <span class="n">buckets</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">freq</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">buckets</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>         <span class="c1"># 频率即下标，O(1) 入桶</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">buckets</span><span class="p">[</span><span class="n">f</span><span class="p">]:</span>
+            <span class="n">ans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ans</span><span class="p">)</span> <span class="o">==</span> <span class="n">k</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">ans</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+三步全是 O(n)，<strong>总计 O(n)</strong> —— 比题目划的红线还低一档。代价是 O(n) 的桶空间，以及一个小前提：<strong>频率是整数、且范围已知</strong>（这题天然满足）。
+<h2>三、堆版：O(n log k) 的通用路</h2>
+
+如果键的值域没有这种保证（比如按"距离"挑前 k 个），桶就没了，堆是通用解：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">freq</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="n">freq</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">freq</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">freq</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>     <span class="c1"># 按频率比的小根堆</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">k</span><span class="p">:</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">heap</span><span class="p">]</span>
+</code></pre></div>
+
+
+对 <code>(频率, 值)</code> 对维护容量 k 的小根堆：堆顶是"当前 k 个候选里频率最小的"，新元素想进前 k 先打赢门槛 —— 和 LC 215 的堆是同一个思想，只是比较器从值换成了频率。
+<h3>两条路的对照</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>桶排序</th>
+<th>小根堆</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><strong>O(n)</strong></td>
+<td>O(n log k)</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(n)（n+1 个桶）</td>
+<td>O(k)</td>
+</tr>
+<tr>
+<td>前提</td>
+<td><strong>键是小整数、范围已知</strong></td>
+<td>无（任意可比较的键）</td>
+</tr>
+<tr>
+<td>k 很大时</td>
+<td>桶数组本来就 n+1，不受影响</td>
+<td>退化向 O(n log n)</td>
+</tr>
+</tbody>
+</table>
+
+<strong>桶排序赢在渐近和常数，堆赢在通用和内存</strong> —— k 远小于 distinct 数且键没有范围保证时，堆是唯一选择。
+<h2>四、复杂度对照</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>计数 + 排序</td>
+<td>O(n + m log m)</td>
+<td>O(m)</td>
+<td>m = distinct 数；被题目红线卡住</td>
+</tr>
+<tr>
+<td>计数 + 小根堆</td>
+<td>O(n log k)</td>
+<td>O(k)</td>
+<td>通用、流式友好</td>
+</tr>
+<tr>
+<td><strong>计数 + 桶排序</strong></td>
+<td><strong>O(n)</strong></td>
+<td>O(n)</td>
+<td>频率范围 [1, n] 是前提</td>
+</tr>
+</tbody>
+</table>
+
+<strong>注意桶排序的 O(n) 有三部分</strong>：计数 O(n)、入桶 O(distinct)、收集最多扫 n+1 个桶 —— 全是线性，合计 O(n)。它比堆省掉的那个 log k，正是"键的值域当下标"换来的。
+<h2>五、腾讯变体：海量数据的前 K 个高频元素</h2>
+<blockquote>
+
+"设计一个算法来统计海量数据中出现次数最多的前 K 个元素。"
+</blockquote>
+
+和上一篇的"10 亿个数找前 100 大"相比，这题多了一层麻烦：<strong>去重后的元素表本身可能就装不进内存</strong>。10 亿条日志里的不同 URL 可能上亿个，平均 50 字节就是好几 GB —— 连哈希计数表都建不起来。
+
+标准做法是<strong>哈希分桶 + 局部 TopK + 归并</strong>：
+<ol>
+<li><strong>分</strong>：对每个元素算 <code>hash(x) % 1000</code>，写入 1000 个小文件。<strong>同一元素必然落进同一文件</strong> —— 这是分治正确性的根据：任何元素的完整计数都在一个文件里，不会被打散；</li>
+<li><strong>治</strong>：每个小文件平均只有 100 万条，单独建哈希计数 + 小根堆（或桶排序），各取自己的前 100；</li>
+<li><strong>合</strong>：1000 个局部 Top100 归并成全局 Top100 —— 10 万条，随便放。</li>
+</ol>
+
+单机多进程就能做，天然可扩到多机 —— 每台机器负责一批桶。这个套路是<strong>外部排序的分治框架</strong>，只不过把"排序"换成了"TopK"。
+
+对照上一篇：<strong>10 亿个数找前 100 大</strong>连分桶都不用 —— 数字本身可比较、单遍扫描 + 容量 100 的小根堆就够，因为"候选"只有 100 个；而这题多出的那层"去重表装不下"，才逼出了分桶。<strong>海量题目的分水岭永远是：单机内存里必须装下什么？</strong> 装得下 k 个候选 → 堆；连 distinct 集合都装不下 → 分桶分治。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">freq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">merge</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
+
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">buckets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">buckets</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">());</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">buckets</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">()).</span><span class="na">add</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">());</span><span class="w">   </span><span class="c1">// 频率即下标</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">f</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">buckets</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">f</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">ans</span><span class="o">[</span><span class="n">idx</span><span class="o">++]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">idx</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+堆版（<code>PriorityQueue</code> 默认小根堆，比较器按频率）：
+<div class="codehilite"><pre><span></span><code><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">);</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">(),</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">()});</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h2>七、边界情况与常见坑</h2>
+
+<strong>坑一：给桶排序忘了"频率并列"。</strong> 同一频率的多个值在同一个桶里，收集顺序由入桶顺序决定。本题保证答案唯一，所以不会踩；但如果面试变体允许并列（比如 LC 692 要求并列按字典序），桶内还要再排一次。
+
+<strong>坑二：堆版比较器写反。</strong> 要的是"频率最小的在堆顶"，比较器是 <code>a[1] - b[1]</code> 升序；写成降序就变成大根堆，弹掉的恰恰是频率最高的。
+
+<strong>坑三：桶数组大小。</strong> 频率上限是 <code>n</code> 不是 <code>max(freq)</code> —— 建 <code>n+1</code> 个桶（下标 0 到 n）。下标 0 永远空（频率至少 1），多建一格没坏处，少建一格越界。
+
+<strong>坑四：题目红线是"优于 O(n log n)"。</strong> 计数后直接对 distinct 列表排序（O(m log m)，m ≤ n）最坏仍是 O(n log n)，卡线不过 —— 这正是题目逼你写堆或桶的原因。
+<h2>八、变体</h2>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>变的是什么</th>
+<th>怎么想</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 692 前 K 个高频单词</strong></td>
+<td>频率并列时按字典序</td>
+<td>小根堆比较器加一层（频率相同比字符串）；或桶内再排序</td>
+</tr>
+<tr>
+<td><strong>LC 451 根据字符出现频率排序</strong></td>
+<td>不取前 k 个，全部按频率重排</td>
+<td>同样的桶，收集时不提前停</td>
+</tr>
+<tr>
+<td><strong>LC 295 数据流的中位数</strong></td>
+<td>k 一直在动（中位数）</td>
+<td>对顶堆：大根堆 + 小根堆各管一半</td>
+</tr>
+<tr>
+<td><strong>LC 215 数组中的第 K 个最大元素</strong></td>
+<td>键换成"值"（没有范围保证）</td>
+<td>快速选择 —— 见上一篇</td>
+</tr>
+</tbody>
+</table>
+
+一图流的选择：<strong>键是小整数范围 → 桶排序 O(n)；键任意 + 只要前 k → 小根堆；静态全量 + 键任意 → 快速选择。</strong>
+<h2>九、面试怎么答</h2>
+<ul>
+<li><strong>先说框架</strong>：哈希计数 O(n)，然后按频率挑前 k —— 点破这就是 TopK；</li>
+<li><strong>给正解</strong>：桶排序 O(n)，讲清"频率天然在 [1, n]"这个结构性前提；</li>
+<li><strong>备选</strong>：堆 O(n log k)，讲清它不依赖键的值域、流式友好；</li>
+<li><strong>被追问海量数据</strong>：哈希分桶（同元素必落同桶）→ 局部 TopK → 归并；点出与"10 亿找前 100 大"的分水岭是<strong>去重表是否装得下内存</strong>；</li>
+<li><strong>自测</strong>：<code>topKFrequent([1,1,1,2,2,3], 2) == [1,2]</code>；</li>
+<li><strong>一句话总结</strong>：<strong>要排序的键恰好是小整数范围时，排序免费</strong> —— 频率天然在 [1, n]，桶下标就是它的排名。</li>
+</ul>
+<hr>
+
+<em>系列上一篇：<a href="/article/lc-215-kth-largest-element/">【LC 215】数组中的第 K 个最大元素</a>。本文动画 13 帧，与状态机单测（19 例，与计数排序/小根堆两个独立参考解三向交叉验证）逐行核对过。</em></div></div></noscript>
+  </body>
+</html>
