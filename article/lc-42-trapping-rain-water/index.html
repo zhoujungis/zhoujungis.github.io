@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra 适用读者 ：背过&quot;双指针解接雨水&quot;但一直没想明白为什么对的人；以及想知道单调栈到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Hard —— 但它的 Hard 之处不在代码长，而在 核心论证 ：为什么&quot;较" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-42-trapping-rain-water/" />
+    <meta property="og:title" content="【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra" />
+    <meta property="og:description" content="【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra 适用读者 ：背过&quot;双指针解接雨水&quot;但一直没想明白为什么对的人；以及想知道单调栈到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Hard —— 但它的 Hard 之处不在代码长，而在 核心论证 ：为什么&quot;较" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-42-trapping-rain-water/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-42-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra" />
+    <meta name="twitter:description" content="【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra 适用读者 ：背过&quot;双指针解接雨水&quot;但一直没想明白为什么对的人；以及想知道单调栈到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Hard —— 但它的 Hard 之处不在代码长，而在 核心论证 ：为什么&quot;较" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-42-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BTdL2P-Z.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-28T11:57:45.328191+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra","description":"【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra 适用读者 ：背过\"双指针解接雨水\"但一直没想明白为什么对的人；以及想知道单调栈到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Hard —— 但它的 Hard 之处不在代码长，而在 核心论证 ：为什么\"较","image":"https://zhoujungis.github.io/photos/lc-42-cover.png","datePublished":"2026-09-28T11:57:45.328191+08:00","dateModified":"2026-09-28T11:57:45.328248+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-42-trapping-rain-water/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra</h1><div class="ns-meta">2026/9/28 · Zhou Jun</div><div class="markdown-body"><blockquote>
+
+<strong>适用读者</strong>：背过"双指针解接雨水"但一直没想明白为什么对的人；以及想知道单调栈到底在干什么的人
+<strong>技术栈</strong>：Python 为主，附 Java 版
+<strong>难度</strong>：Hard —— 但它的 Hard 之处不在代码长，而在<strong>核心论证</strong>：为什么"较矮的那一端"可以立刻结算
+<strong>收获</strong>：四种解法其实是同一个问题的四种回答方式、双指针 <code>O(1)</code> 空间的正确性论证、单调栈"按层累加"的视角、以及 LC 407 三维版如何把这道题变成 Dijkstra
+</blockquote>
+<h2>题目</h2>
+
+给定 <code>n</code> 个非负整数表示每个宽度为 <code>1</code> 的柱子的高度图，计算按此排列的柱子，下雨之后能接多少雨水。
+<div class="codehilite"><pre><span></span><code>输入：height = [0,1,0,2,1,0,1,3,2,1,2,1]
+输出：6
+
+输入：height = [4,2,0,3,2,5]
+输出：9
+</code></pre></div>
+
+
+先提醒一句：<strong>这两个示例的答案很容易记混</strong> —— 第一个是 <code>6</code>，第二个是 <code>9</code>。
+我自己第一次复盘这道题时就把 <code>9</code> 记成了第一个例子的答案，还顺手用反例验证了一下才确认。
+把两个答案都钉死，后面推演时才有对照的锚点。
+<hr>
+<h2>一、核心洞察：整道题只有一句话</h2>
+
+无论用哪种解法，第一步都是把问题拆到"一个位置"上：
+<blockquote>
+
+<strong>位置 <code>i</code> 能存多少水，只取决于它左边最高的柱子和它右边最高的柱子。</strong>
+</blockquote>
+
+理由很朴素：水会往两边流，<strong>能留住的高度是两侧的短板</strong> —— 这就是木桶原理。写成公式：
+<div class="codehilite"><pre><span></span><code><span class="n">water</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nf">min</span><span class="p">(</span><span class="n">左最高</span><span class="p">,</span><span class="w"> </span><span class="n">右最高</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">height</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span>
+</code></pre></div>
+
+
+拿第一个例子验证一下位置 <code>5</code>（高度 <code>0</code>）：它左边最高是 <code>2</code>（位置 3 那根），右边最高是 <code>3</code>（位置 7 那根），短板是 <code>2</code>，所以这格能存 <code>2 - 0 = 2</code> 单位水 —— 整个例子最大的一格。
+
+所以<strong>这道题从头到尾只在问一件事</strong>：
+<blockquote>
+
+<strong>每个位置的"左最高"和"右最高"分别是多少？</strong>
+</blockquote>
+
+接下来你会看到，所谓"四种解法"，其实只是<strong>四种获取这两个数的方式</strong>。
+<hr>
+<h2>二、四种解法：同一个问题的四种回答</h2>
+<table>
+<thead>
+<tr>
+<th>解法</th>
+<th>怎么拿到"左右最高"</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>暴力</td>
+<td>每个位置左右各扫一遍</td>
+<td><code>O(n²)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>动态规划</td>
+<td>预处理两个数组：前缀最大 + 后缀最大</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td><strong>双指针</strong></td>
+<td><strong>边走边维护，只在"确定安全"的一侧结算</strong></td>
+<td><code>O(n)</code></td>
+<td><strong><code>O(1)</code></strong></td>
+</tr>
+<tr>
+<td>单调栈</td>
+<td>换视角：不按列算，按"凹槽"一层层横着填</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+</tbody>
+</table>
+
+先看最朴素的两个，它们是理解后两个的台阶。
+
+<strong>暴力</strong>：对每个位置 <code>i</code>，往左扫一遍求最大、往右扫一遍求最大。正确，但每个位置都要 <code>O(n)</code>，总共 <code>O(n²)</code>。
+
+<strong>动态规划</strong>：发现"往左扫"的结果可以复用 —— 开两个数组，<code>leftMax[i]</code> 表示 <code>[0..i]</code> 的最大值，<code>rightMax[i]</code> 表示 <code>[i..n-1]</code> 的最大值，各扫一遍预处理出来，然后每个位置 <code>O(1)</code> 查表：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">trap</span><span class="p">(</span><span class="n">height</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">height</span><span class="p">)</span>
+    <span class="n">leftMax</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>     <span class="c1"># leftMax[i] = max(height[0..i])</span>
+    <span class="n">rightMax</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>    <span class="c1"># rightMax[i] = max(height[i..n-1])</span>
+
+    <span class="n">leftMax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">height</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="n">leftMax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">leftMax</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">height</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="n">rightMax</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">height</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">rightMax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">rightMax</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span> <span class="n">height</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">leftMax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">rightMax</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">-</span> <span class="n">height</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+</code></pre></div>
+
+
+时间降到 <code>O(n)</code>，但开了两个数组，空间 <code>O(n)</code>。
+
+<strong>接下来的问题就变成了：能不能不算出完整的两个数组？</strong>
+<hr>
+<h2>三、双指针：完整代码</h2>
+
+双指针的答案，是把"预处理"变成"边走边算"：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">trap</span><span class="p">(</span><span class="n">height</span><span class="p">):</span>
+    <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">height</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">left_max</span> <span class="o">=</span> <span class="n">right_max</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">height</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">height</span><span class="p">[</span><span class="n">r</span><span class="p">]:</span>
+            <span class="n">left_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">left_max</span><span class="p">,</span> <span class="n">height</span><span class="p">[</span><span class="n">l</span><span class="p">])</span>     <span class="c1"># ① 先更新</span>
+            <span class="n">ans</span> <span class="o">+=</span> <span class="n">left_max</span> <span class="o">-</span> <span class="n">height</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>             <span class="c1"># ② 再结算</span>
+            <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">right_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">right_max</span><span class="p">,</span> <span class="n">height</span><span class="p">[</span><span class="n">r</span><span class="p">])</span>
+            <span class="n">ans</span> <span class="o">+=</span> <span class="n">right_max</span> <span class="o">-</span> <span class="n">height</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+            <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+先看写法上的一个细节：<strong><code>left_max</code> 必须先更新再结算</strong>。
+<div class="codehilite"><pre><span></span><code><span class="n">left_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">left_max</span><span class="p">,</span> <span class="n">height</span><span class="p">[</span><span class="n">l</span><span class="p">])</span>   <span class="c1"># ① 先更新</span>
+<span class="n">ans</span> <span class="o">+=</span> <span class="n">left_max</span> <span class="o">-</span> <span class="n">height</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>           <span class="c1"># ② 再结算</span>
+</code></pre></div>
+
+
+这个顺序让"新高"的情况自动消零：当 <code>height[l]</code> 就是新的左侧最高时，<code>left_max</code> 被更新成 <code>height[l]</code>，于是 <code>left_max - height[l] = 0</code>，<strong>不用写 <code>if</code> 特判</strong>。反过来先结算再更新，新高那格会算出<strong>负数</strong>，把总量往回扣。
+<div class="algo-viz algo-viz--lc42"></div>
+
+<hr>
+<h2>四、动画怎么看</h2>
+
+画面里是一排柱子（浅米色），<strong>接住的水画成蓝色</strong>，堆在每根柱子头顶。三个要点：
+<ol>
+<li><strong>左右两个游标从两端往中间走</strong>，标签在基线下方两行（<code>L</code> 绿色在上、<code>R</code> 蓝紫在下）。它们一定会越靠越近，最后一帧相遇。</li>
+<li><strong>金色外环标出"这一帧刚结算的那一格"</strong>。注意看：金环有时在左、有时在右 —— 因为算法<strong>每一轮只结算较矮的那一端</strong>。</li>
+<li><strong>顶部横幅实时显示 <code>leftMax</code> / <code>rightMax</code> 和累计水量</strong>。你会看到 <code>rightMax</code> 在前几轮被推高到 <code>2</code> 之后就不再变了 —— 因为右边那根高度 <code>3</code> 的柱子（下标 7）之后，右侧的最高值已经封顶。</li>
+</ol>
+
+<strong>最值得盯的一帧是第 10 帧</strong>（<code>l = 5</code> 那格）：这一格一次结算了 <code>2</code> 单位水 —— 它是整个图里最深的一格，也是"左右最高取短板"最直观的一次。
+<hr>
+<h2>五、完整推演表（13 帧逐帧）</h2>
+
+输入 <code>height = [0,1,0,2,1,0,1,3,2,1,2,1]</code>，答案 <code>6</code>。
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>阶段</th>
+<th>结算下标</th>
+<th>判据（谁矮结算谁）</th>
+<th>leftMax</th>
+<th>rightMax</th>
+<th>本帧水量</th>
+<th>累计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>init</code></td>
+<td>—</td>
+<td>—</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+<td>0</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>settle-l</code></td>
+<td><code>l = 0</code>（高 0）</td>
+<td><code>0 &lt; 1</code>，左矮</td>
+<td>0</td>
+<td>0</td>
+<td>+0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>settle-r</code></td>
+<td><code>r = 11</code>（高 1）</td>
+<td><code>1 &gt;= 1</code>，右矮</td>
+<td>0</td>
+<td>1</td>
+<td>+0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>settle-l</code></td>
+<td><code>l = 1</code>（高 1）</td>
+<td><code>1 &lt; 2</code>，左矮</td>
+<td>1</td>
+<td>1</td>
+<td>+0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>settle-l</code></td>
+<td><code>l = 2</code>（高 0）</td>
+<td><code>0 &lt; 2</code>，左矮</td>
+<td>1</td>
+<td>1</td>
+<td>+1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>settle-r</code></td>
+<td><code>r = 10</code>（高 2）</td>
+<td><code>2 &gt;= 2</code>，右矮</td>
+<td>1</td>
+<td>2</td>
+<td>+0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>settle-r</code></td>
+<td><code>r = 9</code>（高 1）</td>
+<td><code>2 &gt;= 1</code>，右矮</td>
+<td>1</td>
+<td>2</td>
+<td>+1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>settle-r</code></td>
+<td><code>r = 8</code>（高 2）</td>
+<td><code>2 &gt;= 2</code>，右矮</td>
+<td>1</td>
+<td>2</td>
+<td>+0</td>
+<td>2</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>settle-l</code></td>
+<td><code>l = 3</code>（高 2）</td>
+<td><code>2 &lt; 3</code>，左矮</td>
+<td>2</td>
+<td>2</td>
+<td>+0</td>
+<td>2</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>settle-l</code></td>
+<td><code>l = 4</code>（高 1）</td>
+<td><code>1 &lt; 3</code>，左矮</td>
+<td>2</td>
+<td>2</td>
+<td>+1</td>
+<td>3</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>settle-l</code></td>
+<td><code>l = 5</code>（高 0）</td>
+<td><code>0 &lt; 3</code>，左矮</td>
+<td>2</td>
+<td>2</td>
+<td>+2</td>
+<td>5</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>settle-l</code></td>
+<td><code>l = 6</code>（高 1）</td>
+<td><code>1 &lt; 3</code>，左矮</td>
+<td>2</td>
+<td>2</td>
+<td>+1</td>
+<td>6</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>done</code></td>
+<td>—</td>
+<td>指针相遇于下标 7</td>
+<td>2</td>
+<td>2</td>
+<td>—</td>
+<td><strong>6</strong></td>
+</tr>
+</tbody>
+</table>
+
+几个值得单独拎出来的观察：
+
+<strong>帧 1 和帧 2 都没接到水</strong>：因为它们各自是"目前为止最高"的柱子 —— 自己就是边界，边界存不住水。<code>left_max - height[l]</code> 恰好为 <code>0</code>，这就是第三节说的"先更新再结算"自动消零。
+
+<strong>帧 5、6、7 连续结算右边三次</strong>：左端那根高度 <code>2</code> 的柱子（下标 3）连续三轮都比右端矮或相等，于是右边一路收缩。注意 <code>rightMax</code> 在帧 5 被抬到 <code>2</code> 之后就再也不变了。
+
+<strong>帧 8 是一个分水岭</strong>：左指针走到下标 3（高度 <code>2</code>）时，<code>leftMax</code> 被抬到 <code>2</code>，和 <code>rightMax</code> 打平。<strong>从这帧起，结算的天平倒向左边</strong> —— 后面四帧全是 <code>settle-l</code>，把中间那个大凹槽（下标 4、5、6）一口气填完。
+
+<strong>帧 10 是全场最大的一笔</strong>：<code>l = 5</code>（高度 0），<code>leftMax = 2</code>，一次结算 <code>2</code> 单位 —— 正是第一节手动验证过的那格。
+<hr>
+<h2>六、为什么"较矮的那一端"可以立刻结算</h2>
+
+这是全篇最核心的一节。<strong>背代码的人很多，能讲清这段的人不多 —— 而面试恰恰考这个。</strong>
+
+先摆出困难：算法里的 <code>left_max</code> 是"<strong>到目前为止</strong>见过的最高"，不是全局的"左侧最高"。扫描还没结束，右侧是什么样我们根本不知道。那凭什么敢拿这个局部值当水位？
+
+<strong>以 <code>height[l] &lt; height[r]</code>、结算左端为例。</strong>
+
+第一步（容易看到的）：
+<blockquote>
+
+<code>l</code> 的右边<strong>至少有一根</strong>高度 <code>&gt;= height[r]</code> 的柱子 —— 就是 <code>r</code> 自己那根。
+而 <code>height[r] &gt; height[l]</code>，所以 <code>l</code> 的右侧最高<strong>一定严格大于它自己的高度</strong>。
+</blockquote>
+
+这一步只说明"右边不会漏水"，还不够 —— 短板是 <code>min(左, 右)</code>，我们还得排除"左边比右边还高、右边才是短板"的情况。
+
+第二步（真正的论证，用反证）：
+<blockquote>
+
+假设反过来：<code>left_max</code> <strong>超过</strong>了真正的右侧最高。
+那么 <code>left_max</code> 来自 <code>[0..l]</code> 里的某根高柱 <code>k</code>。
+想一想左指针<strong>经过 <code>k</code> 的那一刻</strong>：<code>height[k]</code> 比当时右边所有已扫过的柱子都高，
+于是判据 <code>height[l] &lt; height[r]</code> 在那里<strong>不成立</strong>，算法会转头去结算右侧；
+右侧会一路收缩，直到出现一根更高的柱子（把 <code>right_max</code> 抬到 <code>&gt; left_max</code>），或者指针相遇。
+<strong>无论哪种情况，等算法真的走到 <code>l</code> 来结算时，右侧最高已经不可能低于 <code>left_max</code> 了。</strong>
+</blockquote>
+
+所以结论是：
+<blockquote>
+
+<strong>矮的那一端，它的"外侧上界"已经由对面的柱子保证了；对侧不可能是短板。</strong>
+于是水位可以放心地用"已知的这一侧"来定 —— 这就是为什么双指针不需要预处理两个数组。
+</blockquote>
+
+一句话记法：<strong>谁矮结算谁，因为矮的那一侧的答案已经"单方面确定"了。</strong>
+<hr>
+<h2>七、换个视角：单调栈，横着切</h2>
+
+前面三种解法都是<strong>竖着切</strong> —— 站在位置 <code>i</code> 上问"我头顶能存多少水"，一次算完一整列。
+
+单调栈是<strong>横着切</strong>：不问每一列，而是<strong>找到一个凹槽就结算一整层</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">trap</span><span class="p">(</span><span class="n">height</span><span class="p">):</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="p">[]</span>                      <span class="c1"># 存的是下标（不是值），对应高度单调递减</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">height</span><span class="p">)):</span>
+        <span class="k">while</span> <span class="n">stack</span> <span class="ow">and</span> <span class="n">height</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">height</span><span class="p">[</span><span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]:</span>
+            <span class="n">top</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>       <span class="c1"># 槽底</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">stack</span><span class="p">:</span>
+                <span class="k">break</span>               <span class="c1"># 只有右边界、没有左边界 → 围不出凹槽</span>
+            <span class="n">width</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">bounded</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">height</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">height</span><span class="p">[</span><span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span> <span class="o">-</span> <span class="n">height</span><span class="p">[</span><span class="n">top</span><span class="p">]</span>
+            <span class="n">ans</span> <span class="o">+=</span> <span class="n">width</span> <span class="o">*</span> <span class="n">bounded</span>
+        <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+<div class="algo-viz algo-viz--lc42stack"></div>
+
+<h3>7.1 它在干什么</h3>
+
+栈里存的是<strong>还没找到右边界的、高度一路下降的那些柱子</strong>。一旦遇到一根比栈顶更高的柱子，说明凹槽的右边界出现了：
+<ul>
+<li><strong>栈顶</strong> = 槽底</li>
+<li><strong>弹出后的新栈顶</strong> = 左边界</li>
+<li><strong>当前这根</strong> = 右边界</li>
+</ul>
+
+于是这一层的水：
+<div class="codehilite"><pre><span></span><code>宽 = 右边界 - 左边界 - 1
+高 = min(左边界高度, 右边界高度) - 槽底高度      ← 又是木桶原理
+水量 += 宽 × 高
+</code></pre></div>
+
+
+注意弹栈是 <code>while</code> —— 一根足够高的右边界会<strong>一口气盖住好几层</strong>。
+<h3>7.2 单调栈的关键帧</h3>
+
+还是官方例 <code>[0,1,0,2,1,0,1,3,2,1,2,1]</code>，挑出所有"真的接到水"的帧：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>i</th>
+<th>弹出的槽底</th>
+<th>左边界 | 右边界</th>
+<th>这一层的宽 × 高</th>
+<th>本帧水量</th>
+<th>累计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5</td>
+<td>3</td>
+<td>下标 2（高 0）</td>
+<td>1 | 3</td>
+<td>1 × 1</td>
+<td>+1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>10</td>
+<td>6</td>
+<td>下标 5（高 0）</td>
+<td>4 | 6</td>
+<td>1 × 1</td>
+<td>+1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>12</td>
+<td>7</td>
+<td>下标 6（高 1）</td>
+<td>4 | 7</td>
+<td>2 × 0</td>
+<td>+0</td>
+<td>2</td>
+</tr>
+<tr>
+<td>13</td>
+<td>7</td>
+<td>下标 4（高 1）</td>
+<td>3 | 7</td>
+<td>3 × 1</td>
+<td><strong>+3</strong></td>
+<td>5</td>
+</tr>
+<tr>
+<td>18</td>
+<td>10</td>
+<td>下标 9（高 1）</td>
+<td>8 | 10</td>
+<td>1 × 1</td>
+<td>+1</td>
+<td>6</td>
+</tr>
+</tbody>
+</table>
+
+<strong>看帧 13</strong>：<code>i = 7</code> 那根高度 <code>3</code> 的柱子，一口气结算了<strong>两层</strong>（帧 12 的 <code>2×0</code> 和帧 13 的 <code>3×1</code>）。这就是为什么弹栈要写成 <code>while</code>。
+<h3>7.3 "按层累加"最硬的证据</h3>
+
+对比一下两个动画里<strong>下标 5 那格</strong>的水是怎么来的：
+<ul>
+<li><strong>双指针（竖着切）</strong>：帧 10 一次结算完 —— <code>leftMax(2) - height(0) = 2</code>，两单位一步到位。</li>
+<li><strong>单调栈（横着切）</strong>：<strong>分两次加上</strong> —— <code>i = 6</code> 时加 1 层（凹槽 <code>[4,6]</code>），<code>i = 7</code> 时再加 1 层（凹槽 <code>[3,7]</code>），<code>1 + 1 = 2</code>。</li>
+</ul>
+
+<strong>同一个位置的水，竖着切是一整笔，横着切是好几笔。</strong> 这是两种视角最直观的差别，也是"单调栈为什么能工作"的最好注脚：它算的不是"这格能存多少"，而是"这一层能铺多宽"。
+
+两个解法的复杂度都是 <code>O(n)</code>：每个下标恰好入栈一次、出栈一次。区别在空间 —— 双指针 <code>O(1)</code>，单调栈最坏 <code>O(n)</code>。
+<hr>
+<h2>八、进阶：LC 407 接雨水 II —— 当"左右"变成"四面八方"</h2>
+
+三维版给你一个 <code>m × n</code> 的高度矩阵，每个格子四面都可能漏水，问总共能接多少水。
+<div class="codehilite"><pre><span></span><code>输入：heightMap = [[3,3,3,3,4],[3,2,2,3,4],[3,2,1,3,4],[4,4,4,4,4]]
+输出：5
+</code></pre></div>
+
+<h3>8.1 一维的公式在这里失效了</h3>
+
+<code>min(左最高, 右最高)</code> 在二维没有直接对应物 —— 一个格子的"周围"不是一个方向，而是<strong>无数条通往边界的路径</strong>。
+
+但把这个公式<strong>翻译</strong>一下，推广路径就自己浮现了：
+<blockquote>
+
+一维里，<code>leftMax[i]</code> 是什么？是<strong>从 <code>i</code> 往左走到边界这条路径上，最高的那根柱子</strong> —— 也就是这条路径的<strong>瓶颈</strong>。
+<code>rightMax[i]</code> 同理，是"往右走"那条路径的瓶颈。
+
+所以一维的水位 = <strong>"往左走"和"往右走"这两条路径的瓶颈，取较小者</strong>。
+
+二维里，从格子到边界有无数条路径，水位 = <strong>所有路径瓶颈的最小值</strong>：
+
+<code>水位(x, y) = min over 所有到边界的路径 p 的 ( max(height) along p )</code>
+</blockquote>
+
+<strong>这是图论里的"最小瓶颈路径"问题</strong> —— 而"最小化路径上的最大值"正是 Dijkstra 的一个标准变体（把"路径权值之和最小"换成"路径最大值最小"）。
+<h3>8.2 多源 Dijkstra：从边界往内灌</h3>
+
+从每个格子出发找路径太慢；反过来想 —— <strong>从边界出发</strong>。所有边界格子本身就是"已知的边界"，它们的水位就是自己的高度。把它们全部放进一个<strong>最小堆</strong>，然后不断取出<strong>水位最低</strong>的那个格子，向内扩散：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">trapRainWater</span><span class="p">(</span><span class="n">heightMap</span><span class="p">):</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">heightMap</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">heightMap</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">m</span> <span class="o">&lt;</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>                       <span class="c1"># 没有内部格子</span>
+
+    <span class="n">visited</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># ① 所有边界格子入堆：它们是初始的&quot;围堰&quot;，水位 = 自身高度</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">i</span> <span class="o">==</span> <span class="n">m</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">j</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">j</span> <span class="o">==</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">visited</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">heightMap</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">],</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+
+    <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
+        <span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>  <span class="c1"># ② 当前围堰上最矮的那根</span>
+        <span class="k">for</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)):</span>
+            <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">dx</span><span class="p">,</span> <span class="n">y</span> <span class="o">+</span> <span class="n">dy</span>
+            <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nx</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">ny</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">visited</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">]:</span>
+                <span class="n">visited</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">if</span> <span class="n">heightMap</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">h</span><span class="p">:</span>
+                    <span class="n">ans</span> <span class="o">+=</span> <span class="n">h</span> <span class="o">-</span> <span class="n">heightMap</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">]</span>   <span class="c1"># ③ 矮于围堰 → 接水</span>
+                <span class="c1"># ④ 新围堰高度：格子高就用它自己，矮就用水位顶上来</span>
+                <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">heightMap</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">],</span> <span class="n">h</span><span class="p">),</span> <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+三个关键点：
+
+<strong>为什么取堆顶（水位最低）就能保证正确？</strong> 这和一维双指针的论证<strong>同构</strong>：当处理围堰上最矮的那根 <code>h</code> 时，任何还没访问的格子，它到边界的任何路径都必须经过当前围堰 —— 而围堰上最矮的就是 <code>h</code>，所以它的水位<strong>至少</strong>是 <code>h</code>；又因为堆保证 <code>h</code> 是当前可能的最小瓶颈，所以水位<strong>恰好</strong>是 <code>h</code>。<strong>这就是 Dijkstra 的贪心正确性，一字不差地搬了过来。</strong>
+
+<strong>入堆的为什么是 <code>max(自身高度, 当前水位)</code>？</strong> 因为一个格子被水淹后，它对<strong>更内部的格子</strong>而言就不再是"高度 <code>height[x][y]</code> 的柱子"，而是"高度为水位的围堰"。这行代码是整个算法最容易写错的地方。
+
+<strong>为什么入堆时就标记 <code>visited</code>（而不是出堆时）？</strong> 因为第一次入堆时的水位就是最终水位（堆的单调性保证），后到的路径只会更高。<strong>这和一维的"left_max 先更新再结算"是同一个道理</strong>：第一次就是最优，之后不用再看。
+
+复杂度：每个格子入堆出堆各一次，堆操作 <code>O(log(mn))</code> —— 总计 <code>O(mn·log(mn))</code>，空间 <code>O(mn)</code>。
+<h3>8.3 一张表收束全篇</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>一维（LC 42）</th>
+<th>二维（LC 407）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一格的水位由谁决定</td>
+<td>左、右两条路径的瓶颈，取 min</td>
+<td><strong>所有</strong>到边界路径的瓶颈，取 min</td>
+</tr>
+<tr>
+<td>边界是什么</td>
+<td>两端的柱子</td>
+<td>一整圈格子</td>
+</tr>
+<tr>
+<td>解法</td>
+<td>双指针 / DP / 单调栈</td>
+<td><strong>多源 Dijkstra（最小堆 + BFS）</strong></td>
+</tr>
+<tr>
+<td>复杂度</td>
+<td><code>O(n)</code> / <code>O(n)</code> / <code>O(n)</code></td>
+<td><code>O(mn·log(mn))</code></td>
+</tr>
+<tr>
+<td>正确性论证</td>
+<td>矮的一端的外侧上界已确定</td>
+<td>堆顶是最小瓶颈，贪心成立</td>
+</tr>
+</tbody>
+</table>
+
+<strong>一维版其实是二维版的退化特例</strong> —— 只有两个方向的"所有路径"。而二维解法反过来也能解一维（把数组想成一列格子）。这一对题放在一起看，"木桶原理"才算真正贯通。
+<hr>
+<h2>九、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">trap</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">height</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">height</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftMax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">rightMax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">height</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">height</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">leftMax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">leftMax</span><span class="p">,</span><span class="w"> </span><span class="n">height</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">);</span>
+<span class="w">                </span><span class="n">ans</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">leftMax</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">height</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="n">l</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">rightMax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">rightMax</span><span class="p">,</span><span class="w"> </span><span class="n">height</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="p">);</span>
+<span class="w">                </span><span class="n">ans</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">rightMax</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">height</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="n">r</span><span class="o">--</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三维版的 Java 实现用 <code>PriorityQueue</code>（小根堆），结构与上面 Python 版完全一致；唯一要注意的是 Java 的 <code>PriorityQueue</code> 默认是<strong>大根堆</strong>，要传 <code>(a, b) -&gt; a[0] - b[0]</code> 才是小根堆 —— 这个默认值坑过不少人。
+<hr>
+<h2>十、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>解法</th>
+<th>时间</th>
+<th>空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>暴力</td>
+<td><code>O(n²)</code></td>
+<td><code>O(1)</code></td>
+<td>每个位置左右各扫一遍</td>
+</tr>
+<tr>
+<td>动态规划</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+<td>两个前缀/后缀最大数组</td>
+</tr>
+<tr>
+<td>双指针</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+<td>每轮只动一个指针，合计最多 <code>n</code> 轮</td>
+</tr>
+<tr>
+<td>单调栈</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+<td>每个下标恰好入栈、出栈各一次</td>
+</tr>
+<tr>
+<td>三维（LC 407）</td>
+<td><code>O(mn·log(mn))</code></td>
+<td><code>O(mn)</code></td>
+<td>每格入堆出堆各一次</td>
+</tr>
+</tbody>
+</table>
+
+双指针的 <code>O(n)</code> 有一个容易忽略的细节：<strong>两个指针合计最多走 <code>n</code> 步</strong>，不是"每个位置都要左右夹一遍" —— <code>l</code> 和 <code>r</code> 加起来最多覆盖整个数组一次，这就是内层无循环的底气。
+<hr>
+<h2>十一、边界情况与常见坑</h2>
+<h3>边界情况</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[]</code>、<code>[5]</code>、<code>[1,2]</code></td>
+<td><code>0</code></td>
+<td>少于三根柱子围不出凹槽</td>
+</tr>
+<tr>
+<td><code>[2,0,2]</code></td>
+<td><code>2</code></td>
+<td>最小的凹槽</td>
+</tr>
+<tr>
+<td><code>[3,0,0,2]</code></td>
+<td><code>4</code></td>
+<td>短板在右边（<code>min(3,2)=2</code>），不是左边</td>
+</tr>
+<tr>
+<td><code>[4,4,4,4]</code></td>
+<td><code>0</code></td>
+<td>全平，没有凹槽</td>
+</tr>
+<tr>
+<td><code>[1,2,3,4,5]</code></td>
+<td><code>0</code></td>
+<td>单调，水全流走</td>
+</tr>
+</tbody>
+</table>
+<h3>常见坑</h3>
+
+<strong>坑 1：<code>left_max</code> 先结算再更新</strong>
+
+新高那格会算出<strong>负数</strong>，把总量往回扣。正确顺序永远是"先更新、再结算"，让新高自动消零。
+
+<strong>坑 2：双指针的判据写反</strong>
+
+<code>height[l] &lt; height[r]</code> 时结算<strong>左</strong>端。写反的话，你会去结算较高的一端 —— 而那一端的外侧上界还没确定，答案会<strong>偏大</strong>（把不该存的水也算进去了）。这类 bug 官方样例<strong>测不出来</strong>：<code>[0,1,0,2,1,0,1,3,2,1,2,1]</code> 两端恰好相差 <code>1</code>，两种判据都能得到 <code>6</code>。要测就用 <code>[5,0,1]</code>（正确 <code>1</code>，判据写反会得 <code>4</code>）或 <code>[4,0,0,0,3]</code>（正确 <code>9</code>，写反会得 <code>12</code>）。
+
+<strong>坑 3：单调栈弹栈后不检查栈空</strong>
+<div class="codehilite"><pre><span></span><code><span class="n">top</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">stack</span><span class="p">:</span>
+    <span class="k">break</span>          <span class="c1"># ← 漏掉这行，下面 stack[-1] 会越界</span>
+</code></pre></div>
+
+
+弹出后栈空说明<strong>只有右边界</strong>（弹出的就是当前最左的柱子），左边没有墙，围不出凹槽。
+
+<strong>坑 4：单调栈的栈存了"值"而不是"下标"</strong>
+
+宽度公式 <code>i - stack[-1] - 1</code> 需要的是<strong>下标</strong>。存值的话宽度算不出来，只能另开一个平行数组记下标，反而更绕。
+
+<strong>坑 5：三维版入堆时忘了 <code>max(自身高度, 水位)</code></strong>
+
+直接入堆 <code>heightMap[nx][ny]</code> 的话，一个被水淹过的洼地会以"干地"的身份参与后续围堰，内部的水位会被低估。<strong>一格被淹之后，它对更内部的格子而言就是"水位那么高的墙"。</strong>
+
+<strong>坑 6：三维版忘了处理 <code>m &lt; 3</code> 或 <code>n &lt; 3</code></strong>
+
+行数或列数不足 <code>3</code> 时<strong>没有内部格子</strong>，直接返回 <code>0</code>。不写这个守卫，边界初始化的循环会照常跑，虽然大多数时候答案恰好也是 <code>0</code>，但逻辑上是在"用没有内部格子的流程接水"，纯属侥幸。
+<hr>
+<h2>十二、面试怎么答</h2>
+
+接雨水是"三种解法层层递进"的标准素材，建议的答法顺序：
+<ol>
+<li>
+
+<strong>先给核心公式</strong>："<code>water[i] = max(0, min(左最高, 右最高) - height[i])</code>，木桶原理。整道题只是在问'每个位置的两侧最高是多少'。"
+</li>
+<li>
+
+<strong>说暴力与 DP</strong>："暴力每个位置扫两边，<code>O(n²)</code>；发现'往左扫'可以复用，就预处理两个数组，<code>O(n)</code> 时间 <code>O(n)</code> 空间。"
+</li>
+<li>
+
+<strong>引出双指针并讲清论证</strong>（这段是分水岭）："双指针把预处理变成边走边算，关键在<strong>为什么敢用局部最大值结算</strong> —— 因为较矮的那一端，它的外侧上界已经由对面的柱子保证了；对侧不可能是短板。反证：如果左侧那根高柱真是更高的那个，它当年经过时判据就不会选它，右侧会被一路收缩到出现更高的柱子为止。"
+</li>
+<li>
+
+<strong>主动补单调栈</strong>："还有一个横着切的视角：栈里维护高度递减的下标，遇到更高的柱子就结算一层。它和双指针的答案一致，但同一个位置的水会被<strong>分几次</strong>加上 —— 这是两种视角最直观的差别。"
+</li>
+<li>
+
+<strong>如果面试官追问三维版</strong>："把 <code>min(左最高, 右最高)</code> 翻译成'两条路径瓶颈取 min'，二维就是'所有路径瓶颈取 min' —— 最小瓶颈路径，多源 Dijkstra，从边界入最小堆，每次取水位最低的向外扩散。复杂度 <code>O(mn·log(mn))</code>。"
+</li>
+</ol>
+<hr>
+<h2>结语</h2>
+
+接雨水这道题最迷人的地方，是它把"一个问题"换了好几副面孔：
+<ul>
+<li>暴力和 DP 说：<strong>把每个位置的两侧最高都算出来</strong>。</li>
+<li>双指针说：<strong>不需要全部算出来，只算"已经确定的那一半"</strong>。</li>
+<li>单调栈说：<strong>别按列算了，按层填</strong> —— 同一格的水可以分几次到账。</li>
+<li>而三维版说：<strong>"左右最高"本来就只是"路径瓶颈"的特例</strong>，把两个方向推广到所有方向，接雨水就变成了 Dijkstra。</li>
+</ul>
+
+四副面孔背后是同一个木桶原理：<strong>水停在短板上</strong>。一维的短板是两根柱子里较矮的，二维的短板是所有路径里最平缓的那条。
+
+最后自测一下 —— 特别是用<strong>示例 2</strong>，因为它的水更深、更容易暴露判据写反的 bug：
+<div class="codehilite"><pre><span></span><code><span class="k">assert</span> <span class="n">trap</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">6</span>   <span class="c1"># 官方例 1</span>
+<span class="k">assert</span> <span class="n">trap</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">])</span> <span class="o">==</span> <span class="mi">9</span>                      <span class="c1"># 官方例 2</span>
+<span class="k">assert</span> <span class="n">trap</span><span class="p">([</span><span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>                                <span class="c1"># 判据写反会得 4</span>
+<span class="k">assert</span> <span class="n">trap</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="mi">9</span>                          <span class="c1"># 判据写反会得 12</span>
+<span class="k">assert</span> <span class="n">trap</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">2</span>                                <span class="c1"># 最小的凹槽</span>
+</code></pre></div>
+
+
+这几行比跑十遍官方样例有用。</div></div></noscript>
+  </body>
+</html>
