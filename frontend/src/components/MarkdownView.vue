@@ -30,6 +30,7 @@ import { mountTrappingRainStack } from '@/viz/trappingRainStack'
 import { mountKadane } from '@/viz/kadane'
 import { mountQuickSelect } from '@/viz/quickSelect'
 import { mountBucketTopK } from '@/viz/bucketTopK'
+import { mountMergeIntervals } from '@/viz/mergeIntervals'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -339,6 +340,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc53': mountKadane,
   'algo-viz--lc215': mountQuickSelect,
   'algo-viz--lc347': mountBucketTopK,
+  'algo-viz--lc56': mountMergeIntervals,
 }
 
 let vizHandles = []
