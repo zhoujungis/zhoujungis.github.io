@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶 LC 215 ：给定整数数组 nums 和整数 k ，返回数组中第 k 个最大的元素。要求设计时间复杂度为 O(n) 的算法。示例： [3,2,1,5,6,4] , k=2 → 5 。 LC 347 ：给定整数数组 nums 和整数" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-215-347-top-k/" />
+    <meta property="og:title" content="【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶" />
+    <meta property="og:description" content="【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶 LC 215 ：给定整数数组 nums 和整数 k ，返回数组中第 k 个最大的元素。要求设计时间复杂度为 O(n) 的算法。示例： [3,2,1,5,6,4] , k=2 → 5 。 LC 347 ：给定整数数组 nums 和整数" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-215-347-top-k/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-215-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶" />
+    <meta name="twitter:description" content="【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶 LC 215 ：给定整数数组 nums 和整数 k ，返回数组中第 k 个最大的元素。要求设计时间复杂度为 O(n) 的算法。示例： [3,2,1,5,6,4] , k=2 → 5 。 LC 347 ：给定整数数组 nums 和整数" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-215-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-IE8QQqJq.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-28T14:10:21.643077+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶","description":"【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶 LC 215 ：给定整数数组 nums 和整数 k ，返回数组中第 k 个最大的元素。要求设计时间复杂度为 O(n) 的算法。示例： [3,2,1,5,6,4] , k=2 → 5 。 LC 347 ：给定整数数组 nums 和整数","image":"https://zhoujungis.github.io/photos/lc-215-cover.png","datePublished":"2026-09-28T14:10:21.643077+08:00","dateModified":"2026-09-28T14:10:21.643102+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-215-347-top-k/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 215 / 347】TopK 双题：第 K 大选的是位置，前 K 高频选的是桶</h1><div class="ns-meta">2026/9/28 · Zhou Jun</div><div class="markdown-body"><blockquote>
+<ul>
+<li><strong>LC 215</strong>：给定整数数组 <code>nums</code> 和整数 <code>k</code>，返回数组中第 <code>k</code> 个最大的元素。要求设计时间复杂度为 O(n) 的算法。示例：<code>[3,2,1,5,6,4]</code>, <code>k=2</code> → <code>5</code>。</li>
+<li><strong>LC 347</strong>：给定整数数组 <code>nums</code> 和整数 <code>k</code>，返回其中出现频率前 <code>k</code> 高的元素，要求时间复杂度<strong>优于</strong> O(n log n)。示例：<code>[1,1,1,2,2,3]</code>, <code>k=2</code> → <code>[1,2]</code>。</li>
+</ul>
+</blockquote>
+
+这两道题是腾讯、阿里、蚂蚁 TopK 方向的必考组合，而且它们共享同一个骨架：<strong>数组、一个 k、要的是"按某种排序排好后的前一段"</strong>。区别只在排序的键：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>排序的键</th>
+<th>要的东西</th>
+<th>对应算法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 215</td>
+<td><strong>值</strong></td>
+<td>排序后的<strong>一个位置</strong>（第 k 大）</td>
+<td>快速选择</td>
+</tr>
+<tr>
+<td>LC 347</td>
+<td><strong>频率</strong></td>
+<td>排序后的<strong>一段前缀</strong>（前 k 高频）</td>
+<td>桶排序</td>
+</tr>
+</tbody>
+</table>
+
+这一篇把这两条轴一次讲透。两道题各配一个可回放的推演动画，最后一个追问 —— <strong>10 亿个数找前 100 大</strong> —— 会把两条轴合到工程视角再看一遍。
+<h2>一、先把"第 k 大"翻译对：两道题各藏着一个语义陷阱</h2>
+<h3>1.1 LC 215：第 k 大是"第 k 个位置"，不是"第 k 个不同的值"</h3>
+
+官方给了两个例子，第二个就是用来钉死语义的：
+<blockquote>
+
+<code>nums = [3,2,3,1,2,4,5,5,6]</code>, <code>k = 4</code>，输出 <code>4</code>。
+</blockquote>
+
+把它降序排好：<code>[6, 5, 5, 4, 3, 3, 2, 2, 1]</code>。第 4 个位置上是 <strong>4</strong>。
+
+注意这里有两个 <code>5</code> —— 它们<strong>各占各的位置</strong>。如果你理解成"第 4 个<strong>不同的</strong>值"，会算出 3（不同值降序是 <code>[6,5,4,3,2,1]</code>，第 4 个是 3）。<strong>题目要的是前者</strong>：重复元素在排名里各算一个席位。
+
+所以更准确的题面应该是：<strong>"把它排好序之后，下标在第 k 位上的那个数"</strong>。这句话直接给出了第一种解法：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">findKthLargest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">nums</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="n">k</span><span class="p">]</span>
+</code></pre></div>
+
+
+一行。时间 O(n log n)，能过，但面试官下一句一定是："题目要求 O(n)，怎么办？" —— 别急，先看清这行代码里那个最容易写错的<strong>下标</strong>。
+<h3>1.2 索引换算：第 k 大 = 升序第 n-k 位</h3>
+
+升序数组里，第 k 大是<strong>倒数第 k 个</strong>，也就是下标 <code>n - k</code>（0 基）：
+<div class="codehilite"><pre><span></span><code>nums = [3, 2, 1, 5, 6, 4], n = 6, k = 2
+升序：[1, 2, 3, 4, 5, 6]
+                            ↑
+                     下标 n-k = 4，值 5 ✓
+</code></pre></div>
+
+
+写成 <code>k - 1</code> 是最常见的错误 —— 那找的是<strong>第 k 小</strong>。这个 off-by-one 之所以高频，是因为"第 k 大"和"第 k 小"在代码里只差一个字符，而样例往往测不出来：<code>[3,2,1,5,6,4]</code> 配 <code>k=2</code>，如果数组恰好对称（比如 <code>[1,2,3,2,1]</code>），两种理解会给出同一个答案。
+
+<strong>这个系列反复出现一个模式：官方样例恰好掩盖 bug。</strong> 这里的版本是——用对称数组的样例，验证不了你有没有把"大"写反。
+<h3>1.3 LC 347 的语义陷阱：频率并列时怎么办</h3>
+
+LC 347 题目保证<strong>答案是唯一的</strong>，所以频率并列卡在边界上的歧义不存在。但"出现频率前 k 高"里仍然有一个隐性约定：<strong>返回的是 k 个不同的值</strong>（每个值只出现一次），这与 LC 215 的"重复各占位置"正好相反。做 LC 215 时别把两题的语义搞串。
+<h2>二、解法梯队总览</h2>
+
+把两道题的所有主流解法放在一张表里：
+<table>
+<thead>
+<tr>
+<th>解法</th>
+<th>时间</th>
+<th>空间</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>排序后取下标</td>
+<td>O(n log n)</td>
+<td>O(1)（原地）</td>
+<td>数据量小、追求一次写对</td>
+</tr>
+<tr>
+<td>小根堆（容量 k）</td>
+<td><strong>O(n log k)</strong></td>
+<td>O(k)</td>
+<td><strong>数据流、k 远小于 n、内存受限</strong></td>
+</tr>
+<tr>
+<td>快速选择</td>
+<td><strong>平均 O(n)</strong>，最坏 O(n²)</td>
+<td>O(1)</td>
+<td>一次性给全量、可以修改数组</td>
+</tr>
+<tr>
+<td>桶排序（仅 LC 347 类）</td>
+<td><strong>O(n)</strong></td>
+<td>O(n)</td>
+<td>键是小整数范围（频率天然是）</td>
+</tr>
+<tr>
+<td>BFPRT / 中位数的中位数</td>
+<td>严格 O(n)</td>
+<td>O(n)</td>
+<td>理论价值，工程几乎不用</td>
+</tr>
+</tbody>
+</table>
+
+题目要求的"O(n)"（215）和"优于 O(n log n)"（347）各对应表中的两行。下面按顺序讲：先快速选择，再堆，再桶排序，最后合到海量数据。
+<h2>三、LC 215：快速选择 —— 分区之后，位置即排名</h2>
+<h3>3.1 核心观察</h3>
+
+快速排序做一次分区（partition）之后，有一件事是<strong>确定</strong>的：<strong>枢轴（pivot）落在它最终排序位置上</strong>。因为它左边的元素全部 <code>&lt;=</code> 它，右边的全部 <code>&gt;</code> 它 —— 无论数组最后怎么排，这个元素就在这一位。
+
+而"落在最终排序位置上"有一个更重要的解读：<strong>这个位置就是它的排名</strong>。
+
+于是"找第 k 大"变成一个判断题：
+<ul>
+<li>枢轴位置 == 目标位 → 它就是答案，结束；</li>
+<li>枢轴位置 &lt; 目标位 → 答案在右边，左边（含枢轴）全部淘汰；</li>
+<li>枢轴位置 &gt; 目标位 → 答案在左边，右边（含枢轴）全部淘汰。</li>
+</ul>
+
+<strong>快排要递归两边，快速选择只进一边</strong> —— 这就是从 O(n log n) 降到 O(n) 的全部原因。
+<h3>3.2 逐帧推演</h3>
+
+用官方例 1：<code>[3, 2, 1, 5, 6, 4]</code>，<code>k = 2</code>。<code>n = 6</code>，目标位 <code>n - k = 4</code>（升序下标）。分区用 Lomuto 方案：枢轴取区间最右端，<code>i</code> 指向"小于等于区"的下一个空位，<code>j</code> 从左往右扫。
+<div class="algo-viz algo-viz--lc215"></div>
+
+
+14 帧的完整推演表（与状态机 <code>quickSelectSteps.js</code> 的实际输出逐行核对过）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>阶段</th>
+<th>区间</th>
+<th>枢轴</th>
+<th>数组</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>[0,5]</td>
+<td>—</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>换算目标位 = 6-2 = 4</td>
+</tr>
+<tr>
+<td>1</td>
+<td>pick</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>取最右端 4 当枢轴，i=0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>scan</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>j=0：3&lt;=4，归左（自己换自己），i=1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>scan</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>j=1：2&lt;=4，归左，i=2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>scan</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>j=2：1&lt;=4，归左，i=3</td>
+</tr>
+<tr>
+<td>5</td>
+<td>scan</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>j=3：5&gt;4，不动</td>
+</tr>
+<tr>
+<td>6</td>
+<td>scan</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,5,6,4]</code></td>
+<td>j=4：6&gt;4，不动</td>
+</tr>
+<tr>
+<td>7</td>
+<td>place</td>
+<td>[0,5]</td>
+<td>4</td>
+<td><code>[3,2,1,4,6,5]</code></td>
+<td>枢轴归位：swap(3,5)，落在下标 3</td>
+</tr>
+<tr>
+<td>8</td>
+<td>narrow</td>
+<td>[4,5]</td>
+<td>4</td>
+<td><code>[3,2,1,4,6,5]</code></td>
+<td>3 &lt; 目标位 4 → 答案在右，左边全淘汰</td>
+</tr>
+<tr>
+<td>9</td>
+<td>pick</td>
+<td>[4,5]</td>
+<td>5</td>
+<td><code>[3,2,1,4,6,5]</code></td>
+<td>第 2 轮，取 5 当枢轴，i=4</td>
+</tr>
+<tr>
+<td>10</td>
+<td>scan</td>
+<td>[4,5]</td>
+<td>5</td>
+<td><code>[3,2,1,4,6,5]</code></td>
+<td>j=4：6&gt;5，不动</td>
+</tr>
+<tr>
+<td>11</td>
+<td>place</td>
+<td>[4,5]</td>
+<td>5</td>
+<td><code>[3,2,1,4,5,6]</code></td>
+<td>swap(4,5)，枢轴落在下标 4</td>
+</tr>
+<tr>
+<td>12</td>
+<td>found</td>
+<td>[4,5]</td>
+<td>5</td>
+<td><code>[3,2,1,4,5,6]</code></td>
+<td>4 == 目标位 → <strong>答案 5</strong></td>
+</tr>
+<tr>
+<td>13</td>
+<td>done</td>
+<td>[4,5]</td>
+<td>5</td>
+<td><code>[3,2,1,4,5,6]</code></td>
+<td>2 轮分区，共 6 次扫描</td>
+</tr>
+</tbody>
+</table>
+
+两个值得盯住的瞬间：
+<ul>
+<li><strong>第 8 帧</strong>：枢轴 4 落在下标 3，但目标位是 4。<code>3 &lt; 4</code>，说明答案在右边 —— 左边 4 个元素（含枢轴）<strong>从此一眼都不看</strong>。快速选择的"省"，全部省在这一步。</li>
+<li><strong>第 12 帧</strong>：枢轴 5 落在下标 4，正好是目标位。左边 4 个都不比它大、右边 1 个都比它大 —— <strong>排名确凿，不用再比任何东西</strong>。</li>
+</ul>
+<h3>3.3 为什么敢只进一边（正确性）</h3>
+
+"左边那 4 个以后再也不看"听起来太自信了。论证其实只有两句：
+<ol>
+<li>分区之后，枢轴位置的<strong>排名已经确定</strong>：它就是升序数组的第 <code>pivotIdx</code> 位（0 基）。如果 <code>pivotIdx == target</code>，答案就是它，<strong>其他任何元素都不可能在这个位置上</strong>。</li>
+<li>如果 <code>pivotIdx &lt; target</code>，目标位在枢轴右边 —— 而右边那些元素的<strong>相对顺序虽然还乱着</strong>，但它们<strong>就是升序数组下标 <code>pivotIdx+1..n-1</code> 上的全部候选</strong>。目标位 <code>target &gt; pivotIdx</code> 落在这段里，左边那些元素排名全都 <code>&lt;= pivotIdx &lt; target</code>，<strong>不可能出现在目标位上</strong>。</li>
+</ol>
+
+所以淘汰不是"大概率的剪枝"，是<strong>确定性的排除</strong>。这个性质和 LC 3 滑动窗口里"left 只会右移"是同一类不变量：<strong>每一步淘汰都不可逆，且不漏</strong>。
+<h3>3.4 迭代写法</h3>
+
+收敛逻辑是"区间收缩"，用迭代写最自然，还省掉递归栈：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">findKthLargest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="n">k</span>          <span class="c1"># 第 k 大 = 升序下标 n-k</span>
+    <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">pivot</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>         <span class="c1"># 生产代码应该随机化，见第五节</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">left</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">pivot</span><span class="p">:</span>
+                <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span><span class="p">]</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">right</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>            <span class="c1"># 答案在右边</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span>           <span class="c1"># 答案在左边</span>
+</code></pre></div>
+
+<h2>四、复杂度：O(n) 是怎么来的</h2>
+<h3>4.1 平均情形的几何级数</h3>
+
+设每次分区能砍掉一半候选（期望意义下），总扫描量是：
+<div class="codehilite"><pre><span></span><code>n + n/2 + n/4 + ... = 2n ≈ O(n)
+</code></pre></div>
+
+
+严格地说，随机枢轴下第 k 大的期望比较次数是 <code>2n + o(n)</code>（Blum-Floyd-Pratt-Rivest-Tarjan 的经典结论对快速选择的变体同样成立），常数 2 的来源正是这个级数。<strong>分区本身每轮 O(区间长度)</strong>，级数求和收敛在 2n。
+<h3>4.2 最坏情形：不是理论装饰，是真实会踩的坑</h3>
+
+两种输入会让"每轮砍一半"退化成"每轮只砍一个"：
+
+<strong>情形一：有序数组 + 固定取末尾当枢轴。</strong> 升序数组 <code>[1,2,...,n]</code> 找最小值（k=n）时，枢轴恰好是区间最大值，每轮只能砍掉自己 —— n 轮、每轮扫一遍，<strong>O(n²)</strong>。我的状态机实测：
+<div class="codehilite"><pre><span></span><code>n = 6，升序 + pivot 取末尾 + 找最小：5 轮分区（随机枢轴只要 2 轮）
+n = 8，同上：7 轮分区（随机枢轴 2 轮）
+</code></pre></div>
+
+
+<strong>情形二：全部元素相同 + Lomuto 分区。</strong> 这个更反直觉 —— 就算你把比较写成 <code>&lt;=</code>，全相同元素的数组依然是 Lomuto 的最坏情况：每个元素都 <code>&lt;=</code> 枢轴，<code>i</code> 一路走到末尾，枢轴归位后落在原地，每轮还是只砍掉 1 个。实测 <code>[5,5,5,5,5,5]</code> 找最小值要 5 轮。
+
+<strong>两个修复</strong>：
+<ol>
+<li><strong>随机化枢轴</strong>：随机挑一个位置换到末尾再分区。最坏情况在理论上仍存在（运气差到底），但任何固定输入能触发它的概率随 n 超指数衰减，工程上视作不会发生；</li>
+<li><strong>三路分区（荷兰国旗）</strong>：把数组分成"小于 / 等于 / 大于"三段，枢轴这一段<strong>一次性全部归位</strong>。全相同元素时等于区间直接清空 —— 这也是 Java 里对重复元素多的输入的标准优化。</li>
+</ol>
+
+LeetCode 官方题解用的就是"随机化 + 三路划分"。工程库里的做法更进一步：C++ 的 <code>std::nth_element</code> 用 <strong>introselect</strong> —— 随机枢轴为主，递归深度超过 2·log n 就切换到 BFPRT（中位数的中位数），把最坏情况彻底钉死在 O(n)。面试时能主动说出"固定枢轴在最坏情况会退化，所以要随机化，全相同元素要三路"，比背出 O(n) 本身值钱。
+<h3>4.3 四种解法放一起</h3>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>暴力：k 趟选最大</td>
+<td>O(n·k)</td>
+<td>O(1)</td>
+<td>k 大时退化成 O(n²)</td>
+</tr>
+<tr>
+<td>排序</td>
+<td>O(n log n)</td>
+<td>O(1)</td>
+<td>一行，但到不了 O(n)</td>
+</tr>
+<tr>
+<td>小根堆</td>
+<td>O(n log k)</td>
+<td>O(k)</td>
+<td>k 小时接近线性；流式友好</td>
+</tr>
+<tr>
+<td><strong>快速选择</strong></td>
+<td>平均 O(n)，最坏 O(n²)</td>
+<td>O(1)</td>
+<td>全量一次性给、可修改数组时最快</td>
+</tr>
+</tbody>
+</table>
+<h2>五、堆解法：O(n log k) 什么时候比 O(n) 更好</h2>
+<h3>5.1 算法</h3>
+
+维护一个<strong>容量为 k 的小根堆</strong>，遍历数组：堆没满就压入；满了且当前元素比堆顶大，就弹出堆顶再压入。扫完后<strong>堆顶就是第 k 大</strong> —— 堆里始终装着"到目前为止最大的 k 个"，堆顶是其中最小的一个。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">findKthLargest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">k</span><span class="p">:</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+<h3>5.2 一个常见误区：为什么是小根堆不是大根堆</h3>
+
+直觉上"找最大的 k 个"该用大根堆，但那样必须把全部 n 个元素装进堆再弹 k 次，时间 O(n + k log n)、空间 O(n)。<strong>小根堆装的是"k 个候选中最小的那个"</strong>，它始终守在"第 k 大"这个门槛上：新元素想进前 k，先得打赢门槛。空间 O(k)、时间 O(n log k)。
+
+（ LC 3 那篇说过"判据在 cur 身上不在 x 身上"，这里是同款思想：<strong>门槛本身才是主角，新元素只是挑战者。</strong>）
+<h3>5.3 快速选择 vs 堆：四维对照</h3>
+
+面试追问"这两个怎么选"时，比"谁快"更重要的是这四行：
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>快速选择</th>
+<th>小根堆</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td>平均 O(n)，最坏 O(n²)</td>
+<td>稳定 O(n log k)</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(1)（原地）</td>
+<td>O(k)</td>
+</tr>
+<tr>
+<td><strong>能流式吗</strong></td>
+<td><strong>不能</strong>（要随机访问全量数据）</td>
+<td><strong>能</strong>（数据一个个来也行）</td>
+</tr>
+<tr>
+<td><strong>改原数组吗</strong></td>
+<td><strong>改</strong>（原地交换）</td>
+<td>不改</td>
+</tr>
+</tbody>
+</table>
+
+两个"能/改"经常被忽略，却是工程选型的关键：数据是流式到达的，快速选择直接出局；调用方不允许你动它的数组，同理。<strong>堆慢在渐近意义上从未发生 —— O(n log k) 在 k 接近 n 时确实退化成 O(n log n)，但换来的是稳定性和流式能力。</strong> 反过来，面试白板上一道"写出来"的题，堆十行内写完且没有最坏情况，快速选择写错分区边界就死循环 —— 所以很多面试官建议：<strong>先写堆，再主动提快速选择作为优化</strong>。
+<h2>六、LC 347：频率是天然的桶下标</h2>
+<h3>6.1 从"要排序"到"不用排序"</h3>
+
+LC 347 的骨架：先哈希计数（O(n)），然后按频率挑前 k 个。剩下的问题和 LC 215 同构 —— 又是 TopK，只是键从"值"换成了"频率"。
+
+堆解法照样能用：按频率维护小根堆，O(n log k)。但题目要求"优于 O(n log n)"，而这里有一个堆没有的<strong>结构性优惠</strong>：
+<blockquote>
+
+一个元素的出现频率<strong>最多是 n</strong>（全体都是它）、最少是 1。也就是说，<strong>频率天然落在 <code>[1, n]</code> 这个小整数区间里。</strong>
+</blockquote>
+
+要排序的键恰好是一个范围已知的小整数 —— 这正是<strong>计数排序</strong>的前提。于是"按频率排序"免费：建 <code>n+1</code> 个桶，<strong>频率是多少就丢进下标多少的桶</strong>，一次比较都不用做。收集时从桶 <code>n</code> 往桶 <code>1</code> 扫，收满 k 个停。
+<h3>6.2 逐帧推演</h3>
+
+官方例：<code>[1,1,1,2,2,3]</code>，<code>k = 2</code>。
+<div class="algo-viz algo-viz--lc347"></div>
+
+
+13 帧（与状态机 <code>bucketTopKSteps.js</code> 逐行核对过）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>阶段</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>init</td>
+<td>计划三步：计数、入桶、收集</td>
+</tr>
+<tr>
+<td>1-3</td>
+<td>count</td>
+<td>数出 <code>1→3 次</code>、<code>2→2 次</code>、<code>3→1 次</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>bucket</td>
+<td><code>1</code> 进桶 f=3</td>
+</tr>
+<tr>
+<td>5</td>
+<td>bucket</td>
+<td><code>2</code> 进桶 f=2</td>
+</tr>
+<tr>
+<td>6</td>
+<td>bucket</td>
+<td><code>3</code> 进桶 f=1</td>
+</tr>
+<tr>
+<td>7</td>
+<td>collect</td>
+<td>扫 f=6：空桶，跳过</td>
+</tr>
+<tr>
+<td>8</td>
+<td>collect</td>
+<td>扫 f=5：空桶，跳过</td>
+</tr>
+<tr>
+<td>9</td>
+<td>collect</td>
+<td>扫 f=4：空桶，跳过</td>
+</tr>
+<tr>
+<td>10</td>
+<td>collect</td>
+<td>桶 f=3 里的 <code>1</code> 收入 → 已收 1/2</td>
+</tr>
+<tr>
+<td>11</td>
+<td>collect</td>
+<td>桶 f=2 里的 <code>2</code> 收入 → <strong>收满 2/2，停</strong></td>
+</tr>
+<tr>
+<td>12</td>
+<td>done</td>
+<td>答案 <code>[1, 2]</code></td>
+</tr>
+</tbody>
+</table>
+
+看第 7-9 帧：<strong>那三个空桶不是浪费</strong> —— 它们是"从高频往低频扫"这个动作的字面展示。频率 6、5、4 都没有对应的值，说明这个数组里没有元素出现那么多次；收集指针扫过它们，正说明桶下标和频率一一对应、不重不漏。
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">freq</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+    <span class="n">buckets</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">freq</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">buckets</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>         <span class="c1"># 频率即下标，O(1) 入桶</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">buckets</span><span class="p">[</span><span class="n">f</span><span class="p">]:</span>
+            <span class="n">ans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ans</span><span class="p">)</span> <span class="o">==</span> <span class="n">k</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">ans</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+三步全是 O(n)，<strong>总计 O(n)</strong> —— 比题目划的红线还低一档。代价是 O(n) 的桶空间，以及一个前提：<strong>键是小整数、范围已知</strong>。频率满足，距离、得分这类连续值不满足 —— 那才轮到堆。
+<h3>6.3 和 LC 215 的镜像关系</h3>
+
+把两题的解法并排放，会看到一张有趣的对照表：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LC 215（按值）</th>
+<th>LC 347（按频率）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>排序的键</td>
+<td>值，范围任意</td>
+<td>频率，天然在 [1, n]</td>
+</tr>
+<tr>
+<td>免费午餐</td>
+<td>无 —— 值没有范围保证</td>
+<td>有 —— 桶排序直接 O(n)</td>
+</tr>
+<tr>
+<td>选择问题</td>
+<td>只选 1 个位置</td>
+<td>选一段前缀</td>
+</tr>
+<tr>
+<td>最佳工具</td>
+<td>快速选择</td>
+<td>桶排序</td>
+</tr>
+</tbody>
+</table>
+
+<strong>键的范围决定能不能"用空间换排序"。</strong> 这也是为什么 LC 347 出现后，面试官常追问一句"如果频率范围特别大怎么办" —— 那就回到堆。
+<h2>七、海量数据 TopK：10 亿个数找前 100 大</h2>
+
+腾讯那道变体原题（"统计海量数据中出现次数最多的前 K 个元素"）把上面的选择全部推倒重来 —— 前提变了：<strong>单机内存装不下全部数据</strong>。10 亿个整数约 4 GB（裸存），加上结构开销远超单机可用内存；如果是日志行，更是几十上百 GB。
+<h3>7.1 前提一：单机能存下"k 个"就够了 —— 小根堆</h3>
+
+10 亿找前 100 大，只需要维护一个 <strong>100 容量的小根堆</strong>：
+<ul>
+<li>内存：100 个元素，忽略不计；</li>
+<li>扫描：<strong>一遍</strong>。文件顺序读（哪怕从磁盘、从多台机器汇聚），边读边喂给堆；</li>
+<li>时间：O(n log k) = 10⁹ × log₂100 ≈ 10⁹ × 7，几十秒级。</li>
+</ul>
+
+<strong>这就是第五节"堆能流式"的直接变现</strong>：快速选择在这里完全出局 —— 它需要把数组整个握在手里做随机访问，而海量数据给不了。
+<h3>7.2 前提二：连哈希表都装不下 —— 分桶分治</h3>
+
+如果是"出现次数最多的前 K 个<strong>词</strong>"（LC 347 的海量版），麻烦升级：<strong>去重后的词表本身可能就装不进内存</strong>。1 亿个不同的 URL，平均 50 字节，就是 5 GB。
+
+标准做法是<strong>哈希分桶 + 局部 TopK + 归并</strong>：
+<ol>
+<li><strong>分</strong>：对每个元素算 <code>hash(x) % 1000</code>，写入 1000 个小文件。同一元素必然落进同一文件 —— 这是分治正确性的根据；</li>
+<li><strong>治</strong>：每个小文件平均只有 100 万条，单独建哈希计数 + 小根堆，各取自己的前 100；</li>
+<li><strong>合</strong>：1000 个局部 Top100 归并成全局 Top100（1000 × 100 = 10 万条，随便放）。</li>
+</ol>
+
+单机多进程就能做，天然可扩到多机 —— 每台机器负责一批桶。这个套路有一个更正式的名字：<strong>外部排序的分治框架</strong>，只不过把"排序"换成了"TopK"。
+<h3>7.3 选型小结</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>方案</th>
+<th>关键依赖</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单机内存装得下、一次性</td>
+<td>快速选择（随机化）</td>
+<td>随机访问全量</td>
+</tr>
+<tr>
+<td>单机内存装得下、可流式</td>
+<td>小根堆 O(n log k)</td>
+<td>只需 k 的内存</td>
+</tr>
+<tr>
+<td>去重后仍装不下</td>
+<td>哈希分桶 + 局部堆 + 归并</td>
+<td>hash 分桶的正确性</td>
+</tr>
+<tr>
+<td>值域很小（如年龄 0-150）</td>
+<td>计数数组</td>
+<td>值域即下标（同 LC 347 的桶）</td>
+</tr>
+</tbody>
+</table>
+
+最后这行和 LC 347 的桶排序是同一个思想：<strong>发现"键是小整数范围"时，比较排序整个可以绕开。</strong>
+<h2>八、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">findKthLargest</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w">          </span><span class="c1">// 第 k 大 = 升序下标 n-k</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">partition</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">idx</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">idx</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">idx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">partition</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="n">Math</span><span class="p">.</span><span class="na">random</span><span class="p">()</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">));</span><span class="w">  </span><span class="c1">// 随机化</span>
+<span class="w">        </span><span class="n">swap</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">pivot</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">right</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">pivot</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">swap</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">);</span>
+<span class="w">                </span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">swap</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">swap</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+堆版用 <code>PriorityQueue</code>（默认就是小根堆，不用翻极性）：
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">freq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">merge</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
+
+<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">(),</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">()});</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">stream</span><span class="p">().</span><span class="na">mapToInt</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">).</span><span class="na">toArray</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h2>九、边界情况与常见坑</h2>
+
+<strong>坑一：<code>k - 1</code> 与 <code>n - k</code>。</strong> 前文已讲，第三种确认方式：<code>k = n</code> 时答案应该是数组最小值 —— 用这个特例在脑子里过一遍你的下标公式。
+
+<strong>坑二：固定枢轴在有序输入上超时（TLE）。</strong> LeetCode 215 的测试数据里有精心构造的有序大数组，固定取末尾的 Lomuto 提交会直接超时。随机化一行就能修。
+
+<strong>坑三：<code>&lt;=</code> 还是 <code>&lt;</code>。</strong> Lomuto 分区写 <code>&lt;</code> 的话，等于枢轴的元素会被甩到右边，全相同元素退化得更狠；标准写法是 <code>&lt;=</code>，配合三路分区处理大规模重复。
+
+<strong>坑四：快排口径记混。</strong> 快速选择平均 O(n) 的前提是<strong>只递归一边</strong>。如果你发现自己在两边都递归了，那写的是快排不是快速选择 —— O(n log n)，题目的 O(n) 要求就没满足。
+
+<strong>坑五：LC 347 用大根堆。</strong> 全部元素入大根堆再弹 k 次，O(n + k log n)，题目"优于 O(n log n)"在 k 较小时其实能满足，但空间 O(n) 且弹出的顺序还要再处理 —— 小根堆（容量 k）或桶排序是更干净的两条路。
+<h2>十、变体</h2>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>变的是什么</th>
+<th>怎么想</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LC 973 最接近原点的 K 个点</strong></td>
+<td>键从"值"换成"到原点的距离平方"</td>
+<td>距离是连续值，没有桶 → 堆 O(n log k) 或快速选择（比较器换成距离）</td>
+</tr>
+<tr>
+<td><strong>LC 692 前 K 个高频单词</strong></td>
+<td>频率并列时要按字典序</td>
+<td>比较器加一层：频率相同比字符串；桶排序在并列桶内也要再排</td>
+</tr>
+<tr>
+<td><strong>LC 703 数据流中的第 K 大</strong></td>
+<td>数据无限流式到达</td>
+<td><strong>只能堆</strong>（容量 k 的小根堆）—— 快速选择需要全量随机访问，流式场景直接出局</td>
+</tr>
+<tr>
+<td><strong>LC 451 根据字符出现频率排序</strong></td>
+<td>把"取前 k 个"换成"全部按频率重排"</td>
+<td>同样的桶，收集时不提前停</td>
+</tr>
+<tr>
+<td><strong>LC 295 数据流的中位数</strong></td>
+<td>"第 k 大"里 k 在动（中位数）</td>
+<td>对顶堆：大根堆 + 小根堆各管一半</td>
+</tr>
+</tbody>
+</table>
+
+一图流的选择：<strong>静态全量 + 想最快 → 快速选择；流式 / 只要前 k → 小根堆；键是小整数范围 → 桶排序。</strong>
+<h2>十一、面试怎么答</h2>
+<ul>
+<li><strong>先给能跑的</strong>：排序一行，或堆十行。主动说复杂度；</li>
+<li><strong>再给题目要的</strong>：快速选择 O(n)，主动补一句"随机化枢轴避免有序输入退化，重复多可以三路分区"；</li>
+<li><strong>被追问海量数据</strong>：内存装得下 → 堆流式；装不下 → 哈希分桶分治；值域小 → 计数；</li>
+<li><strong>自测两句话</strong>：<code>findKthLargest([3,2,1,5,6,4], 2) == 5</code> 且 <code>findKthLargest([3,2,3,1,2,4,5,5,6], 4) == 4</code>（第二个能钉死"位置不是不同值"），以及 <code>topKFrequent([1,1,1,2,2,3], 2) == [1,2]</code>；</li>
+<li><strong>一句话总结</strong>：LC 215 问"我排第几"—— 分区之后位置即排名；LC 347 问"谁排在前面"—— 频率自己就是排好序的桶下标。</li>
+</ul>
+<hr>
+
+<em>系列上一篇：<a href="/article/lc-53-maximum-subarray/">【LC 53】最大子数组和</a>。两道题各配了一个可回放动画（快速选择 14 帧 / 桶排序 13 帧），帧序列与状态机单测（快选 36 例、桶排 19 例，各与两个独立参考解三向交叉验证）逐行核对过。</em></div></div></noscript>
+  </body>
+</html>
