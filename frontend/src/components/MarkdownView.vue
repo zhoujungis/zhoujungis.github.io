@@ -28,6 +28,8 @@ import { mountThreeSum } from '@/viz/threeSum'
 import { mountTrappingRainWater } from '@/viz/trappingRainWater'
 import { mountTrappingRainStack } from '@/viz/trappingRainStack'
 import { mountKadane } from '@/viz/kadane'
+import { mountQuickSelect } from '@/viz/quickSelect'
+import { mountBucketTopK } from '@/viz/bucketTopK'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -335,6 +337,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc42': mountTrappingRainWater,
   'algo-viz--lc42stack': mountTrappingRainStack,
   'algo-viz--lc53': mountKadane,
+  'algo-viz--lc215': mountQuickSelect,
+  'algo-viz--lc347': mountBucketTopK,
 }
 
 let vizHandles = []
