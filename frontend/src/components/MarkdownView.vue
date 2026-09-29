@@ -44,6 +44,8 @@ import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
 import { mountCalcIII } from '@/viz/calcIII'
+import { mountBinarySearch } from '@/viz/binarySearch'
+import { mountSqrt } from '@/viz/sqrt'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -367,6 +369,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
   'algo-viz--lc772': mountCalcIII,
+  'algo-viz--lc704': mountBinarySearch,
+  'algo-viz--lc69': mountSqrt,
 }
 
 let vizHandles = []
