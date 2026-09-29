@@ -42,6 +42,8 @@ import { mountBrackets } from '@/viz/brackets'
 import { mountSlidingMax } from '@/viz/slidingMax'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
+import { mountBasicCalc } from '@/viz/basicCalc'
+import { mountCalcIII } from '@/viz/calcIII'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -363,6 +365,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc239': mountSlidingMax,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
+  'algo-viz--lc224': mountBasicCalc,
+  'algo-viz--lc772': mountCalcIII,
 }
 
 let vizHandles = []
