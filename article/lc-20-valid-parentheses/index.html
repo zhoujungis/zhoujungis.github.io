@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 给定一个只包括 &#39;(&#39; 、 &#39;)&#39; 、 &#39;{&#39; 、 &#39;}&#39; 、 &#39;[&#39; 、 &#39;]&#39; 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是&quot;栈&quot;这个数据结构最经典的入门题。" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-20-valid-parentheses/" />
+    <meta property="og:title" content="【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的" />
+    <meta property="og:description" content="题目 给定一个只包括 &#39;(&#39; 、 &#39;)&#39; 、 &#39;{&#39; 、 &#39;}&#39; 、 &#39;[&#39; 、 &#39;]&#39; 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是&quot;栈&quot;这个数据结构最经典的入门题。" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-20-valid-parentheses/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-20-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的" />
+    <meta name="twitter:description" content="题目 给定一个只包括 &#39;(&#39; 、 &#39;)&#39; 、 &#39;{&#39; 、 &#39;}&#39; 、 &#39;[&#39; 、 &#39;]&#39; 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是&quot;栈&quot;这个数据结构最经典的入门题。" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-20-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-QLm4woSI.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-29T14:52:09.797753+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的","description":"题目 给定一个只包括 '(' 、 ')' 、 '{' 、 '}' 、 '[' 、 ']' 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是\"栈\"这个数据结构最经典的入门题。","image":"https://zhoujungis.github.io/photos/lc-20-cover.png","datePublished":"2026-09-29T14:52:09.797753+08:00","dateModified":"2026-09-29T14:52:09.797817+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-20-valid-parentheses/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的</h1><div class="ns-meta">2026/9/29 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+给定一个只包括 <code>'('</code>、<code>')'</code>、<code>'{'</code>、<code>'}'</code>、<code>'['</code>、<code>']'</code> 的字符串 <code>s</code>，判断字符串是否有效。
+
+有效需满足：左括号必须用<strong>相同类型</strong>的右括号闭合，且以<strong>正确的顺序</strong>闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。
+<div class="codehilite"><pre><span></span><code>输入: s = &quot;{[()]}&quot;   输出: true
+输入: s = &quot;()[]{}&quot;   输出: true
+输入: s = &quot;(]&quot;       输出: false   （类型不匹配）
+输入: s = &quot;([)]&quot;     输出: false   （嵌套交错）
+输入: s = &quot;(()&quot;      输出: false   （左括号没闭合）
+</code></pre></div>
+
+
+腾讯面试 TOP 8 常客，也是"栈"这个数据结构最经典的入门题。
+<ul>
+<li><a href="#section-1">一、核心洞察：栈是被结构逼出来的</a></li>
+<li><a href="#section-2">二、拆解：三种失败模式，三处检查</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体：带优先级的括号匹配（原创题）与同族题</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：栈是被结构逼出来的</h2>
+
+这题有意思的地方是：<strong>你不需要"想到用栈"—— 括号的结构自己就把栈推到你面前了</strong>。
+
+想一想为什么 <code>"(]"</code> 无效而 <code>"{[()]}"</code> 有效？因为每个右括号匹配的是<strong>离它最近的、尚未闭合的</strong>同类左括号。换句话说：
+<blockquote>
+
+<strong>最内层尚未闭合的左括号，必须最先被闭合</strong> —— 后开先闭，这就是 LIFO。
+"记下还没闭合的左括号，来一个右括号就看最近记下的那个" —— 这话翻译成数据结构就是栈。
+</blockquote>
+
+所以解法读出来几乎是白话：<strong>遇左括号，入栈（记下"我在等什么"）；遇右括号，去问栈顶"你是不是我等的那个"；扫完栈必须为空。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">isValid</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;(&#39;</span><span class="p">:</span> <span class="s1">&#39;)&#39;</span><span class="p">,</span> <span class="s1">&#39;[&#39;</span><span class="p">:</span> <span class="s1">&#39;]&#39;</span><span class="p">,</span> <span class="s1">&#39;{&#39;</span><span class="p">:</span> <span class="s1">&#39;}&#39;</span><span class="p">}</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">:</span>                 <span class="c1"># 左括号：入栈</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>                           <span class="c1"># 右括号：问栈顶</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">stack</span><span class="p">:</span>               <span class="c1"># 失败模式二：没人接</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">pairs</span><span class="p">[</span><span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()]</span> <span class="o">!=</span> <span class="n">ch</span><span class="p">:</span>  <span class="c1"># 失败模式一：类型不匹配</span>
+                <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="ow">not</span> <span class="n">stack</span>                    <span class="c1"># 失败模式三：栈里还留着</span>
+</code></pre></div>
+
+
+九行。但九行里有<strong>三处独立的有效性检查</strong>，漏一处就错一种输入 —— 这才是本题的考点（第二节展开）。
+
+另一个实现取舍：栈里可以<strong>存左括号</strong>（弹出时查映射表），也可以<strong>直接存期待的右括号</strong>（遇左括号 <code>push(pairs[ch])</code>，遇右括号 <code>pop() == ch</code> 即可）。后者少一张弹出时的查表，面试提一句是加分项。
+<div class="algo-viz algo-viz--lc20"></div>
+
+<h2>二、拆解：三种失败模式，三处检查</h2>
+
+"有效"不是一句话，是<strong>三个否定条件的合取</strong>。每条对应代码里一处检查，漏一处就错一类输入：
+<table>
+<thead>
+<tr>
+<th>失败模式</th>
+<th>例子</th>
+<th>症状</th>
+<th>代码里的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一：<strong>类型不匹配</strong></td>
+<td><code>"(]"</code>、<code>"([)]"</code></td>
+<td>右括号与栈顶不是一对</td>
+<td><code>pairs[stack.pop()] != ch</code></td>
+</tr>
+<tr>
+<td>二：<strong>右括号没人接</strong></td>
+<td><code>"())"</code> 的第二个 <code>)</code>、单独的 <code>"]"</code></td>
+<td>遇右括号时栈已空</td>
+<td><code>if not stack</code></td>
+</tr>
+<tr>
+<td>三：<strong>左括号没闭合</strong></td>
+<td><code>"(()"</code>、<code>"(((("</code></td>
+<td>扫完了栈非空</td>
+<td><code>return not stack</code></td>
+</tr>
+</tbody>
+</table>
+
+模式一是"配错了"，模式二是"多出来了"，模式三是"没配完"。<strong>三者互相独立</strong> —— 任何一条输入只会挂在其中一条上，但也可能三条全不触发才算有效。
+
+两个高频追问的正例：
+<ul>
+<li><code>"(]"</code>：<code>)</code> 来的时候栈顶是 <code>(</code> —— 数量对（一左一右），<strong>类型</strong>错。有些人以为"每个左括号都有右括号配"就行，这题还要求类型；</li>
+<li><code>"([)]"</code>：数量对、类型也都有，但<strong>嵌套顺序</strong>错 —— <code>[</code> 在 <code>(</code> 还开着的时候就把 <code>)</code> 闭了。栈恰好能查出这种交错：<code>)</code> 来时栈顶是 <code>[</code>，不配。</li>
+</ul>
+<h2>三、动画怎么看</h2>
+
+动画两行：上行是字符串格子（当前字符橙环高亮），下行是栈 —— <strong>从左往右生长，最右端就是栈顶</strong>（<code>top</code> 标记跟着走）。
+<ul>
+<li><strong>push 帧</strong>：左括号飞进栈行，淡金底；</li>
+<li><strong>match 帧</strong>：当前右括号变绿，栈顶那格弹出去 —— 弹出的格子画在栈顶右侧（带 <code>popped</code> 标记），配对关系一目了然；</li>
+<li><strong>mismatch 帧</strong>：当前字符和栈顶一起变红 —— "栈顶在等 <code>"]"</code>，来的却是 <code>")"</code>"；</li>
+<li><strong>unmatched 帧</strong>：栈行空着，右括号无处可去；</li>
+<li><strong>done 帧</strong>：有效则全串变绿、栈行清空；leftover 则栈里剩的左括号标红。</li>
+</ul>
+
+主例 <code>"{[()]}"</code> 八帧讲完：三次入栈、三次配对出栈、栈恰好清空。
+<h2>四、完整推演表</h2>
+
+以 <code>"{[()]}"</code> 为主例（6 个字符）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>i</th>
+<th>ch</th>
+<th>动作</th>
+<th>栈（底→顶）</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>init</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>[]</td>
+<td></td>
+</tr>
+<tr>
+<td>1</td>
+<td>0</td>
+<td><code>{</code></td>
+<td>push</td>
+<td>[<code>{</code>]</td>
+<td>等 <code>"}"</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td><code>[</code></td>
+<td>push</td>
+<td>[<code>{</code>, <code>[</code>]</td>
+<td><code>[</code> 成为新的最内层</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td><code>(</code></td>
+<td>push</td>
+<td>[<code>{</code>, <code>[</code>, <code>(</code>]</td>
+<td>三层嵌套</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td><code>)</code></td>
+<td>pop ✓</td>
+<td>[<code>{</code>, <code>[</code>]</td>
+<td>栈顶 <code>(</code> 等的正是 <code>)</code> —— 弹出</td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td><code>]</code></td>
+<td>pop ✓</td>
+<td>[<code>{</code>]</td>
+<td>栈顶 <code>[</code> 等的正是 <code>]</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>5</td>
+<td><code>}</code></td>
+<td>pop ✓</td>
+<td>[]</td>
+<td>栈恰好清空</td>
+</tr>
+<tr>
+<td>done</td>
+<td></td>
+<td></td>
+<td></td>
+<td>[]</td>
+<td><strong>有效</strong></td>
+</tr>
+</tbody>
+</table>
+
+对照三种失败：
+<ul>
+<li><code>"(]"</code>：帧 2，<code>)</code> 来时栈顶 <code>(</code> 等 <code>")"</code> —— mismatch，即刻 false；</li>
+<li><code>"())"</code>：帧 3，第二个 <code>)</code> 来时栈已空 —— unmatched，即刻 false；</li>
+<li><code>"(()"</code>：全部扫完栈里还剩 <code>(</code> —— leftover，false。</li>
+</ul>
+<h2>五、变体：带优先级的括号匹配（原创题）与同族题</h2>
+<h3>5.1 带优先级变体（腾讯原创题的常见形态）</h3>
+
+<strong>定义</strong>：给三种括号定优先级，<code>(</code> = 1 &lt; <code>[</code> = 2 &lt; <code>{</code> = 3。在"类型配对正确"之外额外要求：<strong>内层括号的优先级不得低于外层</strong>（优先级沿嵌套方向只增不减，不允许"越级往里降"）。
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>普通规则</th>
+<th>加优先级</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>([{}])</code></td>
+<td>true</td>
+<td><strong>true</strong></td>
+<td>1 → 2 → 3 递增，合法</td>
+</tr>
+<tr>
+<td><code>{(})</code></td>
+<td>true</td>
+<td><strong>false</strong></td>
+<td>匹配没问题（<code>{</code> 内的 <code>(</code> 与 <code>}</code> …），但 <code>(</code>(1) 嵌在 <code>{</code>(3) 里 —— 优先级倒挂</td>
+</tr>
+<tr>
+<td><code>[({})]</code></td>
+<td>true</td>
+<td><strong>false</strong></td>
+<td><code>{</code>(3) 嵌在 <code>(</code>(1) 里</td>
+</tr>
+<tr>
+<td><code>{[()]}</code></td>
+<td>true</td>
+<td>true</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+（方向可反：有的题定义"外层必须更高级"，把比较不等号翻过来即可。<strong>机制不变：栈里多存一个优先级，push 前和栈顶比一次。</strong>）
+
+实现上只改两处：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">isValidWithPriority</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;(&#39;</span><span class="p">:</span> <span class="s1">&#39;)&#39;</span><span class="p">,</span> <span class="s1">&#39;[&#39;</span><span class="p">:</span> <span class="s1">&#39;]&#39;</span><span class="p">,</span> <span class="s1">&#39;{&#39;</span><span class="p">:</span> <span class="s1">&#39;}&#39;</span><span class="p">}</span>
+    <span class="n">prio</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;(&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;[&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;{&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="p">[]</span>                       <span class="c1"># 栈里存 (字符, 优先级)</span>
+    <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">stack</span> <span class="ow">and</span> <span class="n">prio</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]:</span>   <span class="c1"># 内层不得低于外层</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">ch</span><span class="p">,</span> <span class="n">prio</span><span class="p">[</span><span class="n">ch</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">stack</span> <span class="ow">or</span> <span class="n">pairs</span><span class="p">[</span><span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span> <span class="o">!=</span> <span class="n">ch</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="k">return</span> <span class="ow">not</span> <span class="n">stack</span>
+</code></pre></div>
+
+
+栈解法的扩展性就体现在这：<strong>任何"额外约束"都是往栈帧里加一个字段</strong> —— 这是面试官把 LC 20 变着花样问时想看你能不能接得住的地方。
+<h3>5.2 同族题</h3>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>用栈的方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 22 括号生成</td>
+<td>不是判断是生成：回溯时用计数器当"简化栈"（左右余额）</td>
+</tr>
+<tr>
+<td>LC 32 最长有效括号</td>
+<td>栈存<strong>下标</strong>（底垫哨兵 -1），长度用下标差算</td>
+</tr>
+<tr>
+<td>LC 921 使括号有效的最少添加</td>
+<td>计数器版：need 记未闭合 <code>(</code>，bal 负值记多余 <code>)</code></td>
+</tr>
+<tr>
+<td>LC 1541 平衡括号字符串的最少插入</td>
+<td>同上，一对多配对</td>
+</tr>
+<tr>
+<td>LC 1047 删除字符串中的所有相邻重复项</td>
+<td>同款栈：栈顶相同就弹（消消乐）</td>
+</tr>
+</tbody>
+</table>
+
+家族口诀：<strong>"最近未处理的先处理"就上栈；配对类栈里存"我在等什么"，计数类只存余额，下标类连位置一起存。</strong>
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isValid</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Character</span><span class="p">,</span><span class="w"> </span><span class="n">Character</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pairs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="sc">&#39;(&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;)&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;[&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;]&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;{&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;}&#39;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Character</span><span class="o">&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">ch</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pairs</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">ch</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">ch</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">stack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">pairs</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">stack</span><span class="p">.</span><span class="na">pop</span><span class="p">())</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">ch</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">      </span><span class="c1">// 模式二（空栈）与模式一（不匹配）合并成一行</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">stack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">();</span><span class="w">        </span><span class="c1">// 模式三</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 惯用 <code>ArrayDeque</code> 而不是 <code>Stack</code>（后者继承自 <code>Vector</code>，带锁、接口混杂）。注意合并写法里 <code>stack.pop()</code> 先于比较执行 —— 短路 <code>||</code> 保证空栈时不会 pop 出异常。
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>考察点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>""</code></td>
+<td>true</td>
+<td>空串有效：循环不进，栈天然为空</td>
+</tr>
+<tr>
+<td><code>"("</code></td>
+<td>false</td>
+<td>单左括号 → leftover</td>
+</tr>
+<tr>
+<td><code>"]"</code></td>
+<td>false</td>
+<td>首字符就是右括号 → unmatched</td>
+</tr>
+<tr>
+<td><code>"([)]"</code></td>
+<td>false</td>
+<td>嵌套交错（数量、类型都对）</td>
+</tr>
+<tr>
+<td><code>"(){}}{"</code></td>
+<td>false</td>
+<td>中途失败即可提前返回</td>
+</tr>
+<tr>
+<td>10⁴ 长度</td>
+<td>—</td>
+<td>线性扫描，无压力</td>
+</tr>
+</tbody>
+</table>
+<h2>八、复杂度</h2>
+<ul>
+<li><strong>时间 O(n)</strong>：每个字符入栈/出栈至多一次。</li>
+<li><strong>空间 O(n)</strong>：最坏全是左括号（<code>"(((("</code>），栈深 n。</li>
+</ul>
+<h2>九、常见坑</h2>
+<h3>9.1 只查配对，忘了最后"栈非空"</h3>
+
+<code>"(()"</code> 每个右括号都配上了，但左括号有剩 —— 扫完必须检查 <code>stack</code> 为空。这是三种失败模式里最容易被漏的一种，因为它的检查在<strong>循环外面</strong>。
+<h3>9.2 遇右括号不查空栈直接 pop</h3>
+
+<code>"())"</code> 的第二个 <code>)</code>、单独的 <code>"]"</code>：栈已空时 <code>pop()</code> 在 Python 是 <code>IndexError</code>、Java 是异常 —— 但很多人先写了 <code>pairs[stack.pop()]</code> 再补空栈检查，顺序一反就是运行时崩。<strong>空栈检查必须在 pop 之前</strong>。
+<h3>9.3 用两个独立计数器代替栈</h3>
+
+<code>count(</code> 和 <code>count)</code> 相等就有效？<code>"(]"</code> 会上当吗——<code>(</code> 和 <code>]</code> 根本不是同类，计数器连类型都不分；就算分类型三个计数器，<code>"([)]"</code> 也查不出来（数量全对）。<strong>计数器只能查"余额"，查不了"顺序"</strong> —— 顺序恰恰是本题的核心。
+<h3>9.4 交错配对想当然</h3>
+
+<code>"([)]"</code> 数量对、类型齐，很多人直觉判 true。嵌套合法性靠的就是栈顶比较：<code>)</code> 来时最内层是 <code>[</code> 不是 <code>(</code>。拿这个例子当自测用例，能一次验完你写的栈逻辑。
+<h3>9.5 空串的处理</h3>
+
+<code>""</code> 应该返回 true（没有括号需要配对）。循环不进、栈为空、<code>return not stack</code> 天然给出 true —— 但如果开头写了 <code>if not s: return False</code>（想当然"空即无效"）就错了。
+<h3>9.6 Java 用了 <code>java.util.Stack</code></h3>
+
+能跑，但 <code>Stack</code> 继承自 <code>Vector</code>（同步锁 + 暴露索引接口），现代 Java 用 <code>Deque</code>/<code>ArrayDeque</code>。面试里这算小的工程素养分。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>一句话定性</strong>："最内层未闭合的必须先闭合 —— 后开先闭，栈是括号结构直接逼出来的选择。"</li>
+<li><strong>先报三种失败模式再写代码</strong>："类型不匹配、右括号没人接、左括号没闭合 —— 三处检查一个都不能少，最后一处藏在循环外。"</li>
+<li><strong>主动给 <code>"([)]"</code></strong>：数量、类型都对但嵌套交错 —— 证明你理解栈顶比较查的是顺序。</li>
+<li><strong>复杂度</strong>：O(n) 时间，O(n) 空间（最坏全左括号）。</li>
+<li><strong>延伸</strong>：栈里存期待右括号的写法；带优先级变体（栈帧加字段）；同族的计数器版（LC 921）和下标版（LC 32）—— 说明你 know 这道题在题谱里的位置。</li>
+</ol>
+<h2>结语</h2>
+
+有效的括号是把"栈"讲清楚的最好的题：它不靠任何技巧，只靠一个观察 —— <strong>括号的嵌套结构本身就是后进先出的</strong>。九行代码里三处检查对应三种失败模式，一条都不能少；而所有括号家族的变体（计数、下标、优先级），都是往这个栈帧里加减字段。下次遇到"最近未处理的先处理"，先想想这里。</div></div></noscript>
+  </body>
+</html>
