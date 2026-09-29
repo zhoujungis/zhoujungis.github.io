@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 704 二分查找 ：给定一个 n 个元素 有序（升序） 的整型数组 nums 和一个目标值 target ，在数组中查找 target，若存在返回其下标，否则返回 -1 。要求时间复杂度 O(log n) 。 LC 69 x 的平方根 ：给定一个非负整数 x ，计算并返回 x 的 算术平方根 ，结果 只保留" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-704-69-binary-search-and-sqrt/" />
+    <meta property="og:title" content="【LC 704/69】二分查找 &amp; x 的平方根：一个命中就返回，一个成立还向右" />
+    <meta property="og:description" content="题目 LC 704 二分查找 ：给定一个 n 个元素 有序（升序） 的整型数组 nums 和一个目标值 target ，在数组中查找 target，若存在返回其下标，否则返回 -1 。要求时间复杂度 O(log n) 。 LC 69 x 的平方根 ：给定一个非负整数 x ，计算并返回 x 的 算术平方根 ，结果 只保留" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-704-69-binary-search-and-sqrt/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-704-69-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 704/69】二分查找 &amp; x 的平方根：一个命中就返回，一个成立还向右" />
+    <meta name="twitter:description" content="题目 LC 704 二分查找 ：给定一个 n 个元素 有序（升序） 的整型数组 nums 和一个目标值 target ，在数组中查找 target，若存在返回其下标，否则返回 -1 。要求时间复杂度 O(log n) 。 LC 69 x 的平方根 ：给定一个非负整数 x ，计算并返回 x 的 算术平方根 ，结果 只保留" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-704-69-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 704/69】二分查找 &amp; x 的平方根：一个命中就返回，一个成立还向右 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DWNP4XVv.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-29T17:13:27.492652+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 704/69】二分查找 & x 的平方根：一个命中就返回，一个成立还向右","description":"题目 LC 704 二分查找 ：给定一个 n 个元素 有序（升序） 的整型数组 nums 和一个目标值 target ，在数组中查找 target，若存在返回其下标，否则返回 -1 。要求时间复杂度 O(log n) 。 LC 69 x 的平方根 ：给定一个非负整数 x ，计算并返回 x 的 算术平方根 ，结果 只保留","image":"https://zhoujungis.github.io/photos/lc-704-69-cover.png","datePublished":"2026-09-29T17:13:27.492652+08:00","dateModified":"2026-09-29T17:13:27.492686+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-704-69-binary-search-and-sqrt/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 704/69】二分查找 &amp; x 的平方根：一个命中就返回，一个成立还向右</h1><div class="ns-meta">2026/9/29 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 704 二分查找</strong>：给定一个 <code>n</code> 个元素<strong>有序（升序）</strong>的整型数组 <code>nums</code> 和一个目标值 <code>target</code>，在数组中查找 target，若存在返回其下标，否则返回 <code>-1</code>。要求时间复杂度 <code>O(log n)</code>。
+<div class="codehilite"><pre><span></span><code>输入: nums = [-1,0,3,5,9,12], target = 9
+输出: 4
+
+输入: nums = [-1,0,3,5,9,12], target = 2
+输出: -1
+</code></pre></div>
+
+
+<strong>LC 69 x 的平方根</strong>：给定一个非负整数 <code>x</code>，计算并返回 <code>x</code> 的<strong>算术平方根</strong>，结果<strong>只保留整数部分</strong>（即向下取整，<code>⌊√x⌋</code>）。可用二分或牛顿法。
+<div class="codehilite"><pre><span></span><code>输入: x = 8
+输出: 2   （√8 ≈ 2.828，小数部分舍去）
+
+输入: x = 16
+输出: 4
+</code></pre></div>
+
+
+两道题是二分查找的"课内与课外"：704 是<strong>标准形态</strong> —— 在真实数组里找特定值；69 是<strong>毕业形态</strong> —— 数组根本不存在，"有序数组"是你自己构造的整数区间，要找的也不是某个值，而是一条<strong>谓词边界</strong>。把 69 写对，说明二分真的学会了。
+<ul>
+<li><a href="#section-1">一、LC 704 核心洞察：二分是维持区间不变量的艺术</a></li>
+<li><a href="#section-2">二、LC 69 核心洞察：答案不在数组里，在谓词的边界上</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体与同族题</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、LC 704 核心洞察：二分是维持区间不变量的艺术</h2>
+
+大多数人对二分的记忆是"取中间比较一下"——这是表象。二分的本质是一条<strong>不变量</strong>：
+<blockquote>
+
+<strong>若 target 在数组里，它的下标永远落在闭区间 <code>[left, right]</code> 内。</strong>
+</blockquote>
+
+开局区间是整段 <code>[0, n-1]</code>。每一轮探中点 <code>mid</code>，三种结局：
+<ul>
+<li><code>nums[mid] == target</code>：结案，返回 <code>mid</code>；</li>
+<li><code>nums[mid] &lt; target</code>：升序数组里 <code>mid</code> <strong>左边（含 mid）</strong>全部比 target 小 —— 整段排除，<code>left = mid + 1</code>；</li>
+<li><code>nums[mid] &gt; target</code>：<code>mid</code> <strong>右边（含 mid）</strong>全部比 target 大 —— 整段排除，<code>right = mid - 1</code>。</li>
+</ul>
+
+每轮排除一半，而不变量<strong>一次都不被违反</strong>（被排除的那一半里绝不可能有答案）。当区间空了（<code>left &gt; right</code>），不变量的逆否命题直接给出结论：target 不在数组里，返回 <code>-1</code>。
+
+所以整个算法只有三条铁律，且它们<strong>都源自"闭区间 <code>[left, right]</code>"这一个约定</strong> —— 换约定就得整套换（左闭右开的 <code>[left, right)</code> 版本是 <code>while (left &lt; right)</code> + <code>right = mid</code>，两派混用正是二分出错的根源）：
+<ol>
+<li><code>while (left &lt;= right)</code> —— 闭区间为空的条件恰好是 <code>left === right + 1</code>；</li>
+<li><code>mid = left + ((right - left) &gt;&gt; 1)</code> —— 在 Java/C++ 里 <code>(left + right)</code> 会爆 <code>int</code>；</li>
+<li><code>left = mid + 1</code> / <code>right = mid - 1</code> —— <code>mid</code> <strong>已经检查过</strong>，不能带着它继续。</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>                      <span class="c1"># 闭区间非空</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="n">left</span> <span class="o">+</span> <span class="p">((</span><span class="n">right</span> <span class="o">-</span> <span class="n">left</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">1</span><span class="p">)</span>    <span class="c1"># 防爆 int</span>
+        <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">mid</span><span class="p">]</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">mid</span>
+        <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">mid</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>                    <span class="c1"># mid 检查过，跳过</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+
+八行代码，三个细节全是考点。记住：<strong>你不是在"折半查找"，你是在"每轮扔掉一半嫌疑、且绝不误伤嫌疑人"</strong>。
+<h2>二、LC 69 核心洞察：答案不在数组里，在谓词的边界上</h2>
+
+69 没有数组。但定义一个谓词：
+<blockquote>
+
+<code>P(k) := (k * k &lt;= x)</code>，<code>k</code> 在整数区间 <code>[0, x]</code> 上。
+</blockquote>
+
+<code>k</code> 越大 <code>k²</code> 越大，所以 <code>P</code> 在整条区间上<strong>必然"前真后假"</strong>：
+<div class="codehilite"><pre><span></span><code>k:      0    1    2    3    4   ...   x
+P(k):   T    T    T    F    F   ...   F     （x=8 时：T T T F F ... F）
+</code></pre></div>
+
+
+"算术平方根的整数部分"是什么？就是<strong>最后一个 <code>true</code> 的下标</strong>。于是 704 的模板一步不改地搬过来 —— 把 <code>nums[mid]</code> 换成 <code>P(mid)</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mySqrt</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">,</span> <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">lo</span> <span class="o">&lt;=</span> <span class="n">hi</span><span class="p">:</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="n">lo</span> <span class="o">+</span> <span class="p">((</span><span class="n">hi</span> <span class="o">-</span> <span class="n">lo</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mid</span> <span class="o">*</span> <span class="n">mid</span> <span class="o">&lt;=</span> <span class="n">x</span><span class="p">:</span>      <span class="c1"># 谓词成立</span>
+            <span class="n">ans</span> <span class="o">=</span> <span class="n">mid</span>           <span class="c1"># 记下候选</span>
+            <span class="n">lo</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>        <span class="c1"># 但不停手，继续向右找更大的真</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">hi</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+和 704 的<strong>唯一动作之差</strong>，正是"找特定值"与"找边界"的分岔口：
+<table>
+<thead>
+<tr>
+<th></th>
+<th>704 命中二分</th>
+<th>69 边界二分</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>比较成立时</td>
+<td><code>return mid</code> <strong>当场收工</strong></td>
+<td><code>ans = mid; lo = mid + 1</code> <strong>记候选再向右</strong></td>
+</tr>
+<tr>
+<td>结束时机</td>
+<td>命中即结束</td>
+<td>区间<strong>空了</strong>才结束</td>
+</tr>
+<tr>
+<td>答案</td>
+<td>命中的 <code>mid</code></td>
+<td>最后一个记下的 <code>ans</code></td>
+</tr>
+</tbody>
+</table>
+
+区间空时还有一条免费的性质：<code>ans === hi === lo - 1</code> —— <strong><code>hi</code> 恰好停在最后一个真上</strong>（单测把这条逐帧钉死）。这正是"红蓝边界"视角：二分结束时，<code>lo</code> 是第一个假、<code>hi</code> 是最后一个真，答案就在两指针的裂缝里。
+
+这套"<strong>答案二分</strong>"（对答案空间做二分）是 69 真正的考点：答案不必在某个现成数组里，只要你能构造一个<strong>单调谓词</strong>，<code>[最小可能值, 最大可能值]</code> 就是你的数组。LC 875（珂珂吃香蕉）、LC 1011（包裹运力）、LC 278（第一个错误版本）全是这一句话的换皮。
+
+<strong>另一条路：牛顿法</strong>。求 <code>k² = x</code> 的切线迭代 <code>k ← (k + x/k) / 2</code>，整数版：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mySqrt_newton</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">x</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">x</span>
+    <span class="k">while</span> <span class="n">k</span> <span class="o">*</span> <span class="n">k</span> <span class="o">&gt;</span> <span class="n">x</span><span class="p">:</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="n">x</span> <span class="o">//</span> <span class="n">k</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>   <span class="c1"># 向 √x 二次收敛</span>
+    <span class="k">return</span> <span class="n">k</span>
+</code></pre></div>
+
+
+<code>x = 8</code>：<code>8 → 4 → 3 → 2</code>，三步到位。牛顿法是<strong>二次收敛</strong> —— 每迭代一次有效位数翻倍，从 <code>x ≈ 2³¹</code> 出发五六步就到底，理论更快；但面试写它的人不到一成，且"为什么整除版收敛到的是 <code>⌊√x⌋</code> 而不是 <code>⌈√x⌉</code>"需要额外论证。二分版胜在每一步都走在第一节的模板上，<strong>写不错</strong>。
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc704"></div>
+
+<div class="algo-viz algo-viz--lc69"></div>
+
+
+<strong>704 动画</strong>（<code>algo-viz--lc704</code>）：顶部是有序数组格子行 —— 窗口 <code>[left, right]</code> 内正常、窗口外整段变灰（被排除的嫌疑区）、<code>mid</code> 金框，<code>mid</code> 指针在上方、<code>left</code>/<code>right</code> 指针在下方；中部是比较横幅（<code>nums[mid] ? target → 边界怎么动、排除几个</code>）；底部面板实时显示区间大小与<strong>累计排除数</strong> —— 看着"已排除"一帧砍一半，<code>O(log n)</code> 就不再是口号。默认 12 个元素找 <code>31</code>：4 探命中下标 9。
+
+<strong>69 动画</strong>（<code>algo-viz--lc69</code>）：顶部格子行是候选区间 <code>0..x</code>，每格上排 <code>k</code>、下排 <code>k²</code> —— <strong>满足 <code>k² ≤ x</code> 的格子淡绿、不满足的灰</strong>，"前真后假"一眼可见，边界就站在绿灰交界处；<code>mid</code> 金框、当前候选 <code>ans</code> 绿框、区间外虚线。中部横幅给出谓词判断与动作（"记 ans，继续向右" vs "hi 左移"）。默认 <code>x = 8</code>：4 探后 <code>ans = 2</code>。
+
+两个动画共用同一套闭区间三件套，看完 704 再看 69，注意<strong>只有"成立时"的动作不同</strong>。
+<h2>四、完整推演表</h2>
+
+<strong>704</strong>：<code>nums = [-1, 0, 3, 5, 9, 12, 15, 20, 26, 31, 38, 44]</code>，<code>target = 31</code>（与动画默认一致）。
+<table>
+<thead>
+<tr>
+<th>探</th>
+<th>left</th>
+<th>right</th>
+<th>mid</th>
+<th>nums[mid]</th>
+<th>比较</th>
+<th>动作</th>
+<th>排除</th>
+<th>剩余区间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>11</td>
+<td>5</td>
+<td>12</td>
+<td>12 &lt; 31</td>
+<td>left = 6</td>
+<td>6 个</td>
+<td>[6, 11]</td>
+</tr>
+<tr>
+<td>2</td>
+<td>6</td>
+<td>11</td>
+<td>8</td>
+<td>26</td>
+<td>26 &lt; 31</td>
+<td>left = 9</td>
+<td>3 个</td>
+<td>[9, 11]</td>
+</tr>
+<tr>
+<td>3</td>
+<td>9</td>
+<td>11</td>
+<td>10</td>
+<td>38</td>
+<td>38 &gt; 31</td>
+<td>right = 9</td>
+<td>2 个</td>
+<td>[9, 9]</td>
+</tr>
+<tr>
+<td>4</td>
+<td>9</td>
+<td>9</td>
+<td>9</td>
+<td>31</td>
+<td>命中</td>
+<td>return 9</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+
+12 → 6 → 3 → 1 → 命中：每探一次嫌疑减半，第 3 探是全程唯一一次"向右砍"。对比 miss 情形 <code>target = 27</code>：第 3 探变 <code>right = 9</code>，第 4 探 <code>nums[9] = 31 &gt; 27</code> 变 <code>right = 8</code>，此时 <code>left = 9 &gt; right = 8</code> 区间空，返回 -1 —— <strong>交叉那一刻就是 -1 的证明</strong>。
+
+<strong>69</strong>：<code>x = 8</code>（谓词序列 <code>T T T F F F F F F</code>，边界在 2/3 之间）。
+<table>
+<thead>
+<tr>
+<th>探</th>
+<th>lo</th>
+<th>hi</th>
+<th>mid</th>
+<th>mid²</th>
+<th>P = mid² ≤ 8</th>
+<th>动作</th>
+<th>ans</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>8</td>
+<td>4</td>
+<td>16</td>
+<td>假</td>
+<td>hi = 3</td>
+<td>0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0</td>
+<td>3</td>
+<td>1</td>
+<td>1</td>
+<td>真</td>
+<td>ans=1，lo = 2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>3</td>
+<td>2</td>
+<td>4</td>
+<td>真</td>
+<td>ans=2，lo = 3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>9</td>
+<td>假</td>
+<td>hi = 2</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+
+<code>lo = 3 &gt; hi = 2</code> 区间空 → 返回 <code>ans = 2</code>。收工校验：<code>2² = 4 ≤ 8</code> 且 <code>3² = 9 &gt; 8</code> —— 2 确实是最后一个真。注意第 2、3 探：谓词明明成立却<strong>不收工</strong>，这就是边界二分与命中二分的指纹差异。
+
+<strong>牛顿法</strong>（<code>x = 8</code>）：<code>k = 8 → (8+1)/2 = 4 → (4+2)/2 = 3 → (3+2)/2 = 2</code>，<code>2² = 4 ≤ 8</code> 停，返回 2。
+<h2>五、变体与同族题</h2>
+<ul>
+<li><strong>LC 35 搜索插入位置</strong>：704 删掉 <code>return mid</code> 那行，循环结束 <code>return left</code> —— miss 时 <code>left</code> 恰是第一个 <code>≥ target</code> 的位置，即插入点。一行改动，边界二分雏形。</li>
+<li><strong>LC 34 在排序数组中查找元素的第一个和最后一个位置</strong>：对"≥ target"和"≤ target"各跑一次边界二分。找边界才是二分的最大用武之地。</li>
+<li><strong>LC 744 寻找比目标字母大的最小字母</strong>：同上，谓词 <code>c &gt; target</code>。</li>
+<li><strong>LC 278 第一个坏版本 / LC 374 猜数字大小</strong>：答案二分官方演示 —— 数组不存在，谓词（<code>isBadVersion</code> / 大小比较）由系统提供。</li>
+<li><strong>LC 875 珂珂吃香蕉 / LC 1011 在 D 天内送达包裹</strong>：答案二分进阶 —— 谓词要自己<strong>内层模拟</strong>算出来（速度 k 够不够快？运力 k 够不够用？），单调性一旦看破，剩下的就是 704 模板。</li>
+<li><strong>LC 367 有效的完全平方数</strong>：与 69 同形，把 <code>≤</code> 换成"是否存在恰好"。</li>
+<li><strong>LC 162 寻找峰值 / LC 153 旋转数组最小数字</strong>：<strong>非全序二分</strong> —— 没有 target 可比，但 <code>nums[mid]</code> 与邻居的关系足以判断"答案在哪半边"，不变量思想原样保留。</li>
+<li><strong>LC 240 搜索二维矩阵 II</strong>：从右上角出发的阶梯二分，每步排除一行或一列。</li>
+</ul>
+
+一句话谱系：704 是识字课，35/34 是造句，278/875/1011 是作文，162/153 是阅读理解。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 704</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">((</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">   </span><span class="c1">// 防 (left+right) 爆 int</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 69：long 版 —— 与推演表逐帧一致</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">mySqrt</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">((</span><span class="n">hi</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">lo</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="kt">long</span><span class="p">)</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">   </span><span class="c1">// 关键：mid*mid 先升 long 再比</span>
+<span class="w">                </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
+<span class="w">                </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+不想升 <code>long</code> 就把乘法改除法：<code>mid &lt;= x / mid</code>（整数除法下与 <code>mid² &lt;= x</code> 等价）—— 但记得 <code>mid == 0</code> 时 <code>x / mid</code> 除零，需先 <code>if (x &lt; 2) return x;</code> 再令 <code>lo = 1</code>。
+<h2>七、边界情况</h2>
+
+<strong>704</strong>：
+<ul>
+<li>空数组：<code>left = 0, right = -1</code>，循环一次不进，返回 -1 —— 闭区间写法天然免疫；</li>
+<li>单元素命中 / 未命中：<code>[-1]</code> 找 <code>-1</code> 返回 0；找 <code>0</code> 则一探后 <code>right = -1</code> 交叉返回 -1；</li>
+<li>target 比所有元素都小 / 都大：全程单边收缩，<code>log₂n + 1</code> 探封顶；</li>
+<li><strong>有重复元素</strong>：704 保证无重复；若有重复，本模板返回的是"碰巧命中的那个"，不保证最左最右 —— 那是 LC 34 的事。</li>
+</ul>
+
+<strong>69</strong>：
+<ul>
+<li><code>x = 0</code>：<code>mid = 0</code> 成立记 <code>ans = 0</code>，返回 0；<code>x = 1</code> 同理返回 1；</li>
+<li><code>x = 2³¹-1</code>：<code>mid²</code> 最大在 <code>46340² = 2147395600</code> —— 恰好越过 <code>int</code> 上限 1 个单位，是溢出陷阱的"标准雷区"（<code>2147395599</code> 的答案是 46339，差一个数答案就变）；</li>
+<li>优化：<code>x ≥ 2</code> 时 <code>√x ≤ x/2 + 1</code>，<code>hi</code> 可以从 <code>x</code> 收到 <code>x/2 + 1</code>，少一探。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>704 二分</td>
+<td><code>O(log n)</code> —— 每探区间减半</td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>69 二分</td>
+<td><code>O(log x)</code> —— 区间是 <code>[0, x]</code> 而非数组</td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>69 牛顿</td>
+<td><code>O(log log x)</code>（二次收敛，位数翻倍）</td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>线性扫描（对照）</td>
+<td>704 无序时 <code>O(n)</code>；69 逐个试 <code>O(√x)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+</tbody>
+</table>
+
+注意 69 的 <code>log x</code> 里 <code>x</code> 是<strong>数值</strong>不是长度 —— 输入规模是 <code>log x</code> 个比特，所以严格说这是伪多项式；面试点到为止即可。
+<h2>九、常见坑</h2>
+<ol>
+<li><strong><code>while (left &lt;= right)</code> 写成 <code>&lt;</code></strong>：闭区间单元素时漏检 —— <code>[-1]</code> 找 <code>-1</code> 返回 -1。约定决定条件，混派必翻车。</li>
+<li><strong><code>left = mid</code> / <code>right = mid</code> 忘了 ±1</strong>：区间不再严格收缩，<code>lo == hi</code> 时原地打转<strong>死循环</strong>。记住不变量测试视角：每一帧区间宽度必须变小。</li>
+<li><strong><code>(left + right) / 2</code> 爆 int</strong>：Java/C++ 里 <code>left + right</code> 可超 <code>2³¹-1</code> 变负数。写 <code>left + ((right - left) &gt;&gt; 1)</code>。JS 无此坑（number 到 2⁵³），但 JS 的 <code>&gt;&gt;</code> 会先转 32 位整数 —— 数组长度超 2³⁰ 时得用 <code>Math.floor</code>。</li>
+<li><strong>69 的 <code>mid * mid</code> 溢出</strong>：<code>x = 2147395599</code> 时 <code>mid = 46340</code>，<code>mid² = 2147395600 &gt; 2³¹-1</code>，Java <code>int</code> 下变<strong>负数</strong> → 谓词误判为真 → 答案错成 46340。升 <code>long</code> 或改除法（注意除零）。</li>
+<li><strong>答案二分忘了证单调</strong>：模板照搬的前提是谓词"前真后假"。<code>P(k)</code> 不单调时二分的"排除一半"没有依据 —— 先证单调再动手。</li>
+<li><strong><code>(int) Math.sqrt(x)</code> 一行流</strong>：对 <code>x ≤ 2³¹-1</code> 恰好安全（double 尾数 52 位），但面试官出题就是要你写二分/牛顿；且 <code>x</code> 一旦超过 <code>2⁵³</code>，double 连整数本身都存不准，浮点误差就是真坑。</li>
+<li><strong>牛顿法整除的收敛方向</strong>：<code>(k + x//k) // 2</code> 可能<strong>停在 <code>⌊√x⌋ + 1</code> 再下来</strong>，循环条件必须是 <code>k * k &gt; x</code>（用平方判停），不能数步数。</li>
+</ol>
+<h2>十、面试怎么答</h2>
+
+<strong>704 的三段话</strong>：① 二分的本质是维持不变量"答案若在则恒在 <code>[left, right]</code>"，每轮排除一半且绝不误伤；② 三条铁律配套闭区间约定：<code>while (left &lt;= right)</code>、<code>mid = left + ((right - left) &gt;&gt; 1)</code> 防爆 int、收缩必带 ±1 因为 mid 检查过；③ 区间空（<code>left &gt; right</code>）时返回 -1，其时 <code>left</code> 就是插入位置（LC 35 顺手带走）。
+
+<strong>69 的三段话</strong>：① 构造谓词 <code>P(k) = k² ≤ x</code>，它在 <code>[0, x]</code> 上前真后假，<code>⌊√x⌋</code> 就是最后一个真 —— 这是<strong>答案二分</strong>，数组是自己造的；② 与 704 唯一差异：P(mid) 成立时不返回，记候选 <code>ans = mid</code> 再向右，区间空时 <code>ans</code>（也即 <code>hi</code>）就是答案；③ 溢出对策：<code>mid²</code> 升 long 或 <code>mid &lt;= x / mid</code>（防 <code>mid = 0</code> 除零）。加分项：牛顿法 <code>k ← (k + x/k)/2</code>，二次收敛 <code>O(log log x)</code>。
+
+若追问"为什么 <code>left &lt;= right</code> 而不是 <code>&lt;</code>"：不要背，现场推 —— 闭区间里 <code>left == right</code> 仍是<strong>一个未检查的元素</strong>，用 <code>&lt;</code> 就漏检；两派写法（闭区间 / 左闭右开）各自自洽，<strong>混用</strong>才是事故现场。
+<h2>结语</h2>
+
+这一篇把二分从"技巧"还原成"纪律"：一条不变量、一个约定、三条铁律。704 教你<strong>命中即收工</strong>，69 教你<strong>成立不收工</strong> —— 因为要找的从来不是某个元素，而是真与假的那道边界。边界一旦站稳，35、34、278、875、1011 全是同一句话的复读。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
