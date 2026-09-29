@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 有效 IP 地址由 四个 0-255 的整数 组成，中间用 &#39;.&#39; 分隔，且每个整数 不能有前导零 （ &quot;0&quot; 合法， &quot;01&quot; 非法）。 给定只含数字的字符串 s ，返回 所有 可能的有效 IP 地址，顺序不限。 一、核心洞察：回溯就是递归写的组合枚举 二、拆解：剪枝分两层 三、动画怎么看 四、完整推演表 五、" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-93-restore-ip-addresses/" />
+    <meta property="og:title" content="【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性" />
+    <meta property="og:description" content="题目 有效 IP 地址由 四个 0-255 的整数 组成，中间用 &#39;.&#39; 分隔，且每个整数 不能有前导零 （ &quot;0&quot; 合法， &quot;01&quot; 非法）。 给定只含数字的字符串 s ，返回 所有 可能的有效 IP 地址，顺序不限。 一、核心洞察：回溯就是递归写的组合枚举 二、拆解：剪枝分两层 三、动画怎么看 四、完整推演表 五、" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-93-restore-ip-addresses/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-93-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性" />
+    <meta name="twitter:description" content="题目 有效 IP 地址由 四个 0-255 的整数 组成，中间用 &#39;.&#39; 分隔，且每个整数 不能有前导零 （ &quot;0&quot; 合法， &quot;01&quot; 非法）。 给定只含数字的字符串 s ，返回 所有 可能的有效 IP 地址，顺序不限。 一、核心洞察：回溯就是递归写的组合枚举 二、拆解：剪枝分两层 三、动画怎么看 四、完整推演表 五、" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-93-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-C3a5MFA1.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-29T14:29:54.559934+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性","description":"题目 有效 IP 地址由 四个 0-255 的整数 组成，中间用 '.' 分隔，且每个整数 不能有前导零 （ \"0\" 合法， \"01\" 非法）。 给定只含数字的字符串 s ，返回 所有 可能的有效 IP 地址，顺序不限。 一、核心洞察：回溯就是递归写的组合枚举 二、拆解：剪枝分两层 三、动画怎么看 四、完整推演表 五、","image":"https://zhoujungis.github.io/photos/lc-93-cover.png","datePublished":"2026-09-29T14:29:54.559934+08:00","dateModified":"2026-09-29T14:29:54.559995+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-93-restore-ip-addresses/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性</h1><div class="ns-meta">2026/9/29 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+有效 IP 地址由<strong>四个 0-255 的整数</strong>组成，中间用 <code>'.'</code> 分隔，且每个整数<strong>不能有前导零</strong>（<code>"0"</code> 合法，<code>"01"</code> 非法）。
+
+给定只含数字的字符串 <code>s</code>，返回<strong>所有</strong>可能的有效 IP 地址，顺序不限。
+<div class="codehilite"><pre><span></span><code>输入: s = &quot;25525511135&quot;
+输出: [&quot;255.255.11.135&quot;, &quot;255.255.111.35&quot;]
+
+输入: s = &quot;0000&quot;
+输出: [&quot;0.0.0.0&quot;]
+
+输入: s = &quot;010010&quot;
+输出: [&quot;0.10.0.10&quot;, &quot;0.100.1.0&quot;]    （&quot;01&quot;、&quot;010&quot; 都因前导零非法）
+</code></pre></div>
+
+<ul>
+<li><a href="#section-1">一、核心洞察：回溯就是递归写的组合枚举</a></li>
+<li><a href="#section-2">二、拆解：剪枝分两层</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体：三重循环枚举与同族题</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：回溯就是递归写的组合枚举</h2>
+
+先看清这题（LC 93）的规模：把 <code>s</code> 切成 4 段 = 在 <code>n - 1</code> 个缝隙里<strong>选 3 个切点</strong>。每段 1-3 位，所以 <code>s</code> 长度必须在 <code>[4, 12]</code>，切点组合数最多 <code>C(11, 3) = 165</code> —— <strong>搜索空间天生有界，是个常数</strong>。
+
+所以"回溯"在这里不是性能焦虑，而是组织方式。真正值得设计的是<strong>剪枝分两层</strong>，它们回答两个不同的问题：
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>问题</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>段合法性</strong></td>
+<td>切下来的这一段行不行？</td>
+<td><code>"511" &gt; 255</code> 剪；<code>"01"</code> 前导零剪</td>
+</tr>
+<tr>
+<td><strong>可行性</strong></td>
+<td>这条路往下还走不走得通？</td>
+<td>第一段切 <code>"2"</code>：段本身合法，但剩 10 位装不进 3 段（最多 9 位）—— 整棵子树剪掉</td>
+</tr>
+</tbody>
+</table>
+
+<strong>可行性剪枝是本题效率的关键</strong>，也是最容易漏的：没有它答案照样对（走到底自然失败），但会白搜很多层。第一段切 <code>"2"</code> 这个例子最能说明两层剪枝的区别 —— <code>"2"</code> 是个完全合法的段，错的是"往后看"的可行性。
+<h2>二、拆解：剪枝分两层</h2>
+<h3>2.1 递归结构</h3>
+
+每层切一段：尝试 1 / 2 / 3 位 → 检查 → 合法就带着新段深入，切满 4 段且<strong>恰好用完全部数字</strong>收答案。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">restoreIpAddresses</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">pos</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>                       <span class="c1"># 恰好用完</span>
+                <span class="n">ans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+            <span class="k">return</span>
+        <span class="n">remain_segs</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">seg_len</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">pos</span> <span class="o">+</span> <span class="n">seg_len</span> <span class="o">&gt;</span> <span class="n">n</span><span class="p">:</span>              <span class="c1"># 末尾不够切</span>
+                <span class="k">continue</span>
+            <span class="n">seg</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">pos</span><span class="p">:</span><span class="n">pos</span> <span class="o">+</span> <span class="n">seg_len</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">seg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;0&#39;</span> <span class="ow">and</span> <span class="n">seg_len</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># 层一：前导零</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">seg</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">255</span><span class="p">:</span>                 <span class="c1"># 层一：超出范围</span>
+                <span class="k">continue</span>
+            <span class="n">rest</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">pos</span> <span class="o">-</span> <span class="n">seg_len</span>           <span class="c1"># 层二：可行性</span>
+            <span class="n">segs</span> <span class="o">=</span> <span class="n">remain_segs</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">segs</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">segs</span> <span class="o">&lt;=</span> <span class="n">rest</span> <span class="o">&lt;=</span> <span class="n">segs</span> <span class="o">*</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">dfs</span><span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="n">seg_len</span><span class="p">,</span> <span class="n">path</span> <span class="o">+</span> <span class="p">[</span><span class="n">seg</span><span class="p">])</span>   <span class="c1"># 深入（path + [...] 免手动回溯）</span>
+
+    <span class="k">if</span> <span class="mi">4</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">12</span><span class="p">:</span>
+        <span class="n">dfs</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+<h3>2.2 三个细节</h3>
+<ul>
+<li><strong>第 4 段必须恰好用完</strong>：切完第 4 段还剩数字（或没切到头）都直接判死 —— 4 段要"不多不少"地覆盖整串；</li>
+<li><strong><code>"0"</code> 合法、<code>"0x"</code> 非法</strong>：判断条件是 <code>seg[0] == '0' and seg_len &gt; 1</code>，不是"以 0 开头全剪"；</li>
+<li><strong><code>path + [seg]</code> 免手动回溯</strong>：每次传新列表，天然不用 <code>pop()</code>（代价是多复制，规模小无所谓，见坑 4 的另一种写法）。</li>
+</ul>
+<div class="algo-viz algo-viz--lc93"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画是一行字符格子 + 分隔标记：
+<ul>
+<li><strong>已切好的段</strong>之间画<strong>橙色实竖线</strong>（分隔点就是你插的 <code>'.'</code>）；</li>
+<li><strong>try 帧</strong>：当前尝试的段区间 —— 合法（ok）淡金 + 深入；被剪则<strong>灰虚格</strong>，横幅给出剪枝原因（<code>前导零</code> / <code>511 &gt; 255</code> / <code>长度不可行</code>），暂定分隔画灰虚线；</li>
+<li><strong>answer 帧</strong>：第 4 段恰好用完全部数字，answers 区亮出新答案；</li>
+<li>回溯是隐式的：一条分支试完 1/2/3 位后，竖线退回去，换上一层的下一条分支。</li>
+</ul>
+
+主例 <code>"25525511135"</code> 一共 21 次尝试收 2 个答案 —— 注意开场第一刀 <code>try "2"</code>：段完全合法，却被<strong>可行性</strong>剪掉（剩 10 位 &gt; 3 段 × 3 位），这就是两层剪枝里的第二层。
+<h2>四、完整推演表</h2>
+
+以 <code>"25525511135"</code> 为主例（11 位，切第 1 段起）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>path</th>
+<th>try</th>
+<th>verdict</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>[]</td>
+<td><code>"2"</code></td>
+<td>length</td>
+<td>段合法，但剩余 10 位 &gt; 3 段 × 3 位 —— <strong>可行性剪枝</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>[]</td>
+<td><code>"25"</code></td>
+<td>ok</td>
+<td>剩 9 位恰好 = 3 段 × 3 位上限，深入</td>
+</tr>
+<tr>
+<td>3-5</td>
+<td>[25]</td>
+<td><code>"5"</code> / <code>"52"</code> / <code>"525"</code></td>
+<td>length / length / range</td>
+<td>5 剩 8 位 &gt; 6；52 同理；525 &gt; 255 —— 该分支全灭</td>
+</tr>
+<tr>
+<td>6</td>
+<td>[]</td>
+<td><code>"255"</code></td>
+<td>ok</td>
+<td></td>
+</tr>
+<tr>
+<td>7-12</td>
+<td>[255]</td>
+<td><code>"2"</code> / <code>"25"</code> / <code>"255"</code>，[255,25] 下 <code>"5"</code> / <code>"51"</code> / <code>"511"</code></td>
+<td>length×2, ok, length×2, range</td>
+<td>[255,25] 分支全灭（511 &gt; 255）</td>
+</tr>
+<tr>
+<td>13-15</td>
+<td>[255,255]</td>
+<td><code>"1"</code> / <code>"11"</code> / <code>"135"</code></td>
+<td>length / ok / <strong>answer</strong></td>
+<td>第 4 段 <code>"1"</code> <code>"13"</code> 切完剩数字没用完 —— 第 4 段必须恰好用完</td>
+</tr>
+<tr>
+<td>16-18</td>
+<td>[255,255]</td>
+<td><code>"111"</code> → [255,255,111] 下 <code>"3"</code> / <code>"35"</code></td>
+<td>ok, length, <strong>answer</strong></td>
+<td>第二个答案</td>
+</tr>
+<tr>
+<td>done</td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>2 个答案</strong></td>
+</tr>
+</tbody>
+</table>
+
+对照前导零例子 <code>"010010"</code>：第一段只能切 <code>"0"</code>（合法单零），后面 <code>"01"</code>、<code>"010"</code> 全被前导零剪 —— 最终只有 <code>["0.10.0.10", "0.100.1.0"]</code>。
+<h2>五、变体：三重循环枚举与同族题</h2>
+<h3>5.1 不写回溯：三重循环枚举切点</h3>
+
+既然只是"选 3 个切点"，三重循环也能写：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">restoreIpAddresses</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">res</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mi">4</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">12</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">res</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">4</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">4</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="o">&gt;=</span> <span class="n">n</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">parts</span> <span class="o">=</span> <span class="p">(</span><span class="n">s</span><span class="p">[:</span><span class="n">i</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="n">j</span><span class="p">:</span><span class="n">k</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="n">k</span><span class="p">:])</span>
+                <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">valid</span><span class="p">(</span><span class="n">seg</span><span class="p">)</span> <span class="k">for</span> <span class="n">seg</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">):</span>
+                    <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+
+
+<strong>回溯和枚举循环在这里是同一种东西的两种写法</strong> —— 递归层数固定（4）、每层分支固定（3）时，展开成循环完全等价。什么时候值得写递归回溯？<strong>约束条件是"动态的"时</strong>：段数不定、剪枝依赖前面路径的状态（如 <code>segs</code> 与剩余长度的联动）时，递归结构更清晰。这题两者皆可，面试写回溯（通用模板，追问变体时好扩展）。
+<h3>5.2 同族题</h3>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>共享的骨架</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 131 分割回文串</td>
+<td>同为"切分成段"的回溯：每层试一段，段合法（是回文）才深入；先 DP 预处理回文表</td>
+</tr>
+<tr>
+<td>LC 22 括号生成</td>
+<td>回溯 + 可行性剪枝的经典：左括号没用完才能加左，右多于左才能加右</td>
+</tr>
+<tr>
+<td>LC 17 电话号码字母组合</td>
+<td>纯组合回溯（无剪枝）：每层固定分支数，全遍历</td>
+</tr>
+</tbody>
+</table>
+
+家族口诀：<strong>"每层做一个选择 + 检查合法性 + 递归 + 回溯"是回溯模板的四件套；合法性检查永远分两层 —— 这个选择本身行不行（段），以及这条路往后还有没有戏（可行性）</strong>。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">restoreIpAddresses</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">12</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">dfs</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(),</span><span class="w"> </span><span class="n">ans</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">pos</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ans</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pos</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="n">ans</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">String</span><span class="p">.</span><span class="na">join</span><span class="p">(</span><span class="s">&quot;.&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">));</span>
+<span class="w">        </span><span class="k">return</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">remainSegs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="na">size</span><span class="p">();</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span><span class="w"> </span><span class="n">len</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pos</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">seg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span><span class="w"> </span><span class="n">pos</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">seg</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">       </span><span class="c1">// 前导零</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">seg</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">255</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">           </span><span class="c1">// 超出范围</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">pos</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">len</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">segs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">remainSegs</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">segs</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">rest</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">segs</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">rest</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">segs</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">3</span><span class="p">))</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">  </span><span class="c1">// 可行性</span>
+<span class="w">        </span><span class="n">path</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">seg</span><span class="p">);</span><span class="w">                                       </span><span class="c1">// 手动回溯版</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">pos</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="n">ans</span><span class="p">);</span>
+<span class="w">        </span><span class="n">path</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 版注意 <code>Integer.parseInt(seg)</code> 安全 —— <code>seg</code> 最多 3 位；<code>path</code> 是共享列表，<strong>必须手动 <code>remove</code> 回溯</strong>（Python 例子里 <code>path + [seg]</code> 传新列表的写法在 Java 里对应每次 new，代价更大，惯用 add/remove）。
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>考察点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"0000"</code></td>
+<td><code>["0.0.0.0"]</code></td>
+<td>单段 <code>"0"</code> 合法</td>
+</tr>
+<tr>
+<td><code>"010010"</code></td>
+<td><code>["0.10.0.10", "0.100.1.0"]</code></td>
+<td>前导零剪枝</td>
+</tr>
+<tr>
+<td><code>"255255255255"</code></td>
+<td><code>["255.255.255.255"]</code></td>
+<td>每段顶满 255</td>
+</tr>
+<tr>
+<td><code>"1111"</code></td>
+<td><code>["1.1.1.1"]</code></td>
+<td>长度恰为 4，唯一切法</td>
+</tr>
+<tr>
+<td><code>"123"</code> / 13 位串</td>
+<td><code>[]</code></td>
+<td>长度不在 [4, 12]，直接无解</td>
+</tr>
+<tr>
+<td><code>"101023"</code></td>
+<td>5 个答案</td>
+<td>官方例，全树分支较多</td>
+</tr>
+</tbody>
+</table>
+<h2>八、复杂度</h2>
+<ul>
+<li><strong>时间 O(C(n-1, 3) × n) = O(1)</strong>：切点组合最多 165 个，每个验证拼串 O(n)，<code>n ≤ 12</code> —— 整题是<strong>常数级</strong>的（输入本身有界）。</li>
+<li><strong>空间 O(4)</strong>：递归深度固定 4 层，path 最多 4 段；答案列表不算额外空间。</li>
+</ul>
+
+这也是本题和"一般回溯题"的本质区别：一般回溯的复杂度是指数，这题因为 IP 格式天生有界，<strong>剪枝的作用是"少走几十条路"，而不是"把指数降下来"</strong>。
+<h2>九、常见坑</h2>
+<h3>9.1 前导零一刀切</h3>
+
+把"以 0 开头"全剪了，连 <code>"0"</code> 一起杀 —— <code>"0000"</code> → <code>["0.0.0.0"]</code> 会空手而归。正确条件：<code>seg[0] == '0' and len &gt; 1</code>。单段 <code>"0"</code> 是完全合法的整数。
+<h3>9.2 第 4 段不要求"恰好用完"</h3>
+
+切满 4 段就 join 收答案 —— 但第 4 段后面的数字被无声丢掉，<code>"25525511135"</code> 会多出 <code>"255.255.11.13"</code> 这种假答案（剩个 <code>"5"</code> 没进任何段）。第 4 段就是<strong>剩余的全部数字</strong>：要么恰好构成合法段收答案，要么整条路作废。
+<h3>9.3 用 int() 转换前不防"空段"</h3>
+
+<code>int('')</code> 直接抛异常。切点循环边界写错（如 <code>k &lt;= n</code> 而不是 <code>k &lt; n</code>）会产生空段。防御次序：先判长度够不够切，再取段、再验值。
+<h3>9.4 共享 path 忘了回溯（或复制过度）</h3>
+
+Java/C++ 里 <code>path</code> 传引用，深入前 <code>add</code>、返回后必须 <code>remove</code>；漏了 remove 会让已收答案被后续分支污染。Python 用 <code>path + [seg]</code> 传新列表可免 pop，但要明白这是"复制换安全"。
+<h3>9.5 漏掉可行性剪枝（不算 bug，但丢分）</h3>
+
+没有可行性检查答案也对，只是白搜 —— 面试官会追问"还能怎么优化"，可行性剪枝（剩余位数 ∈ [segs, segs × 3]）就是标准答案之一。它在<strong>段合法但整条路走不通</strong>时发挥作用（如第一段 <code>"2"</code>），这是段级检查覆盖不到的。
+<h3>9.6 忘了长度域 [4, 12] 的提前拒绝</h3>
+
+长度 13、长度 3 的输入直接返回空，不必进搜索。写在入口处一行，既是效率也是表达："这个输入在结构上就不可能"。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>一句话定性</strong>："选 3 个切点，每段 1-3 位 —— 搜索空间 C(n-1, 3) ≤ 165，回溯模板四件套。"</li>
+<li><strong>先报剪枝分层</strong>："段合法性（前导零、&gt;255）+ 可行性（剩余位数 ∈ [segs, segs × 3]）—— 第二层常被漏，它管的是'段合法但整条路走不通'。"</li>
+<li><strong>主动提两个特判</strong>："第 4 段必须恰好用完全部数字；<code>"0"</code> 合法、<code>"0x"</code> 非法。"</li>
+<li><strong>对照枚举循环</strong>："层数和分支都固定，三重循环展开等价；回溯胜在模板通用。"</li>
+<li><strong>复杂度</strong>：常数级（输入 ≤ 12 位），递归深度 4。</li>
+<li><strong>追问准备</strong>：LC 131（段合法性换成"是回文"）、LC 22（可行性剪枝的经典）—— 都是同一个模板换检查条件。</li>
+</ol>
+<h2>结语</h2>
+
+复原 IP 地址是回溯入门的标准样本：规模被格式钉死（4 段 × 3 位），模板四件套清晰可见，而真正的思考量在<strong>剪枝的分层</strong> —— "这一段行不行"与"这条路有没有戏"是两个独立的问题，混在一起写要么漏剪要么剪错。把这两层分开，同族的分割题、组合题都是换汤不换药。</div></div></noscript>
+  </body>
+</html>
