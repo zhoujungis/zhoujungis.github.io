@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是&quot;给栈加约束&quot;：栈天生只能看栈顶、只能后进先" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/" />
+    <meta property="og:title" content="【LC 155/232】最小栈 &amp; 用栈实现队列：一个记住历史，一个再翻一次" />
+    <meta property="og:description" content="题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是&quot;给栈加约束&quot;：栈天生只能看栈顶、只能后进先" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-155-232-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 155/232】最小栈 &amp; 用栈实现队列：一个记住历史，一个再翻一次" />
+    <meta name="twitter:description" content="题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是&quot;给栈加约束&quot;：栈天生只能看栈顶、只能后进先" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-155-232-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 155/232】最小栈 &amp; 用栈实现队列：一个记住历史，一个再翻一次 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BTvMygqy.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-29T16:05:51.502877+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 155/232】最小栈 & 用栈实现队列：一个记住历史，一个再翻一次","description":"题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是\"给栈加约束\"：栈天生只能看栈顶、只能后进先","image":"https://zhoujungis.github.io/photos/lc-155-232-cover.png","datePublished":"2026-09-29T16:05:51.502877+08:00","dateModified":"2026-09-29T16:05:51.502908+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 155/232】最小栈 &amp; 用栈实现队列：一个记住历史，一个再翻一次</h1><div class="ns-meta">2026/9/29 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 155 最小栈</strong>：设计一个栈，支持 <code>push</code>、<code>pop</code>、<code>top</code>，并能在 <code>O(1)</code> 时间内取到栈内最小元素 <code>getMin</code>。
+<div class="codehilite"><pre><span></span><code>输入: push(-2), push(0), push(-3), getMin(), pop(), top(), getMin()
+输出:                getMin → -3
+                     top    → 0
+                     getMin → -2
+</code></pre></div>
+
+
+<strong>LC 232 用栈实现队列</strong>：只用两个栈，实现先进先出的队列，支持 <code>push</code>、<code>pop</code>、<code>peek</code>、<code>empty</code>。
+<div class="codehilite"><pre><span></span><code>输入: push(1), push(2), push(3), pop(), peek(), pop()
+输出: pop → 1, peek → 2, pop → 2
+</code></pre></div>
+
+
+两题都是"给栈加约束"：栈天生只能看栈顶、只能后进先出，
+155 却要求<strong>知道整摞的最小值</strong>（而且是 pop 之后的旧最小值），
+232 却要求<strong>先进先出</strong>。一个要栈记住历史，一个要栈把顺序反过来。
+<ul>
+<li><a href="#section-1">一、LC 155 核心洞察：最小值是"历史"，必须按层存</a></li>
+<li><a href="#section-2">二、LC 232 核心洞察：两次反转等于正序</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体与同族题</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、LC 155 核心洞察：最小值是"历史"，必须按层存</h2>
+
+先看约束卡在哪：<code>getMin</code> 要 <code>O(1)</code>，可栈只能看到栈顶 —— 最小值埋在任意一层，每次现扫主栈是 <code>O(n)</code>，不合格。
+
+真正难的不是"现在的最小值"，而是 <strong>pop 之后</strong>：<code>push(-2), push(0), push(-3)</code> 之后 <code>getMin</code> 是 <code>-3</code>；<code>pop</code> 掉 <code>-3</code>，<code>getMin</code> 要回到 <code>-2</code>。<code>-2</code> 是<strong>过去</strong>的最小值 —— 栈弹掉一个元素，等于时间倒流，旧答案必须<strong>本来就存着</strong>，不可能现场算出来还不扫描。
+
+所以结论很直接：<strong>最小值不是"当前状态"，是"历史"，要按层存</strong>。开一个<strong>辅助栈</strong> <code>mins</code>，与主栈同步：主栈每压入一个元素 <code>x</code>，辅助栈就记下"<code>x</code> 入栈这一刻，全栈的最小值"。于是：
+<ul>
+<li><strong>辅助栈顶恒等于全栈最小值</strong>（不变量）—— <code>getMin</code> 就是 <code>O(1)</code> 读辅助栈顶；</li>
+<li><strong>pop 时两栈一起弹</strong> —— 旧的最小值自动恢复，这就是"按层存"的意义。</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">MinStack</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mins</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="c1"># 判据是 &lt;=（相等也压），见 9.1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">mins</span> <span class="ow">or</span> <span class="n">x</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mins</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mins</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">main</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">mins</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>      <span class="c1"># 弹的是当前最小值 → 同步弹</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mins</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">top</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">main</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">getMin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mins</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>        <span class="c1"># O(1)：读历史栈顶</span>
+</code></pre></div>
+
+
+两个细节：
+<ul>
+<li>辅助栈<strong>不是每层都压</strong>：<code>push(0)</code> 时 <code>0 &gt; -2</code>，最小值没变，辅助栈留空档 —— 它存的是"<strong>变小的那一刻</strong>"，是主栈最小值的<strong>抽样历史</strong>；</li>
+<li>pop 的同步判据是 <code>x == self.mins[-1]</code>：只有弹掉的正好是当前最小值，辅助栈才跟着弹，否则最小值根本没动。</li>
+</ul>
+
+等价的省栈写法：每个栈帧直接存二元组 <code>(值, 入栈时的最小值)</code>，一个栈搞定，代价是每层都记（辅助栈只记变化点，通常更省）。两种写法面试都认，讲清"按层存"的思想即可。
+<h2>二、LC 232 核心洞察：两次反转等于正序</h2>
+
+栈是 LIFO，队列要 FIFO，方向正好相反。但"相反"这件事，<strong>翻两次就是原样</strong>：
+<ul>
+<li>元素进 <code>in</code> 栈，被倒一次 —— 后来的压在先来的上面；</li>
+<li>把 <code>in</code> <strong>整摞</strong>翻进 <code>out</code> 栈，再倒一次 —— 最早来的反而沉到 <code>out</code> 顶。</li>
+</ul>
+
+<code>out</code> 顶就是队首。<code>pop</code> / <code>peek</code> 只动 <code>out</code>，方向就对了。
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">MyQueue</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inn</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>          <span class="c1"># O(1)，直接进</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_shift</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">:</span>            <span class="c1"># 钉子一：out 空了才搬</span>
+            <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">inn</span><span class="p">:</span>         <span class="c1"># 钉子二：整摞翻</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inn</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shift</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">peek</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shift</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">inn</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span>
+</code></pre></div>
+
+
+两条钉子缺一不可：
+<ul>
+<li><strong>只在 <code>out</code> 空时搬运</strong>：<code>out</code> 里还有存货，说明有一批更老的元素还没消费完，此时把新元素混进去，<code>out</code> 顶就不是队首了（反例见 9.3）；</li>
+<li><strong>搬运必须整摞翻</strong>：<code>while</code> 搬完。搬一半停手，<code>out</code> 里就是"新的压在旧的上面"，顺序当场坏掉。</li>
+</ul>
+
+均摊 <code>O(1)</code> 的账：每个元素一生至多三次栈操作 —— 进 <code>in</code> 一次、被搬一次、出 <code>out</code> 一次。<code>n</code> 次队列操作总花费 <code>O(n)</code>。单次 <code>pop</code> 最坏 <code>O(n)</code>（恰好触发搬运），但那是把后面 <code>n-1</code> 次的账一次付清。
+<div class="algo-viz algo-viz--lc155"></div>
+
+<div class="algo-viz algo-viz--lc232"></div>
+
+<h2>三、动画怎么看</h2>
+
+<strong>最小栈动画</strong>（<code>algo-viz--lc155</code>）：左列主栈、右列辅助栈，都从底向上画。
+<ul>
+<li>金框 = 本帧新压入；绿框 = 栈顶（可读位置）；橙虚线幽灵 = 本帧弹出的元素（停在原高度，看得见"刚弹掉的历史"）；</li>
+<li>push 帧若同步压了辅助栈，中间画出"同步压入"箭头；<code>push(0)</code> 那帧没有箭头 —— <code>0 &gt; -2</code>，辅助栈留空档；</li>
+<li>pop 帧里 <code>-3</code> 两列同时变幽灵：它入栈时就是最小值，所以同步弹，<code>-2</code> 自动恢复成栈顶；</li>
+<li><code>getMin</code> 帧直接读辅助栈顶，横幅给出返回值 —— 全程不碰主栈。</li>
+</ul>
+
+<strong>双栈队列动画</strong>（<code>algo-viz--lc232</code>）：左列 <code>in</code> 栈（进队），右列 <code>out</code> 栈（出队），底部一行是出队序列。
+<ul>
+<li><code>push</code> 只进 <code>in</code> 顶；<code>out</code> 有存货时新元素乖乖排在后面，绝不搬运；</li>
+<li>第一次 <code>pop</code> 时 <code>out</code> 空了：先一帧"整摞翻！"，随后 <code>3</code>、<code>2</code>、<code>1</code> 逐个从 <code>in</code> 顶弹出（橙虚线）、压入 <code>out</code> 顶（金框）—— 每个元素一生就搬这一次；</li>
+<li>翻完 <code>out</code> 顶是 <code>1</code> —— 最早入队的元素，弹出记入底部出队行；</li>
+<li>之后 <code>push(4)</code> 再 <code>pop</code>：<code>out</code> 里 <code>3</code> 还没消费完，<code>4</code> 不能插队，直接弹 <code>3</code>；<code>out</code> 弹空后下一才轮到 <code>4</code>。</li>
+</ul>
+<h2>四、完整推演表</h2>
+
+<strong>LC 155</strong>（主栈、辅助栈都按"底 → 顶"写）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>操作</th>
+<th>主栈</th>
+<th>辅助栈</th>
+<th>压辅助栈？</th>
+<th>返回</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>push(-2)</code></td>
+<td><code>[-2]</code></td>
+<td><code>[-2]</code></td>
+<td>是（第一个）</td>
+<td>-</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>push(0)</code></td>
+<td><code>[-2, 0]</code></td>
+<td><code>[-2]</code></td>
+<td>否（<code>0 &gt; -2</code>）</td>
+<td>-</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>push(-3)</code></td>
+<td><code>[-2, 0, -3]</code></td>
+<td><code>[-2, -3]</code></td>
+<td>是（<code>-3 &lt;= -2</code>）</td>
+<td>-</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>getMin</code></td>
+<td>同上</td>
+<td>同上</td>
+<td>-</td>
+<td><strong>-3</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>pop</code></td>
+<td><code>[-2, 0]</code></td>
+<td><code>[-2]</code></td>
+<td>-</td>
+<td>弹 <code>-3</code>，同步弹</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>top</code></td>
+<td>同上</td>
+<td>同上</td>
+<td>-</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>getMin</code></td>
+<td>同上</td>
+<td>同上</td>
+<td>-</td>
+<td><strong>-2</strong></td>
+</tr>
+</tbody>
+</table>
+
+注意帧 5：弹掉的 <code>-3</code> 恰好是辅助栈顶 —— 两栈同步弹，<code>-2</code> 恢复。若帧 2 的 <code>0</code> 之后直接 <code>pop</code>，<code>0</code> 不是辅助栈顶，辅助栈纹丝不动。
+
+<strong>LC 232</strong>（<code>in</code> / <code>out</code> 按"底 → 顶"写）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>操作</th>
+<th>in</th>
+<th>out</th>
+<th>出队序列</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>push(1)</code></td>
+<td><code>[1]</code></td>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td>直接进</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>push(2)</code></td>
+<td><code>[1, 2]</code></td>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td>直接进</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>push(3)</code></td>
+<td><code>[1, 2, 3]</code></td>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td>直接进</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>pop</code> 触发</td>
+<td><code>[1, 2, 3]</code></td>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td>out 空 → 搬运</td>
+</tr>
+<tr>
+<td>5</td>
+<td>搬 <code>3</code></td>
+<td><code>[1, 2]</code></td>
+<td><code>[3]</code></td>
+<td><code>[]</code></td>
+<td>in 顶 → out 顶</td>
+</tr>
+<tr>
+<td>6</td>
+<td>搬 <code>2</code></td>
+<td><code>[1]</code></td>
+<td><code>[3, 2]</code></td>
+<td><code>[]</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td>7</td>
+<td>搬 <code>1</code></td>
+<td><code>[]</code></td>
+<td><code>[3, 2, 1]</code></td>
+<td><code>[]</code></td>
+<td>翻完，顶 = 队首</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>pop → 1</code></td>
+<td><code>[]</code></td>
+<td><code>[3, 2]</code></td>
+<td><code>[1]</code></td>
+<td>只动 out</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>peek → 2</code></td>
+<td><code>[]</code></td>
+<td><code>[3, 2]</code></td>
+<td><code>[1]</code></td>
+<td>不弹出</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>pop → 2</code></td>
+<td><code>[]</code></td>
+<td><code>[3]</code></td>
+<td><code>[1, 2]</code></td>
+<td>只动 out</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>push(4)</code></td>
+<td><code>[4]</code></td>
+<td><code>[3]</code></td>
+<td><code>[1, 2]</code></td>
+<td>out 有存货，不搬</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>pop → 3</code></td>
+<td><code>[4]</code></td>
+<td><code>[]</code></td>
+<td><code>[1, 2, 3]</code></td>
+<td>旧的一摞先走完</td>
+</tr>
+<tr>
+<td>13</td>
+<td>搬 <code>4</code></td>
+<td><code>[]</code></td>
+<td><code>[4]</code></td>
+<td><code>[1, 2, 3]</code></td>
+<td>只剩一个也要整摞翻</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>pop → 4</code></td>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+<td><code>[1, 2, 3, 4]</code></td>
+<td>出队 = 入队</td>
+</tr>
+</tbody>
+</table>
+
+帧 11 → 12 是全表最值钱的两行：<code>out</code> 还剩 <code>3</code> 时来了 <code>4</code>，正确做法是<strong>先消费完 <code>3</code></strong> —— 若此时把 <code>4</code> 搬进 <code>out</code>，队首就错了（9.3 的反例）。
+<h2>五、变体与同族题</h2>
+<h3>5.1 LC 155 的变体</h3>
+<ul>
+<li><strong>栈帧存 <code>(值, 当前最小值)</code></strong>：一个栈、每层都记，思路完全一致，代码更短；辅助栈版只记"变小点"，空间通常更省；</li>
+<li><strong>LC 716 最大栈</strong>：再加 <code>peekMax</code> / <code>popMax</code>。<code>popMax</code> 要弹<strong>中间</strong>的元素 —— 辅助栈救不了（它只回答"最大是谁"，不回答"最大在哪个位置"），得把栈顶临时挪开再挪回来；</li>
+<li><strong><code>O(1)</code> 空间的差值编码</strong>：栈里存 <code>x - 2*min</code> 之类的差值、反推出最小值 —— 数学漂亮但极易写错，面试口头提一句即可，手写推荐辅助栈。</li>
+</ul>
+<h3>5.2 LC 232 的变体</h3>
+<ul>
+<li><strong>LC 225 用队列实现栈</strong>：反方向，代价放的位置也不同 —— 232 让 <code>push</code> 便宜（<code>O(1)</code>），把反转成本推迟到 <code>pop</code>；225 只能让 <code>push</code> 付账（入队后把前面一圈轮空，把新元素转到队尾），<code>pop</code> 反而 <code>O(1)</code>。<strong>两个方向不可能都便宜</strong>，这题考的就是谁付账；</li>
+<li><strong>LC 844 比较含退格的字符串</strong>：<code>#</code> 退格 = 栈顶弹出 —— 同款"用栈模拟带撤销的序列"；</li>
+<li><strong>LC 641 设计循环双端队列</strong>：真正要双端时，双栈不够用了，上循环数组。</li>
+</ul>
+<h3>5.3 家族口诀</h3>
+
+<strong>要顺序反过来 —— 再加一个栈（翻两次即正序）；要记住历史 —— 再加一列同步栈（每一刻的答案都按层存好）。</strong> 上一题 LC 20 的括号栈、LC 239 的单调队列，本质也都是这两句话。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">MinStack</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">main</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="p">();</span>
+<span class="w">    </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">mins</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">main</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">mins</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">mins</span><span class="p">.</span><span class="na">peek</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">mins</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">x</span><span class="p">);</span><span class="w">                    </span><span class="c1">// 判据 &lt;=，相等也压</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">pop</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">main</span><span class="p">.</span><span class="na">pop</span><span class="p">().</span><span class="na">equals</span><span class="p">(</span><span class="n">mins</span><span class="p">.</span><span class="na">peek</span><span class="p">()))</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// Integer 比较用 equals</span>
+<span class="w">            </span><span class="n">mins</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">top</span><span class="p">()</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">main</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">getMin</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">mins</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">class</span> <span class="nc">MyQueue</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="p">();</span>
+<span class="w">    </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">x</span><span class="p">);</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">shift</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">out</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w">                 </span><span class="c1">// out 空才搬</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">in</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w">          </span><span class="c1">// 整摞翻</span>
+<span class="w">                </span><span class="n">out</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="na">pop</span><span class="p">());</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">pop</span><span class="p">()</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="n">shift</span><span class="p">();</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">peek</span><span class="p">()</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="n">shift</span><span class="p">();</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 的坑：<code>Deque</code> 的 <code>pop</code> 返回 <code>Integer</code>，比较栈顶是否相等要用 <code>equals</code>（<code>==</code> 在装箱缓存外会翻车，见 9.7）。
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>题目约定</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>155 空栈调 <code>getMin</code> / <code>top</code></td>
+<td>题目保证调用前栈非空</td>
+<td>实现里可不判，面试口头说明</td>
+</tr>
+<tr>
+<td>155 全相等输入（<code>2,2,2</code>）</td>
+<td>辅助栈压三次</td>
+<td><code>&lt;=</code> 判据保证 pop 后仍正确</td>
+</tr>
+<tr>
+<td>155 严格递增输入</td>
+<td>辅助栈只有 1 个</td>
+<td>抽样历史只记了起点</td>
+</tr>
+<tr>
+<td>155 严格递减输入</td>
+<td>辅助栈每层都压</td>
+<td>最坏 <code>O(n)</code> 辅助空间</td>
+</tr>
+<tr>
+<td>232 连续 <code>pop</code> 空队列</td>
+<td>题目保证不空</td>
+<td>判 <code>empty</code> 再调</td>
+</tr>
+<tr>
+<td>232 <code>out</code> 没空就 <code>push</code></td>
+<td>新元素只进 <code>in</code></td>
+<td>绝不搬运（帧 11）</td>
+</tr>
+<tr>
+<td>232 搬运只剩一个元素</td>
+<td>照样整摞翻</td>
+<td>帧 13：<code>[4]</code> 也要走流程</td>
+</tr>
+</tbody>
+</table>
+<h2>八、复杂度</h2>
+
+<strong>LC 155</strong>：<code>push</code> / <code>pop</code> / <code>top</code> / <code>getMin</code> 全 <code>O(1)</code>；空间 <code>O(n)</code> —— 辅助栈最坏（递减输入）与主栈等长，最好（递增输入）只有 1 个。本质是<strong>用空间换"记住历史"</strong>。
+
+<strong>LC 232</strong>：<code>push</code> 最坏 <code>O(1)</code>；<code>pop</code> / <code>peek</code> <strong>均摊 <code>O(1)</code>、单次最坏 <code>O(n)</code></strong>（触发搬运）；空间 <code>O(n)</code>（两栈合计恰好存队列全部元素）。均摊账本：每元素一生至多 3 次栈操作（进 <code>in</code>、搬进 <code>out</code>、出 <code>out</code>），<code>n</code> 次操作总花费 <code>O(n)</code>。
+
+对照暴力做法：155 每次 <code>getMin</code> 扫全栈是 <code>O(n)</code>；232 每次 <code>pop</code> 把 <code>in</code> 翻进 <code>out</code> 再翻回来是 <code>O(n)</code> 单次、<code>O(n²)</code> 总账 —— 双栈的"懒搬运"把总账压回 <code>O(n)</code>。
+<h2>九、常见坑</h2>
+<h3>9.1 辅助栈压入判据写成 <code>&lt;</code></h3>
+
+<code>push(2), push(2), pop</code> 之后，<code>&lt;</code> 版只压过第一个 <code>2</code> —— 弹掉第二个 <code>2</code> 时主栈还有 <code>2</code>，辅助栈却已经空了，<code>getMin</code> 直接崩。<strong>相等也是"这一刻的最小值"</strong>，必须 <code>&lt;=</code> 再压一份。
+<h3>9.2 pop 时无条件弹辅助栈</h3>
+
+只有弹掉的值<strong>等于</strong>当前最小值，辅助栈才跟着弹。<code>push(5), push(3), pop</code> 弹掉 <code>5</code> 时辅助栈顶是 <code>3</code>，跟着弹就把还没发生的最小值提前扔了。先比较再弹。
+<h3>9.3 <code>out</code> 没空就搬运</h3>
+
+反例：<code>push(1), push(2), pop()</code>（搬完得 <code>out=[2]</code>，返回 1），再 <code>push(3)</code>，此时若把 <code>in</code> 搬进 <code>out</code>，<code>out</code> 变成 <code>[2, 3]</code>、顶是 <code>3</code> —— 下次 <code>pop</code> 返回 <code>3</code>，可队首明明是 <code>2</code>。<strong>搬运的前提是 <code>out</code> 已空</strong>，这条没有商量余地。
+<h3>9.4 搬运搬一半</h3>
+
+<code>while (in 非空) out.push(in.pop())</code> 必须一口气搬完整摞。中途停手，<code>out</code> 里出现"新的压在旧的上面"，FIFO 当场失效。
+<h3>9.5 把"均摊 O(1)"说成"每次 O(1)"</h3>
+
+单次 <code>pop</code> 触发搬运时就是 <code>O(n)</code>。面试要主动讲清口径：<strong><code>n</code> 次操作总花费 <code>O(n)</code></strong>，均摊 <code>O(1)</code> —— 这是上一题 LC 239 同款账本。
+<h3>9.6 155 里 pop 之后忘了"恢复过去"的设计初衷</h3>
+
+有人只存"全局最小值"一个变量 —— <code>pop</code> 掉最小值后，旧最小值无从恢复（除非重扫）。这正是"为什么必须按层存"的论证，答这题先答这句。
+<h3>9.7 Java 比较栈顶用 <code>==</code></h3>
+
+<code>Deque.pop()</code> 返回 <code>Integer</code>，<code>==</code> 比较的是引用。装箱缓存只覆盖 <code>-128..127</code>，<code>1000 == 1000</code> 可能为 <code>false</code>。用 <code>equals</code>（或先存进 <code>int</code> 变量拆箱）。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>155 先定性</strong>："最小值是历史，不是当前状态 —— pop 之后要回到过去，所以必须按层存。" 这一句比代码值钱；</li>
+<li><strong>报出不变量</strong>："辅助栈顶恒等于全栈最小值；它存的是最小值的抽样历史，判据 <code>&lt;=</code>，相等也要压"；</li>
+<li><strong>232 先讲"两次反转"</strong>："进 in 倒一次，整摞翻进 out 再倒一次 —— out 顶就是队首"；</li>
+<li><strong>两条钉子</strong>："只在 out 空时搬、必须整摞搬"，并现场给 9.3 的反例证明第一条不可少；</li>
+<li><strong>主动报均摊账本</strong>："每元素一生至多搬一次，n 次操作 O(n) —— 单次最坏 O(n) 是提前付清"；</li>
+<li><strong>被问变体</strong>：225 是反方向（push 付账），716 的 popMax 辅助栈救不了（要弹中间），844 是同款栈模拟。</li>
+</ol>
+<h2>结语</h2>
+
+这两题是栈家族的两块基石：<strong>LC 155 教你"给栈加记忆"</strong>（同步辅助栈按层存历史），<strong>LC 232 教你"给栈换方向"</strong>（双栈两次反转）。往后看，LC 20 的括号匹配是"只跟栈顶对话"，LC 239 的单调队列是"按支配关系淘汰"，LC 42 的单调栈是"按高度排队" —— 全部是这两招的排列组合。把"历史按层存、顺序翻两次"讲清楚，栈这一族题就有了共同的骨架。</div></div></noscript>
+  </body>
+</html>
