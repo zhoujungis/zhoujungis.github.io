@@ -39,6 +39,7 @@ import { mountCompareVersion } from '@/viz/compareVersion'
 import { mountLongestPal } from '@/viz/longestPal'
 import { mountRestoreIp } from '@/viz/restoreIp'
 import { mountBrackets } from '@/viz/brackets'
+import { mountSlidingMax } from '@/viz/slidingMax'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -357,6 +358,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc5': mountLongestPal,
   'algo-viz--lc93': mountRestoreIp,
   'algo-viz--lc20': mountBrackets,
+  'algo-viz--lc239': mountSlidingMax,
 }
 
 let vizHandles = []
