@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/" />
+    <meta property="og:title" content="【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选" />
+    <meta property="og:description" content="题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-239-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选" />
+    <meta name="twitter:description" content="题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-239-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-B3t_EzSb.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-29T15:13:54.674272+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选","description":"题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有\"流式数据 + TopK\"的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变","image":"https://zhoujungis.github.io/photos/lc-239-cover.png","datePublished":"2026-09-29T15:13:54.674272+08:00","dateModified":"2026-09-29T15:13:54.674299+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选</h1><div class="ns-meta">2026/9/29 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+给你一个整数数组 <code>nums</code> 和滑动窗口大小 <code>k</code>。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求<strong>线性时间</strong>。
+<div class="codehilite"><pre><span></span><code>输入: nums = [1,3,-1,-3,5,3,6,7], k = 3
+输出: [3,3,5,5,6,7]
+
+窗口位置                  最大值
+[1  3  -1] -3  5  3  6  7   → 3
+ 1 [3  -1  -3] 5  3  6  7   → 3
+ 1  3 [-1  -3  5] 3  6  7   → 5
+ 1  3  -1 [-3  5  3] 6  7   → 5
+ 1  3  -1  -3 [5  3  6] 7   → 6
+ 1  3  -1  -3  5 [3  6  7]  → 7
+</code></pre></div>
+
+
+字节大数据方向面经原题（还有"流式数据 + TopK"的加码变体）。
+<ul>
+<li><a href="#section-1">一、核心洞察：只留还有机会的候选</a></li>
+<li><a href="#section-2">二、拆解：两个独立的维护动作</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体：堆、块状 DP 与大数据加码</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：只留还有机会的候选</h2>
+
+先看清这题（LC 239）的规模：暴力每窗扫一遍是 <code>O(n·k)</code>，<code>k = n/2</code> 时退化为平方。想线性，就得想办法<strong>不重复比较</strong>。
+
+观察一个例子：窗口滑到 <code>[3, -1]</code> 时，队列里存着 <code>3</code> 和 <code>-1</code>；下一个来了 <code>5</code> —— <code>-1</code> 和 <code>3</code> 还有可能成为未来某个窗口的最大值吗？
+<blockquote>
+
+<strong>不可能。只要 <code>5</code> 还在窗口里，<code>-1</code> 和 <code>3</code> 就永远轮不到</strong> —— <code>5</code> 比它们大，又比它们晚离开窗口（<code>5</code> 出窗时它们早出窗了）。被"又大又晚"的新元素压住，就是<strong>被支配</strong>，可以<strong>永久淘汰</strong>。
+</blockquote>
+
+这就是单调队列的全部思想：<strong>队列里只留"还有机会当最大值"的候选，并按值递减排列</strong> —— 队首自然恒为当前窗口最大。每来一个新元素，把队尾所有被它支配的元素扔掉，自己入队。
+
+淘汰的判据是"不小于"（<code>&lt;=</code>）而不是"小于"：相等的旧元素也留不得 —— 留着不增加信息（值一样），还多占一位。淘汰后队列<strong>严格递减</strong>，这个"严格"后面还有用（见 9.5）。
+<h2>二、拆解：两个独立的维护动作</h2>
+
+每来一个元素 <code>x = nums[i]</code>，只做两件事：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">maxSlidingWindow</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">dq</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>          <span class="c1"># 存下标！对应值严格递减</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+        <span class="c1"># 动作一：队首淘汰（出窗）—— 看下标</span>
+        <span class="k">if</span> <span class="n">dq</span> <span class="ow">and</span> <span class="n">dq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">i</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">dq</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="c1"># 动作二：队尾淘汰（被支配）—— 看值</span>
+        <span class="k">while</span> <span class="n">dq</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">dq</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">&lt;=</span> <span class="n">x</span><span class="p">:</span>
+            <span class="n">dq</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="n">dq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="n">k</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">ans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nums</span><span class="p">[</span><span class="n">dq</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+三个要点：
+<ul>
+<li><strong>队列存下标，不存值</strong>。动作一要判断"这个元素还在不在窗口里"，只有下标能回答（<code>dq[0] &lt; i - k + 1</code>）—— 存值的话这个判断根本没法做。这是本题最经典的实现错误；</li>
+<li><strong>两个动作互相独立</strong>：动作一看<strong>下标</strong>（时间维度：你出窗了吗），动作二看<strong>值</strong>（空间维度：你被支配了吗）。一个从队首出、一个从队尾出，各自循环；</li>
+<li><strong>答案就是队首</strong>。队列严格递减、且所有下标都在窗内 —— 队首必然是最大值，不需要任何额外扫描。</li>
+</ul>
+
+注意动作一用 <code>if</code> 还是 <code>while</code> 都行（每步窗口只左移一位，队首最多过期一个），但动作二必须是 <code>while</code>（可能连续支配多个）。
+<div class="algo-viz algo-viz--lc239"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画四行：
+<ul>
+<li><strong>数组行</strong>：淡金底 = 当前窗口（下方色带标 <code>L</code>/<code>R</code>），当前元素橙框；本帧<strong>被支配</strong>的格子画橙虚线边、值变灰 —— "还在窗里但已经没机会了"；滑出左端的格子灰虚；</li>
+<li><strong>队列行</strong>：单调队列的当前内容（值 + <code>#下标</code> 小字），最左格绿框 = <strong>队首（最大值）</strong>；被支配/出窗的元素不出现在这里 —— 它们已经永久离场；</li>
+<li><strong>答案行</strong>：已收集的窗口最大值，刚记录的一格金色；</li>
+<li><strong>record 帧</strong>：窗口装满 <code>k</code> 个时单独一帧，横幅给出"队首 X 就是这一窗的最大值"。</li>
+</ul>
+
+主例的教科书帧是 <code>i = 4</code>（值 5）：队首 <code>#1(3)</code> 出窗（动作一），队尾 <code>-3</code>、<code>-1</code> 被 5 支配（动作二）—— 一次滑动同时触发两个动作，队列从 3 个元素直接缩成 1 个。
+<h2>四、完整推演表</h2>
+
+以 <code>[1,3,-1,-3,5,3,6,7]</code>、<code>k = 3</code> 为主例：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>i</th>
+<th>值</th>
+<th>窗口</th>
+<th>出窗（队首）</th>
+<th>被支配（队尾）</th>
+<th>队列（值）</th>
+<th>记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>[0,0]</td>
+<td>-</td>
+<td>-</td>
+<td>[1]</td>
+<td>-</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td>3</td>
+<td>[0,1]</td>
+<td>-</td>
+<td>1</td>
+<td>[3]</td>
+<td>-</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>-1</td>
+<td>[0,2]</td>
+<td>-</td>
+<td>-</td>
+<td>[3, -1]</td>
+<td><strong>3</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>-3</td>
+<td>[1,3]</td>
+<td>-</td>
+<td>-</td>
+<td>[3, -1, -3]</td>
+<td><strong>3</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td>5</td>
+<td>[2,4]</td>
+<td>3（出窗）</td>
+<td>-3, -1</td>
+<td>[5]</td>
+<td><strong>5</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>5</td>
+<td>3</td>
+<td>[3,5]</td>
+<td>-</td>
+<td>-</td>
+<td>[5, 3]</td>
+<td><strong>5</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>6</td>
+<td>6</td>
+<td>[4,6]</td>
+<td>-</td>
+<td>3, 5</td>
+<td>[6]</td>
+<td><strong>6</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td>7</td>
+<td>7</td>
+<td>[5,7]</td>
+<td>-</td>
+<td>6</td>
+<td>[7]</td>
+<td><strong>7</strong></td>
+</tr>
+</tbody>
+</table>
+
+注意帧 2：<code>1</code> 被 <code>3</code> 支配 —— 此后任何包含 <code>3</code> 的窗口里 <code>1</code> 都不是最大，它确实再也没有回来过。帧 5 是两个动作同时触发的教科书帧。
+<h2>五、变体：堆、块状 DP 与大数据加码</h2>
+<h3>5.1 堆 + 惰性删除（O(n log n)）</h3>
+
+大顶堆存 <code>(值, 下标)</code>；窗口滑动时<strong>不急着删</strong>过期的堆顶，只在取答案时检查堆顶下标是否还在窗内，过期就 <code>pop</code>（惰性删除）：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">maxSlidingWindow</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">h</span><span class="p">,</span> <span class="n">ans</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>          <span class="c1"># Python 堆是小顶，取负变最大</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="n">k</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">i</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>      <span class="c1"># 堆顶已出窗 → 惰性弹出</span>
+                <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+            <span class="n">ans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">-</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">ans</span>
+</code></pre></div>
+
+
+<code>O(n log n)</code>，比单调队列慢，但<strong>写起来快、不易错</strong>，且天然支持"任意时刻查询前 m 大"这类扩展。面试给出对比：单调队列快但只回答"窗口最大"；堆慢一点但信息多。
+<h3>5.2 块状 DP（不出名的线性做法）</h3>
+
+把数组按 <code>k</code> 分块，<code>left[i]</code> = 从块左到 i 的最大值，<code>right[i]</code> = 从 i 到块右的最大值（两个方向各扫一遍）。窗口 <code>[l, l+k-1]</code> 的最大值 = <code>max(right[l], left[l+k-1])</code> —— 两个"部分块"的最大值拼接。严格 <code>O(n)</code>、无均摊分析，缺点是不直观、扩展性差。知道存在即可。
+<h3>5.3 大数据加码（字节面经原题的延伸）</h3>
+<ul>
+<li><strong>数据流</strong>：元素一条条来，随时查询"最近 k 个的最大值" —— 单调队列天然就是流式的，<code>deque</code> + 一个计数即可；</li>
+<li><strong>窗口最大值的 TopK</strong>：滑动过程中维护的队列本身就是"候选列表"，配合计数结构可扩展；</li>
+<li><strong>数据量超内存</strong>：分块 + 归并（每块内部单调队列，块间取 max），本质是 5.2 的分布式版 —— 面试官想听的是"分块让局部性成立，块间归并 O(块数)"。</li>
+</ul>
+<h3>5.4 同族题</h3>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>单调结构的方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 862 和至少为 K 的最短子数组</td>
+<td>单调<strong>递增</strong>队列（前缀和）+ 队首过期判断</td>
+</tr>
+<tr>
+<td>LC 1438 绝对差不超过限制的最长连续子数组</td>
+<td>两个单调队列（一个最大一个最小）同时维护</td>
+</tr>
+<tr>
+<td>LC 496/503 下一个更大元素</td>
+<td>单调<strong>栈</strong>：被支配 = 被弹出的时机就是答案</td>
+</tr>
+<tr>
+<td>LC 42 接雨水（单调栈解法）</td>
+<td>系列第 21 篇，同款"被支配即淘汰"</td>
+</tr>
+</tbody>
+</table>
+
+家族口诀：<strong>"新来的把旧的压死"就上单调栈/队列 —— 想要答案"从一端取"用队列（滑窗），想要"每个元素的下一个更大"用栈。单调性淘汰的都是永久出局者，所以均摊 O(1)。</strong>
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">maxSlidingWindow</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="p">();</span><span class="w">     </span><span class="c1">// 存下标，值严格递减</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">dq</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dq</span><span class="p">.</span><span class="na">peekFirst</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">dq</span><span class="p">.</span><span class="na">pollFirst</span><span class="p">();</span><span class="w">                   </span><span class="c1">// 动作一：队首出窗</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">dq</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">dq</span><span class="p">.</span><span class="na">peekLast</span><span class="p">()</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">dq</span><span class="p">.</span><span class="na">pollLast</span><span class="p">();</span><span class="w">                    </span><span class="c1">// 动作二：队尾被支配</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">dq</span><span class="p">.</span><span class="na">offerLast</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ans</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">dq</span><span class="p">.</span><span class="na">peekFirst</span><span class="p">()</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>ArrayDeque</code> 当单调队列用：<code>peekFirst/pollFirst</code> 管队首（出窗），<code>peekLast/pollLast</code> 管队尾（支配）。
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>考察点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k = 1</code></td>
+<td>原数组</td>
+<td>每帧队列只剩一个（新元素支配一切）</td>
+</tr>
+<tr>
+<td><code>k = n</code></td>
+<td><code>[max]</code></td>
+<td>只有一个窗口</td>
+</tr>
+<tr>
+<td>单调递增</td>
+<td>每窗右端</td>
+<td>每步队尾全灭</td>
+</tr>
+<tr>
+<td>单调递减</td>
+<td>每窗左端</td>
+<td>队列长到 k，从不出队</td>
+</tr>
+<tr>
+<td>全相等</td>
+<td>常数数组</td>
+<td><code>&lt;=</code> 保证严格递减（<code>&lt;</code> 会堆出 k 个相等的）</td>
+</tr>
+<tr>
+<td><code>k &gt; n</code> / 空数组</td>
+<td><code>[]</code></td>
+<td>入口直接拒绝</td>
+</tr>
+</tbody>
+</table>
+<h2>八、复杂度</h2>
+<ul>
+<li><strong>时间 O(n)</strong>：每个元素<strong>最多入队一次、出队一次</strong> —— while 看着像嵌套，实际是均摊 O(1)。</li>
+<li><strong>空间 O(k)</strong>：队列里最多 k 个下标（下标都在窗内且严格递增）。</li>
+</ul>
+
+对照：暴力 O(n·k)；堆 O(n log n) + O(n) 空间；块状 DP O(n) + O(n) 空间。单调队列三项全优，代价是想清楚"支配"这个不变量。
+<h2>九、常见坑</h2>
+<h3>9.1 队列存值不存下标</h3>
+
+存值就没法判断队首"还在不在窗里" —— <code>dq[0] &lt; i - k + 1</code> 这个比较对象是下标。<strong>存下标，值随手可查</strong>（<code>nums[dq[0]]</code>）。这是本题翻车率最高的实现错误。
+<h3>9.2 队首出窗的时机</h3>
+
+在读答案<strong>之后</strong>才弹出过期队首 → 本窗答案可能是早就滑出去的元素。顺序：先维护（出窗 + 支配），再 push，再读答案。（把动作一写成 <code>while</code> 也无害，但 <code>if</code> 就够 —— 每步窗口只移一位。）
+<h3>9.3 队尾判据写成 <code>&lt;</code>（严格小于）</h3>
+
+<code>nums[dq[-1]] &lt; x</code> 时相等的元素会留在队列里 —— 值一样、下标更老，留着不增加任何信息，还会让队列"非严格递减"，极端输入（全相等）退化。用 <code>&lt;=</code>，保证<strong>严格递减</strong>。
+<h3>9.4 忘了 k &gt; n / 空数组</h3>
+
+<code>k &gt; n</code> 时没有有效窗口；不提前拒绝的话 <code>i &gt;= k - 1</code> 永远不触发，倒也能返回空 —— 但答案是<strong>碰巧</strong>对，入口处一行 <code>if k &gt; n: return []</code> 才是把"结构上不可能"说明白。
+<h3>9.5 以为 while 嵌套是 O(n·k)</h3>
+
+队尾 while 看着像两层循环，实际每个元素至多被 pop 一次（入队次数只有 n）—— 这是<strong>均摊分析</strong>，面试要能主动讲出"入队一次出队一次"这笔账，否则会被追问"为什么不是平方"。
+<h3>9.6 堆解法忘了惰性删除的边界</h3>
+
+<code>while h[0][1] &lt; i - k + 1</code> 的 <code>&lt;</code> 和窗口定义必须一致（左闭 <code>[i-k+1, i]</code>）；写成 <code>&lt;=</code> 会把刚过期的合法堆顶也弹掉。堆解法的所有下标比较都要和窗口左端对齐。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>一句话定性</strong>："队列里只留还有机会当最大值的候选，按值递减 —— 队首恒为最大；被支配的元素永久淘汰。"</li>
+<li><strong>先讲清"支配"</strong>：右边出现不小于它的元素 = 又大又晚，永远轮不到 —— 这是"为什么敢扔"的正确性论证，比代码值钱。</li>
+<li><strong>报出两个独立动作</strong>："队尾看值（单调性）、队首看下标（出窗）—— 所以队列必须存下标。"</li>
+<li><strong>主动给均摊分析</strong>："每元素入队一次出队一次，总 O(n) —— while 不是嵌套。"</li>
+<li><strong>对比表</strong>：暴力 O(n·k)、堆 O(n log n)、块状 DP O(n)、单调队列 O(n)/O(k) —— 各自的扩展性（堆支持任意查询、块状适合分布式）。</li>
+<li><strong>大数据加码</strong>：流式场景单调队列天然在线；超内存就分块 + 归并。</li>
+</ol>
+<h2>结语</h2>
+
+滑动窗口最大值是单调结构的定型题：<strong>"被支配即永久淘汰"这一条不变量，同时解释了正确性（扔掉的确实没用）和复杂度（每个元素只死一次）</strong>。上一题 LC 20 的栈、这一题的队列、之前 LC 42 的单调栈，全是同一条思想的三个化身 —— 区别只在"从哪一端取答案"。把"支配"讲清楚，这一族题就都通了。</div></div></noscript>
+  </body>
+</html>
