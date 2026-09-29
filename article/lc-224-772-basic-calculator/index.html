@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 224 基本计算器 ：给你一个字符串表达式 s ，请你实现一个基本计算器来计算并返回它的值。 s 由数字、 &#39;+&#39; 、 &#39;-&#39; 、 &#39;(&#39; 、 &#39;)&#39; 和空格组成， s 表示一个有效的表达式。 LC 772 基本计算器 III （腾讯特色）：在 224 的基础上加上 &#39;*&#39; 、 &#39;/&#39; ，处理运算优先级与括" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-224-772-basic-calculator/" />
+    <meta property="og:title" content="【LC 224/772】基本计算器 &amp; 基本计算器 III：一个来一个结，一个等优先级" />
+    <meta property="og:description" content="题目 LC 224 基本计算器 ：给你一个字符串表达式 s ，请你实现一个基本计算器来计算并返回它的值。 s 由数字、 &#39;+&#39; 、 &#39;-&#39; 、 &#39;(&#39; 、 &#39;)&#39; 和空格组成， s 表示一个有效的表达式。 LC 772 基本计算器 III （腾讯特色）：在 224 的基础上加上 &#39;*&#39; 、 &#39;/&#39; ，处理运算优先级与括" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-224-772-basic-calculator/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-224-772-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 224/772】基本计算器 &amp; 基本计算器 III：一个来一个结，一个等优先级" />
+    <meta name="twitter:description" content="题目 LC 224 基本计算器 ：给你一个字符串表达式 s ，请你实现一个基本计算器来计算并返回它的值。 s 由数字、 &#39;+&#39; 、 &#39;-&#39; 、 &#39;(&#39; 、 &#39;)&#39; 和空格组成， s 表示一个有效的表达式。 LC 772 基本计算器 III （腾讯特色）：在 224 的基础上加上 &#39;*&#39; 、 &#39;/&#39; ，处理运算优先级与括" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-224-772-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 224/772】基本计算器 &amp; 基本计算器 III：一个来一个结，一个等优先级 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CulTL7ZB.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-29T16:33:58.766257+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 224/772】基本计算器 & 基本计算器 III：一个来一个结，一个等优先级","description":"题目 LC 224 基本计算器 ：给你一个字符串表达式 s ，请你实现一个基本计算器来计算并返回它的值。 s 由数字、 '+' 、 '-' 、 '(' 、 ')' 和空格组成， s 表示一个有效的表达式。 LC 772 基本计算器 III （腾讯特色）：在 224 的基础上加上 '*' 、 '/' ，处理运算优先级与括","image":"https://zhoujungis.github.io/photos/lc-224-772-cover.png","datePublished":"2026-09-29T16:33:58.766257+08:00","dateModified":"2026-09-29T16:33:58.766292+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-224-772-basic-calculator/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 224/772】基本计算器 &amp; 基本计算器 III：一个来一个结，一个等优先级</h1><div class="ns-meta">2026/9/29 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 224 基本计算器</strong>：给你一个字符串表达式 <code>s</code>，请你实现一个基本计算器来计算并返回它的值。<code>s</code> 由数字、<code>'+'</code>、<code>'-'</code>、<code>'('</code>、<code>')'</code> 和空格组成，<code>s</code> 表示一个有效的表达式。
+<div class="codehilite"><pre><span></span><code>输入: &quot;(1+(4+5+2)-3)+(6+8)&quot;
+输出: 23
+
+输入: &quot;1 + 2 - (3 + 4) - 5&quot;
+输出: -9
+</code></pre></div>
+
+
+<strong>LC 772 基本计算器 III</strong>（腾讯特色）：在 224 的基础上加上 <code>'*'</code>、<code>'/'</code>，处理运算优先级与括号。整数除法截断小数部分（向零取整）。
+<div class="codehilite"><pre><span></span><code>输入: &quot;2*(5+5*2)/3+(6/2+8)&quot;
+输出: 21
+</code></pre></div>
+
+
+两道题是一套题的"退化版与满血版"：224 只有加减 —— <strong>同级、左结合，根本没有优先级要处理</strong>；772 加上乘除后优先级不再统一，"来一个结一个"当场失效。腾讯爱考它，是因为一道题能同时考到<strong>词法切分、栈、优先级调度、括号处理、整数除法语义</strong> —— 表达式求值全家桶。
+<ul>
+<li><a href="#section-1">一、LC 224 核心洞察：加减同级，符号 + "欠账栈"就够</a></li>
+<li><a href="#section-2">二、LC 772 核心洞察：优先级打破"立刻结算" → 双栈调度场</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体与同族题</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、LC 224 核心洞察：加减同级，符号 + "欠账栈"就够</h2>
+
+先把问题砍到最小。表达式里只有两种运算符 <code>+</code> <code>-</code>，它们<strong>同级、左结合</strong> —— 这意味着任何数字一旦读到，它前面的符号就已经定了，<strong>没有资格等待</strong>：立刻乘上符号结算进累计值就行。所以 224 不需要运算符栈、不需要优先级比较，两个变量横扫一切：
+<ul>
+<li><code>result</code>：当前层从左到右的累计值；</li>
+<li><code>sign</code>：下一个数字的符号（<code>+1</code> / <code>-1</code>）。</li>
+</ul>
+
+唯一的麻烦是<strong>括号</strong>。<code>-(3+4)</code> 里的整个括号要<strong>乘以前面的负号</strong>再并回外层 —— 括号内是一个独立的小表达式，但它的值"欠"着外层一笔账。办法和 LC 20 一模一样：<strong>没闭合的上一层进栈</strong>，只是栈帧的内容从"等哪个右括号"升级成了<strong>"外层欠账"</strong>：
+<ul>
+<li>遇到 <code>(</code>：把 <code>{result, sign}</code> 压栈 —— 记下"外层已累计多少、这个括号整体该乘什么符号"，然后<strong>重启一个干净的累加器</strong>（<code>result = 0, sign = +1</code>）；</li>
+<li>遇到 <code>)</code>：括号内算完得 <code>inner</code>，弹栈合并 <code>result = 外层result + 外层sign * inner</code>。</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">result</span><span class="p">,</span> <span class="n">sign</span><span class="p">,</span> <span class="n">stack</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[]</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39; &#39;</span><span class="p">:</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">c</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">while</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="ow">and</span> <span class="n">s</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>   <span class="c1"># 连续数字合成一个数</span>
+                <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">result</span> <span class="o">+=</span> <span class="n">sign</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">])</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">j</span>
+        <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39;+&#39;</span><span class="p">:</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39;-&#39;</span><span class="p">:</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39;(&#39;</span><span class="p">:</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">result</span><span class="p">,</span> <span class="n">sign</span><span class="p">))</span>           <span class="c1"># 外层欠账进栈</span>
+            <span class="n">result</span><span class="p">,</span> <span class="n">sign</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span>                    <span class="c1"># 重启累加器</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>                                      <span class="c1"># &#39;)&#39;</span>
+            <span class="n">inner</span> <span class="o">=</span> <span class="n">result</span>
+            <span class="n">prev</span><span class="p">,</span> <span class="n">psign</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">prev</span> <span class="o">+</span> <span class="n">psign</span> <span class="o">*</span> <span class="n">inner</span>          <span class="c1"># 括号塌缩成一个数并回外层</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+
+
+注意栈里存的<strong>不是中间结果本身</strong>，而是"外层欠账"：外层累计值 + 括号符号。<code>1 + 2 - (3 + 4) - 5</code> 扫到 <code>(</code> 时压入 <code>{3, -1}</code>，扫到 <code>)</code> 时括号内算出 <code>7</code>，合并成 <code>3 + (-1) * 7 = -4</code> —— 括号作为一个<strong>整体数值</strong>回到外层，继续 <code>- 5</code> 得 <strong>-9</strong>。
+<h2>二、LC 772 核心洞察：优先级打破"立刻结算" → 双栈调度场</h2>
+
+加上 <code>*</code> <code>/</code> 之后，第一节的根基塌了：<code>2 + 3 * 4</code> 里的数字 <code>3</code> <strong>有资格等待</strong> —— 它右边可能跟一个 <code>*</code>，那时候 <code>3 * 4</code> 必须先于 <code>+</code> 结算。"来一个结一个"失效，就需要 Dijkstra 的<strong>双栈调度场</strong>（shunting-yard）：
+<ul>
+<li><code>nums</code> 存操作数 —— 数字永远只进不出地攒着，<strong>什么时候算是运算符的事</strong>；</li>
+<li><code>ops</code> 存运算符（<code>(</code> 也进 <code>ops</code>，但它只是个<strong>挡板</strong>，不比优先级）。</li>
+</ul>
+
+核心纪律只有一条：<strong>新运算符来临时，把栈顶所有优先级 &gt;= 它的运算符依次弹出结算，再把自己压进去。</strong> 用 <code>&gt;=</code> 而不是 <code>&gt;</code>，顺带解决了同级左结合 —— <code>10 - 2 - 3</code> 里第二个 <code>-</code> 来临时，栈顶的 <code>-</code> 优先级相等，先结算 <code>10 - 2 = 8</code>，正确；若用 <code>&gt;</code> 就会变成右结合算出 <code>10 - (2 - 3) = 11</code>，错。
+
+这条纪律维持着一个漂亮的栈形不变量：<strong>每层括号内部，<code>ops</code> 从底到顶优先级严格递增</strong>。于是扫完后的收尾只需"从栈顶到底依次结算"—— 低优先级的本来就沉在栈底，轮到最后，<strong>这个顺序恰好就是正确的运算顺序</strong>。
+
+括号：<code>(</code> 压栈当挡板，让后面进来的运算符在它面前停下，圈出括号内的小天地；<code>)</code> 一路结算到挡板为止，再弹掉挡板 —— 括号内塌缩成 <code>nums</code> 顶上的一个数。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">prec</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;+&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+    <span class="n">nums</span><span class="p">,</span> <span class="n">ops</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">():</span>
+        <span class="n">op</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span> <span class="o">=</span> <span class="n">ops</span><span class="o">.</span><span class="n">pop</span><span class="p">(),</span> <span class="n">nums</span><span class="o">.</span><span class="n">pop</span><span class="p">(),</span> <span class="n">nums</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s1">&#39;+&#39;</span><span class="p">:</span> <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s1">&#39;-&#39;</span><span class="p">:</span> <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">b</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s1">&#39;*&#39;</span><span class="p">:</span> <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">b</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>                                   <span class="c1"># 向零截断：// 是 floor，负数会错</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">//</span> <span class="nb">abs</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+            <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q</span> <span class="k">if</span> <span class="p">(</span><span class="n">a</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="n">b</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="o">-</span><span class="n">q</span><span class="p">)</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39; &#39;</span><span class="p">:</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">c</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">while</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="ow">and</span> <span class="n">s</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+                <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">]))</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">j</span>
+        <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39;(&#39;</span><span class="p">:</span>
+            <span class="n">ops</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="s1">&#39;)&#39;</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">ops</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;(&#39;</span><span class="p">:</span>               <span class="c1"># 结算到挡板</span>
+                <span class="n">apply</span><span class="p">()</span>
+            <span class="n">ops</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>                           <span class="c1"># 弹掉 &#39;(&#39; 本身</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>                                   <span class="c1"># + - * /</span>
+            <span class="k">while</span> <span class="n">ops</span> <span class="ow">and</span> <span class="n">ops</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;(&#39;</span> <span class="ow">and</span> <span class="n">prec</span><span class="p">[</span><span class="n">ops</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">&gt;=</span> <span class="n">prec</span><span class="p">[</span><span class="n">c</span><span class="p">]:</span>
+                <span class="n">apply</span><span class="p">()</span>                         <span class="c1"># 优先级 &gt;= 我的，先结账</span>
+            <span class="n">ops</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">ops</span><span class="p">:</span>                                  <span class="c1"># 收尾：从顶到底全结算</span>
+        <span class="n">apply</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">nums</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+
+拿 <code>"2*(5+5*2)/3+(6/2+8)"</code> 走一遍最值钱的三步：<code>)</code> 关闭 <code>(5+5*2)</code> 时先弹 <code>5*2=10</code> 再弹 <code>5+10=15</code>（乘法在括号内层栈顶，先走）；接着 <code>/</code> 来临，栈顶 <code>*</code> 优先级相等，先结算 <code>2*15=30</code> 再压 <code>/</code>；最后收尾时 <code>ops</code> 里只剩一个 <code>+</code>，<code>10 + 11 = 21</code>。全程没有任何一处"回头看"，<strong>优先级全部由栈顶比较当场裁决</strong>。
+<div class="algo-viz algo-viz--lc224"></div>
+
+<div class="algo-viz algo-viz--lc772"></div>
+
+<h2>三、动画怎么看</h2>
+
+<strong>224 动画</strong>（<code>algo-viz--lc224</code>）：顶部是 token 条（金框 = 当前 token，灰 = 已消费，下方三角指针），中部是"当前层累加器"面板（<code>sign</code> 徽章 + <code>result</code> 大格子，右侧红字给出本帧结算公式），底部是括号上下文栈。
+<ul>
+<li><code>1 + 2</code> 两帧里 <code>result</code> 一路 <code>1 → 3</code>，全程无结算等待 —— 同级左结合的直观样子；</li>
+<li><code>(</code> 帧：<code>{result=3, sign=-1}</code> 压栈变金框，累加器当场清零重启；</li>
+<li><code>)</code> 帧：栈顶上下文变橙虚线幽灵，面板公式显示 <code>3 + -1 * (7) = -4</code> —— 括号乘上外层符号并回；</li>
+<li>最后 <code>result = -9</code> 变绿框。</li>
+</ul>
+
+<strong>772 动画</strong>（<code>algo-viz--lc772</code>）：顶部同样是 token 条，其下是<strong>结算横幅</strong>（本帧依次弹出的算式），主体左列 <code>nums</code>、右列 <code>ops</code>（<code>(</code> 也在里面当挡板）。
+<ul>
+<li>数字帧只动左列；<code>(</code> 帧只动右列；</li>
+<li>看第 9 帧 <code>)</code>：横幅一次亮出 <code>5 * 2 = 10 → 5 + 10 = 15</code> 两步 —— 括号内的高优先级先结账；</li>
+<li>看第 10 帧 <code>/</code>：栈顶 <code>*</code> 优先级相等被结算（<code>2 * 15 = 30</code>），横幅给算式、<code>ops</code> 顶画幽灵、<code>nums</code> 顶亮金格 —— "&gt;= 先结"纪律的逐帧证据；</li>
+<li>收尾 flush 帧把 <code>ops</code> 排空，<code>nums</code> 恰剩一个数：21。</li>
+</ul>
+<h2>四、完整推演表</h2>
+
+<strong>LC 224</strong>（<code>1 + 2 - (3 + 4) - 5</code>，上下文栈按"底 → 顶"写）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>token</th>
+<th>动作</th>
+<th>sign</th>
+<th>result</th>
+<th>上下文栈</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>1</code></td>
+<td><code>0 + 1*1</code></td>
+<td>+1</td>
+<td><strong>1</strong></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>+</code></td>
+<td>登记符号</td>
+<td>+1</td>
+<td>1</td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>2</code></td>
+<td><code>1 + 1*2</code></td>
+<td>+1</td>
+<td><strong>3</strong></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>-</code></td>
+<td>登记符号</td>
+<td>-1</td>
+<td>3</td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>(</code></td>
+<td>压 <code>{3, -1}</code>，重启</td>
+<td>+1</td>
+<td><strong>0</strong></td>
+<td><code>[{3,-1}]</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>3</code></td>
+<td><code>0 + 1*3</code></td>
+<td>+1</td>
+<td>3</td>
+<td><code>[{3,-1}]</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>+</code></td>
+<td>登记符号</td>
+<td>+1</td>
+<td>3</td>
+<td><code>[{3,-1}]</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>4</code></td>
+<td><code>3 + 1*4</code></td>
+<td>+1</td>
+<td><strong>7</strong></td>
+<td><code>[{3,-1}]</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>)</code></td>
+<td>弹栈合并 <code>3 + (-1)*7</code></td>
+<td>+1</td>
+<td><strong>-4</strong></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>-</code></td>
+<td>登记符号</td>
+<td>-1</td>
+<td>-4</td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>5</code></td>
+<td><code>-4 - 1*5</code></td>
+<td>-1</td>
+<td><strong>-9</strong></td>
+<td><code>[]</code></td>
+</tr>
+</tbody>
+</table>
+
+<strong>LC 772</strong>（<code>2*(5+5*2)/3+(6/2+8)</code>，两栈都按"底 → 顶"写）：
+<table>
+<thead>
+<tr>
+<th>帧</th>
+<th>token</th>
+<th>nums</th>
+<th>ops</th>
+<th>本帧结算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>2</code></td>
+<td><code>[2]</code></td>
+<td><code>[]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>*</code></td>
+<td><code>[2]</code></td>
+<td><code>[*]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>(</code></td>
+<td><code>[2]</code></td>
+<td><code>[*, (]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>5</code></td>
+<td><code>[2, 5]</code></td>
+<td><code>[*, (]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>+</code></td>
+<td><code>[2, 5]</code></td>
+<td><code>[*, (, +]</code></td>
+<td>无（被 <code>(</code> 挡住）</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>5</code></td>
+<td><code>[2, 5, 5]</code></td>
+<td><code>[*, (, +]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>*</code></td>
+<td><code>[2, 5, 5]</code></td>
+<td><code>[*, (, +, *]</code></td>
+<td>无（<code>+</code> 优先级更低）</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>2</code></td>
+<td><code>[2, 5, 5, 2]</code></td>
+<td><code>[*, (, +, *]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>)</code></td>
+<td><code>[2, 15]</code></td>
+<td><code>[*]</code></td>
+<td><code>5*2=10</code>，<code>5+10=15</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>/</code></td>
+<td><code>[30]</code></td>
+<td><code>[/]</code></td>
+<td><code>2*15=30</code>（相等先结，左结合）</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>3</code></td>
+<td><code>[30, 3]</code></td>
+<td><code>[/]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>+</code></td>
+<td><code>[10]</code></td>
+<td><code>[+]</code></td>
+<td><code>30/3=10</code></td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>(</code></td>
+<td><code>[10]</code></td>
+<td><code>[+, (]</code></td>
+<td>挡板入栈</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>6</code></td>
+<td><code>[10, 6]</code></td>
+<td><code>[+, (]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>/</code></td>
+<td><code>[10, 6]</code></td>
+<td><code>[+, (, /]</code></td>
+<td>无（被 <code>(</code> 挡住）</td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>2</code></td>
+<td><code>[10, 6, 2]</code></td>
+<td><code>[+, (, /]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>17</td>
+<td><code>+</code></td>
+<td><code>[10, 3]</code></td>
+<td><code>[+, (, +]</code></td>
+<td><code>6/2=3</code></td>
+</tr>
+<tr>
+<td>18</td>
+<td><code>8</code></td>
+<td><code>[10, 3, 8]</code></td>
+<td><code>[+, (, +]</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>19</td>
+<td><code>)</code></td>
+<td><code>[10, 11]</code></td>
+<td><code>[+]</code></td>
+<td><code>3+8=11</code>，弹 <code>(</code></td>
+</tr>
+<tr>
+<td>20</td>
+<td>收尾</td>
+<td><code>[21]</code></td>
+<td><code>[]</code></td>
+<td><code>10+11=21</code></td>
+</tr>
+</tbody>
+</table>
+
+全表最值钱的是帧 9 → 10：<code>)</code> 先把括号内两层结算干净（<code>5*2</code>、<code>5+10</code>），<code>/</code> 再把括号外的 <code>*</code> 结掉（<code>2*15</code>）—— <strong>挡板圈内圈外，各按各的优先级纪律</strong>。
+<h2>五、变体与同族题</h2>
+<ul>
+<li><strong>LC 227 基本计算器 II</strong>：有 <code>*</code> <code>/</code> 但<strong>无括号</strong>。调度场照样通吃（少一个挡板分支）；更巧的单栈写法是"数字延迟一步结算"：新数字来临先不上栈，看栈顶运算符是 <code>*</code> <code>/</code> 就地合并，<code>+</code> <code>-</code> 才把带符号数压栈 —— 扫完再求和。面试常拿 227 → 224 → 772 三连问，逐级加料。</li>
+<li><strong>LC 150 逆波兰表达式求值</strong>：调度场的<strong>输出端</strong>。后缀表达式没有优先级和括号，单栈无脑结算 —— 反过来写一遍，正着就全懂了。</li>
+<li><strong>LC 394 字符串解码</strong>：同款"括号上下文栈"。<code>[</code> <code>]</code> 里存的从 <code>{result, sign}</code> 换成 <code>{已拼好的字符串, 重复次数}</code> —— 骨架一模一样，可回看本系列第 28 篇 LC 20。</li>
+<li><strong>递归下降（编译器的写法）</strong>：<code>expr := term (('+'|'-') term)*</code>、<code>term := factor (('*'|'/') factor)*</code>、<code>factor := 数字 | '(' expr ')'</code> —— 三行文法直接翻成三个递归函数，优先级藏在<strong>调用深度</strong>里，括号藏在递归里。手写文法清晰但栈是隐式的；调度场是显式栈的迭代版。面试先问一句"允许递归吗"，两边都能写就是降维打击。</li>
+<li><strong>772 的腾讯式加料</strong>：追问方向通常是<strong>函数调用/变量/幂运算</strong> —— 全都往 <code>ops</code> 栈里塞新元素、往优先级表里加新行即可，调度场的架构就是为扩展设计的。</li>
+</ul>
+<h2>六、Java 版</h2>
+
+<strong>LC 224</strong>：
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">   </span><span class="c1">// {外层result, 括号sign}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39; &#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Character</span><span class="p">.</span><span class="na">isDigit</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">Character</span><span class="p">.</span><span class="na">isDigit</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">)))</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="n">result</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">));</span>
+<span class="w">                </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;+&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;-&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;(&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">sign</span><span class="p">});</span>
+<span class="w">                </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w">                                </span><span class="c1">// &#39;)&#39;</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">inner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">result</span><span class="p">;</span>
+<span class="w">                </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">                </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">ctx</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">inner</span><span class="p">;</span>
+<span class="w">                </span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">result</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>LC 772</strong>（注意：Java 的 <code>/</code> <strong>本来就向零截断</strong>，<code>-3 / 2 == -1</code>，比 Python 省心）：
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Long</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Character</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ops</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39; &#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Character</span><span class="p">.</span><span class="na">isDigit</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">long</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">Character</span><span class="p">.</span><span class="na">isDigit</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)))</span>
+<span class="w">                    </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">);</span>
+<span class="w">                </span><span class="n">nums</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;(&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">ops</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">c</span><span class="p">);</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;)&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">ops</span><span class="p">.</span><span class="na">peek</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;(&#39;</span><span class="p">)</span><span class="w"> </span><span class="n">apply</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">ops</span><span class="p">);</span>
+<span class="w">                </span><span class="n">ops</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ops</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">ops</span><span class="p">.</span><span class="na">peek</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;(&#39;</span>
+<span class="w">                        </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">rank</span><span class="p">(</span><span class="n">ops</span><span class="p">.</span><span class="na">peek</span><span class="p">())</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">rank</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="n">apply</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">ops</span><span class="p">);</span>
+<span class="w">                </span><span class="n">ops</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">c</span><span class="p">);</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ops</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="n">apply</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">ops</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">pop</span><span class="p">().</span><span class="na">intValue</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">rank</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">op</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">op</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;+&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">op</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;-&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Long</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Character</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ops</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">char</span><span class="w"> </span><span class="n">op</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ops</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">pop</span><span class="p">(),</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">op</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;+&#39;</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;-&#39;</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;*&#39;</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">            </span><span class="k">default</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">b</span><span class="p">;</span><span class="w">      </span><span class="c1">// 向零截断</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="n">nums</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+中间结果用 <code>long</code> 存：<code>2147483647+1</code> 这类输入会让 <code>int</code> 在<strong>结算中途</strong>溢出，最后再 <code>intValue()</code> 截回是这类题的常规防御。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>空格满地跑</strong>：<code>" 2-1 + 2 "</code>。逐字符扫时遇到空格跳过即可，别拿 <code>split(' ')</code> 制造一堆空串再过滤。</li>
+<li><strong>多位数</strong>：<code>"1-11"</code> 必须切成 <code>1</code>、<code>-</code>、<code>11</code> 三个 token —— 连续数字合成一个数，两题共同的词法底线。</li>
+<li><strong>单数字 / 单括号</strong>：<code>"42"</code>、<code>"(1)"</code> —— 有效表达式保证 <code>nums</code> 收尾恰剩一个数。</li>
+<li><strong>一元负号</strong>：LC 224 官方数据不含一元运算；但 772 的变体常给 <code>"-2+5"</code>、<code>"2*(-3)"</code>。标准处理：当 <code>+</code> <code>-</code> 出现在<strong>开头、<code>(</code> 之后、或另一个运算符之后</strong>，它不是二元运算符，是数字的一部分 —— 把它并进后面的数字（或先压一个 <code>0</code> 再按二元减处理）。</li>
+<li><strong>除法截断方向</strong>：题目要求<strong>向零取整</strong>（<code>-3/2 → -1</code>）。JS <code>Math.trunc(a/b)</code>、Java/C++ 的 <code>/</code> 天然正确；Python <code>//</code> 是 floor（给 <code>-2</code>），必须换写法。</li>
+<li><strong>除零</strong>：LeetCode 数据保证不出现，面试口头确认一句即可。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>时间</th>
+<th>空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LC 224</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+<td>每个 token 消费一次；栈深 = 括号嵌套数，最坏 <code>O(n)</code></td>
+</tr>
+<tr>
+<td>LC 772</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+<td>每个运算符<strong>至多入栈出栈各一次</strong>，结算总量 = 运算符数</td>
+</tr>
+<tr>
+<td>递归下降</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+<td>空间是递归栈，嵌套括号多时与调度场同阶</td>
+</tr>
+</tbody>
+</table>
+
+772 的 <code>O(n)</code> 值得多说一句：单个 <code>)</code> 帧可能一口气结算好几步（帧 9 弹了两步），看着像 <code>O(n^2)</code>；但每个运算符一生只被弹出一次，<strong>摊还</strong>下来全程结算次数恰好等于运算符个数 —— 和 LC 232 双栈队列的均摊账是同款论证。
+<h2>九、常见坑</h2>
+<h3>9.1 结算判据写成 <code>&gt;</code>：左结合当场坏</h3>
+
+<code>while prec[ops[-1]] &gt; prec[c]</code> —— 同级不结算，<code>10-2-3</code> 的 <code>ops</code> 变成 <code>[−, −]</code>、<code>nums</code> 变成 <code>[10, 2, 3]</code>，收尾从顶到底算出 <code>10 - (2 - 3) = 11</code>。<strong><code>&gt;=</code> 是左结合的全部秘密</strong>，一个字符的差。
+<h3>9.2 Python 用 <code>//</code> 做除法：负数截断方向错</h3>
+
+<code>-3 // 2 == -2</code>（floor），题目要 <code>-1</code>（向零）。要么 <code>int(a / b)</code> 注意浮点精度，要么 <code>sign * (abs(a) // abs(b))</code>。JS/Java 没这坑，但面试官爱问"Python 怎么办"。
+<h3>9.3 一元负号没处理</h3>
+
+<code>"2*(-3)"</code> 按二元文法扫：<code>(</code> 后面直接来 <code>-</code>，<code>ops</code> 拿它当二元运算符和栈顶比较，<code>nums</code> 少一个操作数，<code>apply</code> 直接弹空。开头、<code>(</code> 后、运算符后的 <code>+</code> <code>-</code> 是<strong>符号不是运算符</strong> —— 见第七节。
+<h3>9.4 224 的 <code>(</code>：先压栈再清零，顺序不能反</h3>
+
+压栈的必须是<strong>外层</strong>的 <code>(result, sign)</code>；先手痒把 <code>result</code> 清了再压，存进去的就是 <code>{0, 1}</code>，合并时外层账全丢。
+<h3>9.5 772 的 <code>)</code>：结算到挡板后忘了弹挡板</h3>
+
+<code>while (ops[-1] != '(') apply()</code> 之后必须 <code>ops.pop()</code> 把 <code>(</code> 摘掉 —— 不摘，它就是永久路障，后面所有优先级比较都被它挡住，表达式退化成"括号内永远最后算"。
+<h3>9.6 扫完直接返回：忘了 flush 收尾</h3>
+
+调度场的 <code>ops</code> 里可能还沉着没结账的低优先级运算符（例：<code>"2+3"</code> 扫完 <code>ops = [+]</code>）。<code>while (ops) apply()</code> 之后 <code>nums[0]</code> 才是答案 —— 递归下降没有这个问题，因为递归天然"算完再回"。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先问清题目给了什么</strong>：有没有乘除？有没有括号？有没有一元负号？—— 224/227/772 就是这三个开关的三档组合，先定位自己在哪一档。</li>
+<li><strong>224</strong>：一句话立意"加减同级左结合，数字来一个结一个；栈只干一件事 —— 存括号的外层欠账"。写 <code>{result, sign}</code> 压栈 / 合并，<code>O(n)</code>。</li>
+<li><strong>772</strong>：从"为什么 224 的写法失效"讲起（<code>3</code> 有资格等待右面的乘法），引出双栈调度场；把纪律说全：<strong>栈顶优先级 &gt;= 我就先结账（&gt;= 即左结合），<code>(</code> 是挡板，<code>)</code> 结算到挡板并弹掉，扫完 flush</strong>。</li>
+<li><strong>主动送分点</strong>：除法向零截断（Python <code>//</code> 是坑）、中间结果用 long 防溢出、一元负号处理 —— 这三个细节说过任何一个，都证明你写过真的。</li>
+<li><strong>被追问扩展</strong>：函数/变量/幂运算都往 <code>ops</code> 和优先级表里加；要 AST 就换递归下降，三行文法直接翻代码。</li>
+</ol>
+<h2>结语</h2>
+
+栈家族走到计算器这一站，凑齐了最后一块拼图：<strong>224 证明栈能存"欠账"，772 证明栈能裁决"顺序"</strong>。口诀：<strong>同级左结合，符号加欠账栈；优先级不齐，双栈排队等结算</strong>。
+
+这是本系列第三十一篇。从 LC 20 的"括号配谁"，到 155 的"记住历史"、232 的"再翻一次"、239 的"按值排队"，再到今天 224/772 的"按优先级结算"—— 栈这个只会后进先出的数据结构，在六道题里换了六张面孔，但每次被逼出来的理由都一样：<strong>当下处理不了、又不能丢的东西，交给栈</strong>。</div></div></noscript>
+  </body>
+</html>
