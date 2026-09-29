@@ -36,6 +36,7 @@ import { mountRotatedMin } from '@/viz/rotatedMin'
 import { mountRotate } from '@/viz/rotate'
 import { mountAddStrings } from '@/viz/addStrings'
 import { mountCompareVersion } from '@/viz/compareVersion'
+import { mountLongestPal } from '@/viz/longestPal'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -351,6 +352,7 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc189': mountRotate,
   'algo-viz--lc415': mountAddStrings,
   'algo-viz--lc165': mountCompareVersion,
+  'algo-viz--lc5': mountLongestPal,
 }
 
 let vizHandles = []
