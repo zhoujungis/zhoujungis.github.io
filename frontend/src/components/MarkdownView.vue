@@ -31,6 +31,8 @@ import { mountKadane } from '@/viz/kadane'
 import { mountQuickSelect } from '@/viz/quickSelect'
 import { mountBucketTopK } from '@/viz/bucketTopK'
 import { mountMergeIntervals } from '@/viz/mergeIntervals'
+import { mountRotatedSearch } from '@/viz/rotatedSearch'
+import { mountRotatedMin } from '@/viz/rotatedMin'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -341,6 +343,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc215': mountQuickSelect,
   'algo-viz--lc347': mountBucketTopK,
   'algo-viz--lc56': mountMergeIntervals,
+  'algo-viz--lc33': mountRotatedSearch,
+  'algo-viz--lc153': mountRotatedMin,
 }
 
 let vizHandles = []
