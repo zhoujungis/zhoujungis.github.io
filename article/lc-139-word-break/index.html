@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-139-word-break/" />
+    <meta property="og:title" content="【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯" />
+    <meta property="og:description" content="题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-139-word-break/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-139-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯" />
+    <meta name="twitter:description" content="题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-139-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dxj6jNLE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-30T18:15:56.298478+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯","description":"题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —","image":"https://zhoujungis.github.io/photos/lc-139-cover.png","datePublished":"2026-09-30T18:15:56.298478+08:00","dateModified":"2026-09-30T18:15:56.298518+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-139-word-break/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯</h1><div class="ns-meta">2026/9/30 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 139 单词拆分</strong>：给你一个字符串 <code>s</code> 和一个字符串列表 <code>wordDict</code> 作为字典。请你判断是否可以利用字典中出现的单词拼接出 <code>s</code>。字典中的<strong>单词可以重复使用</strong>。
+<div class="codehilite"><pre><span></span><code>输入: s = &quot;leetcode&quot;, wordDict = [&quot;leet&quot;, &quot;code&quot;]
+输出: true   （&quot;leetcode&quot; = &quot;leet&quot; + &quot;code&quot;）
+
+输入: s = &quot;applepenapple&quot;, wordDict = [&quot;apple&quot;, &quot;pen&quot;]
+输出: true   （&quot;apple&quot; + &quot;pen&quot; + &quot;apple&quot;，&quot;apple&quot; 用了两次）
+
+输入: s = &quot;catsandog&quot;, wordDict = [&quot;cats&quot;, &quot;dog&quot;, &quot;sand&quot;, &quot;and&quot;, &quot;cat&quot;]
+输出: false
+</code></pre></div>
+
+
+它是 <strong>LC 322 零钱兑换</strong>的布尔版：硬币换成了单词，金额换成了前缀长度，<code>min</code> 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —— <strong><code>dp[0] = true</code> 这个底座</strong>、<strong><code>maxLen</code> 窗口剪枝</strong>，以及<strong>"能不能"与"怎么切"的分工</strong>。最后一条是本文第二幕的主角：dp 表只回答能不能，要还原本来的切分，得把同一张表从右往左读一遍。
+<ul>
+<li><a href="#section-1">一、核心洞察：dp 定义与状态转移</a></li>
+<li><a href="#section-2">二、为什么 <code>dp[0] = true</code> 是唯一的底座</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、同族题：322 / 279 / 518 / 377 / 140 / 416</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：dp 定义与状态转移</h2>
+
+暴力的思路是枚举"在哪些位置下刀"。<code>n</code> 个字符之间有 <code>n - 1</code> 个缝隙，每个缝切开或不切，<code>2^(n-1)</code> 种切法，<code>n = 20</code> 就崩了。
+
+换成<strong>逐个前缀地逼近</strong>：
+<blockquote>
+
+不问"切成哪些词"，而问"<strong><code>s</code> 的前 <code>i</code> 个字符能不能拼出来</strong>"。
+</blockquote>
+
+于是定义：
+<ul>
+<li><code>dp[i]</code> = <code>s</code> 的前 <code>i</code> 个字符能否由字典拼出；</li>
+<li><code>dp[0] = true</code>（空串天然拼得出 —— 这是唯一的底座）；</li>
+<li>其余全部初始化成 <code>false</code>（先假定拼不出，拼得出再翻上来）。</li>
+</ul>
+
+递推式只有一行：
+<div class="codehilite"><pre><span></span><code><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">OR</span><span class="w"> </span><span class="k">over</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">s</span><span class="o">[</span><span class="n">j:i</span><span class="o">]</span><span class="w"> </span><span class="err">∈</span><span class="w"> </span><span class="n">dict</span><span class="w"> </span><span class="p">)</span>
+</code></pre></div>
+
+
+语义是：<strong>把 <code>s[j:i]</code> 当作"最后一个词"去试</strong> —— 剩下 <code>s[0:j]</code> 能不能拼已经知道（<code>dp[j]</code>），只要这一段本身是个词，<code>dp[i]</code> 就成立。<code>i</code> 从 <code>1</code> 到 <code>n</code> <strong>正序</strong>推进，等算 <code>dp[i]</code> 时用到的 <code>dp[j]</code>（下标更小）早就写好了。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wordBreak</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">wordDict</span><span class="p">):</span>
+    <span class="n">word_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">wordDict</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="ow">and</span> <span class="n">s</span><span class="p">[</span><span class="n">j</span><span class="p">:</span><span class="n">i</span><span class="p">]</span> <span class="ow">in</span> <span class="n">word_set</span><span class="p">:</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+</code></pre></div>
+
+
+三个细节决定了成败：
+<ol>
+<li><strong><code>dp[0] = true</code> 而不是 <code>false</code></strong>：它代表"一个字符都还没拼"的初始状态。写成 <code>false</code> 的话，<code>"leet"</code> 这种<strong>整串就是一个词</strong>的情况（<code>j = 0</code>）直接被判死 —— 底座塌了，上面全塌。</li>
+<li><strong>字典用 <code>set</code></strong>：<code>s[j:i] in word_set</code> 是哈希查找。用 <code>list</code> 逐个字符串比，最坏 <code>O(n)</code> 一次的字符串比较叠上去，直接超时。</li>
+<li><strong><code>j</code> 只枚举 <code>maxLen</code> 窗口内</strong>：<code>j &gt;= i - maxLen</code>，因为最后一个词最长就是 <code>maxLen</code>。更靠左的 <code>j</code> 长度都对不上，不必看。</li>
+</ol>
+<h2>二、为什么 <code>dp[0] = true</code> 是唯一的底座</h2>
+
+这一格是整个算法的地基，值得单独说清。
+
+<code>dp[i]</code> 回答的是"前 <code>i</code> 个字符能否拆成若干净词"。当 <code>i = 0</code> 时，"前 0 个字符"就是空串 —— 空串不需要任何词就能拼出，所以它是 <code>true</code>。这条定义不是凑出来的，它是递推的<strong>起点</strong>：任何一条完整的切分链，从右往左回溯时，最后一定落在 <code>dp[0]</code> 上。
+
+反过来看两个"差点踩到"的写法：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 错法一：dp[0] = False —— 整串就是一个词时全盘皆输</span>
+<span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="c1"># wordBreak(&quot;leet&quot;, [&quot;leet&quot;])：j = 0 时 dp[0] 是 false，dp[4] 永远起不来 → 返回 False</span>
+
+<span class="c1"># 错法二：初始化成全 True —— 等于宣布&quot;任何前缀都拼得出&quot;</span>
+<span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+<span class="c1"># 那 dp[n] 恒为 true，函数永远返回 True，字典形同虚设</span>
+</code></pre></div>
+
+
+再顺手把另外两条优化说透 —— 它们<strong>不改语义，只剪枝</strong>：
+<ul>
+<li><strong>字典用 <code>set</code>（哈希）</strong>：<code>dict.has(w)</code> 是 <code>O(1)</code> 级别的查找，而不是在 <code>list</code> 里逐个字符串比。数据量一大，这一条就是超时与通过的分界线。</li>
+<li><strong><code>maxLen</code> 窗口</strong>：先扫一遍字典求出最长词长 <code>maxLen</code>，内层 <code>j</code> 只从 <code>max(0, i - maxLen)</code> 枚举到 <code>i - 1</code>。因为"最后一个词"长度不可能超过 <code>maxLen</code>，更靠左的 <code>j</code> 全是无效枚举。这把内层从 <code>O(n)</code> 压到 <code>O(maxLen)</code>。</li>
+</ul>
+
+还有个容易忽略的点：<strong>为什么要正序推进 <code>i</code></strong>。因为 <code>dp[i]</code> 只依赖比它小的下标 <code>dp[j]</code>，正序保证这些格子<strong>已经算好</strong>。这和 LC 322 里"内层金额正序 = 完全背包"是同一个道理 —— 允许"再叠一个词"（<code>apple | pen | apple</code>）。如果把 <code>i</code> 逆着推，就会读到还没算的格子，语义全乱。
+
+一句话记住这题的骨架：
+<blockquote>
+
+<strong><code>dp[0] = true</code> 是唯一的底座，<code>dp[i] = OR( dp[j] &amp;&amp; s[j:i] ∈ dict )</code> 是唯一的转移，<code>maxLen</code> 窗口是唯一的剪枝。</strong>
+</blockquote>
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc139"></div>
+
+<div class="algo-viz algo-viz--lc139seg"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--lc139</code>）：最上面是 <code>dp[0..n]</code> 整行布尔格（<code>T</code> / <code>F</code>），当前前缀 <code>i</code> 描金框、切分点 <code>j</code> 描绿框，<code>j</code> 的搜索窗口垫一条浅色底带；中间是 <code>s</code> 的每个字符，<strong>字符 <code>k</code> 落在边界 <code>k</code> 与 <code>k + 1</code> 之间</strong>，于是候选的最后一段 <code>s[j:i]</code> 正好从 <code>j</code> 跨到 <code>i</code>，金框把它整段标出来；下面是转移横幅，写出 <code>dp[i] = dp[j] &amp;&amp; s[j:i] ∈ dict</code> 的现场取值。盯住两件事：<strong>只有 <code>dp[j] = true</code> 的切分点才会发一帧</strong>（<code>dp[j] = false</code> 的会被"跳过"计数吃掉），以及<strong>命中即短路</strong> —— <code>dp[i]</code> 一旦翻成 <code>true</code>，本格剩下的切分点根本不再试。
+
+<strong>动画二</strong>（<code>algo-viz--lc139seg</code>）：表<strong>算完之后</strong>，怎么把 <code>s</code> 真的切成词。上面是那张算好的 <code>dp</code> 表，中间是字符串行，已经锁定的段染绿、正在试的候选段描金或虚线，每锁定一段就在下面挂一个 <code>"apple"</code> 这样的词标签；最底下一条 <code>pos</code> 游标。<code>pos</code> 从 <code>n</code> 往左走，每次都从 <code>j = pos - 1</code> <strong>递减</strong>试到窗口左端 —— 也就是"最后一段<strong>从短到长</strong>"地试，找到 <code>dp[j] = true</code> 且 <code>s[j:pos]</code> 是词的就锁定、把 <code>pos</code> 挪到 <code>j</code>。走到 <code>pos = 0</code> 就切完了。
+
+两个动画分工明确：动画一<strong>填表</strong>（枚举"最后一个词"、从左往右推进），动画二<strong>读表</strong>（从 <code>n</code> 往回切）。
+<h2>四、完整推演表</h2>
+
+<strong>动画一</strong>：<code>s = "applepenapple"</code>，<code>wordDict = ["apple", "pen"]</code>（与动画默认一致，<code>maxLen = 5</code>）。
+<table>
+<thead>
+<tr>
+<th>i</th>
+<th>前缀 <code>s[0:i]</code></th>
+<th>逐个试（<code>j</code>, <code>s[j:i]</code>, 判定）</th>
+<th><code>dp[i]</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>a</code></td>
+<td>(0, <code>"a"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>ap</code></td>
+<td>(0, <code>"ap"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>app</code></td>
+<td>(0, <code>"app"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>appl</code></td>
+<td>(0, <code>"appl"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>apple</code></td>
+<td><strong>(0, <code>"apple"</code>, ✓)</strong></td>
+<td><strong>T</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>applep</code></td>
+<td>跳过 1–4（<code>dp[j] = false</code>）；(5, <code>"p"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>applepe</code></td>
+<td>跳过 2–4；(5, <code>"pe"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>applepen</code></td>
+<td>跳过 3–4；<strong>(5, <code>"pen"</code>, ✓)</strong></td>
+<td><strong>T</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>applepena</code></td>
+<td>跳过 4；(5, <code>"pena"</code>, ✗)；跳过 6–7；(8, <code>"a"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>applepenap</code></td>
+<td>(5, <code>"penap"</code>, ✗)；跳过 6–7；(8, <code>"ap"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>applepenapp</code></td>
+<td>跳过 6–7；(8, <code>"app"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>applepenappl</code></td>
+<td>跳过 7；(8, <code>"appl"</code>, ✗)</td>
+<td>F</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>applepenapple</code></td>
+<td><strong>(8, <code>"apple"</code>, ✓)</strong></td>
+<td><strong>T</strong></td>
+</tr>
+</tbody>
+</table>
+
+最终 <code>dp = [T, F, F, F, F, T, F, F, T, F, F, F, F, T]</code>，返回 <code>true</code>。三处 <code>T</code> 正是三次命中：<code>dp[5]</code>（<code>apple</code>）、<code>dp[8]</code>（<code>apple | pen</code>）、<code>dp[13]</code>（<code>apple | pen | apple</code>）。顺 <code>cut</code> 表回溯：<code>13 → 8 → 5 → 0</code>，切分就是 <code>apple | pen | apple</code> —— <code>apple</code> 用了<strong>两次</strong>，这正是"完全背包"的语义。
+
+<strong>动画二</strong>：同一组数据，看回溯怎么把 <code>s</code> 切开。
+<table>
+<thead>
+<tr>
+<th><code>pos</code></th>
+<th>从 <code>j = pos−1</code> 往左试（<code>j</code>, <code>s[j:pos]</code>, <code>dp[j]</code>, ∈dict）</th>
+<th>锁定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>13</td>
+<td>(12, <code>"e"</code>, F, ✗) (11, <code>"le"</code>, F, ✗) (10, <code>"ple"</code>, F, ✗) (9, <code>"pple"</code>, F, ✗) <strong>(8, <code>"apple"</code>, T, ✓)</strong></td>
+<td><code>apple</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>(7, <code>"n"</code>, F, ✗) (6, <code>"en"</code>, F, ✗) <strong>(5, <code>"pen"</code>, T, ✓)</strong></td>
+<td><code>pen</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>(4, <code>"e"</code>, F, ✗) (3, <code>"le"</code>, F, ✗) (2, <code>"ple"</code>, F, ✗) (1, <code>"pple"</code>, F, ✗) <strong>(0, <code>"apple"</code>, T, ✓)</strong></td>
+<td><code>apple</code></td>
+</tr>
+</tbody>
+</table>
+
+切到最后 <code>pos = 0</code>，锁定链 <code>13 → 8 → 5 → 0</code>，得到同一组答案。注意整个过程<strong>没有额外的 <code>cut</code> 表</strong> —— <code>dp</code> 表本身就是"每个位置能不能拼出"的完整信息：只要 <code>dp[j] = true</code> 且 <code>s[j:pos]</code> 是词，这一段就一定接得上。
+<h2>五、同族题：322 / 279 / 518 / 377 / 140 / 416</h2>
+
+139 是"完全背包的布尔版"。同一副骨架换个问法，就是一条完整的题链：
+<ul>
+<li><strong>LC 322 零钱兑换</strong>：<code>dp[x]</code> = 凑出金额 <code>x</code> 的<strong>最少硬币枚数</strong>，求 <code>min</code>；139 把 <code>min</code> 换成了<strong>逻辑或</strong>。两者连剪枝窗口的形状都一样。</li>
+<li><strong>LC 279 完全平方数</strong>：硬币换成 <code>1, 4, 9, 16, ...</code>，问凑出 <code>n</code> 的最少个数 —— 与 322 逐字同构。</li>
+<li><strong>LC 518 零钱兑换 II</strong>：完全背包但求<strong>方案数</strong>，转移变成 <code>dp[a] += dp[a-c]</code>，且必须外层硬币、内层金额正序 —— 这个顺序把"同一种组合的不同排列"去掉了，数的才是组合数。</li>
+<li><strong>LC 377 组合总和 IV</strong>：同一行加法、但外层金额、内层硬币 —— 顺序反过来，数的就变成了<strong>排列数</strong>。377 与 518 的差别只有循环嵌套的顺序。</li>
+<li><strong>LC 140 单词拆分 II</strong>：139 的回溯版 —— 把动画二里"找到一个就停"换成"DFS 枚举所有 <code>j</code>"、再配记忆化，就是它。<strong>139 只问能不能，140 要列出所有切分方案。</strong></li>
+<li><strong>LC 416 分割等和子集</strong>：求"能否恰好装满 <code>sum/2</code>"，但<strong>每件元素只能用一次</strong> —— 这是 <strong>0-1 背包</strong>，内层容量必须<strong>逆序</strong>。<code>LC 494 目标和</code>、<code>LC 1049 最后一块石头重量 II</code> 同理。</li>
+</ul>
+
+把它们排成一列看：<strong>背包的容量维就是金额/前缀维，物品就是硬币/单词；"无限件"用正序，"每件一次"用逆序；求最值用 <code>min/max</code>，求方案数用 <code>+</code>，求可达性用 <code>OR</code>。</strong> 139 只是这条坐标轴上的一个点。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 139：标准 DP —— 与推演表逐帧一致</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">wordBreak</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">wordDict</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">wordDict</span><span class="p">);</span><span class="w">   </span><span class="c1">// 哈希查找，别在 list 里逐个比</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">wordDict</span><span class="p">)</span><span class="w"> </span><span class="n">maxLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxLen</span><span class="p">,</span><span class="w"> </span><span class="n">w</span><span class="p">.</span><span class="na">length</span><span class="p">());</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">boolean</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">                                 </span><span class="c1">// 唯一的底座：空串拼得出</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">maxLen</span><span class="p">);</span><span class="w">         </span><span class="c1">// 最后一词最长 maxLen</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">lo</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dict</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">                    </span><span class="k">break</span><span class="p">;</span><span class="w">                            </span><span class="c1">// 命中即短路</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 139 的另一种视角：把位置当下标、词当边，BFS 看 n 可不可达</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">wordBreak</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">wordDict</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">wordDict</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">wordDict</span><span class="p">)</span><span class="w"> </span><span class="n">maxLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxLen</span><span class="p">,</span><span class="w"> </span><span class="n">w</span><span class="p">.</span><span class="na">length</span><span class="p">());</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="o">[]</span><span class="w"> </span><span class="n">seen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">boolean</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">seen</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="n">queue</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">pollFirst</span><span class="p">();</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">maxLen</span><span class="p">);</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">hi</span><span class="p">;</span><span class="w"> </span><span class="n">end</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">seen</span><span class="o">[</span><span class="n">end</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dict</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">end</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">seen</span><span class="o">[</span><span class="n">end</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="n">end</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 140 的骨架：139 只问能不能，这里要列出所有切分（记忆化 DFS）</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">wordBreak</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">wordDict</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">wordDict</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">memo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dfs</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">dict</span><span class="p">,</span><span class="w"> </span><span class="n">memo</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dict</span><span class="p">,</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">memo</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">memo</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">p</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">memo</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">end</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">String</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">end</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">dict</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="n">w</span><span class="p">))</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dfs</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">end</span><span class="p">,</span><span class="w"> </span><span class="n">dict</span><span class="p">,</span><span class="w"> </span><span class="n">memo</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">tail</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">tail</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">memo</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">res</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+第二个写法值得单独记一笔：<strong>把每个字符位置当作图上的点，每个字典词当作一条从 <code>p</code> 指向 <code>p + len</code> 的边</strong>，问题就变成"从 <code>0</code> 能不能走到 <code>n</code>"的<strong>可达性</strong>。BFS 一遍即可，和 DP 完全等价 —— 这个视角在追问"打印一条切分路径"时特别顺手（记前驱就行）。注意从 <code>p</code> 出发，词长最多 <code>maxLen</code>，所以只需枚举到 <code>p + maxLen</code>。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong><code>s</code> 为空串</strong>：<code>dp[0] = true</code>，直接返回 <code>true</code>（题面通常保证 <code>s</code> 非空，但底座语义要清楚）；</li>
+<li><strong>字典里有比 <code>s</code> 还长的词</strong>：永远装不下，<code>maxLen</code> 窗口会把它自然排除，或先过滤掉；</li>
+<li><strong>整串就是一个词</strong>：<code>"leet"</code> + <code>["leet"]</code> → <code>dp[0]</code> 这一格就是唯一支撑，<code>j = 0</code> 一次命中；</li>
+<li><strong>词可以重复使用</strong>：<code>"applepenapple"</code> + <code>["apple","pen"]</code> 里 <code>apple</code> 用了两次 —— 这是"完全背包"，不是"每词一次"；</li>
+<li><strong>前缀可达但尾巴断掉</strong>：<code>"catsandog"</code> + <code>["cats","dog","sand","and","cat"]</code>，<code>dp[3]</code>、<code>dp[4]</code>、<code>dp[7]</code> 都是 <code>true</code>，但 <code>dp[9]</code> 拼不出来 → 返回 <code>false</code>。<strong>前缀可达 ≠ 整体可达</strong>；</li>
+<li><strong>字典里有空串或重复词</strong>：先 <code>set</code> 去重、过滤空串，否则 <code>s[j:i] = ""</code> 会让 <code>i</code> 原地踏步；</li>
+<li><strong>大小写</strong>：<code>substring</code> 是精确匹配，<code>"Leet"</code> 与 <code>"leet"</code> 不是同一个词。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>139 标准 DP（前缀 × 窗口）</td>
+<td><code>O(n × maxLen)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td>139 DP（内层不剪枝，枚举全部 <code>j</code>）</td>
+<td><code>O(n²)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td>139 BFS 可达性</td>
+<td><code>O(n × maxLen)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td>139 回溯还原切分（动画二）</td>
+<td><code>O(n × maxLen)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td>140 记忆化 DFS（列出所有方案）</td>
+<td>输出相关，最坏指数级</td>
+<td><code>O(n × 方案数)</code></td>
+</tr>
+</tbody>
+</table>
+
+<code>n</code> 是 <code>s</code> 的长度，<code>maxLen</code> 是字典里最长词的长度。DP 与 BFS 的时间同为 <code>O(n × maxLen)</code>：每个起点 <code>p</code> 最多往外扩 <code>maxLen</code> 个字符。剪枝的关键全在 <code>maxLen</code> 上 —— <strong>不加窗口就是 <code>O(n²)</code>，加了就是 <code>O(n × maxLen)</code></strong>，而 <code>maxLen</code> 通常远小于 <code>n</code>。
+<h2>九、常见坑</h2>
+<ol>
+<li><strong><code>dp[0]</code> 写成 <code>false</code></strong>：<code>"leet"</code> 这种整串即一个词的情况直接判错。它是唯一的底座，必须是 <code>true</code>。</li>
+<li><strong><code>dp</code> 全初始化成 <code>true</code></strong>：等于宣布"任何前缀都拼得出"，函数永远返回 <code>true</code>。</li>
+<li><strong>字典用 <code>list</code> 逐个比</strong>：<code>s[j:i] in list</code> 每次都是线性扫描，数据一大就超时。先转 <code>set</code>。</li>
+<li><strong>忘了 <code>maxLen</code> 窗口</strong>：逻辑仍然正确，但内层退化成枚举全部 <code>j</code>，复杂度从 <code>O(n × maxLen)</code> 涨到 <code>O(n²)</code>。</li>
+<li><strong>命中后不 <code>break</code></strong>：逻辑上多试几次也能得到 <code>true</code>，但白白浪费；更重要的是动画里"命中即短路"是本题的一个考点。</li>
+<li><strong>把 139 和 140 搞混</strong>：139 只问<strong>能不能</strong>（布尔或 + 短路），140 要<strong>列出所有切分</strong>（DFS + 记忆化）。139 的 dp 表是 140 的记忆化数组的雏形。</li>
+<li><strong><code>s[j:i]</code> 的边界搞反</strong>：Python/Java 的切片都是<strong>左闭右开</strong>，<code>s[j:i]</code> 正好是"从 <code>j</code> 起、长度 <code>i - j</code>"的那一段，别写成 <code>s[j:i+1]</code>。</li>
+<li><strong>误以为要"每个词只能用一次"</strong>：139 明说<strong>词可以重复使用</strong>，所以是正序推进的完全背包；"每件一次"那是 LC 416 那类 0-1 背包。</li>
+<li><strong>字典里有比 <code>s</code> 长的词</strong>：不影响正确性（<code>maxLen</code> 窗口会排除），但会让窗口白白变宽，最好先过滤。</li>
+</ol>
+<h2>十、面试怎么答</h2>
+
+<strong>第一段 · 定义与转移</strong>：<code>dp[i]</code> = <code>s</code> 的前 <code>i</code> 个字符能否由字典拼出，<code>dp[0] = true</code>、其余 <code>false</code>，<code>dp[i] = OR( dp[j] &amp;&amp; s[j:i] ∈ dict )</code>，<code>i</code> 正序推进。说清 <code>dp[0]</code> 为什么必须是 <code>true</code>。
+
+<strong>第二段 · 两项优化</strong>：字典转 <code>set</code>（哈希查找代替线性扫描），切分点 <code>j</code> 只枚举 <code>maxLen</code> 窗口内（<code>j &gt;= i - maxLen</code>）。两条都<strong>不改语义</strong>，但把复杂度从 <code>O(n²)</code> 压到 <code>O(n × maxLen)</code>。<strong>这一段是区分度所在</strong>，能主动说出来比写对代码更值钱。
+
+<strong>第三段 · 换个视角</strong>：把字符位置当图上的点、字典词当边，问题就是"<code>0</code> 能否到达 <code>n</code>"的<strong>可达性</strong>，BFS 一遍即可。DP 与 BFS 在这里等价 —— 这个视角在追问"打印一条切分路径"时特别顺手（记前驱）。
+
+<strong>追问连跳</strong>：
+- 要<strong>列出所有切分方案</strong> → LC 140，把"找到一个就停"换成"DFS 枚举所有 <code>j</code>" + 记忆化；
+- 要<strong>最少词数</strong> → LC 322 / 279，把 <code>OR</code> 换成 <code>min</code>；
+- 要<strong>方案数</strong> → LC 518（外层词、内层前缀正序）；要<strong>排列数</strong> → LC 377（循环顺序对调）；
+- <strong>每件只能用一次</strong> → LC 416 / 494 / 1049，内层逆序。
+
+一句话收尾："单词拆分只有一台机器 —— 前缀上的布尔背包，<code>dp[i] = OR( dp[j] &amp;&amp; s[j:i] ∈ dict )</code>；区别只在方向、在 <code>min</code> 还是 <code>+</code>、在只问能不能还是要列出所有方案。"
+<h2>结语</h2>
+
+139 的全部难度浓缩在两处：一行初始化（<code>dp[0] = true</code>）和一条窗口（<code>maxLen</code>）。前者决定了"整串即一个词"能不能被表达，后者决定了会不会超时 —— 前者是定义问题，后者是效率问题。而 dp 表算完之后，它自己就是一张"每个位置能不能拼出"的完整地图：顺着它从右往左走一遍，就能把 <code>s</code> 真的切开，这就是 140 的入口。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
