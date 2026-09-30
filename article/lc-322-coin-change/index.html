@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是&quot;最少" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-322-coin-change/" />
+    <meta property="og:title" content="【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序" />
+    <meta property="og:description" content="题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是&quot;最少" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-322-coin-change/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-322-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序" />
+    <meta name="twitter:description" content="题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是&quot;最少" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-322-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BAz0A1qK.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-30T17:54:22.251532+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序","description":"题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是\"最少","image":"https://zhoujungis.github.io/photos/lc-322-cover.png","datePublished":"2026-09-30T17:54:22.251532+08:00","dateModified":"2026-09-30T17:54:22.251569+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-322-coin-change/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序</h1><div class="ns-meta">2026/9/30 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 322 零钱兑换</strong>：给你一个整数数组 <code>coins</code> 表示不同面额的硬币，以及一个整数 <code>amount</code> 表示总金额。计算并返回可以凑成总金额所需的<strong>最少硬币个数</strong>。如果没有任何一种硬币组合能组成总金额，返回 <code>-1</code>。每种硬币的数量是<strong>无限的</strong>。
+<div class="codehilite"><pre><span></span><code>输入: coins = [1, 2, 5], amount = 11
+输出: 3   （11 = 5 + 5 + 1）
+
+输入: coins = [2], amount = 3
+输出: -1  （2 怎么翻倍都凑不出奇数）
+</code></pre></div>
+
+
+它是最标准的<strong>完全背包 · 求最小值</strong>：物品可以无限取，要的是"最少件数"。这类题唯一的门槛不在递推式（一行就写完），而在两个地方 —— <strong><code>∞</code> 的初始化</strong>，以及<strong>内层金额的遍历方向</strong>。后者是本文的主角：同一段代码，金额正序得到 <code>3</code>，金额逆序得到 <code>-1</code>。
+<ul>
+<li><a href="#section-1">一、核心洞察：dp 定义与状态转移</a></li>
+<li><a href="#section-2">二、为什么"正序"是完全背包的指纹</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、同族题：518 / 279 / 377 / 139 / 416</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：dp 定义与状态转移</h2>
+
+暴力的思路是枚举"各用几枚"，组合数会爆炸。换成<strong>逐个金额地逼近</strong>：
+<blockquote>
+
+不问"用哪些硬币"，而问"<strong>凑出金额 <code>x</code> 最少要几枚</strong>"。
+</blockquote>
+
+于是定义：
+<ul>
+<li><code>dp[x]</code> = 凑出金额 <code>x</code> 所需的<strong>最少硬币枚数</strong>；</li>
+<li><code>dp[0] = 0</code>（零元一枚都不用）；</li>
+<li>其余全部初始化成 <strong>∞</strong>（先假定凑不出，凑得出再往下降）。</li>
+</ul>
+
+递推式只有一行：
+<div class="codehilite"><pre><span></span><code><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">min</span><span class="w"> </span><span class="k">over</span><span class="w"> </span><span class="n">每种硬币</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x - c</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">)</span><span class="w">      </span><span class="err">（</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="err">）</span>
+</code></pre></div>
+
+
+语义是：<strong>把硬币 <code>c</code> 当作"最后一枚"去试</strong> —— 剩下 <code>x - c</code> 的最优解已经知道，补上这一枚就是一条候选路径。<code>x</code> 从 <code>1</code> 到 <code>amount</code> <strong>正序</strong>推进，等算 <code>dp[x]</code> 时，用到的 <code>dp[x-c]</code>（下标更小）早就写好了。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">coinChange</span><span class="p">(</span><span class="n">coins</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)]</span> <span class="o">*</span> <span class="n">amount</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">amount</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">coins</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="o">&gt;=</span> <span class="n">c</span><span class="p">:</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">dp</span><span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="n">c</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">amount</span><span class="p">]</span> <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">amount</span><span class="p">]</span> <span class="o">!=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+
+两个细节决定了成败：
+<ol>
+<li><strong><code>∞</code> 而不是 <code>0</code></strong>：用 <code>0</code> 初始化等于宣布"任何金额都凑得出、而且一枚就够"，<code>min</code> 会把答案大面积压成 <code>1</code>。<code>∞</code> 才是"先假定凑不出"，配合 <code>min</code> 让它有机会被真正的路径顶下去。</li>
+<li><strong>内层金额正序</strong>：见下一节，这是"硬币可以无限复用"的开关。</li>
+</ol>
+<h2>二、为什么"正序"是完全背包的指纹</h2>
+
+把上面的写法换成背包的视角 —— <strong>外层面额、内层金额</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nl">coins</span><span class="p">:</span><span class="w">                     </span><span class="err">#</span><span class="w"> </span><span class="n">一种一种硬币地放</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="vm">??</span><span class="err">:</span><span class="w">                    </span><span class="err">#</span><span class="w"> </span><span class="n">金额怎么遍历</span><span class="err">？</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nl">c</span><span class="p">:</span>
+<span class="w">            </span><span class="n">dp</span><span class="o">[</span><span class="n">a</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">min</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">a</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">a - c</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+
+变量只剩一个：内层 <code>a</code> 的方向。
+
+<strong>正序（<code>a: 1 → amount</code>）—— 完全背包（LC 322 要的）</strong>
+
+处理到金额 <code>a</code> 时，<code>dp[a-c]</code>（下标更小）<strong>这一轮已经更新过</strong>，而且它自己可能就是用硬币 <code>c</code> 凑出来的。于是 <code>dp[a] = dp[a-c] + 1</code> 天然允许"<strong>再叠一枚 <code>c</code></strong>"。硬币无限复用就发生在这里：<code>[1,2,5]</code> 凑 <code>11</code>，<code>dp[11]</code> 从 <code>dp[10]</code> 借力，<code>dp[10]</code> 从 <code>dp[5]</code> 借力，<code>5+5+1</code> 三枚，答案 <strong>3</strong>。
+
+<strong>逆序（<code>a: amount → 1</code>）—— 0-1 背包（换题了）</strong>
+
+处理到金额 <code>a</code> 时，<code>dp[a-c]</code> 这一步<strong>还没被本轮碰过</strong>（下标更小、要等后面才轮到），读到的是<strong>上一轮留下的旧值</strong>。等价于"每枚硬币最多用一次" —— <code>[1,2,5]</code> 三枚总面额只有 <code>8</code>，凑 <code>11</code> 永远无解，答案 <strong>-1</strong>。
+
+一句话记住分界：
+<blockquote>
+
+<strong>正序读"同一轮已经写好的自己"，逆序读"上一轮留下的自己"。</strong>
+</blockquote>
+
+所以：<strong>322 必须正序</strong>；而 <code>416 分割等和子集</code>、<code>1049 最后一块石头重量 II</code> 这类"每件只能用一次"的，才反过来必须<strong>逆序</strong>。这不是风格差异，是题意差异。
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc322"></div>
+
+<div class="algo-viz algo-viz--lc322order"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--lc322</code>）：顶部是 <code>dp[0..11]</code> 整行金额格，当前金额金框、来源格绿框，两者之间一条弧线把"从哪来"画清楚；中部是候选硬币行 —— 每枚硬币一格，写出 <code>dp[x-c] + 1</code> 的现场打分，获胜者描金、超出金额的格子虚线划掉；横幅给出这一格的 <code>min(...)</code> 完整算式。填完 11 格之后，动画会继续走<strong>回溯帧</strong>：顺着 <code>chosen</code> 前驱表从 <code>11 → 10 → 5 → 0</code> 走回起点，把最优组合 <code>5 + 5 + 1</code> 从表里"捞"出来 —— 只记枚数是还原不出组合的。
+
+<strong>动画二</strong>（<code>algo-viz--lc322order</code>）：上下两块面板，方程<strong>逐字相同</strong>，只有内层金额的方向不同。上面正序（本轮从左往右扫，已扫区间 <code>1 → a</code>），下面逆序（从右往左扫，已扫区间 <code>a → 11</code>）。每帧按"本轮第几步"对齐 —— 第 <code>j</code> 帧里上面处理金额 <code>j</code>、下面处理金额 <code>12 - j</code>。盯住<strong>来源格</strong>：正序面板读到的永远是"本轮的新值"，逆序面板读到的永远是"上一轮的老值"。跑完三枚硬币，上面 <code>dp[11] = 3</code>，下面 <code>dp[11] = ∞</code>。
+<h2>四、完整推演表</h2>
+
+<strong>动画一</strong>：<code>coins = [1, 2, 5]</code>，<code>amount = 11</code>（与动画默认一致）。
+<table>
+<thead>
+<tr>
+<th>a</th>
+<th>试 1：dp[a−1]+1</th>
+<th>试 2：dp[a−2]+1</th>
+<th>试 5：dp[a−5]+1</th>
+<th>dp[a]</th>
+<th>最优组合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>dp[0]+1 = 1</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>dp[1]+1 = 2</td>
+<td>dp[0]+1 = 1</td>
+<td>—</td>
+<td>1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>3</td>
+<td>dp[2]+1 = 2</td>
+<td>dp[1]+1 = 2</td>
+<td>—</td>
+<td>2</td>
+<td>2+1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>dp[3]+1 = 3</td>
+<td>dp[2]+1 = 2</td>
+<td>—</td>
+<td>2</td>
+<td>2+2</td>
+</tr>
+<tr>
+<td>5</td>
+<td>dp[4]+1 = 3</td>
+<td>dp[3]+1 = 3</td>
+<td>dp[0]+1 = 1</td>
+<td>1</td>
+<td>5</td>
+</tr>
+<tr>
+<td>6</td>
+<td>dp[5]+1 = 2</td>
+<td>dp[4]+1 = 3</td>
+<td>dp[1]+1 = 2</td>
+<td>2</td>
+<td>5+1</td>
+</tr>
+<tr>
+<td>7</td>
+<td>dp[6]+1 = 3</td>
+<td>dp[5]+1 = 2</td>
+<td>dp[2]+1 = 2</td>
+<td>2</td>
+<td>5+2</td>
+</tr>
+<tr>
+<td>8</td>
+<td>dp[7]+1 = 3</td>
+<td>dp[6]+1 = 3</td>
+<td>dp[3]+1 = 3</td>
+<td>3</td>
+<td>5+2+1</td>
+</tr>
+<tr>
+<td>9</td>
+<td>dp[8]+1 = 4</td>
+<td>dp[7]+1 = 3</td>
+<td>dp[4]+1 = 3</td>
+<td>3</td>
+<td>5+2+2</td>
+</tr>
+<tr>
+<td>10</td>
+<td>dp[9]+1 = 4</td>
+<td>dp[8]+1 = 4</td>
+<td>dp[5]+1 = 2</td>
+<td>2</td>
+<td>5+5</td>
+</tr>
+<tr>
+<td>11</td>
+<td>dp[10]+1 = 3</td>
+<td>dp[9]+1 = 4</td>
+<td>dp[6]+1 = 3</td>
+<td><strong>3</strong></td>
+<td><strong>5+5+1</strong></td>
+</tr>
+</tbody>
+</table>
+
+最终 <code>dp = [0, 1, 1, 2, 2, 1, 2, 2, 3, 3, 2, 3]</code>，返回 <code>3</code>。注意第 11 格：三枚硬币给出的候选是 <code>3, 4, 3</code>，<code>1</code> 和 <code>5</code> 打平 —— 取第一个（同分不换），于是回溯链走 <code>11 → 10 → 5 → 0</code>，组合是 <code>5 + 5 + 1</code>。
+
+<strong>动画二</strong>：同一组数据，看两块面板跑完每枚硬币之后的样子。
+<table>
+<thead>
+<tr>
+<th>跑完</th>
+<th>正序 dp[0..11]</th>
+<th>逆序 dp[0..11]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开局</td>
+<td><code>0, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞</code></td>
+<td><code>0, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞</code></td>
+</tr>
+<tr>
+<td>c = 1</td>
+<td><code>0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11</code></td>
+<td><code>0, 1, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞</code></td>
+</tr>
+<tr>
+<td>c = 2</td>
+<td><code>0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6</code></td>
+<td><code>0, 1, 1, 2, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞</code></td>
+</tr>
+<tr>
+<td>c = 5</td>
+<td><code>0, 1, 1, 2, 2, 1, 2, 2, 3, 3, 2, 3</code></td>
+<td><code>0, 1, 1, 2, ∞, 1, 2, 2, 3, ∞, ∞, ∞</code></td>
+</tr>
+</tbody>
+</table>
+
+正序那列的每一格都是"这一轮刷过的新值"顶上去的；逆序那列从右往左刷，但每枚硬币只肯出手一次，<code>dp[11]</code> 到最后还是 <code>∞</code> → 返回 <code>-1</code>。
+<h2>五、同族题：518 / 279 / 377 / 139 / 416</h2>
+
+322 是"完全背包求最小值"。同一副骨架换个问法，就是一条完整的题链：
+<ul>
+<li><strong>LC 279 完全平方数</strong>：硬币就是 <code>1, 4, 9, 16, ...</code>，问凑出 <code>n</code> 的最少个数 —— <strong>与 322 逐字同构</strong>，连代码都只改一行（把 <code>coins</code> 换成平方数序列）。</li>
+<li><strong>LC 518 零钱兑换 II</strong>：完全背包但求<strong>方案数</strong>。转移变成 <code>dp[a] += dp[a-c]</code>，而且<strong>必须外层硬币、内层金额正序</strong> —— 这个顺序把"同一种组合的不同排列"去掉了，数的才是组合数。</li>
+<li><strong>LC 377 组合总和 IV</strong>：同一行加法、但<strong>外层金额、内层硬币</strong> —— 顺序反过来，数的就变成了<strong>排列数</strong>。377 和 518 的差别只有循环嵌套的顺序，值得对着看一眼。</li>
+<li><strong>LC 139 单词拆分</strong>：完全背包的布尔版，<code>dp[a] |= dp[a-len] &amp;&amp; s 的这一段在字典里</code>。</li>
+<li><strong>LC 416 分割等和子集</strong>：求"能否恰好装满 <code>sum/2</code>"，但<strong>每件元素只能用一次</strong> —— 这是 <strong>0-1 背包</strong>，内层金额必须<strong>逆序</strong>（正是本文动画二右边那块）。<code>LC 494 目标和</code>、<code>LC 1049 最后一块石头重量 II</code> 同理。</li>
+</ul>
+
+把它们排成一列看：<strong>背包的容量维就是金额维，物品就是硬币；"无限件"用正序，"每件一次"用逆序；求最值用 <code>min/max</code>，求方案数用 <code>+</code>。</strong> 322 只是这条坐标轴上的一个点。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 322：完全背包求最小 —— 与推演表逐帧一致</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">coinChange</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">coins</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">              </span><span class="c1">// 哨兵：比&quot;全用 1 元&quot;还大一，且 +1 不会溢出</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">amount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">dp</span><span class="p">,</span><span class="w"> </span><span class="n">INF</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">amount</span><span class="p">;</span><span class="w"> </span><span class="n">x</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">coins</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// 用更新前的 dp[x-c]；正序保证它可能已含 c</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">amount</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">amount</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 322：配一张前驱表就能还原&quot;用了哪些硬币&quot;</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">coinChange</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">coins</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">amount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">chosen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">amount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">dp</span><span class="p">,</span><span class="w"> </span><span class="n">INF</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">amount</span><span class="p">;</span><span class="w"> </span><span class="n">x</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">coins</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">chosen</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">amount</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">INF</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">picked</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">amount</span><span class="p">;</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">chosen</span><span class="o">[</span><span class="n">cur</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="n">picked</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">chosen</span><span class="o">[</span><span class="n">cur</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// picked 即最优组合（回溯顺序）</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">amount</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 322 的另一种视角：BFS 最短路（顺带能出组合）</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">coinChange</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">coins</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">amount</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dist</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">amount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">dist</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="n">queue</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">pollFirst</span><span class="p">();</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">coins</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">next</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dist</span><span class="o">[</span><span class="n">next</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">dist</span><span class="o">[</span><span class="n">next</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dist</span><span class="o">[</span><span class="n">cur</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">amount</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">dist</span><span class="o">[</span><span class="n">next</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="n">next</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意 Java 里的哨兵：用 <code>amount + 1</code>（而不是 <code>Integer.MAX_VALUE</code>）当"无穷大"，因为 <code>Integer.MAX_VALUE + 1</code> 会溢出成负数，<code>min</code> 立刻选错。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong><code>amount = 0</code></strong>：直接返回 <code>0</code>，不必进循环 —— "一枚都不用"就是答案；</li>
+<li><strong>凑不出</strong>：<code>dp[amount]</code> 停在 <code>∞</code>，返回 <code>-1</code>。<code>[2]</code> 凑 <code>3</code>、<code>[3,7]</code> 凑 <code>5</code> 都是这类；</li>
+<li><strong>硬币比金额大</strong>：<code>x - c &lt; 0</code>，这枚硬币永远装不下，直接跳过（也可以先把 <code>coins</code> 里大于 <code>amount</code> 的过滤掉）；</li>
+<li><strong>单枚命中</strong>：<code>[7]</code> 凑 <code>7</code> → <code>1</code>，<code>[7]</code> 凑 <code>14</code> → <code>2</code>（复用同一枚，靠的正是正序）；</li>
+<li><strong>硬币齐全</strong>：只要有 <code>1</code>，任何金额都可达，<code>dp</code> 全程有限 —— 这也是很多测试用例的"安全带"；</li>
+<li><strong>面额重复</strong>：<code>[1,1,2]</code> 与 <code>[1,2]</code> 答案相同（同分不换，只是可能选到不同那枚），不影响正确性；</li>
+<li><strong>溢出</strong>：Java 用 <code>amount + 1</code> 当哨兵；Python 用 <code>float('inf')</code>；JS 用 <code>Infinity</code> —— 别用 <code>int</code> 上界硬加一。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>322 标准 DP（金额 × 硬币）</td>
+<td><code>O(amount × k)</code></td>
+<td><code>O(amount)</code></td>
+</tr>
+<tr>
+<td>322 + 前驱表还原组合</td>
+<td><code>O(amount × k)</code></td>
+<td><code>O(amount)</code></td>
+</tr>
+<tr>
+<td>322 BFS 最短路</td>
+<td><code>O(amount × k)</code></td>
+<td><code>O(amount)</code></td>
+</tr>
+<tr>
+<td>322 朴素递归（对照）</td>
+<td>指数级</td>
+<td><code>O(amount)</code> 记忆化后</td>
+</tr>
+<tr>
+<td>322 二维完全背包（对照）</td>
+<td><code>O(amount × k)</code></td>
+<td><code>O(amount × k)</code></td>
+</tr>
+</tbody>
+</table>
+
+<code>k</code> 是硬币<strong>种数</strong>。二维完全背包的一维化，靠的正是"内层金额正序"：<code>dp[x]</code> 只依赖同一行的更小下标，压掉"用到第几种硬币"这一维后语义不变 —— 反过来说，<strong>逆序</strong>就是压错了方向的后果。
+<h2>九、常见坑</h2>
+<ol>
+<li><strong><code>∞</code> 初始化成 <code>0</code></strong>：<code>min</code> 立刻把一切都压成 <code>0</code> 或 <code>1</code>。记住语义是"先假定凑不出"。</li>
+<li><strong>内层金额逆序</strong>：程序照跑、样例照过（如果硬币够多），但题意已经悄悄变成 0-1 背包 —— <code>[1,2,5]</code> 凑 <code>11</code> 会返回 <code>-1</code>。</li>
+<li><strong>贪心先拿大面额</strong>：<code>[1,3,4]</code> 凑 <code>6</code>，贪心拿 <code>4</code> 之后剩 <code>2</code>，得 <code>4+1+1 = 3</code> 枚；正确答案是 <code>3+3 = 2</code> 枚。<strong>面额不整除时必须 DP</strong>。</li>
+<li><strong>忘了 <code>amount = 0</code> 短路</strong>：逻辑上 <code>dp[0] = 0</code> 已经覆盖，但如果代码里有除零、取模或"至少一枚"的假设，就会翻车。</li>
+<li><strong>返回 <code>dp[amount]</code> 而不是 <code>-1</code></strong>：题面要求凑不出时返回 <code>-1</code>，直接返回 <code>∞</code>/大数会判错。</li>
+<li><strong>只记枚数、还原不了组合</strong>：需要组合时得再配一张前驱表（<code>chosen[x]</code>），从 <code>amount</code> 顺链走回 <code>0</code>。</li>
+<li><strong>Java 用 <code>Integer.MAX_VALUE</code> 当 <code>∞</code></strong>：<code>MAX_VALUE + 1</code> 溢出成负数，<code>min</code> 会选中它。用 <code>amount + 1</code>。</li>
+<li><strong>把 322 与 518 的顺序规则混用</strong>：322 求 <strong>min</strong>，外面对金额 / 内层硬币也成立；518 求<strong>方案数</strong>，必须外层硬币、内层金额正序，否则数的是排列（那是 377）。</li>
+<li><strong>忘记过滤大于 <code>amount</code> 的硬币</strong>：不影响正确性，但会让每轮多跑无用的分支；贪心类解法里则会导致错误。</li>
+</ol>
+<h2>十、面试怎么答</h2>
+
+<strong>第一段 · 定义与转移</strong>：<code>dp[x]</code> = 凑出金额 <code>x</code> 的最少硬币枚数，<code>dp[0] = 0</code>、其余 <code>∞</code>，<code>dp[x] = min(dp[x-c] + 1)</code>，金额正序推进。说清 <code>∞</code> 为什么不能用 <code>0</code>。
+
+<strong>第二段 · 为什么正序</strong>：外层硬币、内层金额，正序时 <code>dp[x-c]</code> 是本轮已更新的值，允许"再叠一枚同一硬币" —— 这就是完全背包；逆序读到的是上一轮的旧值，退化成 0-1 背包。<strong>这一段是这题的区分度所在</strong>，主动说出来比写对代码更值钱。
+
+<strong>第三段 · 换个视角</strong>：把金额当作图上的点、每枚硬币当作一条单位权边，答案就是 <code>0 → amount</code> 的<strong>最短路</strong>，BFS 一遍即可，<code>O(amount × k)</code>。DP 与 BFS 在这里等价 —— 这个视角在追问"打印最优组合"时特别顺手（BFS 记录前驱即可）。
+
+<strong>追问连跳</strong>：
+- 要<strong>方案数</strong> → LC 518（<code>dp[a] += dp[a-c]</code>，外层硬币、内层正序）；要<strong>排列数</strong> → LC 377（循环顺序对调）；
+- 物品<strong>每件只用一次</strong> → LC 416 / 494 / 1049，内层金额<strong>逆序</strong>；
+- 硬币面额变成平方数 → LC 279，代码只换序列；
+- 要<strong>还原组合</strong> → 加 <code>chosen[x]</code> 前驱表，从 <code>amount</code> 回溯到 <code>0</code>。
+
+一句话收尾："零钱兑换只有一台机器 —— <code>dp[金额]</code> 的完全背包，区别只在方向、在 <code>min</code> 还是 <code>+</code>。"
+<h2>结语</h2>
+
+322 的全部难度浓缩在一行初始化（<code>∞</code>）和一层循环方向（正序）里。<code>∞</code> 决定了"凑不出"这件事能不能被表达，正序决定了"硬币能不能重复用" —— 前者是定义问题，后者是题意问题。把这两处讲清楚，518、279、377、416 就都只是同一台机器换了个参数。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
