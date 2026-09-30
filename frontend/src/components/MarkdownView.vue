@@ -42,6 +42,7 @@ import { mountBrackets } from '@/viz/brackets'
 import { mountSlidingMax } from '@/viz/slidingMax'
 import { mountLisDp } from '@/viz/lisDp'
 import { mountLisBinary } from '@/viz/lisBinary'
+import { mountEditDistGrid, mountEditDistRoll } from '@/viz/editDistance'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
@@ -369,6 +370,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc239': mountSlidingMax,
   'algo-viz--lc300dp': mountLisDp,
   'algo-viz--lc300binary': mountLisBinary,
+  'algo-viz--lc72': mountEditDistGrid,
+  'algo-viz--lc72roll': mountEditDistRoll,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
