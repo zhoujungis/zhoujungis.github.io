@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 给你一个整数数组 nums ，找到其中 最长严格递增子序列 的长度。 进阶：你能把时间复杂度降到 O(n log n) 吗？ 子序列可以跳着挑，只要保持原来的先后顺序：上面挑了 2 之后跳过 5 拿 3 ，完全合法。LC 300 是腾讯 DP 方向出现率第一的题，也是「动态规划状态定义」这件事最好的教材 —— 第" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-300-longest-increasing-subsequence/" />
+    <meta property="og:title" content="【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n)" />
+    <meta property="og:description" content="题目 给你一个整数数组 nums ，找到其中 最长严格递增子序列 的长度。 进阶：你能把时间复杂度降到 O(n log n) 吗？ 子序列可以跳着挑，只要保持原来的先后顺序：上面挑了 2 之后跳过 5 拿 3 ，完全合法。LC 300 是腾讯 DP 方向出现率第一的题，也是「动态规划状态定义」这件事最好的教材 —— 第" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-300-longest-increasing-subsequence/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-300-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n)" />
+    <meta name="twitter:description" content="题目 给你一个整数数组 nums ，找到其中 最长严格递增子序列 的长度。 进阶：你能把时间复杂度降到 O(n log n) 吗？ 子序列可以跳着挑，只要保持原来的先后顺序：上面挑了 2 之后跳过 5 拿 3 ，完全合法。LC 300 是腾讯 DP 方向出现率第一的题，也是「动态规划状态定义」这件事最好的教材 —— 第" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-300-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n) | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BkV_WPVa.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-30T14:33:47.265357+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n)","description":"题目 给你一个整数数组 nums ，找到其中 最长严格递增子序列 的长度。 进阶：你能把时间复杂度降到 O(n log n) 吗？ 子序列可以跳着挑，只要保持原来的先后顺序：上面挑了 2 之后跳过 5 拿 3 ，完全合法。LC 300 是腾讯 DP 方向出现率第一的题，也是「动态规划状态定义」这件事最好的教材 —— 第","image":"https://zhoujungis.github.io/photos/lc-300-cover.png","datePublished":"2026-09-30T14:33:47.265357+08:00","dateModified":"2026-09-30T14:33:47.265397+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-300-longest-increasing-subsequence/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n)</h1><div class="ns-meta">2026/9/30 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+给你一个整数数组 <code>nums</code>，找到其中<strong>最长严格递增子序列</strong>的长度。
+<div class="codehilite"><pre><span></span><code>输入: nums = [10,9,2,5,3,7,101,18]
+输出: 4
+解释: 最长递增子序列是 [2,3,7,101]（或 [2,3,7,18]），长度 4。
+</code></pre></div>
+
+
+进阶：你能把时间复杂度降到 <code>O(n log n)</code> 吗？
+
+子序列可以跳着挑，只要保持原来的先后顺序：上面挑了 <code>2</code> 之后跳过 <code>5</code> 拿 <code>3</code>，完全合法。LC 300 是腾讯 DP 方向出现率第一的题，也是「动态规划状态定义」这件事最好的教材 —— 第一问考你敢不敢加锚，进阶问考你敢不敢换锚。
+<ul>
+<li><a href="#section-1">一、核心洞察：给状态加一个锚</a></li>
+<li><a href="#section-2">二、拆解：转移怎么写</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：O(n log n)，换一套记账</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：给状态加一个锚</h2>
+
+先想清楚难在哪。「子序列可以跳着挑」意味着：<strong>一个元素要不要，取决于它前面已经挑了什么</strong> —— 这是组合问题，没法一眼贪心（局部最长接起来不一定是全局最长）。
+
+动态规划的破局动作只有一个：<strong>给状态加一个锚</strong>。
+<blockquote>
+
+<code>dp[i]</code> = <strong>以 <code>nums[i]</code> 结尾</strong>的最长递增子序列的长度。
+</blockquote>
+
+锚一加上，问题立刻从「整段怎么挑」退化成「我接在谁后面」：一条以 <code>nums[i]</code> 结尾的递增子序列，去掉最后一个元素还是一条<strong>以某个 <code>nums[j]</code> 结尾</strong>的递增子序列（<code>j &lt; i</code>）—— 子问题形状和原问题一模一样，只是规模更小。转移自然就出来了。
+
+两个常见误解要排掉：
+<ul>
+<li><strong>「<code>dp[i]</code> = 前 <code>i</code> 个数里的最长递增子序列」</strong>？不行。那样定义出来的"最长"未必以 <code>nums[i]</code> 结尾，接 <code>nums[i+1]</code> 时你不知道它的末尾是谁 —— <strong>转移写不出来</strong>。锚必须是"以谁结尾"。</li>
+<li><strong>为什么敢只看「结尾」</strong>？因为递增性只在<strong>相邻的两个元素</strong>之间发生作用：判断"能不能接"只需要比较末尾和新元素，中间怎么挑的不影响这个判断。</li>
+</ul>
+
+这和 LC 53（最大子数组和）是同一个动作：Kadane 的 <code>dp[i]</code> 也是"<strong>以 <code>i</code> 结尾</strong>的最大子数组和"，而不是"前 <code>i</code> 个里的最大和"。<strong>"以 i 结尾"是子序列/子数组问题里最好用的锚，没有之一。</strong>
+<h2>二、拆解：转移怎么写</h2>
+
+锚定之后，转移只有一句话：
+<blockquote>
+
+<code>dp[i] = 1 + max(dp[j])</code>，其中 <code>j &lt; i</code> 且 <code>nums[j] &lt; nums[i]</code>；找不到这样的 <code>j</code>，就自己单独成串，取 <code>1</code>。
+</blockquote>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>          <span class="c1"># dp[i]: 以 nums[i] 结尾的最长严格递增子序列长度</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">and</span> <span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&gt;</span> <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">dp</span><span class="p">)</span>
+</code></pre></div>
+
+
+三个要点：
+<ul>
+<li><strong>初值是 1，不是 0</strong>：每个元素自己就是一条长度为 1 的递增子序列。初值写成 0 的话，全递减数组会返回 0；</li>
+<li><strong>内层是"往回看一遍"</strong>：每个 <code>i</code> 都要把 <code>j</code> 从 0 到 <code>i-1</code> 全部看一遍，不能找到一个能接的就停 —— 更长的链可能藏在后面；</li>
+<li><strong>答案是 <code>max(dp)</code>，不是 <code>dp[n-1]</code></strong>：最长的那条链不一定以最后一个元素结尾。这是本题第一大坑（见 9.1，官方样例恰好让它看不出来）。</li>
+</ul>
+<div class="algo-viz algo-viz--lc300dp"></div>
+<h2>三、动画怎么看</h2>
+
+动画五行：
+<ul>
+<li><strong>横幅</strong>：左边"第几轮、在处理谁"，中间本帧动作，右边当前 <code>dp[i]</code> 的值；</li>
+<li><strong>nums 行</strong>：橙框 = 当前的 <code>i</code>；绿框 = 正在回看的 <code>j</code>；接不上的 <code>j</code> 画灰虚线（"下一个数必须严格更大"）；绿底 = 本轮<strong>能接</strong>的候选；</li>
+<li><strong>dp 行</strong>：每格是"以它结尾"的长度。<code>i</code> 这一格在扫描中<strong>就地生长</strong>（橙虚线框，每刷新一次就变大），定型帧转金色；<code>i</code> 之后的格子还是虚线空壳；</li>
+<li><strong>金色链</strong>：从最优前驱一路回溯画出的那条<strong>当前最长链</strong> —— 它就是"这条 dp 值对应的具体方案"，随扫描实时变化；</li>
+<li><strong>答案行</strong>：「目前最长递增子序列长度」只在<strong>定型帧</strong>刷新 —— 扫描中的 <code>dp[i]</code> 再大也不算数，这是刻意的口径：没定型就不进答案。</li>
+</ul>
+
+教科书帧有两处：<code>i = 5</code>（值 7）—— 三个候选里 <code>j = 3</code>（值 5，dp 为 2）比 <code>j = 2</code>（值 2，dp 为 1）更长，链从 <code>j = 2</code> 换到 <code>j = 3</code>；<code>i = 6</code>（值 101）—— 前面 6 个全部能接，一路涨到 4。最后 <code>i = 7</code>（值 18）打平不刷新，<strong>全局最长停在 <code>i = 6</code></strong> —— 这正是"答案是 <code>max(dp)</code>"的现场演示。
+<h2>四、完整推演表</h2>
+
+以 <code>[10,9,2,5,3,7,101,18]</code> 为主例，每个 <code>i</code> 一行（对应动画的 8 个定型帧；帧与帧之间的 scan 帧逐个回看 <code>j</code>，共 28 个）：
+<table>
+<thead>
+<tr>
+<th>i</th>
+<th>值</th>
+<th>能接的 j（逐个回看）</th>
+<th>最优前驱</th>
+<th>dp[i]</th>
+<th>全局最长</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>10</td>
+<td>无</td>
+<td>-</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>9</td>
+<td>无（10 接不上）</td>
+<td>-</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>无（9、10 都接不上）</td>
+<td>-</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>5</td>
+<td>j=2</td>
+<td>j=2（dp=1）</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>j=2</td>
+<td>j=2（dp=1）</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>5</td>
+<td>7</td>
+<td>j=2, j=3, j=4</td>
+<td>j=3（dp=2）</td>
+<td>3</td>
+<td>3</td>
+</tr>
+<tr>
+<td>6</td>
+<td>101</td>
+<td>j=0 到 j=5 全部</td>
+<td>j=5（dp=3）</td>
+<td>4</td>
+<td>4</td>
+</tr>
+<tr>
+<td>7</td>
+<td>18</td>
+<td>j=0 到 j=5（j=6 的 101 接不上）</td>
+<td>j=5（dp=3）</td>
+<td>4</td>
+<td>4</td>
+</tr>
+</tbody>
+</table>
+
+最终 <code>dp = [1,1,1,2,2,3,4,4]</code>，答案是 <strong>4</strong>，出现在 <code>i = 6</code>（值 101）。金链是 <code>2 → 5 → 7 → 101</code>（下标 2, 3, 5, 6）。
+
+注意两行：<code>i = 4</code>（值 3）和 <code>i = 3</code>（值 5）的 dp 都是 2、最优前驱都是 <code>j = 2</code> —— 同一个前驱可以被多个后续复用，这正是 <code>O(n^2)</code> 做法比暴力枚举所有子序列（<code>2^n</code> 种）省时间的根本原因：<strong>每个"以 j 结尾"的最优解只算一次，之后被所有能接上它的 i 直接查表</strong>。
+
+<code>i = 7</code> 那行也值得多看一眼：<code>dp[7] = 4</code> 与 <code>dp[6] = 4</code> 打平，全局最长没有被刷新。<strong>如果这一帧你返回的是 <code>dp[n-1]</code>，答案恰好也是 4 —— 官方样例在这里是失效的</strong>（见 9.1）。
+<h2>五、进阶：O(n log n)，换一套记账</h2>
+
+<code>O(n^2)</code> 的瓶颈在于"以 <code>i</code> 结尾"这个锚：结尾有 <code>n</code> 种可能，想知道"谁能接上 <code>x</code>"只能逐个回看。想二分，就得换一个<strong>按下标（也就是长度）记账</strong>的锚：
+<blockquote>
+
+<code>tails[len]</code> = 所有长度为 <code>len + 1</code> 的递增子序列中，<strong>末尾元素的最小值</strong>。
+</blockquote>
+
+这个定义自带一个关键性质：<strong><code>tails</code> 本身严格递增</strong>。反证：若 <code>a &lt; b</code> 且 <code>tails[a] &gt;= tails[b]</code>，把"长度为 <code>b+1</code>、末尾为 <code>tails[b]</code>"的那条子序列砍掉尾巴留前 <code>a+1</code> 项，它的末尾必然小于 <code>tails[b] &lt;= tails[a]</code> —— 与"<code>tails[a]</code> 是该长度下最小末尾"矛盾。
+
+<code>tails</code> 严格递增，就<strong>可以二分</strong>了。每来一个 <code>x</code>，找<strong>第一个 <code>&gt;= x</code> 的位置</strong>（<code>bisect_left</code>）：
+<ul>
+<li>位置存在 → 把 <code>tails[pos]</code> 换成 <code>x</code>：长度 <code>pos+1</code> 这一档的末尾变得更小，<strong>对后面接数更有利</strong>，长度不变；</li>
+<li>位置就是表尾之外 → <code>x</code> 比所有末尾都大，<strong>追加</strong>，长度加一 —— 这是唯一能让答案变大的动作。</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bisect</span><span class="w"> </span><span class="kn">import</span> <span class="n">bisect_left</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">tails</span> <span class="o">=</span> <span class="p">[]</span>                      <span class="c1"># tails[len]: 长度为 len+1 的子序列的最小末尾</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">bisect_left</span><span class="p">(</span><span class="n">tails</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="c1"># 第一个 &gt;= x 的位置</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">tails</span><span class="p">):</span>
+            <span class="n">tails</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>         <span class="c1"># 比所有末尾都大：长度加一</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tails</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span>          <span class="c1"># 同长度下末尾更小</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">tails</span><span class="p">)</span>
+</code></pre></div>
+
+
+不想用库函数，手写二分就是十几行（面试常被要求手写，顺便验证你真的懂 lower_bound）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">tails</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tails</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">lo</span> <span class="o">&lt;</span> <span class="n">hi</span><span class="p">:</span>
+            <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+            <span class="k">if</span> <span class="n">tails</span><span class="p">[</span><span class="n">mid</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">:</span>      <span class="c1"># 往右收：mid 不可能是答案</span>
+                <span class="n">lo</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>                   <span class="c1"># 往左收：mid 可能是答案，hi 停在 mid</span>
+                <span class="n">hi</span> <span class="o">=</span> <span class="n">mid</span>
+        <span class="k">if</span> <span class="n">lo</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">tails</span><span class="p">):</span>
+            <span class="n">tails</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tails</span><span class="p">[</span><span class="n">lo</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">tails</span><span class="p">)</span>
+</code></pre></div>
+
+<div class="algo-viz algo-viz--lc300binary"></div>
+
+
+动画里的行与 dp 版对应：横幅管进度，nums 行管当前元素，tails 行管这张"登记表"（每格标着 <code>len k</code>，即"长度 <code>k+1</code> 这一档"），绿底 = 当前二分区间，橙框 = 探针 <code>mid</code>，金框 = 收敛出的 <code>pos</code>；替换帧还会把<strong>被换掉的旧值</strong>划掉给你看。
+
+有一个必须主动讲的澄清：<strong><code>tails</code> 不是那条最长递增子序列本身</strong>。主例跑完 <code>tails = [2,3,7,18]</code>，而真实的 LIS 是 <code>[2,3,7,101]</code> 或 <code>[2,3,7,18]</code> —— 恰好像，是因为 <code>18</code> 替换 <code>101</code> 的那一步把内容改了。<code>tails</code> 只是"每个长度下的最优末尾"的登记表，<strong>它的长度才是答案，内容不可信</strong>。想拿到具体的序列本身，还是得回到 dp 版拿 <code>parent</code> 回溯。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">tails</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 当前长度</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="p">;</span><span class="w">          </span><span class="c1">// 在 [0, size) 里找第一个 &gt;= x 的位置</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;&gt;&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tails</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">tails</span><span class="o">[</span><span class="n">lo</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">size</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">size</span><span class="o">++</span><span class="p">;</span><span class="w">                     </span><span class="c1">// 追加：长度加一</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 里<strong>不建议</strong>用 <code>Arrays.binarySearch</code> 顶替手写二分：命中时它返回的是<strong>某一个</strong>匹配位置（不保证最左），重复元素时语义和 lower_bound 不一致，还得对负数返回值做 <code>-(ret + 1)</code> 还原插入点 —— 手写十几行反而更短更稳。
+<h2>七、边界情况</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>输出</th>
+<th>考察点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>空数组</td>
+<td>0</td>
+<td><code>max(dp)</code> 前先判空；tails 版天然返回 0</td>
+</tr>
+<tr>
+<td>单元素</td>
+<td>1</td>
+<td>一个元素自己就是长度 1</td>
+</tr>
+<tr>
+<td>全部相等 <code>[7,7,7]</code></td>
+<td>1</td>
+<td><strong>严格</strong>递增：相等不能接，tails 版靠 bisect_left 每次 pos=0 替换</td>
+</tr>
+<tr>
+<td>严格递减</td>
+<td>1</td>
+<td>dp 版每格都是 1；tails 版长度恒为 1</td>
+</tr>
+<tr>
+<td>严格递增</td>
+<td>n</td>
+<td>dp 版每格都是"前面全接"；tails 版每步追加</td>
+</tr>
+<tr>
+<td>最长在不末尾 <code>[1,2,3,0]</code></td>
+<td>3</td>
+<td>答案 3，<code>dp[n-1] = 1</code> —— 9.1 的反例</td>
+</tr>
+</tbody>
+</table>
+<h2>八、复杂度</h2>
+<ul>
+<li><strong>dp 版：时间 <code>O(n^2)</code></strong>（每个 <code>i</code> 回看一遍 <code>j</code>），<strong>空间 <code>O(n)</code></strong>（<code>dp</code> 与 <code>parent</code> 各一份；要重建具体序列就必须留 <code>parent</code>）。</li>
+<li><strong>tails 版：时间 <code>O(n log n)</code></strong>（每个元素一次二分），<strong>空间 <code>O(n)</code></strong>（登记表最多 <code>n</code> 格）。</li>
+</ul>
+
+对照：暴力枚举所有子序列 <code>O(2^n)</code>；dp 版把"枚举组合"压成"查表"；tails 版再把"逐个回看"压成"二分"。每一步压缩的代价都是<strong>放弃一部分信息</strong>：tails 版快，但丢掉了"具体哪条链"（内容会被覆盖）；dp 版慢，但 <code>parent</code> 记着完整的方案。面试先给 <code>O(n^2)</code> 讲透定义，再升级 tails —— 顺序别反。
+<h2>九、常见坑</h2>
+<h3>9.1 返回 dp[n-1]（官方样例恰好看不出来）</h3>
+
+最长链未必以最后一个元素结尾。反例：<code>[1,2,3,0]</code>，答案是 3（<code>[1,2,3]</code>），而 <code>dp[3] = 1</code>。<strong>官方样例 <code>[10,9,2,5,3,7,101,18]</code> 恰好让 <code>dp[7] = 4</code> 与答案相等</strong> —— 用它自测永远发现不了这个 bug。这就是"官方样例恰好掩盖 bug"系列的第 N 例，自己测一定要带上 <code>[1,2,3,0]</code>。
+<h3>9.2 「最长不减」与「严格递增」用了同一个二分</h3>
+
+严格递增用 <code>bisect_left</code>（第一个 <code>&gt;= x</code> 的位置），相等元素会<strong>替换</strong>旧值，长度不涨；如果题目允许相等（最长<strong>非减</strong>子序列），必须换成 <code>bisect_right</code>（第一个 <code>&gt; x</code> 的位置）。用错的症状：<code>[7,7,7]</code> 会算出 3，而严格版正确答案是 1。反过来（非减题用 bisect_left）会把相等的误替换，答案偏小。
+<h3>9.3 把 dp 定义成「前 i 个里最长」</h3>
+
+转移写不出来 —— "前 <code>i</code> 个里最长"的那条链末尾未知，接 <code>nums[i]</code> 时无从比较。<strong>凡是"能不能接上"类的子序列问题，锚都必须落在"以谁结尾"上</strong>。定义错在这一步，后面写多久都是白写。
+<h3>9.4 初值写成 0 / 忘了「自己单独成串」</h3>
+
+<code>dp</code> 初值必须是 1（每个元素自己就是长度 1 的子序列）。初值 0 时全递减数组返回 0；<code>max(dp)</code> 在空数组上会抛异常，入口先判空。
+<h3>9.5 把 tails 当成 LIS 本身拿去用</h3>
+
+<code>tails</code> 的内容会被覆盖（主例的 <code>101</code> 被 <code>18</code> 换掉），<strong>只有长度是可靠的</strong>。要在 tails 版上重建具体序列，得额外记录"每个元素写入时的前驱 + 每个长度的最新末端"，代码量立刻翻倍 —— 真要序列就用 dp 版的 <code>parent</code> 回溯，两条路线各取所需。
+<h3>9.6 手写二分的边界</h3>
+
+<code>hi</code> 初值是 <code>len(tails)</code>（开区间），<code>mid</code> 偏向左（<code>(lo + hi) // 2</code>），<code>tails[mid] &lt; x</code> 时 <code>lo = mid + 1</code>、否则 <code>hi = mid</code> —— 三个细节凑齐才不会死循环。<code>mid</code> 写成 <code>(lo + hi + 1) // 2</code> 配上 <code>hi = mid</code> 就是经典死循环；<code>hi</code> 初值写成 <code>len(tails) - 1</code> 会漏掉"追加到表尾"的情形。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先答 O(n^2)，把锚讲清</strong>："<code>dp[i]</code> 是以 <code>nums[i]</code> 结尾的最长严格递增子序列长度，转移是接在前面某个更小的 <code>dp[j]</code> 后面，答案是 <code>max(dp)</code> 而不是 <code>dp[n-1]</code>。"</li>
+<li><strong>主动点出官方样例的盲区</strong>："这组样例恰好让 <code>dp[n-1]</code> 等于答案，<code>[1,2,3,0]</code> 才能测出'返回 dp[n-1]'的 bug。" —— 这句是区分背题和做题的分水岭。</li>
+<li><strong>再升级 O(n log n)</strong>：换锚 —— "按长度记账，<code>tails[len]</code> 存该长度下的最小末尾；它严格递增所以能二分；每个元素一次 <code>bisect_left</code>，答案是 <code>tails</code> 的长度。"</li>
+<li><strong>主动澄清 tails 不是 LIS</strong>：内容被覆盖，长度才是答案；要具体序列回 dp 版拿 <code>parent</code>。</li>
+<li><strong>报变体</strong>：最长非减用 <code>bisect_right</code>；要数方案数是 LC 673（再开一个计数数组）；二维套娃是 LC 354（按宽排序后归约到本题）；同族还有 LC 1143（最长公共子序列）—— 值互异时 LIS 等价于"原序列与排序后的自己求 LCS"，两题是一家人。</li>
+<li><strong>给复杂度对照</strong>：暴力 <code>O(2^n)</code>、dp <code>O(n^2)</code>、tails <code>O(n log n)</code>，以及各自丢掉了什么信息。</li>
+</ol>
+<h2>结语</h2>
+
+最长递增子序列是"状态定义决定一切"的定型题：<strong>第一问考的是敢不敢给 <code>dp[i]</code> 加上"以 i 结尾"这个锚 —— 加上，转移自己长出来；第二问考的是敢不敢把这个锚换掉 —— 换成"按长度记账"，二分才进得来。</strong> 同一个题目的两次破局，方向完全相反：一次是把状态钉得更死，一次是把状态换得更活。前面 LC 53 的 Kadane 用过第一种，这一篇把两种都凑齐了。下一站大概率是 LC 673：同一个锚上再挂一个计数器，从"最长是多少"走到"最长有几条"。</div></div></noscript>
+  </body>
+</html>
