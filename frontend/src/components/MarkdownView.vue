@@ -40,6 +40,8 @@ import { mountLongestPal } from '@/viz/longestPal'
 import { mountRestoreIp } from '@/viz/restoreIp'
 import { mountBrackets } from '@/viz/brackets'
 import { mountSlidingMax } from '@/viz/slidingMax'
+import { mountLisDp } from '@/viz/lisDp'
+import { mountLisBinary } from '@/viz/lisBinary'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
@@ -365,6 +367,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc93': mountRestoreIp,
   'algo-viz--lc20': mountBrackets,
   'algo-viz--lc239': mountSlidingMax,
+  'algo-viz--lc300dp': mountLisDp,
+  'algo-viz--lc300binary': mountLisBinary,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
