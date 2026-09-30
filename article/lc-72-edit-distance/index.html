@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-72-edit-distance/" />
+    <meta property="og:title" content="【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格" />
+    <meta property="og:description" content="题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-72-edit-distance/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-72-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格" />
+    <meta name="twitter:description" content="题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-72-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DY0H82rA.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-30T15:03:24.574988+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格","description":"题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭","image":"https://zhoujungis.github.io/photos/lc-72-cover.png","datePublished":"2026-09-30T15:03:24.574988+08:00","dateModified":"2026-09-30T15:03:24.575023+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-72-edit-distance/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格</h1><div class="ns-meta">2026/9/30 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+给你两个单词 <code>word1</code> 和 <code>word2</code>，返回将 <code>word1</code> 转换成 <code>word2</code> 所使用的<strong>最少操作数</strong>，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。
+<div class="codehilite"><pre><span></span><code><span class="err">输入</span><span class="o">:</span><span class="w"> </span><span class="n">word1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;horse&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">word2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;ros&quot;</span>
+<span class="err">输出</span><span class="o">:</span><span class="w"> </span><span class="mi">3</span>
+<span class="err">解释</span><span class="o">:</span><span class="w"> </span><span class="n">horse</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">rorse</span><span class="w"> </span><span class="p">(</span><span class="err">替换</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="err">为</span><span class="w"> </span><span class="n">r</span><span class="p">)</span>
+<span class="w">      </span><span class="n">rorse</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">rose</span><span class="w">  </span><span class="p">(</span><span class="err">删除</span><span class="w"> </span><span class="n">r</span><span class="p">)</span>
+<span class="w">      </span><span class="n">rose</span><span class="w">  </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">ros</span><span class="w">   </span><span class="p">(</span><span class="err">删除</span><span class="w"> </span><span class="n">e</span><span class="p">)</span>
+</code></pre></div>
+
+
+LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭 —— 压缩本身不难，难在<strong>三个依赖方向里有一个会被你自己覆盖掉</strong>。
+<ul>
+<li><a href="#section-1">一、核心洞察：两个锚，前缀对前缀</a></li>
+<li><a href="#section-2">二、拆解：三种操作 = 三个邻居</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、追问：压到 O(n)，只丢一格</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：两个锚，前缀对前缀</h2>
+
+上一篇 <a href="/article/lc-300-longest-increasing-subsequence/">LC 300</a> 说动态规划的破局动作是「给状态加一个锚」，那道题的锚是 <code>dp[i] = 以 nums[i] 结尾</code>。编辑距离的锚形状完全不同 —— <strong>它一次要下两个</strong>：
+<blockquote>
+
+<code>dp[i][j]</code> = 把 <code>a</code> 的前 <code>i</code> 个字符 变成 <code>b</code> 的前 <code>j</code> 个字符 的最少操作数（<code>a = word1</code>，<code>b = word2</code>）。
+</blockquote>
+
+为什么必须是「前缀」而不能是「以 <code>i</code> 结尾」？因为编辑操作会在<strong>任意位置</strong>增删字符：把 <code>horse</code> 变成 <code>ros</code> 的最后一步是删掉 <code>e</code>，这一步关心的不是「以哪个字符结尾」，而是「两个串各自还剩多长」。<strong>只有前缀长度这一对数字，才能完整描述「接下来还要处理的现场」</strong> —— 这就是子序列型与双串型的分岔点。
+
+两个锚一立，转移只需要看一件事：<strong>最后一对字符 <code>a[i-1]</code> 和 <code>b[j-1]</code> 怎么处理</strong>。不管中间那 <code>i-1</code> 对 <code>j-1</code> 对字符多么纠缠，它们都被锚进了 <code>dp[...][...]</code> 里，不再需要展开。
+
+初始化也不再是「填 0」：<code>dp[0][j] = j</code>（空串长成 <code>b</code> 的前 <code>j</code> 个字符，只能一个一个插）、<code>dp[i][0] = i</code>（<code>a</code> 的前 <code>i</code> 个字符缩成空串，只能一个一个删）。<strong>第一行和第一列不是凑数，它们就是语义本身</strong> —— 九、会看到把它们填成 0 的代码在官方样例上直接错成 2。
+<h2>二、拆解：三种操作 = 三个邻居</h2>
+
+<code>dp[i][j]</code> 的最后一步只可能是三种收尾之一，而<strong>每一种恰好对应表里的一个邻居</strong>：
+<table>
+<thead>
+<tr>
+<th>收尾操作</th>
+<th>含义</th>
+<th>剩下的活</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>替换</td>
+<td>把 <code>a[i-1]</code> 改成 <code>b[j-1]</code></td>
+<td><code>a</code> 前 <code>i-1</code> 变 <code>b</code> 前 <code>j-1</code></td>
+<td><code>dp[i-1][j-1] + 1</code></td>
+</tr>
+<tr>
+<td>删除</td>
+<td>删掉 <code>a[i-1]</code></td>
+<td><code>a</code> 前 <code>i-1</code> 变 <code>b</code> 前 <code>j</code></td>
+<td><code>dp[i-1][j] + 1</code></td>
+</tr>
+<tr>
+<td>插入</td>
+<td>补一个 <code>b[j-1]</code></td>
+<td><code>a</code> 前 <code>i</code> 变 <code>b</code> 前 <code>j-1</code></td>
+<td><code>dp[i][j-1] + 1</code></td>
+</tr>
+</tbody>
+</table>
+
+于是：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">minDistance</span><span class="p">(</span><span class="n">word1</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">word2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">word1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">word2</span><span class="p">)</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">word1</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">word2</span><span class="p">)</span>
+    <span class="c1"># dp[i][j]：a 的前 i 个字符 变成 b 的前 j 个字符 的最少操作数</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">j</span>          <span class="c1"># 空串长成 b 的前 j 个字符：插入 j 次</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>          <span class="c1"># a 的前 i 个字符缩成空串：删除 i 次</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">b</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>      <span class="c1"># 相同：这一对免费</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">min</span><span class="p">(</span>
+                    <span class="n">dp</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span>   <span class="c1"># 替换：把 a[i-1] 改成 b[j-1]</span>
+                    <span class="n">dp</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>       <span class="c1"># 删除：删掉 a[i-1]</span>
+                    <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span>       <span class="c1"># 插入：补一个 b[j-1]</span>
+                <span class="p">)</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">n</span><span class="p">]</span>
+</code></pre></div>
+
+
+喜欢紧凑的可以写成一行 —— <code>dp[i][j] = min(dp[i-1][j-1] + (a[i-1] != b[j-1]), dp[i-1][j] + 1, dp[i][j-1] + 1)</code>，字符相同时第一项自然不收钱。
+
+<strong>一个值得专门说的事实：把「插入」和「删除」这两个标注互换，答案一个数字都不会变。</strong> 因为 <code>min</code> 覆盖的是同一个集合 <code>{对角, 上方, 左方}</code>，谁叫什么名字不影响取最小值（我用脚本对 <code>horse -&gt; ros</code> 逐格比对过，两张表完全相同）。它唯一能暴露的地方，是你被追问「把操作序列打出来」的时候 —— 标注反了，重建出来的操作序列就是错的。<strong>数值层面无害、重建层面致命</strong>，这是这类「对称转移」题的共同陷阱。
+<div class="algo-viz algo-viz--lc72"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画是一张 <code>(m+1) x (n+1)</code> 的表，逐格点亮。颜色语法只有一条：<strong>三种操作 = 三个邻居 = 三种颜色</strong>。
+<ul>
+<li><strong>横幅</strong>：左边「在填哪个格子」，中间本帧结论（相同抄对角 / 取哪种操作），右边本格的值；</li>
+<li><strong>行列头</strong>：<code>i=0</code> 和 <code>j=0</code> 那行/列显示 <code>""</code>，它们是边界，画成灰底虚线 —— 不是算出来的；</li>
+<li><strong>格子</strong>：还没算到的画虚线空壳；本帧正在填的格子亮金底，操作代号标在格子里（<code>sub</code> 替换 / <code>del</code> 删除 / <code>ins</code> 插入 / <code>ok</code> 相同免费）；</li>
+<li><strong>三个邻居</strong>：填本格的瞬间，对角、上方、左方同时被点亮成各自的颜色，<strong>胜出的那个再套一圈金环</strong>；</li>
+<li><strong>字符相同的帧</strong>：只有对角被点亮，上方和左方直接压暗 —— 它们至少比对角大 1，看了也白看。</li>
+</ul>
+
+值得盯住的帧有两处：<code>i=2, j=2</code>（<code>o</code> 对 <code>o</code>）—— 免费收尾，<code>dp[2][2]</code> 直接抄 <code>dp[1][1] = 1</code>，这是「相同字符不收钱」的现场；<code>i=5, j=3</code>（<code>e</code> 对 <code>s</code>）—— 三个邻居 <code>3+1 / 2+1 / 4+1</code>，最小的是<strong>上方</strong>（删除），而这一格恰好就是官方样例能骗过「倒着扫」的原因（见 9.1）。
+<h2>四、完整推演表</h2>
+
+以 <code>horse -&gt; ros</code> 为主例（对应动画的 15 个格子帧 + 5 个边界帧 + 1 个收尾帧，共 22 帧）：
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>""</code> (j=0)</th>
+<th>r (j=1)</th>
+<th>o (j=2)</th>
+<th>s (j=3)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>""</code> (i=0)</td>
+<td>0</td>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+</tr>
+<tr>
+<td>h (i=1)</td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td>2</td>
+<td>3</td>
+</tr>
+<tr>
+<td>o (i=2)</td>
+<td>2</td>
+<td>2</td>
+<td><strong>1</strong></td>
+<td>2</td>
+</tr>
+<tr>
+<td>r (i=3)</td>
+<td>3</td>
+<td><strong>2</strong></td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>s (i=4)</td>
+<td>4</td>
+<td>3</td>
+<td>3</td>
+<td><strong>2</strong></td>
+</tr>
+<tr>
+<td>e (i=5)</td>
+<td>5</td>
+<td>4</td>
+<td>4</td>
+<td><strong>3</strong></td>
+</tr>
+</tbody>
+</table>
+
+答案是右下角的 <strong>3</strong>。几个值得单独看的格子：
+<ul>
+<li><code>dp[1][1] = 1</code>：<code>h</code> 对 <code>r</code> 不同，对角 <code>0+1=1</code>、上方 <code>1+1=2</code>、左方 <code>1+1=2</code> —— 替换最便宜。<strong>第一格就说明替换是有用的</strong>：只许插删的话这里是 2。</li>
+<li><code>dp[2][2] = 1</code>：<code>o</code> 对 <code>o</code>，免费收尾，直接抄 <code>dp[1][1]</code>。</li>
+<li><code>dp[3][1] = 2</code>：<code>r</code> 对 <code>r</code>，抄的是 <code>dp[2][0] = 2</code> —— <strong>边界格参与了正经转移</strong>，这就是为什么第一列必须是对的。</li>
+<li><code>dp[5][3] = 3</code>：<code>e</code> 对 <code>s</code> 不同，对角 <code>dp[4][2]=3</code> 加 1 得 4、上方 <code>dp[4][3]=2</code> 加 1 得 3、左方 <code>dp[5][2]=4</code> 加 1 得 5 —— 取<strong>上方</strong>（删掉 <code>e</code>）。</li>
+</ul>
+
+最后这条是本篇的伏笔：<strong>右下角这一格的最小值恰好落在「上方」</strong>。第五节会把滚动数组讲清楚，而 9.1 会告诉你：上方恰好是「倒着扫」唯一不会弄错的那一项 —— 官方样例就是这么把一个真 bug 藏起来的。
+<h2>五、追问：压到 O(n)，只丢一格</h2>
+
+看转移式：<code>dp[i][j]</code> 只依赖<strong>上一行</strong>（<code>dp[i-1][j-1]</code>、<code>dp[i-1][j]</code>）和<strong>本行左邻</strong>（<code>dp[i][j-1]</code>）。更早的行完全用不到 —— 那整张表就没必要留着。
+
+用一行 <code>buf</code> 滚过去：<code>buf[j]</code> 在写之前装的是上一行的 <code>dp[i-1][j]</code>（上方），写完变成 <code>dp[i][j]</code>；<code>buf[j-1]</code> 是刚写完的 <code>dp[i][j-1]</code>（左方）。三个邻居里：
+<table>
+<thead>
+<tr>
+<th>邻居</th>
+<th>在哪</th>
+<th>会丢吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>上方 <code>dp[i-1][j]</code></td>
+<td><code>buf[j]</code>（写之前）</td>
+<td>不会 —— 写之前正好还在</td>
+</tr>
+<tr>
+<td>左方 <code>dp[i][j-1]</code></td>
+<td><code>buf[j-1]</code>（刚写完）</td>
+<td>不会 —— 就在本行</td>
+</tr>
+<tr>
+<td><strong>对角 <code>dp[i-1][j-1]</code></strong></td>
+<td><code>buf[j-1]</code> 的<strong>旧值</strong></td>
+<td><strong>会</strong> —— 上一轮已经被覆盖了</td>
+</tr>
+</tbody>
+</table>
+
+<strong>三个方向里只有对角不在数组里</strong>，所以只需要一个标量 <code>prev</code> 把它接住：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">minDistance</span><span class="p">(</span><span class="n">word1</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">word2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">word1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">word2</span><span class="p">)</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">word1</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">word2</span><span class="p">)</span>
+    <span class="n">buf</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>              <span class="c1"># 第 0 行直接当初值</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>                     <span class="c1"># dp[i-1][0]：先备份，再覆盖</span>
+        <span class="n">buf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>                  <span class="c1"># dp[i-1][j]：写完就没了，先存下来</span>
+            <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">b</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                <span class="n">buf</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">prev</span>             <span class="c1"># 对角，免费收尾</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">buf</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">min</span><span class="p">(</span><span class="n">prev</span><span class="p">,</span> <span class="n">buf</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">buf</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">prev</span> <span class="o">=</span> <span class="n">tmp</span>                    <span class="c1"># 下一格的对角</span>
+    <span class="k">return</span> <span class="n">buf</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+</code></pre></div>
+
+
+两个「先存再写」的位置别写反：<code>prev = buf[0]</code> 必须在 <code>buf[0] = i</code> 之前，<code>tmp = buf[j]</code> 必须在写 <code>buf[j]</code> 之前 —— 每行开头和每格开头各有一次覆盖，<strong>覆盖之前的那一刻是拿到旧值的唯一机会</strong>。
+
+还想再抠一点：让短的串当列，空间就是 <code>O(min(m, n))</code>。答案对两个串是对称的（编辑距离 <code>dist(a,b) = dist(b,a)</code>），所以随便交换。
+<div class="algo-viz algo-viz--lc72roll"></div>
+
+
+第二个动画就是这次压缩本身：背景是<strong>同一张表</strong>（整张淡化），上一行被一格一格擦掉、本行被一格一格点亮，下面那条 <code>buf</code> 就是活着的那部分；金色虚线的格子是被覆盖掉的对角，右侧 <code>prev</code> 芯片里装的就是它的遗言。跑到最后 <code>buf</code> 只剩一行，答案照旧是 <code>buf[n] = 3</code>。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">minDistance</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">word1</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">word2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">word1</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+<span class="w">    </span><span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">word2</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">buf</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="p">;</span><span class="w">      </span><span class="c1">// 第 0 行</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buf</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span><span class="w">        </span><span class="c1">// dp[i-1][0]，先备份再覆盖</span>
+<span class="w">        </span><span class="n">buf</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">tmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buf</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">;</span><span class="w">     </span><span class="c1">// dp[i-1][j]</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">buf</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span><span class="w">    </span><span class="c1">// 相同：免费收尾</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">buf</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">prev</span><span class="p">,</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">buf</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">buf</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">));</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tmp</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">buf</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+面试时建议<strong>先写二维版、再当场改成一维</strong>：二维版就是去掉 <code>buf/prev</code> 这层舞蹈、改成 <code>int[][] dp</code>，两份代码的转移完全一样。直接甩一维版反而容易让面试官怀疑你没想清楚对角线为什么能丢。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>任一串为空</strong>：<code>word1 = ""</code> 答案是 <code>len(word2)</code>，反之亦然。上面的一维代码天然处理：<code>n = 0</code> 时内层循环不跑，<code>return buf[0] = m</code>。</li>
+<li><strong>两串相等</strong>：答案 0，且每个格子都走「免费收尾」分支 —— 这是检验 <code>match</code> 分支的最短用例。</li>
+<li><strong>单字符</strong>：<code>a -&gt; b</code> 是 1（替换）、<code>aa -&gt; a</code> 是 1（删除）、<code>a -&gt; aa</code> 是 1（插入）。</li>
+<li><strong><code>horse -&gt; ros</code> 与 <code>ros -&gt; horse</code></strong>：答案都是 3 —— 编辑距离是对称的，这也是「短的当列」这步优化的合法性来源。</li>
+<li><strong>含 emoji 等非 BMP 字符</strong>：Python 用 <code>list(word)</code> 按码点拆；JavaScript 用 <code>Array.from</code>。<code>.length</code> / <code>s[i]</code> 按 UTF-16 码元切，会把一个 emoji 数成 2 个字符（<a href="/article/lc-5-longest-palindromic-substring/">LC 5</a> 里踩过同一个坑）。Java 的 <code>toCharArray</code> 同样是码元，涉及增补字符时要先转码点数组。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>时间</th>
+<th>空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>二维表</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code></td>
+<td>能回溯出操作序列</td>
+</tr>
+<tr>
+<td>滚动数组</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(n)</code></td>
+<td>短串当列则 <code>O(min(m, n))</code></td>
+</tr>
+<tr>
+<td>四王星人算法（了解即可）</td>
+<td><code>O(m·n)</code> 最坏</td>
+<td><code>O(min(m,n))</code></td>
+<td>利用字符集有限时 <code>n &gt; 26</code> 后答案上界封顶</td>
+</tr>
+</tbody>
+</table>
+
+要<strong>输出具体操作序列</strong>（而不仅是最少步数）时，滚动数组不够用 —— 回溯需要整张表。要么退回 <code>O(m·n)</code> 空间存 <code>parent</code>，要么用 Hirschberg 分治把空间压回线性、时间翻倍。面试里能主动提到「值和方案是两个存储需求」是加分的。
+<h2>九、常见坑</h2>
+<h3>9.1 内层倒着扫（官方样例恰好看不出来）</h3>
+
+0/1 背包的肌肉记忆是「内层倒着扫，防止重复选取」。编辑距离<strong>必须顺着扫</strong>：<code>buf[j-1]</code> 要的是本行刚写的值，倒着扫拿到的还是上一行的。
+
+更阴的是这个 bug <strong>在官方样例上是过的</strong> —— <code>horse -&gt; ros</code> 照样输出 3。原因可以算出来：倒着扫时，三个邻居里只有「上方」没被弄错（<code>buf[j]</code> 写之前本来就是上一行的值），而 <code>dp[5][3]</code> 的三个候选是 <code>对角 3+1 / 上方 2+1 / 左方 4+1</code>，最小值<strong>恰好落在上方</strong>。侥幸。
+
+反例随手一抓就是：
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>正确</th>
+<th>倒着扫</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>horse -&gt; ros</code>（官方样例）</td>
+<td>3</td>
+<td><strong>3（看不出问题）</strong></td>
+</tr>
+<tr>
+<td><code>kitten -&gt; sitting</code></td>
+<td>3</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>abc -&gt; abc</code></td>
+<td>0</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>a -&gt; ba</code></td>
+<td>1</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+
+<code>abc -&gt; abc</code> 这个反例只有 3 个字符 —— 拿它当单测，倒扫的代码第一行就现原形。
+<h3>9.2 相同字符也收 1</h3>
+
+把 <code>if</code> 分支漏了、统一写 <code>1 + min(...)</code>：<code>horse -&gt; ros</code> 会输出 5。相等的那一对必须免费，否则「两串相等」这种最简单的情况都得不到 0。
+<h3>9.3 第一行 / 第一列填 0</h3>
+
+边界是语义（空串变 <code>j</code> 个字符要插 <code>j</code> 次），不是没算的占位符。全填 0 的代码在 <code>horse -&gt; ros</code> 上输出 2，在 <code>"" -&gt; "a"</code> 上输出 0 —— 后者连人眼都能看出错。
+<h3>9.4 少了「替换」这一项</h3>
+
+只留 <code>dp[i-1][j]</code> 和 <code>dp[i][j-1]</code> 两个邻居，写出来的其实是「只允许插入和删除」的题（LC 583）—— <code>horse -&gt; ros</code> 得 4 而不是 3。反过来记：<strong>LC 583 就该删掉替换那一项</strong>，它的答案是 <code>m + n - 2 * LCS</code>。
+<h3>9.5 <code>prev</code> 的更新时机</h3>
+
+<code>tmp = buf[j]</code> 必须在写 <code>buf[j]</code> <strong>之前</strong>，<code>prev = tmp</code> 在格子收尾时做。写成 <code>prev = buf[j]</code>（写在最后）会把本行刚算出来的新值当成下一格的对角 —— <code>horse -&gt; ros</code> 输出 4。每行开头那次同理：先 <code>prev = buf[0]</code> 再 <code>buf[0] = i</code>。
+<h3>9.6 只留一行还想去重建操作序列</h3>
+
+滚动数组回答的是「最少几步」，不回答「怎么走」。要序列就老老实实存整张表（或上 Hirschberg 分治）。面试追问「把操作打出来」时，答「一维版只为步数，方案需要另存 <code>parent</code>」比硬编强得多。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先立两个锚</strong>："<code>dp[i][j]</code> 是 <code>a</code> 的前 <code>i</code> 个字符变成 <code>b</code> 的前 <code>j</code> 个字符的最少操作数 —— 双串型必须用前缀对前缀，因为操作会在任意位置增删。"</li>
+<li><strong>把三种操作对到三个邻居</strong>：替换对角、删除上方、插入左方；字符相同时免费收尾。这一步说清楚，代码就是听写。</li>
+<li><strong>主动说对称性</strong>："插入和删除的标注互换不影响数值，但会影响操作序列的重建。" —— 这句话能直接把你和背题的人分开。</li>
+<li><strong>再答空间压缩</strong>："三个邻居里只有对角会被覆盖，所以一个 <code>prev</code> 就够；每行开头 <code>buf[0]</code> 也要先备份。空间 <code>O(min(m, n))</code>。"</li>
+<li><strong>主动给反例</strong>："内层不能倒着扫 —— 官方样例测不出来，<code>abc -&gt; abc</code> 一测就挂。" 顺带点破为什么官方样例失效（最小值恰好落在唯一没错位的上方）。</li>
+<li><strong>报变体</strong>：只许删除是 LC 583（<code>m + n - 2*LCS</code>）；求最长公共子序列是 LC 1143（同一张表的另一种记账）；要输出方案回二维表取 <code>parent</code>，空间敏感就 Hirschberg 分治。</li>
+</ol>
+<h2>结语</h2>
+
+编辑距离是「双串型 DP」的定型题：<strong>第一问考你敢不敢一次下两个锚 —— 前缀对前缀，转移自己长出来；第二问考你知不知道三个依赖方向里哪一个是易碎的 —— 对角线被滚动数组覆盖，所以值得一个专门的标量去接。</strong> 上一篇 LC 300 的锚是「以 i 结尾」，这一篇的锚是「前 i 个字符」，两次的破局动作都是先把状态钉死、再谈优化。而真正的坑从不在转移式里，在推进顺序里 —— 官方样例恰好让最小值落在唯一没被破坏的那一项上，<code>abc -&gt; abc</code> 才是这道题真正的试金石。</div></div></noscript>
+  </body>
+</html>
