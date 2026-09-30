@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 121 买卖股票的最佳时机 ：给定数组 prices ， prices[i] 是第 i 天的股价。选择一个低点 买入 、一个更高的点 卖出 （只能买卖 一次 ，且必须先买后卖），计算最大利润。无法获利则返回 0 （干脆不买）。 LC 122 买卖股票的最佳时机 II ：同一组价格，可以 无限次 交易（多次买" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-121-122-best-time-to-buy-and-sell-stock/" />
+    <meta property="og:title" content="【LC 121/122】买卖股票的最佳时机 I &amp; II：一个等历史最低价，一个吃下每段上坡" />
+    <meta property="og:description" content="题目 LC 121 买卖股票的最佳时机 ：给定数组 prices ， prices[i] 是第 i 天的股价。选择一个低点 买入 、一个更高的点 卖出 （只能买卖 一次 ，且必须先买后卖），计算最大利润。无法获利则返回 0 （干脆不买）。 LC 122 买卖股票的最佳时机 II ：同一组价格，可以 无限次 交易（多次买" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-121-122-best-time-to-buy-and-sell-stock/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-121-122-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 121/122】买卖股票的最佳时机 I &amp; II：一个等历史最低价，一个吃下每段上坡" />
+    <meta name="twitter:description" content="题目 LC 121 买卖股票的最佳时机 ：给定数组 prices ， prices[i] 是第 i 天的股价。选择一个低点 买入 、一个更高的点 卖出 （只能买卖 一次 ，且必须先买后卖），计算最大利润。无法获利则返回 0 （干脆不买）。 LC 122 买卖股票的最佳时机 II ：同一组价格，可以 无限次 交易（多次买" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-121-122-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 121/122】买卖股票的最佳时机 I &amp; II：一个等历史最低价，一个吃下每段上坡 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DMv6Z2QB.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-30T17:31:25.147542+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 121/122】买卖股票的最佳时机 I & II：一个等历史最低价，一个吃下每段上坡","description":"题目 LC 121 买卖股票的最佳时机 ：给定数组 prices ， prices[i] 是第 i 天的股价。选择一个低点 买入 、一个更高的点 卖出 （只能买卖 一次 ，且必须先买后卖），计算最大利润。无法获利则返回 0 （干脆不买）。 LC 122 买卖股票的最佳时机 II ：同一组价格，可以 无限次 交易（多次买","image":"https://zhoujungis.github.io/photos/lc-121-122-cover.png","datePublished":"2026-09-30T17:31:25.147542+08:00","dateModified":"2026-09-30T17:31:25.147578+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-121-122-best-time-to-buy-and-sell-stock/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 121/122】买卖股票的最佳时机 I &amp; II：一个等历史最低价，一个吃下每段上坡</h1><div class="ns-meta">2026/9/30 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 121 买卖股票的最佳时机</strong>：给定数组 <code>prices</code>，<code>prices[i]</code> 是第 <code>i</code> 天的股价。选择一个低点<strong>买入</strong>、一个更高的点<strong>卖出</strong>（只能买卖<strong>一次</strong>，且必须先买后卖），计算最大利润。无法获利则返回 <code>0</code>（干脆不买）。
+<div class="codehilite"><pre><span></span><code>输入: prices = [7,1,5,3,6,4]
+输出: 5   （第 1 天以 1 买入、第 4 天以 6 卖出，6 - 1 = 5）
+
+输入: prices = [7,6,4,3,1]
+输出: 0   （全程下跌，不买）
+</code></pre></div>
+
+
+<strong>LC 122 买卖股票的最佳时机 II</strong>：同一组价格，可以<strong>无限次</strong>交易（多次买卖），但仍须先买后卖、<strong>手里最多持一股</strong>（买了才能再买下一次）。求最大利润。
+<div class="codehilite"><pre><span></span><code>输入: prices = [7,1,5,3,6,4]
+输出: 7   （1→5 赚 4，3→6 赚 3，共 7）
+
+输入: prices = [1,2,3,4,5]
+输出: 4   （连续持有 1→5 即可，频繁买卖不加分）
+</code></pre></div>
+
+
+两道题共享同一张<strong>状态机</strong>：121 是"只许一笔"的极简单变量扫描，122 是"无限笔"的双状态 DP —— 而 122 的 DP 恰好塌缩成"所有正差之和"的贪心。把这两台机器看清，追问链上的 309（冷冻期）、714（手续费）、123（限两笔）、188（限 k 笔）全是<strong>改转移方程</strong>，不是换思路。
+<ul>
+<li><a href="#section-1">一、LC 121 核心洞察：minPrice 是在等"最便宜的昨天"</a></li>
+<li><a href="#section-2">二、LC 122 核心洞察：贪心吃正差 ≡ cash/hold 状态机</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、追问连跳：309 / 714 / 123 / 188 —— 同一台机器改方程</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、LC 121 核心洞察：minPrice 是在等"最便宜的昨天"</h2>
+
+暴力的 121 枚举所有 (买, 卖) 对：<code>O(n²)</code>。压缩的关键是换一个提问方式：
+<blockquote>
+
+不枚举"哪天买"，而是<strong>逐天问"今天卖，最赚能多少"</strong>。
+</blockquote>
+
+在第 <code>d</code> 天卖出，买入日必然选 <code>0..d-1</code> 里<strong>最便宜的那天</strong> —— 于是只需要两个变量：
+<ul>
+<li><code>minPrice</code>：<strong>截至昨天</strong>的历史最低价（我手里最便宜的那笔买入机会）；</li>
+<li><code>best</code>：所有"今天卖出"里的最大利润。</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="n">prices</span><span class="p">):</span>
+    <span class="n">min_price</span><span class="p">,</span> <span class="n">best</span> <span class="o">=</span> <span class="n">prices</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">p</span> <span class="o">-</span> <span class="n">min_price</span><span class="p">)</span>   <span class="c1"># 先按今天的价格卖一把</span>
+        <span class="n">min_price</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">min_price</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>     <span class="c1"># 再把今天并入历史最低价</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+
+两个变量都<strong>单调</strong>：<code>minPrice</code> 只下台阶、<code>best</code> 只上坡 —— 大多数日子两件事都不发生（动画里的"路过帧"），动的那几帧才是答案的来路。全程下跌时 <code>candidate</code> 恒为负数，<code>best</code> 停在 <code>0</code>，语义就是<strong>干脆不买</strong> —— 这是 121 的合法答案，也是"最大利润"与"最大差值"的分界。
+
+一句话立意：<strong>121 不是找最低点，是等最低点被后来的高价兑现。</strong>
+<h2>二、LC 122 核心洞察：贪心吃正差 ≡ cash/hold 状态机</h2>
+
+可以无限次买卖后，出现两条路：
+
+<strong>贪心</strong>：每一段<strong>上坡都吃下</strong>，下坡空仓躲过 —— 利润 = 所有正差之和：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="n">prices</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">b</span> <span class="o">-</span> <span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">prices</span><span class="p">,</span> <span class="n">prices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+</code></pre></div>
+
+
+<code>[7,1,5,3,6,4]</code>：差值序列 <code>-6, +4, -2, +3, -2</code>，正差和 = <code>4 + 3 = 7</code>。为什么"天天吃正差"不违反"手里最多一股"？因为相邻正差可以<strong>无缝拼接</strong>：<code>+4</code> 等价于 1→5 一笔，中途没有下坡可躲；把连续上坡拆成逐日小额交易，总和不变。
+
+<strong>状态机 DP</strong>：每天收盘后世界只有两种状态 ——
+<ul>
+<li><code>cash</code>：手里<strong>没票</strong>的最大利润；</li>
+<li><code>hold</code>：手里<strong>有票</strong>的最大利润。</li>
+</ul>
+
+转移只有两行（<code>price</code> 是今天的价格，右侧全是<strong>昨天</strong>的值）：
+<div class="codehilite"><pre><span></span><code>cash = max(空仓不动 prevCash, 昨天持股今天卖 prevHold + price)
+hold = max(持股不动 prevHold, 昨天空仓今天买 prevCash - price)
+</code></pre></div>
+
+
+开局第 0 天：<code>cash = 0</code>、<code>hold = -prices[0]</code>（建仓了，钱变成票、利润为负）。终态答案是 <code>cash</code> —— <strong>持股未变现不算利润</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="n">prices</span><span class="p">):</span>
+    <span class="n">cash</span><span class="p">,</span> <span class="n">hold</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">prices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="n">cash</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">cash</span><span class="p">,</span> <span class="n">hold</span> <span class="o">+</span> <span class="n">p</span><span class="p">)</span>
+        <span class="n">hold</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">hold</span><span class="p">,</span> <span class="n">cash</span> <span class="o">-</span> <span class="n">p</span><span class="p">)</span>   <span class="c1"># 先卖后买同日允许，等价于继续持有</span>
+    <span class="k">return</span> <span class="n">cash</span>
+</code></pre></div>
+
+
+两条路谁对？动画每帧并排给出 <code>greedy</code> 与 <code>cash</code> —— <strong>逐帧相等</strong>。这不是巧合：把 DP 展开，<code>cash</code> 每次超过前值的增量恰是当天的正差。贪心是这台状态机"每天必做决定"的特例，DP 是贪心的机器证明。面试写哪个都对，但<strong>能说出两者等价</strong>才是这题的满分答案。
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc121"></div>
+
+<div class="algo-viz algo-viz--lc122"></div>
+
+
+<strong>121 动画</strong>（<code>algo-viz--lc121</code>）：顶部是价格格子行 —— 当前日金框（<code>today</code> 指针在上）、历史最低价所在格绿框（<code>min</code> 指针在下）；中部横幅给出"卖一把"的现场打分：<code>price - minPrice = candidate</code> 与 <code>best</code> 比大小，决定刷新还是路过；底部面板是双变量 <code>minPrice / candidate / best</code> —— 盯住 <code>minPrice</code> 只下台阶、<code>best</code> 只上坡。默认 <code>[7,1,5,3,6,4]</code>：第 1 天破底、第 2 与第 4 天两刷 best，答案 5。
+
+<strong>122 动画</strong>（<code>algo-viz--lc122</code>）：顶部同样是价格格子行，但<strong>相邻格之间挂着差值徽章</strong> —— 上坡绿 <code>+4</code>、下坡灰 <code>-2</code>，贪心吃不吃这段一眼可见；中部是 <code>cash / hold</code> 两个状态框，转移方程的获胜方描金；底部面板并排 <code>greedy / cash / hold</code> 三列 —— <strong>前两列逐帧相等</strong>，贪心与状态机同一条命。默认同数组：吃下 <code>+4</code> 与 <code>+3</code>，答案 7。
+
+两个动画共用同一组默认价格，看完 121 再看 122，注意从"一个变量等最低价"到"两个状态每天打分"的升级只多了一行方程。
+<h2>四、完整推演表</h2>
+
+<strong>121</strong>：<code>prices = [7, 1, 5, 3, 6, 4]</code>（与动画默认一致）。
+<table>
+<thead>
+<tr>
+<th>天</th>
+<th>price</th>
+<th>candidate = price − minPrice(昨)</th>
+<th>best</th>
+<th>minPrice</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>7</td>
+<td>—</td>
+<td>0</td>
+<td>7</td>
+<td>开局建仓</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>1 − 7 = −6</td>
+<td>0</td>
+<td>1</td>
+<td>minPrice 下台阶</td>
+</tr>
+<tr>
+<td>2</td>
+<td>5</td>
+<td>5 − 1 = 4</td>
+<td>4</td>
+<td>1</td>
+<td><strong>best 刷新</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>3 − 1 = 2</td>
+<td>4</td>
+<td>1</td>
+<td>路过</td>
+</tr>
+<tr>
+<td>4</td>
+<td>6</td>
+<td>6 − 1 = 5</td>
+<td>5</td>
+<td>1</td>
+<td><strong>best 刷新</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td>4 − 1 = 3</td>
+<td>5</td>
+<td>1</td>
+<td>路过</td>
+</tr>
+</tbody>
+</table>
+
+返回 <code>5</code>（第 1 天买、第 4 天卖）。复盘：<code>minPrice</code> 只动了一次，<code>best</code> 上了两次坡，<code>candidate</code> 那列的最大值就是答案 —— 一列手算就能看穿整个算法。
+
+<strong>122</strong>：<code>prices = [7, 1, 5, 3, 6, 4]</code>，差值序列 <code>-6, +4, -2, +3, -2</code>。
+<table>
+<thead>
+<tr>
+<th>天</th>
+<th>price</th>
+<th>diff</th>
+<th>贪心吃否</th>
+<th>greedy</th>
+<th>sell = hold+price</th>
+<th>buy = cash−price</th>
+<th>cash</th>
+<th>hold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>7</td>
+<td>—</td>
+<td>—</td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+<td>0</td>
+<td>−7</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>−6</td>
+<td>跳过</td>
+<td>0</td>
+<td>−6</td>
+<td>−1</td>
+<td>0</td>
+<td>−1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>5</td>
+<td>+4</td>
+<td><strong>吃</strong></td>
+<td>4</td>
+<td>4</td>
+<td>−5</td>
+<td>4</td>
+<td>−1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>−2</td>
+<td>跳过</td>
+<td>4</td>
+<td>2</td>
+<td>1</td>
+<td>4</td>
+<td>1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>6</td>
+<td>+3</td>
+<td><strong>吃</strong></td>
+<td>7</td>
+<td>7</td>
+<td>−2</td>
+<td>7</td>
+<td>1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>4</td>
+<td>−2</td>
+<td>跳过</td>
+<td>7</td>
+<td>5</td>
+<td>3</td>
+<td>7</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+
+返回 <code>cash = 7</code>。三件事同时成立：<code>greedy</code> 列与 <code>cash</code> 列逐帧相等；<code>cash ≥ hold</code> 恒成立（票没变现不更赚）；<code>hold</code> 在第 1、3、5 天由"低位补仓"刷新 —— 下坡天 DP 也没闲着，它在<strong>换更便宜的持仓成本</strong>。
+<h2>五、追问连跳：309 / 714 / 123 / 188 —— 同一台机器改方程</h2>
+
+股票系列的全部追问都长在同一张状态机图上，改的只是转移方程：
+<ul>
+<li><strong>LC 714 含手续费</strong>：卖出要交钱 —— 只改一行：<code>cash = max(cash, hold + price - fee)</code>。贪心侧同样好办：吃正差时扣一次费（<code>diff &gt; fee</code> 才吃）。手续费在买时扣还是卖时扣都行，<strong>只许扣一次</strong>。</li>
+<li><strong>LC 309 含冷冻期</strong>：卖出后<strong>第二天不能买</strong>。给"刚卖"单独开一个状态 <code>rest</code>，三状态互相转移：<code>hold = max(hold, rest - price)</code>（只有冷冻结束才许买）、<code>rest = hold + price</code>（今天卖进冷冻）、<code>cash = max(cash, rest)</code>（冷冻自然到期）。状态从 2 个变 3 个，机器照跑。</li>
+<li><strong>LC 123 最多两笔</strong>：把 <code>cash/hold</code> 按"已用笔数"复制 —— <code>buy1, sell1, buy2, sell2</code> 四个变量<strong>按依赖顺序</strong>各跑一遍 <code>max</code>：<code>buy1 = max(buy1, -p)</code>、<code>sell1 = max(sell1, buy1 + p)</code>、<code>buy2 = max(buy2, sell1 - p)</code>、<code>sell2 = max(sell2, buy2 + p)</code>。</li>
+<li><strong>LC 188 最多 k 笔</strong>：再推广 —— <code>k</code> 层 <code>buy/sell</code> 数组，<code>O(nk)</code>；当 <code>k ≥ n/2</code> 时交易数根本用不完，<strong>退化回 122 的贪心</strong> —— 这一句是 188 的全部陷阱。</li>
+</ul>
+
+通用形态是教科书式的三维状态机 <code>f[i][k][0|1]</code>（第 <code>i</code> 天、至多 <code>k</code> 笔、持不持股）：121 是 <code>k=1</code>、122 是 <code>k=+∞</code>、123 是 <code>k=2</code>、188 是任意 <code>k</code>、309/714 是在转移上挂副作用。面试被连跳时，先画出 cash/hold 两个圈，再当场改箭头 —— 这比背四份代码值钱得多。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 121：一次买卖 —— 与推演表逐帧一致</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">prices</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">minPrice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">prices</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">minPrice</span><span class="p">);</span><span class="w"> </span><span class="c1">// 先卖一把</span>
+<span class="w">            </span><span class="n">minPrice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">minPrice</span><span class="p">,</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span><span class="w">    </span><span class="c1">// 再记最低价</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 122：无限次 —— cash/hold 状态机（贪心一行也满分，但要会讲等价）</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">prices</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">hold</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="n">prices</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">prices</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">cash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">cash</span><span class="p">,</span><span class="w"> </span><span class="n">hold</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span>
+<span class="w">            </span><span class="n">hold</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">hold</span><span class="p">,</span><span class="w"> </span><span class="n">cash</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span><span class="w"> </span><span class="c1">// 用更新后的 cash 亦可：同日先卖后买 = 继续持有</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">cash</span><span class="p">;</span><span class="w"> </span><span class="c1">// 终态必须空仓</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 309：冷冻期 —— 三状态</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">prices</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">hold</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="n">prices</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">rest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="c1">// rest：今天刚卖完</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">prices</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">prevCash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cash</span><span class="p">,</span><span class="w"> </span><span class="n">prevHold</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hold</span><span class="p">,</span><span class="w"> </span><span class="n">prevRest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rest</span><span class="p">;</span>
+<span class="w">            </span><span class="n">cash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">prevCash</span><span class="p">,</span><span class="w"> </span><span class="n">prevRest</span><span class="p">);</span><span class="w">          </span><span class="c1">// 冷冻到期归空仓</span>
+<span class="w">            </span><span class="n">hold</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">prevHold</span><span class="p">,</span><span class="w"> </span><span class="n">prevCash</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span><span class="w"> </span><span class="c1">// 只有空仓（非冷冻）能买</span>
+<span class="w">            </span><span class="n">rest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prevHold</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">prices</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span><span class="w">                  </span><span class="c1">// 今天卖，进冷冻</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">cash</span><span class="p">,</span><span class="w"> </span><span class="n">rest</span><span class="p">);</span><span class="w"> </span><span class="c1">// 终态不能持股</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 123：最多两笔 —— 四变量按依赖顺序更新</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">prices</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">buy1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="n">prices</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">sell1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">buy2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="n">prices</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">sell2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prices</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">buy1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">buy1</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="n">p</span><span class="p">);</span>
+<span class="w">            </span><span class="n">sell1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">sell1</span><span class="p">,</span><span class="w"> </span><span class="n">buy1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">);</span>
+<span class="w">            </span><span class="n">buy2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">buy2</span><span class="p">,</span><span class="w"> </span><span class="n">sell1</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">p</span><span class="p">);</span>
+<span class="w">            </span><span class="n">sell2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">sell2</span><span class="p">,</span><span class="w"> </span><span class="n">buy2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">sell2</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+714 只需在 122 的卖支上减 <code>fee</code>：<code>cash = Math.max(cash, hold + prices[i] - fee);</code>。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>只有一天</strong>：121/122 都返回 0 —— 没有"明天"可卖；</li>
+<li><strong>全程下跌</strong>（<code>[7,6,4,3,1]</code>）：121 的 <code>candidate</code> 恒负、<code>best</code> 停在 0；122 的正差和为空，答案 0 —— "不交易"永远是合法策略；</li>
+<li><strong>价格全相等</strong>：差值全 0，<code>take</code> 判据 <code>diff &gt; 0</code> 不成立，答案 0；</li>
+<li><strong>单调上坡</strong>（<code>[1,2,3,4,5]</code>）：121 直接返回 4；122 贪心逐日吃 <code>+1</code> 共 4，DP 侧 <code>hold</code> 全程 <code>-1</code> 不换手 —— 频繁买卖与连续持有<strong>利润相同</strong>，这正是贪心正确性的缩影；</li>
+<li><strong>121 的时序陷阱样本</strong> <code>[2,4,1]</code>：全期最大差 <code>4 - 1 = 3</code> 是<strong>非法答案</strong>（低点在 4 之后），真实答案 2 —— 记住 121 是"顺序最大差"，不是"极差"；</li>
+<li><strong>188 的大 k</strong>：<code>k ≥ n/2</code> 时按 122 处理，否则 <code>O(nk)</code> 白算一堆用不上的层。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>题</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>121 双变量扫描</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>121 暴力枚举（对照）</td>
+<td><code>O(n²)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>122 贪心 / 状态机</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>714 含手续费</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>309 冷冻期（三状态）</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>123 限两笔（四变量）</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>188 限 k 笔</td>
+<td><code>O(nk)</code></td>
+<td><code>O(k)</code></td>
+</tr>
+</tbody>
+</table>
+
+股票系列的空间优化全是同一招：转移只依赖"昨天"，滚动掉时间维就剩下几个 <code>int</code>。
+<h2>九、常见坑</h2>
+<ol>
+<li><strong>把 121 做成"最大减最小"</strong>：忽略时序。<code>[2,4,1]</code> 的极差 3 非法，答案是 2 —— <code>minPrice</code> 必须<strong>边走边记</strong>，卖只能发生在未来。</li>
+<li><strong>忘了可以不交易</strong>：全程下跌时答案是 0 而不是最小负差。<code>best</code> 初始化 0（不是 <code>-∞</code>）就是这条题意的落点。</li>
+<li><strong>122 贪心忘了 <code>max(0, diff)</code></strong>：把差值直接累加等于"跌也吃"，<code>[7,1,5]</code> 会算成 <code>-2</code>。下坡的正确动作是<strong>空仓路过</strong>。</li>
+<li><strong>DP 的 <code>hold</code> 初始化成 0</strong>：等于凭空一股"白送的成本"，或者干脆说允许了<strong>做空</strong>。建仓必须付钱：<code>hold = -prices[0]</code>。</li>
+<li><strong>终态取 <code>hold</code></strong>：持股未变现不是利润。答案永远在 <code>cash</code>（309 里是 <code>max(cash, rest)</code>）。</li>
+<li><strong>309 忘了"卖后禁买"</strong>：只用两状态跑 122 的方程，冷冻期形同虚设 —— 必须给"刚卖"开第三个状态。</li>
+<li><strong>714 买卖两头各扣一次 fee</strong>：一笔交易只有一张账单，扣两次利润凭空少一截。</li>
+<li><strong>123 四变量乱序更新</strong>：<code>sell2</code> 依赖 <code>buy2</code>、<code>buy2</code> 依赖 <code>sell1</code> —— 顺序反了等于允许"第二笔买在第二笔卖之后"。按 <code>buy1 → sell1 → buy2 → sell2</code> 的依赖链走（同日买卖净额为零，链式更新恰好合法）。</li>
+</ol>
+<h2>十、面试怎么答</h2>
+
+<strong>121 的三段话</strong>：① 换提问方式 —— 逐天问"今天卖最赚多少"，买入日必然是<strong>截至昨天的最低价</strong>，于是 O(n²) 对枚举压成 <code>minPrice/best</code> 两个单调变量；② 全程下跌时 best 停在 0，"不买"是合法策略；③ 它是"顺序最大差"不是极差 —— <code>[2,4,1]</code> 一口就能试出你有没有真懂。
+
+<strong>122 的三段话</strong>：① 贪心：吃下所有正差，相邻正差可无缝拼接、连续上坡拆不拆利润相同，<code>O(n)</code> 一行；② 状态机：<code>cash = max(不动, hold + p)</code>、<code>hold = max(不动, cash - p)</code>，终态取 cash；③ 加分项：现场说明<strong>贪心 ≡ 状态机</strong>（动画逐帧 <code>greedy === cash</code>），DP 是贪心的证明。
+
+被连跳追问时不要换题、要<strong>改方程</strong>：714 在卖支减 <code>fee</code>；309 加 <code>rest</code> 状态、买只能从冷冻出来；123 把两状态按笔数复制成四变量；188 推广到 k 层、且 <code>k ≥ n/2</code> 退化回 122。一句话收尾："股票系列只有一道题 —— <code>f[i][k][0|1]</code> 的状态机，其余都是参数。"
+<h2>结语</h2>
+
+121 教你<strong>等</strong>：历史最低价是个耐心变量，它的全部意义是被未来的高价兑现；122 教你<strong>舍</strong>：下坡不持仓、上坡不嫌碎，正差吃干净利润自然来。再往追问链上走，冷冻期、手续费、限笔数改的都是同两行转移方程 —— 状态机立得住，题目只是换皮。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
