@@ -55,6 +55,8 @@ import { mountStockI } from '@/viz/stockI'
 import { mountStockII } from '@/viz/stockII'
 import { mountCoinChange } from '@/viz/coinChange'
 import { mountCoinChangeOrder } from '@/viz/coinChangeOrder'
+import { mountWordBreak } from '@/viz/wordBreak'
+import { mountWordBreakSeg } from '@/viz/wordBreakSeg'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -391,6 +393,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc122': mountStockII,
   'algo-viz--lc322': mountCoinChange,
   'algo-viz--lc322order': mountCoinChangeOrder,
+  'algo-viz--lc139': mountWordBreak,
+  'algo-viz--lc139seg': mountWordBreakSeg,
 }
 
 let vizHandles = []
