@@ -22,9 +22,9 @@ class ExtendedRSSFeed(Rss201rev2Feed):
 
 class LatestArticlesFeed(Feed):
     feed_type = ExtendedRSSFeed
-    title = "ZhouJun's Blog"
+    title = "Stack Frame"
     link = "/"
-    description = "Zhou Jun 的个人博客 — 技术、编程、AI 与科学"
+    description = "尘世栈帧 — 技术、编程、AI 与科学"
 
     def items(self):
         # L8: prefetch category + tags so item_categories() doesn't trigger
@@ -57,4 +57,4 @@ class LatestArticlesFeed(Feed):
         return cats
 
     def item_author_name(self, item):
-        return "Zhou Jun"
+        return "Stack Frame"

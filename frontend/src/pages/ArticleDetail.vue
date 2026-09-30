@@ -251,8 +251,8 @@ const jsonLd = computed(() => {
     image: article.value.cover_image || undefined,
     datePublished: article.value.created_at,
     dateModified: article.value.updated_at,
-    author: { '@type': 'Person', name: 'Zhou Jun' },
-    publisher: { '@type': 'Person', name: 'Zhou Jun' },
+    author: { '@type': 'Person', name: 'Stack Frame' },
+    publisher: { '@type': 'Person', name: 'Stack Frame' },
   })
 })
 

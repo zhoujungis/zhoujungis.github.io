@@ -20,11 +20,11 @@ def sitemap_view(request):
 
     site, _ = Site.objects.get_or_create(
         id=1,
-        defaults={"domain": "zhoujungis.github.io", "name": "ZhouJun's Blog"},
+        defaults={"domain": "zhoujungis.github.io", "name": "Stack Frame"},
     )
     if site.domain != "zhoujungis.github.io":
         site.domain = "zhoujungis.github.io"
-        site.name = "ZhouJun's Blog"
+        site.name = "Stack Frame"
         site.save(update_fields=["domain", "name"])
     return sitemap(request, sitemaps=sitemaps)
 

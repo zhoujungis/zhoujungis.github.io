@@ -1,10 +1,10 @@
-# Zhou Jun's Blog
+# Stack Frame
 
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js)](https://vuejs.org/)
 [![Django](https://img.shields.io/badge/Django-6.0-092E20?logo=django)](https://www.djangoproject.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 记录技术、旅行与生活的个人博客，采用自然色响应式界面与前后端分离架构。
+> 记录技术、旅行与生活的尘世栈帧，采用自然色响应式界面与前后端分离架构。
 
 🔗 **在线访问：** [zhoujungis.github.io](https://zhoujungis.github.io)
 

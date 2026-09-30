@@ -13,7 +13,7 @@ class BaseSitemap(Sitemap):
         from django.contrib.sites.models import Site
 
         if site is None:
-            site = Site(domain=FRONTEND_DOMAIN, name="ZhouJun's Blog")
+            site = Site(domain=FRONTEND_DOMAIN, name="Stack Frame")
         return super().get_urls(page=page, site=site, protocol=self.protocol)
 
 

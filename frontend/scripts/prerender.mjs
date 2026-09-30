@@ -273,8 +273,8 @@ function renderArticlePage(template, article) {
     image: article.cover_image || undefined,
     datePublished: isoDate,
     dateModified: article.updated_at || isoDate,
-    author: { '@type': 'Person', name: 'Zhou Jun' },
-    publisher: { '@type': 'Person', name: 'Zhou Jun' },
+    author: { '@type': 'Person', name: 'Stack Frame' },
+    publisher: { '@type': 'Person', name: 'Stack Frame' },
     mainEntityOfPage: url,
   }
 
@@ -301,7 +301,7 @@ function renderArticlePage(template, article) {
   const noscript =
     `<noscript><div class="ns-article">` +
     `<h1>${escapeHtml(article.title)}</h1>` +
-    `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · Zhou Jun</div>` +
+    `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · Stack Frame</div>` +
     `<div class="markdown-body">${safeBody}</div>` +
     `</div></noscript>`
   html = html.replace('<div id="app"></div>', literal(`<div id="app"></div>\n    ${noscript}`))

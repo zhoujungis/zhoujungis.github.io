@@ -1,6 +1,6 @@
 # PythonAnywhere Deployment Guide
 
-Deploy the Django REST API backend for ZhouJun's Blog to PythonAnywhere.
+Deploy the Django REST API backend for Stack Frame to PythonAnywhere.
 
 ---
 
