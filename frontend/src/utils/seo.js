@@ -5,7 +5,7 @@
  *   - public/manifest.json ("name" / "short_name")
  *   - scripts/prerender.mjs (SITE_NAME)
  */
-export const SITE_NAME = '个人博客Blog'
+export const SITE_NAME = '尘世栈帧'
 
 const SITE_DESCRIPTION = 'Zhou Jun 的个人博客 — 技术、编程、AI 与科学'
 

@@ -50,7 +50,7 @@ const API_BASE =
 const SITE_ORIGIN = process.env.PRERENDER_ORIGIN || 'https://zhoujungis.github.io'
 // Site name — keep in sync with src/utils/seo.js (SITE_NAME), index.html and
 // public/manifest.json.
-const SITE_NAME = '个人博客Blog'
+const SITE_NAME = '尘世栈帧'
 // Bounded concurrency for detail fetches — PythonAnywhere is a small host,
 // so stay polite. Override with PRERENDER_CONCURRENCY if needed.
 const CONCURRENCY = Math.max(

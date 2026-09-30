@@ -23,7 +23,7 @@ describe('AppHeader', () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(AppHeader, { global: { plugins: [router] } })
     expect(wrapper.find('.logo').text()).toContain(SITE_NAME)
-    expect(wrapper.find('.logo').text()).toContain('ZhouJun·ShenZhen')
+    expect(wrapper.find('.logo').text()).toContain('Stack Frame')
     expect(wrapper.find('.logo-mark').attributes('src')).toBe('/icons/icon-192.png')
   })
 

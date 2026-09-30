@@ -1,18 +1,18 @@
 <template>
   <header class="app-header">
     <div class="header-inner">
-      <router-link to="/" class="logo" aria-label="个人博客Blog · 返回首页" @click="closeMenus">
+      <router-link to="/" class="logo" aria-label="尘世栈帧 · 返回首页" @click="closeMenus">
         <img
           class="logo-mark"
           :src="logoIcon"
-          alt="个人博客Blog"
+          alt="尘世栈帧"
           width="38"
           height="38"
           decoding="async"
         />
         <span class="logo-copy">
-          <strong>个人博客Blog</strong>
-          <small>ZhouJun·ShenZhen</small>
+          <strong>尘世栈帧</strong>
+          <small>Stack Frame</small>
         </span>
       </router-link>
 
@@ -399,7 +399,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   .desktop-theme { display: none; }
   .hamburger { display: inline-flex; }
   .logo-mark { flex: 0 0 34px; width: 34px; height: 34px; }
-  // 移动端保留副标题（ZhouJun·ShenZhen）——它是品牌识别的一部分，
+  // 移动端保留副标题（Stack Frame）——它是品牌识别的一部分，
   // 之前在这里 display:none 掉了。收窄字距以便整行放得下。
   .logo-copy small { letter-spacing: 0.06em; }
   .search-button { display: none; }
