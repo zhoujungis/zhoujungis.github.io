@@ -51,6 +51,8 @@ import { mountBasicCalc } from '@/viz/basicCalc'
 import { mountCalcIII } from '@/viz/calcIII'
 import { mountBinarySearch } from '@/viz/binarySearch'
 import { mountSqrt } from '@/viz/sqrt'
+import { mountStockI } from '@/viz/stockI'
+import { mountStockII } from '@/viz/stockII'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -383,6 +385,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc772': mountCalcIII,
   'algo-viz--lc704': mountBinarySearch,
   'algo-viz--lc69': mountSqrt,
+  'algo-viz--lc121': mountStockI,
+  'algo-viz--lc122': mountStockII,
 }
 
 let vizHandles = []
