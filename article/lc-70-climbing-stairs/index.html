@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-70-climbing-stairs/" />
+    <meta property="og:title" content="【LC 70】爬楼梯：递推人人会写，美团考的是 n=80" />
+    <meta property="og:description" content="题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-70-climbing-stairs/" />
+    <meta property="og:site_name" content="个人博客Blog" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-70-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zhou Jun 的个人博客首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 70】爬楼梯：递推人人会写，美团考的是 n=80" />
+    <meta name="twitter:description" content="题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-70-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="个人博客Blog RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 70】爬楼梯：递推人人会写，美团考的是 n=80 | 个人博客Blog</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bj_5dnSE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.QpTf-Q_a.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-09-30T15:48:36.333655+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 70】爬楼梯：递推人人会写，美团考的是 n=80","description":"题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层","image":"https://zhoujungis.github.io/photos/lc-70-cover.png","datePublished":"2026-09-30T15:48:36.333655+08:00","dateModified":"2026-09-30T15:48:36.333694+08:00","author":{"@type":"Person","name":"Zhou Jun"},"publisher":{"@type":"Person","name":"Zhou Jun"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-70-climbing-stairs/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 70】爬楼梯：递推人人会写，美团考的是 n=80</h1><div class="ns-meta">2026/9/30 · Zhou Jun</div><div class="markdown-body"><h2>题目</h2>
+
+你正在爬楼梯。需要 <code>n</code> 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。
+<div class="codehilite"><pre><span></span><code>输入: n = 3
+输出: 3
+解释: 1+1+1、1+2、2+1，共三种。
+</code></pre></div>
+
+
+这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「<strong>n = 80 呢？</strong>」这一问不是考递推的，是考你知不知道自己的 <code>int</code> 在第 46 阶就已经装不下了。本文把三层都走一遍：递推怎么来的、<code>O(2^n)</code> 从哪来、以及 n=80 时先爆掉的是类型而不是算法。
+<ul>
+<li><a href="#section-1">一、核心洞察：最后一步只有两种来路</a></li>
+<li><a href="#section-2">二、拆解：加法原理 = 互斥且完备</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：递归树与 n=80 的溢出</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：最后一步只有两种来路</h2>
+
+爬到第 <code>i</code> 阶的最后一步，只有两种可能：
+<ul>
+<li>从第 <code>i-1</code> 阶<strong>迈 1 阶</strong>上来；</li>
+<li>从第 <code>i-2</code> 阶<strong>迈 2 阶</strong>上来。</li>
+</ul>
+
+这个分类有两个关键性质：<strong>互斥</strong>（最后一步不可能同时既是 1 阶又是 2 阶）和<strong>完备</strong>（除了这两种没有第三种迈法）。互斥且完备的分类才能直接相加 —— 这就是加法原理，也是所有计数型 DP 的第一课：
+<blockquote>
+
+<code>dp[i] = dp[i-1] + dp[i-2]</code>，其中 <code>dp[i]</code> 是爬到第 <code>i</code> 阶的走法数。
+</blockquote>
+
+注意这个「最后一步分类法」和 <a href="/article/lc-300-longest-increasing-subsequence/">LC 300</a> 的「以 i 结尾」锚是同一招：<strong>把一个纠缠不清的全局问题，压缩成只看边界的一步决策</strong>。这里更极端 —— 只看最后一步，而它恰好只有两种来路。
+
+初值不是凑出来的：<code>dp[0] = 1</code>（站在地面不动，也算一种走法 —— 空方案），<code>dp[1] = 1</code>（只能迈一步）。把 <code>dp[0]</code> 填成 0 的代码会在 <code>dp[2]</code> 上就错成 1（见 9.3）。
+
+这个递推能成立，还依赖一个隐含前提：<strong>无后效性</strong> —— 第 <code>i</code> 阶之后的走法，不会改变「到第 <code>i</code> 阶有几种走法」这个数。所以可以从左往右一路填，填过的格子永远不用改。这题的决策只有 1 和 2 两种、且互不影响，无后效性天然成立；等遇到「不能连续迈两个 2 阶」这类约束，它就会被打破，状态要多记一维（见十、变体）。
+<h2>二、拆解：加法原理 = 互斥且完备</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">climbStairs</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>        <span class="c1"># 空方案也是一种走法</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">dp</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+</code></pre></div>
+
+
+写完顺手看一眼数列：<code>1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 …</code> —— 就是 <a href="https://leetcode.cn/problems/fibonacci-number/" rel="noopener noreferrer" target="_blank">斐波那契</a>（LC 509）。事实上 <code>ways(n) = Fib(n+1)</code>（<code>Fib(1) = Fib(2) = 1</code>），两道题是同一个递推换了个故事。这不是巧合：<strong>「最后一步只有两种来路」和「斐波那契的递推」是同一句话</strong>。
+
+空间立刻可以压到两个变量 —— 而且这题没有任何坑（不涉及 LC 72 那种「对角线被覆盖」），因为依赖方向只有两个紧邻的前驱：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">climbStairs</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>                <span class="c1"># dp[0], dp[1]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+    <span class="k">return</span> <span class="n">b</span> <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">a</span>
+</code></pre></div>
+
+<div class="algo-viz algo-viz--lc70"></div>
+
+<h2>三、动画怎么看</h2>
+
+第一个动画是 <code>n = 10</code> 的填表过程：11 个格子从左往右点亮，每一格先用两条弧线把「来路」拉出来 —— 绿弧从 <code>i-1</code>（迈 1 阶）、橙弧从 <code>i-2</code>（迈 2 阶）—— 然后两数相加落进格子。
+<ul>
+<li><strong>横幅</strong>：左边在算第几阶，中间本帧的来路，右边贡献值；</li>
+<li><strong>格子</strong>：还没算到的画虚线空壳，正在算的画橙框，落笔的瞬间转金；</li>
+<li><strong>两条弧线</strong>：<code>from1</code> 帧只亮绿弧、<code>from2</code> 帧再加橙弧，<code>settle</code> 帧两条都在、格子定金 —— 三帧正好对应「分类、补全、相加」；</li>
+<li><strong>收尾</strong>：整行 <code>1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89</code>，答案 <code>dp[10] = 89</code>。</li>
+</ul>
+
+值得盯的一帧是 <code>i = 2</code>：绿弧带来 <code>dp[1] = 1</code>、橙弧带来 <code>dp[0] = 1</code> —— <strong><code>dp[0]</code> 在这里被正经消费了一次</strong>，这就是它必须是 1 而不是 0 的原因。
+<h2>四、完整推演表</h2>
+
+以 <code>n = 10</code> 为主例（对应动画的 29 帧）：
+<table>
+<thead>
+<tr>
+<th>i</th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+<th>6</th>
+<th>7</th>
+<th>8</th>
+<th>9</th>
+<th>10</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dp[i]</td>
+<td>1</td>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+<td>5</td>
+<td>8</td>
+<td>13</td>
+<td>21</td>
+<td>34</td>
+<td>55</td>
+<td>89</td>
+</tr>
+</tbody>
+</table>
+
+<code>dp[10] = dp[9] + dp[8] = 55 + 34 = 89</code>。验证一下语义：10 阶楼梯用 <code>k</code> 个 2 阶、<code>10-2k</code> 个 1 阶，排列数 <code>C(10-k, k)</code>，求和 <code>C(10,0)+C(9,1)+C(8,2)+C(7,3)+C(6,4)+C(5,5) = 1+9+28+35+15+1 = 89</code> —— 组合数公式和递推在每一项上都对得上（脚本核到 n=40）。
+<h2>五、进阶：递归树与 n=80 的溢出</h2>
+<h3>5.1 递归树：O(2^n) 从哪来</h3>
+
+递推反过来写就是朴素递归 <code>f(k) = f(k-1) + f(k-2)</code>。把它展开成一棵树，<code>O(2^n)</code> 就不是一句口号了 —— 下图是 <code>n = 6</code> 的完整调用树，按真实执行顺序（前序 DFS）逐个点亮：
+<div class="algo-viz algo-viz--lc70rec"></div>
+
+
+<code>n = 6</code> 时这棵树有 <strong>25 个节点、13 个叶子</strong>，但不同的 <code>k</code> 只有 7 个：<code>f(2)</code> 被从头算了 <strong>5 次</strong>、<code>f(0)</code> 5 次、<code>f(1)</code> 8 次 —— 红色的节点全是重复子问题，每个下面还挂着一整棵相同的子树。叶子恰好 13 个不是巧合：<strong>每条根到叶子的路径，就是把 <code>n</code> 拆成若干个 1 和 2 的一种走法</strong>，所以叶子数 = <code>ways(n)</code>。
+
+调用次数 <code>T(n) = 2·Fib(n+1) - 1</code>：<code>n = 40</code> 就要 <strong>3.3 亿次调用</strong>，<code>n = 50</code> 是 407 亿次。加一个 <code>memo</code> 数组，25 次调用变 7 次 —— 这就是从 <code>O(2^n)</code> 到 <code>O(n)</code> 的全部内容。
+<h3>5.2 美团追问：n=80 —— 先爆的是类型</h3>
+
+然后是那句话：「<strong>n = 80 呢？</strong>」算法还是那个算法，但答案已经装不进默认类型了。下面把每一阶的走法数排成一条色带，绿色装得进 <code>int32</code>、红色装不下：
+<div class="algo-viz algo-viz--lc70over"></div>
+
+
+分界点都是可以精确算出来的（以下数字全部经脚本核实）：
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>上限</th>
+<th>最后一个装得下</th>
+<th>第一个爆掉</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Java <code>int</code>（32 位）</td>
+<td>2147483647</td>
+<td><code>ways(45) = 1836311903</code></td>
+<td><code>ways(46) = 2971215073</code></td>
+</tr>
+<tr>
+<td>Java <code>long</code>（64 位）</td>
+<td>9223372036854775807</td>
+<td><code>ways(91) = 7540113804746346429</code></td>
+<td><code>ways(92) = 12200160415121876738</code></td>
+</tr>
+<tr>
+<td>JS <code>Number</code>（double）</td>
+<td>2^53 = 9007199254740992</td>
+<td><code>ways(77) = 8944394323791464</code></td>
+<td><code>ways(78) = 14472334024676221</code>（丢整数精度）</td>
+</tr>
+</tbody>
+</table>
+
+所以 <code>n = 80</code> 的答案是 <code>ways(80) = 37889062373143906</code> —— <strong><code>int</code> 早就爆了（46 阶就爆），<code>long</code> 装得下但只够撑到 91 阶</strong>。面试官要听的就是这三层：<code>int</code> 不行、<code>long</code> 勉强、再大上 <code>BigInteger</code>（或题目改成对 <code>1e9 + 7</code> 取模）。
+
+为什么类型追不上：走法数每阶约乘 1.618（黄金比 —— <code>ways(80)/ways(79) = 1.6180339887...</code>），是<strong>乘性增长</strong>；而类型的位宽是固定的，<code>log2</code> 之后是一段固定的可表示范围。乘性增长撞线性宽度，46 阶就撞上了。
+<h2>六、Java 版</h2>
+
+三档写法，按 n 的范围选：
+<div class="codehilite"><pre><span></span><code><span class="c1">// n &lt;= 45：int 够用（ways(45) = 1836311903 是 int32 最后一个）</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">climbStairs</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                 </span><span class="c1">// dp[0], dp[1]</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="p">;</span><span class="w">             </span><span class="c1">// 先算 next，再挪 —— 顺序反了就丢 dp[i-1]</span>
+<span class="w">        </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">        </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">a</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// n &lt;= 91：换 long（ways(91) = 7540113804746346429 是 int64 最后一个）</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">climbStairsLong</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">long</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">        </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">        </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">a</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// 题目若要求对 1e9+7 取模（或 n 特别大直接上 BigInteger）</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.math.BigInteger</span><span class="p">;</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="n">BigInteger</span><span class="w"> </span><span class="nf">climbStairsBig</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">BigInteger</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BigInteger</span><span class="p">.</span><span class="na">ONE</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BigInteger</span><span class="p">.</span><span class="na">ONE</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">BigInteger</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">b</span><span class="p">);</span>
+<span class="w">        </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">        </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BigInteger</span><span class="p">.</span><span class="na">ONE</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+取模版就是中间那档把 <code>long next = (a + b) % 1_000_000_007L</code> —— <strong>每步都取模</strong>，不是最后才取：<code>long</code> 里累加 90 多项不改，中途就溢出了。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>n = 0</strong>：约定答案为 1（空方案）。LC 70 的约束是 <code>1 &lt;= n &lt;= 45</code>，但 <code>dp[0] = 1</code> 这个约定在递推里被正经用到（<code>dp[2] = dp[1] + dp[0]</code>），不是摆设。</li>
+<li><strong>n = 1 / n = 2</strong>：1 / 2 —— 面试时先报这两个最小值，确认双方对「走法」的定义一致（<code>1+1</code> 和 <code>2</code> 算两种）。</li>
+<li><strong>两个变量版的返回</strong>：<code>n = 0</code> 时循环一次都不跑，返回的是 <code>a</code> 而不是 <code>b</code> —— 上面代码里的 <code>n &gt;= 1 ? b : a</code> 就是给这个留的。</li>
+<li><strong>JS 的精度</strong>：<code>Number</code> 是 double，<code>ways(78) = 14472334024676221</code> 起就不是精确整数了。JS 想算 n=80 得上 <code>BigInt</code>（<code>1n + 2n</code>），或者接受精度丢失。</li>
+</ul>
+<h2>八、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>朴素递归</td>
+<td><code>O(2^n)</code>（精确值 <code>2·Fib(n+1)-1</code> 次调用）</td>
+<td><code>O(n)</code> 栈</td>
+<td>n=40 就 3.3 亿次调用</td>
+</tr>
+<tr>
+<td>记忆化 / 递推</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+<td>n 次加法</td>
+</tr>
+<tr>
+<td>两个变量</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+<td>本题无坑，直接压</td>
+</tr>
+<tr>
+<td>矩阵快速幂</td>
+<td><code>O(log n)</code> 次矩阵乘</td>
+<td><code>O(1)</code></td>
+<td><code>[dp[i], dp[i-1]] = M^(n-1) × [1,1]</code>，n 上千时才有意义</td>
+</tr>
+</tbody>
+</table>
+
+一个诚实的脚注：上了 <code>BigInteger</code> 之后「O(n)」要打折扣 —— n=80 时每个数约 27 位十进制（96 个二进制位），加法不再是 O(1)，总时间约 <code>O(n · n/字长)</code>。面试里能主动提这一句，比背复杂度表值钱。
+<h2>九、常见坑</h2>
+<h3>9.1 int 溢出（官方样例恰好看不出来）</h3>
+
+官方样例 <code>n = 2</code>、<code>n = 3</code>，答案是个位数 —— 用 <code>int</code> 写，LeetCode 上<strong>全绿</strong>。但 <code>ways(46) = 2971215073 &gt; 2147483647</code>，第 46 阶就爆了。这是「官方样例掩盖 bug」系列里最现实的一期：<strong>bug 不在算法里，在类型里</strong>，而评测用例的 n 最大才 45。美团的 n=80 追问就是奔着这个来的。
+<h3>9.2 朴素递归不带记忆化</h3>
+
+<code>n = 40</code> 要 3.3 亿次函数调用（精确值 <code>2·Fib(41) - 1 = 331160281</code>），本地跑直接卡死。面试写递归版没问题，但要说清「这是 O(2^n)，加个 memo 就是 O(n)」—— 说不出这句话，前面写的都对不了。
+<h3>9.3 dp[0] 填成 0</h3>
+
+<code>dp[2] = dp[1] + dp[0]</code>。<code>dp[0] = 0</code> 时 <code>dp[2] = 1</code>（应为 2），整个表从第三格开始全错。根因是没想清楚「不动也算一种走法」—— 空方案是计数的合法成员。官方样例 <code>n=2</code> 恰好会输出 1 而不是 2，所以这个坑样例能抓住；但 <code>dp[0]=0</code> 配 <code>dp[1]=2</code> 的奇怪初值组合，样例就看不出来了。
+<h3>9.4 两个变量的更新顺序</h3>
+
+<code>a, b = b, a + b</code>（Python 的元组赋值天然安全）；Java 必须先存 <code>next = a + b</code> 再挪 <code>a = b; b = next</code>。直接写 <code>a = b; b = a + b</code> 会把<strong>新 a</strong> 加进 <code>b</code> —— 递推变成别的数列。这和 LC 72 的 <code>prev</code> 备份是同一类问题：<strong>覆盖之前的那一刻，是拿到旧值的唯一机会</strong>。
+<h3>9.5 取模变体忘了每步取模</h3>
+
+题目改成「答案对 <code>1e9 + 7</code> 取模」时，要在<strong>每一步加法后</strong>取模。Java 里不取模的 <code>long</code> 在 92 阶后溢出成负数；最后才 <code>% MOD</code> 补救不了已经溢出的中间值。Python 的整数无限精度，取模只是为了数值变小、乘法不膨胀。
+<h3>9.6 把「斐波那契」当口诀跳过推导</h3>
+
+直接背 <code>dp[i] = dp[i-1] + dp[i-2]</code> 的风险在追问：为什么是加法？（互斥且完备）为什么没有系数 2？（分类是按最后一步，不是按台阶）n=80 为什么爆？（类型宽度 vs 乘性增长）—— 三问挂一，这题就白做了。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先立「最后一步分类」</strong>："到第 i 阶的最后一步只有从 i-1 迈 1、从 i-2 迈 2 两种来路，互斥且完备，所以 dp[i] = dp[i-1] + dp[i-2]，dp[0]=1 是空方案。"</li>
+<li><strong>顺手点破斐波那契</strong>："ways(n) = Fib(n+1)，这题和 LC 509 是同一个递推。"</li>
+<li><strong>主动讲 O(2^n) 的来源</strong>："朴素递归展开是一棵树，n=6 就有 25 个节点、f(2) 算 5 次 —— 叶子数恰等于 ways(n)。加 memo 变 O(n)。"</li>
+<li><strong>空间 O(1)</strong>："依赖只有两个紧邻前驱，两个变量滚动就够，没有 LC 72 那种对角线问题。"</li>
+<li><strong>接住 n=80</strong>："<code>int</code> 在 46 阶爆（ways(46)=2971215073），<code>long</code> 撑到 91 阶，n=80 的答案是 37889062373143906 —— 要么 long、要么 BigInteger、要么题目改成对 1e9+7 取模且每步取模。"</li>
+<li><strong>报变体</strong>：LC 746 最小花费爬楼梯（计数变最值，加号变 min）；一次能迈 1..m 阶（dp[i] = 前缀和，窗口滑动）；不能连续迈两个 2 阶之类的约束（状态要多一维「上一步是什么」）；矩阵快速幂 <code>O(log n)</code>。</li>
+</ol>
+<h2>结语</h2>
+
+爬楼梯是「计数型 DP」的第一课，但它的三层考点是递进的：<strong>第一层是加法原理 —— 互斥且完备的分类才配相加；第二层是递归树 —— O(2^n) 不是口令，是 25 个节点里 18 个重复的现场；第三层是类型 —— 增长是乘性的，类型的位宽是线性的，46 阶就撞车。</strong> 上一给状态加锚（LC 300）、上一给转移补一格缓存（LC 72），这一篇往下打地基：所有 DP 的第一行递推，都值得问一句「这个分类为什么不重不漏」—— 以及面试官微微笑着说 n=80 的时候，你脑子里有没有那根类型宽度的弦。</div></div></noscript>
+  </body>
+</html>
