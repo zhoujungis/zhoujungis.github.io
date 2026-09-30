@@ -43,6 +43,8 @@ import { mountSlidingMax } from '@/viz/slidingMax'
 import { mountLisDp } from '@/viz/lisDp'
 import { mountLisBinary } from '@/viz/lisBinary'
 import { mountEditDistGrid, mountEditDistRoll } from '@/viz/editDistance'
+import { mountClimb, mountClimbOverflow } from '@/viz/climb'
+import { mountClimbRec } from '@/viz/climbRec'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
@@ -372,6 +374,9 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc300binary': mountLisBinary,
   'algo-viz--lc72': mountEditDistGrid,
   'algo-viz--lc72roll': mountEditDistRoll,
+  'algo-viz--lc70': mountClimb,
+  'algo-viz--lc70over': mountClimbOverflow,
+  'algo-viz--lc70rec': mountClimbRec,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
