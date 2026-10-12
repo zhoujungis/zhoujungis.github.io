@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/" />
+    <meta property="og:title" content="【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp" />
+    <meta property="og:description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-1262-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp" />
+    <meta name="twitter:description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-1262-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CMaRwYo6.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-12T10:21:46.463554+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp","description":"题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是\"恰好三个\" 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的\"三\"","image":"https://zhoujungis.github.io/photos/lc-1262-cover.png","datePublished":"2026-10-12T10:21:46.463554+08:00","dateModified":"2026-10-12T10:21:46.463581+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 1262 可被三整除的最大和</strong>：给你一个整数数组 <code>nums</code>，请你找出并返回能被 <code>3</code> 整除的<strong>元素最大和</strong>。如果不存在可行解，返回 <code>0</code>。
+<div class="codehilite"><pre><span></span><code>输入: nums = [3,6,5,1,8]
+输出: 18   （3 + 6 + 1 + 8 = 18）
+
+输入: nums = [4]
+输出: 0    （4 不能被 3 整除，只能选空集，空集和是 0）
+
+输入: nums = [1,2,3,4,4]
+输出: 12   （1 + 3 + 4 + 4 = 12）
+</code></pre></div>
+
+
+先澄清一个最容易被记岔的地方：这题选的是<strong>任意个</strong>元素（一个子集），<strong>不是"恰好三个"</strong>。示例里 <code>18 = 3 + 6 + 1 + 8</code> 用了四个数 —— 题面里的"三"指的是<strong>被 3 整除</strong>，不是"挑三个"。真正的约束只有一条：
+<blockquote>
+
+<strong>所选元素之和 ≡ 0 (mod 3)。</strong>
+</blockquote>
+
+约束里每个 <code>nums[i]</code> 都是<strong>正整数</strong>（<code>1 ≤ nums[i] ≤ 10^4</code>），这条很关键：总和是"能选的最大容器"，我们只需要<strong>从全选里减掉最少的一小撮</strong>。全文都建立在这条前提上。
+
+这题有两种都值得会的做法，且互为对照：一次按<strong>余数分组</strong>的贪心（<code>O(n)</code>，全靠"1+1≡2、2+2≡1"），和一台<strong>三格滚动</strong>的一维 dp（<code>O(n)</code>，不依赖正数前提）。下面把它们拆开。
+<ul>
+<li><a href="#section-1">一、核心洞察：先全选，再削掉最小的一撮</a></li>
+<li><a href="#section-2">二、为什么删除只需看"一个 r 或两个 3−r"</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、另一条路：三格滚动的取模 dp</a></li>
+<li><a href="#section-6">六、同族题：974 / 1590 / 1497 / 1018 / 2435</a></li>
+<li><a href="#section-7">七、Java 版</a></li>
+<li><a href="#section-8">八、边界情况</a></li>
+<li><a href="#section-9">九、复杂度</a></li>
+<li><a href="#section-10">十、常见坑</a></li>
+<li><a href="#section-11">十一、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：先全选，再削掉最小的一撮</h2>
+
+因为元素全是正数，<strong>全选的和 <code>S</code> 一定是所有子集和的上界</strong>。想让结果被 3 整除，唯一的手段就是<strong>扔掉几个元素</strong>，让剩下的和回到 <code>≡ 0</code>。
+
+记 <code>S = sum(nums)</code>、<code>r = S % 3</code>：
+<ul>
+<li><strong><code>r == 0</code></strong>：<code>S</code> 本身就被 3 整除，全选就是最优 —— 直接返回 <code>S</code>。</li>
+<li><strong><code>r == 1</code></strong>：需要扔掉一小撮，其和 <code>≡ 1 (mod 3)</code>。</li>
+<li><strong><code>r == 2</code></strong>：需要扔掉一小撮，其和 <code>≡ 2 (mod 3)</code>。</li>
+</ul>
+
+再按每个数对 3 的余数把它们分成三桶：<code>m0</code>（余 0）、<code>m1</code>（余 1）、<code>m2</code>（余 2），都<strong>升序</strong>排好。余 0 的元素永远不用扔（扔了纯粹亏），所以只在 <code>m1</code>、<code>m2</code> 里做文章：
+<ul>
+<li><strong><code>r == 1</code></strong>：要么扔<strong>一个</strong> <code>m1</code> 里的数（它本身 ≡ 1），要么扔<strong>两个</strong> <code>m2</code> 里的数（<code>2 + 2 = 4 ≡ 1</code>）。取两者中<strong>代价更小</strong>的那个。</li>
+<li><strong><code>r == 2</code></strong>：要么扔<strong>一个</strong> <code>m2</code> 里的数（≡ 2），要么扔<strong>两个</strong> <code>m1</code> 里的数（<code>1 + 1 = 2 ≡ 2</code>）。同样取代价更小的。</li>
+</ul>
+
+答案就是 <code>S - 代价</code>；如果两种方案都不存在（桶里凑不齐），说明无解，返回 <code>0</code>。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxSumDivThree</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">total</span> <span class="o">%</span> <span class="mi">3</span>
+    <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">total</span>
+    <span class="n">m1</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span> <span class="k">if</span> <span class="n">x</span> <span class="o">%</span> <span class="mi">3</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">m2</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span> <span class="k">if</span> <span class="n">x</span> <span class="o">%</span> <span class="mi">3</span> <span class="o">==</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">two</span><span class="p">(</span><span class="n">bucket</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">bucket</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">bucket</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bucket</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>                      <span class="c1"># 削掉一个 1，或两个 2</span>
+        <span class="n">drop</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">m1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">m1</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">),</span> <span class="n">two</span><span class="p">(</span><span class="n">m2</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>                           <span class="c1"># r == 2：削掉一个 2，或两个 1</span>
+        <span class="n">drop</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">m2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">m2</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">),</span> <span class="n">two</span><span class="p">(</span><span class="n">m1</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">drop</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">total</span> <span class="o">-</span> <span class="n">drop</span>
+</code></pre></div>
+
+
+两处细节决定成败：
+<ol>
+<li><strong>桶必须升序，且只取"最小的那几个"</strong>。既然所有数都正，扔得越少越好，所以候选永远是<strong>每个桶里最小的一个 / 两个</strong> —— 排序后取前两个即可，后面的数根本轮不到。</li>
+<li><strong><code>two(bucket)</code> 要在长度不够时给 <code>∞</code></strong>，而不是给 <code>0</code>。给 <code>0</code> 等于凭空声称"能白白削掉两个数"，<code>min</code> 会立刻选中一条不存在的路。</li>
+</ol>
+<h2>二、为什么删除只需看"一个 r 或两个 3−r"</h2>
+
+上一节直接给了结论，这里补一刀证明 —— 它其实是全文最值钱的一句。
+
+设要扔的集合和为 <code>d</code>，且 <code>d ≡ r (mod 3)</code>（<code>r∈{1,2}</code>）。把 <code>d</code> 拆成若干元素，只看<strong>每个元素对 3 的余数</strong>，那么：<strong>余 1 贡献 1、余 2 贡献 2</strong>，加总后模 3 要为 <code>r</code>。
+<ul>
+<li>一个元素：余数直接是 <code>r</code>，即"一个 <code>m_r</code> 里的数"。</li>
+<li>两个元素：<code>1+1≡2</code>、<code>2+2≡1</code>、<code>1+2≡0</code>。想要 <code>r</code>，只能是<strong>两个同为 <code>3−r</code></strong> 的数（<code>(3−r)+(3−r) ≡ −2r ≡ r</code>）。混合 <code>1</code> 和 <code>2</code> 得到 <code>0</code>，白扔。</li>
+<li>三个及以上：要么出现"三个同类"（<code>3×余数 ≡ 0</code>，对修正余数毫无帮助，纯亏），要么可归约成上面更小的组合 —— 因为<strong>元素都是正数</strong>，多扔一个必然让和更小，绝不会更优。</li>
+</ul>
+
+于是"最小代价"必然落在两种形状之一：<strong>最小的一个 <code>m_r</code></strong>，或<strong>最小的两个 <code>m_{3−r}</code></strong>。三种及以上的组合永远被这两种支配。这就是为什么代码里只有两个候选，却已经完全正确。
+
+一句话记住骨架：
+<blockquote>
+
+<strong><code>r == 0</code> 直接返回 <code>S</code>；否则答案是 <code>S − min(一个 m_r, 两个 m_{3−r})</code>，凑不出就返回 0。</strong>
+</blockquote>
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc1262"></div>
+
+<div class="algo-viz algo-viz--lc1262dp"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--lc1262</code>）：按余数分组的贪心。最上面是 <code>nums</code> 原数组，每个格子标出数值和它对 3 的余数；中间三列 <code>m0 / m1 / m2</code> 把元素归位（升序），当前要看的那一桶描绿；下面是两张候选卡片 —— "削一个 <code>m_r</code>" 和 "削两个 <code>m_{3−r}</code>" —— 各自现场算出代价，胜者描金；底栏给出 <code>S</code>、<code>r</code> 和最终 <code>S − 代价</code>。盯住三件事：<strong><code>S % 3 == 0</code> 时两张卡片直接收起、答案就是 <code>S</code></strong>；<strong>候选只取每桶最小的一个/两个</strong>（桶里更靠后的数整场都不亮）；以及<strong>两张卡片都可能因凑不齐而显示 <code>∞</code></strong>。
+
+<strong>动画二</strong>（<code>algo-viz--lc1262dp</code>）：三格滚动的取模 dp。上面一行是 <code>dp[0] / dp[1] / dp[2]</code> 三个状态（<code>dp[j]</code> = 当前前缀里，和 ≡ <code>j</code> 的最大和，初值 <code>[0, −∞, −∞]</code>），旁边是正在处理的 <code>nums[i]</code>；每处理一个数就发一帧，把"从哪个旧状态、加上这个数、落到哪个新状态"用弧线画出来，更新的格子描金。最下面是横幅 <code>dp[(j + x%3)%3] = max(dp[...], dp[j] + x)</code> 的现场取值。盯住两点：<strong>每个数只在这一帧里被"用一次"</strong>（先拷贝一份 <code>newdp</code> 再写，绝不原地改 —— 否则同一个数会被用两遍）；以及 <strong><code>−∞</code> 会一路沉底</strong>，只有真正可达的余数状态才会被点亮。
+
+两个动画分工明确：动画一是<strong>贪心</strong>（一趟求和 + 按余数分桶，靠正数前提），动画二是<strong>dp</strong>（三格状态滚动，不依赖正负）。同一组数据、同一个答案 <code>18</code>。
+<h2>四、完整推演表</h2>
+
+<strong>动画一</strong>：<code>nums = [3, 6, 5, 1, 8]</code>（与动画默认一致）。
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>计算</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全选求和</td>
+<td><code>3 + 6 + 5 + 1 + 8</code></td>
+<td><code>S = 23</code></td>
+</tr>
+<tr>
+<td>求余数</td>
+<td><code>23 % 3</code></td>
+<td><code>r = 2</code></td>
+</tr>
+<tr>
+<td>分桶</td>
+<td><code>m0 = [3, 6]</code>　<code>m1 = [1]</code>　<code>m2 = [5, 8]</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>候选 A（削一个 <code>m2</code>）</td>
+<td><code>m2[0]</code></td>
+<td><code>5</code></td>
+</tr>
+<tr>
+<td>候选 B（削两个 <code>m1</code>）</td>
+<td><code>m1</code> 只有一个元素</td>
+<td><code>∞</code></td>
+</tr>
+<tr>
+<td>取代价最小</td>
+<td><code>min(5, ∞)</code></td>
+<td><code>5</code></td>
+</tr>
+<tr>
+<td>返回</td>
+<td><code>23 − 5</code></td>
+<td><strong>18</strong></td>
+</tr>
+</tbody>
+</table>
+
+被扔掉的是 <code>5</code>，保留 <code>3 + 6 + 1 + 8 = 18</code>，恰好被 3 整除。注意候选 B 凑不齐（<code>m1</code> 里只有 <code>1</code> 一个元素），显示 <code>∞</code> 被候选 A 完胜。
+
+<strong>动画二</strong>：同一组数据，看三格 dp 怎么滚。
+<table>
+<thead>
+<tr>
+<th>处理</th>
+<th>余数</th>
+<th>dp[0]</th>
+<th>dp[1]</th>
+<th>dp[2]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开局</td>
+<td>—</td>
+<td><code>0</code></td>
+<td><code>−∞</code></td>
+<td><code>−∞</code></td>
+</tr>
+<tr>
+<td><code>x = 3</code></td>
+<td>0</td>
+<td><code>3</code></td>
+<td><code>−∞</code></td>
+<td><code>−∞</code></td>
+</tr>
+<tr>
+<td><code>x = 6</code></td>
+<td>0</td>
+<td><code>9</code></td>
+<td><code>−∞</code></td>
+<td><code>−∞</code></td>
+</tr>
+<tr>
+<td><code>x = 5</code></td>
+<td>2</td>
+<td><code>9</code></td>
+<td><code>−∞</code></td>
+<td><code>14</code></td>
+</tr>
+<tr>
+<td><code>x = 1</code></td>
+<td>1</td>
+<td><code>15</code></td>
+<td><code>10</code></td>
+<td><code>14</code></td>
+</tr>
+<tr>
+<td><code>x = 8</code></td>
+<td>2</td>
+<td><strong><code>18</code></strong></td>
+<td><code>22</code></td>
+<td><code>23</code></td>
+</tr>
+</tbody>
+</table>
+
+最终 <code>dp = [18, 22, 23]</code>，返回 <code>dp[0] = 18</code>。中间那几格的 <code>22</code>、<code>23</code> 是"和更大、但余数不是 0"的中间产物 —— 它们被留着，正是为了后面还能被别的数"救回来"。最后一步 <code>x = 8</code> 尤其能说明这一点：<code>dp[2] = max(14, 15 + 8) = 23</code>、<code>dp[1] = max(10, 14 + 8) = 22</code>、<code>dp[0] = max(15, 10 + 8) = 18</code> —— 三个状态各由一条不同的最优路径刷新，谁的"旧余数 + 新元素余数"恰好落到自己头上，谁就更新。
+<h2>五、另一条路：三格滚动的取模 dp</h2>
+
+贪心依赖"元素全为正"。一旦题目允许<strong>负数</strong>，<code>S − 最小删除</code> 的框架就塌了 —— 此时用 dp 更稳，且它照样是 <code>O(n)</code>。
+
+定义：
+<ul>
+<li><code>dp[j]</code> = 当前已扫描的元素里，子集和 <code>≡ j (mod 3)</code> 的<strong>最大和</strong>（<code>j ∈ {0, 1, 2}</code>）；</li>
+<li>初值 <code>dp = [0, −∞, −∞]</code>：空集的和是 <code>0</code>，余 <code>0</code>；余 1、余 2 暂时不可达，给 <code>−∞</code>。</li>
+</ul>
+
+对每个 <code>x</code>，先<strong>拷贝一份</strong> <code>dp</code> 当旧值，再枚举旧状态 <code>j</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">newdp</span><span class="o">[</span><span class="n">(j + x % 3) % 3</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">max</span><span class="p">(</span><span class="w"> </span><span class="n">newdp</span><span class="o">[</span><span class="n">...</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">)</span><span class="w">     </span><span class="err">（</span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="err">−∞）</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxSumDivThree</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+    <span class="n">NEG</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">)</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">NEG</span><span class="p">,</span> <span class="n">NEG</span><span class="p">]</span>                 <span class="c1"># dp[j] = 和 ≡ j (mod 3) 的最大和</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="n">old</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[:]</span>                    <span class="c1"># 先快照，避免同一个 x 被用两次</span>
+        <span class="n">rem</span> <span class="o">=</span> <span class="n">x</span> <span class="o">%</span> <span class="mi">3</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">old</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">==</span> <span class="n">NEG</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">rem</span><span class="p">)</span> <span class="o">%</span> <span class="mi">3</span>
+            <span class="n">dp</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">old</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+
+三个细节：
+<ol>
+<li><strong>先快照 <code>old = dp[:]</code>，再往 <code>dp</code> 写</strong>。这是 0-1 背包的"每件只用一次"：若原地更新，枚举到后面可能读到<strong>刚被同一个 <code>x</code> 写过的新值</strong>，等于把这个数用两次（和"完全背包"的坑同源，只是这里方向反了）。</li>
+<li><strong><code>−∞</code> 而非 <code>0</code> 当不可达</strong>。用 <code>0</code> 会让 <code>dp[1]</code>、<code>dp[2]</code> 一开始就"可达且和为 0"，<code>max</code> 大面积选错。</li>
+<li><strong>只用三个状态</strong>。余数只有 3 种，所以状态压缩到 3 格，空间 <code>O(1)</code>，和贪心一样。</li>
+</ol>
+
+它和贪心的关系：dp 是<strong>通用解</strong>（对负数也成立），贪心是<strong>正数特化</strong>（更快、更好写，但前提不能破）。面试里先讲贪心的思路，再补一句"若允许负数则改用取模 dp"，是最稳的答法。
+<h2>六、同族题：974 / 1590 / 1497 / 1018 / 2435</h2>
+
+1262 属于"<strong>把和扔进余数世界</strong>"这一族。同一副骨架换个问法，就是一条题链：
+<ul>
+<li><strong>LC 974 和可被 K 整除的子数组</strong>：前缀和 + 同余。<code>(pre[i] − pre[j]) % K == 0</code> 等价于 <code>pre[i] ≡ pre[j] (mod K)</code>，数有多少对同余前缀即可（哈希计数）。</li>
+<li><strong>LC 1590 使数组和能被 P 整除的最短子数组</strong>：先求总余数 <code>r</code>，再找<strong>最短</strong>的一段子数组其和 <code>≡ r (mod p)</code>（前缀和 + 哈希存最早出现位置）。1262 是"删最少元素"，1590 是"删最短连续段"。</li>
+<li><strong>LC 1497 检查数组对是否可以被 k 整除</strong>：两两配对，按余数<strong>互补</strong>（余 <code>0</code> 配余 <code>0</code>，余 <code>r</code> 配余 <code>k−r</code>）—— 和 1262 的"余数分组"是同一个动作。</li>
+<li><strong>LC 1018 可被 5 整除的二进制前缀</strong>：逐位维护前缀对 5 的余数，<code>pre = (pre * 2 + bit) % 5</code>，本质是"和（这里是二进制移位和）取模"。</li>
+<li><strong>LC 2435 矩阵中和能被 K 整除的路径</strong>：在网格上做"路径和的余数"dp，<code>dp[i][j][r]</code> 计数 —— 1262 的一维三格 dp 是它在网格上的推广。</li>
+</ul>
+
+把它们排成一列看：<strong>只要问题里出现"能被 K 整除"，就先想"把和压成一个余数"</strong>；剩下的就是在余数状态上做计数（974）、找最短段（1590）、互补配对（1497）、逐位递推（1018）或网格推广（2435）。1262 只是这条轴上"求最大和"的那一个点。
+<h2>七、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 1262：余数分组的贪心 —— 与推演表逐帧一致</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxSumDivThree</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w">   </span><span class="c1">// 别用 MAX_VALUE，相加会溢出</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">one1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">INF</span><span class="p">,</span><span class="w"> </span><span class="n">one2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">INF</span><span class="p">;</span><span class="w">              </span><span class="c1">// 最小的两个余 1</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">two1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">INF</span><span class="p">,</span><span class="w"> </span><span class="n">two2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">INF</span><span class="p">;</span><span class="w">              </span><span class="c1">// 最小的两个余 2</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">one1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">one2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">one1</span><span class="p">;</span><span class="w"> </span><span class="n">one1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">one2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">one2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">two1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">two2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">two1</span><span class="p">;</span><span class="w"> </span><span class="n">two1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">two2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">two2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">drop</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">drop</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">one1</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="w"> </span><span class="n">two1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">two2</span><span class="p">);</span><span class="w">   </span><span class="c1">// 削一个 1，或两个 2</span>
+<span class="w">        </span><span class="k">else</span><span class="w">        </span><span class="n">drop</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">two1</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="w"> </span><span class="n">one1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">one2</span><span class="p">);</span><span class="w">   </span><span class="c1">// 削一个 2，或两个 1</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">drop</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="n">drop</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// LC 1262：三格滚动的取模 dp —— 允许负数，同样 O(n)</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxSumDivThree</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">NEG</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MIN_VALUE</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">NEG</span><span class="p">,</span><span class="w"> </span><span class="n">NEG</span><span class="p">};</span><span class="w">                 </span><span class="c1">// dp[j] = 和 ≡ j (mod 3) 的最大和</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">old</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="p">.</span><span class="na">clone</span><span class="p">();</span><span class="w">               </span><span class="c1">// 每件只用一次：先快照</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">old</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NEG</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">floorMod</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">))</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">old</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+两处 Java 专属的坑：<strong>哨兵要用 <code>Integer.MAX_VALUE / 2</code>（或 <code>MIN_VALUE / 2</code>）</strong>，<code>MAX_VALUE + 1</code> 会溢出成负数；<code>x % 3</code> 在 <code>x</code> 为负时是负数，取余数用 <code>Math.floorMod(x, 3)</code> 更稳。另外求和 <code>total</code> 与 <code>one1 + one2</code> 都可能超过 <code>int</code>（<code>4×10^4</code> 个 <code>10^4</code>），必要时用 <code>long</code>。
+<h2>八、边界情况</h2>
+<ul>
+<li><strong><code>r == 0</code></strong>：全选即最优，直接返回 <code>S</code>，根本不用看桶；</li>
+<li><strong>只有一个元素</strong>：<code>[4]</code> → <code>S = 4</code>、<code>r = 1</code>，<code>m1 = [4]</code> 但只有一个、<code>m2</code> 为空、候选 B 也凑不齐 → <code>drop = 4</code> → 返回 <code>0</code>（选空集）；</li>
+<li><strong>凑不齐删除项</strong>：<code>[1]</code> → <code>S = 1</code>、<code>r = 1</code>，<code>m1 = [1]</code>（削它得 0）、两个 <code>m2</code> 不存在 → 返回 <code>0</code>；</li>
+<li><strong>答案可能小于总和很多</strong>：<code>[1,1,1]</code> → <code>S = 3</code>、<code>r = 0</code> → 直接返回 <code>3</code>；<code>[2,2,2]</code> → <code>S = 6</code>、<code>r = 0</code> → <code>6</code>；</li>
+<li><strong><code>m1</code> 或 <code>m2</code> 为空</strong>：贪心里对应候选必须当 <code>∞</code> 处理，别让"取两个"越界；</li>
+<li><strong><code>0</code> 元素</strong>：余 0、不影响余数，<code>[0, 3]</code> → 返回 <code>3</code>；</li>
+<li><strong>空的 <code>nums</code></strong>：题面保证非空，但语义上返回 <code>0</code>（空集）；</li>
+<li><strong>重复元素</strong>：<code>[1,1,1,1]</code> → <code>S = 4</code>、<code>r = 1</code>，削一个 <code>1</code> → <code>3</code>；<code>m2</code> 为空。排序后取前两个的逻辑对重复值天然正确。</li>
+</ul>
+<h2>九、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1262 贪心（排序取最小两桶）</td>
+<td><code>O(n log n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td>1262 贪心（一次扫描维护四变量，Java 版那样）</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>1262 取模 dp（三格滚动）</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>1262 二维 <code>dp[i][r]</code>（不压缩）</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+</tbody>
+</table>
+
+<code>n</code> 是数组长度。贪心的瓶颈只在"取每个桶最小的两个"上：若真的去 <code>sort</code>，就是 <code>O(n log n)</code>；但用一个"维护最小、次小"的滚动写法（Java 版），一趟扫描即可降到 <code>O(n)</code>、空间 <code>O(1)</code>。dp 天生 <code>O(n)</code> / <code>O(1)</code>（状态只有 3 个）。<strong>两者时间同级，区别在于贪心依赖"元素非负"这条前提，dp 不依赖。</strong>
+<h2>十、常见坑</h2>
+<ol>
+<li><strong>把"被 3 整除"当成"选三个数"</strong>：题面选任意个，<code>18 = 3 + 6 + 1 + 8</code> 就是四个数。写错这一条，整题全错。</li>
+<li><strong>只考虑"削一个"，漏掉"削两个"</strong>：<code>r == 1</code> 时，<code>m1</code> 可能没有元素，但 <code>m2</code> 里有两个 —— 只写一个候选会漏解。</li>
+<li><strong><code>two()</code> 长度不足时返回 <code>0</code></strong>：等于宣称能白削两个数，<code>min</code> 立刻选错。必须给 <code>∞</code>。</li>
+<li><strong>桶没排序就取前两个</strong>：取到的不是"最小的两个"，代价不是最小，答案偏小。要么 <code>sort</code>，要么像 Java 版那样维护最小、次小。</li>
+<li><strong>忘了 <code>r == 0</code> 的短路</strong>：虽然返回 <code>S</code> 也未必错，但会把两张候选卡片算得莫名其妙（无解时甚至返回 0）—— 先判 <code>r == 0</code> 最干净。</li>
+<li><strong>候选凑不齐时返回负数</strong>：无解要返回 <code>0</code>（空集），不是 <code>S − ∞</code> 或某个负值。</li>
+<li><strong>dp 里原地更新</strong>：不先拷贝 <code>old</code>，同一个数会被用两次，答案虚高。这是 0-1 背包的经典坑。</li>
+<li><strong>dp 用 <code>0</code> 初始化 <code>dp[1]/dp[2]</code></strong>：等于宣布余 1、余 2 一开始就可达且和为 0，<code>max</code> 大面积出错。用 <code>−∞</code>。</li>
+<li><strong>Java 用 <code>Integer.MAX_VALUE</code> 当 <code>∞</code></strong>：<code>MAX_VALUE + 1</code> 溢出成负数，<code>min</code> 选错。用 <code>MAX_VALUE / 2</code>，并注意 <code>total</code> 的 <code>long</code> 化。</li>
+</ol>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一段 · 贪心</strong>：因为元素都为正，全选的和 <code>S</code> 是上界，只需"扔掉最小的一撮"让余数归零。按余数分三桶，<code>r == 1</code> 时削"一个余 1"或"两个余 2"，<code>r == 2</code> 时削"一个余 2"或"两个余 1"，取代价小者；<code>r == 0</code> 直接返回 <code>S</code>。<strong>说清为什么只需这两种形状</strong> —— 这是区分度所在。
+
+<strong>第二段 · 补 dp 视角</strong>：若元素允许负数，"全选再削"的框架失效，改用三格滚动 dp：<code>dp[j]</code> = 和 ≡ <code>j (mod 3)</code> 的最大和，初值 <code>[0, −∞, −∞]</code>，每个数先快照再 <code>max</code> 转移。<code>O(n)</code> / <code>O(1)</code>，不依赖正负。
+
+<strong>第三段 · 一句话收束</strong>：<code>r == 0</code> 返回 <code>S</code>，否则 <code>S − min(一个 m_r, 两个 m_{3−r})</code>；本质是<strong>把和压进余数世界</strong>。
+
+<strong>追问连跳</strong>：
+- 要<strong>数有多少个可被 K 整除的子数组</strong> → LC 974，前缀和 + 同余哈希；
+- 要<strong>删最短的一段使和被 P 整除</strong> → LC 1590，前缀和 + 最早位置哈希；
+- 变成<strong>两两配对能否整除</strong> → LC 1497，余数互补；
+- 搬到<strong>网格</strong>上 → LC 2435，<code>dp[i][j][r]</code> 计数。
+
+一句话收尾："可被三整除的最大和只有一台机器 —— <strong>按余数分组，从全选里削掉最小的一撮</strong>；贪心是它的正数特化，取模 dp 是它对负数也成立的通用版。"
+<h2>结语</h2>
+
+1262 的全部难度浓缩在一句结论里：<code>r == 0</code> 返回 <code>S</code>，否则 <code>S − min(一个 m_r, 两个 m_{3−r})</code>。之所以只需要两种形状，是因为余数世界里 <code>1+1≡2</code>、<code>2+2≡1</code>、<code>1+2≡0</code> —— 三个同类抵消、一混合就白扔，多削只会更亏。把这条想透，代码就只有十行；而三格滚动的取模 dp 则提醒我们：一旦"元素全为正"的前提破了，就该换一台不依赖它的机器。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
