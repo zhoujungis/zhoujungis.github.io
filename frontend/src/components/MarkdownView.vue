@@ -65,6 +65,8 @@ import { mountRotOrange } from '@/viz/rotOrange'
 import { mountRotOrangeDist } from '@/viz/rotOrangeDist'
 import { mountCourseSchedule } from '@/viz/courseSchedule'
 import { mountCourseScheduleDfs } from '@/viz/courseScheduleDfs'
+import { mountLruCache } from '@/viz/lruCache'
+import { mountLfuCache } from '@/viz/lfuCache'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -411,6 +413,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc994dist': mountRotOrangeDist,
   'algo-viz--lc207': mountCourseSchedule,
   'algo-viz--lc207dfs': mountCourseScheduleDfs,
+  'algo-viz--lc146': mountLruCache,
+  'algo-viz--lc146lfu': mountLfuCache,
 }
 
 let vizHandles = []
