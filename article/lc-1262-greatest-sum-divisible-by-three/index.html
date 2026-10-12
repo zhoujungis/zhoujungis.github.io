@@ -9,7 +9,7 @@
     />
     <meta name="description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/" />
-    <meta property="og:title" content="【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp" />
+    <meta property="og:title" content="【LC 1262】可被三整除的最大和：贪心与滚动 dp" />
     <meta property="og:description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
     <meta property="og:url" content="https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/" />
     <meta property="og:site_name" content="尘世栈帧" />
@@ -21,7 +21,7 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp" />
+    <meta name="twitter:title" content="【LC 1262】可被三整除的最大和：贪心与滚动 dp" />
     <meta name="twitter:description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-1262-cover.png" />
     <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
@@ -29,7 +29,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
-    <title>【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp | 尘世栈帧</title>
+    <title>【LC 1262】可被三整除的最大和：贪心与滚动 dp | 尘世栈帧</title>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -80,11 +80,11 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T10:21:46.463554+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp","description":"题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是\"恰好三个\" 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的\"三\"","image":"https://zhoujungis.github.io/photos/lc-1262-cover.png","datePublished":"2026-10-12T10:21:46.463554+08:00","dateModified":"2026-10-12T10:21:46.463581+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 1262】可被三整除的最大和：贪心与滚动 dp","description":"题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是\"恰好三个\" 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的\"三\"","image":"https://zhoujungis.github.io/photos/lc-1262-cover.png","datePublished":"2026-10-12T10:21:46.463554+08:00","dateModified":"2026-10-12T16:18:43.288727+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/"}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+    <noscript><div class="ns-article"><h1>【LC 1262】可被三整除的最大和：贪心与滚动 dp</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
 
 <strong>LC 1262 可被三整除的最大和</strong>：给你一个整数数组 <code>nums</code>，请你找出并返回能被 <code>3</code> 整除的<strong>元素最大和</strong>。如果不存在可行解，返回 <code>0</code>。
 <div class="codehilite"><pre><span></span><code>输入: nums = [3,6,5,1,8]
