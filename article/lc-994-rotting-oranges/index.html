@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-994-rotting-oranges/" />
+    <meta property="og:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
+    <meta property="og:description" content="题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-994-rotting-oranges/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-994-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
+    <meta name="twitter:description" content="题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-994-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-HvBSESRy.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-12T12:24:51.457830+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","description":"题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：","image":"https://zhoujungis.github.io/photos/lc-994-cover.png","datePublished":"2026-10-12T12:24:51.457830+08:00","dateModified":"2026-10-12T12:24:51.457904+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-994-rotting-oranges/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 994 腐烂的橘子</strong>：给你一个 <code>m × n</code> 的网格，每个格子是 <code>0</code>（空，不是橘子）、<code>1</code>（新鲜橘子）或 <code>2</code>（腐烂橘子）。<strong>每分钟</strong>，所有腐烂橘子会把它<strong>上下左右四个方向</strong>相邻的新鲜橘子变腐烂。返回直到网格中<strong>没有新鲜橘子</strong>为止所必须经过的<strong>最小分钟数</strong>；如果不可能，返回 <code>-1</code>。
+<div class="codehilite"><pre><span></span><code>输入: grid = [
+  [2,1,1],
+  [1,1,0],
+  [0,1,1]
+]
+输出: 4
+
+输入: grid = [
+  [2,1,1],
+  [0,1,1],
+  [1,0,1]
+]
+输出: -1     （左下角那个 1 被 0 隔开，永远烂不到）
+</code></pre></div>
+
+
+三个题面细节先钉死：<strong>空格（<code>0</code>）不传播</strong>，腐烂只能发生在新鲜橘子上；扩散是<strong>每分钟一轮、所有腐烂橘子同时发生</strong>（不是排队一个个来）；<code>[[0,2]]</code> 这种没有新鲜橘子的网格 → 输出 <code>0</code>（不需要任何时间）。
+
+这题的骨架一句话：
+<blockquote>
+
+<strong>所有腐烂橘子同时出发做 BFS，向外扩圈；每分钟一层，扩完数层数 —— 这就是「多源 BFS」。</strong>
+</blockquote>
+
+而它比单源 BFS 多出来的那个<strong>思维开关</strong>，值得单独说清楚：
+<blockquote>
+
+<strong>把所有腐烂橘子一起入队当「第 0 层」，BFS 的「先到的一定最近」性质会自动算出每个格子到最近源的距离 —— 腐烂时间 = 到最近源的距离，答案 = 全场最大距离。</strong>
+</blockquote>
+<ul>
+<li><a href="#section-1">一、核心洞察：多源 BFS = 所有源同时出发的距离场</a></li>
+<li><a href="#section-2">二、分钟数的三种记账：层序循环 / 队列存时间戳 / 距离场</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、-1 与提前退出：fresh 计数</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、同族题：542 / 1091 / 1162 / 934 / 1765 / 286</a></li>
+<li><a href="#section-8">八、边界情况</a></li>
+<li><a href="#section-9">九、复杂度</a></li>
+<li><a href="#section-10">十、常见坑</a></li>
+<li><a href="#section-11">十一、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：多源 BFS = 所有源同时出发的距离场</h2>
+
+把每个格子看成图上的点，相邻（上下左右）就有一条边。<strong>腐烂从所有 <code>2</code> 同时开始蔓延</strong>，所以每个新鲜橘子变烂的时刻，就是<strong>它到最近那个 <code>2</code> 的边数</strong>。这是最短路径问题，只不过源不止一个：
+<ul>
+<li><strong>多源</strong>：初始时把所有腐烂橘子一起塞进队列（它们是第 0 分钟），然后照常做 BFS；</li>
+<li><strong>一次就够</strong>：BFS 按层推进，「第一次访问」的层数就是到最近源的距离 —— 不需要对每个源各跑一遍再取 <code>min</code>；</li>
+<li><strong>答案</strong>：没有新鲜橘子剩余时，最后的层数就是答案。</li>
+</ul>
+
+代码骨架：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">orangesRotting</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+    <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>      <span class="c1"># 所有源一起入队</span>
+            <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">minute</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">q</span> <span class="ow">and</span> <span class="n">fresh</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>       <span class="c1"># 固定本层 = 第 minute+1 分钟要扩散的格子</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># 入队即标记</span>
+                    <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">))</span>
+        <span class="n">minute</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">minute</span> <span class="k">if</span> <span class="n">fresh</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+
+三个细节决定成败：
+<ol>
+<li><strong>初始就把所有 <code>2</code> 入队</strong>。只入队一个源是本题第一大坑：别的源会晚好几拍才开始扩散，答案偏大甚至直接错。</li>
+<li><strong><code>for _ in range(len(q))</code> 固定一层</strong>。进入循环时先记下本层长度，循环只处理这么多 —— 新入队的格子属于下一分钟；<code>minute += 1</code> 写在整层处理完之后。</li>
+<li><strong>入队即标记（<code>grid[nr][nc] = 2</code>）+ <code>fresh</code> 计数</strong>。前者防止同一格被多个邻居重复入队；后者是 <code>-1</code> 判定和提前退出的依据。</li>
+</ol>
+<h2>二、分钟数的三种记账：层序循环 / 队列存时间戳 / 距离场</h2>
+
+同一台多源 BFS，可以换三种记账方式，语义完全一样：
+
+<strong>写法 A：层序循环</strong>（上面的骨架）—— 用 <code>for _ in range(len(q))</code> 把「一层」切出来，<code>minute</code> 在层外 +1。
+
+<strong>写法 B：队列存时间戳</strong> —— 不切层，把 <code>(r, c, t)</code> 一起入队：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">orangesRotting_ts</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+    <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">answer</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">q</span> <span class="ow">and</span> <span class="n">fresh</span><span class="p">:</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+                <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="n">answer</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">answer</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># 关键：入队时就把时间戳记进答案</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">answer</span> <span class="k">if</span> <span class="n">fresh</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+
+
+它有个隐蔽的坑：<code>answer</code> 必须在<strong>入队时</strong>更新 —— 如果写在「弹出处」，<code>fresh</code> 清零提前退出后，<strong>最后一批入队的时间戳还没被弹出、没被计入</strong>，答案会差 1。
+
+<strong>写法 C：距离场</strong>（动画二的视角）—— 直接开一张 <code>stamp</code> 表，每个格子第一次被访问时把当前分钟写进去：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">orangesRotting_dist</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">stamp</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+    <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">stamp</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">minute</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">q</span> <span class="ow">and</span> <span class="n">fresh</span><span class="p">:</span>
+        <span class="n">minute</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+                    <span class="n">stamp</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="n">minute</span>   <span class="c1"># 盖章：腐烂时刻 = 到最近源的距离</span>
+                    <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
+                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">fresh</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">((</span><span class="n">v</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">stamp</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+
+
+收尾的 <code>max(..., default=0)</code> 兜住「一个橘子都没有」的网格（没有源时表里全是 <code>None</code>）。这张表的每个数字都等于<strong>到最近源的距离</strong> —— 它是「多源 BFS 不变量」的具象化：每个格子只盖一次章、先到的一定最近。
+
+三者对比：
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>分钟从哪来</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A 层序循环</td>
+<td>整层处理完 <code>minute += 1</code></td>
+<td>忘记固定层长 → 分钟数多算</td>
+</tr>
+<tr>
+<td>B 队列存时间戳</td>
+<td><code>t + 1</code> 随格子传播</td>
+<td>提前 break 漏掉最后一批的 t</td>
+</tr>
+<tr>
+<td>C 距离场</td>
+<td>盖章时的 <code>minute</code></td>
+<td>忘记 <code>while q and fresh</code> 提前退出</td>
+</tr>
+</tbody>
+</table>
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc994"></div>
+
+<div class="algo-viz algo-viz--lc994dist"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--lc994</code>）：<strong>多源 BFS 分层扩散</strong>。左边是网格（绿 = 新鲜、金 = 腐烂、浅 = 空，小圆点 = 初始腐烂的「源」）；右上三块面板：当前<strong>分钟数</strong>、<strong>剩余新鲜 fresh</strong>、<strong>队列（待扩散）</strong>。帧分两种：<code>layer</code> 帧亮出本分钟要处理的整层（金框），<code>rot</code> 帧展示扩散结果 —— 新腐烂的格子（浅金 + 绿框）进入下一层队列，fresh 减少。盯住三件事：<strong>源不止一个</strong>（第 0 分钟队列里就有好几个格子）、<strong>分钟数只在整层处理完后才 +1</strong>、以及<strong>fresh 的变化</strong>。
+
+<strong>动画二</strong>（<code>algo-viz--lc994dist</code>）：<strong>腐烂时刻表（距离场）</strong>。同一张网格、同一台 BFS，但换一种记账：每个格子第一次被访问时被盖上「腐烂时刻」的章 —— 源 = 0，之后每分钟盖一批。跑完时整张表就是<strong>到最近源的距离场</strong>，右下角面板里的 <code>max(stamp)</code> 就是答案。把它和动画一对照看：<strong>动画一数的是「第几分钟」，动画二写的是「每格的值」</strong> —— 同一件事的两种记法。
+<h2>四、完整推演表</h2>
+
+<strong>动画一（分层队列）</strong>：网格
+<div class="codehilite"><pre><span></span><code><span class="mf">2</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
+<span class="mf">1</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span>
+<span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
+</code></pre></div>
+
+
+六块新鲜橘子，唯一源 <code>(0,0)</code>。逐帧如下：
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>动作</th>
+<th>队列（待扩散）</th>
+<th><code>minute</code></th>
+<th><code>fresh</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>init</td>
+<td>源 <code>(0,0)</code> 入队</td>
+<td><code>(0,0)</code></td>
+<td>0</td>
+<td>6</td>
+</tr>
+<tr>
+<td>layer</td>
+<td>第 1 分钟开始，本层 = <code>{(0,0)}</code></td>
+<td><code>(0,0)</code></td>
+<td>0</td>
+<td>6</td>
+</tr>
+<tr>
+<td>rot</td>
+<td><code>(0,0)</code> 扩散 → <code>(0,1)</code>、<code>(1,0)</code> 变腐烂</td>
+<td><code>(0,1) (1,0)</code></td>
+<td>1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>layer</td>
+<td>第 2 分钟开始，本层 = <code>{(0,1),(1,0)}</code></td>
+<td><code>(0,1) (1,0)</code></td>
+<td>1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>rot</td>
+<td>扩散 → <code>(0,2)</code>、<code>(1,1)</code> 变腐烂</td>
+<td><code>(0,2) (1,1)</code></td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>layer</td>
+<td>第 3 分钟开始，本层 = <code>{(0,2),(1,1)}</code></td>
+<td><code>(0,2) (1,1)</code></td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>rot</td>
+<td>扩散 → 只有 <code>(2,1)</code> 变腐烂</td>
+<td><code>(2,1)</code></td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>layer</td>
+<td>第 4 分钟开始，本层 = <code>{(2,1)}</code></td>
+<td><code>(2,1)</code></td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>rot</td>
+<td>扩散 → <code>(2,2)</code> 变腐烂，fresh 清零</td>
+<td><code>(2,2)</code></td>
+<td>4</td>
+<td>0</td>
+</tr>
+<tr>
+<td>done</td>
+<td>返回 <strong>4</strong></td>
+<td><code>(2,2)</code></td>
+<td>—</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+
+两个容易看漏的点：第 2 分钟里 <code>(1,1)</code> 被 <code>(0,1)</code> 腐烂后，<code>(1,0)</code> 再检查它时它已经不是新鲜橘子了 —— <strong>同一分钟内不会重复腐烂</strong>；而 <code>(2,2)</code> 只有一条路 <code>(2,1) → (2,2)</code>，所以它的时刻是第 4 分钟（不是离 <code>(0,0)</code> 的直线距离）。
+
+<strong>动画二（腐烂时刻表）</strong>：同一张网格，每格盖「腐烂时刻」的章：
+<table>
+<thead>
+<tr>
+<th>分钟</th>
+<th>新盖章的格子</th>
+<th>章的值</th>
+<th><code>max(stamp)</code></th>
+<th><code>fresh</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>init</td>
+<td><code>(0,0)</code>（源）</td>
+<td>0</td>
+<td>0</td>
+<td>6</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>(0,1)</code>、<code>(1,0)</code></td>
+<td>1</td>
+<td>1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>(0,2)</code>、<code>(1,1)</code></td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>(2,1)</code></td>
+<td>3</td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>(2,2)</code></td>
+<td>4</td>
+<td>4</td>
+<td>0</td>
+</tr>
+<tr>
+<td>done</td>
+<td>答案 = <code>max(stamp)</code> = <strong>4</strong></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+跑完的章表：
+<div class="codehilite"><pre><span></span><code><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">2</span>
+<span class="mf">1</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="err">·</span>
+<span class="err">·</span><span class="w"> </span><span class="mf">3</span><span class="w"> </span><span class="mf">4</span>
+</code></pre></div>
+
+
+每个数字都是「到最近源的距离」，<code>·</code> 是空格。一眼能看出 <strong><code>(1,1)</code> 的时刻是 2 而不是 min(1+1, 1+1) 之外的东西 —— BFS 说的算</strong>：这张表就是最终答案的可视化。
+<h2>五、-1 与提前退出：fresh 计数</h2>
+
+为什么代码里要维护 <code>fresh</code> 而不是最后遍历一遍网格？两个理由：
+<ul>
+<li><strong>提前退出</strong>：<code>while q and fresh</code> —— fresh 一清零就停，省掉「队列里还剩最后一层尾巴」的无谓处理；</li>
+<li><strong>-1 判定</strong>：循环结束时 <code>fresh &gt; 0</code>，说明有新鲜橘子被空格隔开、BFS 够不到 —— 返回 <code>-1</code>。</li>
+</ul>
+
+注意判据的正确形式是 <strong>「BFS 结束后 fresh 仍大于 0」</strong>，不是「队列空了」：
+<ul>
+<li>队列空了 + <code>fresh == 0</code> → 正常结束，返回 <code>minute</code>；</li>
+<li>队列空了 + <code>fresh &gt; 0</code> → 有够不到的橘子，返回 <code>-1</code>。</li>
+</ul>
+
+另一个细节：最后一个能腐烂的批次处理完、fresh 清零时，<strong><code>minute</code> 不要再空转加一轮</strong> —— 层循环的结构天然保证这一点（<code>minute += 1</code> 在层后，循环条件先看 fresh）。如果你想省掉层结构，用写法 B 的时间戳，答案就是「最后一个被弹出/入队的时间戳」。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">DIRS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{{</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">}};</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">orangesRotting</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">minute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">});</span><span class="w">   </span><span class="c1">// 所有源入队</span>
+<span class="w">                </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">fresh</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">size</span><span class="p">();</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">size</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">        </span><span class="c1">// 固定本层</span>
+<span class="w">                </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">DIRS</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">nr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">d</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">d</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nr</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nr</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">nr</span><span class="o">][</span><span class="n">nc</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">grid</span><span class="o">[</span><span class="n">nr</span><span class="o">][</span><span class="n">nc</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w">                                </span><span class="c1">// 入队即标记</span>
+<span class="w">                    </span><span class="n">fresh</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">nr</span><span class="p">,</span><span class="w"> </span><span class="n">nc</span><span class="p">});</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">minute</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">minute</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+两个 Java 专属注意点：<code>for (int size = queue.size(); size &gt; 0; size--)</code> 必须<strong>先把 size 记下来</strong> —— 直接在条件里写 <code>queue.size()</code> 会把新入队的下一层也算进来，层就切错了；以及原地改 <code>grid</code> 前想清楚——如果输入不能改（有些平台多组用例复用），就换成一张 <code>visited</code> 布尔表。
+<h2>七、同族题：542 / 1091 / 1162 / 934 / 1765 / 286</h2>
+
+994 是「网格 + 多源 BFS 距离场」这一族的原点，换个包装就是一条完整题链：
+<ul>
+<li><strong>LC 542 01 矩阵</strong>：求每个格子到最近的 <code>0</code> 的距离 —— 把「0」当源，和 994 一模一样的多源 BFS 距离场；</li>
+<li><strong>LC 1091 二进制矩阵中的最短路</strong>：单源到单目标的八方向最短路 —— 多源的「反面」；</li>
+<li><strong>LC 1162 地图分析</strong>：离最近陆地最远的海格 —— 多源 BFS 后<strong>取 max</strong>（和 994 的答案口径一致）；</li>
+<li><strong>LC 934 最短的桥</strong>：先用 DFS 给第一座岛染色，再从它的<strong>所有格子</strong>做多源 BFS 找第二座岛 —— 先 1 后 1 的两次搜索；</li>
+<li><strong>LC 1765 地图中的最高点</strong>：从所有水域出发做多源 BFS 生成高度场 —— 源换成了水；</li>
+<li><strong>LC 286 墙与门</strong>（会员）：多源 BFS 给每个房间填「到最近门的距离」，和 542 镜像。</li>
+</ul>
+
+把它们排成一列看：<strong>多源 BFS 的模板永远是「把所有源一起入队 + 按层推进 + 每格只访问一次」</strong>；剩下的差别只在「源是谁」（腐烂橘子 / 0 / 陆地 / 水 / 门）和「最后取什么」（最后一层 / 最大距离 / 某个目标）。
+<h2>八、边界情况</h2>
+<ul>
+<li><strong>没有新鲜橘子</strong>：直接返回 <code>0</code>（<code>while</code> 条件不成立，<code>minute</code> 保持 0）；</li>
+<li><strong>没有腐烂橘子但有新鲜</strong>：队列为空、fresh &gt; 0 → 返回 <code>-1</code>；</li>
+<li><strong>全空网格</strong>：没有源也没有新鲜 → <code>0</code>；</li>
+<li><strong>源和新鲜都在，但被 <code>0</code> 隔开</strong>：BFS 走不过去，返回 <code>-1</code>；</li>
+<li><strong>只有一个格子</strong>：<code>[[2]]</code> / <code>[[0]]</code> → <code>0</code>，<code>[[1]]</code> → <code>-1</code>；</li>
+<li><strong>一条长廊</strong>：<code>1 × n</code> 单行，答案 = 最远新鲜橘子的距离；</li>
+<li><strong>多个源会合</strong>：两边的源向中间扩，相遇时「先到的一定最近」自动生效，不需要特殊处理；</li>
+<li><strong>注意 <code>minute</code> 的起点是 0</strong>：源是「第 0 分钟」就腐烂的，第一次扩散发生后才变成 1。</li>
+</ul>
+<h2>九、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>层序循环</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code>（队列最坏存一整层）</td>
+</tr>
+<tr>
+<td>队列存时间戳</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code></td>
+</tr>
+<tr>
+<td>距离场</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code></td>
+</tr>
+</tbody>
+</table>
+
+每个格子最多入队一次、每条邻接边最多被检查一次 —— 三者都是标准 BFS 的 <code>O(m·n)</code>。空间上，斐波那契式的「队列最坏有多大」有个常见答案：<strong>一层可能同时挤满网格（全连通时）</strong>，所以上界就是 <code>O(m·n)</code>。
+<h2>十、常见坑</h2>
+<ol>
+<li><strong>只把第一个腐烂橘子入队</strong>：多源退化成了单源，别的源「晚出发」，答案偏大甚至错。<strong>初始必须把所有 <code>2</code> 入队。</strong></li>
+<li><strong>分钟数按「弹出的格子数」加</strong>：不是每个格子一分钟 —— 是<strong>每层</strong>一分钟。忘记 <code>for _ in range(len(q))</code> 固定层长，分钟数直接膨胀。</li>
+<li><strong>出队才标记 / 入队不标记</strong>：同一格会被多个邻居重复入队，<code>fresh</code> 被减多次。<strong>入队的那一刻就置 <code>2</code></strong>。</li>
+<li><strong>-1 判定写成「队列空了就 -1」</strong>：把「全烂完但队列还剩最后一层尾巴」的正常情况误判成 -1。判据是 <strong>fresh &gt; 0</strong>。</li>
+<li><strong>fresh 清零后还空转一轮</strong>：<code>minute</code> 多加 1。层循环 + <code>while q and fresh</code> 才能自然停住。</li>
+<li><strong>把 <code>0</code> 当成能传播的格子</strong>：腐烂只能落到<strong>新鲜橘子</strong>上，空格是墙不是路。</li>
+<li><strong>写法 B 的时间戳更新写在「弹出」处</strong>：<code>fresh</code> 清零提前退出后，最后一批入队的时间戳还没被弹出、没被计入 —— 更新要写在<strong>入队</strong>处。</li>
+<li><strong><code>minute</code> 初值写成 1</strong>：全烂网格会返回 1 而不是 0。源是第 0 分钟。</li>
+<li><strong>原地修改后复用输入</strong>：<code>1 → 2</code> 破坏了网格；多组用例或多轮测试要小心。</li>
+<li><strong>把「同时扩散」写成了「串行扩散」</strong>：一个格子扩散完立刻用它的新邻居继续扩散 —— 这会把「同一分钟」的格子拍扁成不同分钟，答案偏小。</li>
+</ol>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一段 · 骨架</strong>：这是多源 BFS 的最短时间问题。把所有腐烂橘子初始入队（第 0 分钟），每分钟处理一整层、把新鲜邻居变腐烂并入队，同时维护 <code>fresh</code> 计数。BFS 结束时 <code>fresh == 0</code> 就返回分钟数，否则 <code>-1</code>。<code>O(m·n)</code>。
+
+<strong>第二段 · 主动补两个「为什么」</strong>（<strong>这段是区分度所在</strong>）：为什么<strong>多源</strong>而不是逐个源 BFS —— 逐源是 <code>O(k·m·n)</code> 还要逐格取 min，多源一次就够，因为 BFS 第一次访问的层数天然是「到最近源的距离」；为什么<strong>不能 DFS</strong> —— 腐烂时间是<strong>最短</strong>时间，DFS 会绕远路，给出的是某条路径的时间而不是最小时间。
+
+<strong>第三段 · 变体与追问</strong>：这个模板可以换源、换目标、换维数 —— 542（到最近 0）、1162（离陆地最远）、1765（水域出发的高度场）、934（先染色再 BFS）；如果要求「每分钟腐烂速度不同」，BFS 就不再适用，要换成按时间排序的优先队列（类似 Dijkstra 的推广）。
+
+<strong>追问连跳</strong>：
+- 要<strong>每格到最近 0 的距离矩阵</strong> → LC 542，多源 BFS 直接输出距离场；
+- 要<strong>最远的格子</strong> → LC 1162，多源 BFS 后取 <code>max</code>；
+- 要<strong>两座岛之间的最短桥</strong> → LC 934，先 DFS 染色、再多源 BFS；
+- 要<strong>从水出发的高度场</strong> → LC 1765，源是水、答案是最大高度；
+- 要<strong>带权重的腐烂时间</strong> → 优先队列代替队列（Dijkstra 的味道）。
+
+一句话收尾：「腐烂的橘子只有一台机器 —— <strong>把所有源一起入队，让 BFS 按分钟分层扩圈</strong>；分钟数、时间戳、距离场是同一件事的三种记法，<code>fresh</code> 计数和 <code>-1</code> 判定则是它唯一的安全带。」
+<h2>结语</h2>
+
+994 的全部难度浓缩在「多源」两个字上：源不止一个，所以不能只入队一个；时间按分钟走，所以要按层切；答案要么数层、要么取最大时间戳。把这三件事记牢，代码二十行，而它身后站着整个「网格距离场」题族——542 的距离矩阵、1162 的最远格子、934 的建桥、1765 的高度场，都是同一台机器换个源。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
