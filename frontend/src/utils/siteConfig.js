@@ -6,10 +6,14 @@
  *   - the <title>/<meta> a crawler reads in the static HTML,
  *   - the ones the SPA sets after hydration,
  *   - the URLs the generated sitemap advertises.
+ *
+ * NOTE: SITE_ORIGIN is the site's real GitHub Pages host. It is infrastructure,
+ * not branding — the display name (SITE_NAME / SITE_AUTHOR) is what carries the
+ * brand, and the two are deliberately independent.
  */
 
 export const SITE_NAME = '尘世栈帧'
-export const SITE_AUTHOR = 'Stack Frame'
+export const SITE_AUTHOR = 'GeoSquare'
 export const SITE_DESCRIPTION = '尘世栈帧 — 技术、编程、AI 与科学'
 export const SITE_ORIGIN = 'https://zhoujungis.github.io'
 

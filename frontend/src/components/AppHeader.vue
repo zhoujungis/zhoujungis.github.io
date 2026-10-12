@@ -12,7 +12,7 @@
         />
         <span class="logo-copy">
           <strong>尘世栈帧</strong>
-          <small>Stack Frame</small>
+          <small>GeoSquare</small>
         </span>
       </router-link>
 
@@ -399,7 +399,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   .desktop-theme { display: none; }
   .hamburger { display: inline-flex; }
   .logo-mark { flex: 0 0 34px; width: 34px; height: 34px; }
-  // 移动端保留副标题（Stack Frame）——它是品牌识别的一部分，
+  // 移动端保留副标题（GeoSquare）——它是品牌识别的一部分，
   // 之前在这里 display:none 掉了。收窄字距以便整行放得下。
   .logo-copy small { letter-spacing: 0.06em; }
   .search-button { display: none; }
