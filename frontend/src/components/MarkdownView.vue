@@ -61,6 +61,8 @@ import { mountGreatestSumDiv3 } from '@/viz/greatestSumDiv3'
 import { mountGreatestSumDiv3Dp } from '@/viz/greatestSumDiv3Dp'
 import { mountIslands } from '@/viz/islands'
 import { mountIslandsUf } from '@/viz/islandsUf'
+import { mountRotOrange } from '@/viz/rotOrange'
+import { mountRotOrangeDist } from '@/viz/rotOrangeDist'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -403,6 +405,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc1262dp': mountGreatestSumDiv3Dp,
   'algo-viz--lc200': mountIslands,
   'algo-viz--lc200uf': mountIslandsUf,
+  'algo-viz--lc994': mountRotOrange,
+  'algo-viz--lc994dist': mountRotOrangeDist,
 }
 
 let vizHandles = []
