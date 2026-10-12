@@ -67,6 +67,8 @@ import { mountCourseSchedule } from '@/viz/courseSchedule'
 import { mountCourseScheduleDfs } from '@/viz/courseScheduleDfs'
 import { mountLruCache } from '@/viz/lruCache'
 import { mountLfuCache } from '@/viz/lfuCache'
+import { mountRand10 } from '@/viz/rand10'
+import { mountRand10Uniform } from '@/viz/rand10Uniform'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -415,6 +417,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc207dfs': mountCourseScheduleDfs,
   'algo-viz--lc146': mountLruCache,
   'algo-viz--lc146lfu': mountLfuCache,
+  'algo-viz--lc470': mountRand10,
+  'algo-viz--lc470uni': mountRand10Uniform,
 }
 
 let vizHandles = []
