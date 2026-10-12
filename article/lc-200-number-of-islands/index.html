@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="description" content="题目 LC 200 岛屿数量 ：给你一个由 &#39;1&#39; （陆地）和 &#39;0&#39; （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 " />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-200-number-of-islands/" />
+    <meta property="og:title" content="【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集）" />
+    <meta property="og:description" content="题目 LC 200 岛屿数量 ：给你一个由 &#39;1&#39; （陆地）和 &#39;0&#39; （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 " />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-200-number-of-islands/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-200-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集）" />
+    <meta name="twitter:description" content="题目 LC 200 岛屿数量 ：给你一个由 &#39;1&#39; （陆地）和 &#39;0&#39; （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 " />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-200-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集） | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bebt8TGK.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-12T11:36:06.219943+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集）","description":"题目 LC 200 岛屿数量 ：给你一个由 '1' （陆地）和 '0' （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 ","image":"https://zhoujungis.github.io/photos/lc-200-cover.png","datePublished":"2026-10-12T11:36:06.219943+08:00","dateModified":"2026-10-12T11:36:06.219984+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-200-number-of-islands/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集）</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 200 岛屿数量</strong>：给你一个由 <code>'1'</code>（陆地）和 <code>'0'</code>（水）组成的二维网格 <code>grid</code>，请你计算网格中<strong>岛屿的数量</strong>。岛屿总是被水包围，并且每座岛屿只能由<strong>水平方向</strong>和/或<strong>竖直方向</strong>上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。
+<div class="codehilite"><pre><span></span><code>输入: grid = [
+  [&quot;1&quot;,&quot;1&quot;,&quot;1&quot;,&quot;1&quot;,&quot;0&quot;],
+  [&quot;1&quot;,&quot;1&quot;,&quot;0&quot;,&quot;1&quot;,&quot;0&quot;],
+  [&quot;1&quot;,&quot;1&quot;,&quot;0&quot;,&quot;0&quot;,&quot;0&quot;],
+  [&quot;0&quot;,&quot;0&quot;,&quot;0&quot;,&quot;0&quot;,&quot;0&quot;]
+]
+输出: 1
+
+输入: grid = [
+  [&quot;1&quot;,&quot;1&quot;,&quot;0&quot;,&quot;0&quot;,&quot;0&quot;],
+  [&quot;1&quot;,&quot;1&quot;,&quot;0&quot;,&quot;0&quot;,&quot;0&quot;],
+  [&quot;0&quot;,&quot;0&quot;,&quot;1&quot;,&quot;0&quot;,&quot;0&quot;],
+  [&quot;0&quot;,&quot;0&quot;,&quot;0&quot;,&quot;1&quot;,&quot;1&quot;]
+]
+输出: 3
+</code></pre></div>
+
+
+一个 <code>3 × 3</code> 全是陆地的网格（你题面里的例子）→ 输出 <code>1</code>，因为九块陆地水平竖直全连通，是<strong>一座</strong>岛。注意 <code>'1'</code>/<code>'0'</code> 是<strong>字符</strong>，也<strong>只有上下左右</strong>四个方向算连通，对角线不算。
+
+这题的骨架短到一句话：
+<blockquote>
+
+<strong>扫描整个网格，每遇到一块"还没被访问过的"陆地，答案 +1，然后把与它连通的整座岛一次性"淹掉"（标记为已访问）。</strong>
+</blockquote>
+
+剩下的全部区别，只在于"淹掉一座岛"这一步用什么实现 —— 递归 DFS、显式栈 DFS、BFS 队列，还是并查集。而<strong>追问里最值钱的那一问</strong>（网格大了 DFS 会怎样）答案就藏在这里：<strong>递归 DFS 的递归深度等于整座岛最长的连通路径</strong>，一条蛇形长岛足以撑爆调用栈。
+<ul>
+<li><a href="#section-1">一、核心洞察：数岛屿 = 数连通块</a></li>
+<li><a href="#section-2">二、递归 DFS 为什么会爆栈</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、防爆栈的两条路：BFS 与并查集</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、同族题：695 / 130 / 463 / 1254 / 733 / 694 / 1905 / 1020</a></li>
+<li><a href="#section-8">八、边界情况</a></li>
+<li><a href="#section-9">九、复杂度</a></li>
+<li><a href="#section-10">十、常见坑</a></li>
+<li><a href="#section-11">十一、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：数岛屿 = 数连通块</h2>
+
+把每个陆地格子看成图上的一个点，上下左右相邻就有一条边。<strong>岛屿数量 = 这张图的连通块数量</strong>（只看陆地点）。于是有两条互为镜像的路：
+<ul>
+<li><strong>染色法（flood fill）</strong>：扫描到一块未访问的陆地，就把它所在的整个连通块"染"一遍（DFS / BFS），同时计数 <code>+1</code>；</li>
+<li><strong>并查集法（union-find）</strong>：把每块陆地先当一个独立集合，遇到相邻陆地就合并，最后<strong>剩余集合数 = 岛屿数</strong>。</li>
+</ul>
+
+两者都在回答同一个问题："哪些陆地连在一起"。代码骨架：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">numIslands</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">grid</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">seen</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]:</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>          <span class="c1"># 发现一座新岛</span>
+                <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>   <span class="c1"># 把整座岛淹掉</span>
+    <span class="k">return</span> <span class="n">count</span>
+</code></pre></div>
+
+
+三个细节决定成败：
+<ol>
+<li><strong>只对"未被访问的陆地"计数</strong>。水和已访问的陆地都直接跳过 —— 计数发生在"第一次碰到这座岛"的瞬间，一次一座，不多不少。</li>
+<li><strong>标记访问要"一入就标"，不能"出了才标"</strong>（BFS/栈都适用）。入队/入栈时立刻置 <code>seen</code>，否则同一块陆地在被处理前会被多个邻居重复塞进去，队列爆炸甚至超时。</li>
+<li><strong><code>visited</code> 可以独立开数组，也可以原地把 <code>'1'</code> 改成 <code>'0'</code></strong>。原地改省空间，但会<strong>破坏输入</strong>；面试里最好问一句"能不能改原数组"。</li>
+</ol>
+<h2>二、递归 DFS 为什么会爆栈</h2>
+
+<code>flood</code> 的最简写法是递归：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">seen</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">r</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span> <span class="ow">or</span> <span class="n">c</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">c</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;1&quot;</span> <span class="ow">or</span> <span class="n">seen</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]:</span>
+        <span class="k">return</span>
+    <span class="n">seen</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>
+    <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>
+    <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>
+    <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>
+</code></pre></div>
+
+
+代码短、好写，但它有一个<strong>隐藏的 O(岛屿大小) 调用栈</strong>：每深入一层连通路径就压一个栈帧。递归深度 = 从入口到最远处的那条<strong>最长无重复连通路径</strong>。
+
+问题在于，这个深度可以很大：
+<ul>
+<li><strong>一条蛇形长岛</strong>（比如单行 <code>1</code> 连绵、或首尾相接的回形走廊）能让深度 ≈ 陆地总数。LC 约束 <code>m, n ≤ 300</code>，最坏 <code>90000</code> 块陆地全连通 → 递归深度 <code>90000</code>。</li>
+<li><strong>Python 默认递归上限只有 1000</strong>（<code>sys.getrecursionlimit()</code>）→ 直接 <code>RecursionError</code>；<strong>Java 的线程栈约几百 KB~1MB</strong>，深递归必 <code>StackOverflowError</code>。</li>
+</ul>
+
+所以"递归 DFS 能过"是有条件的：<strong>得赌测试数据里没有长条连通块</strong>。两三万的网格里随便一条蛇就能让它崩。两条出路：
+<blockquote>
+
+<strong>要么把递归换成显式栈（把调用栈搬到堆上），要么干脆换数据结构（BFS / 并查集）。</strong>
+</blockquote>
+
+一句话总结这一节：
+<blockquote>
+
+<strong>DFS 的空间 = <code>visited</code>（<code>O(m·n)</code>）+ 递归深度（最坏 <code>O(m·n)</code>）；爆的不是内存，是调用栈的深度上限。</strong>
+</blockquote>
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc200"></div>
+
+<div class="algo-viz algo-viz--lc200uf"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--lc200</code>）：<strong>染色法</strong>。左边是网格，陆地深色、水浅色、已访问的陆地染灰；右上是一条<strong>显式栈</strong>（从栈底到栈顶列出坐标），右下是"岛屿计数"。每发一帧：<code>seed</code> 帧是"扫描到一块新陆地 → <code>count+1</code>、入栈"（计数格描金）；<code>pop</code> 帧从栈顶弹出一块，把它四周<strong>未被访问的陆地</strong>（描绿）标记并压栈。盯住两件事：<strong>新岛只在 seed 帧计数</strong>，以及<strong>栈的深度会随连通块大小起伏</strong> —— 这正是递归版"调用栈深度"的可视化。
+
+<strong>动画二</strong>（<code>algo-viz--lc200uf</code>）：<strong>并查集</strong>。每块陆地初始各自成集合（<code>count</code> 从 0 起，每加一块 <code>+1</code>）；扫描时把它和<strong>上方、左方</strong>已经处理过的陆地合并 —— 合并成功一次，<code>count-1</code>。网格里每块陆地标着它当前的<strong>根坐标</strong>，相同根同色。盯住计数格：<strong>加一块 +1、成功合并 -1</strong>，一趟扫完，剩下的就是岛屿数。它<strong>全程没有递归、没有栈</strong>，深度安全。
+
+两个动画是对同一张网格、同一个答案（<code>3</code>）的两种看法：动画一"从一块陆地扩散出去"，动画二"把相邻陆地并起来"。
+<h2>四、完整推演表</h2>
+
+<strong>动画一（DFS 染色）</strong>：网格
+<div class="codehilite"><pre><span></span><code><span class="mf">1</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span>
+<span class="mf">1</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span>
+<span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span>
+<span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
+</code></pre></div>
+
+
+三座岛：左上 <code>2×2</code>、中央单块 <code>(2,2)</code>、右下两块 <code>(3,3)(3,4)</code>。约定邻居入栈顺序为 <strong>上、右、下、左</strong>，栈是 LIFO，所以<strong>后入先出</strong>。逐帧如下：
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>动作</th>
+<th>栈（底 → 顶）</th>
+<th><code>count</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>seed</td>
+<td>扫到 <code>(0,0)</code>，新岛</td>
+<td><code>(0,0)</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>pop</td>
+<td>弹 <code>(0,0)</code>，右 <code>(0,1)</code>、下 <code>(1,0)</code> 入栈</td>
+<td><code>(0,1) (1,0)</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>pop</td>
+<td>弹 <code>(1,0)</code>，右 <code>(1,1)</code> 入栈</td>
+<td><code>(0,1) (1,1)</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>pop</td>
+<td>弹 <code>(1,1)</code>，四邻或已访问或水</td>
+<td><code>(0,1)</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>pop</td>
+<td>弹 <code>(0,1)</code>，同样无新入</td>
+<td><code>(空)</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>seed</td>
+<td>扫到 <code>(2,2)</code>，新岛，四邻全水</td>
+<td><code>(2,2)</code> → <code>(空)</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td>seed</td>
+<td>扫到 <code>(3,3)</code>，新岛</td>
+<td><code>(3,3)</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>pop</td>
+<td>弹 <code>(3,3)</code>，右 <code>(3,4)</code> 入栈</td>
+<td><code>(3,4)</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>pop</td>
+<td>弹 <code>(3,4)</code>，无新入</td>
+<td><code>(空)</code></td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+
+扫描到 <code>(0,1)</code>、<code>(1,0)</code>、<code>(1,1)</code> 时它们<strong>已被染色</strong>，直接跳过，不再计数 —— 这就是"每座岛只 +1 一次"的保证。最终 <code>count = 3</code>。
+
+<strong>动画二（并查集）</strong>：同一张网格，按行优先扫描，每块陆地和<strong>上方、左方</strong>合并：
+<table>
+<thead>
+<tr>
+<th>格子</th>
+<th>加一块</th>
+<th>与上方合并</th>
+<th>与左方合并</th>
+<th><code>count</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>(0,0)</code></td>
+<td>+1</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>(0,1)</code></td>
+<td>+1</td>
+<td>—</td>
+<td>左 <code>(0,0)</code> 根不同 → 合并</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>(1,0)</code></td>
+<td>+1</td>
+<td>上 <code>(0,0)</code> 同… 根不同 → 合并</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>(1,1)</code></td>
+<td>+1</td>
+<td>上 <code>(0,1)</code> 同根 → 跳过</td>
+<td>左 <code>(1,0)</code> 同根 → 跳过</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>(2,2)</code></td>
+<td>+1</td>
+<td>上水</td>
+<td>左水</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>(3,3)</code></td>
+<td>+1</td>
+<td>上水</td>
+<td>左水</td>
+<td>3</td>
+</tr>
+<tr>
+<td><code>(3,4)</code></td>
+<td>+1</td>
+<td>上水</td>
+<td>左 <code>(3,3)</code> → 合并</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+
+最终 <code>count = 3</code>，与染色法一致。注意 <code>(1,1)</code> 那行：它和上方、左方<strong>本就同根</strong>，两次合并都跳过 —— 并查集用"根是否相同"天然去重，不需要 <code>visited</code>。
+<h2>五、防爆栈的两条路：BFS 与并查集</h2>
+
+<strong>BFS：把递归的调用栈换成队列</strong>。同一段洪水逻辑，只是访问顺序从 LIFO 变 FIFO —— 递归 DFS 和 BFS 的差别<strong>只有一行</strong>（栈 vs 队列）：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">numIslands_bfs</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">grid</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;0&quot;</span>                 <span class="c1"># 入队即标记，防止重复入队</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">)])</span>
+            <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)):</span>
+                    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">dx</span><span class="p">,</span> <span class="n">y</span> <span class="o">+</span> <span class="n">dy</span>
+                    <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nx</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">ny</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span>
+                        <span class="n">grid</span><span class="p">[</span><span class="n">nx</span><span class="p">][</span><span class="n">ny</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;0&quot;</span>   <span class="c1"># 关键：入队时就标记</span>
+                        <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">count</span>
+</code></pre></div>
+
+
+<strong>显式栈 DFS</strong> 同理，只把 <code>deque</code> 换成 <code>list</code> 的 <code>append</code>/<code>pop</code> —— 深度不再受调用栈限制，代价是栈内容存在<strong>堆</strong>里。
+
+<strong>并查集：数连通块</strong>，全程无递归：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">numIslands_uf</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">grid</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">find</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="k">while</span> <span class="n">parent</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">!=</span> <span class="n">root</span><span class="p">:</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">parent</span><span class="p">[</span><span class="n">root</span><span class="p">]</span>
+        <span class="k">while</span> <span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">!=</span> <span class="n">root</span><span class="p">:</span>          <span class="c1"># 路径压缩</span>
+            <span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">x</span> <span class="o">=</span> <span class="n">root</span><span class="p">,</span> <span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">root</span>
+
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">parent</span><span class="p">[(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">)]</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>                    <span class="c1"># 先各自成一个集合</span>
+            <span class="k">for</span> <span class="n">pr</span><span class="p">,</span> <span class="n">pc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">pr</span><span class="p">][</span><span class="n">pc</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span>
+                    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">find</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">)),</span> <span class="n">find</span><span class="p">((</span><span class="n">pr</span><span class="p">,</span> <span class="n">pc</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">b</span><span class="p">:</span>
+                        <span class="n">parent</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span>         <span class="c1"># 合并</span>
+                        <span class="n">count</span> <span class="o">-=</span> <span class="mi">1</span>            <span class="c1"># 合并成功，连通块少一个</span>
+    <span class="k">return</span> <span class="n">count</span>
+</code></pre></div>
+
+
+并查集的好处很实在：<strong>它没有递归、没有显式栈、也不依赖"一入就标"</strong>；而且当题目要<strong>动态加陆地</strong>（LC 305 岛屿数量 II）时，只有它能增量维护答案 —— 这正是它在面试追问里被点名的原因。
+
+三条路的取舍：
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>深度风险</th>
+<th>空间</th>
+<th>何时选</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>递归 DFS</td>
+<td><strong>有</strong>（最坏 <code>O(m·n)</code> 调用栈）</td>
+<td><code>O(m·n)</code></td>
+<td>网格小、写起来最快</td>
+</tr>
+<tr>
+<td>显式栈 DFS</td>
+<td>无（栈在堆上）</td>
+<td><code>O(m·n)</code></td>
+<td>想保留 DFS 写法又不爆栈</td>
+</tr>
+<tr>
+<td>BFS 队列</td>
+<td>无</td>
+<td><code>O(min(m,n))</code> 级 + <code>visited</code></td>
+<td>常最稳，层序性质偶尔有用</td>
+</tr>
+<tr>
+<td>并查集</td>
+<td>无</td>
+<td><code>O(m·n)</code></td>
+<td>需动态加陆地 / 想避开 BFS-DFS</td>
+</tr>
+</tbody>
+</table>
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 显式栈 DFS：把&quot;递归深度&quot;搬到堆上的 Stack，避免 StackOverflowError</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">DIRS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{{</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">}};</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">numIslands</span><span class="p">(</span><span class="kt">char</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                </span><span class="n">count</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">;</span><span class="w">                        </span><span class="c1">// 入栈即标记</span>
+<span class="w">                </span><span class="n">Deque</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">                </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">});</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">                    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">DIRS</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="kt">int</span><span class="w"> </span><span class="n">nx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">d</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">ny</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">d</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nx</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">ny</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">ny</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">nx</span><span class="o">][</span><span class="n">ny</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                            </span><span class="n">grid</span><span class="o">[</span><span class="n">nx</span><span class="o">][</span><span class="n">ny</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">;</span>
+<span class="w">                            </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">nx</span><span class="p">,</span><span class="w"> </span><span class="n">ny</span><span class="p">});</span>
+<span class="w">                        </span><span class="p">}</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 并查集：数连通块，全程无递归</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">parent</span><span class="p">,</span><span class="w"> </span><span class="n">rank</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">numIslands</span><span class="p">(</span><span class="kt">char</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="n">parent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">m</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">rank</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">m</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">parent</span><span class="o">[</span><span class="n">id</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">id</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">count</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">union</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="n">count</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">union</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="n">count</span><span class="o">--</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">find</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">parent</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">parent</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parent</span><span class="o">[</span><span class="n">parent</span><span class="o">[</span><span class="n">x</span><span class="o">]]</span><span class="p">;</span><span class="w">       </span><span class="c1">// 路径压缩（隔代压缩）</span>
+<span class="w">            </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parent</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">union</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">ra</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">find</span><span class="p">(</span><span class="n">a</span><span class="p">),</span><span class="w"> </span><span class="n">rb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">find</span><span class="p">(</span><span class="n">b</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ra</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">rb</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">rank</span><span class="o">[</span><span class="n">ra</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rank</span><span class="o">[</span><span class="n">rb</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ra</span><span class="p">;</span><span class="w"> </span><span class="n">ra</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rb</span><span class="p">;</span><span class="w"> </span><span class="n">rb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="n">parent</span><span class="o">[</span><span class="n">rb</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ra</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">rank</span><span class="o">[</span><span class="n">ra</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">rank</span><span class="o">[</span><span class="n">rb</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="n">rank</span><span class="o">[</span><span class="n">ra</span><span class="o">]++</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+一个 Java 细节：<code>new int[m*n]</code> 对 <code>300×300</code> 是 <code>90000</code>，没问题；但如果网格更大，可以把 <code>parent</code> 用 <code>int[]</code> 继续压（无需 <code>Map</code>）。<code>union</code> 返回"是否真的合并了"，正好用来决定 <code>count--</code>。
+<h2>七、同族题：695 / 130 / 463 / 1254 / 733 / 694 / 1905 / 1020</h2>
+
+200 是"网格连通块"这一族的原点，换个问法就是一条完整题链：
+<ul>
+<li><strong>LC 695 岛屿的最大面积</strong>：200 的染色逻辑，把 <code>count++</code> 换成"累加本次淹掉的格子数"，取最大值。</li>
+<li><strong>LC 130 被围绕的区域</strong>：先对<strong>四条边上的 <code>'O'</code></strong> 各做一次染色（这些连通块"逃得掉"），再把剩下的 <code>'O'</code> 全变 <code>'X'</code>。<strong>边界上的连通块</strong>是这题的唯一陷阱。</li>
+<li><strong>LC 463 岛屿的周长</strong>：不染色也行 —— 每块陆地贡献 <code>4</code>，每条相邻的陆地边抵消 <code>2</code>。</li>
+<li><strong>LC 1254 统计封闭岛屿的数目</strong>：先淹掉<strong>贴边</strong>的陆地，再数剩下的岛屿。</li>
+<li><strong>LC 733 图像渲染</strong>：把"相邻"从上下左右换成"同色"，就是最纯粹的 flood fill。</li>
+<li><strong>LC 694 不同岛屿的数量</strong>：染色时<strong>记录形状</strong>（相对坐标序列 / 转向串），去重 —— 同一套 DFS，多了个"签名"。</li>
+<li><strong>LC 1905 统计子岛屿</strong>：两座网格逐格"与"，再数连通块。</li>
+<li><strong>LC 1020 飞地的数量</strong>：等价于"数不贴边的陆地块数"。</li>
+<li><strong>LC 305 岛屿数量 II</strong>（会员/进阶）：<strong>逐个加陆地</strong>，正是并查集的主场 —— 每次加一格，把它和已有陆地合并，增量输出答案。</li>
+</ul>
+
+把它们排成一列看：<strong>网格连通块的骨架永远是"扫描 + 把一整块处理掉"</strong>；剩下的差别只在"处理时记什么"（面积 / 形状 / 贴不贴边）和"用什么容器"（递归栈 / 显式栈 / 队列 / 并查集）。
+<h2>八、边界情况</h2>
+<ul>
+<li><strong>空网格</strong>：<code>grid == []</code> 或某行长度为 <code>0</code>，直接返回 <code>0</code>（写代码先判空）；</li>
+<li><strong>全水</strong>：扫完没有陆地，返回 <code>0</code>；</li>
+<li><strong>全陆地</strong>：任何连通（只要 <code>m,n ≥ 1</code>）→ 返回 <code>1</code>；<code>3 × 3</code> 全陆地的例子就是它；</li>
+<li><strong><code>1 × 1</code></strong>：<code>"1"</code> → <code>1</code>，<code>"0"</code> → <code>0</code>；</li>
+<li><strong>单行 / 单列</strong>：退化成链，DFS 递归深度 = 长度 —— 最容易触发爆栈的形态；</li>
+<li><strong>长蛇形连通块</strong>：<code>m·n</code> 全连通时，递归 DFS 深度可达 <code>90000</code>，Python 默认上限 1000 必挂；</li>
+<li><strong>原地修改</strong>：把 <code>'1'</code> 改成 <code>'0'</code> 会破坏输入，某些在线评测<strong>多组用例复用同一网格</strong>时要留意；</li>
+<li><strong>大网格的对角相邻</strong>：<code>"1"</code> 斜着挨在一起<strong>不算</strong>连通，别误用八方向。</li>
+</ul>
+<h2>九、复杂度</h2>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>时间</th>
+<th>空间（含 <code>visited</code>）</th>
+<th>额外栈/队列</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>递归 DFS</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code>（含递归栈）</td>
+<td>调用栈最坏 <code>O(m·n)</code></td>
+</tr>
+<tr>
+<td>显式栈 DFS</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code></td>
+<td>堆上栈 <code>O(m·n)</code></td>
+</tr>
+<tr>
+<td>BFS</td>
+<td><code>O(m·n)</code></td>
+<td><code>O(m·n)</code></td>
+<td>队列 <code>O(m·n)</code></td>
+</tr>
+<tr>
+<td>并查集</td>
+<td><code>O(m·n · α)</code></td>
+<td><code>O(m·n)</code></td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+
+<code>m</code>、<code>n</code> 是网格行数、列数，<code>α</code> 是反阿克曼函数（实际接近常数）。<strong>时间上四者都是 <code>O(m·n)</code></strong> —— 每块陆地至多被"访问"常数次、每条邻接边至多被检查常数次。真正拉开差距的是<strong>空间的性质</strong>：递归 DFS 把 <code>O(m·n)</code> 压在<strong>调用栈</strong>上（有硬上限、会爆），其余把开销放在<strong>堆</strong>上（可通过 <code>visited</code> 与容器复用控制）。
+<h2>十、常见坑</h2>
+<ol>
+<li><strong>BFS/栈"出队才标记"</strong>：入队时不标 <code>visited</code>，同一格会被多个邻居反复入队，队列膨胀甚至 MLE。<strong>入队/入栈的那一刻就标记</strong>。</li>
+<li><strong>递归 DFS 没防爆栈</strong>：Python 默认递归上限 1000，Java 栈也有限；长蛇形网格直接 <code>RecursionError</code> / <code>StackOverflowError</code>。换显式栈 / BFS / 并查集，或临时 <code>sys.setrecursionlimit</code>（治标不治本）。</li>
+<li><strong>把 <code>'1'</code>/<code>'0'</code> 当整数</strong>：网格里是<strong>字符</strong>，比较要写 <code>grid[r][c] == "1"</code>（Java 里是 <code>== '1'</code>），写成 <code>== 1</code> 恒假。</li>
+<li><strong>方向写成八个</strong>：只有上下左右四个方向算连通，斜着不算。</li>
+<li><strong>边界检查缺失或写反</strong>：<code>0 &lt;= nx &lt; m and 0 &lt;= ny &lt; n</code> 少一个就数组越界。</li>
+<li><strong>并查集忘记 <code>count--</code></strong>：合并成功却没把计数减 1，最后数出的岛屿数偏大。用 <code>union</code> 的返回值驱动 <code>count--</code> 最稳。</li>
+<li><strong>并查集方向搞乱</strong>：只跟<strong>已处理过</strong>的邻居（上 / 左，或右 / 下，二选一）合并即可；两个方向都合会重复（虽然结果对，但多做功）。</li>
+<li><strong>原地改数组后又想复用</strong>：<code>'1'→'0'</code> 破坏输入；需要保留原网格时改用独立 <code>visited</code>。</li>
+<li><strong>忘了判空</strong>：<code>grid[0]</code> 在 <code>grid == []</code> 时直接越界。</li>
+<li><strong>把 <code>visited</code> 和 <code>grid</code> 判反</strong>：<code>seen</code> 只对<strong>陆地</strong>有意义，水和已访问陆地都要跳过，但理由不同（前者不是岛，后者已算过）。</li>
+</ol>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一段 · 骨架</strong>：数岛屿 = 数网格里的连通块。扫描全网格，遇到未访问的陆地就 <code>count++</code> 并做一次 flood fill 把整座岛标记掉。递归 DFS 最短，<code>O(m·n)</code>。
+
+<strong>第二段 · 主动补爆栈</strong>（<strong>这段是区分度所在</strong>）：递归 DFS 的<strong>递归深度 = 最长连通路径</strong>，最坏 <code>O(m·n)</code>；蛇形长岛会 <code>RecursionError</code>（Python 默认上限 1000）/ <code>StackOverflowError</code>（Java）。两条出路：<strong>显式栈 / BFS 队列</strong>（把栈搬到堆上，逻辑只差"LIFO 换 FIFO"），或<strong>并查集</strong>（数连通块，全程无递归）。
+
+<strong>第三段 · 并查集与进阶</strong>：并查集把每块陆地先当独立集合，相邻就合并，<code>剩余集合数</code> 即答案；它的杀手锏是<strong>动态加陆地</strong>时能增量维护 —— 见 LC 305。
+
+<strong>追问连跳</strong>：
+- 要<strong>最大面积</strong> → LC 695，把计数换成累加；
+- 要<strong>封闭岛屿 / 飞地</strong> → LC 1254 / 1020，先淹贴边的；
+- 要<strong>被围绕的区域</strong> → LC 130，先对四条边的连通块染色；
+- 要<strong>不同形状的岛屿</strong> → LC 694，染色时记形状签名；
+- 要<strong>动态加陆地</strong> → LC 305，并查集增量维护。
+
+一句话收尾："岛屿数量只有一台机器 —— <strong>扫描 + 把一整块连通陆地处理掉</strong>；DFS 是它最简的实现，BFS/显式栈/并查集是它防爆栈的三个替身。"
+<h2>结语</h2>
+
+200 的全部难度浓缩在一行骨架里：扫描 + 遇到新陆地就染色、计数。真正让它在面试里分层的，是<strong>"染色用什么写"</strong>这个追问 —— 递归 DFS 最简却有 <code>O(m·n)</code> 的调用栈深度，长蛇形网格一定爆；把栈搬到堆上（显式栈 / BFS）或换成并查集，就能把"深度"这件事从算法里彻底拿掉。记住那句判据：<strong>每块陆地只数一次，每座岛只加一次</strong>。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>
