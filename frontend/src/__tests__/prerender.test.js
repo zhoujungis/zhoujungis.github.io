@@ -21,6 +21,7 @@ import {
   renderListPage,
   sectionsForPage,
 } from '../../scripts/prerender.mjs'
+import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS, FOOTPRINT_PROVINCES } from '../data/footprints'
 
 const SHELL = `<!doctype html>
 <html lang="zh-CN">
@@ -245,23 +246,27 @@ describe('renderSitemap', () => {
     { slug: 'a', created_at: '2026-08-01T10:00:00+08:00', updated_at: '2026-08-02T10:00:00+08:00' },
     { slug: 'b', created_at: '2026-07-01T10:00:00+08:00' },
   ]
+  const indexable = LIST_PAGES.filter((p) => !p.noindex)
 
-  it('lists the home page, every prerendered list page and every article', () => {
+  it('lists the home page, every indexable list page and every article', () => {
     const xml = renderSitemap(articles)
-    expect(count(xml, '<loc>')).toBe(1 + LIST_PAGES.length + 2)
+    expect(count(xml, '<loc>')).toBe(1 + indexable.length + 2)
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/</loc>`)
-    for (const page of LIST_PAGES) {
+    for (const page of indexable) {
       expect(xml).toContain(`<loc>${SITE_ORIGIN}${page.path}</loc>`)
     }
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/article/a/</loc>`)
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/article/b/</loc>`)
   })
 
-  it('never advertises a route that has no file behind it', () => {
+  it('keeps the prerendered noindex page out', () => {
     const xml = renderSitemap(articles)
-    for (const dead of ['/search', '/photos', '/friends', '/footprints', '/admin']) {
-      expect(xml).not.toContain(`<loc>${SITE_ORIGIN}${dead}`)
+    const noindex = LIST_PAGES.filter((p) => p.noindex)
+    expect(noindex.length).toBeGreaterThan(0)
+    for (const page of noindex) {
+      expect(xml).not.toContain(`<loc>${SITE_ORIGIN}${page.path}</loc>`)
     }
+    expect(xml).not.toContain(`<loc>${SITE_ORIGIN}/admin`)
   })
 
   it('uses the trailing-slash form GitHub Pages answers with 200', () => {
@@ -378,5 +383,30 @@ describe('renderListPage', () => {
     const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
     expect(html).toContain('2026 年（2 篇）')
     expect(html).toContain('8 月')
+  })
+
+  it('renders the whole travel list on /footprints', () => {
+    const page = pageFor('/footprints/')
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    // Static data — the snapshot doesn't depend on the article list at all.
+    expect(html).toContain(`共 ${FOOTPRINT_CITIES.length} 座城市`)
+    expect(html).toContain(`共 ${FOOTPRINT_CITIES.length} 座城市 · ${FOOTPRINT_PROVINCES.length} 个省/地区`)
+    for (const city of FOOTPRINT_CITIES) {
+      expect(html, city.name).toContain(city.name)
+    }
+    for (const region of FOOTPRINT_REGIONS) {
+      expect(html, region.name).toContain(region.name)
+    }
+  })
+
+  it('gives the API-driven pages a 200 with head, lead and cross-links', () => {
+    for (const path of ['/photos/', '/friends/', '/search/']) {
+      const page = pageFor(path)
+      const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+      expect(html, path).toContain(`<title>${page.title} | ${SITE_NAME}</title>`)
+      expect(html, path).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}" />`)
+      expect(html, path).toContain(`<h1>${page.title}</h1>`)
+      expect(html, path).toContain('class="ns-nav"')
+    }
   })
 })

@@ -16,13 +16,14 @@ const routes = [
   {
     path: '/search',
     name: 'Search',
-    // Results only exist in response to a query — nothing to index.
-    meta: { title: '搜索', description: '搜索尘世栈帧的全部文章。', robots: 'noindex, follow' },
+    // Prerendered for the 200, but noindex: results only exist in response to
+    // a query, so there is nothing for a crawler to index.
+    meta: listPageMeta('/search/'),
     component: () => import('../pages/Search.vue'),
   },
-  { path: '/photos', name: 'PhotoWall', meta: { title: '照片墙', description: '光影里的生活片段。' }, component: () => import('../pages/PhotoWall.vue') },
-  { path: '/friends', name: 'FriendLinks', meta: { title: '友链', description: '经常访问的站点与同好。' }, component: () => import('../pages/FriendLinks.vue') },
-  { path: '/footprints', name: 'Footprints', meta: { title: '旅行足迹', description: '在地图上收藏走过的城市。' }, component: () => import('../pages/Footprints.vue') },
+  { path: '/photos', name: 'PhotoWall', meta: listPageMeta('/photos/'), component: () => import('../pages/PhotoWall.vue') },
+  { path: '/friends', name: 'FriendLinks', meta: listPageMeta('/friends/'), component: () => import('../pages/FriendLinks.vue') },
+  { path: '/footprints', name: 'Footprints', meta: listPageMeta('/footprints/'), component: () => import('../pages/Footprints.vue') },
   { path: '/archives', name: 'Archives', meta: listPageMeta('/archives/'), component: () => import('../pages/Archives.vue') },
   { path: '/admin', name: 'AdminLogin', meta: { title: '管理后台', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/AdminLogin.vue') },
   { path: '/admin/dashboard', name: 'AdminDashboard', meta: { requiresAuth: true, title: '管理后台', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/AdminDashboard.vue') },

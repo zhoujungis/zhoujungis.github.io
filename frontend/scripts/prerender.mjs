@@ -55,6 +55,9 @@ import {
   SITE_ORIGIN as SITE_ORIGIN_DEFAULT,
   LIST_PAGES,
 } from '../src/utils/siteConfig.js'
+// Same travel data the /footprints page renders, so its no-JS snapshot can't
+// drift from the live map.
+import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS } from '../src/data/footprints.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -497,12 +500,14 @@ function renderSitemap(articles, { bulkEdits = new Set() } = {}) {
       changefreq: 'daily',
       priority: '1.0',
     }),
-    ...LIST_PAGES.map((p) =>
+    // Indexable list pages only — /search is prerendered (so a direct hit is a
+    // 200 rather than a 404.html bounce) but deliberately kept out of here.
+    ...LIST_PAGES.filter((p) => !p.noindex).map((p) =>
       entry({
         loc: `${SITE_ORIGIN}${p.path}`,
         lastmod: isoOrEmpty(newestIso),
         changefreq: 'weekly',
-        priority: p.path === '/categories/' || p.path === '/tags/' ? '0.5' : '0.6',
+        priority: p.priority || '0.5',
       }),
     ),
     ...[...published]
@@ -613,12 +618,18 @@ function renderSections(sections) {
     if (section.subsections?.length) parts.push(renderSections(section.subsections))
     if (section.items?.length) {
       const items = section.items
-        .map(
-          (i) =>
-            `<li><a href="${escapeHtml(i.href)}">${escapeHtml(i.text)}</a>` +
+        .map((i) => {
+          // Entries without an href are plain text (e.g. the city names on
+          // /footprints — they have no page of their own to link to).
+          const body = i.href
+            ? `<a href="${escapeHtml(i.href)}">${escapeHtml(i.text)}</a>`
+            : escapeHtml(i.text)
+          return (
+            `<li>${body}` +
             (i.meta ? ` <span class="ns-date">${escapeHtml(i.meta)}</span>` : '') +
-            `</li>`,
-        )
+            `</li>`
+          )
+        })
         .join('\n')
       parts.push(`<ul>\n${items}\n</ul>`)
     }
@@ -627,15 +638,34 @@ function renderSections(sections) {
 }
 
 function sectionsForPage(page, articles) {
-  switch (page.path) {
-    case '/articles/':
+  switch (page.sections) {
+    case 'articles':
       return dateSections(articles)
-    case '/archives/':
+    case 'archives':
       return dateSections(articles, { byMonth: true })
-    case '/categories/':
+    case 'categories':
       return groupSections(articles, (a) => [CATEGORY_NAME(a)], '未分类')
-    case '/tags/':
+    case 'tags':
       return groupSections(articles, tagNames, '未分类')
+    case 'footprints': {
+      // Fully static — the travel data lives in src/data/footprints.js, so the
+      // snapshot carries every city instead of just a page title.
+      const provinces = new Set(FOOTPRINT_CITIES.map((c) => c.province))
+      return [
+        {
+          heading: `共 ${FOOTPRINT_CITIES.length} 座城市 · ${provinces.size} 个省/地区`,
+        },
+        ...FOOTPRINT_REGIONS.map((region) => ({
+          heading: `${region.emoji} ${region.name}（${region.cities.length} 座）`,
+          items: region.cities.map((city) => ({ text: city })),
+        })),
+      ]
+    }
+    // /photos, /friends and /search draw their content from the backend API
+    // (the photo wall and the friend list) or from a query at runtime, so the
+    // build has nothing to inline. They still get a real 200, a page-level
+    // <title>, their own meta and the sibling cross-links — which is what
+    // fixes the direct-hit 404.
     default:
       return []
   }
@@ -840,7 +870,8 @@ async function main() {
       'utf8',
     )
     console.log(
-      `[prerender] wrote sitemap.xml (${lastmods.size + LIST_PAGES.length + 1} URLs).`,
+      `[prerender] wrote sitemap.xml (` +
+        `${lastmods.size + LIST_PAGES.filter((p) => !p.noindex).length + 1} URLs).`,
     )
   } catch (e) {
     console.warn(`[prerender] could not write sitemap.xml: ${e?.message || e}`)

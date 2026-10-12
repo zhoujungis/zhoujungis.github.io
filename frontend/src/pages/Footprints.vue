@@ -62,6 +62,11 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { ScatterChart, EffectScatterChart } from 'echarts/charts'
 import { GeoComponent, TooltipComponent } from 'echarts/components'
 import { LabelLayout } from 'echarts/features'
+import {
+  FOOTPRINT_CITIES,
+  FOOTPRINT_REGIONS,
+  FOOTPRINT_PROVINCES,
+} from '@/data/footprints'
 
 echarts.use([
   CanvasRenderer,
@@ -79,63 +84,18 @@ const error = ref('')
 let chart = null
 
 // ========================================
-// City data — 26 cities across 13 provinces
+// Data — shared with the build-time pre-renderer (src/data/footprints.js)
 // ========================================
-// labelPos: custom label position to avoid overlap in dense clusters.
-// Omitted → defaults to 'right'.
-const cities = [
-  // 京津冀
-  { name: '北京', lng: 116.4074, lat: 39.9042, province: '北京市' },
-  { name: '天津', lng: 117.1902, lat: 39.1252, province: '天津市' },
-  // 长三角
-  { name: '南京', lng: 118.7969, lat: 32.0603, province: '江苏省' },
-  { name: '苏州', lng: 120.5954, lat: 31.2990, province: '江苏省' },
-  { name: '合肥', lng: 117.2273, lat: 31.8206, province: '安徽省' },
-  { name: '安庆', lng: 117.0510, lat: 30.5319, province: '安徽省' },
-  // 珠三角 (dense — custom label positions spread around markers)
-  { name: '广州', lng: 113.2644, lat: 23.1291, province: '广东省', labelPos: 'top' },
-  { name: '深圳', lng: 114.0579, lat: 22.5431, province: '广东省', labelPos: 'right' },
-  { name: '香港', lng: 114.1657, lat: 22.2793, province: '香港特别行政区', labelPos: 'bottom' },
-  { name: '澳门', lng: 113.5491, lat: 22.1987, province: '澳门特别行政区', labelPos: 'left' },
-  { name: '中山', lng: 113.3824, lat: 22.5159, province: '广东省', labelPos: 'left' },
-  { name: '珠海', lng: 113.5767, lat: 22.2707, province: '广东省', labelPos: 'bottom' },
-  // 潮汕 (close pair — split up/down)
-  { name: '潮州', lng: 116.6224, lat: 23.6581, province: '广东省', labelPos: 'top' },
-  { name: '汕头', lng: 116.6821, lat: 23.3535, province: '广东省', labelPos: 'bottom' },
-  // 中部
-  { name: '武汉', lng: 114.3054, lat: 30.5931, province: '湖北省' },
-  { name: '长沙', lng: 112.9388, lat: 28.2278, province: '湖南省' },
-  { name: '衡阳', lng: 112.5727, lat: 26.8932, province: '湖南省' },
-  { name: '南昌', lng: 115.8581, lat: 28.6820, province: '江西省' },
-  { name: '赣州', lng: 114.9350, lat: 25.8318, province: '江西省' },
-  // 西南
-  { name: '重庆', lng: 106.5516, lat: 29.5630, province: '重庆市' },
-  { name: '内江', lng: 105.0584, lat: 29.5801, province: '四川省', labelPos: 'top' },
-  { name: '泸州', lng: 105.4423, lat: 28.8718, province: '四川省', labelPos: 'bottom' },
-  { name: '昆明', lng: 102.8329, lat: 24.8801, province: '云南省' },
-  { name: '丽江', lng: 100.2299, lat: 26.8550, province: '云南省' },
-  { name: '大理', lng: 100.2299, lat: 25.6065, province: '云南省' },
-  { name: '保山', lng: 99.1770, lat: 25.1120, province: '云南省' },
-]
-
-// ========================================
-// Region groups for display
-// ========================================
-const regions = [
-  { name: '京津冀', emoji: '🏛️', cities: ['北京', '天津'] },
-  { name: '长三角', emoji: '🌉', cities: ['南京', '苏州', '合肥', '安庆'] },
-  { name: '珠三角', emoji: '🌊', cities: ['广州', '深圳', '香港', '澳门', '中山', '珠海'] },
-  { name: '潮汕', emoji: '🍵', cities: ['潮州', '汕头'] },
-  { name: '中部', emoji: '⛰️', cities: ['武汉', '长沙', '衡阳', '南昌', '赣州'] },
-  { name: '西南', emoji: '🏔️', cities: ['重庆', '内江', '泸州', '昆明', '丽江', '大理', '保山'] },
-]
+// Cannot stay inline: scripts/prerender.mjs needs the same list to write the
+// crawlable <noscript> snapshot of this page, and a Node script can't import a
+// .vue file. Aliased so the rest of the component reads unchanged.
+const cities = FOOTPRINT_CITIES
+const regions = FOOTPRINT_REGIONS
 
 // ========================================
 // Computed stats
 // ========================================
-const visitedProvinces = computed(() => {
-  return [...new Set(cities.map(c => c.province))]
-})
+const visitedProvinces = computed(() => FOOTPRINT_PROVINCES)
 
 const coveragePercent = computed(() => {
   return Math.round((visitedProvinces.value.length / 34) * 100)
