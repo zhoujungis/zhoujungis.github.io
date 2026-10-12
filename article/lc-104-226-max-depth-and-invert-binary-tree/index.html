@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道&quot;我到底有没有真懂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-104-226-max-depth-and-invert-binary-tree/" />
     <meta property="og:title" content="【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子" />
     <meta name="twitter:description" content="【LC 104 / 226】二叉树的最大深度 &amp; 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道&quot;我到底有没有真懂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-104-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-24T09:36:34.801787+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 104/226】最大深度 & 翻转二叉树：各藏一颗钉子","description":"【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道\"我到底有没有真懂\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就","image":"https://zhoujungis.github.io/photos/lc-104-cover.png","datePublished":"2026-09-24T09:36:34.801787+08:00","dateModified":"2026-10-12T16:18:30.599822+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-104-226-max-depth-and-invert-binary-tree/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 104/226】最大深度 & 翻转二叉树：各藏一颗钉子","description":"【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子 适用读者 ：刚学完二叉树递归，想知道\"我到底有没有真懂\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单 —— 但两道题的正确率都没那么高，原因在下面 收获 ：把「树的递归」这件事拆成两种模式（后序汇报 vs 就","image":"https://zhoujungis.github.io/photos/lc-104-cover.png","datePublished":"2026-09-24T09:36:34.801787+08:00","dateModified":"2026-09-24T09:36:34.801787+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-104-226-max-depth-and-invert-binary-tree/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -147,7 +158,7 @@
 <h2>一、这两题为什么放在一起</h2>
 
 因为它们的形式几乎一样（都是三五行递归），但<strong>"递归顺序"的重要性恰好相反</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -182,7 +193,7 @@
 <td>不需要</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一句话概括这个对照：
 <blockquote>
@@ -298,7 +309,7 @@
 <h2>四、LC 104 完整推演表（11 帧逐帧）</h2>
 
 下表是动画每一帧的真实数据（<code>左</code> / <code>右</code> 是子树回报的高度，空子树记 <code>0</code>）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -423,7 +434,7 @@
 <td>（空）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两行必须对照着看：
 
@@ -489,7 +500,7 @@
 
 
 这四行的语义是：<strong>"最小深度只统计到真正的叶子为止，半路的内部节点不是终点。"</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>情况</th>
@@ -524,7 +535,7 @@
 <td>2 ✓</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>面试时如果只给你一道题，很可能是 111 而不是 104</strong> —— 因为 104 写不错，111 才筛人。
 <h3>5.2 LC 110 平衡二叉树：返回值兼作状态</h3>
@@ -683,7 +694,7 @@ Google: 90% of our engineers use the software you wrote (Homebrew), but you can'
 <h2>八、LC 226 完整推演表（12 帧逐帧）</h2>
 
 下表是动画每一帧的真实数据（用的是前序写法：<strong>先交换自己，再递归</strong>）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -792,7 +803,7 @@ Google: 90% of our engineers use the software you wrote (Homebrew), but you can'
 <td>—</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个容易看错的点：
 
@@ -852,7 +863,7 @@ Google: 90% of our engineers use the software you wrote (Homebrew), but you can'
 
 和 101 对比一下就明白了：<strong>101 是"必须对称"（只有交叉那一支），951 是"翻或不翻都行"（两支都要试）。</strong>
 <h3>9.3 变体关系总表</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题号</th>
@@ -885,7 +896,7 @@ Google: 90% of our engineers use the software you wrote (Homebrew), but you can'
 <td>226 的<strong>搜索版</strong>：每个节点"翻或不翻"两种都要试</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>一个提醒</strong>：101 / 951 的形状和 226 明显不同（前者是<strong>双指针同步下潜</strong>，后者是<strong>单指针就地修改</strong>），所以本文没有给动画开 <code>mode</code> 硬塞进去 —— 那会误导人以为它们能共用一套代码。<strong>形似的题可以合并讲，形不似的题要分开写。</strong>
 <hr>
@@ -933,7 +944,7 @@ Google: 90% of our engineers use the software you wrote (Homebrew), but you can'
 <hr>
 <h2>十一、边界情况与常见坑</h2>
 <h3>边界情况（两题都要过一遍）</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>情况</th>
@@ -973,7 +984,7 @@ Google: 90% of our engineers use the software you wrote (Homebrew), but you can'
 <td>不受影响</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 <strong>104 和 226 都不受节点值影响</strong> —— 这是它们比 124（要考虑负数剪枝）简单的地方。

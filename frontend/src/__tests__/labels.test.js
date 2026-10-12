@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { catLabel, catSlug, catCount, tagLabel, tagSlug, authorName } from '../utils/labels'
+import { SITE_AUTHOR } from '../utils/siteConfig'
 
 describe('catLabel', () => {
   it('returns empty string for falsy values', () => {
@@ -62,9 +63,14 @@ describe('tagSlug', () => {
 })
 
 describe('authorName', () => {
-  it('returns "匿名" for missing author', () => {
-    expect(authorName(null)).toBe('匿名')
-    expect(authorName(undefined)).toBe('匿名')
+  it('falls back to SITE_AUTHOR for a missing author', () => {
+    expect(authorName(null)).toBe(SITE_AUTHOR)
+    expect(authorName(undefined)).toBe(SITE_AUTHOR)
+    expect(SITE_AUTHOR).not.toBe('匿名')
+  })
+
+  it('falls back to SITE_AUTHOR for an author object with no name', () => {
+    expect(authorName({})).toBe(SITE_AUTHOR)
   })
 
   it('returns name from object', () => {

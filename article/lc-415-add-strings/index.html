@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 给定两个字符串形式的非负整数 num1 和 num2 ，计算它们的和并同样以字符串形式返回。 你不能使用任何内建的用于处理大整数的库（比如 BigInteger），也不能直接将输入的字符串转换为整数形式。 示例： 腾讯面试高频（TOP 9 常客），还有两个常见延伸：大数相加 含负数 （符号处理 + 转减法），以及" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-415-add-strings/" />
     <meta property="og:title" content="【LC 415】字符串相加：把竖式翻译成代码" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 415】字符串相加：把竖式翻译成代码" />
     <meta name="twitter:description" content="题目 给定两个字符串形式的非负整数 num1 和 num2 ，计算它们的和并同样以字符串形式返回。 你不能使用任何内建的用于处理大整数的库（比如 BigInteger），也不能直接将输入的字符串转换为整数形式。 示例： 腾讯面试高频（TOP 9 常客），还有两个常见延伸：大数相加 含负数 （符号处理 + 转减法），以及" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-415-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-29T10:55:57.504344+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 415】字符串相加：把竖式翻译成代码","description":"题目 给定两个字符串形式的非负整数 num1 和 num2 ，计算它们的和并同样以字符串形式返回。 你不能使用任何内建的用于处理大整数的库（比如 BigInteger），也不能直接将输入的字符串转换为整数形式。 示例： 腾讯面试高频（TOP 9 常客），还有两个常见延伸：大数相加 含负数 （符号处理 + 转减法），以及","image":"https://zhoujungis.github.io/photos/lc-415-cover.png","datePublished":"2026-09-29T10:55:57.504344+08:00","dateModified":"2026-10-12T16:19:51.934650+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-415-add-strings/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 415】字符串相加：把竖式翻译成代码","description":"题目 给定两个字符串形式的非负整数 num1 和 num2 ，计算它们的和并同样以字符串形式返回。 你不能使用任何内建的用于处理大整数的库（比如 BigInteger），也不能直接将输入的字符串转换为整数形式。 示例： 腾讯面试高频（TOP 9 常客），还有两个常见延伸：大数相加 含负数 （符号处理 + 转减法），以及","image":"https://zhoujungis.github.io/photos/lc-415-cover.png","datePublished":"2026-09-29T10:55:57.504344+08:00","dateModified":"2026-09-29T10:55:57.504344+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-415-add-strings/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -135,7 +146,7 @@
 <h3>2.1 对齐：下标判断补零，不动原串</h3>
 
 两个串长度不等，怎么对齐数位？两种做法：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>做法</th>
@@ -155,7 +166,7 @@
 <td>零拷贝，一 BM 一行解决 ✅</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 选后者。<code>i &lt; 0</code> 表示 num1 这一位已经用完，<strong>这一列它贡献 0</strong> —— 注意是"贡献 0"，不是"跳过这列"：列还在，只是这一侧的加数是 0。
 <h3>2.2 每一列：加、写、进</h3>
@@ -218,7 +229,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 <h2>四、完整推演表</h2>
 
 以 <code>"456" + "77"</code> 为主例（maxLen = 3，列号 0 = 最高位 / 2 = 个位）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -301,7 +312,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 <td>[3,3,5] → reverse → "533"</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 对照检查三个要点：第 3 帧 <code>j = -1</code>，num2 没有百位，<code>b</code> 补 0 而列照算；第 2、3 帧 <code>carryIn = 1</code> 接住上一帧的 <code>carryOut</code>；三列算完 <code>carryOut = 0</code>，循环终止 —— 如果最后还有进位，就会多出一帧长出第 4 位。
 <h2>五、变体：含负数、大数相乘、二进制与链表</h2>
@@ -342,7 +353,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 
 注意它和加法的关系：<strong>进位的搬运和竖式加法完全同款</strong>（满十进一），只是每列的"加数"从一个变成了 <code>m</code> 个乘积的累加 —— 所以 LC 43 本质上是"LC 415 的每列叠了多层"。
 <h3>5.3 同族题</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -367,7 +378,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 <td><code>i + j + 1</code> 落位 + 同款进位搬运</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 家族口诀：<strong>"逐位处理 + 进位/借位变量 + 三连 or 循环条件"就是整个大数运算家族的通用骨架</strong>，变的只是 base（67）、存储方向（2）和每列的运算量（43）。
 <h2>六、Java 版</h2>
@@ -390,7 +401,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 
 Java 的 <code>StringBuilder.append</code> 尾插 + 最后 <code>reverse</code>，和 Python 的 push + reversed 完全同构。
 <h2>七、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -425,7 +436,7 @@ Java 的 <code>StringBuilder.append</code> 尾插 + 最后 <code>reverse</code>�
 <td>长度不等且溢出</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>八、复杂度</h2>
 <ul>
 <li><strong>时间 O(max(m, n))</strong>：每一列一次加法，列数是较长串的长度（溢出时多一列）。</li>

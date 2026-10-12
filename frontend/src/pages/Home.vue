@@ -33,7 +33,7 @@
         <nav class="masthead__nav" aria-label="更多入口">
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener" class="mast-nav-link">GitHub</a>
           <a href="mailto:no-reply@gmail.com" class="mast-nav-link">Email</a>
-          <a href="https://zhoujun123.pythonanywhere.com/rss.xml" class="mast-nav-link">RSS</a>
+          <a href="https://zhoujungis.github.io/rss.xml" class="mast-nav-link">RSS</a>
         </nav>
       </div>
     </header>
@@ -232,27 +232,41 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
+function applyLatest(list, count) {
+  const sorted = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  totalCount.value = count
+  latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
+}
+
+// Stale-while-revalidate: the build-time snapshot paints the first screen, the
+// live API revalidates in the background.
+//
+// This used to be API-first with the snapshot only as an outage fallback, so
+// every first paint waited on PythonAnywhere (~1.3s TTFB, worse on a cold
+// free-tier dyno). The snapshot is a same-origin static file that the service
+// worker also precaches, so it lands in ~50ms on a first visit and with no
+// network at all on a repeat one.
 async function fetchLatest() {
   loading.value = true
   loadError.value = null
   cacheNotice.value = ''
+
+  const fallback = await resolveListFallback({ page: 1, page_size: 20 })
+  if (fallback?.results?.length) {
+    applyLatest(fallback.results, fallback.count)
+    loading.value = false
+  }
+
   try {
     const res = await getArticles({ page: 1, page_size: 20 })
     const list = res.data?.results || res.data || []
-    totalCount.value = typeof res.data?.count === 'number' ? res.data.count : list.length
-    const sorted = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
+    applyLatest(list, typeof res.data?.count === 'number' ? res.data.count : list.length)
     saveListCache(list, totalCount.value)
+    cacheNotice.value = ''
   } catch (e) {
-    // Backend down — fall back to the build-time snapshot / last cache so
-    // the home page never renders an empty skeleton-only state.
-    const fallback = await resolveListFallback({ page: 1, page_size: 20 })
     if (fallback?.results?.length) {
-      const sorted = [...fallback.results].sort(
-        (a, b) => new Date(b.created_at) - new Date(a.created_at),
-      )
-      totalCount.value = fallback.count
-      latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
+      // Content is already on screen — label it instead of replacing it with
+      // an error page.
       cacheNotice.value = cacheNoticeText[fallback.source] || ''
     } else {
       loadError.value = e?.response?.data?.detail || e.message || '加载失败'

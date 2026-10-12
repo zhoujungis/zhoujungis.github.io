@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得&quot;删重复&quot;已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-82-remove-duplicates-from-sorted-list-ii/" />
     <meta property="og:title" content="【LC 82】删除重复元素 II：为什么必须有 dummy" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 82】删除重复元素 II：为什么必须有 dummy" />
     <meta name="twitter:description" content="【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得&quot;删重复&quot;已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-82-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-23T12:10:22.620460+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 82】删除重复元素 II：为什么必须有 dummy","description":"【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得\"删重复\"已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 ","image":"https://zhoujungis.github.io/photos/lc-82-cover.png","datePublished":"2026-09-23T12:10:22.620460+08:00","dateModified":"2026-10-12T16:18:13.287044+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-82-remove-duplicates-from-sorted-list-ii/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 82】删除重复元素 II：为什么必须有 dummy","description":"【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy 适用读者 ：做过 LC 83（保留一个），觉得\"删重复\"已经会了，然后被这题的一个都别留卡住的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 15 行，但 prev 到底什么时候前进，是最容易写错的地方） 收获 ","image":"https://zhoujungis.github.io/photos/lc-82-cover.png","datePublished":"2026-09-23T12:10:22.620460+08:00","dateModified":"2026-09-23T12:10:22.620460+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-82-remove-duplicates-from-sorted-list-ii/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -210,7 +221,7 @@
 <h3>2.2 为什么内层用「值」比较就够了</h3>
 
 <code>curr.val == dup_val</code> 比的是<strong>值</strong>，不是节点 —— 这和 LC 160 相交链表里"必须比引用"正好相反，值得对照记一下：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -230,7 +241,7 @@
 <td>题目要求删的就是"重复数字"，判据本身就是值</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 判据永远跟着<strong>题目在问什么</strong>走，别背成一条死规则。
 <h3>2.3 完整代码</h3>
@@ -274,7 +285,7 @@
 1 → 2 → 3 → 3 → 4 → 4 → 5
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -407,7 +418,7 @@
 <td><code>curr</code> 到 ∅，返回 <code>dummy.next</code> → <strong><code>1 → 2 → 5</code></strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 数一下每一帧的 prev 是否合理：第 3–6 帧 <code>prev</code> 一直是 <code>2</code>（<strong>四个帧没动过</strong>），第 8–11 帧一直是 <code>3</code>。<strong>"发现重复 → prev 冻结"在这张表里一眼可见。</strong>
 <blockquote>
@@ -416,7 +427,7 @@
 </blockquote>
 
 再看 <code>1 → 1 → 1 → 2 → 3</code>（头节点就要被删的场景）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -509,7 +520,7 @@
 <td><strong><code>2 → 3</code></strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 第 5 帧是整题的题眼：<strong>被删的是原来的头节点，而执行删除的是 <code>dummy.next = 2</code></strong>。没有 dummy，这一步根本写不出来。
 <hr>
@@ -518,7 +529,7 @@
 面经里的变体是：<strong>保留重复元素只留一个</strong>，<code>1→1→1→2→3→3→4</code> 变成 <code>1→2→3→4</code>。
 
 注意它是"重复过的值留一个、没重复过的值照常留"，不是"每个值都留一个"（后者是 LC 83）。对 <code>1,1,1,2,3,3,4</code> 来说两者恰好结果不同：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>规则</th>
@@ -539,7 +550,7 @@
 <td><code>1, 2, 3, 4</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 改法只有一处：<strong>接回去的时候不要接到 <code>curr</code>，接到重复段的最后一个节点上</strong>。
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
@@ -597,7 +608,7 @@
 Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code> 比较，<code>==</code> 没问题（如果是 <code>Integer</code> 装箱类型就要用 <code>.equals</code>，别踩这个坑）。
 <hr>
 <h2>七、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -652,7 +663,7 @@ Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code>
 <td>中间两段重复</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个"救命"的点值得单独记：
 <ul>
@@ -709,7 +720,7 @@ Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code>
 排序链表上判重<strong>只看邻位就够</strong>，不需要统计全局。写成全局统计既慢（要开 <code>O(n)</code> 空间）又容易把 82（全删）和 83（留一个）搞混。
 
 <strong>5. 和 LC 83 的条件搞混。</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -729,7 +740,7 @@ Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code>
 <td>重复值一个不留</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 记法：<strong>83 是"踩掉重复的那一个"，82 是"整段铲走"</strong>。82 多了一层"先找到段尾"的循环，代码长一点，语义干净得多。
 
@@ -764,7 +775,7 @@ Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code>
 <h2>结语</h2>
 
 把链表系列串起来看，这题的位置是这样的：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -799,7 +810,7 @@ Java 里注意 <code>curr.val == curr.next.val</code> 用的是 <code>int</code>
 <td>那题比<strong>引用</strong>，这题比<strong>值</strong>，判据各跟着题走</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这题最值得带走的东西，不是那 15 行代码，而是这个反射：
 <blockquote>

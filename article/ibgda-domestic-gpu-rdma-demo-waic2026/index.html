@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日， WAIC 2026 （世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸&quot;三地四馆&quot;同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商， 奇异摩尔 交出的&quot;成绩单&quot;为何让国产算力圈集体兴奋" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/ibgda-domestic-gpu-rdma-demo-waic2026/" />
     <meta property="og:title" content="不靠英伟达网卡：国产 GPU 直通方案实测" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="不靠英伟达网卡：国产 GPU 直通方案实测" />
     <meta name="twitter:description" content="不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日， WAIC 2026 （世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸&quot;三地四馆&quot;同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商， 奇异摩尔 交出的&quot;成绩单&quot;为何让国产算力圈集体兴奋" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/waic-cover.svg" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-07-20T12:32:46.750771+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"不靠英伟达网卡：国产 GPU 直通方案实测","description":"不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日， WAIC 2026 （世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸\"三地四馆\"同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商， 奇异摩尔 交出的\"成绩单\"为何让国产算力圈集体兴奋","image":"https://zhoujungis.github.io/photos/waic-cover.svg","datePublished":"2026-07-20T12:32:46.750771+08:00","dateModified":"2026-09-20T19:00:19.631735+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/ibgda-domestic-gpu-rdma-demo-waic2026/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"不靠英伟达网卡：国产 GPU 直通方案实测","description":"不靠英伟达网卡，国产 GPU 直通方案实测出炉：吞吐飙升、延迟砍半 2026 年 7 月 17–20 日， WAIC 2026 （世界人工智能大会暨人工智能全球治理高级别会议）于上海世博、张江、西岸\"三地四馆\"同步启幕。本文带你看懂：作为 AI 网络全栈式互联提供商， 奇异摩尔 交出的\"成绩单\"为何让国产算力圈集体兴奋","image":"https://zhoujungis.github.io/photos/waic-cover.svg","datePublished":"2026-07-20T12:32:46.750771+08:00","dateModified":"2026-07-20T12:32:46.750771+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/ibgda-domestic-gpu-rdma-demo-waic2026/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -131,7 +142,7 @@
 为什么这场论坛如此重要？要回答这个问题，需要先看清国产算力当前的结构性失衡。
 
 奇异摩尔的产品布局覆盖三个尺度：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>互联尺度</th>
@@ -156,7 +167,7 @@
 <td>异构封装 · 光电融合</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 当前国产算力面临的核心困境是"<strong>单点强、系统弱</strong>"——片内、片间、网间、集群间各层互联各成体系，缺乏统一的全栈视角与系统级协同，导致系统级性能无法随芯片数量线性释放。
 
@@ -185,7 +196,7 @@
 
 在传统跨节点通信中，GPU 必须经由 CPU 中转指令，产生<strong>额外延迟</strong>与 <strong>CPU 开销</strong>。而 <strong>IBGDA（InfiniBand GPU Direct Async）</strong> 技术正是为解决这个问题而生：通过<strong>绕过 CPU 处理环节</strong>，显著降低指令中转等待时间，在 <strong>All-to-All 通信</strong>场景中实现<strong>吞吐提升</strong>与<strong>延迟压降</strong>。
 <h3>3.2 国际对标与国产缺口</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>阵营</th>
@@ -210,7 +221,7 @@
 <td>国产 GPU 直通国产 RDMA 网卡的<strong>规模化落地案例仍相对罕见</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 奇异摩尔的 IBGDA Demo 正是为了填补这块空白。
 <h3>3.3 奇异摩尔 IBGDA 方案规格</h3>
@@ -238,7 +249,7 @@
 
 上图为 <strong>IBGDA vs 传统 IBRC</strong> 方案在 All-to-All 场景下的实测对比：左半部分为四组吞吐量对比（单次小消息带宽、原始小包吞吐、合并发送吞吐、All-to-All 带宽），蓝色为 IBGDA 直通方案，灰色为传统 IBRC 方案；下方为延迟对比（18 μs → 10 μs，缩短约 44%）；右半部分为核心指标提升小结。
 </blockquote>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>指标</th>
@@ -267,7 +278,7 @@
 <td><strong>被彻底消除</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 💡 <strong>关键洞察</strong>：延迟压降 44%、吞吐量翻倍，最直接的收益是 MoE 训练 / 推理的"专家通信墙"被打破；同时 CPU 算力被释放回前台任务，<strong>整体集群吞吐</strong>与<strong>单节点算力利用率</strong>同时得到改善。
@@ -348,7 +359,7 @@
 <h2>六、总结：奇异摩尔交出的五份"成绩单"</h2>
 
 最后，用一张表回顾奇异摩尔首次亮相 WAIC 的所有重要发布：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>序号</th>
@@ -388,7 +399,7 @@
 <td>国产等价 NVSwitch 路径</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2>写在最后</h2>
 <blockquote>

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-141-142-linked-list-cycle/" />
     <meta property="og:title" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇" />
     <meta name="twitter:description" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-141-142-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-22T14:04:48.629328+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇","description":"【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广","image":"https://zhoujungis.github.io/photos/lc-141-142-cover.png","datePublished":"2026-09-22T14:04:48.629328+08:00","dateModified":"2026-09-22T14:04:48.629367+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-141-142-linked-list-cycle/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇","description":"【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python 为主，两种解法都附 Java 版 难度 ：简单（141）/ 中等（142）—— 但 追问可以很深 收获 ：一个能当场写出来的相遇证明；一个被广","image":"https://zhoujungis.github.io/photos/lc-141-142-cover.png","datePublished":"2026-09-22T14:04:48.629328+08:00","dateModified":"2026-09-22T14:04:48.629328+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-141-142-linked-list-cycle/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -270,7 +281,7 @@ Java 版：
 
 
 固定两指针同起点，对 <code>fastStep ∈ {2,3,4,5}</code>、<code>a ∈ [0,14]</code>、<code>b ∈ [1,14]</code> 全组合枚举，共 <strong>210</strong> 组每组：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>快指针步数</th>
@@ -310,7 +321,7 @@ Java 版：
 <td>0.0%</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 四行都是 0。
 <h3>2.4 一个被广泛传错的结论</h3>
@@ -326,7 +337,7 @@ Java 版：
 错在哪？错在<strong>起点</strong>。
 
 那个反例是真的，但它成立的前提是「两个指针从<strong>不同位置</strong>出发」。如果两指针一开始就都在环上、快指针领先 <code>d0</code> 格，那么 <code>d0</code> 是<strong>任意的</strong>，整除条件 <code>gcd(closing, b) | d0</code> 就不再被保证：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>环长 b</th>
@@ -379,7 +390,7 @@ Java 版：
 <td>错过</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 看 <code>b = 6, closing = 2, d0 = 1</code> 这一格：<code>gcd = 2</code> 不整除 1，gap 序列在 1、5、3 之间打转，<strong>永远碰不到 0</strong>。反例是真实的。
 
@@ -410,7 +421,7 @@ Java 版：
 拿演示链表验证：<code>a = 4</code>、<code>b = 9</code>、<code>closing = 1</code>，<code>b / gcd(1, 9) = 9</code>，不小于 4 的最小 9 的倍数是 9。<strong><code>t = 9</code></strong>，和动画一致。
 
 这个闭式解和暴力模拟在 840 组上逐项对照，<strong>不符的有 0 组</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>a</th>
@@ -463,7 +474,7 @@ Java 版：
 <td>18</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 表里有个值得注意的地方：<strong>快指针走得快，不代表更早相遇</strong>。<code>a = 7, b = 6</code> 那一行，快 2 要 12 步，快 3 只要 9 步，而快 4 要 8 步——但快 5 又涨回 9 步。因为「多走的格数必须是环长的整数倍」这个约束会随 <code>closing</code> 一起变，步数不是单调的。
 
@@ -593,7 +604,7 @@ ptr2：4 → 3 → 2 → 1 → 0
 <code>a ≡ b - x</code> 不成立意味着什么？意味着<strong>「<code>ptr1</code> 回 head、两者同速前进」这个解法直接失效</strong>——<code>ptr1</code> 走到入口时，<code>ptr2</code> 不在那儿。
 
 我把这件事也枚举了一遍，统计「第二阶段能否成功」的比例：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>快指针步数</th>
@@ -633,11 +644,11 @@ ptr2：4 → 3 → 2 → 1 → 0
 <td>69.0%</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>只有快 2 慢 1 是 100.0%。</strong> 快 3 慢 1 有 55 组（26.2%）会让 LC 142 的解法失效，快 5 慢 1 更糟，31% 失效。
 <h3>4.3 两条理由合起来</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>要求</th>
@@ -658,7 +669,7 @@ ptr2：4 → 3 → 2 → 1 → 0
 <td><strong>只有 2</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 所以「2 和 1」不是随手选的惯例，而是<strong>同时满足两条约束的唯一取值</strong>。
 
@@ -684,7 +695,7 @@ Floyd 并不比哈希表慢，仍然是 O(n)：
 
 演示链表实测：判环阶段 <code>9</code> 步，找入口阶段 <code>4</code> 步，<strong>两个阶段一共 35 次指针移动</strong>——而链表只有 13 个节点。多出来的是快指针的 18 格和第二阶段的两条 4 步。
 <h3>5.3 汇总</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>做法</th>
@@ -707,7 +718,7 @@ Floyd 并不比哈希表慢，仍然是 O(n)：
 <td>能（加第二阶段）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>结论</strong>：O(n) 时间和 O(1) 空间可以同时成立，代价是常数更大、且必须能改指针（所以「不允许修改链表」这条约束不影响 Floyd，它只动指针不动节点）。
 <hr>

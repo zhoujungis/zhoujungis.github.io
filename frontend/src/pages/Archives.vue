@@ -84,6 +84,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getArticles } from '@/api/articles'
+import { resolveListFallback } from '@/utils/articleCache'
 
 const loading = ref(false)
 const error = ref(null)
@@ -174,6 +175,16 @@ function tagLabel(tag) {
 async function loadArchives() {
   loading.value = true
   error.value = null
+
+  // Fast path: the whole archive from the build-time snapshot. This page
+  // renders every article at once, so it was the slowest of the list pages and
+  // the only one with no fallback at all — an unreachable API left it blank.
+  const fallback = await resolveListFallback({ page: 1, page_size: 500 })
+  if (fallback?.results?.length) {
+    allArticles.value = fallback.results
+    loading.value = false
+  }
+
   try {
     // Fetch published articles page by page (chunked) and merge, so a single
     // request never asks the backend for an unbounded page_size.
@@ -193,7 +204,10 @@ async function loadArchives() {
     }
     allArticles.value = collected
   } catch (e) {
-    error.value = e?.response?.data?.detail || e.message || '加载归档失败'
+    // Snapshot data is already rendered — keep it instead of erroring out.
+    if (!fallback?.results?.length) {
+      error.value = e?.response?.data?.detail || e.message || '加载归档失败'
+    }
   } finally {
     loading.value = false
   }

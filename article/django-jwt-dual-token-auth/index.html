@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-jwt-dual-token-auth/" />
     <meta property="og:title" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战" />
     <meta name="twitter:description" content="登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-10T10:01:51.315654+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战","description":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings","image":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T10:01:51.315654+08:00","dateModified":"2026-09-20T19:01:41.240663+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-jwt-dual-token-auth/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战","description":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings","image":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T10:01:51.315654+08:00","dateModified":"2026-09-10T10:01:51.315654+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-jwt-dual-token-auth/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -138,7 +149,7 @@ refresh 也过期（1 天没碰后台）
 
 
 两个 token 的分工：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>Token</th>
@@ -161,7 +172,7 @@ refresh 也过期（1 天没碰后台）
 <td>可换一整天 access，必须保护 + 可吊销</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这就是双 Token 的核心思想：<strong>常用钥匙短命（access），备用钥匙长命但少用（refresh）</strong>。单 Token 方案（一个 7 天 token）一旦泄露就是 7 天任意门，双 Token 把 Blast Radius 压到 1 小时。
 <hr>
@@ -197,7 +208,7 @@ JWT 长这样（用 <code>.</code> 分三段）：
 
 JWT 是<strong>无状态</strong>的：后端不存 session，靠验签认人。这对 PythonAnywhere 多 worker 特别友好 —— 任意 worker 都能验，不用共享 session。但代价是<strong>签发后无法单方面作废</strong>（除非黑名单，见第 7 章）。
 <h3>2.4 选型：JWT vs Session vs OAuth2，博客为什么选 JWT？</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -234,7 +245,7 @@ JWT 是<strong>无状态</strong>的：后端不存 session，靠验签认人。
 <td>多用户 + 第三方登录，不想管密码时</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 单人博客 + Vue（github.io）+ Django（pythonanywhere.com）跨双域，Session 的 Cookie 跨站携带是持续的坑（Safari ITP 直接吞第三方 Cookie），JWT 的 Header 模式一次配对终身受益。这就是选型理由：<strong>跨域省心 + 多 worker 免共享 + App 复用同一套</strong>。
 
@@ -306,7 +317,7 @@ SimpleJWT 源码速览（知道三处就够）：<code>TokenObtainPairView.post(
 
 
 效果矩阵：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>接口</th>
@@ -339,7 +350,7 @@ SimpleJWT 源码速览（知道三处就够）：<code>TokenObtainPairView.post(
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意 <strong>401 vs 403</strong> 的区别：401 是“你是谁都不知道”（没带/过期 token），前端该续期；403 是“知道你是谁但没权限”，续期也没用，直接提示。这在前端拦截器里是分支依据。
 <h3>3.4 curl 实测：5 条命令走完一生</h3>

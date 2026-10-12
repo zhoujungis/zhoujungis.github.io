@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-slow-query-index-tuning/" />
     <meta property="og:title" content="索引建了，为什么排序还是没用上？——慢查询实战" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="索引建了，为什么排序还是没用上？——慢查询实战" />
     <meta name="twitter:description" content="索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T09:57:53.474332+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"索引建了，为什么排序还是没用上？——慢查询实战","description":"索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；","image":"https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T09:57:53.474332+08:00","dateModified":"2026-09-20T18:59:58.807467+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-slow-query-index-tuning/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"索引建了，为什么排序还是没用上？——慢查询实战","description":"索引建了，为什么排序还是没用上？——Django 慢查询与索引实战（100 万行实测） 承接上一篇《从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录》。N+1 修完了，列表页只剩 2 条 SQL——但 条数少，不等于快 。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站线上同栈）；","image":"https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T09:57:53.474332+08:00","dateModified":"2026-09-14T09:57:53.474332+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-slow-query-index-tuning/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -96,7 +107,7 @@
 上一篇的结尾，我把文章列表页从 21 条 SQL 压到了 2 条。当时我以为这个接口的性能问题已经结束了。
 
 后来我做了一件更较真的事：<strong>把本地数据从 9 篇灌到 100 万篇</strong>，然后跑了一遍线上那条一模一样的 SQL。结果是这样的：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -126,7 +137,7 @@
 <td><strong>0.18 ms</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 三件事，每一件都反直觉：
 <ol>
@@ -160,7 +171,7 @@
 <h2>1. 先分清两笔账：查询次数 ≠ 单条查询成本</h2>
 
 上一篇解决的是<strong>次数</strong>问题：一个请求发几条 SQL。这篇解决的是<strong>成本</strong>问题：一条 SQL 要花多久。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -183,7 +194,7 @@
 <td>索引、改写 SQL、分页策略</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一个请求发 2 条 SQL，每条各扫 90 万行——<strong>总成本是 2 × 476 ms ≈ 1 秒</strong>。次数优化做到了满分，用户体感依然是"这站好卡"。
 
@@ -199,7 +210,7 @@
 <h2>2. 认识执行计划：四种关键字读懂慢在哪</h2>
 
 在 MySQL 里你敲 <code>EXPLAIN</code>，在 SQLite 里你敲 <code>EXPLAIN QUERY PLAN</code>。输出的关键字不多，但每一个都对应一种真实的代价。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>关键字</th>
@@ -252,7 +263,7 @@
 <td>🟠 中高</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一句话记住：
 <blockquote>
@@ -408,7 +419,7 @@ USE TEMP B-TREE FOR ORDER BY
 <span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -448,7 +459,7 @@ USE TEMP B-TREE FOR ORDER BY
 <td><strong>2200×（相对 S0）</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>4.2 逐条解读</h3>
 
 <strong>S0（无索引）395.92 ms</strong> —— <code>SCAN</code> 扫 100 万行，<code>TEMP B-TREE</code> 再排 100 万行。教科书式的灾难。
@@ -475,7 +486,7 @@ USE TEMP B-TREE FOR ORDER BY
 <h3>4.3 顺手把深翻页也测了</h3>
 
 同一批数据，同一个查询，只改 <code>OFFSET</code>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -492,7 +503,7 @@ USE TEMP B-TREE FOR ORDER BY
 <td>109.72 ms</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 新索引把深翻页压到了 1/10，但 <strong>110 ms 依然是慢查询</strong>——因为 <code>OFFSET</code> 的本质是"先数过 90 万行，再全部丢掉"。第 8 节单独讲这个。
 <hr>
@@ -540,7 +551,7 @@ published | 2026-09-10 10:12
 <code>is_top DESC</code> 就要索引里 <code>is_top</code> 也是 <code>DESC</code>。这是最容易被忽略、也最致命的一条——<strong>规则二满足而规则三不满足，就会得到 S2 那种"更慢"的结果。</strong>
 </blockquote>
 <h3>5.3 各家数据库的差异（别踩版本坑）</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>数据库</th>
@@ -565,7 +576,7 @@ published | 2026-09-10 10:12
 <td><code>Sort</code> / <code>Incremental Sort</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>MySQL 5.7 的用户特别注意</strong>：你在 5.7 上写 <code>Index(fields=["status", "-is_top", "-created_at"])</code>，Django 生成的 DDL 里带着 <code>DESC</code>，但 MySQL 5.7 会<strong>当作升序索引建</strong>，<code>SHOW CREATE TABLE</code> 里也看不到 <code>DESC</code>。迁移到 8.0 之后行为才改变。升级数据库版本时，执行计划是会变的——这类"升级后突然变慢"的事故，源头常常就在这里。
 <hr>
@@ -627,7 +638,7 @@ grep<span class="w"> </span>-rn<span class="w"> </span><span class="s2">&quot;or
 如果没有这种查询，留着它只是纯粹的写放大（每写一篇文章，多维护一棵 B+ 树），删掉。如果有，就两个都留。
 
 <strong>细节三：大表加索引要小心锁。</strong> 100 万行的表上直接 <code>CREATE INDEX</code> 可能锁住写入几十秒：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>数据库</th>
@@ -648,12 +659,12 @@ grep<span class="w"> </span>-rn<span class="w"> </span><span class="s2">&quot;or
 <td>建索引会短暂锁库（PythonAnywhere 上的 SQLite 本来就是单写，影响有限）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2>7. 实验二：10 种写法，哪种让索引当场失效</h2>
 
 上面的实验只改索引，SQL 不动。但<strong>更常见的事故是索引没变，SQL 被改坏了</strong>。同一个 100 万行表（128 MB，索引 <code>(status, created_at DESC)</code> + <code>(title)</code>），我测了 10 种写法：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -735,7 +746,7 @@ grep<span class="w"> </span>-rn<span class="w"> </span><span class="s2">&quot;or
 <td>✅ <strong>770 倍差距</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>7.1 三个最有价值的发现</h3>
 
 <strong>① 函数包裹是最贵的错误（B，3000 倍）。</strong>
@@ -895,7 +906,7 @@ DRF 的 <code>PageNumberPagination</code> 每页都会执行一次 <code>COUNT(*
 
 注意它的执行计划是 <code>COVERING INDEX</code>——SQLite 不用读表，只数索引项。这是最好的情况了，但它依然是 O(n)：<strong>要数 90 万个索引项。</strong>
 <h3>9.1 四种应对</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -925,7 +936,7 @@ DRF 的 <code>PageNumberPagination</code> 每页都会执行一次 <code>COUNT(*
 <td>计数极频繁且要求精确时</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 本站用的是 ①+② 的组合：列表页不显示精确总数，分类页的文章数用 <code>annotate(Count(...))</code> 一次查出（见上一篇）。
 <h3>9.2 一个容易忽略的点：<code>COUNT(*)</code> 和 <code>COUNT(id)</code> 一样慢</h3>
@@ -944,7 +955,7 @@ MySQL 里 <code>COUNT(*)</code> 用二级索引比用主键索引快，因为二
 <h3>10.1 写放大</h3>
 
 每建一个索引，就要多维护一棵 B+ 树：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -969,13 +980,13 @@ MySQL 里 <code>COUNT(*)</code> 用二级索引比用主键索引快，因为二
 <td>删表行 + 删 5 棵树</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 博客这种读多写少的场景，5 个索引无所谓。但如果是"每秒写入上千条"的业务表，每个多余索引都在实打实地拖慢写入、并占用缓冲池。
 <h3>10.2 选择性（区分度）</h3>
 
 <strong>区分度 = 不同值的个数 / 总行数。</strong> 区分度越低，索引越没用。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -1010,7 +1021,7 @@ MySQL 里 <code>COUNT(*)</code> 用二级索引比用主键索引快，因为二
 <td>❌ 单独建索引完全无用</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 看我们的索引 <code>(status, is_top DESC, created_at DESC)</code>：前两列区分度极低，<strong>整个索引的价值 99.9% 来自最后一列 <code>created_at</code></strong>。前两列的作用不是"过滤"，而是<strong>让索引的物理顺序和 <code>ORDER BY</code> 对齐</strong>——这正是本文的主题。
 <blockquote>
@@ -1038,7 +1049,7 @@ MySQL 没有这么直接的视图（<code>sys.schema_unused_indexes</code> 需�
 <h2>11. 方法论：五步定位慢查询</h2>
 
 把本文所有动作整理成一套可复用的流程：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -1073,7 +1084,7 @@ MySQL 没有这么直接的视图（<code>sys.schema_unused_indexes</code> 需�
 <td>同上，另加 <code>assertNumQueries</code> 防回归</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>11.1 第 ⑤ 步值得单独立规矩</h3>
 
 <strong>性能优化最大的敌人是"感觉快了"。</strong> 本文所有数字都是本地实测，因为：

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但&quot;为什么这样能对上&quot;值得想清楚） 收获 ： a + c + b == b + c + " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-160-intersection-of-two-linked-lists/" />
     <meta property="og:title" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了" />
     <meta name="twitter:description" content="【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但&quot;为什么这样能对上&quot;值得想清楚） 收获 ： a + c + b == b + c + " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-160-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-22T18:22:37.459801+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了","description":"【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但\"为什么这样能对上\"值得想清楚） 收获 ： a + c + b == b + c + ","image":"https://zhoujungis.github.io/photos/lc-160-cover.png","datePublished":"2026-09-22T18:22:37.459801+08:00","dateModified":"2026-09-22T18:22:37.459829+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-160-intersection-of-two-linked-lists/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了","description":"【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了 适用读者 ：会写快慢指针，但第一次看到「交换游标」这个操作觉得像是变魔术的人 技术栈 ：Python 为主，附 Java 版 难度 ：简单（代码只有 5 行，但\"为什么这样能对上\"值得想清楚） 收获 ： a + c + b == b + c + ","image":"https://zhoujungis.github.io/photos/lc-160-cover.png","datePublished":"2026-09-22T18:22:37.459801+08:00","dateModified":"2026-09-22T18:22:37.459801+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-160-intersection-of-two-linked-lists/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -314,7 +325,7 @@ A = 1 → 2 → 3 → 4 → 5      独有段 1→2→3，公共段 4→5
 B = 6 → 7 → 4 → 5          独有段 6→7，然后并到同一个 4 上
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步</th>
@@ -415,14 +426,14 @@ B = 6 → 7 → 4 → 5          独有段 6→7，然后并到同一个 4 上
 <td><strong>相交起始节点是 4</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 数一下：pA 走了 A 的 5 步 + B 上的 2 步 = <strong>7 步</strong>；pB 走了 B 的 4 步 + A 上的 3 步 = <strong>7 步</strong>。<code>a + b + c = 3 + 2 + 2 = 7</code>，正好对上。
 
 <strong>两个游标的总步数相等 —— 这就是它们必然同时到达的原因。</strong>
 
 再看不相交的例子 <code>A = [1,2,3]</code>、<code>B = [4,5]</code>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步</th>
@@ -497,7 +508,7 @@ B = 6 → 7 → 4 → 5          独有段 6→7，然后并到同一个 4 上
 <td><strong>同时到 ∅，返回 None</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意第 7 步：两者<strong>同时</strong>变成空 —— <code>while pA is not pB</code> 检测到 <code>None is None</code>，循环退出，返回 <code>None</code>。这里一步特判都不需要。
 <hr>
@@ -520,7 +531,7 @@ B = 6 → 7 → 4 → 5          独有段 6→7，然后并到同一个 4 上
 Java 里用 <code>!=</code> 比引用正是我们想要的语义（而 <code>!equals</code> 才是比值）。这一点 Python 和 Java 是一致的：<strong>这题要的永远是引用比较</strong>。
 <hr>
 <h2>六、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -565,7 +576,7 @@ Java 里用 <code>!=</code> 比引用正是我们想要的语义（而 <code>!eq
 <td>5</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 几个要记牢的：
 <ul>
@@ -638,7 +649,7 @@ Java 里用 <code>!=</code> 比引用正是我们想要的语义（而 <code>!eq
 <h2>结语</h2>
 
 把链表系列串起来看，这题的位置是这样的：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -673,7 +684,7 @@ Java 里用 <code>!=</code> 比引用正是我们想要的语义（而 <code>!eq
 <td>本文，代码最短、推导最优雅的一题</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这题的优雅之处在于：<strong>它把"对齐两个不等长的序列"这件麻烦事，变成了"两条路本来就一样长"。</strong>
 <div class="codehilite"><pre><span></span><code>pA 的路：  A独有(a) → 公共(c) → B独有(b)     = a + b + c

@@ -1,12 +1,16 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
-import Live2DWidget from './components/Live2DWidget.vue'
 import BackToTop from './components/BackToTop.vue'
 import ReadingProgress from './components/ReadingProgress.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
+
+// Split out of the main bundle. The widget is pure decoration that only mounts
+// on wide screens, and it drags a vendored Cubism engine behind it — no reason
+// for it to be in the chunk every visitor downloads for first paint.
+const Live2DWidget = defineAsyncComponent(() => import('./components/Live2DWidget.vue'))
 
 const route = useRoute()
 // M24: 60fps canvas + Live2D model load add no value on admin pages —

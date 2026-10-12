@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/" />
     <meta property="og:title" content="【LC 239】滑动窗口最大值：单调队列只留候选" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 239】滑动窗口最大值：单调队列只留候选" />
     <meta name="twitter:description" content="题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-239-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-29T15:13:54.674272+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 239】滑动窗口最大值：单调队列只留候选","description":"题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有\"流式数据 + TopK\"的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变","image":"https://zhoujungis.github.io/photos/lc-239-cover.png","datePublished":"2026-09-29T15:13:54.674272+08:00","dateModified":"2026-10-12T16:19:37.494252+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 239】滑动窗口最大值：单调队列只留候选","description":"题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有\"流式数据 + TopK\"的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变","image":"https://zhoujungis.github.io/photos/lc-239-cover.png","datePublished":"2026-09-29T15:13:54.674272+08:00","dateModified":"2026-09-29T15:13:54.674272+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -172,7 +183,7 @@
 <h2>四、完整推演表</h2>
 
 以 <code>[1,3,-1,-3,5,3,6,7]</code>、<code>k = 3</code> 为主例：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -267,7 +278,7 @@
 <td><strong>7</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意帧 2：<code>1</code> 被 <code>3</code> 支配 —— 此后任何包含 <code>3</code> 的窗口里 <code>1</code> 都不是最大，它确实再也没有回来过。帧 5 是两个动作同时触发的教科书帧。
 <h2>五、变体：堆、块状 DP 与大数据加码</h2>
@@ -299,7 +310,7 @@
 <li><strong>数据量超内存</strong>：分块 + 归并（每块内部单调队列，块间取 max），本质是 5.2 的分布式版 —— 面试官想听的是"分块让局部性成立，块间归并 O(块数)"。</li>
 </ul>
 <h3>5.4 同族题</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -324,7 +335,7 @@
 <td>系列第 21 篇，同款"被支配即淘汰"</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 家族口诀：<strong>"新来的把旧的压死"就上单调栈/队列 —— 想要答案"从一端取"用队列（滑窗），想要"每个元素的下一个更大"用栈。单调性淘汰的都是永久出局者，所以均摊 O(1)。</strong>
 <h2>六、Java 版</h2>
@@ -351,7 +362,7 @@
 
 <code>ArrayDeque</code> 当单调队列用：<code>peekFirst/pollFirst</code> 管队首（出窗），<code>peekLast/pollLast</code> 管队尾（支配）。
 <h2>七、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -391,7 +402,7 @@
 <td>入口直接拒绝</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>八、复杂度</h2>
 <ul>
 <li><strong>时间 O(n)</strong>：每个元素<strong>最多入队一次、出队一次</strong> —— while 看着像嵌套，实际是均摊 O(1)。</li>

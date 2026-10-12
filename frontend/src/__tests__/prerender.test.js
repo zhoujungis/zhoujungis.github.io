@@ -1,11 +1,25 @@
+// @vitest-environment node
+// prerender.mjs is a build-time Node script (node:fs / node:path), so this
+// suite can't run under the jsdom environment the other tests use.
 import { describe, it, expect } from 'vitest'
 import {
   SITE_NAME,
+  SITE_ORIGIN,
+  LIST_PAGES,
+  FEED_ITEM_COUNT,
+  FEED_FULL_TEXT_COUNT,
   sanitizeHtml,
+  wrapTables,
   upsertMeta,
   renderArticlePage,
   renderHomePage,
   toSnapshotList,
+  findBulkEdits,
+  pickLastmod,
+  renderSitemap,
+  renderRssFeed,
+  renderListPage,
+  sectionsForPage,
 } from '../../scripts/prerender.mjs'
 
 const SHELL = `<!doctype html>
@@ -131,5 +145,238 @@ describe('toSnapshotList', () => {
     expect(item.html_content).toBeUndefined()
     expect(item.extra).toBeUndefined()
     expect(item.title).toBe('Hello <World>')
+  })
+})
+
+describe('wrapTables', () => {
+  it('gives tables a scroll container', () => {
+    expect(wrapTables('<table><tr><td>x</td></tr></table>')).toBe(
+      '<div class="table-scroll"><table><tr><td>x</td></tr></table></div>',
+    )
+  })
+
+  it('leaves other content alone', () => {
+    expect(wrapTables('<p>no table</p>')).toBe('<p>no table</p>')
+  })
+})
+
+describe('renderArticlePage dateModified', () => {
+  it('publishes the same lastmod the sitemap uses', () => {
+    const html = renderArticlePage(SHELL, ARTICLE, { lastmod: '2026-01-01T00:00:00+08:00' })
+    expect(html).toContain('"dateModified":"2026-01-01T00:00:00+08:00"')
+  })
+
+  it('wraps tables for no-JS readers', () => {
+    const html = renderArticlePage(SHELL, {
+      ...ARTICLE,
+      html_content: '<table><tr><td>x</td></tr></table>',
+    })
+    expect(html).toContain('<div class="table-scroll"><table>')
+  })
+})
+
+describe('findBulkEdits / pickLastmod', () => {
+  // Five articles written on five different days but PATCHed within four
+  // minutes of each other — the signature of a batch metadata edit
+  // (Article.updated_at is auto_now, so a title rewrite bumps every row).
+  const at = (minutes) => `2026-10-12T16:${String(minutes).padStart(2, '0')}:00+08:00`
+  const bulkArticles = Array.from({ length: 5 }, (_, i) => ({
+    slug: `bulk-${i}`,
+    created_at: `2026-0${i + 1}-01T10:00:00+08:00`,
+    updated_at: at(20 + i),
+  }))
+  const single = {
+    slug: 'single',
+    created_at: '2026-07-01T10:00:00+08:00',
+    updated_at: '2026-09-22T18:00:00+08:00',
+  }
+  const articles = [...bulkArticles, single]
+
+  it('flags the articles inside a burst', () => {
+    expect([...findBulkEdits(articles)].sort()).toEqual([
+      'bulk-0',
+      'bulk-1',
+      'bulk-2',
+      'bulk-3',
+      'bulk-4',
+    ])
+  })
+
+  it('does not flag edits spread across the day', () => {
+    // The real counter-example from this blog: five edits 2 hours apart.
+    const spread = Array.from({ length: 5 }, (_, i) => ({
+      slug: `s${i}`,
+      created_at: '2026-01-01T10:00:00+08:00',
+      updated_at: `2026-09-22T${String(11 + i * 2).padStart(2, '0')}:00:00+08:00`,
+    }))
+    expect(findBulkEdits(spread).size).toBe(0)
+  })
+
+  it('needs at least five updates to call it a batch', () => {
+    expect(findBulkEdits(bulkArticles.slice(0, 4)).size).toBe(0)
+  })
+
+  it('falls back to the publication date for batch-edited articles', () => {
+    expect(pickLastmod(articles[0], findBulkEdits(articles))).toBe(
+      '2026-01-01T10:00:00+08:00',
+    )
+  })
+
+  it('keeps a genuine per-article update', () => {
+    expect(pickLastmod(single, findBulkEdits(articles))).toBe(
+      '2026-09-22T18:00:00+08:00',
+    )
+  })
+
+  it('uses created_at when the article was never updated after publication', () => {
+    const same = '2026-01-01T10:00:00+08:00'
+    expect(pickLastmod({ created_at: same, updated_at: same })).toBe(same)
+  })
+
+  it('handles a missing updated_at', () => {
+    expect(pickLastmod({ created_at: '2026-01-01T10:00:00+08:00' })).toBe(
+      '2026-01-01T10:00:00+08:00',
+    )
+  })
+})
+
+describe('renderSitemap', () => {
+  const articles = [
+    { slug: 'a', created_at: '2026-08-01T10:00:00+08:00', updated_at: '2026-08-02T10:00:00+08:00' },
+    { slug: 'b', created_at: '2026-07-01T10:00:00+08:00' },
+  ]
+
+  it('lists the home page, every prerendered list page and every article', () => {
+    const xml = renderSitemap(articles)
+    expect(count(xml, '<loc>')).toBe(1 + LIST_PAGES.length + 2)
+    expect(xml).toContain(`<loc>${SITE_ORIGIN}/</loc>`)
+    for (const page of LIST_PAGES) {
+      expect(xml).toContain(`<loc>${SITE_ORIGIN}${page.path}</loc>`)
+    }
+    expect(xml).toContain(`<loc>${SITE_ORIGIN}/article/a/</loc>`)
+    expect(xml).toContain(`<loc>${SITE_ORIGIN}/article/b/</loc>`)
+  })
+
+  it('never advertises a route that has no file behind it', () => {
+    const xml = renderSitemap(articles)
+    for (const dead of ['/search', '/photos', '/friends', '/footprints', '/admin']) {
+      expect(xml).not.toContain(`<loc>${SITE_ORIGIN}${dead}`)
+    }
+  })
+
+  it('uses the trailing-slash form GitHub Pages answers with 200', () => {
+    const xml = renderSitemap(articles)
+    for (const loc of xml.match(/<loc>[^<]*<\/loc>/g)) {
+      expect(loc.endsWith('/</loc>')).toBe(true)
+    }
+  })
+
+  it('emits full W3C datetimes, not date-only strings', () => {
+    const xml = renderSitemap(articles)
+    expect(xml).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z<\/lastmod>/)
+  })
+})
+
+describe('renderRssFeed', () => {
+  const make = (i) => ({
+    slug: `p${i}`,
+    title: `Post ${i}`,
+    excerpt: `Excerpt ${i}`,
+    created_at: new Date(Date.UTC(2026, 0, i + 1)).toISOString(),
+    html_content: `<p>Body ${i}</p>`,
+    category: { name: 'Django', slug: 'django' },
+    tags: [{ name: 'python', slug: 'python' }],
+  })
+  const articles = Array.from({ length: 25 }, (_, i) => make(i))
+
+  it('caps the feed and lists newest first', () => {
+    const xml = renderRssFeed(articles)
+    expect(count(xml, '<item>')).toBe(FEED_ITEM_COUNT)
+    expect(xml.indexOf('/article/p24/')).toBeLessThan(xml.indexOf('/article/p5/'))
+    expect(xml).not.toContain('/article/p4/')
+  })
+
+  it('carries full text only for the newest few items', () => {
+    const xml = renderRssFeed(articles)
+    expect(count(xml, '<content:encoded>')).toBe(FEED_FULL_TEXT_COUNT)
+  })
+
+  it('gives every item a description so readers still show a summary', () => {
+    const xml = renderRssFeed(articles)
+    // channel description + one per item
+    expect(count(xml, '<description>')).toBe(FEED_ITEM_COUNT + 1)
+  })
+
+  it('escapes XML and splits a CDATA terminator in the body', () => {
+    const xml = renderRssFeed([{ ...make(0), title: 'A & B <c>', html_content: '<p>a]]>b</p>' }])
+    expect(xml).toContain('<title>A &amp; B &lt;c&gt;</title>')
+    expect(xml).toContain(']]]]><![CDATA[>')
+    expect(xml).not.toContain('<p>a]]>b</p>')
+  })
+
+  it('points atom:link at the site\u2019s own rss.xml', () => {
+    const xml = renderRssFeed(articles)
+    expect(xml).toContain(`href="${SITE_ORIGIN}/rss.xml"`)
+  })
+})
+
+describe('renderListPage', () => {
+  const articles = [
+    {
+      slug: 'b',
+      title: 'B post',
+      created_at: '2026-08-02T00:00:00+08:00',
+      category: { name: 'Django', slug: 'django' },
+      tags: [{ name: 'python', slug: 'python' }],
+    },
+    {
+      slug: 'a',
+      title: 'A post',
+      created_at: '2026-08-01T00:00:00+08:00',
+      category: { name: 'Django', slug: 'django' },
+      tags: [{ name: 'python', slug: 'python' }],
+    },
+  ]
+  const pageFor = (path) => LIST_PAGES.find((p) => p.path === path)
+
+  it('sets a page-level title and the slashed canonical', () => {
+    const page = pageFor('/articles/')
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(html).toContain(`<title>${page.title} | ${SITE_NAME}</title>`)
+    expect(html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}/articles/" />`)
+    expect(count(html, 'name="description"')).toBe(1)
+    expect(count(html, 'property="og:title"')).toBe(1)
+    expect(count(html, 'property="og:url"')).toBe(1)
+  })
+
+  it('lists each article exactly once and is idempotent', () => {
+    const page = pageFor('/articles/')
+    const once = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(count(once, '/article/b/')).toBe(1)
+    expect(count(once, '/article/a/')).toBe(1)
+    expect(renderListPage(once, page, sectionsForPage(page, articles))).toBe(once)
+  })
+
+  it('cross-links the sibling list pages', () => {
+    const page = pageFor('/tags/')
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    const nav = html.match(/<p class="ns-nav">[\s\S]*?<\/p>/)[0]
+    expect(nav).toContain(`href="${SITE_ORIGIN}/articles/"`)
+    expect(nav).toContain(`href="${SITE_ORIGIN}/archives/"`)
+    expect(nav).toContain(`href="${SITE_ORIGIN}/categories/"`)
+    expect(nav).not.toContain(`href="${SITE_ORIGIN}/tags/"`)
+  })
+
+  it('groups categories with their article counts', () => {
+    const page = pageFor('/categories/')
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(html).toContain('Django（2 篇）')
+  })
+
+  it('nests archives by year and month', () => {
+    const page = pageFor('/archives/')
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(html).toContain('2026 年（2 篇）')
+    expect(html).toContain('8 月')
   })
 })

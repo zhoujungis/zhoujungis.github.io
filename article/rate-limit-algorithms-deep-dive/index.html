@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清&quot;为什么选这个算法&quot;的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/rate-limit-algorithms-deep-dive/" />
     <meta property="og:title" content="限流算法实测：固定窗口 2 倍溢出、令牌桶突刺" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="限流算法实测：固定窗口 2 倍溢出、令牌桶突刺" />
     <meta name="twitter:description" content="限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清&quot;为什么选这个算法&quot;的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 " />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-16T09:47:40.842551+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"限流算法实测：固定窗口 2 倍溢出、令牌桶突刺","description":"限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清\"为什么选这个算法\"的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 ","image":"https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-16T09:47:40.842551+08:00","dateModified":"2026-09-20T18:59:20.724252+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/rate-limit-algorithms-deep-dive/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"限流算法实测：固定窗口 2 倍溢出、令牌桶突刺","description":"限流算法实测：固定窗口 2 倍溢出、漏桶排队、令牌桶突刺——四种算法到底选哪个 适用读者：给接口加过限流、但说不清\"为什么选这个算法\"的后端工程师 技术栈：Python 纯标准库实现 + 真实压测；算法本身与语言无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：中高级 ","image":"https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-16T09:47:40.842551+08:00","dateModified":"2026-09-16T09:47:40.842551+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/rate-limit-algorithms-deep-dive/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -126,7 +137,7 @@
 <h2>1. 限流到底在解决什么问题</h2>
 
 先分清三件常被混为一谈的事：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>机制</th>
@@ -155,7 +166,7 @@
 <td>大促期间关闭非核心</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 限流的本质是一道<strong>准入控制</strong>：在请求真正消耗资源之前，决定它能不能进来。它的价值有三层：
 <ol>
@@ -227,7 +238,7 @@
 
 这就是开头那次事故的原因。报表系统在整分钟触发，恰好卡在每个窗口的起点，所以每个窗口的流量都集中在开头——限流器看到的永远是"刚好达标"。
 <h3>优缺点</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -256,7 +267,7 @@
 <td>内部接口、日志采集、对精度不敏感的粗粒度保护</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>结论：固定窗口只适合"防呆"，不适合"防精确超量"。</strong> 如果你的下游按量计费，或者 SLA 有严格 QPS 上限，别用它。
 <hr>
@@ -297,7 +308,7 @@
 <h3>代价：内存与复杂度</h3>
 
 精确是有代价的：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>请求量</th>
@@ -326,13 +337,13 @@
 <td>≈ 24 MB</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>单用户单接口</strong>就要这么多。如果按 user_id × API 维度限流，内存会被迅速吃光。这就是"精确但不敢用"的原因。
 
 Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，但每次请求都是 3~4 条命令，且 <code>ZSET</code> 的成员数就是 QPS × 窗口秒数。有人用 <code>member = 时间戳:随机数</code> 来避免同毫秒冲突，进一步放大了内存。
 <h3>优缺点</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -357,7 +368,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <td>低 QPS 但要求严格精确的场景（如短信验证码、密码重试）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>结论：滑动窗口日志适合低频、高价值的限流</strong>——比如"每分钟最多 5 次验证码"，因为 5 × 60 = 300 条记录，内存完全无所谓。
 <hr>
@@ -426,7 +437,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 
 不过只要桶数量足够（6~10 个），误差通常控制在个位数百分比以内，相比固定窗口的 <strong>100% 溢出</strong>是质的改善。桶越多越精确，代价是遍历和内存略增。
 <h3>优缺点</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -455,7 +466,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <td><strong>综合最优的通用选择</strong>，Redis 的 <code>INCR</code> 多 key 版本即可实现</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>结论：如果你的场景不极端，滑动窗口计数是最平衡的方案。</strong> 多数云厂商 API 网关的默认限流就是这个。
 <hr>
@@ -516,7 +527,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <h3>漏桶 vs 令牌桶：一个字的区别</h3>
 
 这是最容易混淆的地方。两者的"桶"装的东西完全不同：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -556,11 +567,11 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <td><strong>允许突发</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一句话总结：<strong>漏桶管"出场速度"，令牌桶管"平均速度 + 允许突刺"。</strong>
 <h3>优缺点</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -585,7 +596,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <td>保护脆弱下游（如老旧的第三方接口、单线程处理器）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>结论：漏桶适合"下游必须被温柔对待"的场景</strong>，但要记得把 <code>capacity</code> 调小以压住冷启动突刺。另外它带来的排队延迟要警惕——如果客户端有超时限制，排队请求可能会超时，这时宁可拒绝也不要无脑排队。
 <hr>
@@ -668,7 +679,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 
 <strong>为什么要用 Lua</strong>：如果分成 <code>HGET</code> → 计算 → <code>HSET</code> 三步，两个并发请求可能读到同一个令牌数，然后各自扣减，导致令牌被超发——这正是幂等文章里说的 TOCTOU 问题。
 <h3>优缺点</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -697,14 +708,14 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <td><strong>API 限流的事实标准</strong>，Nginx <code>limit_req</code>、Guava <code>RateLimiter</code>、Stripe 都是这个思路</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>结论：令牌桶是通用推荐的默认选择。</strong> 它同时给了你"平均速率"和"突发容量"两个旋钮，表达能力最强。
 <hr>
 <h2>7. 四种算法横向实测</h2>
 
 所有数据来自 <code>tools/bench_rate_limit.py</code>（纯标准库 + 假时钟，可复现）。统一参数：<code>limit = 100 请求/秒</code>，模拟 1000 个请求在 1 秒内均匀到达。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>算法</th>
@@ -765,7 +776,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <td>~48 B</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 实测结论，逐条对应文章前面的分析：
 <ol>
@@ -813,7 +824,7 @@ Redis 里用 <code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> 可以实现，�
 <h3>坑三：限流 key 的设计</h3>
 
 key 的粒度决定了限流的语义：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>Key 维度</th>
@@ -848,7 +859,7 @@ key 的粒度决定了限流的语义：
 <td>保护下游总容量</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>要小心的两个陷阱</strong>：
 <ol>
@@ -942,7 +953,7 @@ A：限流在前。流量先被削峰，如果削峰后下游仍然过载（说�
 <h2>小结</h2>
 
 四种算法的本质区别，可以归结为一个问题：<strong>你想控制的是"平均速率"还是"瞬时速率"？</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>你想要的</th>
@@ -971,7 +982,7 @@ A：限流在前。流量先被削峰，如果削峰后下游仍然过载（说�
 <td><strong>令牌桶</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 如果只记一句话：<strong>默认选令牌桶，参数不极端时用滑动窗口计数，验证码这类低频高价值校验用滑动窗口日志。</strong> 固定窗口只在无关紧要的地方用。
 

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得&quot;边界太多、情况太杂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问&quot;子树里有没有&quot;的后序 " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-236-lowest-common-ancestor-of-a-binary-tree/" />
     <meta property="og:title" content="【LC 236】二叉树的最近公共祖先：命中即返回" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 236】二叉树的最近公共祖先：命中即返回" />
     <meta name="twitter:description" content="【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得&quot;边界太多、情况太杂&quot;的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问&quot;子树里有没有&quot;的后序 " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-236-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-23T16:42:52.438933+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 236】二叉树的最近公共祖先：命中即返回","description":"【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得\"边界太多、情况太杂\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问\"子树里有没有\"的后序 ","image":"https://zhoujungis.github.io/photos/lc-236-cover.png","datePublished":"2026-09-23T16:42:52.438933+08:00","dateModified":"2026-10-12T16:19:31.729876+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-236-lowest-common-ancestor-of-a-binary-tree/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 236】二叉树的最近公共祖先：命中即返回","description":"【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」 适用读者 ：会写二叉树递归遍历，但一看这题就觉得\"边界太多、情况太杂\"的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（代码 8 行，但 每一行都在考你对递归返回值的理解 ） 收获 ：一个只问\"子树里有没有\"的后序 ","image":"https://zhoujungis.github.io/photos/lc-236-cover.png","datePublished":"2026-09-23T16:42:52.438933+08:00","dateModified":"2026-09-23T16:42:52.438933+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-236-lowest-common-ancestor-of-a-binary-tree/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -110,7 +121,7 @@
 
 
 这题是<strong>二叉树递归的"毕业考"</strong>。它短，但短得很危险 —— 面试官从这一题能看出你三件事：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>考点</th>
@@ -131,10 +142,10 @@
 <td>整个过程没有任何全局变量</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 变体也成串：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>变体</th>
@@ -164,7 +175,7 @@
 <td>p、q 变成一个节点数组</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 出处备注：LC 236 是<strong>字节、腾讯、美团</strong>的递归高频题。被选中的原因很直接：<strong>8 行代码，但"返回值到底代表什么"这件事说不清楚的人占大多数。</strong> 面试官最爱追问的那句就是"如果 p 是 q 的祖先呢？"—— 本文第 3 节专门回答它。
@@ -227,7 +238,7 @@
 </blockquote>
 
 对每个节点 <code>node</code>，可能的回答只有三种：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>情况</th>
@@ -248,7 +259,7 @@
 <td>那 <code>node</code> 本身就是 LCA —— 但要往上报的是 <code>node</code> 自己</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这第三种情况有个更精确的判据：<strong>左右两边各回来一个非空，说明 p 和 q 分别在 <code>node</code> 的两侧子树里。</strong> 那 <code>node</code> 就是那个"分叉点"，也就是最近的公共祖先。
 
@@ -316,7 +327,7 @@
     p = 6，q = 4，答案 = 5
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -537,7 +548,7 @@
 <td>栈空，最终答案是 <code>5</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 几个值得停下来看的地方：
 
@@ -641,7 +652,7 @@ else:
 BST 有个关键性质：<strong>左子树的值全都小于根，右子树的值全都大于根。</strong>
 
 于是站在任何一个节点看 p 和 q 的值，只有三种情况：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>情况</th>
@@ -662,7 +673,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 <td><strong>分叉点就是 <code>root</code></strong> → 返回它</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>第三种情况和 LC 236 的判据是同一个道理</strong>（"分居两侧 = 分叉点"），但实现完全不同：
 <ul>
@@ -703,7 +714,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 <strong>⚠️ 面试高频追问</strong>：<em>"235 能不能直接用 236 的代码？"</em> —— 能跑对，但<strong>浪费了 BST 的性质</strong>：236 是 <code>O(n)</code>，235 的最优解是 <code>O(h)</code>。面试官问 235 就是想看你<strong>有没有用上"有序"这个条件</strong>，直接套 236 等于主动放弃了 <code>O(n)</code> → <code>O(h)</code> 的优化。
 </blockquote>
 <h3>5.3 两者的对照</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -738,7 +749,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 <td>靠 <code>else</code> 分支兜住</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>一句话记住区别：236 只能"搜"，235 可以"判"。</strong>
 <hr>
@@ -786,7 +797,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 </code></pre></div>
 
 <h3>6.3 和 236 的关系</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -816,7 +827,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 <td><code>O(1)</code>（双指针版）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 <strong>关键对比</strong>：1650 之所以能 <code>O(1)</code> 空间，是因为 <code>parent</code> 指针<strong>把"往上走"这件事变成了显式操作</strong>。236 里没有这个指针，"往上"只能靠递归返回值一层层传 —— 这就是为什么 236 必须有"返回值冒泡"这个机制。
@@ -875,7 +886,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 
 
 <strong>又是"分叉点"这个模式</strong>：左右两边的深度相等时，<code>node</code> 就是答案。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -896,7 +907,7 @@ BST 有个关键性质：<strong>左子树的值全都小于根，右子树的�
 <td>左右子树<strong>都有目标</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>三题共用同一个骨架："后序 + 把子树的结论向上汇报 + 在某个条件下判定自己是答案"。</strong>
 <hr>
@@ -941,7 +952,7 @@ BST 版（迭代，<code>O(1)</code> 空间）：
 
 <hr>
 <h2>九、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -991,7 +1002,7 @@ BST 版（迭代，<code>O(1)</code> 空间）：
 <td><strong>p 和 q 是同一个节点</strong> → 返回它自己</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 三个容易错的：
 
@@ -1073,7 +1084,7 @@ Java 里 <code>null</code> 既表示"子树里没找到"，又用来表示"空�
 <h2>结语</h2>
 
 把树系列的递归题串起来看，这题的位置是这样的：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -1113,7 +1124,7 @@ Java 里 <code>null</code> 既表示"子树里没找到"，又用来表示"空�
 <td>同一个骨架换判据</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这题值得带走的不是那 8 行代码，而是这个反射：
 <blockquote>

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-206-reverse-linked-list/" />
     <meta property="og:title" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪" />
     <meta name="twitter:description" content="【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-206-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-21T15:14:08.603142+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 206】反转链表：指针一改就断链，问题到底出在哪","description":"【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC ","image":"https://zhoujungis.github.io/photos/lc-206-cover.png","datePublished":"2026-09-21T15:14:08.603142+08:00","dateModified":"2026-09-21T15:14:08.603182+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-206-reverse-linked-list/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 206】反转链表：指针一改就断链，问题到底出在哪","description":"【LC 206】反转链表：指针一改就断链，问题到底出在哪 适用读者 ：刷题刷到链表就卡壳、或者能背出解法但说不清为什么的人 技术栈 ：Python 为主，迭代解法与 LC 25 附 Java 版 难度 ：简单（但追问可以一路问到「困难」） 收获 ：一套「先记住、再掉头、后前移」的固定套路，以及它为什么能同时解决 LC ","image":"https://zhoujungis.github.io/photos/lc-206-cover.png","datePublished":"2026-09-21T15:14:08.603142+08:00","dateModified":"2026-09-21T15:14:08.603142+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-206-reverse-linked-list/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -181,7 +192,7 @@
 <hr>
 <h2>三、迭代解法：三个指针</h2>
 <h3>3.1 三个指针各管什么</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>指针</th>
@@ -210,7 +221,7 @@
 <td><code>None</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 记住一句话：<strong><code>prev</code> 和 <code>curr</code> 之间，永远隔着一道「已反转 / 未反转」的分界线。</strong>
 <div class="codehilite"><pre><span></span><code>        prev          curr
@@ -252,7 +263,7 @@
 <h3>3.3 完整推演表</h3>
 
 拿 <code>[1,2,3,4,5]</code> 走一遍：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>轮次</th>
@@ -313,11 +324,11 @@
 <td>∅</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 第 5 轮结束后 <code>curr</code> 变成 <code>∅</code>，循环退出，返回 <code>prev = 5</code>。此时整条链是 <code>5 → 4 → 3 → 2 → 1 → ∅</code>。
 <h3>3.4 边界情况</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -342,7 +353,7 @@
 <td><code>2 → 1</code>，正确</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>这三种情况都不需要单独写 <code>if</code>。</strong> 这是迭代解法比递归解法舒服的地方——递归必须显式处理空和单节点，迭代天然覆盖。
 <h3>3.5 Java 版</h3>
@@ -536,7 +547,7 @@ Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用
 第 2 步里 <code>prev</code> 初值设成 <code>group_next</code> 是个很妙的细节：这样反转完之后，这一组原来的头节点（现在的尾节点）的 <code>next</code> 已经指向下一组的头了，<strong>第 3 步的连接工作省掉一半</strong>。
 
 推演一遍 <code>[1,2,3,4,5]</code>、<code>k=2</code>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>轮次</th>
@@ -581,7 +592,7 @@ Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用
 <td>返回 <code>d.next</code> = <code>2 → 1 → 4 → 3 → 5</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>5.4 递归实现</h3>
 
 递归版本更好背，也更能看出「分组」这个结构：
@@ -662,7 +673,7 @@ Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用
 正确写法必须<strong>在循环里检查</strong>，一碰到 <code>None</code> 就返回，不能等循环结束再检查。
 <hr>
 <h2>六、复杂度对比</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>解法</th>
@@ -697,7 +708,7 @@ Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用
 <td>每 k 个一组，栈深是组数</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 时间都是 O(n) 很好理解：每个节点恰好被访问一次、<code>next</code> 恰好被改一次。空间差异才是面试的考点。
 <hr>
@@ -757,7 +768,7 @@ Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用
 <h2>结语</h2>
 
 把三道题放在一起看，会发现它们其实是同一件事：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题目</th>
@@ -782,7 +793,7 @@ Java 里 <code>nxt</code> 必须声明在循环体内（每次新建一个引用
 <td>同上 + 哑结点 + 数够 k 个</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>变化的是边界，不变的是那三步。</strong>
 

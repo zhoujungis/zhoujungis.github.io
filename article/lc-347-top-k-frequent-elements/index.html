@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：&quot;设计一个算法来统计海量数据中出现次数最多的前 K 个" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-347-top-k-frequent-elements/" />
     <meta property="og:title" content="【LC 347】前 K 个高频元素：频率是天然的桶下标" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 347】前 K 个高频元素：频率是天然的桶下标" />
     <meta name="twitter:description" content="【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：&quot;设计一个算法来统计海量数据中出现次数最多的前 K 个" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-347-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-28T14:32:39.009563+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 347】前 K 个高频元素：频率是天然的桶下标","description":"【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：\"设计一个算法来统计海量数据中出现次数最多的前 K 个","image":"https://zhoujungis.github.io/photos/lc-347-cover.png","datePublished":"2026-09-28T14:32:39.009563+08:00","dateModified":"2026-09-28T14:32:39.009606+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-347-top-k-frequent-elements/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 347】前 K 个高频元素：频率是天然的桶下标","description":"【LC 347】前 K 个高频元素：频率是天然的桶下标 给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素，要求时间复杂度 优于 O(n log n)。 示例： [1,1,1,2,2,3] , k=2 → [1,2] 。 腾讯变体原题：\"设计一个算法来统计海量数据中出现次数最多的前 K 个","image":"https://zhoujungis.github.io/photos/lc-347-cover.png","datePublished":"2026-09-28T14:32:39.009563+08:00","dateModified":"2026-09-28T14:32:39.009563+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-347-top-k-frequent-elements/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -128,7 +139,7 @@
 
 
 13 帧（与状态机 <code>bucketTopKSteps.js</code> 逐行核对过）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -193,7 +204,7 @@
 <td>答案 <code>[1, 2]</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 看第 7-9 帧：<strong>那三个空桶不是浪费</strong> —— 它们是"从高频往低频扫"这个动作的字面展示。频率 6、5、4 都没有对应的值，说明这个数组里没有元素出现那么多次；收集指针扫过它们，正说明桶下标和频率一一对应、不重不漏。
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
@@ -234,7 +245,7 @@
 
 对 <code>(频率, 值)</code> 对维护容量 k 的小根堆：堆顶是"当前 k 个候选里频率最小的"，新元素想进前 k 先打赢门槛 —— 和 LC 215 的堆是同一个思想，只是比较器从值换成了频率。
 <h3>两条路的对照</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -264,11 +275,11 @@
 <td>退化向 O(n log n)</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>桶排序赢在渐近和常数，堆赢在通用和内存</strong> —— k 远小于 distinct 数且键没有范围保证时，堆是唯一选择。
 <h2>四、复杂度对照</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -297,7 +308,7 @@
 <td>频率范围 [1, n] 是前提</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>注意桶排序的 O(n) 有三部分</strong>：计数 O(n)、入桶 O(distinct)、收集最多扫 n+1 个桶 —— 全是线性，合计 O(n)。它比堆省掉的那个 log k，正是"键的值域当下标"换来的。
 <h2>五、腾讯变体：海量数据的前 K 个高频元素</h2>
@@ -362,7 +373,7 @@
 
 <strong>坑四：题目红线是"优于 O(n log n)"。</strong> 计数后直接对 distinct 列表排序（O(m log m)，m ≤ n）最坏仍是 O(n log n)，卡线不过 —— 这正是题目逼你写堆或桶的原因。
 <h2>八、变体</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -392,7 +403,7 @@
 <td>快速选择 —— 见上一篇</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一图流的选择：<strong>键是小整数范围 → 桶排序 O(n)；键任意 + 只要前 k → 小根堆；静态全量 + 键任意 → 快速选择。</strong>
 <h2>九、面试怎么答</h2>

@@ -105,6 +105,40 @@ export function saveListCache(list, count) {
   if (Array.isArray(list) && list.length) writeLS(LS_LIST_KEY, { list, count })
 }
 
+/**
+ * Rebuild the category / tag index from the build-time snapshot.
+ *
+ * `/api/categories/` and `/api/tags/` have no fallback of their own, so with
+ * the API down the (now prerendered) /categories and /tags pages rendered an
+ * empty shell even though the snapshot carries every article's category and
+ * tags. Shape matches what the endpoints return — `article_count` is what
+ * catCount()/the tag cards read.
+ */
+async function deriveIndex(keyOf) {
+  const list = (await fetchSnapshot()) || []
+  const index = new Map()
+  for (const article of list) {
+    for (const entry of keyOf(article)) {
+      // Snapshot entries are {id, name, slug}; a bare string (legacy payload)
+      // is its own slug and label.
+      const slug = typeof entry === 'object' ? entry?.slug : entry
+      const name = typeof entry === 'object' ? entry?.name : entry
+      if (!slug || !name) continue
+      if (!index.has(slug)) index.set(slug, { id: slug, name, slug, article_count: 0 })
+      index.get(slug).article_count += 1
+    }
+  }
+  return [...index.values()].sort((a, b) => b.article_count - a.article_count)
+}
+
+export function deriveCategories() {
+  return deriveIndex((a) => (a.category ? [a.category] : []))
+}
+
+export function deriveTags() {
+  return deriveIndex((a) => (Array.isArray(a.tags) ? a.tags : []))
+}
+
 export function saveDetailCache(article) {
   if (article?.slug) writeLS(LS_DETAIL_PREFIX + article.slug, article)
 }

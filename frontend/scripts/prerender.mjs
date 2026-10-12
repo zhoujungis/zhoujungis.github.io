@@ -24,6 +24,13 @@
  *      (backend outage / cold start). See frontend/src/utils/articleCache.js.
  *   5. Injects a <noscript> "latest articles" list into dist/index.html so
  *      the home page has crawlable/static content even with JS disabled.
+ *   6. Writes dist/<list-page>/index.html for /articles, /archives,
+ *      /categories and /tags so those routes answer 200 instead of falling
+ *      through to the 404.html + sessionStorage bounce.
+ *   7. Writes dist/sitemap.xml and dist/rss.xml, both on the site's own
+ *      origin. The sitemap lists exactly the URLs this script just emitted,
+ *      so it can never advertise a dead route; the feed carries full text
+ *      only for the newest few items to stay small.
  *
  * Fails soft: if the API is unreachable the build still succeeds — the site
  * just ships without pre-rendered pages (same as before this script existed).
@@ -39,6 +46,15 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // Shared with MarkdownView.vue so the live view and the no-JS snapshot agree.
 import { stripLeadingDuplicateTitle } from '../src/utils/articleHtml.js'
+// Site identity + the list pages this script must emit. Declared once for the
+// SPA and the builder so a crawler and the runtime never disagree.
+import {
+  SITE_NAME,
+  SITE_AUTHOR,
+  SITE_DESCRIPTION,
+  SITE_ORIGIN as SITE_ORIGIN_DEFAULT,
+  LIST_PAGES,
+} from '../src/utils/siteConfig.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -47,10 +63,23 @@ const CACHE_FILE = join(CACHE_DIR, 'prerender-details.json')
 const API_BASE =
   process.env.PRERENDER_API_BASE ||
   'https://zhoujun123.pythonanywhere.com/api/'
-const SITE_ORIGIN = process.env.PRERENDER_ORIGIN || 'https://zhoujungis.github.io'
-// Site name — keep in sync with src/utils/seo.js (SITE_NAME), index.html and
-// public/manifest.json.
-const SITE_NAME = '尘世栈帧'
+const SITE_ORIGIN = process.env.PRERENDER_ORIGIN || SITE_ORIGIN_DEFAULT
+
+// Feed size control. The backend feed (articles/feeds.py) ships 20 items with
+// the FULL html body of every one of them — 20 × ~50KB ≈ 1MB, which every
+// subscriber re-downloads on every poll. Keep the item count, but only carry
+// full text for the newest few; older items fall back to their excerpt.
+const FEED_PATH = '/rss.xml'
+const FEED_ITEM_COUNT = 20
+const FEED_FULL_TEXT_COUNT = 5
+
+// A burst of updates this close together is a batch job (title rewrites, mass
+// re-tagging, excerpt refresh), not organic editing. Measured on this blog:
+// the real batches land within 0.2–0.3 minutes of each other, while the one
+// genuinely spread-out day sits at a 434-minute span — three orders of
+// magnitude apart, so the cutoff is not delicate.
+const BULK_EDIT_WINDOW_MS = 10 * 60 * 1000
+const BULK_EDIT_THRESHOLD = 5
 // Bounded concurrency for detail fetches — PythonAnywhere is a small host,
 // so stay polite. Override with PRERENDER_CONCURRENCY if needed.
 const CONCURRENCY = Math.max(
@@ -114,6 +143,7 @@ const NOSCRIPT_STYLE = `
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -122,6 +152,17 @@ const NOSCRIPT_STYLE = `
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>`
 
 async function fetchArticleDetail(slug) {
@@ -240,11 +281,26 @@ function upsertMeta(html, attr, key, content) {
   return html.replace('</head>', literal(`    ${tag}\n  </head>`))
 }
 
-function renderArticlePage(template, article) {
+// Give every table its own horizontal scroll container. The live page does the
+// same thing client-side (see MarkdownView.vue `wrapTables()`), but the
+// <noscript> snapshot ships no JS at all — without this wrapper a wide table
+// (9-column ones are common in the algorithm articles) pushes the whole
+// document sideways for no-JS readers.
+function wrapTables(html) {
+  return String(html ?? '').replace(
+    /<table(\s[^>]*)?>[\s\S]*?<\/table>/gi,
+    (table) => `<div class="table-scroll">${table}</div>`,
+  )
+}
+
+function renderArticlePage(template, article, { lastmod } = {}) {
   const url = `${SITE_ORIGIN}/article/${article.slug}/`
   const title = `${article.title} | ${SITE_NAME}`
   const description = (article.excerpt || article.title).slice(0, 160)
   const isoDate = article.created_at || ''
+  // Same value the sitemap publishes — see pickLastmod() for why updated_at
+  // alone can't be trusted.
+  const modifiedDate = lastmod || article.updated_at || isoDate
   const cover = article.cover_image || `${SITE_ORIGIN}/og-image.jpg`
 
   let html = template
@@ -272,9 +328,9 @@ function renderArticlePage(template, article) {
     description,
     image: article.cover_image || undefined,
     datePublished: isoDate,
-    dateModified: article.updated_at || isoDate,
-    author: { '@type': 'Person', name: 'Stack Frame' },
-    publisher: { '@type': 'Person', name: 'Stack Frame' },
+    dateModified: modifiedDate,
+    author: { '@type': 'Person', name: SITE_AUTHOR },
+    publisher: { '@type': 'Person', name: SITE_AUTHOR },
     mainEntityOfPage: url,
   }
 
@@ -294,14 +350,16 @@ function renderArticlePage(template, article) {
   // The block below emits its own <h1>, and the Markdown body opens with
   // `# <title>` too — strip that duplicate or the snapshot ships two identical
   // headings (same fix as MarkdownView.vue, same helper).
-  const safeBody = stripLeadingDuplicateTitle(
-    sanitizeHtml(article.html_content || ''),
-    article.title,
+  const safeBody = wrapTables(
+    stripLeadingDuplicateTitle(
+      sanitizeHtml(article.html_content || ''),
+      article.title,
+    ),
   )
   const noscript =
     `<noscript><div class="ns-article">` +
     `<h1>${escapeHtml(article.title)}</h1>` +
-    `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · Stack Frame</div>` +
+    `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · ${escapeHtml(SITE_AUTHOR)}</div>` +
     `<div class="markdown-body">${safeBody}</div>` +
     `</div></noscript>`
   html = html.replace('<div id="app"></div>', literal(`<div id="app"></div>\n    ${noscript}`))
@@ -347,6 +405,340 @@ function renderHomePage(template, articles) {
   return html
 }
 
+// ── Dates & lastmod ───────────────────────────────────────────────────────
+// Article.updated_at is `auto_now=True`: every admin PATCH rewrites it, even
+// when only the title changed. A 33-title batch rewrite therefore stamped 33
+// articles with the same minute, so a sitemap built from updated_at alone
+// claimed a third of the blog changed that afternoon — exactly the signal
+// search engines learn to ignore. Detect those bursts and fall back to the
+// publication date.
+
+const dayOf = (iso) => String(iso || '').slice(0, 10)
+
+function timeOf(iso) {
+  const t = new Date(iso || '').getTime()
+  return Number.isNaN(t) ? 0 : t
+}
+
+/**
+ * Slugs whose updated_at falls inside a burst of >= BULK_EDIT_THRESHOLD
+ * updates within BULK_EDIT_WINDOW_MS of each other.
+ *
+ * Sliding window over the sorted timestamps: every article that is part of any
+ * such burst is flagged. Counting per calendar day would be far too coarse —
+ * on this blog five unrelated afternoon edits shared a date while 27 scripted
+ * ones shared 2.5 minutes.
+ */
+function findBulkEdits(articles) {
+  const timed = articles
+    .filter((a) => a?.slug && a.updated_at)
+    .map((a) => ({ slug: a.slug, t: timeOf(a.updated_at) }))
+    .filter((x) => x.t)
+    .sort((a, b) => a.t - b.t)
+
+  const bulk = new Set()
+  let start = 0
+  for (let end = 0; end < timed.length; end += 1) {
+    while (timed[end].t - timed[start].t > BULK_EDIT_WINDOW_MS) start += 1
+    if (end - start + 1 >= BULK_EDIT_THRESHOLD) {
+      for (let i = start; i <= end; i += 1) bulk.add(timed[i].slug)
+    }
+  }
+  return bulk
+}
+
+function pickLastmod(article, bulkEdits = new Set()) {
+  const created = article?.created_at || ''
+  const updated = article?.updated_at || ''
+  if (!updated) return created
+  if (bulkEdits.has(article?.slug)) return created || updated
+  return timeOf(updated) > timeOf(created) ? updated : created
+}
+
+const isoOrEmpty = (value) => {
+  const t = timeOf(value)
+  return t ? new Date(t).toISOString() : ''
+}
+
+// ── sitemap.xml ───────────────────────────────────────────────────────────
+// Generated here rather than by the Django sitemap view for two reasons:
+//   1. It ships on the SAME ORIGIN as the URLs it lists (a cross-host sitemap
+//      is not accepted unless separately verified), and it deploys atomically
+//      with the pages it points at.
+//   2. Every URL below is a file this script just wrote — so the sitemap can
+//      only ever list routes that actually answer 200.
+function renderSitemap(articles, { bulkEdits = new Set() } = {}) {
+  const published = articles.filter((a) => a?.slug)
+  const lastmodOf = new Map(
+    published.map((a) => [a.slug, pickLastmod(a, bulkEdits)]),
+  )
+  const newest = published.reduce(
+    (acc, a) => Math.max(acc, timeOf(lastmodOf.get(a.slug))),
+    0,
+  )
+  const newestIso = newest ? new Date(newest).toISOString() : ''
+
+  const entry = ({ loc, lastmod, changefreq, priority }) =>
+    [
+      '  <url>',
+      `    <loc>${escapeHtml(loc)}</loc>`,
+      lastmod ? `    <lastmod>${escapeHtml(lastmod)}</lastmod>` : '',
+      `    <changefreq>${changefreq}</changefreq>`,
+      `    <priority>${priority}</priority>`,
+      '  </url>',
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+  const entries = [
+    entry({
+      loc: `${SITE_ORIGIN}/`,
+      lastmod: isoOrEmpty(newestIso),
+      changefreq: 'daily',
+      priority: '1.0',
+    }),
+    ...LIST_PAGES.map((p) =>
+      entry({
+        loc: `${SITE_ORIGIN}${p.path}`,
+        lastmod: isoOrEmpty(newestIso),
+        changefreq: 'weekly',
+        priority: p.path === '/categories/' || p.path === '/tags/' ? '0.5' : '0.6',
+      }),
+    ),
+    ...[...published]
+      .sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at))
+      .map((a) =>
+        entry({
+          loc: `${SITE_ORIGIN}/article/${a.slug}/`,
+          lastmod: isoOrEmpty(lastmodOf.get(a.slug)),
+          changefreq: 'monthly',
+          priority: '0.8',
+        }),
+      ),
+  ]
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    `${entries.join('\n')}\n` +
+    '</urlset>\n'
+  )
+}
+
+// ── Static list pages ─────────────────────────────────────────────────────
+// /articles, /archives, /categories and /tags used to exist only inside the
+// SPA: GitHub Pages has no folder for them, so a direct hit answered 404 and
+// the browser was bounced through 404.html + sessionStorage. Crawlers never
+// got that far. Same technique as the article pages — the built shell with a
+// per-page head and a <noscript> body — turns each into a real 200.
+
+const sortedByDate = (articles) =>
+  [...articles].sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at))
+
+function articleListItem(article) {
+  const d = new Date(article.created_at || '')
+  return {
+    href: `${SITE_ORIGIN}/article/${article.slug}/`,
+    text: article.title || article.slug,
+    meta: Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('zh-CN'),
+  }
+}
+
+const CATEGORY_NAME = (a) =>
+  (a?.category && (a.category.name || a.category)) || '未分类'
+
+function tagNames(a) {
+  return (Array.isArray(a?.tags) ? a.tags : [])
+    .map((t) => (t && (t.name || t)) || '')
+    .filter(Boolean)
+}
+
+// Group into `{ heading, items }` sections. `byMonth` adds a year → month
+// nesting for the archive view.
+function dateSections(articles, { byMonth = false } = {}) {
+  const years = new Map()
+  for (const a of sortedByDate(articles)) {
+    const d = new Date(a.created_at || '')
+    if (Number.isNaN(d.getTime())) continue
+    const year = d.getFullYear()
+    if (!years.has(year)) years.set(year, new Map())
+    const months = years.get(year)
+    const month = byMonth ? d.getMonth() + 1 : 0
+    if (!months.has(month)) months.set(month, [])
+    months.get(month).push(a)
+  }
+
+  const sections = []
+  for (const [year, months] of years) {
+    const all = [...months.values()].flat()
+    const section = { heading: `${year} 年（${all.length} 篇）` }
+    if (byMonth) {
+      section.subsections = [...months.entries()].map(([month, items]) => ({
+        heading: `${month} 月`,
+        level: 3,
+        items: items.map(articleListItem),
+      }))
+    } else {
+      section.items = all.map(articleListItem)
+    }
+    sections.push(section)
+  }
+  return sections
+}
+
+function groupSections(articles, keyOf, emptyLabel) {
+  const groups = new Map()
+  for (const a of sortedByDate(articles)) {
+    const keys = keyOf(a)
+    const list = keys.length ? keys : [emptyLabel]
+    for (const key of list) {
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(a)
+    }
+  }
+  return [...groups.entries()]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-CN'))
+    .map(([name, items]) => ({
+      heading: `${name}（${items.length} 篇）`,
+      items: items.map(articleListItem),
+    }))
+}
+
+function renderSections(sections) {
+  const parts = []
+  for (const section of sections) {
+    if (!section) continue
+    const level = section.level || 2
+    parts.push(`<h${level}>${escapeHtml(section.heading)}</h${level}>`)
+    if (section.subsections?.length) parts.push(renderSections(section.subsections))
+    if (section.items?.length) {
+      const items = section.items
+        .map(
+          (i) =>
+            `<li><a href="${escapeHtml(i.href)}">${escapeHtml(i.text)}</a>` +
+            (i.meta ? ` <span class="ns-date">${escapeHtml(i.meta)}</span>` : '') +
+            `</li>`,
+        )
+        .join('\n')
+      parts.push(`<ul>\n${items}\n</ul>`)
+    }
+  }
+  return parts.join('\n')
+}
+
+function sectionsForPage(page, articles) {
+  switch (page.path) {
+    case '/articles/':
+      return dateSections(articles)
+    case '/archives/':
+      return dateSections(articles, { byMonth: true })
+    case '/categories/':
+      return groupSections(articles, (a) => [CATEGORY_NAME(a)], '未分类')
+    case '/tags/':
+      return groupSections(articles, tagNames, '未分类')
+    default:
+      return []
+  }
+}
+
+function renderListPage(template, page, sections) {
+  const url = `${SITE_ORIGIN}${page.path}`
+  const title = `${page.title} | ${SITE_NAME}`
+
+  let html = template
+  html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
+  html = html.replace(
+    /<link rel="canonical" href="[^"]*" \/>/,
+    literal(`<link rel="canonical" href="${url}" />`),
+  )
+  html = upsertMeta(html, 'name', 'description', page.description)
+  html = upsertMeta(html, 'property', 'og:title', title)
+  html = upsertMeta(html, 'property', 'og:description', page.description)
+  html = upsertMeta(html, 'property', 'og:url', url)
+
+  // Cross-links so crawlers (and no-JS readers) can reach the sibling pages
+  // without going back through the app shell.
+  const nav = LIST_PAGES.filter((p) => p.path !== page.path)
+    .map((p) => `<a href="${SITE_ORIGIN}${p.path}">${escapeHtml(p.title)}</a>`)
+    .join('\n')
+
+  const noscript =
+    `<noscript><div class="ns-list">` +
+    `<h1>${escapeHtml(page.title)}</h1>` +
+    `<p class="ns-lead">${escapeHtml(page.description)}</p>\n` +
+    `${renderSections(sections)}\n` +
+    `<p class="ns-nav"><a href="${SITE_ORIGIN}/">首页</a>\n${nav}</p>` +
+    `</div></noscript>`
+
+  // The shell is reused across builds — replace a previously injected block
+  // instead of stacking a second one (same guard as renderHomePage).
+  const existing = /<noscript>[\s\S]*?ns-list[\s\S]*?<\/noscript>/
+  if (existing.test(html)) {
+    html = html.replace(existing, literal(noscript))
+  } else {
+    html = html.replace(
+      '<div id="app"></div>',
+      literal(`<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`),
+    )
+  }
+  return html
+}
+
+// ── rss.xml ───────────────────────────────────────────────────────────────
+// A CDATA section ends at the first `]]>`. Split any occurrence across two
+// sections so an article body containing it can't truncate the feed.
+const cdata = (str) =>
+  `<![CDATA[${String(str ?? '').replaceAll(']]>', ']]]]><![CDATA[>')}]]>`
+
+const rfc822 = (iso) => {
+  const d = new Date(iso || '')
+  return Number.isNaN(d.getTime()) ? '' : d.toUTCString()
+}
+
+function renderRssFeed(articles, { buildDate = new Date().toISOString() } = {}) {
+  const items = sortedByDate(articles.filter((a) => a?.slug)).slice(0, FEED_ITEM_COUNT)
+
+  const body = items
+    .map((a, i) => {
+      const url = `${SITE_ORIGIN}/article/${a.slug}/`
+      // A post's category is often also one of its tags — dedupe so the feed
+      // doesn't repeat a <category> element.
+      const categories = [...new Set([CATEGORY_NAME(a), ...tagNames(a)])].filter(Boolean)
+      const withFullText = i < FEED_FULL_TEXT_COUNT && a.html_content
+      return [
+        '    <item>',
+        `      <title>${escapeHtml(a.title)}</title>`,
+        `      <link>${escapeHtml(url)}</link>`,
+        `      <guid isPermaLink="true">${escapeHtml(url)}</guid>`,
+        rfc822(a.created_at) ? `      <pubDate>${rfc822(a.created_at)}</pubDate>` : '',
+        `      <description>${escapeHtml((a.excerpt || '').slice(0, 160))}</description>`,
+        ...categories.map((c) => `      <category>${escapeHtml(c)}</category>`),
+        withFullText
+          ? `      <content:encoded>${cdata(wrapTables(sanitizeHtml(a.html_content)))}</content:encoded>`
+          : '',
+        '    </item>',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    })
+    .join('\n')
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">\n' +
+    '  <channel>\n' +
+    `    <title>${escapeHtml(SITE_NAME)}</title>\n` +
+    `    <link>${SITE_ORIGIN}/</link>\n` +
+    `    <description>${escapeHtml(SITE_DESCRIPTION)}</description>\n` +
+    '    <language>zh-CN</language>\n' +
+    `    <lastBuildDate>${rfc822(buildDate)}</lastBuildDate>\n` +
+    `    <atom:link href="${SITE_ORIGIN}${FEED_PATH}" rel="self" type="application/rss+xml" />\n` +
+    `${body}\n` +
+    '  </channel>\n' +
+    '</rss>\n'
+  )
+}
+
 // Lightweight list snapshot for the SPA's offline/API-down fallback.
 function toSnapshotList(articles) {
   return articles
@@ -385,15 +777,86 @@ async function main() {
     return
   }
 
+  const bulkEdits = findBulkEdits(articles)
+  const published = articles.filter((a) => a?.slug)
+  const lastmods = new Map(published.map((a) => [a.slug, pickLastmod(a, bulkEdits)]))
+  // Three buckets worth reporting: articles that were never touched after
+  // publication (lastmod == created_at either way), articles demoted to their
+  // publication date because they sat in a batch, and the rest.
+  const neverEdited = published.filter(
+    (a) => !a.updated_at || timeOf(a.updated_at) <= timeOf(a.created_at),
+  ).length
+  const batchFallback = published.filter(
+    (a) => bulkEdits.has(a.slug) && timeOf(a.updated_at) > timeOf(a.created_at),
+  ).length
+  const batchDays = [...new Set(published.filter((a) => bulkEdits.has(a.slug)).map((a) => dayOf(a.updated_at)))]
+    .sort()
+    .join(', ')
+  console.log(
+    `[prerender] lastmod: ${lastmods.size - neverEdited - batchFallback} 篇用 updated_at, ` +
+      `${batchFallback} 篇因批量编辑回落 created_at, ${neverEdited} 篇从未编辑` +
+      `（批量编辑批次: ${batchDays || '无'}）`,
+  )
+
   let written = 0
   for (const article of articles) {
     if (!article?.slug) continue
     const dir = join(DIST, 'article', article.slug)
     mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, 'index.html'), renderArticlePage(template, article), 'utf8')
+    writeFileSync(
+      join(dir, 'index.html'),
+      renderArticlePage(template, article, { lastmod: lastmods.get(article.slug) }),
+      'utf8',
+    )
     written += 1
   }
   console.log(`[prerender] wrote ${written} static article page(s) into dist/article/.`)
+
+  // Static list pages — these are what let /articles & co. answer 200 instead
+  // of bouncing through 404.html, and they are the only non-article URLs the
+  // sitemap is allowed to list.
+  let listWritten = 0
+  for (const page of LIST_PAGES) {
+    try {
+      const dir = join(DIST, page.path.replace(/^\/|\/$/g, ''))
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(
+        join(dir, 'index.html'),
+        renderListPage(template, page, sectionsForPage(page, articles)),
+        'utf8',
+      )
+      listWritten += 1
+    } catch (e) {
+      console.warn(`[prerender] could not write ${page.path}: ${e?.message || e}`)
+    }
+  }
+  console.log(`[prerender] wrote ${listWritten} static list page(s).`)
+
+  // sitemap.xml — same origin as the site, listing only what was just written.
+  try {
+    writeFileSync(
+      join(DIST, 'sitemap.xml'),
+      renderSitemap(articles, { bulkEdits }),
+      'utf8',
+    )
+    console.log(
+      `[prerender] wrote sitemap.xml (${lastmods.size + LIST_PAGES.length + 1} URLs).`,
+    )
+  } catch (e) {
+    console.warn(`[prerender] could not write sitemap.xml: ${e?.message || e}`)
+  }
+
+  // rss.xml — full text for the newest few items, excerpts for the rest.
+  try {
+    const feed = renderRssFeed(articles)
+    writeFileSync(join(DIST, FEED_PATH.replace(/^\//, '')), feed, 'utf8')
+    console.log(
+      `[prerender] wrote rss.xml (${Math.min(articles.length, FEED_ITEM_COUNT)} items, ` +
+        `${FEED_FULL_TEXT_COUNT} 篇全文, ${Math.round(feed.length / 1024)} KB).`,
+    )
+  } catch (e) {
+    console.warn(`[prerender] could not write rss.xml: ${e?.message || e}`)
+  }
 
   // Static snapshot for API-down fallback (frontend fetches /articles.json).
   try {
@@ -422,12 +885,26 @@ async function main() {
 // vitest never triggers network/dist side effects.
 export {
   SITE_NAME,
+  SITE_AUTHOR,
+  SITE_DESCRIPTION,
+  SITE_ORIGIN,
+  LIST_PAGES,
+  FEED_PATH,
+  FEED_ITEM_COUNT,
+  FEED_FULL_TEXT_COUNT,
   escapeHtml,
   sanitizeHtml,
+  wrapTables,
   upsertMeta,
   renderArticlePage,
   renderHomePage,
   toSnapshotList,
+  findBulkEdits,
+  pickLastmod,
+  renderSitemap,
+  renderRssFeed,
+  renderListPage,
+  sectionsForPage,
 }
 
 if (!process.env.VITEST_WORKER_ID) {

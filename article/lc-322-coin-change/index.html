@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是&quot;最少" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-322-coin-change/" />
     <meta property="og:title" content="【LC 322】零钱兑换：正序完全背包，逆序变 -1" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 322】零钱兑换：正序完全背包，逆序变 -1" />
     <meta name="twitter:description" content="题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是&quot;最少" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-322-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-30T17:54:22.251532+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 322】零钱兑换：正序完全背包，逆序变 -1","description":"题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是\"最少","image":"https://zhoujungis.github.io/photos/lc-322-cover.png","datePublished":"2026-09-30T17:54:22.251532+08:00","dateModified":"2026-10-12T16:19:48.261608+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-322-coin-change/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 322】零钱兑换：正序完全背包，逆序变 -1","description":"题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是\"最少","image":"https://zhoujungis.github.io/photos/lc-322-cover.png","datePublished":"2026-09-30T17:54:22.251532+08:00","dateModified":"2026-09-30T17:54:22.251532+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-322-coin-change/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -183,7 +194,7 @@
 <h2>四、完整推演表</h2>
 
 <strong>动画一</strong>：<code>coins = [1, 2, 5]</code>，<code>amount = 11</code>（与动画默认一致）。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>a</th>
@@ -284,12 +295,12 @@
 <td><strong>5+5+1</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最终 <code>dp = [0, 1, 1, 2, 2, 1, 2, 2, 3, 3, 2, 3]</code>，返回 <code>3</code>。注意第 11 格：三枚硬币给出的候选是 <code>3, 4, 3</code>，<code>1</code> 和 <code>5</code> 打平 —— 取第一个（同分不换），于是回溯链走 <code>11 → 10 → 5 → 0</code>，组合是 <code>5 + 5 + 1</code>。
 
 <strong>动画二</strong>：同一组数据，看两块面板跑完每枚硬币之后的样子。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>跑完</th>
@@ -319,7 +330,7 @@
 <td><code>0, 1, 1, 2, ∞, 1, 2, 2, 3, ∞, ∞, ∞</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 正序那列的每一格都是"这一轮刷过的新值"顶上去的；逆序那列从右往左刷，但每枚硬币只肯出手一次，<code>dp[11]</code> 到最后还是 <code>∞</code> → 返回 <code>-1</code>。
 <h2>五、同族题：518 / 279 / 377 / 139 / 416</h2>
@@ -417,7 +428,7 @@
 <li><strong>溢出</strong>：Java 用 <code>amount + 1</code> 当哨兵；Python 用 <code>float('inf')</code>；JS 用 <code>Infinity</code> —— 别用 <code>int</code> 上界硬加一。</li>
 </ul>
 <h2>八、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -452,7 +463,7 @@
 <td><code>O(amount × k)</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>k</code> 是硬币<strong>种数</strong>。二维完全背包的一维化，靠的正是"内层金额正序"：<code>dp[x]</code> 只依赖同一行的更小下标，压掉"用到第几种硬币"这一维后语义不变 —— 反过来说，<strong>逆序</strong>就是压错了方向的后果。
 <h2>九、常见坑</h2>

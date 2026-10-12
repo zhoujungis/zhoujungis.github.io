@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/cache-consistency-deep-dive/" />
     <meta property="og:title" content="先删缓存还是先删库？——缓存一致性实战" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="先删缓存还是先删库？——缓存一致性实战" />
     <meta name="twitter:description" content="先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被&quot;缓存和数据库对不上&quot;&quot;缓存一挂数据库就崩&quot;坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T17:27:46.601358+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先删缓存还是先删库？——缓存一致性实战","description":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被\"缓存和数据库对不上\"\"缓存一挂数据库就崩\"坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间","image":"https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T17:27:46.601358+08:00","dateModified":"2026-09-20T18:59:43.063341+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cache-consistency-deep-dive/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先删缓存还是先删库？——缓存一致性实战","description":"先删缓存还是先删库？——缓存一致性与穿透/击穿/雪崩实战（含并发实测） 适用读者：给接口加过 Redis 缓存、被\"缓存和数据库对不上\"\"缓存一挂数据库就崩\"坑过的后端工程师 技术栈：Redis 7 + Python 3.13；一致性时序推演不绑定框架，Django / Spring Boot / Go 通用 阅读时间","image":"https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T17:27:46.601358+08:00","dateModified":"2026-09-14T17:27:46.601358+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cache-consistency-deep-dive/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -104,7 +115,7 @@
 如果说《<a href="/article/redis-distributed-lock-deep-dive/">Redis 分布式锁：从 SETNX 到 Redlock</a>》解决的是"并发写同一份数据"，那这一篇解决的是它的孪生问题：<strong>同一份数据，存在缓存和数据库两个副本，怎么让它们尽量一致，以及缓存失效的那一刻系统会不会被打穿。</strong>
 
 缓存用错，会带来三类经典故障，业界叫"三兄弟"：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>故障</th>
@@ -129,7 +140,7 @@
 <td>凌晨批量预热时同一 TTL，整点集体过期，DB 瞬间挂</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这篇文章按"先建立框架、再逐个拆解、最后实测"的顺序来：
 
@@ -148,7 +159,7 @@
 <h2>1. 缓存的四种读写策略：先搞清楚你在用哪种</h2>
 
 聊一致性之前，先确定你的读写路径。缓存有四种经典模式，<strong>90% 的业务用的是第一种，也只需要第一种</strong>。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>策略</th>
@@ -193,7 +204,7 @@
 <td>计数器、埋点等可容忍丢失</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 Cache-Aside 的标准骨架，几乎每个后端都写过：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_article</span><span class="p">(</span><span class="n">article_id</span><span class="p">):</span>
@@ -332,7 +343,7 @@ t1 删除后、t5 更新前，只要有一个读请求进来，就会把<strong>
 
 代价是<strong>架构复杂度</strong>：要维护 Canal/Debezium、MQ、消费者，还得处理消息积压。<strong>个人项目、中小团队，别上；中大型系统、缓存 key 分散在几十个服务里，值得上。</strong>
 <h3>2.6 四条路线对比</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>路线</th>
@@ -367,7 +378,7 @@ t1 删除后、t5 更新前，只要有一个读请求进来，就会把<strong>
 <td>中大型系统</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>2.7 什么时候干脆别用缓存？</h3>
 
 这是长文必须有的诚实一节。<strong>强一致要求 + 高并发写</strong>的场景，缓存一致性本身就是伪命题，正确做法是<strong>不缓存</strong>或<strong>换存储</strong>：
@@ -470,7 +481,7 @@ query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存�
 </ul>
 
 布隆过滤器的局限要写清楚：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>局限</th>
@@ -491,7 +502,7 @@ query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存�
 <td>启动时要把库里已有 id 全量灌进去，数据量大时耗时长</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 数据会删除的场景（比如文章会被删），布隆过滤器会"误报存在"，但不会"误报不存在"——所以<strong>删文章时把缓存也删掉</strong>，让读请求回源拿到空值并缓存，就没问题了。布隆只负责拦"从来没存在过的 id"。
@@ -510,7 +521,7 @@ query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存�
 
 一个 <code>id &lt;= 0</code> 的判断，就能挡掉大量扫描脚本。<strong>永远不要相信客户端传来的 id。</strong>
 <h3>3.5 三方案对比</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -543,7 +554,7 @@ query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存�
 <td>极低</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>生产推荐：参数校验 + 限流打底，缓存空值兜常用 id，布隆过滤器防大范围随机 id。三层叠加。</strong>
 <hr>
@@ -618,7 +629,7 @@ query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存�
     <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;payload&quot;</span><span class="p">]</span>                       <span class="c1"># 返回旧数据，用户无感</span>
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>对比</th>
@@ -648,7 +659,7 @@ query(x)：对 x 算 k 个哈希，只要有一个位置是 0 → 一定不存�
 <td>秒杀、首页、可容忍短暂旧值</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>秒杀、大促、首页这种"宁可旧一点也不能卡"的场景，逻辑过期是更优解。</strong>
 <h3>4.4 方案三：热点 key 永不物理过期</h3>
@@ -750,7 +761,7 @@ Java 用 Sentinel / Resilience4j，Python 可以用 <code>pybreaker</code>：
 <li><strong>容量监控 + 淘汰策略</strong>（<code>maxmemory-policy allkeys-lru</code>），别让 Redis 被写满 OOM。</li>
 </ul>
 <h3>5.6 四方案对比</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -790,12 +801,12 @@ Java 用 Sentinel / Resilience4j，Python 可以用 <code>pybreaker</code>：
 <td>★★★ 必做</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2>6. 三兄弟对比与决策树</h2>
 
 把三者的本质摊开对比：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -836,7 +847,7 @@ Java 用 Sentinel / Resilience4j，Python 可以用 <code>pybreaker</code>：
 <td>过期时间打散</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>一张决策树收尾：</strong>
 <div class="codehilite"><pre><span></span><code>缓存出问题了？

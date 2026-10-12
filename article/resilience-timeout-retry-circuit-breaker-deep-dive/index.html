@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/resilience-timeout-retry-circuit-breaker-deep-dive/" />
     <meta property="og:title" content="下游只抖 3 秒，我的服务被拖死——超时与熔断实战" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="下游只抖 3 秒，我的服务被拖死——超时与熔断实战" />
     <meta name="twitter:description" content="下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-18T10:11:41.925018+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"下游只抖 3 秒，我的服务被拖死——超时与熔断实战","description":"下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo","image":"https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-18T10:11:41.925018+08:00","dateModified":"2026-09-20T18:59:33.807707+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/resilience-timeout-retry-circuit-breaker-deep-dive/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"下游只抖 3 秒，我的服务被拖死——超时与熔断实战","description":"下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战（含并发实测） 适用读者：写过 requests.post(url, json=data) 就上线、从没认真设过 timeout 的后端工程师 技术栈：Python 纯标准库 + 真实多线程压测；原理与语言无关，Django / Spring Bo","image":"https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-18T10:11:41.925018+08:00","dateModified":"2026-09-18T10:11:41.925018+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/resilience-timeout-retry-circuit-breaker-deep-dive/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -117,7 +128,7 @@
     <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>                                            <span class="c1"># ⑤ 没有熔断</span>
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -152,7 +163,7 @@
 <td>明知对面已经死了，还在每秒往上面打几百次</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这篇文章不打算背诵四个名词的定义，而是把每一个机制<strong>真的实现出来压测一遍</strong>，用数据回答几个真问题：
 <ul>
@@ -181,7 +192,7 @@
 <h2>1. 先分清：限流是"入站"的，这四件套是"出站"的</h2>
 
 聊之前先划清地盘，因为它们经常被混为一谈：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>机制</th>
@@ -228,7 +239,7 @@
 <td>限制单个依赖占用的资源</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一句话区分：<strong>限流防的是"别人把你打死"，这四件套防的是"你被自己的依赖拖死"。</strong>
 
@@ -247,7 +258,7 @@
 
 
 结果：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>配置</th>
@@ -279,7 +290,7 @@
 <td><strong>320</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 只看聚合指标的话，无超时的 p50 竟然是"漂亮的" 92ms——<strong>因为它 100% 的分位数都被恢复后的请求稀释了</strong>。真正的伤害要看<strong>每秒完成数的时间线</strong>：
 <div class="codehilite"><pre><span></span><code>无超时  每秒完成数: 0 / 0 / 0 / 0 / 0 / 652 / 654 / 655 / 60
@@ -314,7 +325,7 @@
 <span class="c1">#                                   connect  read</span>
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>超时类型</th>
@@ -343,7 +354,7 @@
 <td>没有它，重试 3 次可能耗时 3 倍</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意 read timeout 的语义：<strong>它不是"整个响应必须在这个时间内返回"，而是"任意两个数据包之间的间隔不能超过这个值"</strong>。一个 100MB 的文件下载，只要数据一直在流，read timeout 就不会触发。所以大文件传输不能靠 read timeout 兜底，得用整体 deadline。
 
@@ -385,7 +396,7 @@
 <h3>2.3 Python / Django 里那些"默认没有超时"的坑</h3>
 
 值得单独列出来，因为每一个我都见过它把服务拖死：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>组件</th>
@@ -435,7 +446,7 @@
 <td><code>soft_time_limit</code> + <code>time_limit</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 Django 的数据库连接加 statement 超时：
 <div class="codehilite"><pre><span></span><code><span class="c1"># settings.py</span>
@@ -462,7 +473,7 @@ Django 的数据库连接加 statement 超时：
 <h3>3.1 实验 B：重试 3 次，我的吞吐掉了 88%</h3>
 
 场景：下游已经慢了（RT 恒定 1s，远超 150ms 超时），20 worker / 40 并发客户端 / 6 秒：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>重试次数</th>
@@ -507,7 +518,7 @@ Django 的数据库连接加 statement 超时：
 <td>80</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个数字要看懂：
 
@@ -522,7 +533,7 @@ Django 的数据库连接加 statement 超时：
 你用 88% 的自身吞吐损失，只换来了下游 40% 的减载。<strong>省下来的算力全烧在了注定失败的重试上。</strong>
 
 换个角度算更清楚：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>重试次数</th>
@@ -539,7 +550,7 @@ Django 的数据库连接加 statement 超时：
 <td><strong>0.25</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 下游每处理 4 次调用，只有 1 次对应一个真实的用户请求，其余 3 次是纯粹的重复劳动。而且这 4 次<strong>全都失败了</strong>——有效产出是 0。
 
@@ -547,7 +558,7 @@ Django 的数据库连接加 statement 超时：
 <h3>3.2 不是所有请求都能重试：先问幂等</h3>
 
 在讨论"重试几次"之前，有一个更前置的问题必须回答：<strong>这个操作重试安全吗？</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -592,7 +603,7 @@ Django 的数据库连接加 statement 超时：
 <td>必须带幂等键</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 关键点在于：<strong>超时 ≠ 失败</strong>。你看到的 <code>TimeoutError</code> 可能是：
 <ol>
@@ -657,7 +668,7 @@ Django 的数据库连接加 statement 超时：
 全抖动:     25 28 23 24  35  31 17  41  40  22  36  45  30  31  47  35  28  46  37
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>策略</th>
@@ -683,7 +694,7 @@ Django 的数据库连接加 statement 超时：
 <td><strong>0.23</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 看那行固定退避的数字：<strong>118 / 0 / 0 / 120 / 0 / 0 / 120</strong>——下游被三轮整齐的重试波反复冲击，波谷是 0，波峰是 1200 QPS。真实世界的下游在这种波形下，刚恢复就会再次被峰值打死，然后进入"恢复→被打死→恢复→被打死"的震荡。
 
@@ -720,7 +731,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 实测，场景分两段：
 
 <strong>第一段：下游 30% 概率随机失败（部分降级，不是全挂）</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>配置</th>
@@ -749,14 +760,14 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>150</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 结论很有意思：<strong>错误率不高时，预算几乎不生效</strong>（50% 档只拒绝了 2 次）。这是设计使然，也是它的优点——<strong>它不干扰正常运维，只在真正出事时才起作用</strong>。
 
 预算 20% 那档成功率掉到 88.1%，看起来很糟。但请注意这个前提：<strong>重试被拒绝 ≠ 请求失败</strong>，它应该走降级路径（返回兜底数据）。如果你的降级真的只能返回错误，那就别把预算压这么低。
 
 <strong>第二段：同一套配置，下游彻底不可用（100% 超时）</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>配置</th>
@@ -779,7 +790,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td><strong>×1.04</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这组数字是全文最反直觉的：<strong>给重试加限制之后，我自己的吞吐反而涨了 3.6 倍。</strong>
 
@@ -854,7 +865,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
                                           探测失败
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>状态</th>
@@ -879,7 +890,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>探测下游是否恢复</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最容易写错的是 HALF-OPEN：很多人实现成"冷却时间到就直接全部放行"，结果下游没真恢复的话，瞬间的全量流量会<strong>立刻</strong>把它再次打死。正确做法是<strong>放有限个探针</strong>（比如 3 个），探针成功才关闸，失败就重新计时。
 <h3>4.2 一个可用的实现</h3>
@@ -963,7 +974,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <h3>4.3 实验 D：熔断的收益与代价</h3>
 
 开环定速 150 req/s，服务 25 worker + 队列 40（队列满即 503），下游 t∈[1s,6s] RT=2s，超时 150ms，2 次重试：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>配置</th>
@@ -998,7 +1009,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>731ms</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>收益（三条，全是硬指标）：</strong>
 <ol>
@@ -1015,7 +1026,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 
 所以熔断不是免费的。它的本质是<strong>用"恢复慢一点"换"故障期间不雪崩、用户始终有响应"</strong>。对于核心依赖，这个交换非常值；对于一分钟能挂十次的抖动型依赖，你可能更需要的是重试预算而不是熔断。
 <h3>4.4 熔断 vs 重试预算：怎么选</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -1050,7 +1061,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>低（细粒度）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>两个都要。</strong> 它们解决的是不同时间尺度的问题：重试预算处理秒级的抖动（不误伤、恢复快），熔断处理分钟级的故障（保护彻底、停止踩踏）。成熟的客户端库（Envoy、Sentinel、Resilience4j、Hystrix）都是两者一起实现。
 <hr>
@@ -1105,7 +1116,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <li><strong>监控可以统计降级率</strong>。降级率是比错误率更敏感的健康指标——它会在错误率还是 0 的时候就开始上涨。</li>
 </ol>
 <h3>5.2 四种降级策略怎么选</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>策略</th>
@@ -1140,7 +1151,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>复杂度高，需要消息队列表</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 写操作的降级（同步转异步）要格外小心：它把"立刻失败"变成"稍后成功"，用户看到的反馈必须相应调整（"处理中"而不是"成功"）。而且它依赖消息队列的可靠性——本系列的<a href="/article/mq-reliable-delivery-deep-dive/">MQ 可靠投递实测</a>讲过这里面的坑。
 <h3>5.3 一条铁律：降级路径本身不能再有外部依赖</h3>
@@ -1174,7 +1185,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <h3>6.1 实验 F</h3>
 
 场景：A（慢依赖，RT 1s）和 B（健康依赖，RT 30ms），各 25 个并发客户端，6 秒：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>配置</th>
@@ -1200,7 +1211,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td><strong>283.5/s</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>本来 30ms 的健康依赖 B，在共享池下被拖到 436ms——慢了 14.5 倍。吞吐从 283.5 掉到 61.4，跌了 78%。</strong>
 
@@ -1262,7 +1273,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 原则：<strong>每一层的超时必须严格小于它的调用方，且留出重试和降级的余量。</strong>
 
 假设用户可接受的页面加载上限是 2 秒：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>层级</th>
@@ -1307,11 +1318,11 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>非幂等，且失败要人工介入</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 配的时候记住一条：<strong>下游超时 ≥ 上游超时 是配置错误</strong>。因为上游已经放弃了，下游还在算，白白浪费资源——这正是实验 A 里"下游峰值并发 320 vs 20"的成因。
 <h3>7.2 按依赖重要度分类配置</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>依赖类型</th>
@@ -1356,7 +1367,7 @@ AWS 的官方建议是<strong>全抖动（full jitter）</strong>，实测也确
 <td>信号量</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个容易忽略的点：
 <ul>
@@ -1502,7 +1513,7 @@ A：有，而且优先用现成的。Java 有 Resilience4j / Sentinel / Hystrix�
 <h2>小结</h2>
 
 回到开头那次事故。整篇文章可以压缩成一张对照表：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>机制</th>
@@ -1555,7 +1566,7 @@ A：有，而且优先用现成的。Java 有 Resilience4j / Sentinel / Hystrix�
 <td>B 延迟 436ms vs 76ms</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 如果只记三句话：
 <ol>

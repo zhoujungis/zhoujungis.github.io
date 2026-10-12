@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="加到 8 台反而更慢：排队论与容量规划 适用读者：做过扩容决策、被 p99 曲线折磨过、或者想搞明白&quot;为什么加机器不管用&quot;的后端工程师 技术栈：无。这是纯理论文章，公式和表格都由闭式解算出，没有任何实测数字 阅读时间：约 30 分钟 | 难度：中级到高级 | 收获：一套判断&quot;该不该扩容、扩到几台、留多少余量&quot;的定量框架" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/queueing-theory-capacity-planning/" />
     <meta property="og:title" content="加到 8 台反而更慢：排队论与容量规划" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="加到 8 台反而更慢：排队论与容量规划" />
     <meta name="twitter:description" content="加到 8 台反而更慢：排队论与容量规划 适用读者：做过扩容决策、被 p99 曲线折磨过、或者想搞明白&quot;为什么加机器不管用&quot;的后端工程师 技术栈：无。这是纯理论文章，公式和表格都由闭式解算出，没有任何实测数字 阅读时间：约 30 分钟 | 难度：中级到高级 | 收获：一套判断&quot;该不该扩容、扩到几台、留多少余量&quot;的定量框架" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1495364141860-b0d03eccd065?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-21T11:57:37.838220+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"加到 8 台反而更慢：排队论与容量规划","description":"加到 8 台反而更慢：排队论与容量规划 适用读者：做过扩容决策、被 p99 曲线折磨过、或者想搞明白\"为什么加机器不管用\"的后端工程师 技术栈：无。这是纯理论文章，公式和表格都由闭式解算出，没有任何实测数字 阅读时间：约 30 分钟 | 难度：中级到高级 | 收获：一套判断\"该不该扩容、扩到几台、留多少余量\"的定量框架","image":"https://images.unsplash.com/photo-1495364141860-b0d03eccd065?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-21T11:57:37.838220+08:00","dateModified":"2026-09-21T11:57:37.838263+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/queueing-theory-capacity-planning/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"加到 8 台反而更慢：排队论与容量规划","description":"加到 8 台反而更慢：排队论与容量规划 适用读者：做过扩容决策、被 p99 曲线折磨过、或者想搞明白\"为什么加机器不管用\"的后端工程师 技术栈：无。这是纯理论文章，公式和表格都由闭式解算出，没有任何实测数字 阅读时间：约 30 分钟 | 难度：中级到高级 | 收获：一套判断\"该不该扩容、扩到几台、留多少余量\"的定量框架","image":"https://images.unsplash.com/photo-1495364141860-b0d03eccd065?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-21T11:57:37.838220+08:00","dateModified":"2026-09-21T11:57:37.838220+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/queueing-theory-capacity-planning/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -129,7 +140,7 @@
 </ol>
 
 先把结论放前面，后面逐个推导：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>问题</th>
@@ -154,7 +165,7 @@
 <td>不能求平均。扇出 100 个后端、每个 1% 慢，页面 63% 的时间是慢的</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>1. Little's Law：三个量测两个就够了</h2>
 
 先给最有用、也最常被忽略的定律。
@@ -203,7 +214,7 @@ $$\rho = \frac{\lambda}{\mu} = \lambda \cdot \mathbb{E}[S]$$
 $$W = \frac{1}{\mu - \lambda} = \frac{\mathbb{E}[S]}{1 - \rho}$$
 
 把 $\mathbb{E}[S]$ 归一化成 1，看看延迟怎么随利用率变化：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>利用率 $\rho$</th>
@@ -253,7 +264,7 @@ $$W = \frac{1}{\mu - \lambda} = \frac{\mathbb{E}[S]}{1 - \rho}$$
 <td>99%</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这张表要读出三件事：
 
@@ -287,7 +298,7 @@ $$\text{均衡时延迟} = \frac{1}{1-0.45} = 1.82, \qquad \text{最忙那台} =
 <h2>3. Kendall 记号与两个基础模型</h2>
 
 排队模型的命名约定是 $A/S/c/K/N/D$：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>位置</th>
@@ -327,7 +338,7 @@ $$\text{均衡时延迟} = \frac{1}{1-0.45} = 1.82, \qquad \text{最忙那台} =
 <td>FCFS、LCFS、PS、SRPT</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 所以 <strong>M/M/1</strong> 就是"泊松到达、指数服务、单服务台、无限队列、FCFS"。<strong>M/M/c</strong> 是多服务台。
 <h3>3.1 M/M/1 的完整解</h3>
@@ -367,7 +378,7 @@ $$W_q = \frac{\rho}{1-\rho} \cdot \frac{1 + C_s^2}{2} \cdot \mathbb{E}[S]$$
 对比一下就能看出关键：M/M/1 的 $W_q = \frac{\rho}{1-\rho}\mathbb{E}[S]$，正好是 $C_s = 1$ 时 $(1+C_s^2)/2 = 1$ 的特例。
 
 <strong>$(1+C_s^2)/2$ 这个因子是方差放大器：</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>$C_s$</th>
@@ -414,7 +425,7 @@ $$W_q = \frac{\rho}{1-\rho} \cdot \frac{1 + C_s^2}{2} \cdot \mathbb{E}[S]$$
 <td><strong>13.0x</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这张表是这篇文章里最值得记住的一张。
 
@@ -466,7 +477,7 @@ $$W_q = 0.6687 \times \frac{0.5}{10 - 9} = 0.334\text{s}$$
 总响应时间 $W = 0.334 + 0.5 = 0.83$s。
 
 <strong>对比：</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -492,14 +503,14 @@ $$W_q = 0.6687 \times \frac{0.5}{10 - 9} = 0.334\text{s}$$
 <td><strong>0.83s</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>同样的总能力、同样的利用率，拆成 10 台的响应时间快 6 倍。</strong>
 
 这就是<strong>资源池化（pooling）效应</strong>。直觉解释：10 台机器里，任何时刻大概率有几台是空闲的，空闲的机器可以立刻接活；而单台机器只要在忙，所有新任务都得等。空闲资源的"平均"没有意义——<strong>关键是"至少有一个空闲"的概率</strong>。
 
 Erlang C 曲线还有一个更实用的推论。看同一套负载下，单台和 10 台的对比（都用 $W_q/\mathbb{E}[S]$，即排队时间相当于多少个服务时间）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>利用率</th>
@@ -539,7 +550,7 @@ Erlang C 曲线还有一个更实用的推论。看同一套负载下，单台�
 <td>12x</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这张表要横着读，也要竖着读：
 
@@ -556,7 +567,7 @@ Erlang C 曲线还有一个更实用的推论。看同一套负载下，单台�
 <h3>6.1 百分位数不是线性算子</h3>
 
 先看一个具体例子。两分钟的监控数据：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>时间窗</th>
@@ -576,7 +587,7 @@ Erlang C 曲线还有一个更实用的推论。看同一套负载下，单台�
 <td>1000ms</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>错误的做法</strong>：$(10 + 1000)/2 = 505$ms。
 
@@ -600,7 +611,7 @@ $$p99_\text{合并} \approx 1000\text{ms}$$
 假设一个页面要调 $N$ 个后端服务，每个服务有 $p$ 的概率变慢（比如 $p = 0.01$，即各自的 p99）。假设独立：
 
 $$P(\text{页面变慢}) = 1 - (1-p)^N$$
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>扇出 $N$</th>
@@ -629,7 +640,7 @@ $$P(\text{页面变慢}) = 1 - (1-p)^N$$
 <td>86.6%</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>100 个后端，每个只有 1% 的慢请求，页面就有 63% 的时间是慢的。</strong>
 
@@ -659,7 +670,7 @@ $$S(n) = \frac{1}{(1-p) + \dfrac{p}{n}}$$
 $n \to \infty$ 时的上限：
 
 $$\lim_{n \to \infty} S(n) = \frac{1}{1-p}$$
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>可并行比例 $p$</th>
@@ -699,7 +710,7 @@ $$\lim_{n \to \infty} S(n) = \frac{1}{1-p}$$
 <td><strong>100.00</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>读法</strong>：5% 的串行部分，无论加多少机器，最多只能快 20 倍。而从 4 台加到 8 台，收益只有 1.7 倍。
 
@@ -710,7 +721,7 @@ $$\lim_{n \to \infty} S(n) = \frac{1}{1-p}$$
 </ul>
 
 <strong>后端系统里常见的"串行部分"</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>串行部分</th>
@@ -739,7 +750,7 @@ $$\lim_{n \to \infty} S(n) = \frac{1}{1-p}$$
 <td>在业务逻辑之前，难以并行</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>Amdahl 给扩容设了一个天花板</strong>：如果 10% 的请求路径是串行的，那么扩容到 10 倍之后就没收益了。这时候要做的不是加机器，而是<strong>把串行部分变成并行或异步</strong>——而这通常是架构改动，不是运维改动。
 <h2>8. 通用可扩展定律：回退效应</h2>
@@ -766,7 +777,7 @@ $$N^\ast = \sqrt{\frac{1-\alpha}{\beta}}$$
 取 $\alpha = 0.05$（5% 的争用），$\beta = 0.001$（一致性成本）：
 
 $$N^\ast = \sqrt{\frac{1 - 0.05}{0.001}} = \sqrt{950} \approx 30.8$$
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>节点数 $N$</th>
@@ -811,7 +822,7 @@ $$N^\ast = \sqrt{\frac{1 - 0.05}{0.001}} = \sqrt{950} \approx 30.8$$
 <td>−11%</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>从 31 台加到 100 台，吞吐从 9.04 掉到 6.31——比 20 台还差。</strong>
 
@@ -838,7 +849,7 @@ $$N^\ast = \sqrt{\frac{1 - 0.05}{0.001}} = \sqrt{950} \approx 30.8$$
 设原始失败率 $f$，最多重试 $k$ 次（即最多 $k+1$ 次尝试），每次重试的负载期望是：
 
 $$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>失败率 $f$</th>
@@ -885,7 +896,7 @@ $$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
 <td>3.439x</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意这张表里"最多重试 3 次"这一列<strong>远小于</strong>"无限重试"的理论值 $\frac{1}{1-f}$。$f = 0.9$ 时无限重试的负载倍数是 <strong>10 倍</strong>，而限制 3 次重试只把倍数压到 3.44 倍。<strong>设上限本身就是最重要的保护措施</strong>——它把指数增长截断成常数。
 
@@ -916,7 +927,7 @@ $$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
 </ul>
 
 <strong>对策</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>措施</th>
@@ -945,7 +956,7 @@ $$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
 <td>在源头限速，而不是让系统自己崩溃</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>"有界队列"这一条特别重要</strong>，它值得单独说。
 <h3>9.1 为什么无界队列是个陷阱</h3>
@@ -1020,7 +1031,7 @@ $$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
 <h3>11.1 目标利用率怎么定</h3>
 
 从第 2 节的表反推。问自己："我能接受延迟放大几倍？"
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>可接受的延迟放大</th>
@@ -1055,7 +1066,7 @@ $$\text{负载倍数} = \sum_{i=0}^{k} f^i = \frac{1 - f^{k+1}}{1 - f}$$
 <td>批处理、离线任务</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>注意这是 M/M/1 的数字。</strong>如果你的服务时间方差大（$C_s &gt; 1$），实际放大倍数要乘上第 4 节的因子。$C_s = 3$ 时，70% 利用率下的延迟放大不是 3.3 倍，而是：
 

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-70-climbing-stairs/" />
     <meta property="og:title" content="【LC 70】爬楼梯：递推人人会写，美团考的是 n=80" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 70】爬楼梯：递推人人会写，美团考的是 n=80" />
     <meta name="twitter:description" content="题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-70-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-30T15:48:36.333655+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 70】爬楼梯：递推人人会写，美团考的是 n=80","description":"题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层","image":"https://zhoujungis.github.io/photos/lc-70-cover.png","datePublished":"2026-09-30T15:48:36.333655+08:00","dateModified":"2026-09-30T15:48:36.333694+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-70-climbing-stairs/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 70】爬楼梯：递推人人会写，美团考的是 n=80","description":"题目 你正在爬楼梯。需要 n 阶你才能到达楼顶，每次可以爬 1 或 2 个台阶，问有多少种不同的方法可以爬到楼顶。 这是几乎所有动态规划教材的第一题 —— 递推式人人都会写。但美团的社招面试把它续了一句：「 n = 80 呢？ 」这一问不是考递推的，是考你知不知道自己的 int 在第 46 阶就已经装不下了。本文把三层","image":"https://zhoujungis.github.io/photos/lc-70-cover.png","datePublished":"2026-09-30T15:48:36.333655+08:00","dateModified":"2026-09-30T15:48:36.333655+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-70-climbing-stairs/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -163,7 +174,7 @@
 <h2>四、完整推演表</h2>
 
 以 <code>n = 10</code> 为主例（对应动画的 29 帧）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>i</th>
@@ -196,7 +207,7 @@
 <td>89</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>dp[10] = dp[9] + dp[8] = 55 + 34 = 89</code>。验证一下语义：10 阶楼梯用 <code>k</code> 个 2 阶、<code>10-2k</code> 个 1 阶，排列数 <code>C(10-k, k)</code>，求和 <code>C(10,0)+C(9,1)+C(8,2)+C(7,3)+C(6,4)+C(5,5) = 1+9+28+35+15+1 = 89</code> —— 组合数公式和递推在每一项上都对得上（脚本核到 n=40）。
 <h2>五、进阶：递归树与 n=80 的溢出</h2>
@@ -216,7 +227,7 @@
 
 
 分界点都是可以精确算出来的（以下数字全部经脚本核实）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>类型</th>
@@ -245,7 +256,7 @@
 <td><code>ways(78) = 14472334024676221</code>（丢整数精度）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 所以 <code>n = 80</code> 的答案是 <code>ways(80) = 37889062373143906</code> —— <strong><code>int</code> 早就爆了（46 阶就爆），<code>long</code> 装得下但只够撑到 91 阶</strong>。面试官要听的就是这三层：<code>int</code> 不行、<code>long</code> 勉强、再大上 <code>BigInteger</code>（或题目改成对 <code>1e9 + 7</code> 取模）。
 
@@ -301,7 +312,7 @@
 <li><strong>JS 的精度</strong>：<code>Number</code> 是 double，<code>ways(78) = 14472334024676221</code> 起就不是精确整数了。JS 想算 n=80 得上 <code>BigInt</code>（<code>1n + 2n</code>），或者接受精度丢失。</li>
 </ul>
 <h2>八、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -336,7 +347,7 @@
 <td><code>[dp[i], dp[i-1]] = M^(n-1) × [1,1]</code>，n 上千时才有意义</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一个诚实的脚注：上了 <code>BigInteger</code> 之后「O(n)」要打折扣 —— n=80 时每个数约 27 位十进制（96 个二进制位），加法不再是 O(1)，总时间约 <code>O(n · n/字长)</code>。面试里能主动提这一句，比背复杂度表值钱。
 <h2>九、常见坑</h2>

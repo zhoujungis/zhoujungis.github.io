@@ -74,6 +74,14 @@ const CHROME_STYLES = `
   height: auto;
   font-family: inherit;
 }
+/* 手机上不再把图缩到看不清。绝大多数动画的 viewBox 宽 660（LC 470 的 49 格
+   状态表也是 660×478），而 390px 视口下正文栏只剩 ~342px —— width:100% 会把
+   整张图压到 ~0.52×，格内 11px 的数字实际只有 ~5.7px。给一个最小宽度，让它
+   保持设计尺寸、由 .viz__stage 的 overflow-x 横向滚动（旁边 12 个 renderer
+   本来就有各自的 min-width，级联谁赢都可接受）。 */
+@media (max-width: 767px) {
+  .viz__svg { min-width: 560px; }
+}
 .viz__desc {
   margin: 14px 0 0;
   padding: 0;

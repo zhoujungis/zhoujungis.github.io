@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-139-word-break/" />
     <meta property="og:title" content="【LC 139】单词拆分：布尔 dp 与切分回溯" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 139】单词拆分：布尔 dp 与切分回溯" />
     <meta name="twitter:description" content="题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-139-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-30T18:15:56.298478+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 139】单词拆分：布尔 dp 与切分回溯","description":"题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —","image":"https://zhoujungis.github.io/photos/lc-139-cover.png","datePublished":"2026-09-30T18:15:56.298478+08:00","dateModified":"2026-10-12T16:18:47.035327+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-139-word-break/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 139】单词拆分：布尔 dp 与切分回溯","description":"题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —","image":"https://zhoujungis.github.io/photos/lc-139-cover.png","datePublished":"2026-09-30T18:15:56.298478+08:00","dateModified":"2026-09-30T18:15:56.298478+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-139-word-break/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -198,7 +209,7 @@
 <h2>四、完整推演表</h2>
 
 <strong>动画一</strong>：<code>s = "applepenapple"</code>，<code>wordDict = ["apple", "pen"]</code>（与动画默认一致，<code>maxLen = 5</code>）。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>i</th>
@@ -287,12 +298,12 @@
 <td><strong>T</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最终 <code>dp = [T, F, F, F, F, T, F, F, T, F, F, F, F, T]</code>，返回 <code>true</code>。三处 <code>T</code> 正是三次命中：<code>dp[5]</code>（<code>apple</code>）、<code>dp[8]</code>（<code>apple | pen</code>）、<code>dp[13]</code>（<code>apple | pen | apple</code>）。顺 <code>cut</code> 表回溯：<code>13 → 8 → 5 → 0</code>，切分就是 <code>apple | pen | apple</code> —— <code>apple</code> 用了<strong>两次</strong>，这正是"完全背包"的语义。
 
 <strong>动画二</strong>：同一组数据，看回溯怎么把 <code>s</code> 切开。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th><code>pos</code></th>
@@ -317,7 +328,7 @@
 <td><code>apple</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 切到最后 <code>pos = 0</code>，锁定链 <code>13 → 8 → 5 → 0</code>，得到同一组答案。注意整个过程<strong>没有额外的 <code>cut</code> 表</strong> —— <code>dp</code> 表本身就是"每个位置能不能拼出"的完整信息：只要 <code>dp[j] = true</code> 且 <code>s[j:pos]</code> 是词，这一段就一定接得上。
 <h2>五、同族题：322 / 279 / 518 / 377 / 140 / 416</h2>
@@ -425,7 +436,7 @@
 <li><strong>大小写</strong>：<code>substring</code> 是精确匹配，<code>"Leet"</code> 与 <code>"leet"</code> 不是同一个词。</li>
 </ul>
 <h2>八、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -460,7 +471,7 @@
 <td><code>O(n × 方案数)</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>n</code> 是 <code>s</code> 的长度，<code>maxLen</code> 是字典里最长词的长度。DP 与 BFS 的时间同为 <code>O(n × maxLen)</code>：每个起点 <code>p</code> 最多往外扩 <code>maxLen</code> 个字符。剪枝的关键全在 <code>maxLen</code> 上 —— <strong>不加窗口就是 <code>O(n²)</code>，加了就是 <code>O(n × maxLen)</code></strong>，而 <code>maxLen</code> 通常远小于 <code>n</code>。
 <h2>九、常见坑</h2>

@@ -186,7 +186,7 @@ import TocNav from '@/components/TocNav.vue'
 import ShareButtons from '@/components/ShareButtons.vue'
 import RelatedArticles from '@/components/RelatedArticles.vue'
 import NewsletterForm from '@/components/NewsletterForm.vue'
-import { useSEO, resetSEO } from '@/utils/seo'
+import { useSEO, SITE_AUTHOR } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
 import client from '@/api/client'
@@ -251,8 +251,8 @@ const jsonLd = computed(() => {
     image: article.value.cover_image || undefined,
     datePublished: article.value.created_at,
     dateModified: article.value.updated_at,
-    author: { '@type': 'Person', name: 'Stack Frame' },
-    publisher: { '@type': 'Person', name: 'Stack Frame' },
+    author: { '@type': 'Person', name: SITE_AUTHOR },
+    publisher: { '@type': 'Person', name: SITE_AUTHOR },
   })
 })
 
@@ -350,11 +350,15 @@ async function fetchArticle() {
 
 function applySeo() {
   if (!article.value) return
+  // Canonical is always the trailing-slash form: that is the URL the
+  // prerendered file lives at (and the one sitemap.xml advertises), while the
+  // SPA's own URL bar shows /article/<slug>.
   useSEO({
     title: article.value.title,
     description: article.value.excerpt || '',
     image: article.value.cover_image || '',
-    url: window.location.origin + route.fullPath,
+    url: `${window.location.origin}/article/${article.value.slug}/`,
+    type: 'article',
   })
 }
 
@@ -367,10 +371,11 @@ watch(() => route.params.slug, () => {
   fetchArticle()
 })
 
-// M17: reset SEO on unmount so the article's title/og doesn't leak onto
-// Home / Archives / Search after the user navigates away
+// The article's title/og tags are replaced by the next route's own values —
+// router.afterEach() in main.js re-applies per-route SEO, so there is no
+// resetSEO() here: it ran AFTER afterEach and clobbered the incoming page's
+// title with the site name.
 onUnmounted(() => {
-  resetSEO()
   // 结构化数据挂在 <head> 上，不跟着组件销毁，必须手动摘掉，
   // 否则离开文章页后它还留在文档里，描述的是上一篇。
   jsonLdEl?.remove()

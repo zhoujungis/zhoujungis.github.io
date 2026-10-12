@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="从 vLLM 到 SGLang：LLM 推理框架的终极内卷 当训练框架的竞争逐渐收敛，战火正在向推理侧全面转移。一篇论文、一个 PR、一次 commit，都可能让某个框架在一夜之间吞吐翻倍——这就是 2025–2026 年 LLM 推理生态的日常。本文把 vLLM、SGLang、TensorRT-LLM、TGI、LMD" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/vllm-vs-sglang-llm-inference-framework-war/" />
     <meta property="og:title" content="从 vLLM 到 SGLang：LLM 推理框架的终极内卷" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="从 vLLM 到 SGLang：LLM 推理框架的终极内卷" />
     <meta name="twitter:description" content="从 vLLM 到 SGLang：LLM 推理框架的终极内卷 当训练框架的竞争逐渐收敛，战火正在向推理侧全面转移。一篇论文、一个 PR、一次 commit，都可能让某个框架在一夜之间吞吐翻倍——这就是 2025–2026 年 LLM 推理生态的日常。本文把 vLLM、SGLang、TensorRT-LLM、TGI、LMD" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/inference-framework-cover.svg" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,6 +77,17 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-07-27T15:12:44.957627+08:00" />
@@ -106,7 +117,7 @@
 <h2>一、推理框架到底在"卷"什么</h2>
 
 把所有口号去掉，推理框架要回答的其实是三个问题：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -131,7 +142,7 @@
 <td>显存是 HBM 物理馈赠，省一寸是一寸</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 吞吐和延迟天然是一对矛盾：批越大、吞吐越高，但每个请求都要等批凑齐，延迟就涨。所有框架的"工程内卷"，本质上都是在这三者的三角关系里寻找新的 Pareto 前沿——把别人认为不可能的折中点，变成可能。
 
@@ -187,7 +198,7 @@ SGLang 的真正杀手锏不是单点速度，而是把"<strong>生成是有结�
 <h2>四、横向对比：五个主流框架怎么选</h2>
 
 把五个常被点名的框架放在同一张表格里看：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>框架</th>
@@ -234,7 +245,7 @@ SGLang 的真正杀手锏不是单点速度，而是把"<strong>生成是有结�
 <td>国际生态薄，模型覆盖不如 vLLM</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 三句话定性：
@@ -248,7 +259,7 @@ SGLang 的真正杀手锏不是单点速度，而是把"<strong>生成是有结�
 <h2>五、内卷焦点之一：KV Cache 管理</h2>
 
 KV Cache 是推理显存里的大头——序列越长占得越多、batch 越大占得越多。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -277,7 +288,7 @@ KV Cache 是推理显存里的大头——序列越长占得越多、batch 越�
 <td>需要硬件一致性支持</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 值得单独说的行业趋势是 <strong>Prefix Cache</strong>——把系统提示词、长文档前缀的 KV 持久化在显存或 host memory，跨请求复用。vLLM 在 2024 年底加上了 <code>--enable-prefix-caching</code>，SGLang 从 day 1 就把这写进了数据结构。在 RAG、tool calling、长 system prompt 场景，<strong>Prefix Cache 能直接把首 token 延迟砍掉 60% 以上</strong>，这是当前最热的优化方向之一。
 <hr>
@@ -318,7 +329,7 @@ LLM 自回归每个 token 都要把整个模型前向一遍，<strong>算力浪�
 </ol>
 
 <strong>收益</strong>：在分布接近的 draft/target 配对下，2–3 倍端到端加速。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>变体</th>
@@ -348,7 +359,7 @@ LLM 自回归每个 token 都要把整个模型前向一遍，<strong>算力浪�
 <td>TRT-LLM</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 投机解码是当前最有"性价比"的加速手段：不动模型权重、不改训练、只在推理侧加几行调度，吞吐就能翻倍。这也是为什么<strong>几乎所有主流框架在 2025 年都把"支持某种投机解码"列入了 release notes 的第一行</strong>。
@@ -357,7 +368,7 @@ LLM 自回归每个 token 都要把整个模型前向一遍，<strong>算力浪�
 <h2>八、内卷焦点之四：量化</h2>
 
 量化的本质是用更少的位宽表示同一份权重和激活，把显存喝干喝净。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>量化方案</th>
@@ -397,7 +408,7 @@ LLM 自回归每个 token 都要把整个模型前向一遍，<strong>算力浪�
 <td>TRT-LLM、LMDeploy TurboMind</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 值得单独强调的是 <strong>FP8</strong>：
 <ul>
@@ -409,7 +420,7 @@ LLM 自回归每个 token 都要把整个模型前向一遍，<strong>算力浪�
 一句话：FP8 之前的量化是"省显存但不一定快"，FP8 之后是"<strong>既快又省</strong>"。这是英伟达硬件对推理生态送的一份大礼。
 <hr>
 <h2>九、选型建议：什么场景该押哪张牌</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>你的场景</th>
@@ -449,7 +460,7 @@ LLM 自回归每个 token 都要把整个模型前向一遍，<strong>算力浪�
 <td>多模态分支和模型接入最快</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 一个经验法则：<strong>先 vLLM 跑通，再问业务瓶颈在哪</strong>。

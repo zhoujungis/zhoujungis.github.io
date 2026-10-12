@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写&quot;两数之和&quot;、也觉得&quot;两数之和 II&quot;很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-15-3sum/" />
     <meta property="og:title" content="【LC 15】三数之和：难点是两处去重，不是双指针" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 15】三数之和：难点是两处去重，不是双指针" />
     <meta name="twitter:description" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写&quot;两数之和&quot;、也觉得&quot;两数之和 II&quot;很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-15-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-24T10:32:45.943531+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 15】三数之和：难点是两处去重，不是双指针","description":"【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写\"两数之和\"、也觉得\"两数之和 II\"很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里","image":"https://zhoujungis.github.io/photos/lc-15-cover.png","datePublished":"2026-09-24T10:32:45.943531+08:00","dateModified":"2026-10-12T16:17:35.839559+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-15-3sum/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 15】三数之和：难点是两处去重，不是双指针","description":"【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写\"两数之和\"、也觉得\"两数之和 II\"很简单，但每次写三数之和都会在去重上翻车的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 算法骨架十分钟就能背下来，但 去重那两处 ，背下来不算真会 收获 ：排序在这题里","image":"https://zhoujungis.github.io/photos/lc-15-cover.png","datePublished":"2026-09-24T10:32:45.943531+08:00","dateModified":"2026-09-24T10:32:45.943531+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-15-3sum/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -218,7 +229,7 @@
 </blockquote>
 
 有了"相同值相邻"这个性质，去重才从"和一堆组合打交道"退化成"<strong>跟前一个值比一比</strong>"：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>想去重的对象</th>
@@ -243,7 +254,7 @@
 <td>天然就是升序的</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 整题的去重，就压缩在这<strong>两处 <code>O(1)</code> 的比较</strong>里。
 <hr>
@@ -303,7 +314,7 @@
 <h2>四、完整推演表（15 帧逐帧）</h2>
 
 输入 <code>nums = [-1, 0, 1, 2, -1, -4]</code>，排序后 <code>[-4, -1, -1, 0, 1, 2]</code>。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -452,7 +463,7 @@
 <td>结束，答案 <code>[[-1, -1, 2], [-1, 0, 1]]</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 几个值得单独拎出来的观察：
 
@@ -503,7 +514,7 @@
 <li><strong>防跑过头</strong>：<code>l</code> 有可能被一路推到 <code>r</code> 上甚至越过 <code>r</code>，那时剩下的是"只有两个元素"的区间，再去跳就会把本该考虑的组合跳掉。</li>
 </ul>
 <h3>5.3 两处对照</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -543,7 +554,7 @@
 <td><code>l &lt; r</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>5.4 漏掉任何一处的后果</h3>
 
 两处都会导致"答案重复"，但<strong>触发条件完全不同</strong>，所以只用官方样例测，很可能一个都发现不了。
@@ -588,7 +599,7 @@
 <strong>所以：跑通官方样例，完全不能证明去重写对了。</strong> 这两组反例应该直接进你的自测用例。
 <hr>
 <h2>六、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>项</th>
@@ -608,7 +619,7 @@
 <td>双指针只用了常数个变量</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两点补充：
 <ul>
@@ -617,7 +628,7 @@
 </ul>
 
 把三种写法放在一起看：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -646,7 +657,7 @@
 <td>两处 <code>O(1)</code> 的值比较</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>注意哈希版和双指针版的时间量级是一样的</strong> —— 双指针胜在常数更小、空间更省、去重逻辑更清晰，而不是"快了一个量级"。面试时说清楚这一点，比笼统地讲"双指针更快"准确得多。
 <h2>七、两个能省时间的剪枝</h2>
@@ -753,7 +764,7 @@ LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。�
 <h2>九、变体二：从"和为 0"到"小于 target"—— 259 / 611 / 923</h2>
 
 同一套"排序 + 固定 + 双指针"，换个判定条件就是新题：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -800,7 +811,7 @@ LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。�
 <td>输出从"集合"变成"计数"</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>LC 259 是这一组里最有意思的变体</strong> —— 它把双指针的单调性用到了极致：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">threeSumSmaller</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
@@ -864,7 +875,7 @@ Java 版有个额外注意点：<code>Arrays.asList(nums[i], nums[l], nums[r])</
 <hr>
 <h2>十一、边界情况与常见坑</h2>
 <h3>边界情况</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -904,7 +915,7 @@ Java 版有个额外注意点：<code>Arrays.asList(nums[i], nums[l], nums[r])</
 <td>正好三个数且命中</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>常见坑</h3>
 
 <strong>坑 1：在 <code>for i</code> 里漏掉 <code>i &gt; 0</code></strong>

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了 适用读者 ：背过 Kadane 但没想明白&quot;为什么 cur &lt; 0 就敢扔掉前面整段&quot;的人；以及想知道分治解法到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Medium —— 代码五行，但它的 DP 定" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-53-maximum-subarray/" />
     <meta property="og:title" content="【LC 53】最大子数组和：带上前面，是赚还是亏" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 53】最大子数组和：带上前面，是赚还是亏" />
     <meta name="twitter:description" content="【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了 适用读者 ：背过 Kadane 但没想明白&quot;为什么 cur &lt; 0 就敢扔掉前面整段&quot;的人；以及想知道分治解法到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Medium —— 代码五行，但它的 DP 定" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-53-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-28T12:19:51.636500+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 53】最大子数组和：带上前面，是赚还是亏","description":"【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了 适用读者 ：背过 Kadane 但没想明白\"为什么 cur < 0 就敢扔掉前面整段\"的人；以及想知道分治解法到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Medium —— 代码五行，但它的 DP 定","image":"https://zhoujungis.github.io/photos/lc-53-cover.png","datePublished":"2026-09-28T12:19:51.636500+08:00","dateModified":"2026-10-12T16:17:58.895858+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-53-maximum-subarray/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 53】最大子数组和：带上前面，是赚还是亏","description":"【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了 适用读者 ：背过 Kadane 但没想明白\"为什么 cur < 0 就敢扔掉前面整段\"的人；以及想知道分治解法到底在干什么的人 技术栈 ：Python 为主，附 Java 版 难度 ：Medium —— 代码五行，但它的 DP 定","image":"https://zhoujungis.github.io/photos/lc-53-cover.png","datePublished":"2026-09-28T12:19:51.636500+08:00","dateModified":"2026-09-28T12:19:51.636500+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-53-maximum-subarray/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -108,7 +119,7 @@
 
 
 这题看起来人畜无害 —— 谁不会写两层循环枚举所有子数组呢？但它是腾讯的 TOP 4、阿里数据岗的必刷题，因为它在短短五行代码里装了三样东西：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>考点</th>
@@ -129,7 +140,7 @@
 <td>四元组 <code>(l_sum, r_sum, i_sum, m_sum)</code> —— 这正是线段树的基础</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2>一、核心洞察：整道题只有一句话</h2>
 
@@ -211,7 +222,7 @@
 <h2>四、完整推演表（10 帧逐帧）</h2>
 
 输入 <code>nums = [-2,1,-3,4,-1,2,1,-5,4]</code>，答案 <code>6</code>，子数组 <code>[4,-1,2,1]</code>。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -337,7 +348,7 @@
 <td><strong>答案 6</strong>，子数组 <code>[4,-1,2,1]</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 几个值得单独拎出来的观察：
 
@@ -455,7 +466,7 @@ m_sum = max(L.m_sum, R.m_sum, L.r_sum + R.l_sum) # 三种来源：在左 / 在�
 初始化也同理：<code>max_sum</code>、<code>min_sum</code> 都要从 <code>nums[0]</code> 起步而不是 0 —— 全负时"最佳答案是单个负数"，从 0 起步会错。
 <hr>
 <h2>八、变体二：一串同族题</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -495,7 +506,7 @@ m_sum = max(L.m_sum, R.m_sum, L.r_sum + R.l_sum) # 三种来源：在左 / 在�
 <td>累计油量一旦为负就换起点（同款"负资产"逻辑）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>121 那个联系最值得记住</strong>：股票问题"某天买入、之后某天卖出"的最大利润，就是<strong>相邻两天差价数组的最大子数组和</strong>。见过这个转化之后，"买卖股票"系列的 DP 就不再是独立的题，而是 Kadane 换了一身衣服。
 <hr>
@@ -514,7 +525,7 @@ m_sum = max(L.m_sum, R.m_sum, L.r_sum + R.l_sum) # 三种来源：在左 / 在�
 
 <hr>
 <h2>十、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>解法</th>
@@ -543,13 +554,13 @@ m_sum = max(L.m_sum, R.m_sum, L.r_sum + R.l_sum) # 三种来源：在左 / 在�
 <td>合并 <code>O(1)</code> × <code>2n-1</code> 个节点；可升级为线段树</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>O(n)</code> 是理论下界：任何一个算法都至少要把每个元素看一遍。Kadane 已经贴着下界了。
 <hr>
 <h2>十一、边界情况与常见坑</h2>
 <h3>边界情况</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -589,7 +600,7 @@ m_sum = max(L.m_sum, R.m_sum, L.r_sum + R.l_sum) # 三种来源：在左 / 在�
 <td>每次重置，答案都是单元素</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>常见坑</h3>
 
 <strong>坑 1：<code>cur</code> 和 <code>best</code> 从 0 起步</strong>

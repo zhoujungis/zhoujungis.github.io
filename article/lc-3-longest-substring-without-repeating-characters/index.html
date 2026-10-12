@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-3-longest-substring-without-repeating-characters/" />
     <meta property="og:title" content="【LC 3】无重复字符的最长子串：窗口里才算重复" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 3】无重复字符的最长子串：窗口里才算重复" />
     <meta name="twitter:description" content="【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-3-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-24T09:55:19.144549+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 3】无重复字符的最长子串：窗口里才算重复","description":"【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 ","image":"https://zhoujungis.github.io/photos/lc-3-cover.png","datePublished":"2026-09-24T09:55:19.144549+08:00","dateModified":"2026-10-12T16:17:26.029952+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-3-longest-substring-without-repeating-characters/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 3】无重复字符的最长子串：窗口里才算重复","description":"【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」 适用读者 ：想学滑动窗口、但被这道题的各种边界情况绕晕过的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等 —— 代码 10 行，但 有一个条件是漏了就必错的 收获 ：滑动窗口的两条不变量、 left 为什么只能右移，以及 ","image":"https://zhoujungis.github.io/photos/lc-3-cover.png","datePublished":"2026-09-24T09:55:19.144549+08:00","dateModified":"2026-09-24T09:55:19.144549+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-3-longest-substring-without-repeating-characters/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -114,7 +125,7 @@
 </blockquote>
 
 <strong>子串 vs 子序列</strong>，先分清（面试官真的会抓）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -134,7 +145,7 @@
 <td><code>"pwke"</code> —— 它是子序列，<strong>不是子串</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这题要的是<strong>子串</strong>。所以答案是 3（<code>"wke"</code>），不是 4（<code>"pwke"</code>）。
 <hr>
@@ -178,7 +189,7 @@
 <h3>1.3 需要维护什么信息</h3>
 
 要在 O(1) 里回答"新字符在窗口内出现过吗"，就得有一张表。<strong>表里存什么？</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -201,7 +212,7 @@
 <td>一步一步挪，边挪边删</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两者都是 O(n)，但 <code>lastSeen</code> 版本<strong>没有内层循环</strong>，常数更小 —— 因为左指针是"跳"过去的，不是"挪"过去的。
 
@@ -298,7 +309,7 @@
 <h2>五、完整推演表（10 帧逐帧）</h2>
 
 下表是动画每一帧的真实数据（默认例 <code>s = "abcabcbb"</code>）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -424,7 +435,7 @@
 <td><code>{a:3, b:7, c:5}</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 三个值得对照看的行：
 
@@ -452,7 +463,7 @@
 <h3>6.1 <code>"abba"</code>：正确 vs 漏判据，逐帧对照</h3>
 
 下表把两种写法并排放。<strong>看第 4 步。</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -505,7 +516,7 @@
 <td>漏判据的窗口里有<strong>两个 <code>b</code></strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 第 4 步是关键：<code>a</code> 确实出现过（下标 0），但那个位置<strong>已经被第 3 步的 <code>left = 2</code> 甩到窗口左边去了</strong>。它现在对"窗口内是否有重复"这件事<strong>没有任何影响</strong>。
 
@@ -517,7 +528,7 @@
   0  1  2  3  4
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -570,7 +581,7 @@
 <td><code>last[a]=0 &lt; left=2</code> → 不该动</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 正确答案 <strong>3</strong>，漏判据的写法会算出 <strong>4</strong>（窗口 <code>[1,4]</code> = <code>"bcba"</code>，<code>b</code> 重复）。
 <h3>6.3 一句话记住</h3>
@@ -721,7 +732,7 @@
 <h3>8.3 LC 76：最小覆盖子串 —— 方向反过来</h3>
 
 前面几题都是求<strong>最长</strong>，LC 76 求的是<strong>最短</strong>的、但必须包含 <code>t</code> 的全部字符的窗口。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -751,7 +762,7 @@
 <td><strong>收缩的时候</strong>（窗口合法性刚要破的那一刻）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">minWindow</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
@@ -778,7 +789,7 @@
 
 <strong>和 LC 3 对照着看</strong>：LC 3 是"窗口一有问题就修"，LC 76 是"窗口一合法就试着变小"。<strong>同一个骨架，两个相反的目标。</strong>
 <h3>8.4 其他两个近亲</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题号</th>
@@ -803,9 +814,9 @@
 <td>438 的简化版</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>8.5 变体关系总表</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题号</th>
@@ -840,7 +851,7 @@
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>共同骨架</strong>：<code>right</code> 扩张 → 检查合法性 → （可能）收缩 <code>left</code> → 更新答案。
 
@@ -919,7 +930,7 @@ Python 里 <code>s[i]</code> 按 UTF-16 码元切，<code>"😀"</code> 会被�
 </code></pre></div>
 
 <h3>边界情况表</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -979,7 +990,7 @@ Python 里 <code>s[i]</code> 按 UTF-16 码元切，<code>"😀"</code> 会被�
 <td><code>"vdf"</code>，注意 <code>d</code> 在两端</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2>十一、面试怎么答</h2>
 

@@ -10,6 +10,8 @@ import {
   saveListCache,
   saveDetailCache,
   loadDetailCache,
+  deriveCategories,
+  deriveTags,
   cacheNoticeText,
 } from '../utils/articleCache'
 
@@ -42,12 +44,24 @@ export const useArticleStore = defineStore('article', {
   }),
 
   actions: {
+    // Stale-while-revalidate: the build-time snapshot renders first, the live
+    // API replaces it when it lands. `articles` is deliberately NOT cleared up
+    // front — that was the skeleton flash on every page/filter change, and it
+    // now runs while the snapshot is already on screen.
     async fetchArticles(params = {}) {
       this.loading = true
-      this.articles = []
       this.fromCache = false
       this.cacheNotice = ''
       const seq = ++listSeq
+
+      const fallback = await resolveListFallback(params)
+      if (seq !== listSeq) return
+      if (fallback?.results?.length) {
+        this.articles = fallback.results
+        this.pagination.count = fallback.count
+        this.loading = false
+      }
+
       try {
         const response = await getArticles(params)
         if (seq !== listSeq) return // superseded — drop result
@@ -59,15 +73,9 @@ export const useArticleStore = defineStore('article', {
         saveListCache(this.articles, this.pagination.count)
       } catch (err) {
         if (seq !== listSeq) return
-        // Backend unreachable — degrade to the static snapshot / last cache
-        // instead of leaving list pages blank.
-        const fallback = await resolveListFallback(params)
-        if (seq !== listSeq) return
-        if (fallback) {
-          this.articles = fallback.results
-          this.pagination.count = fallback.count
-          this.pagination.page = fallback.page
-          this.pagination.pageSize = fallback.pageSize
+        if (fallback?.results?.length) {
+          // Snapshot content is already on screen — label it instead of
+          // replacing it with an error state.
           this.fromCache = true
           this.cacheNotice = cacheNoticeText[fallback.source] || ''
           return
@@ -121,6 +129,13 @@ export const useArticleStore = defineStore('article', {
         const response = await getCategories()
         this.categories = response.data.results || response.data
       } catch (err) {
+        // Degrade to an index derived from the build-time snapshot rather than
+        // leaving the (prerendered) /categories page empty.
+        const derived = await deriveCategories()
+        if (derived.length) {
+          this.categories = derived
+          return
+        }
         console.error('fetchCategories failed:', err?.message || err)
         throw err
       }
@@ -131,6 +146,11 @@ export const useArticleStore = defineStore('article', {
         const response = await getTags()
         this.tags = response.data.results || response.data
       } catch (err) {
+        const derived = await deriveTags()
+        if (derived.length) {
+          this.tags = derived
+          return
+        }
         console.error('fetchTags failed:', err?.message || err)
         throw err
       }

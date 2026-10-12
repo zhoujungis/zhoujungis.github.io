@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-zero-downtime-migration/" />
     <meta property="og:title" content="上线那一刻，数据库在重建整张表——零停机迁移" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="上线那一刻，数据库在重建整张表——零停机迁移" />
     <meta name="twitter:description" content="上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你&quot;给 (status, is_top DESC, created_at DESC) 补一条索引&quot;，这一篇讲的就是 那条索引怎么上线 ——以及为什么大" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T10:50:42.720034+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"上线那一刻，数据库在重建整张表——零停机迁移","description":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:50:42.720034+08:00","dateModified":"2026-09-20T19:00:06.201743+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-zero-downtime-migration/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"上线那一刻，数据库在重建整张表——零停机迁移","description":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:50:42.720034+08:00","dateModified":"2026-09-14T10:50:42.720034+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-zero-downtime-migration/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -209,7 +220,7 @@
 干净利落，两条 <code>CREATE INDEX</code>，不碰数据行。
 
 <strong>所以从这一刻起，你脑子里应该有一条分界线：</strong>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>migration 操作</th>
@@ -249,7 +260,7 @@
 <td>你说了算</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这张表就是全文的地图。左边是你写的 Python，右边是数据库真正要干的活——<strong>中间隔着一层翻译，而翻译的结果你从来没看过。</strong>
 <h3>1.1 为什么 <code>sqlmigrate</code> 必须成为肌肉记忆</h3>
@@ -513,7 +524,7 @@ E6 体积账：表 vs 索引（dbstat 精确统计）
 
 
 读懂这个 <code>or</code> 链，就理解了整件事。触发重建的条件是<strong>任意一条</strong>成立：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>条件</th>
@@ -548,7 +559,7 @@ E6 体积账：表 vs 索引（dbstat 精确统计）
 <td>合理</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>前两条和最后一条都合理。问题出在中间两条。</strong>
 <h3>8.1 <code>not field.null</code>：NOT NULL 不等于必须重建</h3>
@@ -706,7 +717,7 @@ Django 5.0 引入了真正的数据库层默认值 <code>db_default</code>，看
 <h2>十、MySQL 8 / PostgreSQL 的对照表与各自的地雷</h2>
 
 SQLite 是本站的栈，但原理换个库就变。三个库在"加列"这件事上的差异大到必须分开记：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -759,7 +770,7 @@ SQLite 是本站的栈，但原理换个库就变。三个库在"加列"这件�
 <td>需显式 <code>AddIndexConcurrently</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>10.1 MySQL：INSTANT 是真香，但 Django 不会替你加</h3>
 
 MySQL 8.0.12 起，<code>ADD COLUMN</code> 支持 <code>ALGORITHM=INSTANT</code>——<strong>纯元数据，秒回</strong>。但 Django 的 MySQL 后端<strong>不会自动带上这个 hint</strong>，你必须在 <code>RunSQL</code> 里自己写：
@@ -1019,7 +1030,7 @@ PG 12+ 还有一个优化：如果存在一个已 <code>VALIDATE</code> 的 <cod
 <strong>先看 SQL，再按回车。</strong>
 <hr>
 <h2>附录：本文实验脚本</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>脚本</th>
@@ -1040,7 +1051,7 @@ PG 12+ 还有一个优化：如果存在一个已 <code>VALIDATE</code> 的 <cod
 <td>上一篇的脚本：并发丢失更新 / <code>save()</code> vs <code>update()</code> / <code>on_commit</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 复现本文数据：
 <div class="codehilite"><pre><span></span><code><span class="c1"># 默认 20 万行 / 约 790 MB，跑完约 30 秒</span>

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/cursor-pagination-deep-dive/" />
     <meta property="og:title" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页" />
     <meta name="twitter:description" content="为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-20T10:48:56.311332+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页","description":"为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅","image":"https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-20T10:48:56.311332+08:00","dateModified":"2026-09-20T19:00:34.930897+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cursor-pagination-deep-dive/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页","description":"为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页的原理与实战 适用读者 ：列表接口翻得越深越慢、慢查询日志里频繁出现 LIMIT ... OFFSET ... 的后端工程师 技术栈 ：原理与语言无关，代码示例以 Django / DRF / PostgreSQL（兼容 MySQL 8）为准 阅","image":"https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-20T10:48:56.311332+08:00","dateModified":"2026-09-20T10:48:56.311332+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/cursor-pagination-deep-dive/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -150,7 +161,7 @@
 <h2>2. 一道简单的数学题</h2>
 
 把 OFFSET 的问题量化一下。假设列表页每页 20 条，用户翻到第 p 页时，数据库要处理的行数是 <code>20 × p</code>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>页码</th>
@@ -191,7 +202,7 @@
 <td>~600 ms+</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 （实测数据为 PostgreSQL 15，SSD，覆盖索引扫描的大致量级，仅供参考。）
 
@@ -218,7 +229,7 @@ OFFSET 分页的语义是"跳过前 N 条"。游标分页（keyset pagination，
 这个查询的执行路径完全不同：索引是按 <code>(created_at DESC, id DESC)</code> 有序存放的，定位到 <code>(x, y)</code> 的位置就是一次索引 seek，之后顺序读 20 条即止。<strong>无论翻到多深，扫描的行数永远恒定为 limit</strong>，复杂度从 O(offset) 变成 O(1)（相对页深而言）。
 
 对照理解：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -258,7 +269,7 @@ OFFSET 分页的语义是"跳过前 N 条"。游标分页（keyset pagination，
 <td>排序键上有合适索引，且键值唯一</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>4. 最简实现：自增主键游标</h2>
 
 如果列表恰好按 <code>id</code> 倒序（很多"最新动态"类列表就是），游标分页可以简单到只有一行 WHERE：
@@ -485,7 +496,7 @@ GET /api/articles?cursor=gAAAAAB... → 下一页，cursor 原样传上一次响
 <h2>7. 改造前后的性能对比</h2>
 
 同一张 100 万行的文章表（PostgreSQL 15，覆盖索引），每页 20 条：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>场景</th>
@@ -526,7 +537,7 @@ GET /api/articles?cursor=gAAAAAB... → 下一页，cursor 原样传上一次响
 <td>约 2 分钟（受网络 RTT 限制）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 三个观察：
 <ol>

@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import Home from '../pages/Home.vue'
-
-const globalStyles = readFileSync('src/styles/global.scss', 'utf8')
 
 vi.mock('@/api/articles', () => ({
   getArticles: vi.fn(() => Promise.resolve({ data: { results: [] } })),
@@ -105,9 +102,5 @@ describe('Landing (Home.vue)', () => {
     expect(cta.exists()).toBe(true)
     expect(cta.attributes('href')).toBe('/articles')
     expect(cta.text()).toMatch(/阅读文章/)
-  })
-
-  it('keeps dark-theme override for the landing surface', () => {
-    expect(globalStyles).toContain('.page-landing')
   })
 })

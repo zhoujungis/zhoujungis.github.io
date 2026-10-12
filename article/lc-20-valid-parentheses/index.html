@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 给定一个只包括 &#39;(&#39; 、 &#39;)&#39; 、 &#39;{&#39; 、 &#39;}&#39; 、 &#39;[&#39; 、 &#39;]&#39; 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是&quot;栈&quot;这个数据结构最经典的入门题。" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-20-valid-parentheses/" />
     <meta property="og:title" content="【LC 20】有效的括号：栈是被结构逼出来的" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 20】有效的括号：栈是被结构逼出来的" />
     <meta name="twitter:description" content="题目 给定一个只包括 &#39;(&#39; 、 &#39;)&#39; 、 &#39;{&#39; 、 &#39;}&#39; 、 &#39;[&#39; 、 &#39;]&#39; 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是&quot;栈&quot;这个数据结构最经典的入门题。" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-20-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-29T14:52:09.797753+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 20】有效的括号：栈是被结构逼出来的","description":"题目 给定一个只包括 '(' 、 ')' 、 '{' 、 '}' 、 '[' 、 ']' 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是\"栈\"这个数据结构最经典的入门题。","image":"https://zhoujungis.github.io/photos/lc-20-cover.png","datePublished":"2026-09-29T14:52:09.797753+08:00","dateModified":"2026-10-12T16:17:47.313983+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-20-valid-parentheses/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 20】有效的括号：栈是被结构逼出来的","description":"题目 给定一个只包括 '(' 、 ')' 、 '{' 、 '}' 、 '[' 、 ']' 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是\"栈\"这个数据结构最经典的入门题。","image":"https://zhoujungis.github.io/photos/lc-20-cover.png","datePublished":"2026-09-29T14:52:09.797753+08:00","dateModified":"2026-09-29T14:52:09.797753+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-20-valid-parentheses/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -145,7 +156,7 @@
 <h2>二、拆解：三种失败模式，三处检查</h2>
 
 "有效"不是一句话，是<strong>三个否定条件的合取</strong>。每条对应代码里一处检查，漏一处就错一类输入：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>失败模式</th>
@@ -174,7 +185,7 @@
 <td><code>return not stack</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 模式一是"配错了"，模式二是"多出来了"，模式三是"没配完"。<strong>三者互相独立</strong> —— 任何一条输入只会挂在其中一条上，但也可能三条全不触发才算有效。
 
@@ -198,7 +209,7 @@
 <h2>四、完整推演表</h2>
 
 以 <code>"{[()]}"</code> 为主例（6 个字符）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -275,7 +286,7 @@
 <td><strong>有效</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 对照三种失败：
 <ul>
@@ -287,7 +298,7 @@
 <h3>5.1 带优先级变体（腾讯原创题的常见形态）</h3>
 
 <strong>定义</strong>：给三种括号定优先级，<code>(</code> = 1 &lt; <code>[</code> = 2 &lt; <code>{</code> = 3。在"类型配对正确"之外额外要求：<strong>内层括号的优先级不得低于外层</strong>（优先级沿嵌套方向只增不减，不允许"越级往里降"）。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -322,7 +333,7 @@
 <td></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 （方向可反：有的题定义"外层必须更高级"，把比较不等号翻过来即可。<strong>机制不变：栈里多存一个优先级，push 前和栈顶比一次。</strong>）
 
@@ -346,7 +357,7 @@
 
 栈解法的扩展性就体现在这：<strong>任何"额外约束"都是往栈帧里加一个字段</strong> —— 这是面试官把 LC 20 变着花样问时想看你能不能接得住的地方。
 <h3>5.2 同族题</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -375,7 +386,7 @@
 <td>同款栈：栈顶相同就弹（消消乐）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 家族口诀：<strong>"最近未处理的先处理"就上栈；配对类栈里存"我在等什么"，计数类只存余额，下标类连位置一起存。</strong>
 <h2>六、Java 版</h2>
@@ -398,7 +409,7 @@
 
 Java 惯用 <code>ArrayDeque</code> 而不是 <code>Stack</code>（后者继承自 <code>Vector</code>，带锁、接口混杂）。注意合并写法里 <code>stack.pop()</code> 先于比较执行 —— 短路 <code>||</code> 保证空栈时不会 pop 出异常。
 <h2>七、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -438,7 +449,7 @@ Java 惯用 <code>ArrayDeque</code> 而不是 <code>Stack</code>（后者继承�
 <td>线性扫描，无压力</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>八、复杂度</h2>
 <ul>
 <li><strong>时间 O(n)</strong>：每个字符入栈/出栈至多一次。</li>

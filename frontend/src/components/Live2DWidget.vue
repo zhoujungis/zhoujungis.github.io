@@ -14,10 +14,21 @@ const live2dContainer = ref(null)
 const MOBILE_BREAKPOINT = 768
 
 let loadTimer = null
+let onLoad = null
 let cancelled = false
 
 function isWideEnough() {
   return typeof window !== 'undefined' && window.innerWidth >= MOBILE_BREAKPOINT
+}
+
+// Decoration only — skip it entirely for visitors who asked for less motion or
+// who are on a metered / slow connection. The model alone is ~2MB.
+function shouldSkip() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return true
+  const conn = navigator.connection
+  if (conn?.saveData) return true
+  if (conn?.effectiveType && ['slow-2g', '2g', '3g'].includes(conn.effectiveType)) return true
+  return false
 }
 
 function injectWidget() {
@@ -63,14 +74,26 @@ function injectWidget() {
   document.body.appendChild(script)
 }
 
-function scheduleLoad() {
-  // Defer until the browser is idle (or ~2.5s as a fallback) so the widget
-  // never competes with first paint / article text for the main thread.
+function scheduleIdle() {
+  onLoad = null
+  if (cancelled) return
   if ('requestIdleCallback' in window) {
     loadTimer = window.requestIdleCallback(() => injectWidget(), { timeout: 4000 })
   } else {
     loadTimer = window.setTimeout(injectWidget, 2500)
   }
+}
+
+function scheduleLoad() {
+  // Wait for `load` before even scheduling: the model plus its ~19 motion,
+  // expression and texture requests used to start while the browser was still
+  // working on first paint, competing for both the main thread and bandwidth.
+  if (document.readyState === 'complete') {
+    scheduleIdle()
+    return
+  }
+  onLoad = () => scheduleIdle()
+  window.addEventListener('load', onLoad, { once: true })
 }
 
 function handleResize() {
@@ -87,14 +110,16 @@ function handleResize() {
 }
 
 onMounted(() => {
-  // Never even load on small screens (phones) — fixes the overlap bug.
-  if (!isWideEnough()) return
+  // Never even load on small screens (phones) — fixes the overlap bug — nor
+  // for visitors who opted out of motion or are on a constrained connection.
+  if (!isWideEnough() || shouldSkip()) return
   scheduleLoad()
   window.addEventListener('resize', handleResize, { passive: true })
 })
 
 onBeforeUnmount(() => {
   cancelled = true
+  if (onLoad) window.removeEventListener('load', onLoad)
   if (loadTimer) {
     if ('cancelIdleCallback' in window) window.cancelIdleCallback(loadTimer)
     else window.clearTimeout(loadTimer)

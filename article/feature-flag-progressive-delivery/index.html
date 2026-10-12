@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测） 适用读者：做过后端上线、被&quot;发布即出事&quot;&quot;回滚要十分钟&quot;折磨过的工程师 技术栈：Python 3.13 实测（纯标准库）；分桶算法与框架无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/feature-flag-progressive-delivery/" />
     <meta property="og:title" content="灰度到 20%，一半用户功能消失了——特性开关实战" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="灰度到 20%，一半用户功能消失了——特性开关实战" />
     <meta name="twitter:description" content="灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测） 适用读者：做过后端上线、被&quot;发布即出事&quot;&quot;回滚要十分钟&quot;折磨过的工程师 技术栈：Python 3.13 实测（纯标准库）；分桶算法与框架无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-16T09:59:05.446355+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"灰度到 20%，一半用户功能消失了——特性开关实战","description":"灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测） 适用读者：做过后端上线、被\"发布即出事\"\"回滚要十分钟\"折磨过的工程师 技术栈：Python 3.13 实测（纯标准库）；分桶算法与框架无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：","image":"https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-16T09:59:05.446355+08:00","dateModified":"2026-09-20T18:59:14.985421+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/feature-flag-progressive-delivery/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"灰度到 20%，一半用户功能消失了——特性开关实战","description":"灰度到 20%，一半用户的功能突然消失了——特性开关与渐进式发布实战（含分桶实测） 适用读者：做过后端上线、被\"发布即出事\"\"回滚要十分钟\"折磨过的工程师 技术栈：Python 3.13 实测（纯标准库）；分桶算法与框架无关，Django / Spring Boot / Go 通用 阅读时间：约 28 分钟 | 难度：","image":"https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-16T09:59:05.446355+08:00","dateModified":"2026-09-16T09:59:05.446355+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/feature-flag-progressive-delivery/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -156,7 +167,7 @@
 
 
 两个动作被解耦了：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>概念</th>
@@ -176,7 +187,7 @@
 <td>独立决定，随时</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>这个解耦带来三个直接收益</strong>：
 <ol>
@@ -190,7 +201,7 @@
 <h2>2. 五类特性开关及各自的生命周期</h2>
 
 很多人把所有开关都当成"同一类东西"，这是技术债的根源。<strong>开关的类型决定它该活多久</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>类型</th>
@@ -237,7 +248,7 @@
 <td><code>kill-openai-call</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>核心区分标准是"它什么时候该消失"</strong>：
 <ul>
@@ -316,7 +327,7 @@ percent=20  →  阈值线在 2000   [0........2000|................9999]
 <h3>实测数据：百分比精度</h3>
 
 固定桶空间的方案，实测百分比与目标值高度吻合（20 万用户样本）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>目标</th>
@@ -356,7 +367,7 @@ percent=20  →  阈值线在 2000   [0........2000|................9999]
 <td>-0.033pp</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最大偏差 <strong>0.1 个百分点以内</strong>，10 个桶的分布均匀性最大偏差 <strong>1.00%</strong>。桶空间越大越精确，10000 桶对大多数场景足够。
 <hr>
@@ -410,7 +421,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 <h3>细节四：确定的分桶标识</h3>
 
 分桶用的标识必须<strong>在用户整个会话甚至生命周期内稳定</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>标识</th>
@@ -445,7 +456,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 <td>每次请求都随机，用户会看到功能闪烁</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>IP 是最容易被误用的</strong>：NAT 环境下，一个出口 IP 后面的所有用户会被分到同一个桶，要么全进要么全不进。用 IP 分桶时要接受这个特性。
 <h3>细节五：匿名用户的降级策略</h3>
@@ -492,7 +503,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 <h3>五阶段节奏</h3>
 
 业界比较成熟的节奏是 <strong>1-5-20-50-100</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>阶段</th>
@@ -539,7 +550,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 <td>继续观察一周再删开关</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>为什么每步都要停留足够久？</strong> 因为有些问题只在特定时间/流量下暴露：缓存到点失效、定时任务触发、流量高峰期才出现的竞争条件。<strong>1% 灰度跑 10 分钟就调到 20%，等于没灰度。</strong>
 <h3>回滚触发条件必须提前定义</h3>
@@ -559,7 +570,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 
 有了这张表，值班同学不需要判断力就能决策：<strong>指标触线就回滚，不需要开会讨论。</strong>
 <h3>回滚的三种粒度</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>动作</th>
@@ -584,7 +595,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 <td>代码本身的 bug</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>特性的好处是前两种都是秒级生效</strong>，不需要重新部署。第三种才是传统意义的回滚。
 
@@ -604,7 +615,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 
 这意味着：<strong>测试要覆盖两条路径、Bug 可能只在一条路径出现、读代码的人要同时理解两套逻辑。</strong> 开关越多的代码越难维护——这不是"优雅"，是复杂度。
 <h3>技术债的量化</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>现象</th>
@@ -629,7 +640,7 @@ blake2b 比 md5 快约一倍，这也是我选它做分桶哈希的原因。但�
 <td>没人知道能不能删，永久留存</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>治理方法</h3>
 
 <strong>1. 每个开关必须有 owner 和过期时间</strong>
@@ -720,7 +731,7 @@ Permission 类需求（按套餐控制功能）应该用<strong>权限系统</st
 <h3>必须权衡：刷新间隔 vs 生效延迟</h3>
 
 配置刷新间隔决定了 <strong>Kill Switch 的最长生效时间</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>刷新间隔</th>
@@ -750,7 +761,7 @@ Permission 类需求（按套餐控制功能）应该用<strong>权限系统</st
 <td>低频配置（如套餐权限）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>注意"最长"</strong>：如果你的刷新是每 5 秒一次，那么你在两次刷新之间按下 Kill Switch，最坏要等接近 5 秒才生效。<strong>对于"一键止血"类的熔断开关，5 秒可能就是可接受的极限了</strong>——不可能做到绝对实时，除非用长连接推送（WebSocket/SSE），代价是复杂度。
 

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-102-binary-tree-level-order-traversal/" />
     <meta property="og:title" content="【LC 102】二叉树的层序遍历：为什么先存队列长度" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 102】二叉树的层序遍历：为什么先存队列长度" />
     <meta name="twitter:description" content="【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-102-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-23T14:21:09.196810+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 102】二叉树的层序遍历：为什么先存队列长度","description":"【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size ","image":"https://zhoujungis.github.io/photos/lc-102-cover.png","datePublished":"2026-09-23T14:21:09.196810+08:00","dateModified":"2026-10-12T16:18:23.425816+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-102-binary-tree-level-order-traversal/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 102】二叉树的层序遍历：为什么先存队列长度","description":"【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来 适用读者 ：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等偏易（代码 10 行），但它是 103 / 199 / 107 / 429 一整个家族的地基 收获 ： size ","image":"https://zhoujungis.github.io/photos/lc-102-cover.png","datePublished":"2026-09-23T14:21:09.196810+08:00","dateModified":"2026-09-23T14:21:09.196810+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-102-binary-tree-level-order-traversal/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -109,7 +120,7 @@
 注意输出的<strong>嵌套结构</strong>：不是 <code>[3,9,20,15,7]</code>，而是 <code>[[3],[9,20],[15,7]]</code>。
 
 单看题目，这就是 BFS 走一遍。但面试里它几乎不会裸考 —— 带出来的是这一串：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>变体</th>
@@ -139,7 +150,7 @@
 <td>儿子列表换成 <code>node.children</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <blockquote>
 
 出处备注：华为 2025 暑期面经的<strong>原题就是"之字形层序遍历"</strong>，腾讯、阿里也高频。这题被选中的原因很直接：它只有一层窗口（队列）和两个循环，20 行以内能写完，但<strong>分层的写法对不对，一眼就看得出来</strong>。
@@ -291,7 +302,7 @@
         15    7
 </code></pre></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -456,7 +467,7 @@
 <td><strong><code>[[3],[9,20],[15,7]]</code></strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 三个 <code>enter</code> 帧的 <code>size</code> 分别是 <code>1 / 2 / 2</code> —— 正好是树三层的节点数。<strong>这就是"分层"的全部秘密，剩下的都是 BFS。</strong>
 <blockquote>
@@ -589,7 +600,7 @@
 <h3>5.3 ⚠️ 锯齿 + 右视图会打架</h3>
 
 如果一道题同时要求锯齿输出和右视图（面经里出现过），<strong>别指望复用同一个"最后"</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>模式</th>
@@ -609,7 +620,7 @@
 <td>末位变成 <code>9</code> ❌，应该还是 <code>20</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 动画里能直接验证这一点：切到锯齿模式后，第 9 帧结果区第二行长成 <code>[20, 9]</code>，同时右视图那一栏显示的是 <code>9</code> —— <strong>因为右视图是"从 <code>levelValues</code> 取末位"算出来的，不是单独遍历树。</strong> 真要两个同时要，右视图得单独按普通顺序算一遍（或者取锯齿结果的<strong>首位</strong>）。
 <blockquote>
@@ -689,7 +700,7 @@ Java 里两个提醒：
 </ul>
 <hr>
 <h2>八、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -739,7 +750,7 @@ Java 里两个提醒：
 <td>值相同不影响结构，仍按位置分层</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个容易错的：
 <ul>
@@ -832,7 +843,7 @@ Python 里用 <code>collections.deque.popleft()</code>，Java 里用 <code>Array
 <h2>结语</h2>
 
 把树系列串起来看，这题的位置是这样的：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -872,7 +883,7 @@ Python 里用 <code>collections.deque.popleft()</code>，Java 里用 <code>Array
 <td>只换入队的来源</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 这题值得带走的不是那十行代码，而是这个反射：
 <blockquote>

@@ -7,14 +7,20 @@
 // - Only same-origin, HTTP-200 GET responses are stored; API/admin/opaque
 //   responses are never cached.
 // - Bump CACHE_VERSION on each release that changes cached shell files.
-const CACHE_VERSION = 'v8'
+const CACHE_VERSION = 'v9'
 const CACHE = `zhoujun-blog-${CACHE_VERSION}`
 const NAV_CACHE = `${CACHE}-nav`
 const STATIC_CACHE = `${CACHE}-static`
+// Live2D model assets live in their own bucket: they are ~2MB of immutable
+// files, and the generic static cache's FIFO cap would otherwise evict them.
+const LIVE2D_CACHE = `${CACHE}-live2d`
 
 // Upper bounds — long sessions / photo browsing can't grow storage forever.
 const MAX_NAV_ENTRIES = 30
 const MAX_STATIC_ENTRIES = 150
+// 49 files ship under /live2d/ (2 JS + model json + .moc + 6 textures +
+// 4 expressions + 18 motions + 15 sounds) — 80 leaves headroom for a model swap.
+const MAX_LIVE2D_ENTRIES = 80
 
 // Files that MUST exist for the site to work offline. Each is added
 // individually so a missing/renamed file doesn't break the whole install
@@ -55,7 +61,7 @@ self.addEventListener('activate', (e) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== NAV_CACHE && k !== STATIC_CACHE)
+            .filter((k) => k !== NAV_CACHE && k !== STATIC_CACHE && k !== LIVE2D_CACHE)
             .map((k) => caches.delete(k)),
         ),
       ),
@@ -125,22 +131,58 @@ self.addEventListener('fetch', (e) => {
     return
   }
 
-  // articles.json: network-first so new deploys reach returning visitors
-  // immediately (previously cache-first left stale snapshots until a manual
-  // CACHE_VERSION bump). The cached copy remains the offline/API-down fallback.
+  // articles.json: stale-while-revalidate. The homepage renders from this
+  // snapshot BEFORE the API answers, so it must never wait on the network —
+  // the previous network-first policy put the round trip straight back on the
+  // critical path it was meant to remove.
   if (url.pathname === '/articles.json') {
+    // Kick the refresh off immediately; the cache lookup below races it.
+    const network = fetch(e.request)
+      .then((res) => {
+        if (isCacheable(e.request, res)) {
+          putWithCap(STATIC_CACHE, e.request, res.clone(), MAX_STATIC_ENTRIES)
+        }
+        return res
+      })
+      .catch(() => null)
+
     e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          if (isCacheable(e.request, res)) {
-            putWithCap(STATIC_CACHE, e.request, res.clone(), MAX_STATIC_ENTRIES)
-          }
-          return res
+      caches.match(e.request).then(async (cached) => {
+        if (cached) return cached
+        return (
+          (await network) ||
+          new Response('', { status: 504, statusText: 'Offline and not cached' })
+        )
+      }),
+    )
+    // Called synchronously so the worker stays alive for the background refresh.
+    e.waitUntil(network.catch(() => {}))
+    return
+  }
+
+  // Live2D model assets: cache-first in a dedicated bucket. The engine re-reads
+  // motions/expressions repeatedly, and a model hit is 100% immutable, so there
+  // is nothing to revalidate. Not precached in install — the widget only mounts
+  // at ≥768px, so phone visitors would pay ~2MB for nothing.
+  if (url.pathname.startsWith('/live2d/')) {
+    e.respondWith(
+      caches
+        .match(e.request)
+        .then((cached) => {
+          if (cached) return cached
+          return fetch(e.request).then((res) => {
+            if (isCacheable(e.request, res)) {
+              putWithCap(LIVE2D_CACHE, e.request, res.clone(), MAX_LIVE2D_ENTRIES)
+            }
+            return res
+          })
         })
-        .catch(() =>
-          caches
-            .match(e.request)
-            .then((cached) => cached || new Response('', { status: 504, statusText: 'Offline and not cached' })),
+        .catch(
+          () =>
+            new Response('', {
+              status: 504,
+              statusText: 'Offline and not cached',
+            }),
         ),
     )
     return

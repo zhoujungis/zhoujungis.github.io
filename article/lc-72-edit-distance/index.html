@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-72-edit-distance/" />
     <meta property="og:title" content="【LC 72】编辑距离：前缀对前缀，与滚动数组" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 72】编辑距离：前缀对前缀，与滚动数组" />
     <meta name="twitter:description" content="题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-72-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-30T15:03:24.574988+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 72】编辑距离：前缀对前缀，与滚动数组","description":"题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭","image":"https://zhoujungis.github.io/photos/lc-72-cover.png","datePublished":"2026-09-30T15:03:24.574988+08:00","dateModified":"2026-10-12T16:18:07.985177+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-72-edit-distance/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 72】编辑距离：前缀对前缀，与滚动数组","description":"题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭","image":"https://zhoujungis.github.io/photos/lc-72-cover.png","datePublished":"2026-09-30T15:03:24.574988+08:00","dateModified":"2026-09-30T15:03:24.574988+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-72-edit-distance/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -124,7 +135,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <h2>二、拆解：三种操作 = 三个邻居</h2>
 
 <code>dp[i][j]</code> 的最后一步只可能是三种收尾之一，而<strong>每一种恰好对应表里的一个邻居</strong>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>收尾操作</th>
@@ -153,7 +164,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <td><code>dp[i][j-1] + 1</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 于是：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">minDistance</span><span class="p">(</span><span class="n">word1</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">word2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
@@ -198,7 +209,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <h2>四、完整推演表</h2>
 
 以 <code>horse -&gt; ros</code> 为主例（对应动画的 15 个格子帧 + 5 个边界帧 + 1 个收尾帧，共 22 帧）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th></th>
@@ -252,7 +263,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <td><strong>3</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 答案是右下角的 <strong>3</strong>。几个值得单独看的格子：
 <ul>
@@ -268,7 +279,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 看转移式：<code>dp[i][j]</code> 只依赖<strong>上一行</strong>（<code>dp[i-1][j-1]</code>、<code>dp[i-1][j]</code>）和<strong>本行左邻</strong>（<code>dp[i][j-1]</code>）。更早的行完全用不到 —— 那整张表就没必要留着。
 
 用一行 <code>buf</code> 滚过去：<code>buf[j]</code> 在写之前装的是上一行的 <code>dp[i-1][j]</code>（上方），写完变成 <code>dp[i][j]</code>；<code>buf[j-1]</code> 是刚写完的 <code>dp[i][j-1]</code>（左方）。三个邻居里：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>邻居</th>
@@ -293,7 +304,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <td><strong>会</strong> —— 上一轮已经被覆盖了</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>三个方向里只有对角不在数组里</strong>，所以只需要一个标量 <code>prev</code> 把它接住：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">minDistance</span><span class="p">(</span><span class="n">word1</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">word2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
@@ -356,7 +367,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <li><strong>含 emoji 等非 BMP 字符</strong>：Python 用 <code>list(word)</code> 按码点拆；JavaScript 用 <code>Array.from</code>。<code>.length</code> / <code>s[i]</code> 按 UTF-16 码元切，会把一个 emoji 数成 2 个字符（<a href="/article/lc-5-longest-palindromic-substring/">LC 5</a> 里踩过同一个坑）。Java 的 <code>toCharArray</code> 同样是码元，涉及增补字符时要先转码点数组。</li>
 </ul>
 <h2>八、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>版本</th>
@@ -385,7 +396,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <td>利用字符集有限时 <code>n &gt; 26</code> 后答案上界封顶</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 要<strong>输出具体操作序列</strong>（而不仅是最少步数）时，滚动数组不够用 —— 回溯需要整张表。要么退回 <code>O(m·n)</code> 空间存 <code>parent</code>，要么用 Hirschberg 分治把空间压回线性、时间翻倍。面试里能主动提到「值和方案是两个存储需求」是加分的。
 <h2>九、常见坑</h2>
@@ -396,7 +407,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 更阴的是这个 bug <strong>在官方样例上是过的</strong> —— <code>horse -&gt; ros</code> 照样输出 3。原因可以算出来：倒着扫时，三个邻居里只有「上方」没被弄错（<code>buf[j]</code> 写之前本来就是上一行的值），而 <code>dp[5][3]</code> 的三个候选是 <code>对角 3+1 / 上方 2+1 / 左方 4+1</code>，最小值<strong>恰好落在上方</strong>。侥幸。
 
 反例随手一抓就是：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -426,7 +437,7 @@ LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后�
 <td>0</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>abc -&gt; abc</code> 这个反例只有 3 个字符 —— 拿它当单测，倒扫的代码第一行就现原形。
 <h3>9.2 相同字符也收 1</h3>

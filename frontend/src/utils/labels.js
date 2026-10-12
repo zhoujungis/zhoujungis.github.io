@@ -2,6 +2,7 @@
  * Shared helpers for extracting labels/slugs from API objects.
  * Handles both plain strings (legacy) and nested objects.
  */
+import { SITE_AUTHOR } from './siteConfig'
 
 export function catLabel(cat) {
   if (!cat) return ''
@@ -30,6 +31,10 @@ export function tagSlug(tag) {
 }
 
 export function authorName(author) {
-  if (!author) return '匿名'
-  return typeof author === 'object' ? author.name || author.username || '' : author
+  // The backend's article serializers have no `author` field, so every post
+  // falls through to this value. It used to be the literal '匿名'.
+  if (!author) return SITE_AUTHOR
+  return typeof author === 'object'
+    ? author.name || author.username || SITE_AUTHOR
+    : author
 }

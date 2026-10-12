@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 来源： 腾讯独有高频 （LC 470）—— 概率类手写题的代表作。 已有函数 rand7() ，它均匀随机地返回 [1, 7] 的整数。请 只用 rand7() 实现 rand10() ：均匀随机地返回 [1, 10] 的整数。 两个硬要求： 期望调用次数尽量少 （不能写死次数硬试）； 能证明均匀性 —— 每个 " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-470-implement-rand10-using-rand7/" />
     <meta property="og:title" content="【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次" />
     <meta name="twitter:description" content="题目 来源： 腾讯独有高频 （LC 470）—— 概率类手写题的代表作。 已有函数 rand7() ，它均匀随机地返回 [1, 7] 的整数。请 只用 rand7() 实现 rand10() ：均匀随机地返回 [1, 10] 的整数。 两个硬要求： 期望调用次数尽量少 （不能写死次数硬试）； 能证明均匀性 —— 每个 " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-470-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T15:55:40.243032+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次","description":"题目 来源： 腾讯独有高频 （LC 470）—— 概率类手写题的代表作。 已有函数 rand7() ，它均匀随机地返回 [1, 7] 的整数。请 只用 rand7() 实现 rand10() ：均匀随机地返回 [1, 10] 的整数。 两个硬要求： 期望调用次数尽量少 （不能写死次数硬试）； 能证明均匀性 —— 每个 ","image":"https://zhoujungis.github.io/photos/lc-470-cover.png","datePublished":"2026-10-12T15:55:40.243032+08:00","dateModified":"2026-10-12T16:19:56.844252+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-470-implement-rand10-using-rand7/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次","description":"题目 来源： 腾讯独有高频 （LC 470）—— 概率类手写题的代表作。 已有函数 rand7() ，它均匀随机地返回 [1, 7] 的整数。请 只用 rand7() 实现 rand10() ：均匀随机地返回 [1, 10] 的整数。 两个硬要求： 期望调用次数尽量少 （不能写死次数硬试）； 能证明均匀性 —— 每个 ","image":"https://zhoujungis.github.io/photos/lc-470-cover.png","datePublished":"2026-10-12T15:55:40.243032+08:00","dateModified":"2026-10-12T15:55:40.243032+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-470-implement-rand10-using-rand7/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -140,7 +151,7 @@
 <h2>二、为什么「接受区切得动、拒绝区不捣乱」</h2>
 
 看一眼 49 格被怎么切：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输出</th>
@@ -169,7 +180,7 @@
 <td>41, 42, …, 49（9 个）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>每个输出恰好 4 个来源状态，一个不多一个不少</strong>；40 格被 10 个输出均分、零重叠零遗漏。这就是均匀性的全部来源 —— 动画二就是这张表的逐组点亮。
 <h2>三、动画怎么看</h2>
@@ -184,7 +195,7 @@
 <h2>四、完整推演表</h2>
 
 <strong>动画一（拒绝采样）</strong> 的默认脚本逐帧：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>尝试</th>
@@ -245,7 +256,7 @@
 <td>10</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 输出序列 <code>[8, 3, 2, 6, 10]</code>，共调用 12 次（6 轮 × 2）、拒绝 1 次。<strong>每次拒绝只是多花两次调用，不会污染任何一次输出的分布。</strong>
 
@@ -332,7 +343,7 @@ Java 两个注意点：<code>(rand7() - 1) * 7 + rand7()</code> 的<strong>两�
 <li><strong>验证均匀性时样本太少</strong>：几万次起步才看得出偏差；判断标准用频数带或卡方，而不是「看着挺均匀」。</li>
 </ol>
 <h2>十、复杂度与期望</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>指标</th>
@@ -367,7 +378,7 @@ Java 两个注意点：<code>(rand7() - 1) * 7 + rand7()</code> 的<strong>两�
 <td>只用了常数个变量</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>十一、面试怎么答</h2>
 
 <strong>第一段 · 思路</strong>：一次 <code>rand7()</code> 只有 7 个状态，凑不出 10 份均分；两次独立调用构成 49 个等概率状态（乘积空间），取 <code>v = (a-1)×7 + b</code> 得到 1..49 均匀；49 里能被 10 整除的最大块是 40 —— 接受 <code>v ≤ 40</code>、输出 <code>(v-1)%10+1</code>，<code>v &gt; 40</code> 整组重掷。

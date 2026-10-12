@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 33 / 153】搜索旋转排序数组 &amp; 最小值：同一道断崖，比较对象正好相反 LC 33 ：整数数组 nums 经旋转后（如 [0,1,2,4,5,6,7] → [4,5,6,7,0,1,2] ）搜索 target ，要求 O(log n)，不存在返回 -1。 LC 153 ：找出旋转数组中的 最小值 。美团社" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-33-153-rotated-binary-search/" />
     <meta property="og:title" content="【LC 33/153】旋转排序数组：同一断崖，比法相反" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 33/153】旋转排序数组：同一断崖，比法相反" />
     <meta name="twitter:description" content="【LC 33 / 153】搜索旋转排序数组 &amp; 最小值：同一道断崖，比较对象正好相反 LC 33 ：整数数组 nums 经旋转后（如 [0,1,2,4,5,6,7] → [4,5,6,7,0,1,2] ）搜索 target ，要求 O(log n)，不存在返回 -1。 LC 153 ：找出旋转数组中的 最小值 。美团社" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-33-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-29T09:56:22.770578+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 33/153】旋转排序数组：同一断崖，比法相反","description":"【LC 33 / 153】搜索旋转排序数组 & 最小值：同一道断崖，比较对象正好相反 LC 33 ：整数数组 nums 经旋转后（如 [0,1,2,4,5,6,7] → [4,5,6,7,0,1,2] ）搜索 target ，要求 O(log n)，不存在返回 -1。 LC 153 ：找出旋转数组中的 最小值 。美团社","image":"https://zhoujungis.github.io/photos/lc-33-cover.png","datePublished":"2026-09-29T09:56:22.770578+08:00","dateModified":"2026-10-12T16:17:51.148046+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-33-153-rotated-binary-search/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 33/153】旋转排序数组：同一断崖，比法相反","description":"【LC 33 / 153】搜索旋转排序数组 & 最小值：同一道断崖，比较对象正好相反 LC 33 ：整数数组 nums 经旋转后（如 [0,1,2,4,5,6,7] → [4,5,6,7,0,1,2] ）搜索 target ，要求 O(log n)，不存在返回 -1。 LC 153 ：找出旋转数组中的 最小值 。美团社","image":"https://zhoujungis.github.io/photos/lc-33-cover.png","datePublished":"2026-09-29T09:56:22.770578+08:00","dateModified":"2026-09-29T09:56:22.770578+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-33-153-rotated-binary-search/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -138,7 +149,7 @@
 官方例 <code>[4,5,6,7,0,1,2]</code>（与状态机 <code>rotatedMinSteps.js</code> 的 5 帧实际输出逐行核对过）：
 <div class="algo-viz algo-viz--lc153"></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -191,7 +202,7 @@
 <td><strong>最小值 0</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 盯住第 2 帧：<code>nums[5] = 1 &lt; nums[6] = 2</code> —— mid 在第二段上，最小值在 <code>[4, 5]</code> 里。如果这里写成 <code>r = mid - 1 = 4</code>，就把 mid 自己（正是最小值 1 的邻居、下一轮的关键候选）扔掉一半范围，整个算法直接失效。<strong>"r = mid" 与 "r = mid - 1" 的一字之差，是这道题最经典的死法。</strong>
 <h2>二、LC 33：和 nums[left] 比，找"有序的那半"</h2>
@@ -247,7 +258,7 @@ mid 把 <code>[l, r]</code> 切成 <code>[l, mid]</code> 和 <code>[mid, r]</cod
 <code>[4,5,6,7,0,1,2]</code>，<code>target = 0</code>（与状态机 <code>rotatedSearchSteps.js</code> 的 5 帧逐行核对过）：
 <div class="algo-viz algo-viz--lc33"></div>
 
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -300,7 +311,7 @@ mid 把 <code>[l, r]</code> 切成 <code>[l, mid]</code> 和 <code>[mid, r]</cod
 <td>—</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 第 1 帧值得多看一眼：左半 <code>[0,3]</code> 有序，值域 <code>[4, 7)</code>，target 0 不在 —— <strong>哪怕右半是断崖那侧，target 也只可能在右半</strong>。"进无序的那半"听起来冒险，其实有序半的值域判断已经把另一半的可能性证明完了：target 若在左半，就必须落在它的值域里；不在值域里，就只剩右半。
 <h2>三、两个必踩的坑</h2>
@@ -311,7 +322,7 @@ mid 把 <code>[l, r]</code> 切成 <code>[l, mid]</code> 和 <code>[mid, r]</cod
 
 还有一个高频追问：<strong>为什么 33 里 <code>nums[l] &lt;= nums[mid]</code> 不怕没旋转的情况？</strong> 没旋转时每一步都是左半有序，值域判断正常工作 —— 旋转只是让"哪半有序"换了位置，判断框架一个字没变。153 同理：没旋转时 mid 永远小于 right，一路 <code>r = mid</code> 往左缩，最后停在 <code>nums[0]</code> —— 退化成"找头"，但正确性和复杂度都不变。
 <h2>四、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>项</th>
@@ -331,7 +342,7 @@ mid 把 <code>[l, r]</code> 切成 <code>[l, mid]</code> 和 <code>[mid, r]</cod
 <td>三个指针</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>对比线性扫描 O(n)</strong>：旋转数组的信息量（两段有序）足以支撑二分 —— 这也是两题题面都点名 O(log n) 的原因。但要清醒：这个 O(log n) 依赖<strong>元素互不相同</strong>（33/153 的题面保证），一旦允许重复，见第五节。
 <h2>五、重复元素版本：81 / 154</h2>
@@ -389,7 +400,7 @@ mid 把 <code>[l, r]</code> 切成 <code>[l, mid]</code> 和 <code>[mid, r]</cod
 
 <strong>坑四：target 恰好是端点值。</strong> 2.2 节的开闭边界 —— 自测用例必须包含"target = 第一段左端点"和"target = 第二段右端点"。
 <h2>八、变体</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -424,7 +435,7 @@ mid 把 <code>[l, r]</code> 切成 <code>[l, mid]</code> 和 <code>[mid, r]</cod
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 一图流：<strong>无重复 → 33/153 的 O(log n)；有重复 → 81/154 的"相等就退一格"，最坏 O(n)。</strong>
 <h2>九、面试怎么答</h2>

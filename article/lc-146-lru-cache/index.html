@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 来源： 腾讯 123 次（断层第一）、字节 72 次 —— 手写设计题里出现频率最高的缓存题。 LC 146 LRU 缓存 ：请你设计并实现一个满足 LRU（最近最少使用） 缓存约束的数据结构。 LRUCache(int capacity) ：以正整数 capacity 初始化； int get(int key)" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-146-lru-cache/" />
     <meta property="og:title" content="【LC 146】LRU 缓存：手写哈希表与双向链表" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 146】LRU 缓存：手写哈希表与双向链表" />
     <meta name="twitter:description" content="题目 来源： 腾讯 123 次（断层第一）、字节 72 次 —— 手写设计题里出现频率最高的缓存题。 LC 146 LRU 缓存 ：请你设计并实现一个满足 LRU（最近最少使用） 缓存约束的数据结构。 LRUCache(int capacity) ：以正整数 capacity 初始化； int get(int key)" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-146-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T15:00:47.774677+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 146】LRU 缓存：手写哈希表与双向链表","description":"题目 来源： 腾讯 123 次（断层第一）、字节 72 次 —— 手写设计题里出现频率最高的缓存题。 LC 146 LRU 缓存 ：请你设计并实现一个满足 LRU（最近最少使用） 缓存约束的数据结构。 LRUCache(int capacity) ：以正整数 capacity 初始化； int get(int key)","image":"https://zhoujungis.github.io/photos/lc-146-cover.png","datePublished":"2026-10-12T15:00:47.774677+08:00","dateModified":"2026-10-12T16:18:57.377160+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-146-lru-cache/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 146】LRU 缓存：手写哈希表与双向链表","description":"题目 来源： 腾讯 123 次（断层第一）、字节 72 次 —— 手写设计题里出现频率最高的缓存题。 LC 146 LRU 缓存 ：请你设计并实现一个满足 LRU（最近最少使用） 缓存约束的数据结构。 LRUCache(int capacity) ：以正整数 capacity 初始化； int get(int key)","image":"https://zhoujungis.github.io/photos/lc-146-cover.png","datePublished":"2026-10-12T15:00:47.774677+08:00","dateModified":"2026-10-12T15:00:47.774677+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-146-lru-cache/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -212,7 +223,7 @@ Python 版（<strong>不用 <code>OrderedDict</code></strong>，纯手写）：
 <h2>四、完整推演表</h2>
 
 <strong>动画一（LRU）</strong> 按默认脚本逐操作推演（链表按头 → 尾书写）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -283,12 +294,12 @@ Python 版（<strong>不用 <code>OrderedDict</code></strong>，纯手写）：
 <td><strong>4</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个「淘汰时刻」值得单独记：<code>put(3,3)</code> 淘汰 <code>(2,2)</code> —— 虽然 2 比 1 晚插入，但 <code>get(1)</code> 之后 <strong>1 被使用过、2 没有</strong>；<code>put(4,4)</code> 淘汰 <code>(1,1)</code> —— 1 虽然热过，但 3 插入后它就是队尾。<strong>LRU 只看「最近有没有用」，不看「一共用了多少次」。</strong>
 
 <strong>动画二（LFU 对照）</strong>：同一串操作喂给 LFU，分岔点只有一个，但结论完全不同：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -318,11 +329,11 @@ Python 版（<strong>不用 <code>OrderedDict</code></strong>，纯手写）：
 <td>对照：LRU 此刻淘汰的是 <code>2</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>同一串操作、同一个容量，两台机器淘汰不同的 key</strong> —— 这就是「LRU vs LFU」在一道题里的全部分歧。
 <h2>五、追问二：LFU（460）的区别</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -362,7 +373,7 @@ Python 版（<strong>不用 <code>OrderedDict</code></strong>，纯手写）：
 <td>历史热点短期「赖着不走」；新 key 极易被秒杀</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 LFU 要做到 O(1)，靠的是「<strong>频率桶</strong>」：每个 <code>freq</code> 值挂一条双向链表，同桶内按使用先后排；再维护一个 <code>minFreq</code> 指针指向最小频率的桶。命中时节点从 freq 桶搬到 freq+1 桶；淘汰时从 <code>minFreq</code> 桶的<strong>桶尾</strong>（同频最久未用）取。<strong>LC 460 的难点从来不是 LRU 那套链表，而是桶和 minFreq 的维护。</strong>
 
@@ -466,7 +477,7 @@ LFU 要做到 O(1)，靠的是「<strong>频率桶</strong>」：每个 <code>fr
 <li><strong>Python 的 <code>__slots__</code></strong>：可选优化，面试里提一句显得熟练；不提也不扣分。</li>
 </ul>
 <h2>十、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -491,7 +502,7 @@ LFU 要做到 O(1)，靠的是「<strong>频率桶</strong>」：每个 <code>fr
 <td>哈希表与链表各存 capacity 个节点</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 没有一次遍历、没有一次扫描 —— 这就是「LRU 的 O(1)」的全部含义。对照 LFU：维护得当时（频率桶 + minFreq）也是 O(1)，但要维护的结构多得多。
 <h2>十一、面试怎么答</h2>

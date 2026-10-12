@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 给你两个版本号字符串 version1 和 version2 ，比较它们。 版本号由以点（ . ）分隔的修订号组成，修订号从左到右依次比较： 忽略前导零 ：每个修订号的数字比较时忽略前导零（ &quot;01&quot; 等于 &quot;1&quot; ）； 缺失视为 0 ：如果版本号没有某处的修订号，视为 0 （ &quot;1.0&quot; 与 &quot;1.0.0&quot; 相" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-165-compare-version-numbers/" />
     <meta property="og:title" content="【LC 165】比较版本号：归一化后逐列比" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 165】比较版本号：归一化后逐列比" />
     <meta name="twitter:description" content="题目 给你两个版本号字符串 version1 和 version2 ，比较它们。 版本号由以点（ . ）分隔的修订号组成，修订号从左到右依次比较： 忽略前导零 ：每个修订号的数字比较时忽略前导零（ &quot;01&quot; 等于 &quot;1&quot; ）； 缺失视为 0 ：如果版本号没有某处的修订号，视为 0 （ &quot;1.0&quot; 与 &quot;1.0.0&quot; 相" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-165-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-29T11:13:58.001933+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 165】比较版本号：归一化后逐列比","description":"题目 给你两个版本号字符串 version1 和 version2 ，比较它们。 版本号由以点（ . ）分隔的修订号组成，修订号从左到右依次比较： 忽略前导零 ：每个修订号的数字比较时忽略前导零（ \"01\" 等于 \"1\" ）； 缺失视为 0 ：如果版本号没有某处的修订号，视为 0 （ \"1.0\" 与 \"1.0.0\" 相","image":"https://zhoujungis.github.io/photos/lc-165-cover.png","datePublished":"2026-09-29T11:13:58.001933+08:00","dateModified":"2026-10-12T16:19:06.327421+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-165-compare-version-numbers/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 165】比较版本号：归一化后逐列比","description":"题目 给你两个版本号字符串 version1 和 version2 ，比较它们。 版本号由以点（ . ）分隔的修订号组成，修订号从左到右依次比较： 忽略前导零 ：每个修订号的数字比较时忽略前导零（ \"01\" 等于 \"1\" ）； 缺失视为 0 ：如果版本号没有某处的修订号，视为 0 （ \"1.0\" 与 \"1.0.0\" 相","image":"https://zhoujungis.github.io/photos/lc-165-cover.png","datePublished":"2026-09-29T11:13:58.001933+08:00","dateModified":"2026-09-29T11:13:58.001933+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-165-compare-version-numbers/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -191,7 +202,7 @@
 <h2>四、完整推演表</h2>
 
 以 <code>"1.02.3"</code> vs <code>"1.2.10"</code> 为主例：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -256,7 +267,7 @@
 <td>短路返回 -1</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 对照检查：第 2 列展示剥前导零（不剥的话 <code>"02" == "2"</code> 逐字符就不等了）；第 3 列展示"先比长度" —— <code>"3"</code> 与 <code>"10"</code> 等长才能逐字符比，不等长直接位数定大小。全等路径的例子 <code>"1.01"</code> vs <code>"1.001"</code>：三列 <code>1=1、1=1、0=0</code>（缺失侧补零）→ 返回 0。
 <h2>五、变体：parseInt 精度陷阱与原地双指针</h2>
@@ -287,7 +298,7 @@ JS parseInt：两个修订号都变成 1.0000000000000000e+21 → 判相等，�
 
 不切分数组、两个指针直接在原串上扫：每列先把 <code>p1</code> 停在下一个 <code>.</code> 前，边扫边算 <code>val = val * 10 + digit</code>（或边扫边剥零），到 <code>.</code> 一列结束。省掉 split 的 O(m + n) 额外数组，但<strong>必须小心"一侧用完"的判定</strong>（<code>p1 &gt;= len</code> 时视为 0）。写法长、易错点多，面试口头提一句"可以原地扫"即可，<strong>动手时写 split 版</strong> —— 清晰度值这个空间。
 <h3>5.3 同族题</h3>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题</th>
@@ -308,7 +319,7 @@ JS parseInt：两个修订号都变成 1.0000000000000000e+21 → 判相等，�
 <td>同为"按 <code>.</code> / <code>/</code> 切开做归一化"的字符串题，切完的每个部分按规则处理</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 家族口诀：<strong>"字符串形式的数字比大小，第一步先归一化（剥零/取绝对值），第二步先比长度再比字典序"</strong> —— 版本号、大数减法选操作数，都是这一招。
 <h2>六、Java 版</h2>
@@ -342,7 +353,7 @@ JS parseInt：两个修订号都变成 1.0000000000000000e+21 → 判相等，�
 
 三个 Java 细节：<code>split</code> 的参数是<strong>正则</strong>，<code>.</code> 要写成 <code>"\\."</code>；等长时 <code>compareTo</code> 就是字典序；Java 8+ 也可以用 <code>new BigDecimal(rev).compareTo(...)</code> 但那是杀鸡用牛刀，且面试官想看的是字符串功夫。
 <h2>七、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -387,7 +398,7 @@ JS parseInt：两个修订号都变成 1.0000000000000000e+21 → 判相等，�
 <td>连续多前导零</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>八、复杂度</h2>
 <ul>
 <li><strong>时间 O(m + n + C·L)</strong>：m、n 是两串长度（split 扫一遍），C 是列数、L 是修订号平均长度（逐列比较扫一遍）。总量级就是 <strong>O(m + n)</strong>。</li>

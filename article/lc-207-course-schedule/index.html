@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-207-course-schedule/" />
     <meta property="og:title" content="【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）" />
     <meta name="twitter:description" content="题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-207-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,6 +77,17 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T14:30:21.783985+08:00" />
@@ -215,7 +226,7 @@
 <h2>五、完整推演表</h2>
 
 <strong>动画一（Kahn）</strong>：<code>numCourses = 4</code>，<code>prerequisites = [[1,0],[2,0],[3,1],[3,2]]</code>，即边 <code>0→1、0→2、1→3、2→3</code>，初始入度 <code>[0,1,1,2]</code>。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -269,12 +280,12 @@
 <td>答案 <code>[0,1,2,3]</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 关键细节：<code>3</code> 有两个先修（<code>1</code> 和 <code>2</code>），要<strong>等两个都修完</strong>入度才会减到 0 —— 这就是「入度 = 还有几门先修没修」的字面执行。
 
 <strong>动画二（DFS 三色）</strong>：同一张图，递归顺序 <code>0 → 1 → 3 → 2</code>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -345,7 +356,7 @@
 <td></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个对照点：<code>2</code> 探到 <code>3</code> 时它是<strong>黑</strong>的 —— 跳过而不是报环；真正报环的情形是「探到的邻居是<strong>灰</strong>」（还在栈里）。
 <h2>六、Java 版</h2>
@@ -430,7 +441,7 @@ Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一�
 <li><strong>环上挂着树枝</strong>：树枝上的课也被环卡住（等环里的先修），Kahn 里它们的入度同样减不到 0 —— 判环看的是<strong>出队总数</strong>，不是「有没有节点在环里」的直接检测。</li>
 </ul>
 <h2>九、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>做法</th>
@@ -453,7 +464,7 @@ Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一�
 <td>判环顺手；后序反转得序</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>V = numCourses</code>、<code>E = prerequisites.length</code>。建图 <code>O(E)</code>，每个节点、每条边恰好被处理一次。剪枝提前退出（发现环立刻返回）不会改变最坏复杂度。
 <h2>十、常见坑</h2>

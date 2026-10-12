@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录 博客的文章列表页一次查 10 篇文章。你猜后端执行了多少条 SQL？实测答案： 14 条（8 篇文章时），满页 10 篇就是 21 条 。其中只有 1 条是真正必要的。 N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没问题，数据量小的时候" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-n1-query-kill/" />
     <meta property="og:title" content="从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录" />
     <meta name="twitter:description" content="从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录 博客的文章列表页一次查 10 篇文章。你猜后端执行了多少条 SQL？实测答案： 14 条（8 篇文章时），满页 10 篇就是 21 条 。其中只有 1 条是真正必要的。 N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没问题，数据量小的时候" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-09T10:02:42.742236+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录","description":"从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录 博客的文章列表页一次查 10 篇文章。你猜后端执行了多少条 SQL？实测答案： 14 条（8 篇文章时），满页 10 篇就是 21 条 。其中只有 1 条是真正必要的。 N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没问题，数据量小的时候","image":"https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-09T10:02:42.742236+08:00","dateModified":"2026-09-09T10:02:42.742269+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-n1-query-kill/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录","description":"从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录 博客的文章列表页一次查 10 篇文章。你猜后端执行了多少条 SQL？实测答案： 14 条（8 篇文章时），满页 10 篇就是 21 条 。其中只有 1 条是真正必要的。 N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没问题，数据量小的时候","image":"https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-09T10:02:42.742236+08:00","dateModified":"2026-09-09T10:02:42.742236+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-n1-query-kill/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -112,7 +123,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
 <strong>1 + 10 + 10 = 21 条。</strong> N 是 10，查询数是 2N+1，这就是"N+1"这个名字的由来。
 
 我在本地 SQLite 上实测（8 篇已发布文章）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -129,7 +140,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
 <td><strong>2 条</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 数据量小的时候，14 条 SQL 只要几毫秒，没人察觉。但查询数随文章数线性增长：分页是 10 条一页，评论、RSS、搜索页各自再来一套——<strong>慢不是突然发生的，是每加一篇文章就慢一点，慢到你终于忍不了的那天</strong>。
 <blockquote>
@@ -253,7 +264,7 @@ feed 的每一项都要输出分类和标签，不预取的话，订阅器每半
 为什么写出来而不是偷偷修掉？因为这就是 N+1 的真实形态：<strong>它不是修一次就绝迹的 bug，而是每次加字段、加接口都会回来的慢性病</strong>。<code>related_articles</code>（按标签找相关文章）这种 <code>SerializerMethodField</code>，里面又藏着 <code>obj.tags.all()</code> + 几次查询——今天修完，明天加个字段又回来。所以需要的不是"修完"，而是"每次都能发现"。
 <hr>
 <h2>06 方法论：四步发现 N+1</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -283,7 +294,7 @@ feed 的每一项都要输出分类和标签，不预取的话，订阅器每半
 <td>API、RSS、管理后台、定时任务，一个一个过</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 第②步是我最想强调的：<strong>性能优化先有数字，再动手</strong>。本文所有的"5→1""14→2"都是本地实测，不是估算。没有改之前的数字，你根本不知道改完是变快了还是心理作用。
 <hr>

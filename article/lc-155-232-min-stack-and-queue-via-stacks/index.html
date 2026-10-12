@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是&quot;给栈加约束&quot;：栈天生只能看栈顶、只能后进先" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/" />
     <meta property="og:title" content="【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次" />
     <meta name="twitter:description" content="题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是&quot;给栈加约束&quot;：栈天生只能看栈顶、只能后进先" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-155-232-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-29T16:05:51.502877+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 155/232】最小栈 & 用栈实现队列：记历史与再翻一次","description":"题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是\"给栈加约束\"：栈天生只能看栈顶、只能后进先","image":"https://zhoujungis.github.io/photos/lc-155-232-cover.png","datePublished":"2026-09-29T16:05:51.502877+08:00","dateModified":"2026-10-12T16:19:01.198195+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 155/232】最小栈 & 用栈实现队列：记历史与再翻一次","description":"题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是\"给栈加约束\"：栈天生只能看栈顶、只能后进先","image":"https://zhoujungis.github.io/photos/lc-155-232-cover.png","datePublished":"2026-09-29T16:05:51.502877+08:00","dateModified":"2026-09-29T16:05:51.502877+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -224,7 +235,7 @@
 <h2>四、完整推演表</h2>
 
 <strong>LC 155</strong>（主栈、辅助栈都按"底 → 顶"写）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -293,12 +304,12 @@
 <td><strong>-2</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意帧 5：弹掉的 <code>-3</code> 恰好是辅助栈顶 —— 两栈同步弹，<code>-2</code> 恢复。若帧 2 的 <code>0</code> 之后直接 <code>pop</code>，<code>0</code> 不是辅助栈顶，辅助栈纹丝不动。
 
 <strong>LC 232</strong>（<code>in</code> / <code>out</code> 按"底 → 顶"写）：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -423,7 +434,7 @@
 <td>出队 = 入队</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 帧 11 → 12 是全表最值钱的两行：<code>out</code> 还剩 <code>3</code> 时来了 <code>4</code>，正确做法是<strong>先消费完 <code>3</code></strong> —— 若此时把 <code>4</code> 搬进 <code>out</code>，队首就错了（9.3 的反例）。
 <h2>五、变体与同族题</h2>
@@ -487,7 +498,7 @@
 
 Java 的坑：<code>Deque</code> 的 <code>pop</code> 返回 <code>Integer</code>，比较栈顶是否相等要用 <code>equals</code>（<code>==</code> 在装箱缓存外会翻车，见 9.7）。
 <h2>七、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>场景</th>
@@ -532,7 +543,7 @@ Java 的坑：<code>Deque</code> 的 <code>pop</code> 返回 <code>Integer</code
 <td>帧 13：<code>[4]</code> 也要走流程</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>八、复杂度</h2>
 
 <strong>LC 155</strong>：<code>push</code> / <code>pop</code> / <code>top</code> / <code>getMin</code> 全 <code>O(1)</code>；空间 <code>O(n)</code> —— 辅助栈最坏（递减输入）与主栈等长，最好（递增输入）只有 1 个。本质是<strong>用空间换"记住历史"</strong>。

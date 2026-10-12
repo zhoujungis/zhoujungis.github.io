@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/" />
     <meta property="og:title" content="【LC 1262】可被三整除的最大和：贪心与滚动 dp" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 1262】可被三整除的最大和：贪心与滚动 dp" />
     <meta name="twitter:description" content="题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是&quot;恰好三个&quot; 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的&quot;三&quot;" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-1262-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T10:21:46.463554+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 1262】可被三整除的最大和：贪心与滚动 dp","description":"题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是\"恰好三个\" 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的\"三\"","image":"https://zhoujungis.github.io/photos/lc-1262-cover.png","datePublished":"2026-10-12T10:21:46.463554+08:00","dateModified":"2026-10-12T16:18:43.288727+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 1262】可被三整除的最大和：贪心与滚动 dp","description":"题目 LC 1262 可被三整除的最大和 ：给你一个整数数组 nums ，请你找出并返回能被 3 整除的 元素最大和 。如果不存在可行解，返回 0 。 先澄清一个最容易被记岔的地方：这题选的是 任意个 元素（一个子集）， 不是\"恰好三个\" 。示例里 18 = 3 + 6 + 1 + 8 用了四个数 —— 题面里的\"三\"","image":"https://zhoujungis.github.io/photos/lc-1262-cover.png","datePublished":"2026-10-12T10:21:46.463554+08:00","dateModified":"2026-10-12T10:21:46.463554+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-1262-greatest-sum-divisible-by-three/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -195,7 +206,7 @@
 <h2>四、完整推演表</h2>
 
 <strong>动画一</strong>：<code>nums = [3, 6, 5, 1, 8]</code>（与动画默认一致）。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -240,12 +251,12 @@
 <td><strong>18</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 被扔掉的是 <code>5</code>，保留 <code>3 + 6 + 1 + 8 = 18</code>，恰好被 3 整除。注意候选 B 凑不齐（<code>m1</code> 里只有 <code>1</code> 一个元素），显示 <code>∞</code> 被候选 A 完胜。
 
 <strong>动画二</strong>：同一组数据，看三格 dp 怎么滚。
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>处理</th>
@@ -299,7 +310,7 @@
 <td><code>23</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最终 <code>dp = [18, 22, 23]</code>，返回 <code>dp[0] = 18</code>。中间那几格的 <code>22</code>、<code>23</code> 是"和更大、但余数不是 0"的中间产物 —— 它们被留着，正是为了后面还能被别的数"救回来"。最后一步 <code>x = 8</code> 尤其能说明这一点：<code>dp[2] = max(14, 15 + 8) = 23</code>、<code>dp[1] = max(10, 14 + 8) = 22</code>、<code>dp[0] = max(15, 10 + 8) = 18</code> —— 三个状态各由一条不同的最优路径刷新，谁的"旧余数 + 新元素余数"恰好落到自己头上，谁就更新。
 <h2>五、另一条路：三格滚动的取模 dp</h2>
@@ -411,7 +422,7 @@
 <li><strong>重复元素</strong>：<code>[1,1,1,1]</code> → <code>S = 4</code>、<code>r = 1</code>，削一个 <code>1</code> → <code>3</code>；<code>m2</code> 为空。排序后取前两个的逻辑对重复值天然正确。</li>
 </ul>
 <h2>九、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -441,7 +452,7 @@
 <td><code>O(n)</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>n</code> 是数组长度。贪心的瓶颈只在"取每个桶最小的两个"上：若真的去 <code>sort</code>，就是 <code>O(n log n)</code>；但用一个"维护最小、次小"的滚动写法（Java 版），一趟扫描即可降到 <code>O(n)</code>、空间 <code>O(1)</code>。dp 天生 <code>O(n)</code> / <code>O(1)</code>（状态只有 3 个）。<strong>两者时间同级，区别在于贪心依赖"元素非负"这条前提，dp 不依赖。</strong>
 <h2>十、常见坑</h2>

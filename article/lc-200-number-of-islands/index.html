@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 200 岛屿数量 ：给你一个由 &#39;1&#39; （陆地）和 &#39;0&#39; （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 " />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-200-number-of-islands/" />
     <meta property="og:title" content="【LC 200】岛屿数量：一次染色与防爆栈替代" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 200】岛屿数量：一次染色与防爆栈替代" />
     <meta name="twitter:description" content="题目 LC 200 岛屿数量 ：给你一个由 &#39;1&#39; （陆地）和 &#39;0&#39; （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 " />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-200-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T11:36:06.219943+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 200】岛屿数量：一次染色与防爆栈替代","description":"题目 LC 200 岛屿数量 ：给你一个由 '1' （陆地）和 '0' （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 ","image":"https://zhoujungis.github.io/photos/lc-200-cover.png","datePublished":"2026-10-12T11:36:06.219943+08:00","dateModified":"2026-10-12T16:19:10.301591+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-200-number-of-islands/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 200】岛屿数量：一次染色与防爆栈替代","description":"题目 LC 200 岛屿数量 ：给你一个由 '1' （陆地）和 '0' （水）组成的二维网格 grid ，请你计算网格中 岛屿的数量 。岛屿总是被水包围，并且每座岛屿只能由 水平方向 和/或 竖直方向 上相邻的陆地连接而成。你可以假设网格的四条边均被水包围。 一个 3 × 3 全是陆地的网格（你题面里的例子）→ 输出 ","image":"https://zhoujungis.github.io/photos/lc-200-cover.png","datePublished":"2026-10-12T11:36:06.219943+08:00","dateModified":"2026-10-12T11:36:06.219943+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-200-number-of-islands/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -214,7 +225,7 @@
 
 
 三座岛：左上 <code>2×2</code>、中央单块 <code>(2,2)</code>、右下两块 <code>(3,3)(3,4)</code>。约定邻居入栈顺序为 <strong>上、右、下、左</strong>，栈是 LIFO，所以<strong>后入先出</strong>。逐帧如下：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>阶段</th>
@@ -279,12 +290,12 @@
 <td>3</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 扫描到 <code>(0,1)</code>、<code>(1,0)</code>、<code>(1,1)</code> 时它们<strong>已被染色</strong>，直接跳过，不再计数 —— 这就是"每座岛只 +1 一次"的保证。最终 <code>count = 3</code>。
 
 <strong>动画二（并查集）</strong>：同一张网格，按行优先扫描，每块陆地和<strong>上方、左方</strong>合并：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>格子</th>
@@ -345,7 +356,7 @@
 <td>3</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最终 <code>count = 3</code>，与染色法一致。注意 <code>(1,1)</code> 那行：它和上方、左方<strong>本就同根</strong>，两次合并都跳过 —— 并查集用"根是否相同"天然去重，不需要 <code>visited</code>。
 <h2>五、防爆栈的两条路：BFS 与并查集</h2>
@@ -413,7 +424,7 @@
 并查集的好处很实在：<strong>它没有递归、没有显式栈、也不依赖"一入就标"</strong>；而且当题目要<strong>动态加陆地</strong>（LC 305 岛屿数量 II）时，只有它能增量维护答案 —— 这正是它在面试追问里被点名的原因。
 
 三条路的取舍：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -448,7 +459,7 @@
 <td>需动态加陆地 / 想避开 BFS-DFS</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>六、Java 版</h2>
 <div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="c1">// 显式栈 DFS：把&quot;递归深度&quot;搬到堆上的 Stack，避免 StackOverflowError</span>
@@ -560,7 +571,7 @@
 <li><strong>大网格的对角相邻</strong>：<code>"1"</code> 斜着挨在一起<strong>不算</strong>连通，别误用八方向。</li>
 </ul>
 <h2>九、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -595,7 +606,7 @@
 <td>无</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <code>m</code>、<code>n</code> 是网格行数、列数，<code>α</code> 是反阿克曼函数（实际接近常数）。<strong>时间上四者都是 <code>O(m·n)</code></strong> —— 每块陆地至多被"访问"常数次、每条邻接边至多被检查常数次。真正拉开差距的是<strong>空间的性质</strong>：递归 DFS 把 <code>O(m·n)</code> 压在<strong>调用栈</strong>上（有硬上限、会爆），其余把开销放在<strong>堆</strong>上（可通过 <code>visited</code> 与容器复用控制）。
 <h2>十、常见坑</h2>

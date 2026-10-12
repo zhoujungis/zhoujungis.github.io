@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/" />
     <meta property="og:title" content="事务回滚了，邮件照样发出去——Django 事务深水区" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="事务回滚了，邮件照样发出去——Django 事务深水区" />
     <meta name="twitter:description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，&quot;并发三件套&quot;的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /" />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&amp;q=80&amp;auto=format&amp;fit=crop" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T10:39:13.728721+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"事务回滚了，邮件照样发出去——Django 事务深水区","description":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:39:13.728721+08:00","dateModified":"2026-09-20T18:59:54.001829+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"事务回滚了，邮件照样发出去——Django 事务深水区","description":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:39:13.728721+08:00","dateModified":"2026-09-14T10:39:13.728721+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/django-transaction-atomic-on-commit/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -205,7 +216,7 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 直觉上应该没问题——<code>views_count</code> 是整数，<code>+1</code> 谁不会？<strong>但它在并发下是错的</strong>，因为两步之间会插进别人的写。
 
 我在本地跑了四种写法，每种用 <strong>8 个线程 × 50 次自增 = 400 次期望期望</strong>期望，期望最终 <code>views_count = 400</code>。结果：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -240,7 +251,7 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 <td>573 ms</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 注意 B 和 D 跑得比 A 快——但不是因为它们"更好"，是因为 <strong>7/8 线程直接 <code>OperationalError: database is locked</code> 退出了</strong>。剩下的 1 个线程做完 50 次写完，线程结束留下 50。
 <h3>2.2 逐行解读</h3>
@@ -306,7 +317,7 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 <h2>3. 实验二：只改一个计数器，<code>save()</code> 比 <code>update()</code> 慢 14.7 倍</h2>
 
 我之前一直以为"改一个字段用 <code>update_fields</code> 很快"，实测把脸打肿了。在本站正文最长的一篇（pk=12，正文 19,692 字符）上：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -327,7 +338,7 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 <td><strong>14.7×</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 为什么 <code>update_fields=["views_count"]</code> 也要 100ms？因为 <code>Article.save()</code> 是被<strong>自定义重写</strong>过的（<code>models.py</code> 第 125 行起）：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -584,7 +595,7 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
 这三条记不住全部也行，但如果你能记得"<strong>改 → <code>update(F())</code>；原子性 → <code>atomic</code>；副作用 → <code>on_commit</code></strong>"，生产里 90% 的并发和事务事故都能避开。
 <hr>
 <h2>8. SQLite / MySQL / PostgreSQL 的事务差异表</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -661,7 +672,7 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
 <td><code>CONN_MAX_AGE=60</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 最关键的一行：<strong>"本站跑 SQLite 没事" ≠ "生产也行"。</strong> 在 SQLite 上 8 线程并发写还能凑合（虽然 7 个会抛 locked），到 MySQL/PG 上同等规模会更快，但你必须假设并发写会真实发生——所以<strong>所有写了"读 → 算 → 写"模式代码，都得用 <code>F()</code> 或行锁过一遍</strong>。
 

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-994-rotting-oranges/" />
     <meta property="og:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
     <meta name="twitter:description" content="题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-994-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T12:24:51.457830+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","description":"题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：","image":"https://zhoujungis.github.io/photos/lc-994-cover.png","datePublished":"2026-10-12T12:24:51.457830+08:00","dateModified":"2026-10-12T12:24:51.457904+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-994-rotting-oranges/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","description":"题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：","image":"https://zhoujungis.github.io/photos/lc-994-cover.png","datePublished":"2026-10-12T12:24:51.457830+08:00","dateModified":"2026-10-12T12:24:51.457830+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-994-rotting-oranges/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -236,7 +247,7 @@
 收尾的 <code>max(..., default=0)</code> 兜住「一个橘子都没有」的网格（没有源时表里全是 <code>None</code>）。这张表的每个数字都等于<strong>到最近源的距离</strong> —— 它是「多源 BFS 不变量」的具象化：每个格子只盖一次章、先到的一定最近。
 
 三者对比：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -261,7 +272,7 @@
 <td>忘记 <code>while q and fresh</code> 提前退出</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h2>三、动画怎么看</h2>
 <div class="algo-viz algo-viz--lc994"></div>
 
@@ -281,7 +292,7 @@
 
 
 六块新鲜橘子，唯一源 <code>(0,0)</code>。逐帧如下：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>阶段</th>
@@ -363,12 +374,12 @@
 <td>0</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 两个容易看漏的点：第 2 分钟里 <code>(1,1)</code> 被 <code>(0,1)</code> 腐烂后，<code>(1,0)</code> 再检查它时它已经不是新鲜橘子了 —— <strong>同一分钟内不会重复腐烂</strong>；而 <code>(2,2)</code> 只有一条路 <code>(2,1) → (2,2)</code>，所以它的时刻是第 4 分钟（不是离 <code>(0,0)</code> 的直线距离）。
 
 <strong>动画二（腐烂时刻表）</strong>：同一张网格，每格盖「腐烂时刻」的章：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>分钟</th>
@@ -422,7 +433,7 @@
 <td></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 跑完的章表：
 <div class="codehilite"><pre><span></span><code><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">2</span>
@@ -506,7 +517,7 @@
 <li><strong>注意 <code>minute</code> 的起点是 0</strong>：源是「第 0 分钟」就腐烂的，第一次扩散发生后才变成 1。</li>
 </ul>
 <h2>九、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -531,7 +542,7 @@
 <td><code>O(m·n)</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 每个格子最多入队一次、每条邻接边最多被检查一次 —— 三者都是标准 BFS 的 <code>O(m·n)</code>。空间上，斐波那契式的「队列最坏有多大」有个常见答案：<strong>一层可能同时挤满网格（全连通时）</strong>，所以上界就是 <code>O(m·n)</code>。
 <h2>十、常见坑</h2>

@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最" />
     <link rel="canonical" href="https://zhoujungis.github.io/article/lc-143-reorder-list/" />
     <meta property="og:title" content="【LC 143】重排链表：一题拆三题，中间那道刷过" />
@@ -24,7 +23,7 @@
     <meta name="twitter:title" content="【LC 143】重排链表：一题拆三题，中间那道刷过" />
     <meta name="twitter:description" content="【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-143-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujun123.pythonanywhere.com/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -53,11 +52,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CAOVYuvf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-BK47PYcU.js">
+    <script type="module" crossorigin src="/assets/index-CYHEB8BE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.CT7w8HUJ.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.Cg9D1qKr.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -69,6 +68,7 @@
 .ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
 .ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
 .ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
@@ -77,10 +77,21 @@
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-22T16:02:59.738619+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 143】重排链表：一题拆三题，中间那道刷过","description":"【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最","image":"https://zhoujungis.github.io/photos/lc-143-cover.png","datePublished":"2026-09-22T16:02:59.738619+08:00","dateModified":"2026-10-12T16:18:50.547893+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-143-reorder-list/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 143】重排链表：一题拆三题，中间那道刷过","description":"【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过 适用读者 ：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人 技术栈 ：Python 为主，附 Java 版 难度 ：中等（单看每步都是简单题，合起来考的是拆问题的能力） 收获 ：「找中点 + 反转后半段 + 交替合并」这套组合拳，以及那个最","image":"https://zhoujungis.github.io/photos/lc-143-cover.png","datePublished":"2026-09-22T16:02:59.738619+08:00","dateModified":"2026-09-22T16:02:59.738619+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-143-reorder-list/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -151,7 +162,7 @@
 这每一步，都恰好是 LeetCode 上已经做过的一道题。
 <hr>
 <h2>二、拆成三步：每步都是做过的题</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>步骤</th>
@@ -180,7 +191,7 @@
 <td>每次改两个 <code>next</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>这就是这道题的全部难度：看出它其实是三道题。</strong> 每一步单独拎出来都是「简单」，合起来标「中等」，标的是「拆」这个动作。
 <h3>2.1 第 ① 步：中点到底取在哪</h3>
@@ -282,7 +293,7 @@
 <h3>4.2 完整推演表</h3>
 
 <code>head = [1,2,3,4]</code>：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>阶段</th>
@@ -350,7 +361,7 @@
 <td><code>1 → 4 → 2 → 3</code> ✓</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3>4.3 Java 版</h3>
 <div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">reorderList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -392,7 +403,7 @@
 注意 Java 版返回值是 <code>void</code>——题目只要求就地重排，不返回新头节点（头节点始终是原来的 <code>head</code>）。这一点和 LC 206 不一样，<strong>别顺手 <code>return head</code></strong>。
 <hr>
 <h2>五、边界情况</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -439,14 +450,14 @@
 <td>中间节点 <code>3</code> 不动</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 重点看 <code>[1,2,3]</code> 和 <code>[1,2,3,4,5]</code> 这两个奇数长度：<strong>中点归前半段</strong>这一条约定，决定了后半段长度一定是 <code>⌊L/2⌋</code>、前半段是 <code>⌈L/2⌉</code>。反过来取，结果会多出一个「中间节点被搬到末尾」的错误。
 
 如果担心自己记反，用 <code>[1,2,3]</code> 验一下就行：正确答案是 <code>1 → 3 → 2</code>（<code>2</code> 留在原位）。如果跑出来是 <code>1 → 2 → 3</code> 原样没动，说明后半段被判成了空——中点取到 <code>1</code> 上去了。
 <hr>
 <h2>六、复杂度</h2>
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>阶段</th>
@@ -476,7 +487,7 @@
 <td><strong>O(1)</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 空间是 O(1) 的关键在于：<strong>全程只用了 <code>slow/fast/prev/curr/first/second</code> 这几个指针变量</strong>，没有开数组、没有用栈、没有递归。递归版反转（如果你手滑写了递归）会立刻把空间抬到 O(L/2)，而且长链表有爆栈风险——这也是为什么反转那一步必须写迭代。
 <hr>
@@ -535,7 +546,7 @@
 <h2>结语</h2>
 
 把三张拼图摆在一起：
-<table>
+<div class="table-scroll"><table>
 <thead>
 <tr>
 <th>题目</th>
@@ -560,7 +571,7 @@
 <td>LC 21 的插入动作</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <strong>组合本身就是解法。</strong> 链表题里这种「合成题」不少：LC 25（K 个一组反转）= 206 + 分组连接；LC 143 = 876 + 206 + 21；LC 61（旋转链表）= 快慢指针定位 + 接成环再断开。
 
