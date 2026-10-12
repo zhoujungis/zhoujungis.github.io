@@ -57,6 +57,8 @@ import { mountCoinChange } from '@/viz/coinChange'
 import { mountCoinChangeOrder } from '@/viz/coinChangeOrder'
 import { mountWordBreak } from '@/viz/wordBreak'
 import { mountWordBreakSeg } from '@/viz/wordBreakSeg'
+import { mountGreatestSumDiv3 } from '@/viz/greatestSumDiv3'
+import { mountGreatestSumDiv3Dp } from '@/viz/greatestSumDiv3Dp'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -395,6 +397,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc322order': mountCoinChangeOrder,
   'algo-viz--lc139': mountWordBreak,
   'algo-viz--lc139seg': mountWordBreakSeg,
+  'algo-viz--lc1262': mountGreatestSumDiv3,
+  'algo-viz--lc1262dp': mountGreatestSumDiv3Dp,
 }
 
 let vizHandles = []
