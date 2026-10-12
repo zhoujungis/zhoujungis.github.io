@@ -57,10 +57,27 @@ function parseHeadings() {
   try {
     const parser = new DOMParser()
     const doc = parser.parseFromString(props.html, 'text/html')
-    const items = []
 
+    // 正文自带的扁平目录（`- [一、核心洞察](#section-1)`）是手写锚点：
+    // 后端的 Python-Markdown 只给 ASCII 标题生成 id，中文标题拿不到，
+    // 且 bleach 会把标题上的 id 整个洗掉，所以存储的 HTML 里根本没有
+    // `section-N` 元素 —— 正文目录链接全是死链。补救：按「链接文字 ===
+    // 标题文字」把锚点认领给对应标题，让正文目录与侧栏目录指同一处。
+    const anchorByText = new Map()
+    doc.querySelectorAll('a[href^="#"]').forEach((a) => {
+      const id = (a.getAttribute('href') || '').slice(1)
+      const text = (a.textContent || '').replace(/\s+/g, ' ').trim()
+      if (id && text && !anchorByText.has(text)) anchorByText.set(text, id)
+    })
+
+    const items = []
+    const used = new Set()
     doc.querySelectorAll('h2, h3, h4').forEach((el, index) => {
-      const id = el.id || `toc-heading-${index}`
+      const text = (el.textContent || '').replace(/\s+/g, ' ').trim()
+      const claimed = anchorByText.get(text)
+      let id = el.id || (claimed && !used.has(claimed) ? claimed : `toc-heading-${index}`)
+      if (used.has(id)) id = `toc-heading-${index}`
+      used.add(id)
       items.push({
         id,
         tag: el.tagName.toLowerCase(),
