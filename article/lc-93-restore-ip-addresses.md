@@ -1,5 +1,5 @@
 ---
-title: 【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性
+title: "【LC 93】复原 IP 地址：分段回溯，剪枝分两层"
 slug: lc-93-restore-ip-addresses
 cover_image: /photos/lc-93-cover.png
 date: 2026-09-29

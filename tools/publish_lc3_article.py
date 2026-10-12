@@ -47,7 +47,7 @@ SOURCE = (
     / "lc-3-longest-substring-without-repeating-characters.md"
 )
 
-ARTICLE_TITLE = "【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」"
+ARTICLE_TITLE = "【LC 3】无重复字符的最长子串：窗口里才算重复"
 ARTICLE_SLUG = "lc-3-longest-substring-without-repeating-characters"
 ARTICLE_EXCERPT = (
     "LC 3 是滑动窗口的入门模板，10 行代码，但在字节的面经里长期排第一 —— "

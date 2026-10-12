@@ -1,5 +1,5 @@
 ---
-title: 【LC 470】用 Rand7() 实现 Rand10()：拒绝采样的 2.45 次，和一张均匀性证据表
+title: "【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次"
 slug: lc-470-implement-rand10-using-rand7
 cover_image: /photos/lc-470-cover.png
 date: 2026-10-12

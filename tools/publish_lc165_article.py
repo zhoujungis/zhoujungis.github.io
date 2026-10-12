@@ -47,7 +47,7 @@ SOURCE = (
     / "lc-165-compare-version-numbers.md"
 )
 
-ARTICLE_TITLE = "【LC 165】比较版本号：归一化后逐列比 —— 剥前导零 + 缺位补零"
+ARTICLE_TITLE = "【LC 165】比较版本号：归一化后逐列比"
 ARTICLE_SLUG = "lc-165-compare-version-numbers"
 ARTICLE_EXCERPT = (
     "两条规则（忽略前导零、缺失修订号视为 0）都指向同一个动作："

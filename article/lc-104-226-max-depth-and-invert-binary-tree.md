@@ -1,5 +1,5 @@
 ---
-title: "【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子"
+title: "【LC 104/226】最大深度 & 翻转二叉树：各藏一颗钉子"
 slug: "lc-104-226-max-depth-and-invert-binary-tree"
 category_id: null
 tags: ["算法", "二叉树", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-104-cover.png"
 ---
 
-# 【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子
+# 【LC 104/226】最大深度 & 翻转二叉树：各藏一颗钉子
 
 > **适用读者**：刚学完二叉树递归，想知道"我到底有没有真懂"的人
 > **技术栈**：Python 为主，附 Java 版

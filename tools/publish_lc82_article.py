@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-82-remove-duplicates-from-sorted-list-ii.md"
 )
 
-ARTICLE_TITLE = "【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy"
+ARTICLE_TITLE = "【LC 82】删除重复元素 II：为什么必须有 dummy"
 ARTICLE_SLUG = "lc-82-remove-duplicates-from-sorted-list-ii"
 ARTICLE_EXCERPT = (
     "LC 82 比 LC 83 难在「一个不留」：删除需要前驱，而头节点没有前驱，"

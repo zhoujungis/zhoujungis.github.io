@@ -48,7 +48,7 @@ SOURCE = (
     / "lc-104-226-max-depth-and-invert-binary-tree.md"
 )
 
-ARTICLE_TITLE = "【LC 104 / 226】二叉树的最大深度 & 翻转二叉树：两道送分题里各藏着一颗钉子"
+ARTICLE_TITLE = "【LC 104/226】最大深度 & 翻转二叉树：各藏一颗钉子"
 ARTICLE_SLUG = "lc-104-226-max-depth-and-invert-binary-tree"
 ARTICLE_EXCERPT = (
     "104 和 226 都是 LeetCode 上的 easy，但它们恰好是树递归的两种模式，"

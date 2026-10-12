@@ -56,7 +56,7 @@ SOURCE = (
     / "lc-139-word-break.md"
 )
 
-ARTICLE_TITLE = "【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯"
+ARTICLE_TITLE = "【LC 139】单词拆分：布尔 dp 与切分回溯"
 ARTICLE_SLUG = "lc-139-word-break"
 ARTICLE_EXCERPT = (
     "139 是 322 的布尔版：dp[i] = s 的前 i 个字符能否由字典拼出，"

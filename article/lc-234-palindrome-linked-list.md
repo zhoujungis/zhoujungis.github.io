@@ -1,5 +1,5 @@
 ---
-title: "【LC 234】回文链表：把后半段翻过来，它应该跟前半段长得一模一样"
+title: "【LC 234】回文链表：翻后半段，比是否相同"
 slug: "lc-234-palindrome-linked-list"
 category_id: null
 tags: ["算法", "链表", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-234-cover.png"
 ---
 
-# 【LC 234】回文链表：把后半段翻过来，它应该跟前半段长得一模一样
+# 【LC 234】回文链表：翻后半段，比是否相同
 
 > **适用读者**：会写反转链表，但看到「O(1) 空间」四个字就忍不住想去开个数组的人
 > **技术栈**：Python 为主，附 Java 版

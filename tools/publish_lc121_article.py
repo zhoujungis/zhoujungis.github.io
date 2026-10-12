@@ -55,7 +55,7 @@ SOURCE = (
     / "lc-121-122-best-time-to-buy-and-sell-stock.md"
 )
 
-ARTICLE_TITLE = "【LC 121/122】买卖股票的最佳时机 I & II：一个等历史最低价，一个吃下每段上坡"
+ARTICLE_TITLE = "【LC 121/122】买卖股票 I & II：等低点与吃上坡"
 ARTICLE_SLUG = "lc-121-122-best-time-to-buy-and-sell-stock"
 ARTICLE_EXCERPT = (
     "121：换提问方式 —— 逐天问「今天卖最赚多少」，minPrice/best 两个单调变量把 "

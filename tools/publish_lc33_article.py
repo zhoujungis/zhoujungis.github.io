@@ -45,7 +45,7 @@ SOURCE = (
     / "lc-33-153-rotated-binary-search.md"
 )
 
-ARTICLE_TITLE = "【LC 33 / 153】搜索旋转排序数组 & 最小值：同一道断崖，比较对象正好相反"
+ARTICLE_TITLE = "【LC 33/153】旋转排序数组：同一断崖，比法相反"
 ARTICLE_SLUG = "lc-33-153-rotated-binary-search"
 ARTICLE_EXCERPT = (
     "旋转数组是两段各自上升的折线，中间一道断崖。二分它只需要回答"

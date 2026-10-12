@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-143-reorder-list.md"
 )
 
-ARTICLE_TITLE = "【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过"
+ARTICLE_TITLE = "【LC 143】重排链表：一题拆三题，中间那道刷过"
 ARTICLE_SLUG = "lc-143-reorder-list"
 ARTICLE_EXCERPT = (
     "重排链表 = 找中点 + 反转后半段 + 交替合并，三步分别是 LC 876、LC 206、LC 21 的子问题。"

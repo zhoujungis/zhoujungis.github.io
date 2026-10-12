@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-234-palindrome-linked-list.md"
 )
 
-ARTICLE_TITLE = "【LC 234】回文链表：把后半段翻过来，它应该跟前半段长得一模一样"
+ARTICLE_TITLE = "【LC 234】回文链表：翻后半段，比是否相同"
 ARTICLE_SLUG = "lc-234-palindrome-linked-list"
 ARTICLE_EXCERPT = (
     "回文链表 = 找中点 + 反转后半段 + 逐对比较，三步分别是 LC 876、LC 206 和数组双指针的子问题。"

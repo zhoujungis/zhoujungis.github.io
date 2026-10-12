@@ -53,7 +53,7 @@ SOURCE = (
     / "lc-72-edit-distance.md"
 )
 
-ARTICLE_TITLE = "【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格"
+ARTICLE_TITLE = "【LC 72】编辑距离：前缀对前缀，与滚动数组"
 ARTICLE_SLUG = "lc-72-edit-distance"
 ARTICLE_EXCERPT = (
     "双串型 DP 必须一次下两个锚：dp[i][j] = a 的前 i 个字符 变成 b 的前 j 个字符，"

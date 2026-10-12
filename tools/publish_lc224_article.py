@@ -48,7 +48,7 @@ SOURCE = (
     / "lc-224-772-basic-calculator.md"
 )
 
-ARTICLE_TITLE = "【LC 224/772】基本计算器 & 基本计算器 III：一个来一个结，一个等优先级"
+ARTICLE_TITLE = "【LC 224/772】基本计算器：一个来一个结，一个等优先级"
 ARTICLE_SLUG = "lc-224-772-basic-calculator"
 ARTICLE_EXCERPT = (
     "224：加减同级左结合 —— 数字来一个结一个，栈只存「外层欠账」{result, sign}，"

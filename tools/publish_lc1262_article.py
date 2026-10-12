@@ -51,7 +51,7 @@ SOURCE = (
     / "lc-1262-greatest-sum-divisible-by-three.md"
 )
 
-ARTICLE_TITLE = "【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp"
+ARTICLE_TITLE = "【LC 1262】可被三整除的最大和：贪心与滚动 dp"
 ARTICLE_SLUG = "lc-1262-greatest-sum-divisible-by-three"
 ARTICLE_EXCERPT = (
     "1262 的答案就一句话：全选求和得 S、r = S % 3；r == 0 直接返回 S，"

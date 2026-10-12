@@ -1,5 +1,5 @@
 ---
-title: "【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」"
+title: "【LC 236】二叉树的最近公共祖先：命中即返回"
 slug: "lc-236-lowest-common-ancestor-of-a-binary-tree"
 category_id: null
 tags: ["算法", "二叉树", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-236-cover.png"
 ---
 
-# 【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」
+# 【LC 236】二叉树的最近公共祖先：命中即返回
 
 > **适用读者**：会写二叉树递归遍历，但一看这题就觉得"边界太多、情况太杂"的人
 > **技术栈**：Python 为主，附 Java 版

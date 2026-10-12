@@ -1,5 +1,5 @@
 ---
-title: 【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集）
+title: "【LC 200】岛屿数量：一次染色与防爆栈替代"
 slug: lc-200-number-of-islands
 cover_image: /photos/lc-200-cover.png
 date: 2026-10-12

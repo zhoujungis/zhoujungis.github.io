@@ -54,7 +54,7 @@ SOURCE = (
     / "lc-322-coin-change.md"
 )
 
-ARTICLE_TITLE = "【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序"
+ARTICLE_TITLE = "【LC 322】零钱兑换：正序完全背包，逆序变 -1"
 ARTICLE_SLUG = "lc-322-coin-change"
 ARTICLE_EXCERPT = (
     "322 是最标准的完全背包求最小值：dp[x] = 凑出 x 的最少硬币枚数，"

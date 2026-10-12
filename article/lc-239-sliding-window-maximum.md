@@ -1,5 +1,5 @@
 ---
-title: 【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选
+title: "【LC 239】滑动窗口最大值：单调队列只留候选"
 slug: lc-239-sliding-window-maximum
 cover_image: /photos/lc-239-cover.png
 date: 2026-09-29

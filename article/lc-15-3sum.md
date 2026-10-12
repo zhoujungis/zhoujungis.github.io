@@ -1,5 +1,5 @@
 ---
-title: "【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重"
+title: "【LC 15】三数之和：难点是两处去重，不是双指针"
 slug: "lc-15-3sum"
 category_id: null
 tags: ["算法", "双指针", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-15-cover.png"
 ---
 
-# 【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重
+# 【LC 15】三数之和：难点是两处去重，不是双指针
 
 > **适用读者**：已经会写"两数之和"、也觉得"两数之和 II"很简单，但每次写三数之和都会在去重上翻车的人
 > **技术栈**：Python 为主，附 Java 版

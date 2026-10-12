@@ -1,5 +1,5 @@
 ---
-title: 【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的
+title: "【LC 20】有效的括号：栈是被结构逼出来的"
 slug: lc-20-valid-parentheses
 cover_image: /photos/lc-20-cover.png
 date: 2026-09-29

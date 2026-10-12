@@ -1,5 +1,5 @@
 ---
-title: 【LC 322】零钱兑换：一台正序推进的 dp，和一个把答案变成 -1 的逆序
+title: "【LC 322】零钱兑换：正序完全背包，逆序变 -1"
 slug: lc-322-coin-change
 cover_image: /photos/lc-322-cover.png
 date: 2026-09-30

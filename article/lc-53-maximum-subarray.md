@@ -1,5 +1,5 @@
 ---
-title: "【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了"
+title: "【LC 53】最大子数组和：带上前面，是赚还是亏"
 slug: "lc-53-maximum-subarray"
 category_id: null
 tags: ["算法", "动态规划", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-53-cover.png"
 ---
 
-# 【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了
+# 【LC 53】最大子数组和：带上前面，是赚还是亏
 
 > **适用读者**：背过 Kadane 但没想明白"为什么 `cur < 0` 就敢扔掉前面整段"的人；以及想知道分治解法到底在干什么的人
 > **技术栈**：Python 为主，附 Java 版

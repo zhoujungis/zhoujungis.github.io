@@ -43,7 +43,7 @@ SOURCE = (
     / "lc-56-merge-intervals.md"
 )
 
-ARTICLE_TITLE = "【LC 56】合并区间：排序把「可能重叠的对」压缩成「只比当前」"
+ARTICLE_TITLE = "【LC 56】合并区间：排序把重叠压成只比当前"
 ARTICLE_SLUG = "lc-56-merge-intervals"
 ARTICLE_EXCERPT = (
     "合并所有重叠区间，暴力两两比较是 O(n²)。先按左端点排序之后，一个结构性质出现了："

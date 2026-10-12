@@ -1,5 +1,5 @@
 ---
-title: "【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发"
+title: "【LC 19】删除链表倒数第 N 个：快指针先出发"
 slug: "lc-19-remove-nth-from-end"
 category_id: null
 tags: ["算法", "链表", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-19-cover.png"
 ---
 
-# 【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发
+# 【LC 19】删除链表倒数第 N 个：快指针先出发
 
 > **适用读者**：知道快慢指针能找环，但没想明白为什么「先走 n 步」就能定位倒数第 n 个的人
 > **技术栈**：Python 为主，附 Java 版

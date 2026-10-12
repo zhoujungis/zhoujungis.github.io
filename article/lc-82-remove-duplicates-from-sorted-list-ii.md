@@ -1,5 +1,5 @@
 ---
-title: "【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy"
+title: "【LC 82】删除重复元素 II：为什么必须有 dummy"
 slug: "lc-82-remove-duplicates-from-sorted-list-ii"
 category_id: null
 tags: ["算法", "链表", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-82-cover.png"
 ---
 
-# 【LC 82】删除排序链表中的重复元素 II：为什么头节点这里必须有个 dummy
+# 【LC 82】删除重复元素 II：为什么必须有 dummy
 
 > **适用读者**：做过 LC 83（保留一个），觉得"删重复"已经会了，然后被这题的一个都别留卡住的人
 > **技术栈**：Python 为主，附 Java 版

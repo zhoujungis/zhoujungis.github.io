@@ -1,5 +1,5 @@
 ---
-title: 【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n)
+title: "【LC 300】最长递增子序列：加锚，再压到 O(n log n)"
 slug: lc-300-longest-increasing-subsequence
 cover_image: /photos/lc-300-cover.png
 date: 2026-09-30

@@ -1,5 +1,5 @@
 ---
-title: "【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」"
+title: "【LC 3】无重复字符的最长子串：窗口里才算重复"
 slug: "lc-3-longest-substring-without-repeating-characters"
 category_id: null
 tags: ["算法", "滑动窗口", "字符串", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-3-cover.png"
 ---
 
-# 【LC 3】无重复字符的最长子串：判据不是「字符出现过」，而是「它还在窗口里」
+# 【LC 3】无重复字符的最长子串：窗口里才算重复
 
 > **适用读者**：想学滑动窗口、但被这道题的各种边界情况绕晕过的人
 > **技术栈**：Python 为主，附 Java 版

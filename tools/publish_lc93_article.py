@@ -47,7 +47,7 @@ SOURCE = (
     / "lc-93-restore-ip-addresses.md"
 )
 
-ARTICLE_TITLE = "【LC 93】复原 IP 地址：分段回溯 —— 剪枝分两层，段合法性与可行性"
+ARTICLE_TITLE = "【LC 93】复原 IP 地址：分段回溯，剪枝分两层"
 ARTICLE_SLUG = "lc-93-restore-ip-addresses"
 ARTICLE_EXCERPT = (
     "复原 IP = 在 n-1 个缝隙里选 3 个切点，每段 1-3 位 —— "

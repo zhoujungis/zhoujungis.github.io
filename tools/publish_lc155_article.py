@@ -48,7 +48,7 @@ SOURCE = (
     / "lc-155-232-min-stack-and-queue-via-stacks.md"
 )
 
-ARTICLE_TITLE = "【LC 155/232】最小栈 & 用栈实现队列：一个记住历史，一个再翻一次"
+ARTICLE_TITLE = "【LC 155/232】最小栈 & 用栈实现队列：记历史与再翻一次"
 ARTICLE_SLUG = "lc-155-232-min-stack-and-queue-via-stacks"
 ARTICLE_EXCERPT = (
     "155：最小值是「历史」不是当前状态 —— pop 之后要回到过去，"

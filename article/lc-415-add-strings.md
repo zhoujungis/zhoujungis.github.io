@@ -1,5 +1,5 @@
 ---
-title: 【LC 415】字符串相加：竖式加法 —— 把小学列竖式翻译成代码
+title: "【LC 415】字符串相加：把竖式翻译成代码"
 slug: lc-415-add-strings
 cover_image: /photos/lc-415-cover.png
 date: 2026-09-29

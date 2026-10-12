@@ -46,7 +46,7 @@ SOURCE = (
     / "lc-200-number-of-islands.md"
 )
 
-ARTICLE_TITLE = "【LC 200】岛屿数量：一次染色，和两个防爆栈的替代（BFS 队列 / 并查集）"
+ARTICLE_TITLE = "【LC 200】岛屿数量：一次染色与防爆栈替代"
 ARTICLE_SLUG = "lc-200-number-of-islands"
 ARTICLE_EXCERPT = (
     "数岛屿 = 数连通块：扫描网格，遇到未访问的陆地就 count += 1，再淹掉整座岛。"

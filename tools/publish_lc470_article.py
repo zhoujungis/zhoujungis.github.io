@@ -46,7 +46,7 @@ SOURCE = (
     / "lc-470-implement-rand10-using-rand7.md"
 )
 
-ARTICLE_TITLE = "【LC 470】用 Rand7() 实现 Rand10()：拒绝采样的 2.45 次，和一张均匀性证据表"
+ARTICLE_TITLE = "【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次"
 ARTICLE_SLUG = "lc-470-implement-rand10-using-rand7"
 ARTICLE_EXCERPT = (
     "rand7 变 rand10 = 乘积空间 + 拒绝采样：两次独立采样凑出 49 个等概率状态，"

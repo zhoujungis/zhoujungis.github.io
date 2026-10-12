@@ -1,5 +1,5 @@
 ---
-title: 【LC 1262】可被三整除的最大和：一次「余数分组」的贪心，和三格滚动的一维 dp
+title: "【LC 1262】可被三整除的最大和：贪心与滚动 dp"
 slug: lc-1262-greatest-sum-divisible-by-three
 cover_image: /photos/lc-1262-cover.png
 date: 2026-10-12

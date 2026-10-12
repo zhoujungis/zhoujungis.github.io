@@ -51,7 +51,7 @@ SOURCE = (
     / "lc-15-3sum.md"
 )
 
-ARTICLE_TITLE = "【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重"
+ARTICLE_TITLE = "【LC 15】三数之和：难点是两处去重，不是双指针"
 ARTICLE_SLUG = "lc-15-3sum"
 ARTICLE_EXCERPT = (
     "三数之和的骨架十分钟就能背下来，但它的难点（去重）背下来不算会 —— "

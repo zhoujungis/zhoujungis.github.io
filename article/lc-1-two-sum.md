@@ -1,5 +1,5 @@
 ---
-title: "【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己"
+title: "【LC 1】两数之和：先查再存，反了就匹配自己"
 slug: "lc-1-two-sum"
 category_id: null
 tags: ["算法", "哈希表", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-1-cover.png"
 ---
 
-# 【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己
+# 【LC 1】两数之和：先查再存，反了就匹配自己
 
 > **适用读者**：刚开始刷题、或者一直觉得"这题不就是两重循环吗"的人
 > **技术栈**：Python 为主，附 Java 版

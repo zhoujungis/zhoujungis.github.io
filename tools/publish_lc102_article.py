@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-102-binary-tree-level-order-traversal.md"
 )
 
-ARTICLE_TITLE = "【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来"
+ARTICLE_TITLE = "【LC 102】二叉树的层序遍历：为什么先存队列长度"
 ARTICLE_SLUG = "lc-102-binary-tree-level-order-traversal"
 ARTICLE_EXCERPT = (
     "层序遍历的代码只有十行，但那个 size = len(queue) 的快照是整题的唯一难点。"

@@ -45,9 +45,7 @@ SOURCE = (
     / "lc-19-remove-nth-from-end.md"
 )
 
-ARTICLE_TITLE = (
-    "【LC 19】删除链表的倒数第 N 个结点：一趟扫描的关键，是让快指针先出发"
-)
+ARTICLE_TITLE = "【LC 19】删除链表倒数第 N 个：快指针先出发"
 ARTICLE_SLUG = "lc-19-remove-nth-from-end"
 ARTICLE_EXCERPT = (
     "单链表不知道自己的长度，「倒数第 n 个」怎么在一趟扫描里定位？"

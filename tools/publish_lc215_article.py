@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-215-kth-largest-element-in-an-array.md"
 )
 
-ARTICLE_TITLE = "【LC 215】数组中的第 K 个最大元素：快速选择只在回答「我排第几」"
+ARTICLE_TITLE = "【LC 215】第 K 个最大元素：快速选择只答排名"
 ARTICLE_SLUG = "lc-215-kth-largest-element"
 ARTICLE_EXCERPT = (
     "快速排序做一次分区之后有一件事是确定的：枢轴落在它最终的排序位置上 —— "

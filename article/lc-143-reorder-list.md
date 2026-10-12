@@ -1,5 +1,5 @@
 ---
-title: "【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过"
+title: "【LC 143】重排链表：一题拆三题，中间那道刷过"
 slug: "lc-143-reorder-list"
 category_id: null
 tags: ["算法", "链表", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-143-cover.png"
 ---
 
-# 【LC 143】重排链表：一个题拆成三道做，中间那道你昨天刚刷过
+# 【LC 143】重排链表：一题拆三题，中间那道刷过
 
 > **适用读者**：刷过反转链表和快慢指针，但看到「重排」两个字还是不敢下笔的人
 > **技术栈**：Python 为主，附 Java 版

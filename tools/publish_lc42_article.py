@@ -51,7 +51,7 @@ SOURCE = (
     / "lc-42-trapping-rain-water.md"
 )
 
-ARTICLE_TITLE = "【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra"
+ARTICLE_TITLE = "【LC 42】接雨水：四种解法，同一个问题"
 ARTICLE_SLUG = "lc-42-trapping-rain-water"
 ARTICLE_EXCERPT = (
     "接雨水的全部内容只有一句话：每格能存多少水，取决于左右最高的柱子里较矮的那根。"

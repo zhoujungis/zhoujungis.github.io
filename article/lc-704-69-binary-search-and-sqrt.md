@@ -1,5 +1,5 @@
 ---
-title: 【LC 704/69】二分查找 & x 的平方根：一个命中就返回，一个成立还向右
+title: "【LC 704/69】二分查找 & 平方根：命中返回 vs 还向右"
 slug: lc-704-69-binary-search-and-sqrt
 cover_image: /photos/lc-704-69-cover.png
 date: 2026-09-29

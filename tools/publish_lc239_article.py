@@ -48,7 +48,7 @@ SOURCE = (
     / "lc-239-sliding-window-maximum.md"
 )
 
-ARTICLE_TITLE = "【LC 239】滑动窗口最大值：单调队列 —— 只留还有机会的候选"
+ARTICLE_TITLE = "【LC 239】滑动窗口最大值：单调队列只留候选"
 ARTICLE_SLUG = "lc-239-sliding-window-maximum"
 ARTICLE_EXCERPT = (
     "队列里只留「还有机会当最大值」的候选，并按值递减 —— 队首恒为最大。"

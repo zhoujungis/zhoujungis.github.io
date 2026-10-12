@@ -54,7 +54,7 @@ SOURCE = (
     / "lc-704-69-binary-search-and-sqrt.md"
 )
 
-ARTICLE_TITLE = "【LC 704/69】二分查找 & x 的平方根：一个命中就返回，一个成立还向右"
+ARTICLE_TITLE = "【LC 704/69】二分查找 & 平方根：命中返回 vs 还向右"
 ARTICLE_SLUG = "lc-704-69-binary-search-and-sqrt"
 ARTICLE_EXCERPT = (
     "704：二分 = 维持区间不变量「答案若在，恒在 [left, right]」—— "

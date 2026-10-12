@@ -1,5 +1,5 @@
 ---
-title: 【LC 165】比较版本号：归一化后逐列比 —— 剥前导零 + 缺位补零
+title: "【LC 165】比较版本号：归一化后逐列比"
 slug: lc-165-compare-version-numbers
 cover_image: /photos/lc-165-cover.png
 date: 2026-09-29

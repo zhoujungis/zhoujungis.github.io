@@ -46,7 +46,7 @@ SOURCE = (
     / "lc-53-maximum-subarray.md"
 )
 
-ARTICLE_TITLE = "【LC 53】最大子数组和：Kadane 只有一句话 —— 带上前面那段，是赚了还是亏了"
+ARTICLE_TITLE = "【LC 53】最大子数组和：带上前面，是赚还是亏"
 ARTICLE_SLUG = "lc-53-maximum-subarray"
 ARTICLE_EXCERPT = (
     "Kadane 的五行代码里只有一个决策点：cur = max(x, cur + x) —— "

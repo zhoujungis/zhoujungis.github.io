@@ -1,5 +1,5 @@
 ---
-title: 【LC 146】LRU 缓存：哈希表 + 双向链表的 O(1) 手写，和 LFU 的一眼对照
+title: "【LC 146】LRU 缓存：手写哈希表与双向链表"
 slug: lc-146-lru-cache
 cover_image: /photos/lc-146-cover.png
 date: 2026-10-12

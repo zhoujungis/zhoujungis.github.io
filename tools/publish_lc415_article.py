@@ -46,7 +46,7 @@ SOURCE = (
     / "lc-415-add-strings.md"
 )
 
-ARTICLE_TITLE = "【LC 415】字符串相加：竖式加法 —— 把小学列竖式翻译成代码"
+ARTICLE_TITLE = "【LC 415】字符串相加：把竖式翻译成代码"
 ARTICLE_SLUG = "lc-415-add-strings"
 ARTICLE_EXCERPT = (
     "不能转整数不是刁难，而是排除法 —— 把捷径全部排除，"

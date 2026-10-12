@@ -48,7 +48,7 @@ SOURCE = (
     / "lc-300-longest-increasing-subsequence.md"
 )
 
-ARTICLE_TITLE = "【LC 300】最长递增子序列：给状态加一个锚 —— 再换一套记账压到 O(n log n)"
+ARTICLE_TITLE = "【LC 300】最长递增子序列：加锚，再压到 O(n log n)"
 ARTICLE_SLUG = "lc-300-longest-increasing-subsequence"
 ARTICLE_EXCERPT = (
     "动态规划的破局动作是给状态加一个锚：dp[i] = 以 nums[i] 结尾的最长递增长度，"

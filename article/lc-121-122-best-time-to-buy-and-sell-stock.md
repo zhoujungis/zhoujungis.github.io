@@ -1,5 +1,5 @@
 ---
-title: 【LC 121/122】买卖股票的最佳时机 I & II：一个等历史最低价，一个吃下每段上坡
+title: "【LC 121/122】买卖股票 I & II：等低点与吃上坡"
 slug: lc-121-122-best-time-to-buy-and-sell-stock
 cover_image: /photos/lc-121-122-cover.png
 date: 2026-09-30

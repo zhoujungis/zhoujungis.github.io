@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-1-two-sum.md"
 )
 
-ARTICLE_TITLE = "【LC 1】两数之和：「先查再存」的顺序一反过来，就会匹配到自己"
+ARTICLE_TITLE = "【LC 1】两数之和：先查再存，反了就匹配自己"
 ARTICLE_SLUG = "lc-1-two-sum"
 ARTICLE_EXCERPT = (
     "LC 1 是绝大多数人的第一道 LeetCode，但它真正教的东西只有两点："

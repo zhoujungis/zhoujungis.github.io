@@ -1,5 +1,5 @@
 ---
-title: "【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来"
+title: "【LC 102】二叉树的层序遍历：为什么先存队列长度"
 slug: "lc-102-binary-tree-level-order-traversal"
 category_id: null
 tags: ["算法", "二叉树", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-102-cover.png"
 ---
 
-# 【LC 102】二叉树的层序遍历：为什么必须先把队列长度存下来
+# 【LC 102】二叉树的层序遍历：为什么先存队列长度
 
 > **适用读者**：会写二叉树前中后序遍历（递归），但这题一写就把所有层吐成一维数组的人
 > **技术栈**：Python 为主，附 Java 版

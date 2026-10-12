@@ -46,7 +46,7 @@ SOURCE = (
     / "lc-20-valid-parentheses.md"
 )
 
-ARTICLE_TITLE = "【LC 20】有效的括号：栈不是选出来的，是被括号结构逼出来的"
+ARTICLE_TITLE = "【LC 20】有效的括号：栈是被结构逼出来的"
 ARTICLE_SLUG = "lc-20-valid-parentheses"
 ARTICLE_EXCERPT = (
     "最内层尚未闭合的左括号必须最先被闭合 —— 后开先闭就是 LIFO，"

@@ -1,5 +1,5 @@
 ---
-title: "【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊"
+title: "【LC 124】二叉树最大路径和：返回值只选一条"
 slug: "lc-124-binary-tree-maximum-path-sum"
 category_id: null
 tags: ["算法", "二叉树", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-124-cover.png"
 ---
 
-# 【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊
+# 【LC 124】二叉树最大路径和：返回值只选一条
 
 > **适用读者**：会写二叉树的后序递归，但一看到「返回值」和「答案」要同时维护就觉得别扭的人
 > **技术栈**：Python 为主，附 Java 版

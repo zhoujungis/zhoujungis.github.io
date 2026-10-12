@@ -47,7 +47,7 @@ SOURCE = (
     / "lc-146-lru-cache.md"
 )
 
-ARTICLE_TITLE = "【LC 146】LRU 缓存：哈希表 + 双向链表的 O(1) 手写，和 LFU 的一眼对照"
+ARTICLE_TITLE = "【LC 146】LRU 缓存：手写哈希表与双向链表"
 ARTICLE_SLUG = "lc-146-lru-cache"
 ARTICLE_EXCERPT = (
     "LRU 缓存 = 哈希表定位 + 双向链表排队：队首 = 最近使用、队尾 = 淘汰对象；"

@@ -1,5 +1,5 @@
 ---
-title: 【LC 72】编辑距离：前缀对前缀 —— 以及被滚动数组吃掉的那一格
+title: "【LC 72】编辑距离：前缀对前缀，与滚动数组"
 slug: lc-72-edit-distance
 cover_image: /photos/lc-72-cover.png
 date: 2026-09-30

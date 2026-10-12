@@ -1,5 +1,5 @@
 ---
-title: "【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra"
+title: "【LC 42】接雨水：四种解法，同一个问题"
 slug: "lc-42-trapping-rain-water"
 category_id: null
 tags: ["算法", "双指针", "单调栈", "LeetCode", "面试"]
@@ -7,7 +7,7 @@ status: "draft"
 cover_image: "https://zhoujungis.github.io/photos/lc-42-cover.png"
 ---
 
-# 【LC 42】接雨水：四种解法其实在回答同一个问题，而三维版把它变成了 Dijkstra
+# 【LC 42】接雨水：四种解法，同一个问题
 
 > **适用读者**：背过"双指针解接雨水"但一直没想明白为什么对的人；以及想知道单调栈到底在干什么的人
 > **技术栈**：Python 为主，附 Java 版

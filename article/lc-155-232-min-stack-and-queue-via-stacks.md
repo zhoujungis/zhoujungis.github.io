@@ -1,5 +1,5 @@
 ---
-title: 【LC 155/232】最小栈 & 用栈实现队列：一个记住历史，一个再翻一次
+title: "【LC 155/232】最小栈 & 用栈实现队列：记历史与再翻一次"
 slug: lc-155-232-min-stack-and-queue-via-stacks
 cover_image: /photos/lc-155-232-cover.png
 date: 2026-09-29

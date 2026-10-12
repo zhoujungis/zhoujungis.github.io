@@ -1,5 +1,5 @@
 ---
-title: 【LC 139】单词拆分：一个布尔 dp，和一条把 dp 变成切分的回溯
+title: "【LC 139】单词拆分：布尔 dp 与切分回溯"
 slug: lc-139-word-break
 cover_image: /photos/lc-139-cover.png
 date: 2026-09-30
@@ -85,7 +85,7 @@ def wordBreak(s, wordDict):
 反过来看两个"差点踩到"的写法：
 
 ```python
-# 错法一：dp[0] = False —— 整串就是一个词时全盘皆输
+# 【LC 139】单词拆分：布尔 dp 与切分回溯
 dp[0] = False
 # wordBreak("leet", ["leet"])：j = 0 时 dp[0] 是 false，dp[4] 永远起不来 → 返回 False
 

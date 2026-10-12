@@ -42,7 +42,7 @@ SOURCE = (
     / "lc-236-lowest-common-ancestor-of-a-binary-tree.md"
 )
 
-ARTICLE_TITLE = "【LC 236】二叉树的最近公共祖先：为什么「命中即返回」就自动处理了「自己是祖先」"
+ARTICLE_TITLE = "【LC 236】二叉树的最近公共祖先：命中即返回"
 ARTICLE_SLUG = "lc-236-lowest-common-ancestor-of-a-binary-tree"
 ARTICLE_EXCERPT = (
     "LC 236 只有 8 行代码，但它考的是「递归返回值能承载几种含义」。"

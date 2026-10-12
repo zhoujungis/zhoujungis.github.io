@@ -1,5 +1,5 @@
 ---
-title: 【LC 224/772】基本计算器 & 基本计算器 III：一个来一个结，一个排队等优先级
+title: "【LC 224/772】基本计算器：一个来一个结，一个等优先级"
 slug: lc-224-772-basic-calculator
 cover_image: /photos/lc-224-772-cover.png
 date: 2026-09-29

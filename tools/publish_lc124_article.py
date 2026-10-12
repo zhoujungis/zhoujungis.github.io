@@ -43,7 +43,7 @@ SOURCE = (
     / "lc-124-binary-tree-maximum-path-sum.md"
 )
 
-ARTICLE_TITLE = "【LC 124】二叉树中的最大路径和：返回值为什么只能选一条胳膊"
+ARTICLE_TITLE = "【LC 124】二叉树最大路径和：返回值只选一条"
 ARTICLE_SLUG = "lc-124-binary-tree-maximum-path-sum"
 ARTICLE_EXCERPT = (
     "LC 124 只有 10 行代码，但它逼你想清楚一件在别处很少被逼着面对的事："
