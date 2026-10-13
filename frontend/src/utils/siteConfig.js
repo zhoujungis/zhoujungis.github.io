@@ -13,7 +13,7 @@
  */
 
 export const SITE_NAME = '尘世栈帧'
-export const SITE_AUTHOR = 'GeoSquare'
+export const SITE_AUTHOR = 'Stack Frame'
 export const SITE_DESCRIPTION = '尘世栈帧 — 技术、编程、AI 与科学'
 export const SITE_ORIGIN = 'https://zhoujungis.github.io'
 
