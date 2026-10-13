@@ -69,6 +69,8 @@ import { mountLruCache } from '@/viz/lruCache'
 import { mountLfuCache } from '@/viz/lfuCache'
 import { mountRand10 } from '@/viz/rand10'
 import { mountRand10Uniform } from '@/viz/rand10Uniform'
+import { mountEliminateSum10 } from '@/viz/eliminateSum10'
+import { mountEliminateSum10Order } from '@/viz/eliminateSum10Order'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -419,6 +421,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc146lfu': mountLfuCache,
   'algo-viz--lc470': mountRand10,
   'algo-viz--lc470uni': mountRand10Uniform,
+  'algo-viz--txelim': mountEliminateSum10,
+  'algo-viz--txorder': mountEliminateSum10Order,
 }
 
 let vizHandles = []
