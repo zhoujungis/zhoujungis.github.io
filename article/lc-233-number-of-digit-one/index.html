@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 给定 n ，统计 1 ~ n 所有整数中数字 1 出现的次数。 要求找规律，不要暴力。 这就是 LeetCode 233. Number of Digit One 。看着像一道模拟题， n 大起来之后暴力的代价是灾难级的： n = 2147483647 时要逐个数检查约 21.5 亿个数、每个最多 10 个数位，" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-233-number-of-digit-one/" />
+    <meta property="og:title" content="【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法" />
+    <meta property="og:description" content="题目 给定 n ，统计 1 ~ n 所有整数中数字 1 出现的次数。 要求找规律，不要暴力。 这就是 LeetCode 233. Number of Digit One 。看着像一道模拟题， n 大起来之后暴力的代价是灾难级的： n = 2147483647 时要逐个数检查约 21.5 亿个数、每个最多 10 个数位，" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-233-number-of-digit-one/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lc-233-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法" />
+    <meta name="twitter:description" content="题目 给定 n ，统计 1 ~ n 所有整数中数字 1 出现的次数。 要求找规律，不要暴力。 这就是 LeetCode 233. Number of Digit One 。看着像一道模拟题， n 大起来之后暴力的代价是灾难级的： n = 2147483647 时要逐个数检查约 21.5 亿个数、每个最多 10 个数位，" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lc-233-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CfjXllUd.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-13T17:01:58.829826+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法","description":"题目 给定 n ，统计 1 ~ n 所有整数中数字 1 出现的次数。 要求找规律，不要暴力。 这就是 LeetCode 233. Number of Digit One 。看着像一道模拟题， n 大起来之后暴力的代价是灾难级的： n = 2147483647 时要逐个数检查约 21.5 亿个数、每个最多 10 个数位，","image":"https://zhoujungis.github.io/photos/lc-233-cover.png","datePublished":"2026-10-13T17:01:58.829826+08:00","dateModified":"2026-10-13T17:01:58.829826+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-233-number-of-digit-one/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法</h1><div class="ns-meta">2026/10/13 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+给定 <code>n</code>，统计 <code>1 ~ n</code> 所有整数中数字 <code>1</code> 出现的次数。<strong>要求找规律，不要暴力。</strong>
+<div class="codehilite"><pre><span></span><code>输入: n = 13
+输出: 6
+解释: 1, 10, 11, 12, 13 里共有 6 个 1 ——
+      11 贡献两个，其余各一个。
+</code></pre></div>
+
+
+这就是 <a href="/article/lc-233-number-of-digit-one/">LeetCode 233. Number of Digit One</a>。看着像一道模拟题，<code>n</code> 大起来之后暴力的代价是灾难级的：<code>n = 2147483647</code> 时要逐个数检查约 21.5 亿个数、每个最多 10 个数位，合计约 <strong>2.15 × 10^10 次</strong>数位操作；而找对规律之后，不管 <code>n</code> 是 13 还是 21 亿，都只要 <strong>10 轮</strong>循环。
+<ul>
+<li><a href="#section-1">一、核心洞察：把「数 1」拆成「逐位统计」</a></li>
+<li><a href="#section-2">二、找规律：从数轴上的 1 到三件套</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、变体：换数字、数 0、递归版</a></li>
+<li><a href="#section-6">六、Java 版：两处 int 溢出</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑：官方样例抓不住的三个 bug</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：把「数 1」拆成「逐位统计」</h2>
+
+暴力的做法是「对每个数，把它的每个数位都看一遍」。要找规律，先换个问法：
+
+<strong>不要问「哪些数含有 1」，要问「每个数位上分别出现了多少个 1」。</strong>
+
+这两件事的总和是一样的，但后者可以一个数位一个数位地算，而且<strong>每个数位只由三个值决定</strong>：
+
+以个位为例。<code>1 ~ n</code> 里个位是 1 的数，是 <code>1, 11, 21, 31, ...</code> —— 每隔 10 个出现一个。所以：
+<ul>
+<li>完整的「十连」有 <code>higher</code> 个，每个十连贡献 1 个个位 1；</li>
+<li>不满的末尾那一段，要看当前数位 <code>cur</code> 是不是已经走过了 1。</li>
+</ul>
+
+十位、百位、千位完全同理，只是把「每 10 个出现 1 个」换成「每 100 个连续出现 10 个」「每 1000 个连续出现 100 个」。<strong>这个「连续几个」，就是该数位的权值 <code>weight</code>。</strong> 于是每个数位的账本都是同一句话：
+<div class="codehilite"><pre><span></span><code>完整循环数 × 每循环贡献 + 零头里那一截
+</code></pre></div>
+
+
+把这句话翻译成代码，就是三件套：<code>higher</code>（当前位之上）、<code>cur</code>（当前位）、<code>lower</code>（当前位之下）。
+<blockquote>
+
+一句话总结：<strong><code>O(n)</code> 的暴力是按「数」扫，<code>O(log n)</code> 的规律是按「数位」扫。</strong> 数位只有 10 个左右，这就是全部的提速来源。
+</blockquote>
+<h2>二、找规律：从数轴上的 1 到三件套</h2>
+
+先不碰公式。把 <code>0 ~ 47</code> 摆成网格（每行 10 个），一个一个数位看过去：
+<div class="algo-viz algo-viz--lc233block"></div>
+
+<ul>
+<li><strong>个位</strong>：每 10 个数循环一次，一个循环里个位为 1 的恰好 1 个 —— <code>1, 11, 21, 31, 41</code>，是<strong>散点</strong>。<code>0 ~ 47</code> 里有 4 个完整十连（<code>0-39</code>）贡献 4 个，零头 <code>40-47</code> 里 41 踩线，再数出 1 个。个位合计 <strong>5</strong>。</li>
+<li><strong>十位</strong>：每 100 个数循环一次，一个循环里十位为 1 的恰好连续 10 个（<code>10-19</code>）—— 是<strong>整块</strong>。<code>0 ~ 47</code> 里没有完整百块（0 个 × 10），但 <code>10-19</code> 这一整块都落在范围内，数出 <strong>10</strong>。</li>
+</ul>
+
+同一个 <code>n = 47</code>，两个数位合起来 <strong>15</strong>。注意个位和十位的「形状」完全不同（一个散点、一个整块），但<strong>账本结构一模一样</strong>：完整循环数 × 每循环贡献 + 零头里那一截。
+
+把这个账本翻译成公式，就是三件套。对权值为 <code>weight</code> 的数位（个位 <code>weight = 1</code>，十位 <code>10</code>，百位 <code>100</code>……），只看三个值：
+<div class="codehilite"><pre><span></span><code>higher = n / (weight * 10)   当前位之上的部分
+cur    = (n / weight) % 10   当前位
+lower  = n % weight          当前位之下的部分
+</code></pre></div>
+
+
+<code>higher</code> 就是「完整循环数」，<code>weight</code> 就是「每循环贡献」，零头怎么算看 <code>cur</code>：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>cur</th>
+<th>零头里那一截</th>
+<th>这一位贡献</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cur = 0</code></td>
+<td>还没走到 1，一个不多给</td>
+<td><code>higher × weight</code></td>
+</tr>
+<tr>
+<td><code>cur = 1</code></td>
+<td>正好从 1 开始，一路数到 <code>lower</code></td>
+<td><code>higher × weight + lower + 1</code></td>
+</tr>
+<tr>
+<td><code>cur &gt; 1</code></td>
+<td>1 那一截已整个走完，当前循环也满额</td>
+<td><code>(higher + 1) × weight</code></td>
+</tr>
+</tbody>
+</table></div>
+
+完整代码（Python）：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">count_digit_one</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;n 必须是非负整数&quot;</span><span class="p">)</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="mi">1</span>              <span class="c1"># 当前数位的权值：1、10、100……</span>
+    <span class="c1"># 注意是 &lt;=：n 恰好是 10 的幂时，最高位那个数位也必须扫</span>
+    <span class="k">while</span> <span class="n">weight</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+        <span class="n">higher</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="p">(</span><span class="n">weight</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span> <span class="o">//</span> <span class="n">weight</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span>
+        <span class="n">lower</span> <span class="o">=</span> <span class="n">n</span> <span class="o">%</span> <span class="n">weight</span>
+        <span class="k">if</span> <span class="n">cur</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">higher</span> <span class="o">*</span> <span class="n">weight</span>
+        <span class="k">elif</span> <span class="n">cur</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">higher</span> <span class="o">*</span> <span class="n">weight</span> <span class="o">+</span> <span class="n">lower</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="p">(</span><span class="n">higher</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">weight</span>
+        <span class="n">weight</span> <span class="o">*=</span> <span class="mi">10</span>
+    <span class="k">return</span> <span class="n">total</span>
+</code></pre></div>
+
+
+以 <code>n = 13</code> 走一遍：个位 <code>higher = 1, cur = 3, lower = 0</code>，走 <code>cur &gt; 1</code> 分支，贡献 <code>(1 + 1) × 1 = 2</code>（数字 1 和 11）；十位 <code>higher = 0, cur = 1, lower = 3</code>，走 <code>cur = 1</code> 分支，贡献 <code>0 × 10 + 3 + 1 = 4</code>（10、11、12、13）。合计 6，和样例一致。
+<div class="algo-viz algo-viz--lc233"></div>
+
+<h2>三、动画怎么看</h2>
+
+<strong>动画一（<code>n = 1304</code>，10 帧）</strong> 演示公式怎么用。取 1304 做主例是因为它四个数位的 <code>cur</code> 分别是 <code>4, 0, 3, 1</code> —— <strong>三个分支刚好各走一次</strong>，看一遍等于看全所有情况。画面分五段：
+<ul>
+<li><strong>横幅</strong>：当前数位（个位 · 权值 1）、本轮动作（拆三件套 / 走哪个分支）、数值（这一位的贡献）；</li>
+<li><strong>数位条</strong>：<code>n</code> 的每个数字一格，<strong>橙 = 当前位，蓝 = 高于它，绿 = 低于它</strong>，和等式、卡片同色；</li>
+<li><strong>拆分等式</strong>：<code>1304 = 130 × 10 + 4 × 1 + 0</code> —— 三件套的算术长相，三个加数项分别着色；</li>
+<li><strong>三件套卡片 + 三分支表</strong>：卡片给 <code>higher / cur / lower</code> 的值，分支表三行（<code>cur = 0 / 1 / &gt; 1</code>）对号入座，命中行烫金并给出代入结果，比如 <code>(130 + 1) × 1 = 131</code>；</li>
+<li><strong>累计 chips + 合计</strong>：每记完一位亮一个 chip，最后收在「合计 766」。</li>
+</ul>
+
+值得盯的两帧：<strong>第 5 帧（十位，<code>cur = 0</code>）</strong> —— 当前块连 1 那一截的边都没碰到，只拿 13 个完整百块的 130 个；<strong>第 9 帧（千位，<code>cur = 1</code>）</strong> —— 全程唯一一次 <code>cur = 1</code>，<code>0 × 1000 + 304 + 1 = 305</code>，<code>+1</code> 就加在这个地方，也是这题最容易漏的一项。
+
+<strong>动画二（<code>n = 47</code>，6 帧）</strong> 演示公式从哪来，就是第二节那个数轴：个位帧里 <code>1, 11, 21, 31, 41</code> 五个烫金散点，十位帧里 <code>10-19</code> 一整条烫金块 —— 同一个网格、两种形状，对照着看，「完整循环 × 每循环贡献 + 零头」这句话为什么对两种形状同时成立，一目了然。账本面板会把每个数位算成三行：完整循环几个 × 每个多少、零头数出几个、本位合计。
+<h2>四、完整推演表</h2>
+
+主例 <code>n = 1304</code>，四个数位全部扫完：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>数位</th>
+<th>权值</th>
+<th>higher</th>
+<th>cur</th>
+<th>lower</th>
+<th>分支</th>
+<th>贡献</th>
+<th>累计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>个位</td>
+<td>1</td>
+<td>130</td>
+<td>4</td>
+<td>0</td>
+<td><code>cur &gt; 1</code></td>
+<td>131</td>
+<td>131</td>
+</tr>
+<tr>
+<td>十位</td>
+<td>10</td>
+<td>13</td>
+<td>0</td>
+<td>4</td>
+<td><code>cur = 0</code></td>
+<td>130</td>
+<td>261</td>
+</tr>
+<tr>
+<td>百位</td>
+<td>100</td>
+<td>1</td>
+<td>3</td>
+<td>4</td>
+<td><code>cur &gt; 1</code></td>
+<td>200</td>
+<td>461</td>
+</tr>
+<tr>
+<td>千位</td>
+<td>1000</td>
+<td>0</td>
+<td>1</td>
+<td>304</td>
+<td><code>cur = 1</code></td>
+<td>305</td>
+<td><strong>766</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+官方样例 <code>n = 13</code>：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>数位</th>
+<th>权值</th>
+<th>higher</th>
+<th>cur</th>
+<th>lower</th>
+<th>分支</th>
+<th>贡献</th>
+<th>累计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>个位</td>
+<td>1</td>
+<td>1</td>
+<td>3</td>
+<td>0</td>
+<td><code>cur &gt; 1</code></td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>十位</td>
+<td>10</td>
+<td>0</td>
+<td>1</td>
+<td>3</td>
+<td><code>cur = 1</code></td>
+<td>4</td>
+<td><strong>6</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+两个答案都用「逐个数数 '1'」的暴力解校验过：<code>1 ~ 1304</code> 里确实有 766 个数字 1，<code>1 ~ 13</code> 里确实有 6 个。
+<h2>五、变体：换数字、数 0、递归版</h2>
+
+<strong>换成数别的数字（2-9）</strong>：公式一个字都不用改结构，只把比较对象从 1 换成 <code>d</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">count_digit</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">weight</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+        <span class="n">higher</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="p">(</span><span class="n">weight</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span> <span class="o">//</span> <span class="n">weight</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span>
+        <span class="n">lower</span> <span class="o">=</span> <span class="n">n</span> <span class="o">%</span> <span class="n">weight</span>
+        <span class="k">if</span> <span class="n">cur</span> <span class="o">&gt;</span> <span class="n">d</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="p">(</span><span class="n">higher</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">weight</span>
+        <span class="k">elif</span> <span class="n">cur</span> <span class="o">==</span> <span class="n">d</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">higher</span> <span class="o">*</span> <span class="n">weight</span> <span class="o">+</span> <span class="n">lower</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">higher</span> <span class="o">*</span> <span class="n">weight</span>
+        <span class="n">weight</span> <span class="o">*=</span> <span class="mi">10</span>
+    <span class="k">return</span> <span class="n">total</span>
+</code></pre></div>
+
+
+注意三条分支从「<code>cur = 0 / 1 / &gt; 1</code>」变成了「<code>cur &lt; d / = d / &gt; d</code>」。<code>d = 1</code> 时 <code>cur &lt; d</code> 就是 <code>cur = 0</code>，所以第一节的三分支只是它的特例。<code>n = 13</code> 时 <code>count_digit(13, 2) = 2</code>（2 和 12），可以拿这组小数字手验。
+
+<strong>数字 0 是唯一的例外</strong>：前导零不算（<code>007</code> 不是一个七位数的写法），所以 <code>cur = 0</code> 时完整循环要少算一个：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">count_digit_zero</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">weight</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+        <span class="n">higher</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="p">(</span><span class="n">weight</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span> <span class="o">//</span> <span class="n">weight</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span>
+        <span class="n">lower</span> <span class="o">=</span> <span class="n">n</span> <span class="o">%</span> <span class="n">weight</span>
+        <span class="k">if</span> <span class="n">cur</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="p">(</span><span class="n">higher</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">weight</span> <span class="o">+</span> <span class="n">lower</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">higher</span> <span class="o">*</span> <span class="n">weight</span>
+        <span class="n">weight</span> <span class="o">*=</span> <span class="mi">10</span>
+    <span class="k">return</span> <span class="n">total</span>
+</code></pre></div>
+
+
+<code>(higher - 1)</code> 减掉的就是「00X 不算数」的那些前导零。<code>n = 101</code> 时数 0 得 12、数 1 得 23 —— <strong>同一个 n，0 和 1 的答案能差将近一倍</strong>，面试官很爱拿这个追问「你的公式对 0 也成立吗」。
+
+<strong>递归版（按最高位切）</strong>：不从个位往上扫，而是从最高位往下切，也是常见写法：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">count_digit_one_rec</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">high</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">power</span> <span class="o">=</span> <span class="nb">pow</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">rest</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">high</span> <span class="o">*</span> <span class="n">power</span>
+    <span class="k">if</span> <span class="n">high</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># 最高位贡献 rest + 1 个；低位模式完整出现 1 次 + 尾巴上再出现一次</span>
+        <span class="k">return</span> <span class="n">rest</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">count_digit_one_rec</span><span class="p">(</span><span class="n">power</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">count_digit_one_rec</span><span class="p">(</span><span class="n">rest</span><span class="p">)</span>
+    <span class="c1"># 最高位贡献 power 个；低位模式完整出现 high 次 + 尾巴上再出现一次</span>
+    <span class="k">return</span> <span class="n">power</span> <span class="o">+</span> <span class="n">high</span> <span class="o">*</span> <span class="n">count_digit_one_rec</span><span class="p">(</span><span class="n">power</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">count_digit_one_rec</span><span class="p">(</span><span class="n">rest</span><span class="p">)</span>
+</code></pre></div>
+
+
+以 <code>n = 1304</code> 为例：最高位贡献 <code>304 + 1 = 305</code> 个（1000 ~ 1304 的千位都是 1）；低位模式 <code>000-999</code> 完整出现 1 次，贡献 <code>count(999) = 300</code>；尾巴 <code>300-304</code> 的低三位再递归一次 <code>count(304) = 161</code>。合计 <code>305 + 300 + 161 = 766</code>。递归版和迭代版在 <code>n ≤ 3000</code> 全量一致，在 <code>2147483647</code> 上也一致 —— 但迭代版 <code>O(1)</code> 空间、没有递归深度问题，<strong>面试推荐写迭代版</strong>。
+<h2>六、Java 版：两处 int 溢出</h2>
+
+这题在 Java 里有两个独立的溢出点，都是面试里实打实的加分项：
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">CountDigitOne</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 统计 1 ~ n 中数字 1 出现的次数</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">countDigitOne</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span><span class="s">&quot;n 必须是非负整数，收到 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">n</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// weight 必须用 long：n 接近 int 上限时循环会走到 10^9，</span>
+<span class="w">        </span><span class="c1">// 下一步 weight *= 10 就是 10^10，int 装不下会回绕成负数，循环直接失控</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">weight</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">weight</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">long</span><span class="w"> </span><span class="n">higher</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="p">(</span><span class="n">weight</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">((</span><span class="n">n</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">weight</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+<span class="w">            </span><span class="kt">long</span><span class="w"> </span><span class="n">lower</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">weight</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">higher</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">weight</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">higher</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">weight</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">lower</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="p">(</span><span class="n">higher</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">weight</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">weight</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>溢出点一：<code>weight</code> 的类型。</strong> <code>n = 2147483647</code> 时循环要走到 <code>weight = 10^9</code>，下一步 <code>weight *= 10 = 10^10</code> 超出 int 范围。int 回绕后 <code>weight</code> 变负数，<code>weight &lt;= n</code> 仍然成立 —— <strong>死循环</strong>。所以 <code>weight</code> 必须是 <code>long</code>。
+
+<strong>溢出点二：答案本身的类型。</strong> 数 1 的次数可以超过 int 上限：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>n</th>
+<th>答案</th>
+<th>是否超出 int32（2147483647）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10^9</td>
+<td>900000001</td>
+<td>否</td>
+</tr>
+<tr>
+<td>1633388154</td>
+<td>2147483646</td>
+<td>否（差一点）</td>
+</tr>
+<tr>
+<td><strong>1633388155</strong></td>
+<td><strong>2147483648</strong></td>
+<td><strong>是</strong></td>
+</tr>
+<tr>
+<td>2147483647</td>
+<td>2971027783</td>
+<td>是</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>n ≥ 1633388155</code> 时答案就越界，所以返回类型只能是 <code>long</code>。顺带一个数量级感受：答案大约是 <code>n × log10(n) / 10</code>，<code>n</code> 到 21 亿时答案接近 30 亿，天然超出 int。
+
+Python 和 JavaScript 不用操心这两点（任意精度 / 双精度在 2^53 内精确），但如果用 C/C++ 写，<code>weight</code> 同样要 <code>long long</code>。
+<h2>七、边界情况</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>情况</th>
+<th>期望行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n = 0</code></td>
+<td><code>1 ~ 0</code> 里没有整数，返回 0。循环一次都不进，天然正确</td>
+</tr>
+<tr>
+<td><code>n = 1</code></td>
+<td>返回 1（只有数字 1 本身）</td>
+</tr>
+<tr>
+<td><code>1 ≤ n ≤ 9</code></td>
+<td>恒为 1 —— 整个区间只有「1」这一个数含数字 1</td>
+</tr>
+<tr>
+<td><code>n = 10</code></td>
+<td>2（1 和 10）。<strong>这是 <code>weight &lt; n</code> 错法的最小反例</strong></td>
+</tr>
+<tr>
+<td><code>n = 100</code></td>
+<td>21；<code>n = 1000</code></td>
+</tr>
+<tr>
+<td><code>n = 99 / 999 / 9999</code></td>
+<td>20 / 300 / 4000。规律：<code>n = 10^k - 1</code> 时答案是 <code>k × 10^(k-1)</code></td>
+</tr>
+<tr>
+<td><code>n &lt; 0</code></td>
+<td>抛异常。负号不是数字 1，语义上无定义</td>
+</tr>
+<tr>
+<td><code>n</code> 非整数 / 为 <code>null</code></td>
+<td>入参类型校验，别让 <code>//</code> 悄悄截断</td>
+</tr>
+<tr>
+<td><code>n = 2147483647</code></td>
+<td>2971027783，Java 必须用 <code>long</code>（见第七节）</td>
+</tr>
+<tr>
+<td><code>n</code> 是 10 的幂</td>
+<td>最高位数位也要扫，循环条件必须是 <code>weight &lt;= n</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<code>10 的幂</code> 那一行值得单独说：它同时是「公式正确性的试纸」和「错法的照妖镜」。<code>n = 10^k</code> 时正确答案比 <code>k × 10^(k-1)</code> 正好多 1（就是最高位那个 1 本身），写错循环条件的实现会恰好漏掉这 1 个。
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>逐位公式</th>
+<th>暴力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><code>O(log10 n)</code>，即数位个数</td>
+<td><code>O(n log n)</code></td>
+</tr>
+<tr>
+<td>空间</td>
+<td><code>O(1)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td><code>n = 2147483647</code> 的迭代量</td>
+<td>10 轮</td>
+<td>约 2.15 × 10^10 次数位操作</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>O(log n)</code> 的来路：循环变量 <code>weight</code> 每轮 ×10，从 1 涨到超过 <code>n</code> 只需 <code>log10(n)</code> 轮，每轮 O(1)。<code>n</code> 从 1304 换成 21 亿，轮数只从 4 变成 10。
+
+答案的量级也有个粗估公式：<strong>每个数位大约贡献 <code>n / 10</code> 个 1</strong>，所以总数约等于 <code>n × log10(n) / 10</code>。在 <code>n = 10^k - 1</code> 上这个估计精确成立（<code>k × 10^(k-1)</code>），可以用来快速 sanity check：<code>n = 999999</code> 时估 60 万，实际 600000，一位不差。
+<h2>九、常见坑：官方样例抓不住的三个 bug</h2>
+
+这题是「官方样例掩盖 bug」的经典案例。样例 <code>n = 13</code> 的两个数位，<code>cur</code> 分别是 <strong>3 和 1</strong> —— 意味着 <code>cur = 0</code> 的分支在整个样例里<strong>一次都没有执行</strong>。三个错误实现都能原样通过样例：
+<h3>10.1 循环条件写成 <code>weight &lt; n</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">weight</span> <span class="o">&lt;</span> <span class="n">n</span><span class="p">:</span>      <span class="c1"># 错，应该是 &lt;=</span>
+</code></pre></div>
+
+
+<code>n = 13</code> 上碰巧正确：最高位在十位，<code>weight = 10 &lt; 13</code>，照样进循环。但 <code>n</code> 恰好是 10 的幂时最高位被漏掉：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>n</th>
+<th>错版答案</th>
+<th>正确答案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>13</td>
+<td>6</td>
+<td>6（样例抓不到）</td>
+</tr>
+<tr>
+<td>10</td>
+<td>1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>100</td>
+<td>20</td>
+<td>21</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>300</td>
+<td>301</td>
+</tr>
+</tbody>
+</table></div>
+
+最小反例 <code>n = 10</code>。漏掉的恰好是最高位那一份，而 <code>n = 10^k</code> 时最高位只贡献 1 个 1，所以错版总是「差 1」。
+<h3>10.2 <code>cur = 0</code> 时多给一整块</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">cur</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">total</span> <span class="o">+=</span> <span class="p">(</span><span class="n">higher</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">weight</span>    <span class="c1"># 错，cur=0 时当前循环不该算</span>
+</code></pre></div>
+
+
+同样的问题：样例里 <code>cur</code> 从不为 0，分支不执行，答案照旧正确。<code>n = 10</code> 时得 3，正确是 2。
+<h3>10.3 <code>cur = 0</code> 时直接算 0</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 三分支只写 cur == 1 和 cur &gt; 1，cur == 0 什么也不加</span>
+</code></pre></div>
+
+
+和 10.2 是镜像错误：把 13 个完整百块的 130 个全丢了。<code>n = 10</code> 时得 1，正确是 2。
+
+<strong>测法</strong>：补 <code>n = 10, 20, 100, 101</code> 这组「数位中间有 0」的用例。<code>n = 101</code> 尤其好 —— 三个数位的 <code>cur</code> 是 <code>1, 0, 1</code>，<code>cur = 0</code> 和 <code>cur = 1</code> 两个分支同时走到，答案是 23（百位 2 + 十位 10 + 个位 11）。
+<h3>10.4 <code>cur = 1</code> 时忘了 <code>+ lower + 1</code></h3>
+
+这个错法国师样例<strong>能</strong>抓住（<code>n = 13</code> 会算出 2 而不是 6），列出来是因为它是手写时最高频的遗漏：<code>cur = 1</code> 时零头是「从 1 开始数到 <code>lower</code>」，一共 <code>lower + 1</code> 个数，<code>+1</code> 加的是 1 本身。
+<h3>10.5 Java 里 <code>weight</code> 用 int</h3>
+
+见第七节：<code>weight *= 10</code> 回绕成负数，<code>weight &lt;= n</code> 恒成立，<strong>死循环</strong>。这是这题在 Java 面试里最致命的形态 —— 不是答案错，是程序挂住。
+<h2>十、面试怎么答</h2>
+
+30 秒版本：
+<blockquote>
+
+暴力是 <code>O(n log n)</code>，<code>n</code> 到 21 亿不可行。找规律的点在于：<strong>按数位统计，不按数字统计</strong> —— 每个数位上 1 的个数只由高于它、当前位、低于它三个值决定。个位上每 10 个数出 1 个 1，十位上每 100 个连出 10 个，这就是权值 <code>weight</code> 的含义；零头部分看当前位：是 0 就不多给，是 1 就数到 <code>lower</code>（<code>lower + 1</code> 个），大于 1 就满额。总时间 <code>O(log n)</code>、空间 <code>O(1)</code>。
+</blockquote>
+
+如果还有时间，主动补三句，分别是三个加分点：
+<ol>
+<li><strong>边界</strong>：<code>n = 0</code> 返回 0；循环条件必须是 <code>weight &lt;= n</code>，否则 <code>n</code> 是 10 的幂时漏最高位；</li>
+<li><strong>溢出</strong>：Java 里 <code>weight</code> 和返回值都得是 <code>long</code> —— <code>n = 2147483647</code> 的答案是 2971027783，超出 int；</li>
+<li><strong>变体</strong>：数 2-9 只改比较对象；数 0 要特殊处理前导零（<code>cur = 0</code> 时完整循环少算一个）。</li>
+</ol>
+
+这套题的完整状态机、渲染层和 27 个单测（含与暴力解的全量交叉验证）都在仓库里，动画对应文章里的两个占位符。</div></div></noscript>
+  </body>
+</html>
