@@ -57,8 +57,14 @@ def mixed(cx, cy, parts, anchor="mm"):
 # ── 标题 ─────────────────────────────────────────────────────────────────────
 d.text((W / 2, 50), "重复元素找第 10 大：答案能差一倍", font=title_font, fill=INK, anchor="mm")
 mixed(W / 2, 90, [
-    ("size-k 最小堆，堆顶就是「当前第 k 大」", code_small, MUTED),
-    ("  时间 O(n log k)、空间 O(k)", tiny_font, MUTED),
+    ("size-k", code_small, MUTED),
+    (" 最小堆，堆顶就是「当前第 ", tiny_font, MUTED),
+    ("k", code_small, MUTED),
+    (" 大」", tiny_font, MUTED),
+    ("  时间 ", tiny_font, MUTED),
+    ("O(n log k)", code_small, MUTED),
+    ("、空间 ", tiny_font, MUTED),
+    ("O(k)", code_small, MUTED),
 ])
 
 mixed(W / 2, 138, [("数组", card_title, GREEN),
