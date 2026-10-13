@@ -2,7 +2,7 @@
   <footer class="app-footer">
     <div class="footer-inner">
       <div class="footer-left">
-        <span class="copyright">&copy; {{ year }} Zhou Jun</span>
+        <span class="copyright">&copy; {{ year }} {{ SITE_AUTHOR }}</span>
         <span class="divider">·</span>
         <span class="tech">Powered by Vue 3 &amp; Django</span>
       </div>
@@ -21,6 +21,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { SITE_AUTHOR } from '@/utils/siteConfig'
 
 const year = new Date().getFullYear()
 const uptime = ref('')
