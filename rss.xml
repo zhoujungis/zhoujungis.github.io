@@ -5,8 +5,431 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Tue, 13 Oct 2026 07:38:04 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 13 Oct 2026 07:40:36 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</title>
+      <link>https://zhoujungis.github.io/article/kth-largest-with-duplicates/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/kth-largest-with-duplicates/</guid>
+      <pubDate>Tue, 13 Oct 2026 07:39:39 GMT</pubDate>
+      <description>题目 给一个长度为 N 的 有重复元素 的数组，输出第 10 大的数。要求注意合法性校验、边界条件与异常处理。 同题在 LeetCode 上是 LC 215 数组中的第 K 个最大元素 ， k 是参数化的。 本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。 一、核心洞察：先</description>
+      <category>算法</category>
+      <category>LeetCode</category>
+      <category>动态规划</category>
+      <category>面试</category>
+      <content:encoded><![CDATA[<h2>题目</h2>
+
+给一个长度为 <code>N</code> 的<strong>有重复元素</strong>的数组，输出第 <code>10</code> 大的数。要求注意合法性校验、边界条件与异常处理。
+<div class="codehilite"><pre><span></span><code>输入: nums = [23, 7, 45, 12, 45, 8, 33, 12, 19, 5, 45, 27, 12, 9, 33, 16, 41, 3]
+输出: 16   （不去重口径）
+      8   （去重口径）
+</code></pre></div>
+
+
+同题在 LeetCode 上是 <a href="/article/lc-215-quickselect/">LC 215 数组中的第 K 个最大元素</a>，<code>k</code> 是参数化的。<strong>本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。</strong>
+<ul>
+<li><a href="#section-1">一、核心洞察：先问「去重吗」</a></li>
+<li><a href="#section-2">二、拆解：size-k 最小堆，O(n log k)</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：三种解法的取舍</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况与异常处理</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：先问「去重吗」</h2>
+
+拿主例的降序排列看一眼：
+<div class="codehilite"><pre><span></span><code><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="mf">41</span><span class="p">,</span><span class="w"> </span><span class="mf">33</span><span class="p">,</span><span class="w"> </span><span class="mf">33</span><span class="p">,</span><span class="w"> </span><span class="mf">27</span><span class="p">,</span><span class="w"> </span><span class="mf">23</span><span class="p">,</span><span class="w"> </span><span class="mf">19</span><span class="p">,</span><span class="w"> </span><span class="mf">16</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">,</span><span class="w"> </span><span class="mf">9</span><span class="p">,</span><span class="w"> </span><span class="mf">8</span><span class="p">,</span><span class="w"> </span><span class="mf">7</span><span class="p">,</span><span class="w"> </span><span class="mf">5</span><span class="p">,</span><span class="w"> </span><span class="mf">3</span>
+<span class="w">                                      </span><span class="err">↑</span><span class="w"> </span><span class="n">第</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="n">个</span>
+</code></pre></div>
+
+<ul>
+<li><strong>不去重</strong>（LeetCode 215 的语义）：降序第 <code>K</code> 个，即下标 <code>K-1</code>。第 10 大 = <strong>16</strong>。</li>
+<li><strong>去重</strong>（distinct 值里第 <code>K</code> 大）：<code>45, 41, 33, 27, 23, 19, 16, 12, 9, 8, ...</code>，第 10 大 = <strong>8</strong>。</li>
+</ul>
+
+<strong>16 对 8，正好一倍。</strong> 同一个数组、同一句题面，答案取决于一个没被说出来的约定。而且两种约定都有道理：统计「第 10 高的分数」时通常想去重（并列第一不算占两个名额），统计「第 10 个订单金额」时不想去重（每笔订单都是独立的）。
+<blockquote>
+
+面试里的正确动作：<strong>先问一句「重复元素算一次还是算多次」。</strong> 如果面试官说「都可以」，那就把两种都写出来、都测一遍 —— 这比猜对一个更得分。
+</blockquote>
+
+这题还有个隐藏的连带问题：<strong>去重口径下可能无解。</strong> 主例有 13 个不同值，够用；但如果数组是 <code>[5,5,5,5,5]</code>、要找第 3 大，distinct 只有 1 个 —— 这时候应该返回 <code>null</code> / 抛异常，而不是硬返回一个数。不去重口径则不存在这个问题（<code>N &gt;= k</code> 就有解）。
+<h2>二、拆解：size-k 最小堆，O(n log k)</h2>
+
+不需要把整个数组排序。维护一个<strong>只有 <code>k</code> 个位置的最小堆</strong>，堆顶就是「当前第 <code>k</code> 大」：
+<ul>
+<li>堆没满（<code>&lt; k</code> 个）：直接入堆，向上调整；</li>
+<li>堆已满且 <code>v &gt; 堆顶</code>：挤掉堆顶，<code>v</code> 坐到堆顶后向下调整；</li>
+<li>否则（<code>v &lt;= 堆顶</code>）：连前 <code>k</code> 大都进不去，<code>O(1)</code> 丢掉。</li>
+</ul>
+
+扫完之后堆里就是「见过的最大的 <code>k</code> 个值」，堆顶即答案。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">kth_largest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dedupe</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">nums</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;nums 不能为 None&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;k 必须是正整数&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;数组长度 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span><span class="si">}</span><span class="s2"> 小于 k=</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>          <span class="c1"># 最小堆，heap[0] 就是当前第 k 大</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>       <span class="c1"># 去重口径：堆里有哪些值</span>
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dedupe</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">dedupe</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heapreplace</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="c1"># else: v &lt;= 堆顶，丢掉</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;不同值只有 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">seen</span><span class="p">)</span><span class="si">}</span><span class="s2"> 个，凑不齐第 </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> 大&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+
+去重口径为什么要额外维护 <code>seen</code>：只靠「<code>v &gt; 堆顶</code>」判断是不够的。假设堆里已经有 <code>12</code>，新来的 <code>v = 12</code> 且 <code>12 &gt; 堆顶 8</code>，直接替换会把堆顶换成 12 —— 堆里出现两个 12。<code>seen</code> 就是用来拦这种「值已在堆里」的情况。
+<div class="algo-viz algo-viz--kthlarge"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画用主例（18 个元素、<code>k = 10</code>、不去重口径），20 帧：
+<ul>
+<li><strong>输入行</strong>：三态 —— 绿底 = 已经进过堆、橙框 = 当前正在判断、灰底 = 被丢掉的；</li>
+<li><strong>堆行</strong>：10 格的层序数组。<strong>金底那格（下标 0）是堆顶</strong>，也就是「当前第 10 大」；橙框是本次 sift 走过的路径；</li>
+<li><strong>底部一行</strong>：当前堆顶值 + 已丢弃个数；</li>
+<li><strong>答案条</strong>：扫完才亮，给出「第 10 大 = 16」。</li>
+</ul>
+
+值得盯的帧是第 12 个元素（<code>27</code>）：<code>27 &gt; 堆顶 8</code>，挤掉 8 之后向下调整到下标 2。你能直接看到「堆里始终是到目前为止最大的 10 个值」这件事在每一帧上都成立。
+<div class="algo-viz algo-viz--kthdup"></div>
+
+
+第二个动画是<strong>同一组数据、去重口径</strong>：输入行里重复的 <code>45</code>、<code>12</code>、<code>33</code> 全变成灰色（值已在堆里，直接丢弃），最后答案条写着「第 10 大（去重）= 8」。两个动画并排看，口径的差别一目了然。
+<h2>四、完整推演表</h2>
+
+主例 <code>k = 10</code>，前 10 个元素先把堆填满，之后才开始淘汰：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>次序</th>
+<th>值</th>
+<th>动作</th>
+<th>淘汰的堆顶</th>
+<th>堆内最小值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1-10</td>
+<td>23,7,45,12,45,8,33,12,19,5</td>
+<td>依次入堆</td>
+<td>-</td>
+<td>5</td>
+<td>堆满，此时第 10 大 = 5</td>
+</tr>
+<tr>
+<td>11</td>
+<td>45</td>
+<td>挤掉堆顶</td>
+<td>5</td>
+<td>7</td>
+<td>45 明显是大数</td>
+</tr>
+<tr>
+<td>12</td>
+<td>27</td>
+<td>挤掉堆顶</td>
+<td>7</td>
+<td>8</td>
+<td>27 上位，sift 到下标 2</td>
+</tr>
+<tr>
+<td>13</td>
+<td>12</td>
+<td>挤掉堆顶</td>
+<td>8</td>
+<td>12</td>
+<td>12 顶掉 8，堆的最小值跳到 12</td>
+</tr>
+<tr>
+<td>14</td>
+<td>9</td>
+<td><strong>丢弃</strong></td>
+<td>-</td>
+<td>12</td>
+<td>9 &lt;= 12，进不了前 10</td>
+</tr>
+<tr>
+<td>15</td>
+<td>33</td>
+<td>挤掉堆顶</td>
+<td>12</td>
+<td>12</td>
+<td>堆里已有 12，顶掉一个</td>
+</tr>
+<tr>
+<td>16</td>
+<td>16</td>
+<td>挤掉堆顶</td>
+<td>12</td>
+<td>12</td>
+<td>16 把 12 顶掉</td>
+</tr>
+<tr>
+<td>17</td>
+<td>41</td>
+<td>挤掉堆顶</td>
+<td>12</td>
+<td>16</td>
+<td>41 是全局第二大</td>
+</tr>
+<tr>
+<td>18</td>
+<td>3</td>
+<td><strong>丢弃</strong></td>
+<td>-</td>
+<td>16</td>
+<td>3 远不够格</td>
+</tr>
+</tbody>
+</table></div>
+
+最终堆里是 <code>45, 45, 45, 41, 33, 33, 27, 23, 19, 16</code>（共 10 个），堆顶 <strong>16</strong> = 第 10 大。全程只有 2 个元素被 <code>O(1)</code> 丢掉、6 次堆调整 —— 如果数组长到 10 万个元素，绝大部分元素都会在「和堆顶比一下」这一步被丢掉，根本进不了堆。
+<h2>五、进阶：三种解法的取舍</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>解法</th>
+<th>时间</th>
+<th>空间</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全局排序取下标</td>
+<td><code>O(n log n)</code></td>
+<td><code>O(1)</code> 或 <code>O(n)</code></td>
+<td>数据能全进内存、代码要最短</td>
+</tr>
+<tr>
+<td><strong>size-k 最小堆</strong></td>
+<td><code>O(n log k)</code></td>
+<td><code>O(k)</code></td>
+<td><strong>k 远小于 n 时的标准答案</strong></td>
+</tr>
+<tr>
+<td>快速选择（quickselect）</td>
+<td><code>O(n)</code> 平均，<code>O(n^2)</code> 最坏</td>
+<td><code>O(1)</code></td>
+<td>追求平均线性、且允许破坏输入</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>为什么堆是这题的标准答案</strong>：<code>k = 10</code> 是常数，<code>O(n log 10)</code> 就是 <code>O(n)</code>，但常数极小，而且<strong>不需要把整个数组装进内存</strong> —— 数据是流式到来的也能做（读一个判一个，堆只留 10 个）。排序做不到这一点，快速选择也做不到（它要随机访问整个数组）。
+
+<strong>快速选择</strong>（<a href="/article/lc-215-quickselect/">LC 215</a> 那篇详述）平均 <code>O(n)</code> 更优，但有两个代价：最坏 <code>O(n^2)</code>（对手构造数据可以卡），而且<strong>原地分区会打乱输入顺序</strong>。如果面试官追问「能不能 O(n)」，先答堆，再补快速选择作为进阶，是标准的答法。
+
+<strong>去重口径的另一个实现</strong>：先 <code>set(nums)</code> 去重（<code>O(n)</code> 空间），再跑同一套堆。代码更短，但多一份 <code>O(n)</code> 空间 —— 流式场景下不可行（你不知道后面还会来什么值，必须一直记着见过的所有值）。动画里用的是流式版本：<code>seen</code> 只记<strong>堆里</strong>的值，被顶出去的值就忘掉，空间 <code>O(k)</code>。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.PriorityQueue</span><span class="p">;</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">KthLargest</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 找第 k 大。dedupe = true 表示去重口径（distinct 值里第 k 大）</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="n">Integer</span><span class="w"> </span><span class="nf">kthLargest</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">dedupe</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span><span class="s">&quot;nums 不能为 null&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span><span class="s">&quot;k 必须是正整数，收到 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;数组长度 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; 小于 k=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 最小堆，堆顶 = 当前第 k 大</span>
+<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">k</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">inHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">   </span><span class="c1">// 去重口径用</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dedupe</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">inHeap</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span><span class="w">                        </span><span class="c1">// 值已在堆里，重复值只算一次</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">                </span><span class="n">inHeap</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">peek</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dedupe</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">inHeap</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="n">heap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">                </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">                </span><span class="n">inHeap</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// else: v &lt;= 堆顶，丢掉</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 只有去重口径会走到这里：不同值不够 k 个</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;不同值不足 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; 个，无法求第 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; 大&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意返回类型用 <code>Integer</code> 而不是 <code>int</code>：<strong>无解时要能返回 <code>null</code></strong>。用 <code>int</code> 就得抛异常或者约定一个魔法值（比如 <code>Integer.MIN_VALUE</code>），两者都不如 <code>null</code> 干净。这也是「异常处理」的一部分 —— <strong>把「不可能的情况」设计进返回类型，而不是留给调用方猜。</strong>
+<h2>七、边界情况与异常处理</h2>
+
+用户特意点了这一项，逐条列：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>情况</th>
+<th>期望行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nums</code> 为 <code>null</code></td>
+<td>抛 <code>IllegalArgumentException</code> / <code>ValueError</code>，<strong>不要</strong>返回 0 或 -1</td>
+</tr>
+<tr>
+<td><code>nums</code> 为空数组</td>
+<td>同上；空数组不可能有第 10 大</td>
+</tr>
+<tr>
+<td><code>N &lt; k</code></td>
+<td>抛异常。<strong>不要</strong>默默返回第 <code>N</code> 大 —— 调用方会以为拿到了正确的名次</td>
+</tr>
+<tr>
+<td><code>k &lt;= 0</code> 或非整数</td>
+<td>抛异常。<code>k = 0</code> 没有语义</td>
+</tr>
+<tr>
+<td>去重口径下 distinct 值 <code>&lt; k</code></td>
+<td><strong>无解</strong>，返回 <code>null</code> 或抛异常。这是去重口径独有的失败模式</td>
+</tr>
+<tr>
+<td>含 <code>null</code> 元素（<code>Integer[]</code>）</td>
+<td>拆箱前判空，或声明「只接受基本类型数组」</td>
+</tr>
+<tr>
+<td>含 <code>NaN</code></td>
+<td>排序法会静默给出错答案（<code>NaN</code> 的比较全部返回 false）；堆法同样。<strong>要么入参校验拦掉，要么文档写明不支持</strong></td>
+</tr>
+<tr>
+<td>含 <code>+Infinity</code> / <code>-Infinity</code></td>
+<td>能正常工作（可比较），但要想清楚业务上合不合法</td>
+</tr>
+<tr>
+<td><code>k == 1</code></td>
+<td>退化为求最大值，<code>O(n)</code> 一次扫描即可，不必建堆</td>
+</tr>
+<tr>
+<td><code>k == N</code></td>
+<td>退化为求最小值，同理</td>
+</tr>
+<tr>
+<td>全部元素相同</td>
+<td>不去重口径答案就是那个值；去重口径 <code>distinct = 1</code>，<code>k &gt; 1</code> 时无解</td>
+</tr>
+<tr>
+<td>数组极大（千万级）</td>
+<td>堆版本内存 <code>O(k)</code>，友好；排序版本要 <code>O(n)</code> 内存</td>
+</tr>
+<tr>
+<td>流式输入</td>
+<td>堆版本天然支持（来一个判一个）；排序和快速选择都不行</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>一条设计原则</strong>：<code>N &lt; k</code> 和「distinct 不足 <code>k</code> 个」是两种不同的失败，前者跟口径无关、后者只在去重口径出现。分开报错，消息里带上具体数字（<code>"数组长度 3 小于 k=10"</code>），排查时能省十分钟。
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>size-k 最小堆</th>
+<th>全局排序</th>
+<th>快速选择</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><code>O(n log k)</code>，<code>k</code> 固定即 <code>O(n)</code></td>
+<td><code>O(n log n)</code></td>
+<td>平均 <code>O(n)</code>，最坏 <code>O(n^2)</code></td>
+</tr>
+<tr>
+<td>额外空间</td>
+<td><code>O(k)</code></td>
+<td><code>O(n)</code>（或 <code>O(1)</code> 原地）</td>
+<td><code>O(1)</code> 原地</td>
+</tr>
+<tr>
+<td>破坏输入</td>
+<td>否</td>
+<td>否</td>
+<td>是（分区会打乱）</td>
+</tr>
+<tr>
+<td>支持流式</td>
+<td><strong>是</strong></td>
+<td>否</td>
+<td>否</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>O(n log k)</code> 的来路：<code>n</code> 个元素，每个最多触发一次入堆 / 替换，每次堆操作 <code>O(log k)</code>；每个元素最多进堆一次、出堆一次，所以总操作数有常数上界。<code>k = 10</code> 时 <code>log k ≈ 3.3</code>，实际比排序快一个量级以上。
+<h2>九、常见坑</h2>
+<h3>9.1 没问口径就开写（本题头号坑）</h3>
+
+和上一篇螺旋填数一模一样：<strong>题面里没说的约定，先问再写。</strong> 这题更隐蔽 —— 官方样例 <code>[3,2,1,5,6,4]</code> 找第 2 大，两种口径答案都是 <code>5</code>（因为 6 和 5 都不重复），<strong>官方样例根本区分不出口径</strong>。必须自己造带重复的用例（比如本篇主例 16 vs 8）。
+<h3>9.2 用最大堆装全部元素</h3>
+
+<code>PriorityQueue</code> 默认就是最小堆，但很多人图省事把所有元素塞进去再 <code>poll()</code> <code>k</code> 次 —— 那是 <code>O(n log n)</code> 时间 + <code>O(n)</code> 空间，退化成排序。<strong>堆的大小必须限制在 <code>k</code></strong>，这是这题用堆的全部意义。
+<h3>9.3 去重口径只判「大于堆顶」</h3>
+
+漏了「值已在堆里」这一路，会把堆顶换成两个相同的值（详见第二节）。测法：构造 <code>[9, 9, 8]</code> 找去重后第 2 大 —— 正确是 <code>8</code>，错误的实现会给出 <code>9</code>。
+<h3>9.4 N &lt; k 时返回第 N 大或 0</h3>
+
+静默降级比崩溃更危险：调用方拿着「第 10 大」的名次去做业务判断，实际拿到的是最小值。<strong>要么抛异常，要么返回 <code>null</code> 让调用方显式处理。</strong>
+<h3>9.5 忘了 k 可能大于 distinct 数</h3>
+
+只有去重口径会踩：<code>[5,5,5]</code> 找第 2 大，不去重答案是 5，去重口径无解。分支里少写一个 <code>heap.size() &lt; k</code> 的兜底判断，就会把堆顶（5）当答案返回。
+<h3>9.6 排序法遇上 NaN</h3>
+
+<code>Arrays.sort</code> / <code>sorted</code> 遇到 <code>NaN</code> 时，<code>NaN</code> 会被排到某一端且比较结果全 false，答案静默错误。<strong>入参校验阶段就拦掉非有限值</strong>，别指望排序帮你。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先问口径</strong>："重复元素算一次还是算多次？两种答案可能差很多。" —— 这句话直接把你和"听完就写"的人分开。</li>
+<li><strong>给出标准解</strong>："维护一个 size-k 的最小堆，堆顶就是当前第 k 大；比堆顶小的 O(1) 丢掉，比堆顶大的挤掉堆顶再向下调整。<code>O(n log k)</code> 时间、<code>O(k)</code> 空间。"</li>
+<li><strong>说明为什么不用排序</strong>："<code>k</code> 远小于 <code>n</code> 时堆更快，而且支持流式输入 —— 不需要把整个数组装进内存。"</li>
+<li><strong>接住 O(n) 的追问</strong>："快速选择平均 <code>O(n)</code>，但最坏 <code>O(n^2)</code> 且会破坏输入顺序；如果要保证最坏界，可以用 BFPRT（中位数的中位数），代价是常数巨大，工程上一般不划算。"</li>
+<li><strong>主动讲异常</strong>："<code>N &lt; k</code> 要抛异常；去重口径还要额外判 distinct 值够不够 <code>k</code> 个，不够就是无解，返回 <code>null</code>。"</li>
+<li><strong>报变体</strong>：LC 215（本题的标准版）、<a href="/article/lc-347-bucket-topk/">LC 347 前 K 个高频元素</a>（堆 + 哈希）、数据流中位数（双堆）、以及「第 K 大」在数据库里就是 <code>ORDER BY ... LIMIT k</code>（有索引时是 <code>O(k log n)</code>）。</li>
+</ol>
+<h2>结语</h2>
+
+这题是「口径比算法值钱」的又一例：<strong>算法部分人人会写（size-k 最小堆，<code>O(n log k)</code>、<code>O(k)</code> 空间、支持流式），真正的分水岭在开口第一句</strong> —— 去重还是不去重，答案能差一倍（16 vs 8），而且官方样例 <code>[3,2,1,5,6,4]</code> 两种口径都返回 5，根本测不出来。第二道分水岭是异常处理：<code>N &lt; k</code>、<code>k &lt;= 0</code>、去重后 distinct 不足、<code>null</code> 入参、<code>NaN</code> —— 五种失败模式各有各的正确行为，静默降级比崩溃危险得多。和上一篇 <a href="/article/spiral-matrix-fill/">螺旋填数</a> 一样：<strong>先对齐口径，再谈复杂度。</strong>]]></content:encoded>
+    </item>
     <item>
       <title>【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</title>
       <link>https://zhoujungis.github.io/article/spiral-matrix-fill/</link>
@@ -1433,304 +1856,6 @@ LC 1510（石子游戏 VII，两端取、求分数差最大）和 LC 1140（石�
       <category>LeetCode</category>
       <category>概率</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-<blockquote>
-
-来源：<strong>腾讯独有高频</strong>（LC 470）—— 概率类手写题的代表作。
-</blockquote>
-
-已有函数 <code>rand7()</code>，它均匀随机地返回 <code>[1, 7]</code> 的整数。请<strong>只用 <code>rand7()</code></strong> 实现 <code>rand10()</code>：均匀随机地返回 <code>[1, 10]</code> 的整数。
-
-两个硬要求：
-<ol>
-<li><strong>期望调用次数尽量少</strong>（不能写死次数硬试）；</li>
-<li><strong>能证明均匀性</strong> —— 每个 1..10 的输出概率严格是 1/10。</li>
-</ol>
-<blockquote>
-
-百度变体：用 <code>rand4()</code>（均匀返回 <code>0~4</code>）实现 <code>rand6()</code>（均匀返回 <code>0~6</code>）—— 同一台机器换个参数就是它。
-</blockquote>
-
-先说一句容易走偏的方向：<strong>一个 <code>rand7()</code> 只有 7 个状态，7 不能均分成 10 份</strong> —— 不管怎么加、减、取模都没用（7 % 10、7 × 3 % 10 都不是均匀的）。出路只有一条：<strong>创造更大的、能被 10 整除的状态空间</strong>。
-<ul>
-<li><a href="#section-1">一、核心洞察：乘积空间 —— 两次 rand7 凑出 49 个等概率状态</a></li>
-<li><a href="#section-2">二、为什么「接受区切得动、拒绝区不捣乱」</a></li>
-<li><a href="#section-3">三、动画怎么看</a></li>
-<li><a href="#section-4">四、完整推演表</a></li>
-<li><a href="#section-5">五、均匀性证明</a></li>
-<li><a href="#section-6">六、期望次数与下界</a></li>
-<li><a href="#section-7">七、百度变体：0~4 → 0~6（附同族题）</a></li>
-<li><a href="#section-8">八、Java 版</a></li>
-<li><a href="#section-9">九、边界与常见坑</a></li>
-<li><a href="#section-10">十、复杂度与期望</a></li>
-<li><a href="#section-11">十一、面试怎么答</a></li>
-</ul>
-<h2>一、核心洞察：乘积空间 —— 两次 rand7 凑出 49 个等概率状态</h2>
-
-两次<strong>独立</strong>的 <code>rand7()</code> 构成一个二元组 <code>(a, b)</code>，共有 <code>7 × 7 = 49</code> 种组合，<strong>每种的概率都是 1/49</strong>。把二维拍平成一维：
-<div class="codehilite"><pre><span></span><code>v = (a - 1) × 7 + b      →  v 均匀取 1..49
-</code></pre></div>
-
-
-49 里<strong>能被 10 整除的最大块是 40</strong>（<code>40 = 4 × 10</code>）：
-<ul>
-<li><code>v ≤ 40</code> → <strong>接受</strong>，输出 <code>(v - 1) % 10 + 1</code>；</li>
-<li><code>v ≥ 41</code> → <strong>拒绝</strong>（9 个状态，概率 9/49），这两个 <code>rand7()</code> 作废，<strong>整组重掷</strong>。</li>
-</ul>
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">rand10</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-        <span class="n">v</span> <span class="o">=</span> <span class="p">(</span><span class="n">rand7</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">7</span> <span class="o">+</span> <span class="n">rand7</span><span class="p">()</span>   <span class="c1"># 均匀取 1..49</span>
-        <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="mi">40</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span> <span class="o">+</span> <span class="mi">1</span>        <span class="c1"># 均匀取 1..10</span>
-</code></pre></div>
-
-
-三行代码，但每一行都有讲究：乘 7 是「七进制进位」（把 (a-1) 挪到十位、b 放个位）；<code>- 1</code> 让 a 从 0 起（否则乘积空间会有空洞）；<code>(v-1) % 10 + 1</code> 把 1..40 映射成 1..10 各四次。
-<h2>二、为什么「接受区切得动、拒绝区不捣乱」</h2>
-
-看一眼 49 格被怎么切：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>输出</th>
-<th>来源状态（v）</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>1, 11, 21, 31</td>
-</tr>
-<tr>
-<td>2</td>
-<td>2, 12, 22, 32</td>
-</tr>
-<tr>
-<td>…</td>
-<td>…</td>
-</tr>
-<tr>
-<td>10</td>
-<td>10, 20, 30, 40</td>
-</tr>
-<tr>
-<td>拒绝</td>
-<td>41, 42, …, 49（9 个）</td>
-</tr>
-</tbody>
-</table></div>
-
-<strong>每个输出恰好 4 个来源状态，一个不多一个不少</strong>；40 格被 10 个输出均分、零重叠零遗漏。这就是均匀性的全部来源 —— 动画二就是这张表的逐组点亮。
-<h2>三、动画怎么看</h2>
-<div class="algo-viz algo-viz--lc470"></div>
-
-<div class="algo-viz algo-viz--lc470uni"></div>
-
-
-<strong>动画一</strong>（<code>algo-viz--lc470</code>）：<strong>拒绝采样流程</strong>。左边是 7×7 的状态表（行 = a、列 = b，格子里是 <code>(a-1)×7+b</code>；<strong>绿色 1..40 是接受区、红色 41..49 是拒绝区</strong>）；右边是两颗骰子（两次 <code>rand7()</code>）、合成公式、判定（接受 / 拒绝）和输出序列。盯住三件事：<strong>每次都要掷两次</strong>（调用计数成对增长）、<strong>命中格落在哪区</strong>（金框）决定去留、<strong>拒绝帧不产出</strong>（输出序列不动）。
-
-<strong>动画二</strong>（<code>algo-viz--lc470uni</code>）：<strong>均匀性证明</strong>。同一张 49 格表，按<strong>输出分组着色</strong>：输出 1..10 各一种颜色，逐组点亮（每组恰好 4 格），拒绝的 9 格永远灰色。跑完时右侧清单「输出 k ×4」十行齐平 —— 这就是「每个输出概率相等」的字面证据。
-<h2>四、完整推演表</h2>
-
-<strong>动画一（拒绝采样）</strong> 的默认脚本逐帧：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>尝试</th>
-<th>a</th>
-<th>b</th>
-<th><code>v = (a-1)×7+b</code></th>
-<th>判定</th>
-<th>输出</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>4</td>
-<td>7</td>
-<td>28</td>
-<td>≤ 40 接受</td>
-<td>8</td>
-</tr>
-<tr>
-<td>2</td>
-<td>7</td>
-<td>6</td>
-<td>48</td>
-<td>&gt; 40 拒绝</td>
-<td>—</td>
-</tr>
-<tr>
-<td>3</td>
-<td>1</td>
-<td>3</td>
-<td>3</td>
-<td>接受</td>
-<td>3</td>
-</tr>
-<tr>
-<td>4</td>
-<td>2</td>
-<td>5</td>
-<td>12</td>
-<td>接受</td>
-<td>2</td>
-</tr>
-<tr>
-<td>5</td>
-<td>6</td>
-<td>1</td>
-<td>36</td>
-<td>接受</td>
-<td>6</td>
-</tr>
-<tr>
-<td>6</td>
-<td>5</td>
-<td>2</td>
-<td>30</td>
-<td>接受</td>
-<td>10</td>
-</tr>
-</tbody>
-</table></div>
-
-输出序列 <code>[8, 3, 2, 6, 10]</code>，共调用 12 次（6 轮 × 2）、拒绝 1 次。<strong>每次拒绝只是多花两次调用，不会污染任何一次输出的分布。</strong>
-
-<strong>动画二（状态切分）</strong>：40 个接受状态的分组表（见第二节的表）—— 十组、每组 4 格、拒绝 9 格，合计 <code>10 × 4 + 9 = 49</code>。
-<h2>五、均匀性证明</h2>
-
-设 A 是「本轮被接受」事件，O 是输出：
-<div class="codehilite"><pre><span></span><code>P(O = k 且 A) = 4/49          （输出 k 的 4 个来源状态，每个 1/49）
-P(A)          = 40/49
-⇒ P(O = k | A) = (4/49) / (40/49) = 4/40 = 1/10
-</code></pre></div>
-
-
-<strong>重掷不破坏均匀性</strong>：设第 m 轮才接受，则
-<div class="codehilite"><pre><span></span><code>P(第 m 轮接受且输出 k) = (9/49)^(m-1) × 4/49
-对所有 m 求和 = (4/49) / (1 - 9/49) = (4/49) × (49/40) = 1/10
-</code></pre></div>
-
-
-每一步重掷都与之前<strong>独立同分布</strong>，所以「第一次落进接受区」的那一轮，条件分布仍是均匀的 —— 拒绝只消耗次数，不改变概率。
-<blockquote>
-
-想亲手验证：跑 5 万次统计频数（每个输出应接近 5000 次），或者做卡方检验；本文仓库里的单测就是这么干的（固定随机源 + 频数带 + 结构断言「每个输出恰好 4 个来源状态」）。
-</blockquote>
-<h2>六、期望次数与下界</h2>
-
-<strong>期望推导</strong>：每轮的接受概率 <code>p = 40/49</code>，轮数服从几何分布：
-<div class="codehilite"><pre><span></span><code>E[轮数]   = 1/p = 49/40 = 1.225
-E[调用数] = 2 × 1.225 = 2.45 次 rand7()
-</code></pre></div>
-
-
-也就是<strong>平均每产出 1 个 rand10() 结果要掷 2.45 次</strong>；拒绝率 9/49 ≈ 18.4% 是这套方案的必要浪费。
-
-<strong>下界在哪里</strong>：每次 <code>rand7()</code> 携带 <code>log2(7) ≈ 2.807</code> bit 信息，一个 <code>rand10()</code> 需要 <code>log2(10) ≈ 3.322</code> bit —— 所以<strong>任何</strong>方案都至少要 <code>3.322 / 2.807 ≈ 1.18</code> 次调用。2.45（简单拒绝法）到 1.18（下界）之间的差距，属于进阶话题：
-<blockquote>
-
-<strong>回收拒绝值</strong>：把被拒绝的状态折算进下一轮（比如把 1..9 的余数乘以 7 再补一次掷骰，凑出新的状态空间再切），期望可以继续下降 —— 面试里能提这一句，说明你理解「拒绝 = 浪费信息」，而不是死记 2.45。
-</blockquote>
-<h2>七、百度变体：0~4 → 0~6（附同族题）</h2>
-
-同一台机器，参数换一换：<code>rand4()</code> 均匀返回 <code>0~4</code>（<strong>5 个值</strong>），要造 <code>rand6()</code>（均匀返回 <code>0~6</code>，7 个值）。
-<ul>
-<li>两次独立抽样：<code>v = a × 5 + b</code>（a、b ∈ 0..4）→ <strong>均匀 0..24，共 25 个状态</strong>；</li>
-<li>25 里能被 7 整除的最大块：<code>21 = 3 × 7</code> → <code>v ≤ 20</code> 接受、<code>21..24</code> 拒绝；</li>
-<li>输出 <code>v % 7</code>（0..6），<strong>每个输出恰好 3 个来源状态</strong>；</li>
-<li>期望调用：<code>2 × 25/21 = 50/21 ≈ 2.381</code> 次。</li>
-</ul>
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">rand6</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>                      <span class="c1"># rand4() 返回 0..4</span>
-    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-        <span class="n">v</span> <span class="o">=</span> <span class="n">rand4</span><span class="p">()</span> <span class="o">*</span> <span class="mi">5</span> <span class="o">+</span> <span class="n">rand4</span><span class="p">()</span>        <span class="c1"># 均匀 0..24</span>
-        <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="mi">20</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">v</span> <span class="o">%</span> <span class="mi">7</span>                 <span class="c1"># 均匀 0..6</span>
-</code></pre></div>
-
-
-对照记一下两个数字：<code>49 → 40</code>（每输出 4 个来源）、<code>25 → 21</code>（每输出 3 个来源）。<strong>「最多能切出多少、每份分几个」永远看 <code>⌊状态数 / 目标数⌋ × 目标数</code>。</strong>
-
-<strong>同族题（随机化家族）</strong>：LC 384 打乱数组（Fisher–Yates，等概率的关键在「从后往前交换」）、LC 398 随机数索引（水塘抽样）、LC 528 按权重随机选择（前缀和 + 二分）、LC 478 在圆内随机生成点（拒绝采样，或极坐标里对半径先开方）、LC 497 非重叠矩形中的随机点（面积加权 + 矩形内均匀）。它们和本题共享同一条世界观：<strong>均匀性要靠结构证明，不能靠感觉。</strong>
-<h2>八、Java 版</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">rand10</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">rand7</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">rand7</span><span class="p">();</span><span class="w">   </span><span class="c1">// 1..49</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">40</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">           </span><span class="c1">// 1..10</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-Java 两个注意点：<code>(rand7() - 1) * 7 + rand7()</code> 的<strong>两个调用顺序无关</strong>（必须独立），但千万别写成 <code>rand7() * 7 + rand7() - 7</code> 这种化简 —— 中间态会越界、可读性也差；另外不要在循环外缓存 <code>rand7()</code> 结果想「省一次」—— 每次重掷都必须是<strong>新鲜的两个独立样本</strong>。
-<h2>九、边界与常见坑</h2>
-<ol>
-<li><strong>只掷一次</strong>：<code>rand7() * 10 / 7</code>、<code>rand7() % 10</code> 之类都不是均匀的 —— 7 的状态空间切不出 10 份均分；</li>
-<li><strong><code>(a-1) * 7 + b</code> 写成 <code>a * 7 + b</code></strong>：得到 8..56，0 和 7 的边界状态概率被扭曲（其实是 8..56 有 49 个数，但 <code>a=0</code> 不存在，映射会撞车 —— 总之不是均匀 1..49）；</li>
-<li><strong>取模写成 <code>v % 10</code></strong>：v = 10 会输出 0。正确写法 <code>(v - 1) % 10 + 1</code>；</li>
-<li><strong>拒绝区间写成 <code>v ≥ 40</code></strong>：把 v = 40 错误拒绝，接受区只剩 39 个、切不成 4×10。判据是 <strong><code>v ≤ 40</code></strong>（<code>acceptLimit = ⌊49/10⌋ × 10</code>）；</li>
-<li><strong>拒绝后只重掷一颗骰子</strong>：必须<strong>重新掷两个</strong>。复用旧的一个值会破坏独立性（旧值和新值的联合分布不再是均匀的 49 格）；</li>
-<li><strong>想「省调用」而改小拒绝率</strong>：接受区必须能被 10 整除，40 就是 49 里的最优解 —— 更小的「浪费」只能靠回收余数，而不是缩小接受区；</li>
-<li><strong>死循环担心</strong>：理论上有无限重掷的可能，但概率以 <code>(9/49)^m</code> 衰减，期望有限（2.45 次）——不是 bug；</li>
-<li><strong>验证均匀性时样本太少</strong>：几万次起步才看得出偏差；判断标准用频数带或卡方，而不是「看着挺均匀」。</li>
-</ol>
-<h2>十、复杂度与期望</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>指标</th>
-<th>值</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>单轮时间</td>
-<td><code>O(1)</code></td>
-<td>两次调用 + 一次比较</td>
-</tr>
-<tr>
-<td>接受概率</td>
-<td><code>40/49 ≈ 81.6%</code></td>
-<td>拒绝 9/49</td>
-</tr>
-<tr>
-<td>期望调用</td>
-<td><code>2 × 49/40 = 2.45</code></td>
-<td>几何分布</td>
-</tr>
-<tr>
-<td>信息论下界</td>
-<td><code>log10 / log7 ≈ 1.18</code></td>
-<td>任何方案的下限</td>
-</tr>
-<tr>
-<td>空间</td>
-<td><code>O(1)</code></td>
-<td>只用了常数个变量</td>
-</tr>
-</tbody>
-</table></div>
-<h2>十一、面试怎么答</h2>
-
-<strong>第一段 · 思路</strong>：一次 <code>rand7()</code> 只有 7 个状态，凑不出 10 份均分；两次独立调用构成 49 个等概率状态（乘积空间），取 <code>v = (a-1)×7 + b</code> 得到 1..49 均匀；49 里能被 10 整除的最大块是 40 —— 接受 <code>v ≤ 40</code>、输出 <code>(v-1)%10+1</code>，<code>v &gt; 40</code> 整组重掷。
-
-<strong>第二段 · 证明与期望</strong>（<strong>这段是区分度所在</strong>）：每个输出恰好 4 个来源状态 → 条件概率 <code>4/40 = 1/10</code>；几何级数求和证明重掷不破坏均匀；期望 <code>2 × 49/40 = 2.45</code> 次。顺手报出信息论下界 1.18，说明你知道 2.45 不是终点。
-
-<strong>第三段 · 变体与追问</strong>：换参数（0~4 → 0~6：25 → 21、每份 3 个、期望 50/21）、回收拒绝值的进阶写法、以及「怎么验证均匀」（大样本频数 / 卡方）。
-
-一句话收尾：「这道题只有一句口诀 —— <strong>两次采样凑乘积空间，切出能被目标数整除的最大块</strong>；剩下的是把『拒绝不改变条件分布』证清楚、把期望 2.45 算明白。」
-<h2>结语</h2>
-
-<code>rand7 → rand10</code> 的全部内容就是「造大状态空间 + 切整齐」：49 个等概率状态里切出 40 个（4 × 10）接受、9 个拒绝重掷；均匀性来自「每组恰好 4 个来源状态」，期望 2.45 来自几何分布，1.18 是它够不到的下界。把它写对的人，换任何一组参数（5 → 7、3 → 5……）都能一眼报出：状态数、切块、每份几个、期望多少。
-
-下一篇见。]]></content:encoded>
     </item>
     <item>
       <title>【LC 146】LRU 缓存：手写哈希表与双向链表</title>
@@ -1886,17 +2011,6 @@ Java 两个注意点：<code>(rand7() - 1) * 7 + rand7()</code> 的<strong>两�
       <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-155-232-min-stack-and-queue-via-stacks/</guid>
       <pubDate>Tue, 29 Sep 2026 08:05:51 GMT</pubDate>
       <description>题目 LC 155 最小栈 ：设计一个栈，支持 push 、 pop 、 top ，并能在 O(1) 时间内取到栈内最小元素 getMin 。 LC 232 用栈实现队列 ：只用两个栈，实现先进先出的队列，支持 push 、 pop 、 peek 、 empty 。 两题都是&quot;给栈加约束&quot;：栈天生只能看栈顶、只能后进先</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>栈</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 239】滑动窗口最大值：单调队列只留候选</title>
-      <link>https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/</guid>
-      <pubDate>Tue, 29 Sep 2026 07:13:54 GMT</pubDate>
-      <description>题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变</description>
       <category>算法</category>
       <category>LeetCode</category>
       <category>栈</category>

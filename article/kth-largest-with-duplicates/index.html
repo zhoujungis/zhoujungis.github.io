@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 给一个长度为 N 的 有重复元素 的数组，输出第 10 大的数。要求注意合法性校验、边界条件与异常处理。 同题在 LeetCode 上是 LC 215 数组中的第 K 个最大元素 ， k 是参数化的。 本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。 一、核心洞察：先" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/kth-largest-with-duplicates/" />
+    <meta property="og:title" content="【数组】重复元素找第 10 大：答案能差一倍，差别全在口径" />
+    <meta property="og:description" content="题目 给一个长度为 N 的 有重复元素 的数组，输出第 10 大的数。要求注意合法性校验、边界条件与异常处理。 同题在 LeetCode 上是 LC 215 数组中的第 K 个最大元素 ， k 是参数化的。 本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。 一、核心洞察：先" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/kth-largest-with-duplicates/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/kth-largest-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【数组】重复元素找第 10 大：答案能差一倍，差别全在口径" />
+    <meta name="twitter:description" content="题目 给一个长度为 N 的 有重复元素 的数组，输出第 10 大的数。要求注意合法性校验、边界条件与异常处理。 同题在 LeetCode 上是 LC 215 数组中的第 K 个最大元素 ， k 是参数化的。 本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。 一、核心洞察：先" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/kth-largest-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【数组】重复元素找第 10 大：答案能差一倍，差别全在口径 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-n2nf_XeS.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-13T15:39:39.742022+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【数组】重复元素找第 10 大：答案能差一倍，差别全在口径","description":"题目 给一个长度为 N 的 有重复元素 的数组，输出第 10 大的数。要求注意合法性校验、边界条件与异常处理。 同题在 LeetCode 上是 LC 215 数组中的第 K 个最大元素 ， k 是参数化的。 本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。 一、核心洞察：先","image":"https://zhoujungis.github.io/photos/kth-largest-cover.png","datePublished":"2026-10-13T15:39:39.742022+08:00","dateModified":"2026-10-13T15:39:39.742022+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/kth-largest-with-duplicates/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</h1><div class="ns-meta">2026/10/13 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+给一个长度为 <code>N</code> 的<strong>有重复元素</strong>的数组，输出第 <code>10</code> 大的数。要求注意合法性校验、边界条件与异常处理。
+<div class="codehilite"><pre><span></span><code>输入: nums = [23, 7, 45, 12, 45, 8, 33, 12, 19, 5, 45, 27, 12, 9, 33, 16, 41, 3]
+输出: 16   （不去重口径）
+      8   （去重口径）
+</code></pre></div>
+
+
+同题在 LeetCode 上是 <a href="/article/lc-215-quickselect/">LC 215 数组中的第 K 个最大元素</a>，<code>k</code> 是参数化的。<strong>本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。</strong>
+<ul>
+<li><a href="#section-1">一、核心洞察：先问「去重吗」</a></li>
+<li><a href="#section-2">二、拆解：size-k 最小堆，O(n log k)</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：三种解法的取舍</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况与异常处理</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：先问「去重吗」</h2>
+
+拿主例的降序排列看一眼：
+<div class="codehilite"><pre><span></span><code><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="mf">41</span><span class="p">,</span><span class="w"> </span><span class="mf">33</span><span class="p">,</span><span class="w"> </span><span class="mf">33</span><span class="p">,</span><span class="w"> </span><span class="mf">27</span><span class="p">,</span><span class="w"> </span><span class="mf">23</span><span class="p">,</span><span class="w"> </span><span class="mf">19</span><span class="p">,</span><span class="w"> </span><span class="mf">16</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">,</span><span class="w"> </span><span class="mf">9</span><span class="p">,</span><span class="w"> </span><span class="mf">8</span><span class="p">,</span><span class="w"> </span><span class="mf">7</span><span class="p">,</span><span class="w"> </span><span class="mf">5</span><span class="p">,</span><span class="w"> </span><span class="mf">3</span>
+<span class="w">                                      </span><span class="err">↑</span><span class="w"> </span><span class="n">第</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="n">个</span>
+</code></pre></div>
+
+<ul>
+<li><strong>不去重</strong>（LeetCode 215 的语义）：降序第 <code>K</code> 个，即下标 <code>K-1</code>。第 10 大 = <strong>16</strong>。</li>
+<li><strong>去重</strong>（distinct 值里第 <code>K</code> 大）：<code>45, 41, 33, 27, 23, 19, 16, 12, 9, 8, ...</code>，第 10 大 = <strong>8</strong>。</li>
+</ul>
+
+<strong>16 对 8，正好一倍。</strong> 同一个数组、同一句题面，答案取决于一个没被说出来的约定。而且两种约定都有道理：统计「第 10 高的分数」时通常想去重（并列第一不算占两个名额），统计「第 10 个订单金额」时不想去重（每笔订单都是独立的）。
+<blockquote>
+
+面试里的正确动作：<strong>先问一句「重复元素算一次还是算多次」。</strong> 如果面试官说「都可以」，那就把两种都写出来、都测一遍 —— 这比猜对一个更得分。
+</blockquote>
+
+这题还有个隐藏的连带问题：<strong>去重口径下可能无解。</strong> 主例有 13 个不同值，够用；但如果数组是 <code>[5,5,5,5,5]</code>、要找第 3 大，distinct 只有 1 个 —— 这时候应该返回 <code>null</code> / 抛异常，而不是硬返回一个数。不去重口径则不存在这个问题（<code>N &gt;= k</code> 就有解）。
+<h2>二、拆解：size-k 最小堆，O(n log k)</h2>
+
+不需要把整个数组排序。维护一个<strong>只有 <code>k</code> 个位置的最小堆</strong>，堆顶就是「当前第 <code>k</code> 大」：
+<ul>
+<li>堆没满（<code>&lt; k</code> 个）：直接入堆，向上调整；</li>
+<li>堆已满且 <code>v &gt; 堆顶</code>：挤掉堆顶，<code>v</code> 坐到堆顶后向下调整；</li>
+<li>否则（<code>v &lt;= 堆顶</code>）：连前 <code>k</code> 大都进不去，<code>O(1)</code> 丢掉。</li>
+</ul>
+
+扫完之后堆里就是「见过的最大的 <code>k</code> 个值」，堆顶即答案。
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">kth_largest</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dedupe</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">nums</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;nums 不能为 None&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;k 必须是正整数&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;数组长度 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span><span class="si">}</span><span class="s2"> 小于 k=</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>          <span class="c1"># 最小堆，heap[0] 就是当前第 k 大</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>       <span class="c1"># 去重口径：堆里有哪些值</span>
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dedupe</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">dedupe</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heapreplace</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="c1"># else: v &lt;= 堆顶，丢掉</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">k</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;不同值只有 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">seen</span><span class="p">)</span><span class="si">}</span><span class="s2"> 个，凑不齐第 </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> 大&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+
+去重口径为什么要额外维护 <code>seen</code>：只靠「<code>v &gt; 堆顶</code>」判断是不够的。假设堆里已经有 <code>12</code>，新来的 <code>v = 12</code> 且 <code>12 &gt; 堆顶 8</code>，直接替换会把堆顶换成 12 —— 堆里出现两个 12。<code>seen</code> 就是用来拦这种「值已在堆里」的情况。
+<div class="algo-viz algo-viz--kthlarge"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画用主例（18 个元素、<code>k = 10</code>、不去重口径），20 帧：
+<ul>
+<li><strong>输入行</strong>：三态 —— 绿底 = 已经进过堆、橙框 = 当前正在判断、灰底 = 被丢掉的；</li>
+<li><strong>堆行</strong>：10 格的层序数组。<strong>金底那格（下标 0）是堆顶</strong>，也就是「当前第 10 大」；橙框是本次 sift 走过的路径；</li>
+<li><strong>底部一行</strong>：当前堆顶值 + 已丢弃个数；</li>
+<li><strong>答案条</strong>：扫完才亮，给出「第 10 大 = 16」。</li>
+</ul>
+
+值得盯的帧是第 12 个元素（<code>27</code>）：<code>27 &gt; 堆顶 8</code>，挤掉 8 之后向下调整到下标 2。你能直接看到「堆里始终是到目前为止最大的 10 个值」这件事在每一帧上都成立。
+<div class="algo-viz algo-viz--kthdup"></div>
+
+
+第二个动画是<strong>同一组数据、去重口径</strong>：输入行里重复的 <code>45</code>、<code>12</code>、<code>33</code> 全变成灰色（值已在堆里，直接丢弃），最后答案条写着「第 10 大（去重）= 8」。两个动画并排看，口径的差别一目了然。
+<h2>四、完整推演表</h2>
+
+主例 <code>k = 10</code>，前 10 个元素先把堆填满，之后才开始淘汰：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>次序</th>
+<th>值</th>
+<th>动作</th>
+<th>淘汰的堆顶</th>
+<th>堆内最小值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1-10</td>
+<td>23,7,45,12,45,8,33,12,19,5</td>
+<td>依次入堆</td>
+<td>-</td>
+<td>5</td>
+<td>堆满，此时第 10 大 = 5</td>
+</tr>
+<tr>
+<td>11</td>
+<td>45</td>
+<td>挤掉堆顶</td>
+<td>5</td>
+<td>7</td>
+<td>45 明显是大数</td>
+</tr>
+<tr>
+<td>12</td>
+<td>27</td>
+<td>挤掉堆顶</td>
+<td>7</td>
+<td>8</td>
+<td>27 上位，sift 到下标 2</td>
+</tr>
+<tr>
+<td>13</td>
+<td>12</td>
+<td>挤掉堆顶</td>
+<td>8</td>
+<td>12</td>
+<td>12 顶掉 8，堆的最小值跳到 12</td>
+</tr>
+<tr>
+<td>14</td>
+<td>9</td>
+<td><strong>丢弃</strong></td>
+<td>-</td>
+<td>12</td>
+<td>9 &lt;= 12，进不了前 10</td>
+</tr>
+<tr>
+<td>15</td>
+<td>33</td>
+<td>挤掉堆顶</td>
+<td>12</td>
+<td>12</td>
+<td>堆里已有 12，顶掉一个</td>
+</tr>
+<tr>
+<td>16</td>
+<td>16</td>
+<td>挤掉堆顶</td>
+<td>12</td>
+<td>12</td>
+<td>16 把 12 顶掉</td>
+</tr>
+<tr>
+<td>17</td>
+<td>41</td>
+<td>挤掉堆顶</td>
+<td>12</td>
+<td>16</td>
+<td>41 是全局第二大</td>
+</tr>
+<tr>
+<td>18</td>
+<td>3</td>
+<td><strong>丢弃</strong></td>
+<td>-</td>
+<td>16</td>
+<td>3 远不够格</td>
+</tr>
+</tbody>
+</table></div>
+
+最终堆里是 <code>45, 45, 45, 41, 33, 33, 27, 23, 19, 16</code>（共 10 个），堆顶 <strong>16</strong> = 第 10 大。全程只有 2 个元素被 <code>O(1)</code> 丢掉、6 次堆调整 —— 如果数组长到 10 万个元素，绝大部分元素都会在「和堆顶比一下」这一步被丢掉，根本进不了堆。
+<h2>五、进阶：三种解法的取舍</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>解法</th>
+<th>时间</th>
+<th>空间</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全局排序取下标</td>
+<td><code>O(n log n)</code></td>
+<td><code>O(1)</code> 或 <code>O(n)</code></td>
+<td>数据能全进内存、代码要最短</td>
+</tr>
+<tr>
+<td><strong>size-k 最小堆</strong></td>
+<td><code>O(n log k)</code></td>
+<td><code>O(k)</code></td>
+<td><strong>k 远小于 n 时的标准答案</strong></td>
+</tr>
+<tr>
+<td>快速选择（quickselect）</td>
+<td><code>O(n)</code> 平均，<code>O(n^2)</code> 最坏</td>
+<td><code>O(1)</code></td>
+<td>追求平均线性、且允许破坏输入</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>为什么堆是这题的标准答案</strong>：<code>k = 10</code> 是常数，<code>O(n log 10)</code> 就是 <code>O(n)</code>，但常数极小，而且<strong>不需要把整个数组装进内存</strong> —— 数据是流式到来的也能做（读一个判一个，堆只留 10 个）。排序做不到这一点，快速选择也做不到（它要随机访问整个数组）。
+
+<strong>快速选择</strong>（<a href="/article/lc-215-quickselect/">LC 215</a> 那篇详述）平均 <code>O(n)</code> 更优，但有两个代价：最坏 <code>O(n^2)</code>（对手构造数据可以卡），而且<strong>原地分区会打乱输入顺序</strong>。如果面试官追问「能不能 O(n)」，先答堆，再补快速选择作为进阶，是标准的答法。
+
+<strong>去重口径的另一个实现</strong>：先 <code>set(nums)</code> 去重（<code>O(n)</code> 空间），再跑同一套堆。代码更短，但多一份 <code>O(n)</code> 空间 —— 流式场景下不可行（你不知道后面还会来什么值，必须一直记着见过的所有值）。动画里用的是流式版本：<code>seen</code> 只记<strong>堆里</strong>的值，被顶出去的值就忘掉，空间 <code>O(k)</code>。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.PriorityQueue</span><span class="p">;</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">KthLargest</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 找第 k 大。dedupe = true 表示去重口径（distinct 值里第 k 大）</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="n">Integer</span><span class="w"> </span><span class="nf">kthLargest</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">dedupe</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span><span class="s">&quot;nums 不能为 null&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span><span class="s">&quot;k 必须是正整数，收到 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;数组长度 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; 小于 k=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 最小堆，堆顶 = 当前第 k 大</span>
+<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">k</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">inHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">   </span><span class="c1">// 去重口径用</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dedupe</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">inHeap</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span><span class="w">                        </span><span class="c1">// 值已在堆里，重复值只算一次</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">                </span><span class="n">inHeap</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">peek</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dedupe</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">inHeap</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="n">heap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">                </span><span class="n">heap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">                </span><span class="n">inHeap</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// else: v &lt;= 堆顶，丢掉</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">heap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 只有去重口径会走到这里：不同值不够 k 个</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;不同值不足 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; 个，无法求第 &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; 大&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">heap</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意返回类型用 <code>Integer</code> 而不是 <code>int</code>：<strong>无解时要能返回 <code>null</code></strong>。用 <code>int</code> 就得抛异常或者约定一个魔法值（比如 <code>Integer.MIN_VALUE</code>），两者都不如 <code>null</code> 干净。这也是「异常处理」的一部分 —— <strong>把「不可能的情况」设计进返回类型，而不是留给调用方猜。</strong>
+<h2>七、边界情况与异常处理</h2>
+
+用户特意点了这一项，逐条列：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>情况</th>
+<th>期望行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nums</code> 为 <code>null</code></td>
+<td>抛 <code>IllegalArgumentException</code> / <code>ValueError</code>，<strong>不要</strong>返回 0 或 -1</td>
+</tr>
+<tr>
+<td><code>nums</code> 为空数组</td>
+<td>同上；空数组不可能有第 10 大</td>
+</tr>
+<tr>
+<td><code>N &lt; k</code></td>
+<td>抛异常。<strong>不要</strong>默默返回第 <code>N</code> 大 —— 调用方会以为拿到了正确的名次</td>
+</tr>
+<tr>
+<td><code>k &lt;= 0</code> 或非整数</td>
+<td>抛异常。<code>k = 0</code> 没有语义</td>
+</tr>
+<tr>
+<td>去重口径下 distinct 值 <code>&lt; k</code></td>
+<td><strong>无解</strong>，返回 <code>null</code> 或抛异常。这是去重口径独有的失败模式</td>
+</tr>
+<tr>
+<td>含 <code>null</code> 元素（<code>Integer[]</code>）</td>
+<td>拆箱前判空，或声明「只接受基本类型数组」</td>
+</tr>
+<tr>
+<td>含 <code>NaN</code></td>
+<td>排序法会静默给出错答案（<code>NaN</code> 的比较全部返回 false）；堆法同样。<strong>要么入参校验拦掉，要么文档写明不支持</strong></td>
+</tr>
+<tr>
+<td>含 <code>+Infinity</code> / <code>-Infinity</code></td>
+<td>能正常工作（可比较），但要想清楚业务上合不合法</td>
+</tr>
+<tr>
+<td><code>k == 1</code></td>
+<td>退化为求最大值，<code>O(n)</code> 一次扫描即可，不必建堆</td>
+</tr>
+<tr>
+<td><code>k == N</code></td>
+<td>退化为求最小值，同理</td>
+</tr>
+<tr>
+<td>全部元素相同</td>
+<td>不去重口径答案就是那个值；去重口径 <code>distinct = 1</code>，<code>k &gt; 1</code> 时无解</td>
+</tr>
+<tr>
+<td>数组极大（千万级）</td>
+<td>堆版本内存 <code>O(k)</code>，友好；排序版本要 <code>O(n)</code> 内存</td>
+</tr>
+<tr>
+<td>流式输入</td>
+<td>堆版本天然支持（来一个判一个）；排序和快速选择都不行</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>一条设计原则</strong>：<code>N &lt; k</code> 和「distinct 不足 <code>k</code> 个」是两种不同的失败，前者跟口径无关、后者只在去重口径出现。分开报错，消息里带上具体数字（<code>"数组长度 3 小于 k=10"</code>），排查时能省十分钟。
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>size-k 最小堆</th>
+<th>全局排序</th>
+<th>快速选择</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><code>O(n log k)</code>，<code>k</code> 固定即 <code>O(n)</code></td>
+<td><code>O(n log n)</code></td>
+<td>平均 <code>O(n)</code>，最坏 <code>O(n^2)</code></td>
+</tr>
+<tr>
+<td>额外空间</td>
+<td><code>O(k)</code></td>
+<td><code>O(n)</code>（或 <code>O(1)</code> 原地）</td>
+<td><code>O(1)</code> 原地</td>
+</tr>
+<tr>
+<td>破坏输入</td>
+<td>否</td>
+<td>否</td>
+<td>是（分区会打乱）</td>
+</tr>
+<tr>
+<td>支持流式</td>
+<td><strong>是</strong></td>
+<td>否</td>
+<td>否</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>O(n log k)</code> 的来路：<code>n</code> 个元素，每个最多触发一次入堆 / 替换，每次堆操作 <code>O(log k)</code>；每个元素最多进堆一次、出堆一次，所以总操作数有常数上界。<code>k = 10</code> 时 <code>log k ≈ 3.3</code>，实际比排序快一个量级以上。
+<h2>九、常见坑</h2>
+<h3>9.1 没问口径就开写（本题头号坑）</h3>
+
+和上一篇螺旋填数一模一样：<strong>题面里没说的约定，先问再写。</strong> 这题更隐蔽 —— 官方样例 <code>[3,2,1,5,6,4]</code> 找第 2 大，两种口径答案都是 <code>5</code>（因为 6 和 5 都不重复），<strong>官方样例根本区分不出口径</strong>。必须自己造带重复的用例（比如本篇主例 16 vs 8）。
+<h3>9.2 用最大堆装全部元素</h3>
+
+<code>PriorityQueue</code> 默认就是最小堆，但很多人图省事把所有元素塞进去再 <code>poll()</code> <code>k</code> 次 —— 那是 <code>O(n log n)</code> 时间 + <code>O(n)</code> 空间，退化成排序。<strong>堆的大小必须限制在 <code>k</code></strong>，这是这题用堆的全部意义。
+<h3>9.3 去重口径只判「大于堆顶」</h3>
+
+漏了「值已在堆里」这一路，会把堆顶换成两个相同的值（详见第二节）。测法：构造 <code>[9, 9, 8]</code> 找去重后第 2 大 —— 正确是 <code>8</code>，错误的实现会给出 <code>9</code>。
+<h3>9.4 N &lt; k 时返回第 N 大或 0</h3>
+
+静默降级比崩溃更危险：调用方拿着「第 10 大」的名次去做业务判断，实际拿到的是最小值。<strong>要么抛异常，要么返回 <code>null</code> 让调用方显式处理。</strong>
+<h3>9.5 忘了 k 可能大于 distinct 数</h3>
+
+只有去重口径会踩：<code>[5,5,5]</code> 找第 2 大，不去重答案是 5，去重口径无解。分支里少写一个 <code>heap.size() &lt; k</code> 的兜底判断，就会把堆顶（5）当答案返回。
+<h3>9.6 排序法遇上 NaN</h3>
+
+<code>Arrays.sort</code> / <code>sorted</code> 遇到 <code>NaN</code> 时，<code>NaN</code> 会被排到某一端且比较结果全 false，答案静默错误。<strong>入参校验阶段就拦掉非有限值</strong>，别指望排序帮你。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先问口径</strong>："重复元素算一次还是算多次？两种答案可能差很多。" —— 这句话直接把你和"听完就写"的人分开。</li>
+<li><strong>给出标准解</strong>："维护一个 size-k 的最小堆，堆顶就是当前第 k 大；比堆顶小的 O(1) 丢掉，比堆顶大的挤掉堆顶再向下调整。<code>O(n log k)</code> 时间、<code>O(k)</code> 空间。"</li>
+<li><strong>说明为什么不用排序</strong>："<code>k</code> 远小于 <code>n</code> 时堆更快，而且支持流式输入 —— 不需要把整个数组装进内存。"</li>
+<li><strong>接住 O(n) 的追问</strong>："快速选择平均 <code>O(n)</code>，但最坏 <code>O(n^2)</code> 且会破坏输入顺序；如果要保证最坏界，可以用 BFPRT（中位数的中位数），代价是常数巨大，工程上一般不划算。"</li>
+<li><strong>主动讲异常</strong>："<code>N &lt; k</code> 要抛异常；去重口径还要额外判 distinct 值够不够 <code>k</code> 个，不够就是无解，返回 <code>null</code>。"</li>
+<li><strong>报变体</strong>：LC 215（本题的标准版）、<a href="/article/lc-347-bucket-topk/">LC 347 前 K 个高频元素</a>（堆 + 哈希）、数据流中位数（双堆）、以及「第 K 大」在数据库里就是 <code>ORDER BY ... LIMIT k</code>（有索引时是 <code>O(k log n)</code>）。</li>
+</ol>
+<h2>结语</h2>
+
+这题是「口径比算法值钱」的又一例：<strong>算法部分人人会写（size-k 最小堆，<code>O(n log k)</code>、<code>O(k)</code> 空间、支持流式），真正的分水岭在开口第一句</strong> —— 去重还是不去重，答案能差一倍（16 vs 8），而且官方样例 <code>[3,2,1,5,6,4]</code> 两种口径都返回 5，根本测不出来。第二道分水岭是异常处理：<code>N &lt; k</code>、<code>k &lt;= 0</code>、去重后 distinct 不足、<code>null</code> 入参、<code>NaN</code> —— 五种失败模式各有各的正确行为，静默降级比崩溃危险得多。和上一篇 <a href="/article/spiral-matrix-fill/">螺旋填数</a> 一样：<strong>先对齐口径，再谈复杂度。</strong></div></div></noscript>
+  </body>
+</html>
