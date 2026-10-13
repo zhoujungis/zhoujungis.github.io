@@ -51,7 +51,7 @@ SOURCE = (
     / "nim-stone-games.md"
 )
 
-ARTICLE_TITLE = "【博弈论】石子游戏：一行异或判定先手必胜 —— 以及偶数堆两端取的反直觉结论"
+ARTICLE_TITLE = "【博弈论】石子游戏：一行异或判定先手必胜"
 ARTICLE_SLUG = "nim-stone-games"
 ARTICLE_EXCERPT = (
     "N 堆石子轮流取，先手必胜的判定只有一行：全场异或非 0。本文把论证拆成两句 —— "

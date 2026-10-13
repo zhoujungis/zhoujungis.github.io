@@ -1,5 +1,5 @@
 ---
-title: 【博弈论】石子游戏：一行异或判定先手必胜 —— 以及偶数堆两端取的反直觉结论
+title: 【博弈论】石子游戏：一行异或判定先手必胜
 slug: nim-stone-games
 cover_image: /photos/nim-stone-games-cover.png
 date: 2026-10-13
