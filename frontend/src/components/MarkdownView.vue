@@ -48,6 +48,7 @@ import { mountClimbRec } from '@/viz/climbRec'
 import { mountNim } from '@/viz/nim'
 import { mountLc877 } from '@/viz/lc877'
 import { mountVarPart } from '@/viz/varPart'
+import { mountSpiral, mountSpiralCcw } from '@/viz/spiral'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
@@ -403,6 +404,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--nim': mountNim,
   'algo-viz--lc877': mountLc877,
   'algo-viz--varpart': mountVarPart,
+  'algo-viz--spiral': mountSpiral,
+  'algo-viz--spiralccw': mountSpiralCcw,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
