@@ -5,8 +5,350 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Tue, 13 Oct 2026 07:09:44 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 13 Oct 2026 07:12:34 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</title>
+      <link>https://zhoujungis.github.io/article/spiral-matrix-fill/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/spiral-matrix-fill/</guid>
+      <pubDate>Tue, 13 Oct 2026 07:11:23 GMT</pubDate>
+      <description>题目 给一个 M x N 的矩阵，从 1 开始 逆时针螺旋 填入 / 打印这 M x N 个数，要求时间复杂度尽可能低。 面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话： 向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。 在写任何代码之前，有一件事必须先对齐 —— 口径。 一、核心洞察：先把&quot;逆时</description>
+      <category>算法</category>
+      <category>LeetCode</category>
+      <category>动态规划</category>
+      <category>面试</category>
+      <content:encoded><![CDATA[<h2>题目</h2>
+
+给一个 <code>M x N</code> 的矩阵，从 <code>1</code> 开始<strong>逆时针螺旋</strong>填入 / 打印这 <code>M x N</code> 个数，要求时间复杂度尽可能低。
+
+面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话：<strong>向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。</strong>
+
+在写任何代码之前，有一件事必须先对齐 —— 口径。
+<ul>
+<li><a href="#section-1">一、核心洞察：先把"逆时针"的口径对齐</a></li>
+<li><a href="#section-2">二、拆解：四边界收缩</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：撞墙变向法与真逆时针</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：先把"逆时针"的口径对齐</h2>
+
+这是本题最大的坑，而且它不在代码里，在<strong>名词定义</strong>里。
+
+从左上角出发，第一行只能向右走完（顶边没有向上的空间），所以第二个方向必然是向下。于是「右、下、左、上」这个顺序，<strong>几何上画出来是顺时针</strong>（1→2→3 沿顶边、4→5 沿右边、6→7 沿底边、8 沿左边）。但大量面经和教材把这一套叫作「逆时针螺旋」—— LeetCode 54（螺旋矩阵）和 59（螺旋矩阵 II）用的都是它。
+
+真正的逆时针是「<strong>下、右、上、左</strong>」：从左上角先往下走，再沿底边向右，再沿右边向上，最后沿顶边向左。
+
+两个顺序在<strong>方阵</strong>下恰好互为转置（3×3 成立，非方阵不成立 —— 这点我验证过，见第四节）。所以它们不是"对错"关系，是"两套都合法、命名混乱"的关系。
+<blockquote>
+
+面试里的正确动作：<strong>先问一句"方向顺序是右下上左还是下右上左"，或者直接声明"我按右下上左，LC 54 那一套"。</strong> 把口径钉死再写码，比写完再返工省一半时间。这篇文章两个顺序都实现、都做成了动画，你可以直接对照着看。
+</blockquote>
+<h2>二、拆解：四边界收缩</h2>
+
+最稳的写法是维护四条边界，逐圈向内收缩：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
+    <span class="n">top</span><span class="p">,</span> <span class="n">bottom</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cols</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">num</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">top</span> <span class="o">&lt;=</span> <span class="n">bottom</span> <span class="ow">and</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
+        <span class="c1"># 1) 顶边：向右</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">grid</span><span class="p">[</span><span class="n">top</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+            <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">top</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># 2) 右边：向下</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">top</span><span class="p">,</span> <span class="n">bottom</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">right</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+            <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="c1"># 3) 底边：向左 —— 守卫：只剩一行时不能再扫</span>
+        <span class="k">if</span> <span class="n">top</span> <span class="o">&lt;=</span> <span class="n">bottom</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">left</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">grid</span><span class="p">[</span><span class="n">bottom</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+                <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">bottom</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="c1"># 4) 左边：向上 —— 守卫：只剩一列时不能再扫</span>
+        <span class="k">if</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">bottom</span><span class="p">,</span> <span class="n">top</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">left</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+                <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">grid</span>
+</code></pre></div>
+
+
+两个 <code>if</code> 守卫是全部难点所在。它们防的不是"越界"（<code>range</code> 自己会处理），而是<strong>重复写入</strong>：当剩余区域退化成一整行或一整整列时，第三条边和第一条边是同一批格子，第四条边和第二条边也是。
+
+漏掉守卫的确切症状（脚本实测，不是印象）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>形状</th>
+<th>漏守卫的输出</th>
+<th>正确输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3 x 3</code></td>
+<td><code>[[1,2,3],[8,9,4],[7,6,5]]</code></td>
+<td>相同 —— <strong>看不出来</strong></td>
+</tr>
+<tr>
+<td><code>2 x 3</code></td>
+<td><code>[[1,2,3],[6,5,4]]</code></td>
+<td>相同 —— <strong>也看不出来</strong></td>
+</tr>
+<tr>
+<td><code>1 x 3</code></td>
+<td><code>[[5,4,3]]</code></td>
+<td><code>[[1,2,3]]</code></td>
+</tr>
+<tr>
+<td><code>3 x 1</code></td>
+<td><code>[[1],[4],[3]]</code></td>
+<td><code>[[1],[2],[3]]</code></td>
+</tr>
+</tbody>
+</table></div>
+
+注意这个规律：<strong>方阵和"矮胖/瘦高但每边至少 2"的形状全都正常，只有退化到单行或单列时才炸</strong> —— 而且炸的方式是"后来的数字覆盖先前的"，1 和 2 直接消失。很多面经笼统说"非方阵会错"，不准确；<code>2 x 3</code> 就好好的。要测就测 <code>1 x N</code> 和 <code>N x 1</code>。
+<div class="algo-viz algo-viz--spiral"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画用主例 <code>3 x 3</code>、方向顺序「右、下、左、上」，11 帧走完：
+<ul>
+<li><strong>网格</strong>：已填格显示数字，正在填的格子橙框，未填格虚线空壳；</li>
+<li><strong>方向箭头</strong>：画在当前格的外侧，指向本帧的推进方向 —— 撞到未填区域边缘就转向；</li>
+<li><strong>绿色虚线框</strong>：<strong>本圈</strong>的边界（动画里四边界按圈固定，不会中途跳动）；</li>
+<li><strong>右侧面板</strong>：四个方向小方块（当前方向高亮）、已填 <code>n / 9</code>、四个边界值。</li>
+</ul>
+
+教科书帧是第 4 帧：<code>1 2 3</code> 填完、<code>top</code> 内推成 1，箭头从"向右"转成"向下"，绿框还是本圈的 <code>上0 / 下2 / 左0 / 右2</code>。第 9 帧是第二圈，边界收缩成 <code>上1 / 下1 / 左1 / 右1</code>，只剩中心一格。
+<h2>四、完整推演表</h2>
+
+<code>3 x 3</code>，方向顺序「右、下、左、上」（对应动画的 9 个填数帧）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>次序</th>
+<th>格子</th>
+<th>方向</th>
+<th>本圈边界（上/下/左/右）</th>
+<th>矩阵</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>(0,0)</td>
+<td>向右</td>
+<td>0/2/0/2</td>
+<td><code>1 . .</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>(0,1)</td>
+<td>向右</td>
+<td>0/2/0/2</td>
+<td><code>1 2 .</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>(0,2)</td>
+<td>向右</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>(1,2)</td>
+<td>向下</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>(2,2)</td>
+<td>向下</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4 / . . 5</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>(2,1)</td>
+<td>向左</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4 / . 6 5</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>(2,0)</td>
+<td>向左</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4 / 7 6 5</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>(1,0)</td>
+<td>向上</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / 8 . 4 / 7 6 5</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>(1,1)</td>
+<td>向右</td>
+<td>1/1/1/1</td>
+<td><code>1 2 3 / 8 9 4 / 7 6 5</code></td>
+</tr>
+</tbody>
+</table></div>
+
+终局就是九宫格的标准答案 <code>[[1,2,3],[8,9,4],[7,6,5]]</code>。
+
+换成「下、右、上、左」（真逆时针）：
+<div class="codehilite"><pre><span></span><code><span class="mf">1</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="mf">7</span>
+<span class="mf">2</span><span class="w"> </span><span class="mf">9</span><span class="w"> </span><span class="mf">6</span>
+<span class="mf">3</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="mf">5</span>
+</code></pre></div>
+
+
+<strong>它恰好是上面那个矩阵的转置。</strong> 这个关系在方阵下恒成立（我用 3×3 验证过），但<strong>非方阵不成立</strong> —— <code>2 x 3</code> 时前者是 <code>[[1,2,3],[6,5,4]]</code>、后者是 <code>[[1,6,5],[2,3,4]]</code>，完全不同的两个矩阵。所以"逆时针就是顺时针转个置"这个说法，只在方阵面试题里碰巧对。
+<div class="algo-viz algo-viz--spiralccw"></div>
+
+
+第二个动画就是「下、右、上、左」这一套，同一个状态机换了个方向顺序 —— 你可以直接对照两套动画，确认"口径"到底差在哪。
+<h2>五、进阶：撞墙变向法与真逆时针</h2>
+
+另一条实现路线是<strong>方向向量 + 撞墙变向</strong>：维护一个方向序列，每步先试探下一格，撞到边界或已填格子就换下一个方向。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
+    <span class="n">dirs</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>   <span class="c1"># 右下上左</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">c</span> <span class="o">=</span> <span class="n">d</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">rows</span> <span class="o">*</span> <span class="n">cols</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+        <span class="n">seen</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">rows</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">cols</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">seen</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]):</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span>
+            <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span>
+    <span class="k">return</span> <span class="n">grid</span>
+</code></pre></div>
+
+
+换方向顺序只要改 <code>dirs</code> 一行 —— 这也是本文两个动画能共用一套状态机的原因。代价是 <code>seen</code> 数组：<strong>额外空间 O(M x N)</strong>，而四边界收缩法只要 O(1)。想省空间就用边界法，想要代码短、方向好换就用撞墙法。
+
+<strong>"打印"是同一件事</strong>：如果题目只要求按螺旋顺序打印、不要求返回矩阵，把 <code>grid[r][c] = num</code> 换成 <code>print(num)</code> 就行，遍历顺序一字不改。别为"打印"单独写一套逻辑。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">rows</span><span class="o">][</span><span class="n">cols</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">top</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">top</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">top</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="n">top</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">right</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 守卫：只剩一行时不能再向左扫，否则覆盖已填的值</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">top</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">bottom</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">bottom</span><span class="o">--</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 守卫：只剩一列时不能再向上扫</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bottom</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">grid</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+想换成真逆时针，把四个循环块按「下、右、上、左」重排即可，两个守卫的位置跟着一起换。撞墙变向的 Java 版就是把 <code>dirs</code> 写成 <code>int[][] dirs = {{1,0},{0,1},{-1,0},{0,-1}}</code> 再配一个 <code>boolean[][] seen</code>。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong><code>1 x 1</code></strong>：输出 <code>[[1]]</code>，循环跑一轮就结束，两个守卫都不触发。</li>
+<li><strong><code>1 x N</code> / <code>N x 1</code></strong>：<strong>守卫的唯一用武之地</strong>。漏守卫时 <code>1 x 3</code> 输出 <code>[[5,4,3]]</code>（1、2 被 4、5 覆盖），<code>3 x 1</code> 输出 <code>[[1],[4],[3]]</code>。</li>
+<li><strong><code>M != N</code> 但都 ≥ 2</strong>：<code>2 x 3</code>、<code>5 x 2</code> 这类形状漏守卫也正常，别被"非方阵必错"的说法带偏。</li>
+<li><strong><code>M</code> 或 <code>N</code> 为 0</strong>：题目一般保证正整数；真要防御，<code>while</code> 条件 <code>top &lt;= bottom &amp;&amp; left &lt;= right</code> 会直接跳过，返回空矩阵。</li>
+<li><strong>从 0 开始编号</strong>：面经里两种都有，问清楚。本文全程从 1 开始（和 LeetCode 59 一致）。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>四边界收缩</th>
+<th>撞墙变向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><code>O(M x N)</code></td>
+<td><code>O(M x N)</code></td>
+</tr>
+<tr>
+<td>额外空间</td>
+<td><code>O(1)</code></td>
+<td><code>O(M x N)</code>（<code>seen</code>）</td>
+</tr>
+<tr>
+<td>输出空间</td>
+<td><code>O(M x N)</code></td>
+<td><code>O(M x N)</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>"时间复杂度尽可能低"的答案是：<code>O(M x N)</code> 已经是最优，没有优化空间。</strong> 理由很硬：输出本身有 <code>M x N</code> 个数，每个数至少要被写一次，所以 <code>Ω(M x N)</code> 是下界；而两种写法都恰好 <code>M x N</code> 次写入，上下界贴平。
+
+真正能省的是<strong>空间</strong>：四边界收缩法 <code>O(1)</code> 额外空间，撞墙变向法要一个 <code>seen</code>。如果面试官追问"能不能不用 <code>seen</code>"，这就是切入点。
+
+顺带一句：别用递归写这题。每圈一层递归，圈数 <code>min(M, N) / 2</code> 虽然不大，但递归没有任何优势，还会引入栈深和边界传递的额外出错点。
+<h2>九、常见坑</h2>
+<h3>9.1 口径没对齐就开写（本题头号坑）</h3>
+
+你说"逆时针"、面试官想"右下上左"，或者反过来 —— 写完全场对不上。<strong>动手前先声明方向顺序</strong>，或者画个 3×3 的九宫格跟面试官对一遍。这也是本篇花一整节讲口径的原因：它比代码更难补救。
+<h3>9.2 漏掉第三、第四条边的守卫</h3>
+
+症状是<strong>后来的数字覆盖先前的</strong>（不是越界崩溃，所以特别隐蔽）。但要注意：它只在剩余区域退化成<strong>单行或单列</strong>时触发，<code>2 x 3</code>、<code>5 x 2</code> 全都正常。回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code> 两组。
+<h3>9.3 边界更新的时机</h3>
+
+四条边的顺序必须是「先填满这一边，再把这条边界内推一格」。把 <code>top++</code> 写到循环前面，第一行就会漏掉一个格子；把 <code>right--</code> 写在整个圈结束时，右边就会多填一行。<strong>填满 → 收缩，一一对应。</strong>
+<h3>9.4 起始编号 0 还是 1</h3>
+
+面经两种都有。本文从 1 开始（对齐 LeetCode 59）。如果面试官说"从 0 开始"，把 <code>num = 1</code> 改成 <code>num = 0</code>、循环条件改成 <code>&lt; rows * cols</code> 即可，其他一字不动。
+<h3>9.5 用 seen 判断转向，却忘了判断边界</h3>
+
+撞墙变向法的试探条件是 <code>0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and not seen[nr][nc]</code> —— 三个条件缺一不可。只判 <code>seen</code> 不判边界，会在最后一格直接数组越界。
+<h3>9.6 把"填入"和"打印"当成两道题</h3>
+
+遍历顺序完全一样，差别只在"要不要存"。面试时如果只要求打印，直接输出即可；如果先问打印、再问返回矩阵，就是把 <code>print</code> 换成赋值，别重写算法。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先对齐口径</strong>："我按『右、下、左、上』写，也就是 LeetCode 54 那一套；如果您要的是先往下走的真逆时针，方向序列换成下右上左就行。"</li>
+<li><strong>说清核心思路</strong>："维护四条边界，每圈先填顶边、再填右边、再填底边、再填左边，每填完一条把对应边界内推一格。"</li>
+<li><strong>主动点出守卫</strong>："第三、第四条边要加 <code>if top &lt;= bottom</code> 和 <code>if left &lt;= right</code> —— 剩余区域退化成单行/单列时会重复写入。<code>1 x 3</code> 漏守卫会输出 <code>[[5,4,3]]</code>。"</li>
+<li><strong>报复杂度并给出理由</strong>："时间 <code>O(M x N)</code>，这已经是最优 —— 输出本身有 <code>M x N</code> 个数，下界贴平。额外空间 <code>O(1)</code>。"</li>
+<li><strong>提另一条路线</strong>："也可以用方向向量 + <code>seen</code> 撞墙变向，代码更短、换方向只改一行，但要多 <code>O(M x N)</code> 空间。"</li>
+<li><strong>给变体</strong>：LC 54 螺旋矩阵（给定矩阵按此顺序读取）、LC 59 螺旋矩阵 II（从 1 填到 n²）、LC 885 螺旋矩阵 III（从某点出发按螺旋走，考验坐标推进）、以及"逆时针"口径本身。</li>
+</ol>
+<h2>结语</h2>
+
+螺旋填数是那种"代码十分钟、口径半小时"的题：算法本身简单到不值一提 —— 四边界收缩，<code>O(M x N)</code> 时间、<code>O(1)</code> 额外空间，而且 <code>O(M x N)</code> 有硬下界（输出就有 <code>M x N</code> 个数），没有优化余地。真正的知识点有两个：<strong>方向顺序的口径要先对齐</strong>（"右下上左"几何上是顺时针，却被大量面经叫作逆时针；方阵下"真逆时针"恰好是它的转置，非方阵不成立），以及<strong>两个守卫防的不是越界而是覆盖</strong>（只在单行/单列时触发，<code>1 x 3</code> 会输出 <code>[[5,4,3]]</code>）。这两点都是"不写就不会知道"的类型 —— 所以回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code>。]]></content:encoded>
+    </item>
     <item>
       <title>【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</title>
       <link>https://zhoujungis.github.io/article/partition-variance-dp/</link>
@@ -1401,430 +1743,6 @@ Java 两个注意点：<code>(rand7() - 1) * 7 + rand7()</code> 的<strong>两�
       <category>哈希表</category>
       <category>链表</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-<blockquote>
-
-来源：<strong>腾讯 123 次（断层第一）、字节 72 次</strong> —— 手写设计题里出现频率最高的缓存题。
-</blockquote>
-
-<strong>LC 146 LRU 缓存</strong>：请你设计并实现一个满足 <strong>LRU（最近最少使用）</strong> 缓存约束的数据结构。
-<ul>
-<li><code>LRUCache(int capacity)</code>：以正整数 <code>capacity</code> 初始化；</li>
-<li><code>int get(int key)</code>：如果 key 存在，返回其值，否则返回 <code>-1</code>；</li>
-<li><code>void put(int key, int value)</code>：key 存在则改值；不存在则插入；<strong>容量满时淘汰最久未使用的那一个</strong>；</li>
-<li><strong><code>get</code> 和 <code>put</code> 必须都是 O(1)</strong>。</li>
-</ul>
-
-要求<strong>手写双向链表 + 哈希表</strong>（禁用 <code>LinkedHashMap</code> / <code>OrderedDict</code> 这类现成结构）。追问两个：
-<blockquote>
-
-<strong>追问一</strong>：怎么改成线程安全版？
-<strong>追问二</strong>：和 LFU（LC 460）有什么区别？
-</blockquote>
-
-标准用例（本文动画的默认脚本）：
-<div class="codehilite"><pre><span></span><code>LRUCache(2)
-put(1,1); put(2,2)        → 链表: [1] → [2,1]
-get(1)                    → 返回 1,  链表重排: [1,2]
-put(3,3)                  → 淘汰 2,  链表: [3,1]
-get(2)                    → -1
-put(4,4)                  → 淘汰 1,  链表: [4,3]
-get(1) → -1; get(3) → 3; get(4) → 4
-</code></pre></div>
-
-<h2>一、核心洞察：O(1) 的两条腿 —— 哈希表定位 + 双向链表排队</h2>
-
-先说清楚「为什么必须是这两样组合」：
-<ul>
-<li><strong>只用哈希表</strong>：<code>get</code> 是 O(1)，但「谁是最久未使用的」这件事没有结构承载 —— 每次淘汰都得扫描全部 key（O(n)），而且「使用」的顺序无法维护；</li>
-<li><strong>只用链表</strong>：保持顺序没问题，但 <code>get(key)</code> 要先找到节点 —— 链表查找是 O(n)；</li>
-<li><strong>组合起来</strong>：哈希表 <code>key → 节点</code> 负责「一步找到」，双向链表负责「按使用顺序排队」，两个操作各司其职：</li>
-</ul>
-<div class="codehilite"><pre><span></span><code>队首（head 侧）= 最近使用（MRU）
-队尾（tail 侧）= 最久未使用（LRU）  ← 淘汰永远从这里摘
-</code></pre></div>
-
-
-两个「为什么」也是面试官爱问的：
-<ol>
-<li><strong>为什么双向、不单向？</strong> <code>get</code> 命中后要把节点从链表<strong>中间摘下来</strong>、移到队首。单向链表摘任意节点需要它的前驱 —— 找不到前驱就得从头扫（O(n)）。双向链表有 <code>prev</code>，摘除本身是 O(1)。</li>
-<li><strong>为什么要哨兵（dummy head / tail）？</strong> 有了两个哨兵，任何节点的 <code>prev</code> / <code>next</code> 都非空 —— 插入和摘除<strong>永远不需要判空</strong>，代码少一半 <code>if</code>，也就不容易在边界（容量 1、只剩一个节点）上写错。</li>
-</ol>
-<h2>二、手写结构：三个固定动作</h2>
-
-整份实现只有三个「零件动作」，把它们的指针顺序背下来，就再也不会写错：
-<ul>
-<li><code>addToFront(node)</code>：把节点接到哨兵 head 后面（队首）；</li>
-<li><code>unlink(node)</code>：把节点从链表中摘掉（前后邻居直接牵手）；</li>
-<li><code>moveToFront(node)</code> = <code>unlink</code> + <code>addToFront</code>。</li>
-</ul>
-
-Python 版（<strong>不用 <code>OrderedDict</code></strong>，纯手写）：
-<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Node</span><span class="p">:</span>
-    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="s2">&quot;prev&quot;</span><span class="p">,</span> <span class="s2">&quot;next&quot;</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">key</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">LRUCache</span><span class="p">:</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cap</span> <span class="o">=</span> <span class="n">capacity</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="p">{}</span>                    <span class="c1"># key -&gt; Node</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">head</span> <span class="o">=</span> <span class="n">Node</span><span class="p">()</span>                 <span class="c1"># 哨兵：head.next 才是第一个真节点</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">tail</span> <span class="o">=</span> <span class="n">Node</span><span class="p">()</span>                 <span class="c1"># 哨兵：tail.prev 才是最后一个真节点</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_add_to_front</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="n">node</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span>
-        <span class="n">node</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">next</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="n">node</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">node</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_unlink</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="n">node</span><span class="o">.</span><span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span>
-        <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">prev</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_move_to_front</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_unlink</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_add_to_front</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">node</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_move_to_front</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>          <span class="c1"># 命中 = 使用</span>
-        <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">value</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">node</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_move_to_front</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>      <span class="c1"># 改值也算使用！</span>
-            <span class="k">return</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">cap</span><span class="p">:</span>    <span class="c1"># 容量满：先淘汰队尾</span>
-            <span class="n">victim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">prev</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_unlink</span><span class="p">(</span><span class="n">victim</span><span class="p">)</span>
-            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">victim</span><span class="o">.</span><span class="n">key</span><span class="p">]</span>     <span class="c1"># 两处都要删，漏一个就是幽灵节点</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_add_to_front</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-</code></pre></div>
-
-
-注意 <code>put</code> 的三种情形：<strong>key 已存在</strong>（改值 + 移到队首）、<strong>容量未满</strong>（直接插队首）、<strong>容量已满</strong>（先摘队尾双删，再插队首）—— 面试时把这三条逐个说清楚，比一句「就是 LRU 嘛」强十倍。
-<h2>三、动画怎么看</h2>
-<div class="algo-viz algo-viz--lc146"></div>
-
-<div class="algo-viz algo-viz--lc146lfu"></div>
-
-
-<strong>动画一</strong>（<code>algo-viz--lc146</code>）：<strong>双向链表 + 哈希表</strong>。上方是链表：<code>H</code> / <code>T</code> 是哨兵，<strong>队首（最左）= 最近使用，队尾（最右）= 淘汰对象</strong>；每个节点显示 <code>key:value</code> 和它的节点号 <code>#n</code>。中部是<strong>哈希表</strong>，条目形如 <code>key → #n</code> —— 盯住它们<strong>同步变化</strong>：插入时两处都加、淘汰时两处都删。淘汰帧里队尾会出现一个<strong>虚线幽灵节点</strong>（就是被摘掉的那一个）。下方两行是「本步操作」和「get 返回值」。
-
-<strong>动画二</strong>（<code>algo-viz--lc146lfu</code>）：<strong>LFU 对照</strong>。同一套操作脚本喂给 LFU：节点按 <strong>freq 升序</strong>从左到右排（<strong>最左 = 下一个淘汰对象</strong>，左侧有「淘汰优先 →」指示），每个节点带 freq 角标，get / put 命中都会让 freq +1。看两个关键帧就够了：<code>put(3,3)</code> 时的淘汰 —— <strong>LRU 淘汰 <code>(2,2)</code>，LFU 淘汰 <code>(1,1)</code></strong>。
-<h2>四、完整推演表</h2>
-
-<strong>动画一（LRU）</strong> 按默认脚本逐操作推演（链表按头 → 尾书写）：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>操作</th>
-<th>链表（头 → 尾）</th>
-<th>哈希表</th>
-<th>返回</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>init</td>
-<td>空</td>
-<td>空</td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>put(1,1)</code></td>
-<td><code>1:1</code></td>
-<td><code>1 → #1</code></td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>put(2,2)</code></td>
-<td><code>2:2 → 1:1</code></td>
-<td><code>1 → #1, 2 → #2</code></td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>get(1)</code></td>
-<td><code>1:1 → 2:2</code>（移到队首）</td>
-<td>不变</td>
-<td><strong>1</strong></td>
-</tr>
-<tr>
-<td><code>put(3,3)</code></td>
-<td>淘汰 <code>2:2</code> → 插入得 <code>3:3 → 1:1</code></td>
-<td>删 <code>2</code>、加 <code>3</code></td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>get(2)</code></td>
-<td>不变</td>
-<td>不变</td>
-<td><strong>−1</strong></td>
-</tr>
-<tr>
-<td><code>put(4,4)</code></td>
-<td>淘汰 <code>1:1</code> → 插入得 <code>4:4 → 3:3</code></td>
-<td>删 <code>1</code>、加 <code>4</code></td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>get(1)</code></td>
-<td>不变</td>
-<td>不变</td>
-<td><strong>−1</strong></td>
-</tr>
-<tr>
-<td><code>get(3)</code></td>
-<td><code>3:3 → 4:4</code>（移到队首）</td>
-<td>不变</td>
-<td><strong>3</strong></td>
-</tr>
-<tr>
-<td><code>get(4)</code></td>
-<td><code>4:4 → 3:3</code>（移到队首）</td>
-<td>不变</td>
-<td><strong>4</strong></td>
-</tr>
-</tbody>
-</table></div>
-
-两个「淘汰时刻」值得单独记：<code>put(3,3)</code> 淘汰 <code>(2,2)</code> —— 虽然 2 比 1 晚插入，但 <code>get(1)</code> 之后 <strong>1 被使用过、2 没有</strong>；<code>put(4,4)</code> 淘汰 <code>(1,1)</code> —— 1 虽然热过，但 3 插入后它就是队尾。<strong>LRU 只看「最近有没有用」，不看「一共用了多少次」。</strong>
-
-<strong>动画二（LFU 对照）</strong>：同一串操作喂给 LFU，分岔点只有一个，但结论完全不同：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>步骤</th>
-<th>各节点 freq</th>
-<th>决策</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>put(1,1)</code> / <code>put(2,2)</code></td>
-<td><code>1:1, 2:1</code></td>
-<td>都是冷启动</td>
-</tr>
-<tr>
-<td><code>get(2)</code> ×2</td>
-<td><code>1:1, 2:3</code></td>
-<td>LFU 里 get <strong>涨频率</strong></td>
-</tr>
-<tr>
-<td><code>get(1)</code></td>
-<td><code>1:2, 2:3</code></td>
-<td>1 也热了一档，但还差</td>
-</tr>
-<tr>
-<td><code>put(3,3)</code></td>
-<td>淘汰 <strong>freq 最小的 <code>1</code></strong></td>
-<td>对照：LRU 此刻淘汰的是 <code>2</code></td>
-</tr>
-</tbody>
-</table></div>
-
-<strong>同一串操作、同一个容量，两台机器淘汰不同的 key</strong> —— 这就是「LRU vs LFU」在一道题里的全部分歧。
-<h2>五、追问二：LFU（460）的区别</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>维度</th>
-<th>LRU（146）</th>
-<th>LFU（460）</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>记住的维度</td>
-<td><strong>时间</strong>：最近有没有用</td>
-<td><strong>频率</strong>：一共用了多少次</td>
-</tr>
-<tr>
-<td>get 命中做什么</td>
-<td>把节点移到队首（改顺序）</td>
-<td>freq +1（<strong>改淘汰优先级</strong>）</td>
-</tr>
-<tr>
-<td>淘汰谁</td>
-<td>链表<strong>队尾</strong>（最久未使用）</td>
-<td><strong>freq 最小</strong>的节点；并列时淘汰其中最久未使用的</td>
-</tr>
-<tr>
-<td>结构</td>
-<td>哈希表 + 一条双向链表</td>
-<td>哈希表 + <strong>频率桶</strong>（freq → 双向链表）+ <code>minFreq</code> 指针</td>
-</tr>
-<tr>
-<td>O(1) 实现难度</td>
-<td>低（本文三个动作）</td>
-<td>高（桶的增删 + minFreq 维护）</td>
-</tr>
-<tr>
-<td>典型弱点</td>
-<td>一次大扫描会冲掉热点（缓存污染）</td>
-<td>历史热点短期「赖着不走」；新 key 极易被秒杀</td>
-</tr>
-</tbody>
-</table></div>
-
-LFU 要做到 O(1)，靠的是「<strong>频率桶</strong>」：每个 <code>freq</code> 值挂一条双向链表，同桶内按使用先后排；再维护一个 <code>minFreq</code> 指针指向最小频率的桶。命中时节点从 freq 桶搬到 freq+1 桶；淘汰时从 <code>minFreq</code> 桶的<strong>桶尾</strong>（同频最久未用）取。<strong>LC 460 的难点从来不是 LRU 那套链表，而是桶和 minFreq 的维护。</strong>
-
-工程现场还有第四种答案：真实缓存（如 Caffeine）用的是 <strong>W-TinyLFU</strong> ——「准入窗口 + 频率素描」的组合，既抗扫描污染又不用精确维护频率桶。面试里能提一句，档次直接不一样。
-<h2>六、追问一：线程安全版怎么做</h2>
-
-先戳破一个错觉：<strong>LRU 的 <code>get</code> 不是只读操作</strong> —— 它要 <code>moveToFront</code>，会改链表。所以「读多写少用读写锁」在这里是伪命题：每一次读都可能写结构。三条路线：
-<ul>
-<li><strong>全局锁（朴素正确版）</strong>：Java 用 <code>synchronized</code> 包住 <code>get</code> / <code>put</code>，Python 用 <code>threading.Lock</code>。正确、简单，但所有操作串行 —— 面试里先说这个，再谈优化；</li>
-<li><strong>分段锁（工程常用）</strong>：按 key 哈希成 N 段，每段一条独立 LRU + 一把锁。并发度上来了，代价是<strong>容量不再精确</strong>（每段各自淘汰，可能整体超卖/早退）。这也是 Redis 单线程模型之外、本地缓存库的常见折衷；</li>
-<li><strong>近似算法（生产现实）</strong>：与其精确维护链表，不如用 CLOCK / W-TinyLFU 这类「近似 LRU/LFU」，把每次访问的结构修改降到常数位操作 —— 换来高并发下的可扩展性。</li>
-</ul>
-
-面试句式：「正确性上，最简单的方案是一把锁把所有操作串行化；瓶颈在于 get 也会写链表。生产里通常退一步：分段或近似算法，用淘汰精度换并发度。」
-<h2>七、Java 版（同样手写，禁用 LinkedHashMap）</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">LRUCache</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Node</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
-<span class="w">        </span><span class="n">Node</span><span class="w"> </span><span class="n">prev</span><span class="p">,</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
-<span class="w">        </span><span class="n">Node</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="p">;</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Node</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">Node</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w">   </span><span class="c1">// 哨兵</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">Node</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w">   </span><span class="c1">// 哨兵</span>
-
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="nf">LRUCache</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">capacity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">capacity</span><span class="p">;</span>
-<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">;</span>
-<span class="w">        </span><span class="n">tail</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
-<span class="w">        </span><span class="n">moveToFront</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">value</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="n">node</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
-<span class="w">            </span><span class="n">moveToFront</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
-<span class="w">            </span><span class="k">return</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="n">Node</span><span class="w"> </span><span class="n">victim</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">.</span><span class="na">prev</span><span class="p">;</span><span class="w">            </span><span class="c1">// 队尾 = 最久未使用</span>
-<span class="w">            </span><span class="n">remove</span><span class="p">(</span><span class="n">victim</span><span class="p">);</span>
-<span class="w">            </span><span class="n">map</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">victim</span><span class="p">.</span><span class="na">key</span><span class="p">);</span><span class="w">             </span><span class="c1">// 双删</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="n">Node</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">);</span>
-<span class="w">        </span><span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">fresh</span><span class="p">);</span>
-<span class="w">        </span><span class="n">addToFront</span><span class="p">(</span><span class="n">fresh</span><span class="p">);</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">addToFront</span><span class="p">(</span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
-<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
-<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
-<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
-<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">prev</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">moveToFront</span><span class="p">(</span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">remove</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
-<span class="w">        </span><span class="n">addToFront</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-一个 Java 细节：<code>head</code> / <code>tail</code> 哨兵自己不在 <code>map</code> 里，也不会被 <code>put</code> 覆盖；<code>remove</code> 之后<strong>必须</strong> <code>map.remove</code>，否则淘汰的 key 还留在哈希表里，下一次 <code>get</code> 会摸到一个已经脱链的「幽灵节点」。
-
-（如果哪天笔试允许用库：Java <code>new LinkedHashMap&lt;&gt;(cap, 0.75f, true)</code> + 重写 <code>removeEldestEntry</code>、Python <code>OrderedDict</code> + <code>move_to_end</code> 都是一行版 —— 但<strong>这道题考的就是不让用</strong>。）
-<h2>八、同族题：460 / 432 / 707 / 2296 / 面试 16.25</h2>
-
-146 是「设计题 + 链表 + 哈希」这一族的原点：
-<ul>
-<li><strong>LC 460 LFU 缓存</strong>：本文第五节的对照 —— 频率桶 + minFreq，<strong>146 的进阶连招</strong>；</li>
-<li><strong>LC 432 全 O(1) 的数据结构</strong>：inc / dec / getMax / getMin 全 O(1) —— 同样用「值 → 双向链表」的桶思想；</li>
-<li><strong>LC 707 设计链表</strong>：不考缓存，只考双向链表裸操作（插入 / 删除 / 按索引找）—— 146 的手感训练；</li>
-<li><strong>LC 2296 设计文本编辑器</strong>：双向链表 + 光标，链表的另一条经典考法；</li>
-<li><strong>面试题 16.25 LRU 缓存</strong>：就是本题的「面试版」编号，考频同样极高；</li>
-<li><strong>LC 588 / 1166</strong>（文件系统系列）：用「路径 → 节点」的哈希 + 树/链表的组合，思想同源。</li>
-</ul>
-<h2>九、边界与常见坑</h2>
-<ul>
-<li><strong><code>put</code> 已存在的 key 必须移到队首</strong>（且改值）—— 漏掉「算一次使用」是本题第一大坑，面试官一问就是它；</li>
-<li><strong>get 未命中不能占位</strong>：返回 -1，结构一动不动；</li>
-<li><strong>淘汰要双删</strong>：链表摘尾的<strong>同时</strong> <code>del cache[key]</code>；只摘链表 → 幽灵节点；只删表 → 链表泄漏；</li>
-<li><strong>值相同也算使用</strong>：<code>put(1, 5)</code> 遇到已经 <code>1:5</code>，仍要移到队首；</li>
-<li><strong><code>capacity = 1</code></strong>：哨兵方案下不需要任何特判（这正是哨兵的价值）；</li>
-<li><strong>指针顺序</strong>：<code>addToFront</code> 四行、<code>remove</code> 两行，顺序写反在「只有一个节点」时会把自己指成自环；</li>
-<li><strong>不要用库</strong>：题目明确禁用 <code>LinkedHashMap</code> / <code>OrderedDict</code>，写了能过编译但面试大概率被判「没答到」；</li>
-<li><strong>Python 的 <code>__slots__</code></strong>：可选优化，面试里提一句显得熟练；不提也不扣分。</li>
-</ul>
-<h2>十、复杂度</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>操作</th>
-<th>时间</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>get</code></td>
-<td><code>O(1)</code> 均摊</td>
-<td>哈希表查找 O(1) + 链表摘除/插入各常数次指针</td>
-</tr>
-<tr>
-<td><code>put</code></td>
-<td><code>O(1)</code> 均摊</td>
-<td>查找 + 至多一次淘汰（摘尾双删）+ 一次头插</td>
-</tr>
-<tr>
-<td>空间</td>
-<td><code>O(capacity)</code></td>
-<td>哈希表与链表各存 capacity 个节点</td>
-</tr>
-</tbody>
-</table></div>
-
-没有一次遍历、没有一次扫描 —— 这就是「LRU 的 O(1)」的全部含义。对照 LFU：维护得当时（频率桶 + minFreq）也是 O(1)，但要维护的结构多得多。
-<h2>十一、面试怎么答</h2>
-
-<strong>第一段 · 结构选型</strong>：先讲「两条腿」——哈希表 <code>key → 节点</code> 保证 O(1) 找到，双向链表按使用顺序排队保证 O(1) 移动与淘汰；<strong>为什么双向</strong>（摘中间节点要前驱）、<strong>为什么哨兵</strong>（免判空）。这段是绝大多数人答得含糊的地方，说清楚就赢一半。
-
-<strong>第二段 · 手写要点</strong>：三个固定动作 <code>addToFront</code> / <code>unlink</code> / <code>moveToFront</code>；<code>put</code> 的三种情形（改值+移到队首 / 直接插 / 先淘汰再插）；淘汰时<strong>链表哈希表双删</strong>。
-
-<strong>第三段 · 追问连跳</strong>：线程安全 —— 点出「get 也会写链表」，给全局锁 / 分段 / 近似三层答案；LFU 区别 —— 时间维度 vs 频率维度，<strong>同一串操作可能淘汰不同的 key</strong>（<code>put(3,3)</code>：LRU 淘汰 2、LFU 淘汰 1），LFU 的 O(1) 靠频率桶 + minFreq。
-
-一句话收尾：「LRU 的全部考点就是一句话 —— <strong>哈希表负责找到，双向链表负责排队</strong>；手写时盯住哨兵、双删和『put 命中也要移到队首』这三个细节。」
-<h2>结语</h2>
-
-146 是一道「没有算法、全是工程」的题：没有推导、没有边界数学，考的是你<strong>对两个基础结构组合的掌控力</strong> —— 哈希表给你 O(1) 的访问，双向链表给你 O(1) 的秩序。把它写对的人，再去看 LFU 的频率桶、432 的桶套桶、线程安全的分段与近似，都是在同一张图上往前走。手写一遍，比读十遍管用。
-
-下一篇见。]]></content:encoded>
     </item>
     <item>
       <title>【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</title>
@@ -1979,17 +1897,6 @@ LFU 要做到 O(1)，靠的是「<strong>频率桶</strong>」：每个 <code>fr
       <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-239-sliding-window-maximum/</guid>
       <pubDate>Tue, 29 Sep 2026 07:13:54 GMT</pubDate>
       <description>题目 给你一个整数数组 nums 和滑动窗口大小 k 。窗口从数组最左侧移动到最右侧，每次向右移动一位，返回每个窗口中的最大值。要求 线性时间 。 字节大数据方向面经原题（还有&quot;流式数据 + TopK&quot;的加码变体）。 一、核心洞察：只留还有机会的候选 二、拆解：两个独立的维护动作 三、动画怎么看 四、完整推演表 五、变</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>栈</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 20】有效的括号：栈是被结构逼出来的</title>
-      <link>https://zhoujungis.github.io/article/lc-20-valid-parentheses/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-20-valid-parentheses/</guid>
-      <pubDate>Tue, 29 Sep 2026 06:52:09 GMT</pubDate>
-      <description>题目 给定一个只包括 &#39;(&#39; 、 &#39;)&#39; 、 &#39;{&#39; 、 &#39;}&#39; 、 &#39;[&#39; 、 &#39;]&#39; 的字符串 s ，判断字符串是否有效。 有效需满足：左括号必须用 相同类型 的右括号闭合，且以 正确的顺序 闭合（嵌套不乱）。每个右括号都有一个对应的同类型左括号。 腾讯面试 TOP 8 常客，也是&quot;栈&quot;这个数据结构最经典的入门题。</description>
       <category>算法</category>
       <category>LeetCode</category>
       <category>栈</category>

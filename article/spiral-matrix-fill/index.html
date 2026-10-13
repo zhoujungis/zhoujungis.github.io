@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 给一个 M x N 的矩阵，从 1 开始 逆时针螺旋 填入 / 打印这 M x N 个数，要求时间复杂度尽可能低。 面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话： 向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。 在写任何代码之前，有一件事必须先对齐 —— 口径。 一、核心洞察：先把&quot;逆时" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/spiral-matrix-fill/" />
+    <meta property="og:title" content="【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)" />
+    <meta property="og:description" content="题目 给一个 M x N 的矩阵，从 1 开始 逆时针螺旋 填入 / 打印这 M x N 个数，要求时间复杂度尽可能低。 面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话： 向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。 在写任何代码之前，有一件事必须先对齐 —— 口径。 一、核心洞察：先把&quot;逆时" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/spiral-matrix-fill/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/spiral-matrix-fill-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)" />
+    <meta name="twitter:description" content="题目 给一个 M x N 的矩阵，从 1 开始 逆时针螺旋 填入 / 打印这 M x N 个数，要求时间复杂度尽可能低。 面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话： 向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。 在写任何代码之前，有一件事必须先对齐 —— 口径。 一、核心洞察：先把&quot;逆时" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/spiral-matrix-fill-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【矩阵】螺旋填数：先对齐口径，再谈 O(M×N) | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-o3Zf55kQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-13T15:11:23.747214+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)","description":"题目 给一个 M x N 的矩阵，从 1 开始 逆时针螺旋 填入 / 打印这 M x N 个数，要求时间复杂度尽可能低。 面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话： 向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。 在写任何代码之前，有一件事必须先对齐 —— 口径。 一、核心洞察：先把\"逆时","image":"https://zhoujungis.github.io/photos/spiral-matrix-fill-cover.png","datePublished":"2026-10-13T15:11:23.747214+08:00","dateModified":"2026-10-13T15:11:23.747214+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/spiral-matrix-fill/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</h1><div class="ns-meta">2026/10/13 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+给一个 <code>M x N</code> 的矩阵，从 <code>1</code> 开始<strong>逆时针螺旋</strong>填入 / 打印这 <code>M x N</code> 个数，要求时间复杂度尽可能低。
+
+面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话：<strong>向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。</strong>
+
+在写任何代码之前，有一件事必须先对齐 —— 口径。
+<ul>
+<li><a href="#section-1">一、核心洞察：先把"逆时针"的口径对齐</a></li>
+<li><a href="#section-2">二、拆解：四边界收缩</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：撞墙变向法与真逆时针</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：先把"逆时针"的口径对齐</h2>
+
+这是本题最大的坑，而且它不在代码里，在<strong>名词定义</strong>里。
+
+从左上角出发，第一行只能向右走完（顶边没有向上的空间），所以第二个方向必然是向下。于是「右、下、左、上」这个顺序，<strong>几何上画出来是顺时针</strong>（1→2→3 沿顶边、4→5 沿右边、6→7 沿底边、8 沿左边）。但大量面经和教材把这一套叫作「逆时针螺旋」—— LeetCode 54（螺旋矩阵）和 59（螺旋矩阵 II）用的都是它。
+
+真正的逆时针是「<strong>下、右、上、左</strong>」：从左上角先往下走，再沿底边向右，再沿右边向上，最后沿顶边向左。
+
+两个顺序在<strong>方阵</strong>下恰好互为转置（3×3 成立，非方阵不成立 —— 这点我验证过，见第四节）。所以它们不是"对错"关系，是"两套都合法、命名混乱"的关系。
+<blockquote>
+
+面试里的正确动作：<strong>先问一句"方向顺序是右下上左还是下右上左"，或者直接声明"我按右下上左，LC 54 那一套"。</strong> 把口径钉死再写码，比写完再返工省一半时间。这篇文章两个顺序都实现、都做成了动画，你可以直接对照着看。
+</blockquote>
+<h2>二、拆解：四边界收缩</h2>
+
+最稳的写法是维护四条边界，逐圈向内收缩：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
+    <span class="n">top</span><span class="p">,</span> <span class="n">bottom</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cols</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">num</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">top</span> <span class="o">&lt;=</span> <span class="n">bottom</span> <span class="ow">and</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
+        <span class="c1"># 1) 顶边：向右</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">grid</span><span class="p">[</span><span class="n">top</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+            <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">top</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># 2) 右边：向下</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">top</span><span class="p">,</span> <span class="n">bottom</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">right</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+            <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="c1"># 3) 底边：向左 —— 守卫：只剩一行时不能再扫</span>
+        <span class="k">if</span> <span class="n">top</span> <span class="o">&lt;=</span> <span class="n">bottom</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">left</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">grid</span><span class="p">[</span><span class="n">bottom</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+                <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">bottom</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="c1"># 4) 左边：向上 —— 守卫：只剩一列时不能再扫</span>
+        <span class="k">if</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">bottom</span><span class="p">,</span> <span class="n">top</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">left</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+                <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">grid</span>
+</code></pre></div>
+
+
+两个 <code>if</code> 守卫是全部难点所在。它们防的不是"越界"（<code>range</code> 自己会处理），而是<strong>重复写入</strong>：当剩余区域退化成一整行或一整整列时，第三条边和第一条边是同一批格子，第四条边和第二条边也是。
+
+漏掉守卫的确切症状（脚本实测，不是印象）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>形状</th>
+<th>漏守卫的输出</th>
+<th>正确输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3 x 3</code></td>
+<td><code>[[1,2,3],[8,9,4],[7,6,5]]</code></td>
+<td>相同 —— <strong>看不出来</strong></td>
+</tr>
+<tr>
+<td><code>2 x 3</code></td>
+<td><code>[[1,2,3],[6,5,4]]</code></td>
+<td>相同 —— <strong>也看不出来</strong></td>
+</tr>
+<tr>
+<td><code>1 x 3</code></td>
+<td><code>[[5,4,3]]</code></td>
+<td><code>[[1,2,3]]</code></td>
+</tr>
+<tr>
+<td><code>3 x 1</code></td>
+<td><code>[[1],[4],[3]]</code></td>
+<td><code>[[1],[2],[3]]</code></td>
+</tr>
+</tbody>
+</table></div>
+
+注意这个规律：<strong>方阵和"矮胖/瘦高但每边至少 2"的形状全都正常，只有退化到单行或单列时才炸</strong> —— 而且炸的方式是"后来的数字覆盖先前的"，1 和 2 直接消失。很多面经笼统说"非方阵会错"，不准确；<code>2 x 3</code> 就好好的。要测就测 <code>1 x N</code> 和 <code>N x 1</code>。
+<div class="algo-viz algo-viz--spiral"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画用主例 <code>3 x 3</code>、方向顺序「右、下、左、上」，11 帧走完：
+<ul>
+<li><strong>网格</strong>：已填格显示数字，正在填的格子橙框，未填格虚线空壳；</li>
+<li><strong>方向箭头</strong>：画在当前格的外侧，指向本帧的推进方向 —— 撞到未填区域边缘就转向；</li>
+<li><strong>绿色虚线框</strong>：<strong>本圈</strong>的边界（动画里四边界按圈固定，不会中途跳动）；</li>
+<li><strong>右侧面板</strong>：四个方向小方块（当前方向高亮）、已填 <code>n / 9</code>、四个边界值。</li>
+</ul>
+
+教科书帧是第 4 帧：<code>1 2 3</code> 填完、<code>top</code> 内推成 1，箭头从"向右"转成"向下"，绿框还是本圈的 <code>上0 / 下2 / 左0 / 右2</code>。第 9 帧是第二圈，边界收缩成 <code>上1 / 下1 / 左1 / 右1</code>，只剩中心一格。
+<h2>四、完整推演表</h2>
+
+<code>3 x 3</code>，方向顺序「右、下、左、上」（对应动画的 9 个填数帧）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>次序</th>
+<th>格子</th>
+<th>方向</th>
+<th>本圈边界（上/下/左/右）</th>
+<th>矩阵</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>(0,0)</td>
+<td>向右</td>
+<td>0/2/0/2</td>
+<td><code>1 . .</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>(0,1)</td>
+<td>向右</td>
+<td>0/2/0/2</td>
+<td><code>1 2 .</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>(0,2)</td>
+<td>向右</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>(1,2)</td>
+<td>向下</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>(2,2)</td>
+<td>向下</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4 / . . 5</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>(2,1)</td>
+<td>向左</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4 / . 6 5</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>(2,0)</td>
+<td>向左</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / . . 4 / 7 6 5</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>(1,0)</td>
+<td>向上</td>
+<td>0/2/0/2</td>
+<td><code>1 2 3 / 8 . 4 / 7 6 5</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>(1,1)</td>
+<td>向右</td>
+<td>1/1/1/1</td>
+<td><code>1 2 3 / 8 9 4 / 7 6 5</code></td>
+</tr>
+</tbody>
+</table></div>
+
+终局就是九宫格的标准答案 <code>[[1,2,3],[8,9,4],[7,6,5]]</code>。
+
+换成「下、右、上、左」（真逆时针）：
+<div class="codehilite"><pre><span></span><code><span class="mf">1</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="mf">7</span>
+<span class="mf">2</span><span class="w"> </span><span class="mf">9</span><span class="w"> </span><span class="mf">6</span>
+<span class="mf">3</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="mf">5</span>
+</code></pre></div>
+
+
+<strong>它恰好是上面那个矩阵的转置。</strong> 这个关系在方阵下恒成立（我用 3×3 验证过），但<strong>非方阵不成立</strong> —— <code>2 x 3</code> 时前者是 <code>[[1,2,3],[6,5,4]]</code>、后者是 <code>[[1,6,5],[2,3,4]]</code>，完全不同的两个矩阵。所以"逆时针就是顺时针转个置"这个说法，只在方阵面试题里碰巧对。
+<div class="algo-viz algo-viz--spiralccw"></div>
+
+
+第二个动画就是「下、右、上、左」这一套，同一个状态机换了个方向顺序 —— 你可以直接对照两套动画，确认"口径"到底差在哪。
+<h2>五、进阶：撞墙变向法与真逆时针</h2>
+
+另一条实现路线是<strong>方向向量 + 撞墙变向</strong>：维护一个方向序列，每步先试探下一格，撞到边界或已填格子就换下一个方向。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
+    <span class="n">dirs</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>   <span class="c1"># 右下上左</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">c</span> <span class="o">=</span> <span class="n">d</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">rows</span> <span class="o">*</span> <span class="n">cols</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
+        <span class="n">seen</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">rows</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">cols</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">seen</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]):</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span>
+            <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span>
+    <span class="k">return</span> <span class="n">grid</span>
+</code></pre></div>
+
+
+换方向顺序只要改 <code>dirs</code> 一行 —— 这也是本文两个动画能共用一套状态机的原因。代价是 <code>seen</code> 数组：<strong>额外空间 O(M x N)</strong>，而四边界收缩法只要 O(1)。想省空间就用边界法，想要代码短、方向好换就用撞墙法。
+
+<strong>"打印"是同一件事</strong>：如果题目只要求按螺旋顺序打印、不要求返回矩阵，把 <code>grid[r][c] = num</code> 换成 <code>print(num)</code> 就行，遍历顺序一字不改。别为"打印"单独写一套逻辑。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">rows</span><span class="o">][</span><span class="n">cols</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">top</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">top</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">top</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="n">top</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">right</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 守卫：只剩一行时不能再向左扫，否则覆盖已填的值</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">top</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">bottom</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">bottom</span><span class="o">--</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 守卫：只剩一列时不能再向上扫</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bottom</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">grid</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+想换成真逆时针，把四个循环块按「下、右、上、左」重排即可，两个守卫的位置跟着一起换。撞墙变向的 Java 版就是把 <code>dirs</code> 写成 <code>int[][] dirs = {{1,0},{0,1},{-1,0},{0,-1}}</code> 再配一个 <code>boolean[][] seen</code>。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong><code>1 x 1</code></strong>：输出 <code>[[1]]</code>，循环跑一轮就结束，两个守卫都不触发。</li>
+<li><strong><code>1 x N</code> / <code>N x 1</code></strong>：<strong>守卫的唯一用武之地</strong>。漏守卫时 <code>1 x 3</code> 输出 <code>[[5,4,3]]</code>（1、2 被 4、5 覆盖），<code>3 x 1</code> 输出 <code>[[1],[4],[3]]</code>。</li>
+<li><strong><code>M != N</code> 但都 ≥ 2</strong>：<code>2 x 3</code>、<code>5 x 2</code> 这类形状漏守卫也正常，别被"非方阵必错"的说法带偏。</li>
+<li><strong><code>M</code> 或 <code>N</code> 为 0</strong>：题目一般保证正整数；真要防御，<code>while</code> 条件 <code>top &lt;= bottom &amp;&amp; left &lt;= right</code> 会直接跳过，返回空矩阵。</li>
+<li><strong>从 0 开始编号</strong>：面经里两种都有，问清楚。本文全程从 1 开始（和 LeetCode 59 一致）。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>四边界收缩</th>
+<th>撞墙变向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td><code>O(M x N)</code></td>
+<td><code>O(M x N)</code></td>
+</tr>
+<tr>
+<td>额外空间</td>
+<td><code>O(1)</code></td>
+<td><code>O(M x N)</code>（<code>seen</code>）</td>
+</tr>
+<tr>
+<td>输出空间</td>
+<td><code>O(M x N)</code></td>
+<td><code>O(M x N)</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>"时间复杂度尽可能低"的答案是：<code>O(M x N)</code> 已经是最优，没有优化空间。</strong> 理由很硬：输出本身有 <code>M x N</code> 个数，每个数至少要被写一次，所以 <code>Ω(M x N)</code> 是下界；而两种写法都恰好 <code>M x N</code> 次写入，上下界贴平。
+
+真正能省的是<strong>空间</strong>：四边界收缩法 <code>O(1)</code> 额外空间，撞墙变向法要一个 <code>seen</code>。如果面试官追问"能不能不用 <code>seen</code>"，这就是切入点。
+
+顺带一句：别用递归写这题。每圈一层递归，圈数 <code>min(M, N) / 2</code> 虽然不大，但递归没有任何优势，还会引入栈深和边界传递的额外出错点。
+<h2>九、常见坑</h2>
+<h3>9.1 口径没对齐就开写（本题头号坑）</h3>
+
+你说"逆时针"、面试官想"右下上左"，或者反过来 —— 写完全场对不上。<strong>动手前先声明方向顺序</strong>，或者画个 3×3 的九宫格跟面试官对一遍。这也是本篇花一整节讲口径的原因：它比代码更难补救。
+<h3>9.2 漏掉第三、第四条边的守卫</h3>
+
+症状是<strong>后来的数字覆盖先前的</strong>（不是越界崩溃，所以特别隐蔽）。但要注意：它只在剩余区域退化成<strong>单行或单列</strong>时触发，<code>2 x 3</code>、<code>5 x 2</code> 全都正常。回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code> 两组。
+<h3>9.3 边界更新的时机</h3>
+
+四条边的顺序必须是「先填满这一边，再把这条边界内推一格」。把 <code>top++</code> 写到循环前面，第一行就会漏掉一个格子；把 <code>right--</code> 写在整个圈结束时，右边就会多填一行。<strong>填满 → 收缩，一一对应。</strong>
+<h3>9.4 起始编号 0 还是 1</h3>
+
+面经两种都有。本文从 1 开始（对齐 LeetCode 59）。如果面试官说"从 0 开始"，把 <code>num = 1</code> 改成 <code>num = 0</code>、循环条件改成 <code>&lt; rows * cols</code> 即可，其他一字不动。
+<h3>9.5 用 seen 判断转向，却忘了判断边界</h3>
+
+撞墙变向法的试探条件是 <code>0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and not seen[nr][nc]</code> —— 三个条件缺一不可。只判 <code>seen</code> 不判边界，会在最后一格直接数组越界。
+<h3>9.6 把"填入"和"打印"当成两道题</h3>
+
+遍历顺序完全一样，差别只在"要不要存"。面试时如果只要求打印，直接输出即可；如果先问打印、再问返回矩阵，就是把 <code>print</code> 换成赋值，别重写算法。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先对齐口径</strong>："我按『右、下、左、上』写，也就是 LeetCode 54 那一套；如果您要的是先往下走的真逆时针，方向序列换成下右上左就行。"</li>
+<li><strong>说清核心思路</strong>："维护四条边界，每圈先填顶边、再填右边、再填底边、再填左边，每填完一条把对应边界内推一格。"</li>
+<li><strong>主动点出守卫</strong>："第三、第四条边要加 <code>if top &lt;= bottom</code> 和 <code>if left &lt;= right</code> —— 剩余区域退化成单行/单列时会重复写入。<code>1 x 3</code> 漏守卫会输出 <code>[[5,4,3]]</code>。"</li>
+<li><strong>报复杂度并给出理由</strong>："时间 <code>O(M x N)</code>，这已经是最优 —— 输出本身有 <code>M x N</code> 个数，下界贴平。额外空间 <code>O(1)</code>。"</li>
+<li><strong>提另一条路线</strong>："也可以用方向向量 + <code>seen</code> 撞墙变向，代码更短、换方向只改一行，但要多 <code>O(M x N)</code> 空间。"</li>
+<li><strong>给变体</strong>：LC 54 螺旋矩阵（给定矩阵按此顺序读取）、LC 59 螺旋矩阵 II（从 1 填到 n²）、LC 885 螺旋矩阵 III（从某点出发按螺旋走，考验坐标推进）、以及"逆时针"口径本身。</li>
+</ol>
+<h2>结语</h2>
+
+螺旋填数是那种"代码十分钟、口径半小时"的题：算法本身简单到不值一提 —— 四边界收缩，<code>O(M x N)</code> 时间、<code>O(1)</code> 额外空间，而且 <code>O(M x N)</code> 有硬下界（输出就有 <code>M x N</code> 个数），没有优化余地。真正的知识点有两个：<strong>方向顺序的口径要先对齐</strong>（"右下上左"几何上是顺时针，却被大量面经叫作逆时针；方阵下"真逆时针"恰好是它的转置，非方阵不成立），以及<strong>两个守卫防的不是越界而是覆盖</strong>（只在单行/单列时触发，<code>1 x 3</code> 会输出 <code>[[5,4,3]]</code>）。这两点都是"不写就不会知道"的类型 —— 所以回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code>。</div></div></noscript>
+  </body>
+</html>
