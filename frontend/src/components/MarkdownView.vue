@@ -45,6 +45,9 @@ import { mountLisBinary } from '@/viz/lisBinary'
 import { mountEditDistGrid, mountEditDistRoll } from '@/viz/editDistance'
 import { mountClimb, mountClimbOverflow } from '@/viz/climb'
 import { mountClimbRec } from '@/viz/climbRec'
+import { mountNim } from '@/viz/nim'
+import { mountLc877 } from '@/viz/lc877'
+import { mountVarPart } from '@/viz/varPart'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
@@ -397,6 +400,9 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc70': mountClimb,
   'algo-viz--lc70over': mountClimbOverflow,
   'algo-viz--lc70rec': mountClimbRec,
+  'algo-viz--nim': mountNim,
+  'algo-viz--lc877': mountLc877,
+  'algo-viz--varpart': mountVarPart,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
