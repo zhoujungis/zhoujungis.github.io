@@ -5,8 +5,583 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Tue, 13 Oct 2026 06:23:36 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 13 Oct 2026 06:26:52 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</title>
+      <link>https://zhoujungis.github.io/article/partition-variance-dp/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/partition-variance-dp/</guid>
+      <pubDate>Tue, 13 Oct 2026 06:25:59 GMT</pubDate>
+      <description>题目 给定一个序列 a[1..n] ，把它切成若干段（通常是 恰好 k 段 ），使 各段内部方差之和 最大。 这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点： 答案可以违背直觉 （切成两段常常比不切更大），以及 性能全压在一条前缀和公式上 （不会写就是 O(n^3) ）。 一、核心洞</description>
+      <category>算法</category>
+      <category>LeetCode</category>
+      <category>动态规划</category>
+      <category>面试</category>
+      <content:encoded><![CDATA[<h2>题目</h2>
+
+给定一个序列 <code>a[1..n]</code>，把它切成若干段（通常是<strong>恰好 k 段</strong>），使<strong>各段内部方差之和</strong>最大。
+<div class="codehilite"><pre><span></span><code>输入: a = [2, 8, 3, 9, 4, 7]，k = 2
+输出: 14.6875
+解释: 最优切点在第 2 个元素之后：[2,8] 方差 9.00 + [3,9,4,7] 方差 5.6875
+</code></pre></div>
+
+
+这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点：<strong>答案可以违背直觉</strong>（切成两段常常比不切更大），以及<strong>性能全压在一条前缀和公式上</strong>（不会写就是 <code>O(n^3)</code>）。
+<ul>
+<li><a href="#section-1">一、核心洞察：切成两段，反而更大</a></li>
+<li><a href="#section-2">二、拆解：一阶/二阶前缀和，O(1) 算段方差</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：k 段就是把这个扫描叠 k 层</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：切成两段，反而更大</h2>
+
+先说这道题最反直觉的地方。主例 <code>[2, 8, 3, 9, 4, 7]</code> 的<strong>全序列方差只有 6.92</strong>，而切成两段之后最大能到 <strong>14.69</strong> —— 切分让方差和翻了一倍多。
+
+为什么？方差度量的是「到均值的距离」。整序列的均值是 5.5，<code>8</code> 和 <code>3</code> 一上一下互相抵消；切成 <code>[2,8]</code> 和 <code>[3,9,4,7]</code> 之后，两段各自有均值（5.00 与 5.75），<strong>原本互相抵消的偏离被单独放大了</strong>。所以「切得越碎方差和越小」是错的本能 —— 本题要的是最大，而最大往往出现在<strong>段内很散、段间均值接近</strong>的切法上。
+
+顺便立一个永远成立的恒等式，它能帮你判断什么时候两种问法等价：
+<blockquote>
+
+<strong>离差平方和分解</strong>：<code>SS_total = SS_within + SS_between</code>（总平方和 = 组内平方和 + 组间平方和）。
+</blockquote>
+
+<code>SS</code> 是「偏离均值的平方之和」。当各段<strong>等长</strong>时，<code>组内方差和 = SS_within / 段长</code>，于是「最大化组内方差和」严格等价于「最小化组间」—— 也就是<strong>让各段均值尽量靠近</strong>。段长不相等时这个换算不成立（每段除的各是个的长度），但 DP 照做，只是少了一条捷径。
+<h2>二、拆解：一阶/二阶前缀和，O(1) 算段方差</h2>
+
+DP 的形式很直接：
+<div class="codehilite"><pre><span></span><code><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max_</span><span class="err">{</span><span class="n">k</span><span class="err">}</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">k</span><span class="o">][</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="n">i</span><span class="p">)</span>
+<span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">1</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="n">i</span><span class="p">)</span>
+<span class="n">dp</span><span class="o">[</span><span class="n">0</span><span class="o">][</span><span class="n">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="n">答案</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">k</span><span class="o">]</span>
+</code></pre></div>
+
+
+<code>k = 2</code> 时它退化成一次扫描：枚举切点 <code>i</code>，取 <code>var(1..i) + var(i+1..n)</code> 的最大值 —— 这正是 DP 的第一层，后面 <code>j</code> 层是同一个式子往上叠。
+
+性能的关键在 <code>var(k+1..i)</code> 怎么算。每换一个切点就重算一遍区间均值方差是 <code>O(n)</code>，总复杂度 <code>O(n^2 k)</code> 里还藏着一个 <code>O(n)</code>；用<strong>一阶和二阶前缀和</strong>可以压到 <code>O(1)</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">S1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w">          </span><span class="err">#</span><span class="w"> </span><span class="n">一阶前缀和</span>
+<span class="n">S2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">1</span><span class="o">]^</span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]^</span><span class="mi">2</span><span class="w">      </span><span class="err">#</span><span class="w"> </span><span class="n">二阶前缀和</span>
+
+<span class="n">段</span><span class="w"> </span><span class="o">[</span><span class="n">l+1, i</span><span class="o">]</span><span class="err">，</span><span class="n">长度</span><span class="w"> </span><span class="nf">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">l</span><span class="err">：</span>
+<span class="w">  </span><span class="nf">sum</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">S1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">S1</span><span class="o">[</span><span class="n">l</span><span class="o">]</span>
+<span class="w">  </span><span class="n">mean</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nf">sum</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nf">len</span>
+<span class="w">  </span><span class="nf">var</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">S2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">S2</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nf">len</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mean</span><span class="w">      </span><span class="err">#</span><span class="w"> </span><span class="n">E</span><span class="o">[</span><span class="n">x^2</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">E</span><span class="o">[</span><span class="n">x</span><span class="o">]^</span><span class="mi">2</span>
+</code></pre></div>
+
+
+<code>E[x^2] - E[x]^2</code> 就是总体方差的定义式。有了它，DP 的内层就是两次数组访问加一次乘减。
+<div class="algo-viz algo-viz--varpart"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画画的是 <code>k = 2</code> 这一层：序列画成柱子，<strong>两条虚线是两段的均值线</strong>，橙色竖虚线是当前切点。
+<ul>
+<li><strong>均值线</strong>：方差就是柱子到均值线的距离平方的平均 —— 线拉得越开、各段内部越散，两段方差和越大；</li>
+<li><strong>切点线</strong>：从左到右扫，每扫一个切点，两个统计筹码刷新一次；</li>
+<li><strong>合计筹码</strong>：金色高亮 = 目前最优；扫到终点定格在「最优切点 2 / 合计 14.69」。</li>
+</ul>
+
+值得盯的帧是切点 2 和切点 4：切点 2 的左段 <code>[2,8]</code> 方差高达 9.00，右段 5.69；切点 4 左段 9.25、右段只有 2.25，合计反而降到 11.50。<strong>最优解不在「看起来最该切」的地方</strong> —— 这就是不能贪心的直接证据。
+<h2>四、完整推演表</h2>
+
+主例 <code>[2, 8, 3, 9, 4, 7]</code>，<code>k = 2</code>（对应动画的 5 个切点帧 + init + done，共 7 帧）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>切点 i</th>
+<th>左段</th>
+<th>左段均值</th>
+<th>左段方差</th>
+<th>右段均值</th>
+<th>右段方差</th>
+<th>合计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>[2]</td>
+<td>2.00</td>
+<td>0.00</td>
+<td>6.20</td>
+<td>5.32</td>
+<td>5.32</td>
+</tr>
+<tr>
+<td>2</td>
+<td>[2,8]</td>
+<td>5.00</td>
+<td>9.00</td>
+<td>5.75</td>
+<td>5.69</td>
+<td><strong>14.69</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>[2,8,3]</td>
+<td>4.33</td>
+<td>6.89</td>
+<td>6.67</td>
+<td>4.22</td>
+<td>11.11</td>
+</tr>
+<tr>
+<td>4</td>
+<td>[2,8,3,9]</td>
+<td>5.50</td>
+<td>9.25</td>
+<td>5.50</td>
+<td>2.25</td>
+<td>11.50</td>
+</tr>
+<tr>
+<td>5</td>
+<td>[2,8,3,9,4]</td>
+<td>5.20</td>
+<td>7.76</td>
+<td>7.00</td>
+<td>0.00</td>
+<td>7.76</td>
+</tr>
+</tbody>
+</table></div>
+
+最后一行值得多说一句：右段只剩一个元素，方差必然是 0。<strong>单点段的方差恒为 0</strong>，这是 <code>k = n</code> 时答案退化为 0 的原因，也是边界情况里最容易被忘的一条。
+<h2>五、进阶：k 段就是把这个扫描叠 k 层</h2>
+
+<code>k = 2</code> 的扫描只是第一层。一般情形的 DP：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">max_variance_sum</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">S1</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">S2</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">S1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">S1</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">S2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">S2</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>                      <span class="c1"># 段 [l+1, r] 的总体方差，O(1)</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="n">r</span> <span class="o">-</span> <span class="n">l</span>
+        <span class="k">if</span> <span class="n">length</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">S1</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">-</span> <span class="n">S1</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">S2</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">-</span> <span class="n">S2</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">q</span> <span class="o">/</span> <span class="n">length</span> <span class="o">-</span> <span class="p">(</span><span class="n">s</span> <span class="o">/</span> <span class="n">length</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">s</span> <span class="o">/</span> <span class="n">length</span><span class="p">)</span>
+
+    <span class="n">NEG</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">)</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NEG</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="n">NEG</span>
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">NEG</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">cand</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">var</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cand</span> <span class="o">&gt;</span> <span class="n">best</span><span class="p">:</span>
+                    <span class="n">best</span> <span class="o">=</span> <span class="n">cand</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="k">if</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="k">else</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+复杂度 <code>O(n^2 k)</code>。如果段长有下界、或者题目保证最优切点满足单调性，可以用分治 DP 或斜率优化把内层压掉；但<strong>先写对 <code>O(n^2 k)</code></strong>，再谈优化 —— 面试里写个错的高复杂度不如写个对的低复杂度。
+
+如果题目问的是<strong>最小化</strong>（更常见的工业形态：分箱、图像分割、K-均值式的代价函数），代码只改一个符号：<code>max</code> 换 <code>min</code>，<code>NEG</code> 换 <code>INF</code>。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">PartitionVariance</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 切成恰好 k 段，使各段总体方差之和最大；k &gt; n 时无解返回 null</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="n">Double</span><span class="w"> </span><span class="nf">maxVarianceSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">double</span><span class="o">[]</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">double</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">double</span><span class="o">[]</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">double</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">s1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="n">s2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">double</span><span class="p">)</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 段 [l, i) 的总体方差，O(1)</span>
+<span class="w">        </span><span class="n">java</span><span class="p">.</span><span class="na">util</span><span class="p">.</span><span class="na">function</span><span class="p">.</span><span class="na">BiFunction</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Double</span><span class="o">&gt;</span><span class="w"> </span><span class="kd">var</span><span class="w"> </span><span class="err">= (</span><span class="n">l</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">l</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">len</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mf">0.0</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s1</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">sq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s2</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">len</span><span class="p">;</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">sq</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mean</span><span class="p">;</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="kd">final</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">NEG</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Double</span><span class="p">.</span><span class="na">NEGATIVE_INFINITY</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">double</span><span class="o">[][]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">double</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">double</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="p">)</span><span class="w"> </span><span class="n">java</span><span class="p">.</span><span class="na">util</span><span class="p">.</span><span class="na">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">row</span><span class="p">,</span><span class="w"> </span><span class="n">NEG</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">);</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">double</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">NEG</span><span class="p">;</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w"> </span><span class="n">m</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">m</span><span class="o">][</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NEG</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">m</span><span class="o">][</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">var</span><span class="p">.</span><span class="na">apply</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">));</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NEG</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意 <code>(double) a[i - 1] * a[i - 1]</code> 里的强转：<code>int</code> 自乘在值稍大时就溢出（<code>46341^2</code> 就超过 <code>int</code> 上限），平方和必须落在 <code>double</code> 或 <code>long</code> 上。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong><code>k = 1</code></strong>：答案就是全序列总体方差 —— 这是 DP 的第一层基例，也是「不切」的对照组。</li>
+<li><strong><code>k = n</code></strong>：每段一个元素，方差全是 0，答案 0。</li>
+<li><strong><code>k &gt; n</code></strong>：无解（段数不能超过元素数），返回 <code>null</code> 而不是抛异常。</li>
+<li><strong>全相等序列</strong>：任何切法合计都是 0。</li>
+<li><strong>含负数</strong>：公式不变（平方和非负、与符号无关），但 <code>mean</code> 可能为负，别在均值上写绝对值。</li>
+<li><strong>总体方差 vs 样本方差</strong>：本文全程用<strong>总体方差</strong>（除以长度 <code>n</code>）。若题目要样本方差（除以 <code>n-1</code>），单点段没有定义，<code>k = n</code> 会直接崩 —— 必须先和面试官对齐口径。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前缀和预处理</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td><code>k = 2</code> 扫描</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>一般 k（三重循环）</td>
+<td><code>O(n^2 k)</code></td>
+<td><code>O(nk)</code></td>
+</tr>
+<tr>
+<td>带段长下界 + 分治 DP</td>
+<td><code>O(nk log n)</code></td>
+<td><code>O(nk)</code></td>
+</tr>
+<tr>
+<td>贪心</td>
+<td>——</td>
+<td><strong>不可行</strong>，见下</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>贪心为什么不行</strong>：主例里切点 2 的左段方差 9.00 是全场最高，但切点 4 的左段方差 9.25 更高、合计反而更低（右段掉到 2.25）。局部最优的段方差和全局最优的合计没有单调关系，只有 DP 这种「枚举切点 + 查表」才保险。
+<h2>九、常见坑</h2>
+<h3>9.1 每切点重算方差，复杂度退化成 O(n^3)</h3>
+
+不建前缀和、每个切点都 <code>sum</code> 一遍再算方差，<code>k = 2</code> 就从 <code>O(n)</code> 变 <code>O(n^2)</code>，一般 k 变 <code>O(n^3 k)</code>。一阶/二阶前缀和各两行，是这道题性价比最高的优化。
+<h3>9.2 口径混用：总体方差和样本方差</h3>
+
+DP 的转移要求「段方差可加」—— 只有总体方差（各除各的长度）满足这个结构。混用 <code>n-1</code> 会让 <code>k = n</code> 除零，也会让不同段之间的数没法比。<strong>动手前先问清楚口径。</strong>
+<h3>9.3 以为切得越多方差和越小</h3>
+
+主例用数字打脸：<code>k = 1</code> 是 6.92，<code>k = 2</code> 是 14.69。记住离差平方和分解：等长时最大化组内等价于最小化组间（让各段均值靠近），不是「切碎」。
+<h3>9.4 int 溢出 / 浮点误差</h3>
+
+平方和用 <code>int</code> 会在中等规模就溢出；用 <code>double</code> 时，<code>E[x^2] - E[x]^2</code> 在数据量级极大且有微小方差时会出现<strong>灾难性抵消</strong>（两个大数相减）。稳妥做法是先整体减去一个基准（比如均值）再平方，或者用 <code>BigDecimal</code> / Kahan 求和。
+<h3>9.5 忘了单点段方差为 0</h3>
+
+<code>k = n</code> 的答案是 0、<code>k &gt; n</code> 无解、以及 DP 里 <code>range(j - 1, i)</code> 的下界从 <code>j - 1</code> 起（保证每段至少一个元素）—— 三处都源于同一条：段不能为空。
+<h3>9.6 把「最大」当成默认</h3>
+
+工业场景（分箱、图像分割）通常问<strong>最小</strong>化，因为那是「组内越齐越好」的代价函数。LeetCode / 面试题则常问最大来考验理解。<strong>读题时把 max/min 圈出来</strong>，代码里只差一个词。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先给 DP 式子</strong>："<code>dp[i][j] = max_{k} dp[k][j-1] + var(k+1..i)</code>，<code>k = 2</code> 时就是扫一遍切点。"</li>
+<li><strong>再给 O(1) 方差公式</strong>："一阶二阶前缀和，<code>var = E[x^2] - E[x]^2</code>，<code>O(n^2 k)</code> 总复杂度。"</li>
+<li><strong>主动说反直觉点</strong>："切成两段可以比不切更大 —— 主例 6.92 对 14.69，因为两段各自的均值把原本抵消的偏离放大了。"</li>
+<li><strong>提恒等式</strong>："离差平方和分解 <code>SS_total = SS_within + SS_between</code>；等长切分时最大化组内等价于最小化组间，段长不等时这条捷径不成立。"</li>
+<li><strong>报边界</strong>：<code>k = 1</code> 全序列方差、<code>k = n</code> 答案 0、<code>k &gt; n</code> 无解、单点段方差 0。</li>
+<li><strong>报变体</strong>：最小化版（改一个符号，工业上更常见）、段长下界（<code>m</code> 从 <code>j-1</code> 改成 <code>max(j-1, i-minLen)</code>）、分治 DP / 斜率优化、以及它在 K-均值和图像分割里的位置。</li>
+</ol>
+<h2>结语</h2>
+
+序列切分方差题的骨架很小：一个 DP 式子、一条前缀和公式。它真正考的是两件事 —— <strong>你敢不敢相信反直觉的答案</strong>（切成两段方差和反而翻倍，因为各段均值把互相抵消的偏离单独放大了），以及<strong>你愿不愿意把 <code>O(1)</code> 的段方差算清楚</strong>（<code>E[x^2] - E[x]^2</code> 两行前缀和，换掉整个内层的 <code>O(n)</code>）。上一篇 <a href="/article/nim-stone-games/">石子游戏</a> 的功夫在归约，这一篇的功夫在公式 —— DP 题的档次，往往就藏在这两条里。]]></content:encoded>
+    </item>
+    <item>
+      <title>【博弈论】石子游戏：一行异或判定先手必胜 —— 以及偶数堆两端取的反直觉结论</title>
+      <link>https://zhoujungis.github.io/article/nim-stone-games/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/nim-stone-games/</guid>
+      <pubDate>Tue, 13 Oct 2026 06:25:28 GMT</pubDate>
+      <description>题目 N 堆石子，两人轮流行动，每次可以从 任意一堆 里取走 任意正数个 石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。 同族还有两道更常考的变形： LC 877 石子游戏 ：一排 piles，每次只能从 头部或尾部 取一整堆，堆数为偶数，问先手（Alex）是否必胜； LC 292 Nim 游戏 ：只</description>
+      <category>算法</category>
+      <category>LeetCode</category>
+      <category>动态规划</category>
+      <category>面试</category>
+      <content:encoded><![CDATA[<h2>题目</h2>
+
+N 堆石子，两人轮流行动，每次可以从<strong>任意一堆</strong>里取走<strong>任意正数个</strong>石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。
+<div class="codehilite"><pre><span></span><code>输入: piles = [3, 4, 5]
+输出: true
+解释: 3 ^ 4 ^ 5 = 2 不为 0 —— 先手必胜。
+</code></pre></div>
+
+
+同族还有两道更常考的变形：
+<ul>
+<li><strong>LC 877 石子游戏</strong>：一排 piles，每次只能从<strong>头部或尾部</strong>取一整堆，堆数为偶数，问先手（Alex）是否必胜；</li>
+<li><strong>LC 292 Nim 游戏</strong>：只有一堆，每次最多取 <code>m</code> 个。</li>
+</ul>
+
+三道题看起来都是博弈，解法却分属三个层次：<strong>一行异或、一次奇偶站队、一个取模</strong>。本文按这个顺序走，并且把「为什么异或非 0 就一定赢」拆成两句能背下来的论证。
+<ul>
+<li><a href="#section-1">一、核心洞察：把 N 堆压成一个数</a></li>
+<li><a href="#section-2">二、拆解：制胜一手是构造出来的，不是搜出来的</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演</a></li>
+<li><a href="#section-5">五、进阶：LC 877 两端取，偶数堆靠奇偶位站队</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：把 N 堆压成一个数</h2>
+
+博弈题的难点从来不是「算」，是<strong>找不到可以递推的状态</strong>。N 堆石子每堆可以取 1 到 <code>piles[i]</code> 个，状态空间大得没法搜。
+
+Bouton 定理的做法是换一个视角：不去描述局面，而是给每个局面算一个数 —— <strong>把所有堆的数量异或起来</strong>。
+<blockquote>
+
+先手必胜，当且仅当 <code>piles[0] ^ piles[1] ^ ... ^ piles[n-1] != 0</code>。
+</blockquote>
+
+这一行代码就是全部算法。但它为什么对，靠的是两句互相补足的论证：
+<ol>
+<li><strong>异或非 0 时，一定存在一步走到异或为 0。</strong>（构造性证明，见第二节）</li>
+<li><strong>异或为 0 时，任何一步都走到异或非 0。</strong> 假设动了第 <code>i</code> 堆、<code>p -&gt; p'</code>，新局面异或仍为 0，那么 <code>p ^ p' = 0</code>，即 <code>p = p'</code> —— 等于没动，矛盾。</li>
+</ol>
+
+两条合起来就是归纳：先手每次都能把「异或非 0」的局面交还给后手，而后手无论怎么动，交回来的必然是「异或非 0」。石子总数严格递减，游戏必然结束，而最后停在那一步的人是先手。<strong>这就是「必败态」的定义 —— 不是走不动，是你怎么走都把赢的机会送给对方。</strong>
+<h2>二、拆解：制胜一手是构造出来的，不是搜出来的</h2>
+
+第一句论证需要给出构造。设全场异或为 <code>x != 0</code>：
+<ol>
+<li>取 <code>x</code> 的<strong>最高置位</strong> <code>h</code>（<code>x</code> 在这一位上为 1）；</li>
+<li>找一堆 <code>p</code> 满足 <code>(p &gt;&gt; h) &amp; 1 == 1</code> —— 一定存在，否则所有堆在这一位上都是 0，异或出来不可能是 1；</li>
+<li>把这堆从 <code>p</code> 改成 <code>p ^ x</code>。</li>
+</ol>
+
+为什么新值一定合法（非负且严格变小）：<code>p</code> 和 <code>x</code> 在第 <code>h</code> 位上都是 1，异或后这一位变成 0，而比 <code>h</code> 高的位两者都是 0、异或后不变 —— 所以 <code>p ^ x</code> 在最高位上被清掉了一位，严格小于 <code>p</code>，且不会变负。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">first_player_wins</span><span class="p">(</span><span class="n">piles</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">piles</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">^=</span> <span class="n">p</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">!=</span> <span class="mi">0</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">winning_move</span><span class="p">(</span><span class="n">piles</span><span class="p">):</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">piles</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">^=</span> <span class="n">p</span>
+    <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>            <span class="c1"># 必败态，没有制胜一手</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">bit_length</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span>     <span class="c1"># 最高置位</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">piles</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">p</span> <span class="o">&gt;&gt;</span> <span class="n">h</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">piles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">^=</span> <span class="n">x</span>      <span class="c1"># 新值 = p ^ x，严格更小且非负</span>
+            <span class="k">return</span> <span class="n">piles</span>
+</code></pre></div>
+
+<div class="algo-viz algo-viz--nim"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画用主例 <code>piles = (3, 4, 5)</code>，四步走完：
+<ul>
+<li><strong>石子堆行</strong>：每格是石子的二进制，黄框 = 本帧要动的那一堆，绿框 = 已经改好的那一堆；</li>
+<li><strong>累计异或行</strong>：逐堆异或累加（<code>3 -&gt; 7 -&gt; 2</code>），这是把 N 堆压成一个数的过程；</li>
+<li><strong>制胜一面板</strong>：<code>x = 2</code> 的最高置位是 bit 1，第 1 堆（3）在这一位上为 1，把它改成 <code>3 ^ 2 = 1</code>；</li>
+<li><strong>答案条</strong>：绿色 = 先手必胜，红色 = 先手必败。</li>
+</ul>
+
+<code>(1, 2, 3)</code> 那组值得手动跑一遍：异或恒为 0，动画会直接判<strong>先手必败</strong>，并给后手的镜像策略 —— 你动哪堆，我就把那堆改成让全场异或回到 0。
+<h2>四、完整推演</h2>
+
+<code>piles = (3, 4, 5)</code>：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>操作</th>
+<th>全场异或</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开局</td>
+<td>(3, 4, 5)</td>
+<td>3 ^ 4 ^ 5 = 2</td>
+</tr>
+<tr>
+<td>定最高位</td>
+<td>x = 2，最高置位 bit 1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>选堆</td>
+<td>第 1 堆（3 = 0011）在 bit 1 上为 1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>改值</td>
+<td>3 改成 3 ^ 2 = 1，即取走 2 个</td>
+<td>1 ^ 4 ^ 5 = 0</td>
+</tr>
+<tr>
+<td>结论</td>
+<td>必败态交给后手</td>
+<td>先手必胜</td>
+</tr>
+</tbody>
+</table></div>
+
+验证一下第二步论证：新局面 <code>(1, 4, 5)</code> 异或为 0，后手无论怎么动都会破坏它。比如他从第 2 堆取 1 个变成 3，异或变成 <code>1 ^ 3 ^ 5 = 7</code> —— 先手再照着构造走一次即可。
+<h2>五、进阶：LC 877 两端取，偶数堆靠奇偶位站队</h2>
+
+LC 877 换了约束：<strong>只能从头部或尾部取一整堆</strong>，而且堆数保证是偶数。这时异或判定完全失效（取法受位置限制），但有个更漂亮的结论：<strong>先手必胜，而且必胜策略是开局站一次队</strong>。
+
+按原始下标把堆分成两队：偶数位一堆、奇数位一堆。先手第一次取左端，之后每一步的两端就都只剩<strong>奇数位</strong>；取右端则之后只剩偶数位。所以：
+<blockquote>
+
+<strong>第一次取哪一端，就等于选择自己整局站在偶数位还是奇数位。</strong>
+</blockquote>
+
+于是策略一句话：算两个奇偶位的和，取大的那队，用第一次取哪一端来锁定它。主例 <code>[5, 3, 4, 5]</code>：偶数位和 <code>5 + 4 = 9</code>，奇数位和 <code>3 + 5 = 8</code> —— Alex 取左端，锁定偶数位，终局 <code>9 : 8</code>。
+<div class="algo-viz algo-viz--lc877"></div>
+
+
+动画把这一点画成了对局：绿色 = 偶数位、橙色 = 奇数位，取走的堆退化成虚线壳并留下 <code>A 5</code> / <code>L 5</code> 的分值，两个「和」筹码并排，赢的那边点亮。<strong>注意 Lee 是贪心着打的（每次取两端较大的那堆），Alex 依然赢</strong> —— 因为这个策略不依赖对手怎么走。
+
+堆数是奇数时这个 trick 失效：两端奇偶不同，先手没法一次锁定一整条奇偶带，必须老老实实上区间 DP（<code>dp[i][j]</code> 表示区间 <code>[i,j]</code> 上先手能比后手多拿多少）。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Nim</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 判定：一行异或</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">firstPlayerWins</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 制胜一手：返回新局面；必败态返回 null</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">winningMove</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">highestOneBit</span><span class="p">(</span><span class="n">x</span><span class="p">);</span><span class="w">      </span><span class="c1">// 最高置位</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">piles</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">piles</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">h</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">piles</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 新值 = p ^ x，严格更小且非负</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">piles</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">                           </span><span class="c1">// 到不了这里</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+LC 877 的 Java 版就是一行（堆数保证为偶数时）：
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">stoneGame</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">   </span><span class="c1">// 偶数堆，先手必胜</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+面试里当然不能只写 <code>return true</code> —— 要把奇偶位和那段讲出来（见第十节）。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>只有一堆</strong>：异或就是它本身，非 0 必胜（一次全拿）、为 0 必败（这堆本来就是空的）。</li>
+<li><strong>全场为空</strong>：异或为 0，先手无法操作，必败。</li>
+<li><strong>两堆相等</strong>：异或为 0，必败 —— 后手全程镜像（你从一堆取 <code>k</code>，我从另一堆取 <code>k</code>）。</li>
+<li><strong>一堆为 0</strong>：它就是死堆，异或判定天然忽略它，不影响结论。</li>
+<li><strong>LC 877 的奇数堆</strong>：结论不成立，必须 DP；<code>[1, 5, 2]</code> 这种三堆的样例正是用来打「无脑 return true」的。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nim 判定</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>Nim 制胜一手</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>LC 877（偶数堆）</td>
+<td><code>O(n)</code>（算两个奇偶和）</td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>LC 877（奇数堆，区间 DP）</td>
+<td><code>O(n^2)</code></td>
+<td><code>O(n^2)</code></td>
+</tr>
+<tr>
+<td>巴什博弈 LC 292</td>
+<td><code>O(1)</code>（<code>n % (m+1)</code>）</td>
+<td><code>O(1)</code></td>
+</tr>
+</tbody>
+</table></div>
+
+真正花时间的是<strong>想清楚判定</strong>，不是算。所有 Nim 类博弈的判定都是 O(n) 甚至 O(1)，难的是把局面归约到「一个数」。
+<h2>九、常见坑</h2>
+<h3>9.1 约定搞反：最后取者胜 vs 最后取者败</h3>
+
+正常约定（Nim）是「取到最后一颗者胜」；<strong>反常博弈</strong>（misère Nim）是「取到最后一颗者败」，结论不一样：当所有堆都为 1 时胜负按堆数奇偶翻转，其余局面才回到正常约定。LeetCode 上 Nim 系列都是正常约定，但面试官会口头换约定来试你。
+<h3>9.2 制胜一手选错堆</h3>
+
+必须选「在 <code>x</code> 的最高置位上为 1」的那一堆。随便挑一堆改成 <code>p ^ x</code> 会让新值变大（变成送石子给对手），或者根本不能降到非负。构造的每一句都是在保证合法性。
+<h3>9.3 以为异或为 0 时可以「随便走」</h3>
+
+异或为 0 是先手必败态，不是平局。后手有明确策略（镜像应战），不是碰运气。把必败态当平局讲，整道题的论证就塌了。
+<h3>9.4 把 LC 877 的结论套到通用 Nim</h3>
+
+奇偶位站队只在「<strong>两端取 + 堆数偶数</strong>」下成立，因为它依赖的是「第一次取哪端就把自己钉死在一条奇偶带上」。换成「从任意一堆取任意个」，两端取的位置约束消失，奇偶带毫无意义 —— 那时仍然是异或判定。
+<h3>9.5 巴什博弈的取模写成除法</h3>
+
+LC 292 是 <code>n % (m + 1) != 0</code> 先手胜。<code>m</code> 是「每次<strong>最多</strong>取 <code>m</code> 个」，不是「必须取 <code>m</code> 个」。写成 <code>n % m</code> 或者 <code>n / (m + 1)</code> 的奇偶，都是把规则记错。
+<h3>9.6 用异或判定去做带约束的变体</h3>
+
+LC 1510（石子游戏 VII，两端取、求分数差最大）和 LC 1140（石子游戏 II，按倍数取）都带额外约束，异或判定一概失效，只能上 DP / 极小化极大。<strong>先判断约束是否破坏了「任意堆任意取」，再决定用哪套工具。</strong>
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先报判定</strong>："Nim 先手必胜当且仅当全场异或非 0，这是 Bouton 定理，判定 O(n)。"</li>
+<li><strong>再补两句论证</strong>："异或非 0 时，取最高置位、找一堆在这一位为 1、改成 <code>p ^ x</code>，一步走到异或 0；异或为 0 时任何一步都会走到非 0 —— 否则被改的那堆异或差为 0，等于没动。"</li>
+<li><strong>说出制胜一手的构造</strong>：不要说「存在」，要把三步讲出来；能顺手写 <code>Integer.highestOneBit</code> 是加分项。</li>
+<li><strong>接住 LC 877</strong>："两端取 + 偶数堆，先手必胜 —— 按原始下标奇偶分两队，第一次取哪端就锁定哪一队，取和大的那队。奇数堆必须区间 DP。"</li>
+<li><strong>报家族</strong>：巴什博弈 <code>n % (m+1)</code>、威佐夫博弈（两堆同取，必败态是黄金比例分割）、反常 Nim（全 1 时翻转）、SG 函数（一般博弈论，每堆可归约成一个 Nim 数）。</li>
+<li><strong>给复杂度对照</strong>：判定 O(n)、制胜一手 O(n)、LC 877 偶数堆 O(1) 结论 / 奇数堆 O(n^2) DP —— 强调「这类题的时间都花在归约上，不在计算上」。</li>
+</ol>
+<h2>结语</h2>
+
+石子游戏是博弈论进算法面试的入口，它的教学价值全在<strong>归约</strong>：把「N 堆、每堆任意取」的庞大状态空间，压成「一个异或数」—— 判定一行，构造三步。而 LC 877 提醒你，同一副石子换个约束（只能从两端取、堆数为偶数），归约的目标就换成「奇偶两条带」，解法从异或变成一次站队。<strong>博弈题的功夫从来不在搜索，在找到那个不变量</strong>：异或值、奇偶带、或者巴什博弈里的 <code>n % (m+1)</code>。]]></content:encoded>
+    </item>
     <item>
       <title>【腾讯面经】相邻和为 10 消除：栈模拟与唯一性证明</title>
       <link>https://zhoujungis.github.io/article/tencent-eliminate-sum10/</link>
@@ -1262,412 +1837,6 @@ LFU 要做到 O(1)，靠的是「<strong>频率桶</strong>」：每个 <code>fr
       <category>图</category>
       <category>拓扑排序</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-
-<strong>LC 207 课程表</strong>：你一共需要修 <code>numCourses</code> 门课，课程编号为 <code>0</code> 到 <code>numCourses - 1</code>。先修关系由 <code>prerequisites</code> 给出，<code>prerequisites[i] = [a, b]</code> 表示<strong>修课程 <code>a</code> 之前必须先修课程 <code>b</code></strong>。判断是否可能修完所有课程。
-
-<strong>LC 210 课程表 II</strong>：同一张图，如果能修完，返回<strong>任意一种</strong>合法的修课顺序；修不完返回空数组。
-<div class="codehilite"><pre><span></span><code>输入: numCourses = 4, prerequisites = [[1,0],[2,0],[3,1],[3,2]]
-输出: true（207）；[0,1,2,3] 或 [0,2,1,3] 都合法（1 和 2 互不依赖，可互换）
-      注意 [0,3,1,2] 不合法 —— 3 必须先修 1、2
-
-输入: numCourses = 2, prerequisites = [[1,0],[0,1]]
-输出: false（207）；[]（210）—— 1 等 0、0 等 1，互相等待
-</code></pre></div>
-
-
-先把方向钉死，这是本题第一大坑：<code>[a, b]</code> 是「修 a 前先修 b」，所以边是 <strong>b → a</strong>（先修课指向后修课）。画反了不是小事 —— 它决定你后面所有入度、所有顺序的对错。
-
-于是整道题的翻译只有一句话：
-<blockquote>
-
-<strong>修课顺序 = 有向图的拓扑序；能修完 ⇔ 这张图没有环。</strong>
-</blockquote>
-
-剩下的全部内容，就是「判环 + 生成拓扑序」的两台机器：<strong>Kahn（入度表 + 队列）</strong> 和 <strong>DFS 三色标记</strong>。
-<ul>
-<li><a href="#section-1">一、核心洞察：拓扑序与环</a></li>
-<li><a href="#section-2">二、Kahn 算法：入度表 + 队列</a></li>
-<li><a href="#section-3">三、DFS 三色标记：白、灰、黑，和灰色回边</a></li>
-<li><a href="#section-4">四、动画怎么看</a></li>
-<li><a href="#section-5">五、完整推演表</a></li>
-<li><a href="#section-6">六、Java 版</a></li>
-<li><a href="#section-7">七、同族题：210 / 269 / 310 / 802 / 1203 / 444</a></li>
-<li><a href="#section-8">八、边界情况</a></li>
-<li><a href="#section-9">九、复杂度</a></li>
-<li><a href="#section-10">十、常见坑</a></li>
-<li><a href="#section-11">十一、面试怎么答</a></li>
-</ul>
-<h2>一、核心洞察：拓扑序与环</h2>
-
-一个有向图里，如果能把所有节点排成一条线，使<strong>每条边都从排在前面的点指向排在后面的点</strong>，这条线就是<strong>拓扑序</strong>。它恰好就是「一种合法的修课顺序」：先修课全部排在依赖它的课之前。
-
-三条基本性质：
-<ul>
-<li><strong>有拓扑序 ⇔ 图是有向无环图（DAG）</strong>。有环 ⇒ 环上的课互相等 ⇒ 无解（返回 false / 空数组）。</li>
-<li><strong>拓扑序通常不唯一</strong>。本文的默认例子 <code>[[1,0],[2,0],[3,1],[3,2]]</code>，<code>[0,1,2,3]</code> 和 <code>[0,2,1,3]</code> 都合法（1 和 2 互不依赖，可以换位置）。</li>
-<li><strong>孤立课（没有先修也没有后继）永远可以最先修</strong>：入度为 0。</li>
-</ul>
-
-求解路线两条，互为镜像：
-<ul>
-<li><strong>Kahn</strong>：反复找「入度为 0」的课修掉，修完把它指向的课入度减 1 —— <strong>天然产出拓扑序</strong>；</li>
-<li><strong>DFS 三色</strong>：沿着边深搜，<strong>碰到指回递归栈的边 = 有环</strong>；节点完成时追加后序，<strong>后序反转 = 拓扑序</strong>。</li>
-</ul>
-<h2>二、Kahn 算法：入度表 + 队列</h2>
-
-入度 = 一门课「还有几门先修没修完」。入度 0 = 现在就能修。Kahn 的全部动作就是：<strong>修掉所有 0 入度的课，并松开它们的后继</strong>。
-<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="n">numCourses</span><span class="p">,</span> <span class="n">prerequisites</span><span class="p">):</span>
-    <span class="n">adj</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">)]</span>
-    <span class="n">indegree</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">numCourses</span>
-    <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">prerequisites</span><span class="p">:</span>
-        <span class="n">adj</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>          <span class="c1"># 先修 b → 后修 a</span>
-        <span class="n">indegree</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">)</span> <span class="k">if</span> <span class="n">indegree</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="n">order</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
-        <span class="n">cur</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
-        <span class="n">order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span>         <span class="c1"># 出队顺序就是拓扑序</span>
-        <span class="k">for</span> <span class="n">nxt</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">]:</span>
-            <span class="n">indegree</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
-            <span class="k">if</span> <span class="n">indegree</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>    <span class="c1"># 入度减到 0 才能修</span>
-                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nxt</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">order</span><span class="p">)</span> <span class="o">==</span> <span class="n">numCourses</span>   <span class="c1"># 207 的答案；210 直接返回 order（不足则 []）</span>
-</code></pre></div>
-
-
-判据一句话：<strong>出队数量 == numCourses ⇔ 没有环</strong>。如果只剩环（或等环）的课，它们的入度永远减不到 0，队列提前枯竭，<code>len(order) &lt; numCourses</code>。
-<h2>三、DFS 三色标记：白、灰、黑，和灰色回边</h2>
-
-换一台机器：给每个节点三种颜色 ——
-<ul>
-<li><strong>白</strong>（0）：还没访问过；</li>
-<li><strong>灰</strong>（1）：正在递归栈里（进了它、还没探完它的所有后继）；</li>
-<li><strong>黑</strong>（2）：已确认安全（后继全部处理完，且从它出发到不了环）。</li>
-</ul>
-
-沿边深搜：碰到<strong>白</strong>就推进去；碰到<strong>黑</strong>直接跳过（那条路已经验过安全）；碰到<strong>灰</strong> —— 说明这条边指回了当前递归栈里的祖先，<strong>环被抓住</strong>。
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">canFinish_dfs</span><span class="p">(</span><span class="n">numCourses</span><span class="p">,</span> <span class="n">prerequisites</span><span class="p">):</span>
-    <span class="n">adj</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">)]</span>
-    <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">prerequisites</span><span class="p">:</span>
-        <span class="n">adj</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-    <span class="n">color</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">numCourses</span>        <span class="c1"># 0 白 / 1 灰 / 2 黑</span>
-    <span class="n">order</span> <span class="o">=</span> <span class="p">[]</span>                      <span class="c1"># 后序</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
-        <span class="n">color</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>                <span class="c1"># 白 → 灰</span>
-        <span class="k">for</span> <span class="n">nxt</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">v</span><span class="p">]:</span>
-            <span class="k">if</span> <span class="n">color</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>     <span class="c1"># 灰色回边 = 环</span>
-                <span class="k">return</span> <span class="kc">False</span>
-            <span class="k">if</span> <span class="n">color</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dfs</span><span class="p">(</span><span class="n">nxt</span><span class="p">):</span>
-                <span class="k">return</span> <span class="kc">False</span>
-        <span class="n">color</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>                <span class="c1"># 灰 → 黑</span>
-        <span class="n">order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>             <span class="c1"># 后序：把它追加在「所有后继之后」</span>
-        <span class="k">return</span> <span class="kc">True</span>
-
-    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">color</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
-            <span class="k">return</span> <span class="kc">False</span>
-    <span class="k">return</span> <span class="kc">True</span>                     <span class="c1"># 210 的答案 = order[::-1]</span>
-</code></pre></div>
-
-
-两个要点：
-<ol>
-<li><strong>必须区分灰和黑</strong>。只用一个 <code>visited</code> 布尔数组会把「黑邻居（安全汇合）」也当成环，误报；</li>
-<li><strong>后序反转才是拓扑序</strong>。后序的追加时机是「所有后继处理完之后」—— 所以先修课自然排在后面，反转后翻到前面。默认例题里后序是 <code>[3,1,2,0]</code>，反转 <code>[0,2,1,3]</code> 就是答案。</li>
-</ol>
-
-对照来看：<strong>Kahn 给 <code>[0,1,2,3]</code>，DFS 给 <code>[0,2,1,3]</code> —— 都对</strong>。拓扑序不唯一，两台机器只是「挑了不同的合法线」。
-<h2>四、动画怎么看</h2>
-<div class="algo-viz algo-viz--lc207"></div>
-
-<div class="algo-viz algo-viz--lc207dfs"></div>
-
-
-<strong>动画一</strong>（<code>algo-viz--lc207</code>）：<strong>Kahn</strong>。上方是课程图（圆点 = 课程，箭头 = 先修 → 后修，<strong>右上角小圆 = 当前入度</strong>）；下方两行分别是<strong>队列</strong>（0 入度的课）和<strong>顺序 order</strong>（已修完的课）。盯住三件事：0 入度的课怎么第一时间全部进队列、每修完一门课它的后继入度 −1（<strong>角标当场变小</strong>）、以及<strong>入度减到 0 的课才入队</strong>。最后 <code>order</code> 满员 = 能修完。
-
-<strong>动画二</strong>（<code>algo-viz--lc207dfs</code>）：<strong>DFS 三色</strong>。同一张图：白色 = 没访问、灰色 = 递归栈里、黑色 = 已确认安全；左下的<strong>递归栈</strong>就是当前的「灰色路径」，右下的<strong>后序 post</strong> 是节点变黑时追加的顺序。盯住两件事：<strong>灰 → 黑发生在「后继全处理完」时</strong>，以及（有环的图上）<strong>灰色回边会被描红</strong> —— 那就是环。跑完 <code>post</code> 反转就是拓扑序。
-<h2>五、完整推演表</h2>
-
-<strong>动画一（Kahn）</strong>：<code>numCourses = 4</code>，<code>prerequisites = [[1,0],[2,0],[3,1],[3,2]]</code>，即边 <code>0→1、0→2、1→3、2→3</code>，初始入度 <code>[0,1,1,2]</code>。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>帧</th>
-<th>动作</th>
-<th>松弛（入度变化）</th>
-<th>队列</th>
-<th>order</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>init</td>
-<td>0 入度的 <code>0</code> 入队</td>
-<td>—</td>
-<td><code>[0]</code></td>
-<td><code>[]</code></td>
-</tr>
-<tr>
-<td>pop</td>
-<td>修完 <code>0</code></td>
-<td><code>1: 1→0</code>、<code>2: 1→0</code></td>
-<td><code>[1, 2]</code></td>
-<td><code>[0]</code></td>
-</tr>
-<tr>
-<td>pop</td>
-<td>修完 <code>1</code></td>
-<td><code>3: 2→1</code>（还差一门）</td>
-<td><code>[2]</code></td>
-<td><code>[0,1]</code></td>
-</tr>
-<tr>
-<td>pop</td>
-<td>修完 <code>2</code></td>
-<td><code>3: 1→0</code></td>
-<td><code>[3]</code></td>
-<td><code>[0,1,2]</code></td>
-</tr>
-<tr>
-<td>pop</td>
-<td>修完 <code>3</code></td>
-<td>无后继</td>
-<td><code>[]</code></td>
-<td><code>[0,1,2,3]</code></td>
-</tr>
-<tr>
-<td>done</td>
-<td>出队 4 == 4 ⇒ <strong>true</strong></td>
-<td></td>
-<td></td>
-<td>答案 <code>[0,1,2,3]</code></td>
-</tr>
-</tbody>
-</table></div>
-
-关键细节：<code>3</code> 有两个先修（<code>1</code> 和 <code>2</code>），要<strong>等两个都修完</strong>入度才会减到 0 —— 这就是「入度 = 还有几门先修没修」的字面执行。
-
-<strong>动画二（DFS 三色）</strong>：同一张图，递归顺序 <code>0 → 1 → 3 → 2</code>：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>帧</th>
-<th>动作</th>
-<th>递归栈</th>
-<th>后序 post</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>init</td>
-<td>全白</td>
-<td><code>[]</code></td>
-<td><code>[]</code></td>
-</tr>
-<tr>
-<td>enter</td>
-<td><code>0</code> 白 → 灰</td>
-<td><code>[0]</code></td>
-<td><code>[]</code></td>
-</tr>
-<tr>
-<td>enter</td>
-<td><code>1</code> 白 → 灰</td>
-<td><code>[0,1]</code></td>
-<td><code>[]</code></td>
-</tr>
-<tr>
-<td>enter</td>
-<td><code>3</code> 白 → 灰</td>
-<td><code>[0,1,3]</code></td>
-<td><code>[]</code></td>
-</tr>
-<tr>
-<td>finish</td>
-<td><code>3</code> 无后继，灰 → 黑</td>
-<td><code>[0,1]</code></td>
-<td><code>[3]</code></td>
-</tr>
-<tr>
-<td>finish</td>
-<td><code>1</code> 后继全部处理完，灰 → 黑</td>
-<td><code>[0]</code></td>
-<td><code>[3,1]</code></td>
-</tr>
-<tr>
-<td>enter</td>
-<td>回到 <code>0</code>，下一个后继 <code>2</code> 白 → 灰</td>
-<td><code>[0,2]</code></td>
-<td><code>[3,1]</code></td>
-</tr>
-<tr>
-<td>finish</td>
-<td><code>2</code> 的后继 <code>3</code> 已是<strong>黑</strong>（跳过，不算环），灰 → 黑</td>
-<td><code>[0]</code></td>
-<td><code>[3,1,2]</code></td>
-</tr>
-<tr>
-<td>finish</td>
-<td><code>0</code> 灰 → 黑</td>
-<td><code>[]</code></td>
-<td><code>[3,1,2,0]</code></td>
-</tr>
-<tr>
-<td>done</td>
-<td>无灰色回边 ⇒ <strong>true</strong>；后序反转 = <code>[0,2,1,3]</code></td>
-<td></td>
-<td></td>
-</tr>
-</tbody>
-</table></div>
-
-两个对照点：<code>2</code> 探到 <code>3</code> 时它是<strong>黑</strong>的 —— 跳过而不是报环；真正报环的情形是「探到的邻居是<strong>灰</strong>」（还在栈里）。
-<h2>六、Java 版</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// Kahn：入度表 + 队列</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numCourses</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">adj</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">());</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">indegree</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">numCourses</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">).</span><span class="na">add</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span><span class="w">      </span><span class="c1">// 先修 p[1] → 后修 p[0]</span>
-<span class="w">            </span><span class="n">indegree</span><span class="o">[</span><span class="n">p</span><span class="o">[</span><span class="mi">0</span><span class="o">]]++</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">indegree</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">done</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
-<span class="w">            </span><span class="n">done</span><span class="o">++</span><span class="p">;</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">cur</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">--</span><span class="n">indegree</span><span class="o">[</span><span class="n">nxt</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">nxt</span><span class="p">);</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">done</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// DFS 三色：0 白 / 1 灰 / 2 黑</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">adj</span><span class="p">;</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">color</span><span class="p">;</span>
-
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numCourses</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">adj</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">());</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">).</span><span class="na">add</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span>
-<span class="w">        </span><span class="n">color</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">numCourses</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">color</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">color</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">color</span><span class="o">[</span><span class="n">nxt</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">          </span><span class="c1">// 灰色回边 = 环</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">color</span><span class="o">[</span><span class="n">nxt</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">dfs</span><span class="p">(</span><span class="n">nxt</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="n">color</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一条链），<code>V = 2000</code> 级没事，更大就用<strong>显式栈的迭代版</strong>；<code>210</code> 要在 <code>dfs</code> 里再维护一个 <code>post</code> 列表，节点变黑时 <code>post.add(v)</code>，最后 <code>Collections.reverse(post)</code>。
-<h2>七、同族题：210 / 269 / 310 / 802 / 1203 / 444</h2>
-
-207 只是「拓扑排序」这一族的入口，换个包装就是一条完整题链：
-<ul>
-<li><strong>LC 210 课程表 II</strong>：本题的返序版 —— 把 Kahn 的出队顺序（或 DFS 的后序反转）直接返回；</li>
-<li><strong>LC 269 火星词典</strong>（会员）：从相邻单词的第一个不同字母建出字母间的偏序边，再做拓扑排序 —— <strong>难点在建图，不在排序</strong>；</li>
-<li><strong>LC 310 最小高度树</strong>：无向图里反复剥掉「度为 1」的叶子（和 Kahn 剥入度是同一种思想），最后剩下的 1~2 个点就是答案；</li>
-<li><strong>LC 802 找到最终安全状态</strong>：反向图上剥「出度为 0」的点，剥不掉的（在环上或等环）就是不安全 —— Kahn 的镜像；</li>
-<li><strong>LC 1203 项目管理</strong>：两次拓扑排序 —— 组内排序 + 组间排序；</li>
-<li><strong>LC 444 序列重建</strong>（会员）：判断拓扑序是否<strong>唯一</strong> —— 队列里同时有 2 个以上 0 入度点就说明有分支，顺序不唯一。</li>
-</ul>
-
-把它们排成一列看：<strong>拓扑排序的模板永远是「算入度/出度 + 反复剥 0 度点（或 DFS 三色）」</strong>；剩下的差别只在「边从哪来」（先修关系 / 字母序 / 反向图）和「剥到最后返回什么」。
-<h2>八、边界情况</h2>
-<ul>
-<li><strong>自环</strong>：<code>[[0,0]]</code> —— 课程等自己，入度永远 ≥ 1，返回 false；</li>
-<li><strong>重边</strong>：<code>[[1,0],[1,0]]</code> —— 入度被记成 2，被 0 松弛两次才到 0，结果仍正确（但要知道这个行为）；</li>
-<li><strong>孤立课</strong>：没有先修也没有后继，入度 0 直接修，不影响结果；</li>
-<li><strong><code>numCourses = 1</code>、无先修</strong>：返回 true，顺序 <code>[0]</code>；</li>
-<li><strong>空 <code>prerequisites</code></strong>：全部入度 0，顺序 <code>[0,1,...,n-1]</code> 本身就是一个合法拓扑序；</li>
-<li><strong>多个连通块</strong>：Kahn 天然处理（入队所有 0 入度点）；DFS 要在外层循环里对每个未访问点各起一次；</li>
-<li><strong>环上挂着树枝</strong>：树枝上的课也被环卡住（等环里的先修），Kahn 里它们的入度同样减不到 0 —— 判环看的是<strong>出队总数</strong>，不是「有没有节点在环里」的直接检测。</li>
-</ul>
-<h2>九、复杂度</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>做法</th>
-<th>时间</th>
-<th>空间</th>
-<th>特点</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Kahn（入度表 + 队列）</td>
-<td><code>O(V + E)</code></td>
-<td><code>O(V + E)</code></td>
-<td>直观、天然产出拓扑序</td>
-</tr>
-<tr>
-<td>DFS 三色</td>
-<td><code>O(V + E)</code></td>
-<td><code>O(V + E)</code></td>
-<td>判环顺手；后序反转得序</td>
-</tr>
-</tbody>
-</table></div>
-
-<code>V = numCourses</code>、<code>E = prerequisites.length</code>。建图 <code>O(E)</code>，每个节点、每条边恰好被处理一次。剪枝提前退出（发现环立刻返回）不会改变最坏复杂度。
-<h2>十、常见坑</h2>
-<ol>
-<li><strong>方向画反</strong>：<code>[a, b]</code> 是 b → a（先修 → 后修）。画成 a → b 的话，拓扑序会整个反过来。</li>
-<li><strong>Kahn 简化过头</strong>：只 <code>cur</code> 出队却忘了<strong>给后继减入度</strong>，或者没判断「减到 0 才入队」—— 入度还是正数的课被塞进队列，顺序直接错。</li>
-<li><strong>判环用「队列空」</strong>：所有课修完队列也会空。判据是 <strong>出队数量 == numCourses</strong>。</li>
-<li><strong>DFS 只用一个 <code>visited</code> 布尔值</strong>：没有灰/黑之分，遇到「黑邻居（安全汇合）」也会误报环。必须三色。</li>
-<li><strong>后序忘了反转</strong>：<code>post.append(v)</code> 的顺序是「后继在前」，直接返回就是反的拓扑序。</li>
-<li><strong>递归深度</strong>：链形图最坏递归 <code>O(V)</code>，大图换<strong>显式栈迭代版</strong>（或者直接 Kahn，天然无递归）。</li>
-<li><strong>210 有环时返回了什么</strong>：Kahn 里 <code>order</code> 只装了一半 —— 必须检查「<code>len(order) == numCourses</code>」再返回，否则返回残缺顺序。</li>
-<li><strong>重复边让入度变多</strong>：<code>[[1,0],[1,0]]</code> 会把 1 的入度记成 2（不影响正确性，但要心里有数）；如果用 <code>set</code> 建图，行为会变，别混着写。</li>
-<li><strong>外层循环漏起点</strong>：DFS 版只从 <code>0</code> 开始，会漏掉其它连通块 —— 要对每个未访问节点各起一次 DFS。</li>
-<li><strong>以为拓扑序唯一</strong>：默认例子就有两个合法答案；要「唯一性判定」那是 LC 444 的追问。</li>
-</ol>
-<h2>十一、面试怎么答</h2>
-
-<strong>第一段 · 骨架</strong>：这题是把「能不能修完」翻译成「有向图有没有环」。先用 <code>[a, b]</code> ⇒ 边 <code>b → a</code> 建图，然后二选一：Kahn 反复剥 0 入度的课、数出队数量；或 DFS 三色，遇见灰色回边就是环。两者都是 <code>O(V + E)</code>。
-
-<strong>第二段 · 主动补 210</strong>（<strong>这段是区分度所在</strong>）：Kahn 的出队顺序天然是一个拓扑序；DFS 则要把<strong>后序反转</strong>。顺带指出<strong>拓扑序不唯一</strong>（默认例子 <code>[0,1,2,3]</code> 与 <code>[0,2,1,3]</code> 都对），说明你理解的是「一个」合法序而不是唯一解。
-
-<strong>第三段 · 追问连接</strong>：判唯一性 → LC 444（队列里同层多个 0 入度点 = 不唯一）；建图本身是难点 → LC 269 火星词典；无向图版「剥叶子」 → LC 310；反向图剥出度 → LC 802。
-
-<strong>追问连跳</strong>：
-- 要<strong>返序</strong> → LC 210，Kahn 直接返回 or DFS 后序反转；
-- 要<strong>判唯一</strong> → LC 444，看队列是否同时有多个候选；
-- 要<strong>从字母对建图再排序</strong> → LC 269，先处理「前一个词是后一个词前缀」的非法情形；
-- 要<strong>剥叶子求中心</strong> → LC 310；
-- 要<strong>安全节点</strong> → LC 802，反向图 + 剥出度。
-
-一句话收尾：「课程表只有一句话 —— <strong>修课顺序 = 拓扑序，能修完 = 无环</strong>；Kahn 剥入度、DFS 认灰边，是这句话的两台等价机器。」
-<h2>结语</h2>
-
-207 的全部难度浓缩在一个翻译里：<strong>先修关系是有向边，修课顺序是拓扑序，环 = 永远修不完</strong>。Kahn 用入度表把「现在能修的课」显式排成队列，DFS 用三种颜色把「还没探完的路径」显式画成栈 —— 两条路都通向同一句判据：剥完（或走完）所有节点就没有环。真正拉开差距的，是<strong>方向别画反、灰黑要分清、后序记得翻</strong>这三件小事。
-
-下一篇见。]]></content:encoded>
     </item>
     <item>
       <title>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</title>
@@ -1680,490 +1849,6 @@ Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一�
       <category>LeetCode</category>
       <category>图</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-
-<strong>LC 994 腐烂的橘子</strong>：给你一个 <code>m × n</code> 的网格，每个格子是 <code>0</code>（空，不是橘子）、<code>1</code>（新鲜橘子）或 <code>2</code>（腐烂橘子）。<strong>每分钟</strong>，所有腐烂橘子会把它<strong>上下左右四个方向</strong>相邻的新鲜橘子变腐烂。返回直到网格中<strong>没有新鲜橘子</strong>为止所必须经过的<strong>最小分钟数</strong>；如果不可能，返回 <code>-1</code>。
-<div class="codehilite"><pre><span></span><code>输入: grid = [
-  [2,1,1],
-  [1,1,0],
-  [0,1,1]
-]
-输出: 4
-
-输入: grid = [
-  [2,1,1],
-  [0,1,1],
-  [1,0,1]
-]
-输出: -1     （左下角那个 1 被 0 隔开，永远烂不到）
-</code></pre></div>
-
-
-三个题面细节先钉死：<strong>空格（<code>0</code>）不传播</strong>，腐烂只能发生在新鲜橘子上；扩散是<strong>每分钟一轮、所有腐烂橘子同时发生</strong>（不是排队一个个来）；<code>[[0,2]]</code> 这种没有新鲜橘子的网格 → 输出 <code>0</code>（不需要任何时间）。
-
-这题的骨架一句话：
-<blockquote>
-
-<strong>所有腐烂橘子同时出发做 BFS，向外扩圈；每分钟一层，扩完数层数 —— 这就是「多源 BFS」。</strong>
-</blockquote>
-
-而它比单源 BFS 多出来的那个<strong>思维开关</strong>，值得单独说清楚：
-<blockquote>
-
-<strong>把所有腐烂橘子一起入队当「第 0 层」，BFS 的「先到的一定最近」性质会自动算出每个格子到最近源的距离 —— 腐烂时间 = 到最近源的距离，答案 = 全场最大距离。</strong>
-</blockquote>
-<ul>
-<li><a href="#section-1">一、核心洞察：多源 BFS = 所有源同时出发的距离场</a></li>
-<li><a href="#section-2">二、分钟数的三种记账：层序循环 / 队列存时间戳 / 距离场</a></li>
-<li><a href="#section-3">三、动画怎么看</a></li>
-<li><a href="#section-4">四、完整推演表</a></li>
-<li><a href="#section-5">五、-1 与提前退出：fresh 计数</a></li>
-<li><a href="#section-6">六、Java 版</a></li>
-<li><a href="#section-7">七、同族题：542 / 1091 / 1162 / 934 / 1765 / 286</a></li>
-<li><a href="#section-8">八、边界情况</a></li>
-<li><a href="#section-9">九、复杂度</a></li>
-<li><a href="#section-10">十、常见坑</a></li>
-<li><a href="#section-11">十一、面试怎么答</a></li>
-</ul>
-<h2>一、核心洞察：多源 BFS = 所有源同时出发的距离场</h2>
-
-把每个格子看成图上的点，相邻（上下左右）就有一条边。<strong>腐烂从所有 <code>2</code> 同时开始蔓延</strong>，所以每个新鲜橘子变烂的时刻，就是<strong>它到最近那个 <code>2</code> 的边数</strong>。这是最短路径问题，只不过源不止一个：
-<ul>
-<li><strong>多源</strong>：初始时把所有腐烂橘子一起塞进队列（它们是第 0 分钟），然后照常做 BFS；</li>
-<li><strong>一次就够</strong>：BFS 按层推进，「第一次访问」的层数就是到最近源的距离 —— 不需要对每个源各跑一遍再取 <code>min</code>；</li>
-<li><strong>答案</strong>：没有新鲜橘子剩余时，最后的层数就是答案。</li>
-</ul>
-
-代码骨架：
-<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">orangesRotting</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
-    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
-    <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>      <span class="c1"># 所有源一起入队</span>
-            <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="n">minute</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">while</span> <span class="n">q</span> <span class="ow">and</span> <span class="n">fresh</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>       <span class="c1"># 固定本层 = 第 minute+1 分钟要扩散的格子</span>
-            <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
-            <span class="k">for</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
-                <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># 入队即标记</span>
-                    <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
-                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">))</span>
-        <span class="n">minute</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="k">return</span> <span class="n">minute</span> <span class="k">if</span> <span class="n">fresh</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
-</code></pre></div>
-
-
-三个细节决定成败：
-<ol>
-<li><strong>初始就把所有 <code>2</code> 入队</strong>。只入队一个源是本题第一大坑：别的源会晚好几拍才开始扩散，答案偏大甚至直接错。</li>
-<li><strong><code>for _ in range(len(q))</code> 固定一层</strong>。进入循环时先记下本层长度，循环只处理这么多 —— 新入队的格子属于下一分钟；<code>minute += 1</code> 写在整层处理完之后。</li>
-<li><strong>入队即标记（<code>grid[nr][nc] = 2</code>）+ <code>fresh</code> 计数</strong>。前者防止同一格被多个邻居重复入队；后者是 <code>-1</code> 判定和提前退出的依据。</li>
-</ol>
-<h2>二、分钟数的三种记账：层序循环 / 队列存时间戳 / 距离场</h2>
-
-同一台多源 BFS，可以换三种记账方式，语义完全一样：
-
-<strong>写法 A：层序循环</strong>（上面的骨架）—— 用 <code>for _ in range(len(q))</code> 把「一层」切出来，<code>minute</code> 在层外 +1。
-
-<strong>写法 B：队列存时间戳</strong> —— 不切层，把 <code>(r, c, t)</code> 一起入队：
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">orangesRotting_ts</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
-    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
-    <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
-            <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="n">answer</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">while</span> <span class="n">q</span> <span class="ow">and</span> <span class="n">fresh</span><span class="p">:</span>
-        <span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
-            <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
-                <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
-                <span class="n">answer</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">answer</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># 关键：入队时就把时间戳记进答案</span>
-                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">answer</span> <span class="k">if</span> <span class="n">fresh</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
-</code></pre></div>
-
-
-它有个隐蔽的坑：<code>answer</code> 必须在<strong>入队时</strong>更新 —— 如果写在「弹出处」，<code>fresh</code> 清零提前退出后，<strong>最后一批入队的时间戳还没被弹出、没被计入</strong>，答案会差 1。
-
-<strong>写法 C：距离场</strong>（动画二的视角）—— 直接开一张 <code>stamp</code> 表，每个格子第一次被访问时把当前分钟写进去：
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">orangesRotting_dist</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
-    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">stamp</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
-    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
-    <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="n">stamp</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
-            <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="n">minute</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">while</span> <span class="n">q</span> <span class="ow">and</span> <span class="n">fresh</span><span class="p">:</span>
-        <span class="n">minute</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>
-            <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
-            <span class="k">for</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="ow">in</span> <span class="p">((</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
-                <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">m</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
-                    <span class="n">stamp</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="n">minute</span>   <span class="c1"># 盖章：腐烂时刻 = 到最近源的距离</span>
-                    <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
-                    <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">))</span>
-    <span class="k">if</span> <span class="n">fresh</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
-    <span class="k">return</span> <span class="nb">max</span><span class="p">((</span><span class="n">v</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">stamp</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</code></pre></div>
-
-
-收尾的 <code>max(..., default=0)</code> 兜住「一个橘子都没有」的网格（没有源时表里全是 <code>None</code>）。这张表的每个数字都等于<strong>到最近源的距离</strong> —— 它是「多源 BFS 不变量」的具象化：每个格子只盖一次章、先到的一定最近。
-
-三者对比：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>写法</th>
-<th>分钟从哪来</th>
-<th>主要风险</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>A 层序循环</td>
-<td>整层处理完 <code>minute += 1</code></td>
-<td>忘记固定层长 → 分钟数多算</td>
-</tr>
-<tr>
-<td>B 队列存时间戳</td>
-<td><code>t + 1</code> 随格子传播</td>
-<td>提前 break 漏掉最后一批的 t</td>
-</tr>
-<tr>
-<td>C 距离场</td>
-<td>盖章时的 <code>minute</code></td>
-<td>忘记 <code>while q and fresh</code> 提前退出</td>
-</tr>
-</tbody>
-</table></div>
-<h2>三、动画怎么看</h2>
-<div class="algo-viz algo-viz--lc994"></div>
-
-<div class="algo-viz algo-viz--lc994dist"></div>
-
-
-<strong>动画一</strong>（<code>algo-viz--lc994</code>）：<strong>多源 BFS 分层扩散</strong>。左边是网格（绿 = 新鲜、金 = 腐烂、浅 = 空，小圆点 = 初始腐烂的「源」）；右上三块面板：当前<strong>分钟数</strong>、<strong>剩余新鲜 fresh</strong>、<strong>队列（待扩散）</strong>。帧分两种：<code>layer</code> 帧亮出本分钟要处理的整层（金框），<code>rot</code> 帧展示扩散结果 —— 新腐烂的格子（浅金 + 绿框）进入下一层队列，fresh 减少。盯住三件事：<strong>源不止一个</strong>（第 0 分钟队列里就有好几个格子）、<strong>分钟数只在整层处理完后才 +1</strong>、以及<strong>fresh 的变化</strong>。
-
-<strong>动画二</strong>（<code>algo-viz--lc994dist</code>）：<strong>腐烂时刻表（距离场）</strong>。同一张网格、同一台 BFS，但换一种记账：每个格子第一次被访问时被盖上「腐烂时刻」的章 —— 源 = 0，之后每分钟盖一批。跑完时整张表就是<strong>到最近源的距离场</strong>，右下角面板里的 <code>max(stamp)</code> 就是答案。把它和动画一对照看：<strong>动画一数的是「第几分钟」，动画二写的是「每格的值」</strong> —— 同一件事的两种记法。
-<h2>四、完整推演表</h2>
-
-<strong>动画一（分层队列）</strong>：网格
-<div class="codehilite"><pre><span></span><code><span class="mf">2</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
-<span class="mf">1</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span>
-<span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
-</code></pre></div>
-
-
-六块新鲜橘子，唯一源 <code>(0,0)</code>。逐帧如下：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>阶段</th>
-<th>动作</th>
-<th>队列（待扩散）</th>
-<th><code>minute</code></th>
-<th><code>fresh</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>init</td>
-<td>源 <code>(0,0)</code> 入队</td>
-<td><code>(0,0)</code></td>
-<td>0</td>
-<td>6</td>
-</tr>
-<tr>
-<td>layer</td>
-<td>第 1 分钟开始，本层 = <code>{(0,0)}</code></td>
-<td><code>(0,0)</code></td>
-<td>0</td>
-<td>6</td>
-</tr>
-<tr>
-<td>rot</td>
-<td><code>(0,0)</code> 扩散 → <code>(0,1)</code>、<code>(1,0)</code> 变腐烂</td>
-<td><code>(0,1) (1,0)</code></td>
-<td>1</td>
-<td>4</td>
-</tr>
-<tr>
-<td>layer</td>
-<td>第 2 分钟开始，本层 = <code>{(0,1),(1,0)}</code></td>
-<td><code>(0,1) (1,0)</code></td>
-<td>1</td>
-<td>4</td>
-</tr>
-<tr>
-<td>rot</td>
-<td>扩散 → <code>(0,2)</code>、<code>(1,1)</code> 变腐烂</td>
-<td><code>(0,2) (1,1)</code></td>
-<td>2</td>
-<td>2</td>
-</tr>
-<tr>
-<td>layer</td>
-<td>第 3 分钟开始，本层 = <code>{(0,2),(1,1)}</code></td>
-<td><code>(0,2) (1,1)</code></td>
-<td>2</td>
-<td>2</td>
-</tr>
-<tr>
-<td>rot</td>
-<td>扩散 → 只有 <code>(2,1)</code> 变腐烂</td>
-<td><code>(2,1)</code></td>
-<td>3</td>
-<td>1</td>
-</tr>
-<tr>
-<td>layer</td>
-<td>第 4 分钟开始，本层 = <code>{(2,1)}</code></td>
-<td><code>(2,1)</code></td>
-<td>3</td>
-<td>1</td>
-</tr>
-<tr>
-<td>rot</td>
-<td>扩散 → <code>(2,2)</code> 变腐烂，fresh 清零</td>
-<td><code>(2,2)</code></td>
-<td>4</td>
-<td>0</td>
-</tr>
-<tr>
-<td>done</td>
-<td>返回 <strong>4</strong></td>
-<td><code>(2,2)</code></td>
-<td>—</td>
-<td>0</td>
-</tr>
-</tbody>
-</table></div>
-
-两个容易看漏的点：第 2 分钟里 <code>(1,1)</code> 被 <code>(0,1)</code> 腐烂后，<code>(1,0)</code> 再检查它时它已经不是新鲜橘子了 —— <strong>同一分钟内不会重复腐烂</strong>；而 <code>(2,2)</code> 只有一条路 <code>(2,1) → (2,2)</code>，所以它的时刻是第 4 分钟（不是离 <code>(0,0)</code> 的直线距离）。
-
-<strong>动画二（腐烂时刻表）</strong>：同一张网格，每格盖「腐烂时刻」的章：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>分钟</th>
-<th>新盖章的格子</th>
-<th>章的值</th>
-<th><code>max(stamp)</code></th>
-<th><code>fresh</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>init</td>
-<td><code>(0,0)</code>（源）</td>
-<td>0</td>
-<td>0</td>
-<td>6</td>
-</tr>
-<tr>
-<td>1</td>
-<td><code>(0,1)</code>、<code>(1,0)</code></td>
-<td>1</td>
-<td>1</td>
-<td>4</td>
-</tr>
-<tr>
-<td>2</td>
-<td><code>(0,2)</code>、<code>(1,1)</code></td>
-<td>2</td>
-<td>2</td>
-<td>2</td>
-</tr>
-<tr>
-<td>3</td>
-<td><code>(2,1)</code></td>
-<td>3</td>
-<td>3</td>
-<td>1</td>
-</tr>
-<tr>
-<td>4</td>
-<td><code>(2,2)</code></td>
-<td>4</td>
-<td>4</td>
-<td>0</td>
-</tr>
-<tr>
-<td>done</td>
-<td>答案 = <code>max(stamp)</code> = <strong>4</strong></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-</tbody>
-</table></div>
-
-跑完的章表：
-<div class="codehilite"><pre><span></span><code><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">2</span>
-<span class="mf">1</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="err">·</span>
-<span class="err">·</span><span class="w"> </span><span class="mf">3</span><span class="w"> </span><span class="mf">4</span>
-</code></pre></div>
-
-
-每个数字都是「到最近源的距离」，<code>·</code> 是空格。一眼能看出 <strong><code>(1,1)</code> 的时刻是 2 而不是 min(1+1, 1+1) 之外的东西 —— BFS 说的算</strong>：这张表就是最终答案的可视化。
-<h2>五、-1 与提前退出：fresh 计数</h2>
-
-为什么代码里要维护 <code>fresh</code> 而不是最后遍历一遍网格？两个理由：
-<ul>
-<li><strong>提前退出</strong>：<code>while q and fresh</code> —— fresh 一清零就停，省掉「队列里还剩最后一层尾巴」的无谓处理；</li>
-<li><strong>-1 判定</strong>：循环结束时 <code>fresh &gt; 0</code>，说明有新鲜橘子被空格隔开、BFS 够不到 —— 返回 <code>-1</code>。</li>
-</ul>
-
-注意判据的正确形式是 <strong>「BFS 结束后 fresh 仍大于 0」</strong>，不是「队列空了」：
-<ul>
-<li>队列空了 + <code>fresh == 0</code> → 正常结束，返回 <code>minute</code>；</li>
-<li>队列空了 + <code>fresh &gt; 0</code> → 有够不到的橘子，返回 <code>-1</code>。</li>
-</ul>
-
-另一个细节：最后一个能腐烂的批次处理完、fresh 清零时，<strong><code>minute</code> 不要再空转加一轮</strong> —— 层循环的结构天然保证这一点（<code>minute += 1</code> 在层后，循环条件先看 fresh）。如果你想省掉层结构，用写法 B 的时间戳，答案就是「最后一个被弹出/入队的时间戳」。
-<h2>六、Java 版</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">DIRS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{{</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">}};</span>
-
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">orangesRotting</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">minute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">});</span><span class="w">   </span><span class="c1">// 所有源入队</span>
-<span class="w">                </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">fresh</span><span class="o">++</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">size</span><span class="p">();</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">size</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">        </span><span class="c1">// 固定本层</span>
-<span class="w">                </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
-<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">DIRS</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">nr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">d</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">d</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nr</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nr</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">nr</span><span class="o">][</span><span class="n">nc</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
-<span class="w">                    </span><span class="n">grid</span><span class="o">[</span><span class="n">nr</span><span class="o">][</span><span class="n">nc</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w">                                </span><span class="c1">// 入队即标记</span>
-<span class="w">                    </span><span class="n">fresh</span><span class="o">--</span><span class="p">;</span>
-<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">nr</span><span class="p">,</span><span class="w"> </span><span class="n">nc</span><span class="p">});</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">            </span><span class="n">minute</span><span class="o">++</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">fresh</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">minute</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-两个 Java 专属注意点：<code>for (int size = queue.size(); size &gt; 0; size--)</code> 必须<strong>先把 size 记下来</strong> —— 直接在条件里写 <code>queue.size()</code> 会把新入队的下一层也算进来，层就切错了；以及原地改 <code>grid</code> 前想清楚——如果输入不能改（有些平台多组用例复用），就换成一张 <code>visited</code> 布尔表。
-<h2>七、同族题：542 / 1091 / 1162 / 934 / 1765 / 286</h2>
-
-994 是「网格 + 多源 BFS 距离场」这一族的原点，换个包装就是一条完整题链：
-<ul>
-<li><strong>LC 542 01 矩阵</strong>：求每个格子到最近的 <code>0</code> 的距离 —— 把「0」当源，和 994 一模一样的多源 BFS 距离场；</li>
-<li><strong>LC 1091 二进制矩阵中的最短路</strong>：单源到单目标的八方向最短路 —— 多源的「反面」；</li>
-<li><strong>LC 1162 地图分析</strong>：离最近陆地最远的海格 —— 多源 BFS 后<strong>取 max</strong>（和 994 的答案口径一致）；</li>
-<li><strong>LC 934 最短的桥</strong>：先用 DFS 给第一座岛染色，再从它的<strong>所有格子</strong>做多源 BFS 找第二座岛 —— 先 1 后 1 的两次搜索；</li>
-<li><strong>LC 1765 地图中的最高点</strong>：从所有水域出发做多源 BFS 生成高度场 —— 源换成了水；</li>
-<li><strong>LC 286 墙与门</strong>（会员）：多源 BFS 给每个房间填「到最近门的距离」，和 542 镜像。</li>
-</ul>
-
-把它们排成一列看：<strong>多源 BFS 的模板永远是「把所有源一起入队 + 按层推进 + 每格只访问一次」</strong>；剩下的差别只在「源是谁」（腐烂橘子 / 0 / 陆地 / 水 / 门）和「最后取什么」（最后一层 / 最大距离 / 某个目标）。
-<h2>八、边界情况</h2>
-<ul>
-<li><strong>没有新鲜橘子</strong>：直接返回 <code>0</code>（<code>while</code> 条件不成立，<code>minute</code> 保持 0）；</li>
-<li><strong>没有腐烂橘子但有新鲜</strong>：队列为空、fresh &gt; 0 → 返回 <code>-1</code>；</li>
-<li><strong>全空网格</strong>：没有源也没有新鲜 → <code>0</code>；</li>
-<li><strong>源和新鲜都在，但被 <code>0</code> 隔开</strong>：BFS 走不过去，返回 <code>-1</code>；</li>
-<li><strong>只有一个格子</strong>：<code>[[2]]</code> / <code>[[0]]</code> → <code>0</code>，<code>[[1]]</code> → <code>-1</code>；</li>
-<li><strong>一条长廊</strong>：<code>1 × n</code> 单行，答案 = 最远新鲜橘子的距离；</li>
-<li><strong>多个源会合</strong>：两边的源向中间扩，相遇时「先到的一定最近」自动生效，不需要特殊处理；</li>
-<li><strong>注意 <code>minute</code> 的起点是 0</strong>：源是「第 0 分钟」就腐烂的，第一次扩散发生后才变成 1。</li>
-</ul>
-<h2>九、复杂度</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>写法</th>
-<th>时间</th>
-<th>空间</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>层序循环</td>
-<td><code>O(m·n)</code></td>
-<td><code>O(m·n)</code>（队列最坏存一整层）</td>
-</tr>
-<tr>
-<td>队列存时间戳</td>
-<td><code>O(m·n)</code></td>
-<td><code>O(m·n)</code></td>
-</tr>
-<tr>
-<td>距离场</td>
-<td><code>O(m·n)</code></td>
-<td><code>O(m·n)</code></td>
-</tr>
-</tbody>
-</table></div>
-
-每个格子最多入队一次、每条邻接边最多被检查一次 —— 三者都是标准 BFS 的 <code>O(m·n)</code>。空间上，斐波那契式的「队列最坏有多大」有个常见答案：<strong>一层可能同时挤满网格（全连通时）</strong>，所以上界就是 <code>O(m·n)</code>。
-<h2>十、常见坑</h2>
-<ol>
-<li><strong>只把第一个腐烂橘子入队</strong>：多源退化成了单源，别的源「晚出发」，答案偏大甚至错。<strong>初始必须把所有 <code>2</code> 入队。</strong></li>
-<li><strong>分钟数按「弹出的格子数」加</strong>：不是每个格子一分钟 —— 是<strong>每层</strong>一分钟。忘记 <code>for _ in range(len(q))</code> 固定层长，分钟数直接膨胀。</li>
-<li><strong>出队才标记 / 入队不标记</strong>：同一格会被多个邻居重复入队，<code>fresh</code> 被减多次。<strong>入队的那一刻就置 <code>2</code></strong>。</li>
-<li><strong>-1 判定写成「队列空了就 -1」</strong>：把「全烂完但队列还剩最后一层尾巴」的正常情况误判成 -1。判据是 <strong>fresh &gt; 0</strong>。</li>
-<li><strong>fresh 清零后还空转一轮</strong>：<code>minute</code> 多加 1。层循环 + <code>while q and fresh</code> 才能自然停住。</li>
-<li><strong>把 <code>0</code> 当成能传播的格子</strong>：腐烂只能落到<strong>新鲜橘子</strong>上，空格是墙不是路。</li>
-<li><strong>写法 B 的时间戳更新写在「弹出」处</strong>：<code>fresh</code> 清零提前退出后，最后一批入队的时间戳还没被弹出、没被计入 —— 更新要写在<strong>入队</strong>处。</li>
-<li><strong><code>minute</code> 初值写成 1</strong>：全烂网格会返回 1 而不是 0。源是第 0 分钟。</li>
-<li><strong>原地修改后复用输入</strong>：<code>1 → 2</code> 破坏了网格；多组用例或多轮测试要小心。</li>
-<li><strong>把「同时扩散」写成了「串行扩散」</strong>：一个格子扩散完立刻用它的新邻居继续扩散 —— 这会把「同一分钟」的格子拍扁成不同分钟，答案偏小。</li>
-</ol>
-<h2>十一、面试怎么答</h2>
-
-<strong>第一段 · 骨架</strong>：这是多源 BFS 的最短时间问题。把所有腐烂橘子初始入队（第 0 分钟），每分钟处理一整层、把新鲜邻居变腐烂并入队，同时维护 <code>fresh</code> 计数。BFS 结束时 <code>fresh == 0</code> 就返回分钟数，否则 <code>-1</code>。<code>O(m·n)</code>。
-
-<strong>第二段 · 主动补两个「为什么」</strong>（<strong>这段是区分度所在</strong>）：为什么<strong>多源</strong>而不是逐个源 BFS —— 逐源是 <code>O(k·m·n)</code> 还要逐格取 min，多源一次就够，因为 BFS 第一次访问的层数天然是「到最近源的距离」；为什么<strong>不能 DFS</strong> —— 腐烂时间是<strong>最短</strong>时间，DFS 会绕远路，给出的是某条路径的时间而不是最小时间。
-
-<strong>第三段 · 变体与追问</strong>：这个模板可以换源、换目标、换维数 —— 542（到最近 0）、1162（离陆地最远）、1765（水域出发的高度场）、934（先染色再 BFS）；如果要求「每分钟腐烂速度不同」，BFS 就不再适用，要换成按时间排序的优先队列（类似 Dijkstra 的推广）。
-
-<strong>追问连跳</strong>：
-- 要<strong>每格到最近 0 的距离矩阵</strong> → LC 542，多源 BFS 直接输出距离场；
-- 要<strong>最远的格子</strong> → LC 1162，多源 BFS 后取 <code>max</code>；
-- 要<strong>两座岛之间的最短桥</strong> → LC 934，先 DFS 染色、再多源 BFS；
-- 要<strong>从水出发的高度场</strong> → LC 1765，源是水、答案是最大高度；
-- 要<strong>带权重的腐烂时间</strong> → 优先队列代替队列（Dijkstra 的味道）。
-
-一句话收尾：「腐烂的橘子只有一台机器 —— <strong>把所有源一起入队，让 BFS 按分钟分层扩圈</strong>；分钟数、时间戳、距离场是同一件事的三种记法，<code>fresh</code> 计数和 <code>-1</code> 判定则是它唯一的安全带。」
-<h2>结语</h2>
-
-994 的全部难度浓缩在「多源」两个字上：源不止一个，所以不能只入队一个；时间按分钟走，所以要按层切；答案要么数层、要么取最大时间戳。把这三件事记牢，代码二十行，而它身后站着整个「网格距离场」题族——542 的距离矩阵、1162 的最远格子、934 的建桥、1765 的高度场，都是同一台机器换个源。
-
-下一篇见。]]></content:encoded>
     </item>
     <item>
       <title>【LC 200】岛屿数量：一次染色与防爆栈替代</title>
@@ -2308,28 +1993,6 @@ Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一�
       <category>算法</category>
       <category>LeetCode</category>
       <category>栈</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 93】复原 IP 地址：分段回溯，剪枝分两层</title>
-      <link>https://zhoujungis.github.io/article/lc-93-restore-ip-addresses/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-93-restore-ip-addresses/</guid>
-      <pubDate>Tue, 29 Sep 2026 06:29:54 GMT</pubDate>
-      <description>题目 有效 IP 地址由 四个 0-255 的整数 组成，中间用 &#39;.&#39; 分隔，且每个整数 不能有前导零 （ &quot;0&quot; 合法， &quot;01&quot; 非法）。 给定只含数字的字符串 s ，返回 所有 可能的有效 IP 地址，顺序不限。 一、核心洞察：回溯就是递归写的组合枚举 二、拆解：剪枝分两层 三、动画怎么看 四、完整推演表 五、</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>回溯</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 5】最长回文子串：枚举中心 —— 2n-1 个中心，别漏了间隙</title>
-      <link>https://zhoujungis.github.io/article/lc-5-longest-palindromic-substring/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-5-longest-palindromic-substring/</guid>
-      <pubDate>Tue, 29 Sep 2026 03:33:35 GMT</pubDate>
-      <description>题目 给你一个字符串 s ，找到 s 中最长的回文子串。 回文串是正着读和反着读都一样的字符串。题面保证 s 至少含一个字符（最短答案就是单字符）。 一、核心洞察：枚举中心，不是枚举子串 二、拆解：2n-1 个中心与两种扩展 三、动画怎么看 四、完整推演表 五、变体：DP 对照与 Manacher 六、Java 版 七</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>双指针</category>
       <category>面试</category>
     </item>
   </channel>

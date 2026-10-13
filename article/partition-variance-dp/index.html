@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 给定一个序列 a[1..n] ，把它切成若干段（通常是 恰好 k 段 ），使 各段内部方差之和 最大。 这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点： 答案可以违背直觉 （切成两段常常比不切更大），以及 性能全压在一条前缀和公式上 （不会写就是 O(n^3) ）。 一、核心洞" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/partition-variance-dp/" />
+    <meta property="og:title" content="【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和" />
+    <meta property="og:description" content="题目 给定一个序列 a[1..n] ，把它切成若干段（通常是 恰好 k 段 ），使 各段内部方差之和 最大。 这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点： 答案可以违背直觉 （切成两段常常比不切更大），以及 性能全压在一条前缀和公式上 （不会写就是 O(n^3) ）。 一、核心洞" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/partition-variance-dp/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/partition-variance-dp-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和" />
+    <meta name="twitter:description" content="题目 给定一个序列 a[1..n] ，把它切成若干段（通常是 恰好 k 段 ），使 各段内部方差之和 最大。 这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点： 答案可以违背直觉 （切成两段常常比不切更大），以及 性能全压在一条前缀和公式上 （不会写就是 O(n^3) ）。 一、核心洞" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/partition-variance-dp-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dx0QmS2D.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-13T14:25:59.432915+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和","description":"题目 给定一个序列 a[1..n] ，把它切成若干段（通常是 恰好 k 段 ），使 各段内部方差之和 最大。 这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点： 答案可以违背直觉 （切成两段常常比不切更大），以及 性能全压在一条前缀和公式上 （不会写就是 O(n^3) ）。 一、核心洞","image":"https://zhoujungis.github.io/photos/partition-variance-dp-cover.png","datePublished":"2026-10-13T14:25:59.432915+08:00","dateModified":"2026-10-13T14:25:59.432915+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/partition-variance-dp/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</h1><div class="ns-meta">2026/10/13 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+给定一个序列 <code>a[1..n]</code>，把它切成若干段（通常是<strong>恰好 k 段</strong>），使<strong>各段内部方差之和</strong>最大。
+<div class="codehilite"><pre><span></span><code>输入: a = [2, 8, 3, 9, 4, 7]，k = 2
+输出: 14.6875
+解释: 最优切点在第 2 个元素之后：[2,8] 方差 9.00 + [3,9,4,7] 方差 5.6875
+</code></pre></div>
+
+
+这是数据/算法面试里的经典 DP（也常以「最小化」的面目出现）。它有两个值得挖的点：<strong>答案可以违背直觉</strong>（切成两段常常比不切更大），以及<strong>性能全压在一条前缀和公式上</strong>（不会写就是 <code>O(n^3)</code>）。
+<ul>
+<li><a href="#section-1">一、核心洞察：切成两段，反而更大</a></li>
+<li><a href="#section-2">二、拆解：一阶/二阶前缀和，O(1) 算段方差</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、进阶：k 段就是把这个扫描叠 k 层</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：切成两段，反而更大</h2>
+
+先说这道题最反直觉的地方。主例 <code>[2, 8, 3, 9, 4, 7]</code> 的<strong>全序列方差只有 6.92</strong>，而切成两段之后最大能到 <strong>14.69</strong> —— 切分让方差和翻了一倍多。
+
+为什么？方差度量的是「到均值的距离」。整序列的均值是 5.5，<code>8</code> 和 <code>3</code> 一上一下互相抵消；切成 <code>[2,8]</code> 和 <code>[3,9,4,7]</code> 之后，两段各自有均值（5.00 与 5.75），<strong>原本互相抵消的偏离被单独放大了</strong>。所以「切得越碎方差和越小」是错的本能 —— 本题要的是最大，而最大往往出现在<strong>段内很散、段间均值接近</strong>的切法上。
+
+顺便立一个永远成立的恒等式，它能帮你判断什么时候两种问法等价：
+<blockquote>
+
+<strong>离差平方和分解</strong>：<code>SS_total = SS_within + SS_between</code>（总平方和 = 组内平方和 + 组间平方和）。
+</blockquote>
+
+<code>SS</code> 是「偏离均值的平方之和」。当各段<strong>等长</strong>时，<code>组内方差和 = SS_within / 段长</code>，于是「最大化组内方差和」严格等价于「最小化组间」—— 也就是<strong>让各段均值尽量靠近</strong>。段长不相等时这个换算不成立（每段除的各是个的长度），但 DP 照做，只是少了一条捷径。
+<h2>二、拆解：一阶/二阶前缀和，O(1) 算段方差</h2>
+
+DP 的形式很直接：
+<div class="codehilite"><pre><span></span><code><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max_</span><span class="err">{</span><span class="n">k</span><span class="err">}</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">k</span><span class="o">][</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="n">i</span><span class="p">)</span>
+<span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">1</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="n">i</span><span class="p">)</span>
+<span class="n">dp</span><span class="o">[</span><span class="n">0</span><span class="o">][</span><span class="n">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="n">答案</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">k</span><span class="o">]</span>
+</code></pre></div>
+
+
+<code>k = 2</code> 时它退化成一次扫描：枚举切点 <code>i</code>，取 <code>var(1..i) + var(i+1..n)</code> 的最大值 —— 这正是 DP 的第一层，后面 <code>j</code> 层是同一个式子往上叠。
+
+性能的关键在 <code>var(k+1..i)</code> 怎么算。每换一个切点就重算一遍区间均值方差是 <code>O(n)</code>，总复杂度 <code>O(n^2 k)</code> 里还藏着一个 <code>O(n)</code>；用<strong>一阶和二阶前缀和</strong>可以压到 <code>O(1)</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">S1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w">          </span><span class="err">#</span><span class="w"> </span><span class="n">一阶前缀和</span>
+<span class="n">S2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">1</span><span class="o">]^</span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]^</span><span class="mi">2</span><span class="w">      </span><span class="err">#</span><span class="w"> </span><span class="n">二阶前缀和</span>
+
+<span class="n">段</span><span class="w"> </span><span class="o">[</span><span class="n">l+1, i</span><span class="o">]</span><span class="err">，</span><span class="n">长度</span><span class="w"> </span><span class="nf">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">l</span><span class="err">：</span>
+<span class="w">  </span><span class="nf">sum</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">S1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">S1</span><span class="o">[</span><span class="n">l</span><span class="o">]</span>
+<span class="w">  </span><span class="n">mean</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nf">sum</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nf">len</span>
+<span class="w">  </span><span class="nf">var</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">S2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">S2</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nf">len</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mean</span><span class="w">      </span><span class="err">#</span><span class="w"> </span><span class="n">E</span><span class="o">[</span><span class="n">x^2</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">E</span><span class="o">[</span><span class="n">x</span><span class="o">]^</span><span class="mi">2</span>
+</code></pre></div>
+
+
+<code>E[x^2] - E[x]^2</code> 就是总体方差的定义式。有了它，DP 的内层就是两次数组访问加一次乘减。
+<div class="algo-viz algo-viz--varpart"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画画的是 <code>k = 2</code> 这一层：序列画成柱子，<strong>两条虚线是两段的均值线</strong>，橙色竖虚线是当前切点。
+<ul>
+<li><strong>均值线</strong>：方差就是柱子到均值线的距离平方的平均 —— 线拉得越开、各段内部越散，两段方差和越大；</li>
+<li><strong>切点线</strong>：从左到右扫，每扫一个切点，两个统计筹码刷新一次；</li>
+<li><strong>合计筹码</strong>：金色高亮 = 目前最优；扫到终点定格在「最优切点 2 / 合计 14.69」。</li>
+</ul>
+
+值得盯的帧是切点 2 和切点 4：切点 2 的左段 <code>[2,8]</code> 方差高达 9.00，右段 5.69；切点 4 左段 9.25、右段只有 2.25，合计反而降到 11.50。<strong>最优解不在「看起来最该切」的地方</strong> —— 这就是不能贪心的直接证据。
+<h2>四、完整推演表</h2>
+
+主例 <code>[2, 8, 3, 9, 4, 7]</code>，<code>k = 2</code>（对应动画的 5 个切点帧 + init + done，共 7 帧）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>切点 i</th>
+<th>左段</th>
+<th>左段均值</th>
+<th>左段方差</th>
+<th>右段均值</th>
+<th>右段方差</th>
+<th>合计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>[2]</td>
+<td>2.00</td>
+<td>0.00</td>
+<td>6.20</td>
+<td>5.32</td>
+<td>5.32</td>
+</tr>
+<tr>
+<td>2</td>
+<td>[2,8]</td>
+<td>5.00</td>
+<td>9.00</td>
+<td>5.75</td>
+<td>5.69</td>
+<td><strong>14.69</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>[2,8,3]</td>
+<td>4.33</td>
+<td>6.89</td>
+<td>6.67</td>
+<td>4.22</td>
+<td>11.11</td>
+</tr>
+<tr>
+<td>4</td>
+<td>[2,8,3,9]</td>
+<td>5.50</td>
+<td>9.25</td>
+<td>5.50</td>
+<td>2.25</td>
+<td>11.50</td>
+</tr>
+<tr>
+<td>5</td>
+<td>[2,8,3,9,4]</td>
+<td>5.20</td>
+<td>7.76</td>
+<td>7.00</td>
+<td>0.00</td>
+<td>7.76</td>
+</tr>
+</tbody>
+</table></div>
+
+最后一行值得多说一句：右段只剩一个元素，方差必然是 0。<strong>单点段的方差恒为 0</strong>，这是 <code>k = n</code> 时答案退化为 0 的原因，也是边界情况里最容易被忘的一条。
+<h2>五、进阶：k 段就是把这个扫描叠 k 层</h2>
+
+<code>k = 2</code> 的扫描只是第一层。一般情形的 DP：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">max_variance_sum</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">S1</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">S2</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">S1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">S1</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">S2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">S2</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">var</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>                      <span class="c1"># 段 [l+1, r] 的总体方差，O(1)</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="n">r</span> <span class="o">-</span> <span class="n">l</span>
+        <span class="k">if</span> <span class="n">length</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">S1</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">-</span> <span class="n">S1</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">S2</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">-</span> <span class="n">S2</span><span class="p">[</span><span class="n">l</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">q</span> <span class="o">/</span> <span class="n">length</span> <span class="o">-</span> <span class="p">(</span><span class="n">s</span> <span class="o">/</span> <span class="n">length</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">s</span> <span class="o">/</span> <span class="n">length</span><span class="p">)</span>
+
+    <span class="n">NEG</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">)</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NEG</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="n">NEG</span>
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">NEG</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">cand</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">var</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cand</span> <span class="o">&gt;</span> <span class="n">best</span><span class="p">:</span>
+                    <span class="n">best</span> <span class="o">=</span> <span class="n">cand</span>
+    <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="k">if</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="k">else</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+复杂度 <code>O(n^2 k)</code>。如果段长有下界、或者题目保证最优切点满足单调性，可以用分治 DP 或斜率优化把内层压掉；但<strong>先写对 <code>O(n^2 k)</code></strong>，再谈优化 —— 面试里写个错的高复杂度不如写个对的低复杂度。
+
+如果题目问的是<strong>最小化</strong>（更常见的工业形态：分箱、图像分割、K-均值式的代价函数），代码只改一个符号：<code>max</code> 换 <code>min</code>，<code>NEG</code> 换 <code>INF</code>。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">PartitionVariance</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 切成恰好 k 段，使各段总体方差之和最大；k &gt; n 时无解返回 null</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="n">Double</span><span class="w"> </span><span class="nf">maxVarianceSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">double</span><span class="o">[]</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">double</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">double</span><span class="o">[]</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">double</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">s1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="n">s2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">double</span><span class="p">)</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 段 [l, i) 的总体方差，O(1)</span>
+<span class="w">        </span><span class="n">java</span><span class="p">.</span><span class="na">util</span><span class="p">.</span><span class="na">function</span><span class="p">.</span><span class="na">BiFunction</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Double</span><span class="o">&gt;</span><span class="w"> </span><span class="kd">var</span><span class="w"> </span><span class="err">= (</span><span class="n">l</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">l</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">len</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mf">0.0</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s1</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">sq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s2</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">len</span><span class="p">;</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">sq</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mean</span><span class="p">;</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="kd">final</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">NEG</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Double</span><span class="p">.</span><span class="na">NEGATIVE_INFINITY</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">double</span><span class="o">[][]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">double</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">double</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="p">)</span><span class="w"> </span><span class="n">java</span><span class="p">.</span><span class="na">util</span><span class="p">.</span><span class="na">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">row</span><span class="p">,</span><span class="w"> </span><span class="n">NEG</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">);</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">double</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">NEG</span><span class="p">;</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w"> </span><span class="n">m</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">m</span><span class="o">][</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NEG</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">m</span><span class="o">][</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">var</span><span class="p">.</span><span class="na">apply</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">));</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NEG</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意 <code>(double) a[i - 1] * a[i - 1]</code> 里的强转：<code>int</code> 自乘在值稍大时就溢出（<code>46341^2</code> 就超过 <code>int</code> 上限），平方和必须落在 <code>double</code> 或 <code>long</code> 上。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong><code>k = 1</code></strong>：答案就是全序列总体方差 —— 这是 DP 的第一层基例，也是「不切」的对照组。</li>
+<li><strong><code>k = n</code></strong>：每段一个元素，方差全是 0，答案 0。</li>
+<li><strong><code>k &gt; n</code></strong>：无解（段数不能超过元素数），返回 <code>null</code> 而不是抛异常。</li>
+<li><strong>全相等序列</strong>：任何切法合计都是 0。</li>
+<li><strong>含负数</strong>：公式不变（平方和非负、与符号无关），但 <code>mean</code> 可能为负，别在均值上写绝对值。</li>
+<li><strong>总体方差 vs 样本方差</strong>：本文全程用<strong>总体方差</strong>（除以长度 <code>n</code>）。若题目要样本方差（除以 <code>n-1</code>），单点段没有定义，<code>k = n</code> 会直接崩 —— 必须先和面试官对齐口径。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前缀和预处理</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td><code>k = 2</code> 扫描</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>一般 k（三重循环）</td>
+<td><code>O(n^2 k)</code></td>
+<td><code>O(nk)</code></td>
+</tr>
+<tr>
+<td>带段长下界 + 分治 DP</td>
+<td><code>O(nk log n)</code></td>
+<td><code>O(nk)</code></td>
+</tr>
+<tr>
+<td>贪心</td>
+<td>——</td>
+<td><strong>不可行</strong>，见下</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>贪心为什么不行</strong>：主例里切点 2 的左段方差 9.00 是全场最高，但切点 4 的左段方差 9.25 更高、合计反而更低（右段掉到 2.25）。局部最优的段方差和全局最优的合计没有单调关系，只有 DP 这种「枚举切点 + 查表」才保险。
+<h2>九、常见坑</h2>
+<h3>9.1 每切点重算方差，复杂度退化成 O(n^3)</h3>
+
+不建前缀和、每个切点都 <code>sum</code> 一遍再算方差，<code>k = 2</code> 就从 <code>O(n)</code> 变 <code>O(n^2)</code>，一般 k 变 <code>O(n^3 k)</code>。一阶/二阶前缀和各两行，是这道题性价比最高的优化。
+<h3>9.2 口径混用：总体方差和样本方差</h3>
+
+DP 的转移要求「段方差可加」—— 只有总体方差（各除各的长度）满足这个结构。混用 <code>n-1</code> 会让 <code>k = n</code> 除零，也会让不同段之间的数没法比。<strong>动手前先问清楚口径。</strong>
+<h3>9.3 以为切得越多方差和越小</h3>
+
+主例用数字打脸：<code>k = 1</code> 是 6.92，<code>k = 2</code> 是 14.69。记住离差平方和分解：等长时最大化组内等价于最小化组间（让各段均值靠近），不是「切碎」。
+<h3>9.4 int 溢出 / 浮点误差</h3>
+
+平方和用 <code>int</code> 会在中等规模就溢出；用 <code>double</code> 时，<code>E[x^2] - E[x]^2</code> 在数据量级极大且有微小方差时会出现<strong>灾难性抵消</strong>（两个大数相减）。稳妥做法是先整体减去一个基准（比如均值）再平方，或者用 <code>BigDecimal</code> / Kahan 求和。
+<h3>9.5 忘了单点段方差为 0</h3>
+
+<code>k = n</code> 的答案是 0、<code>k &gt; n</code> 无解、以及 DP 里 <code>range(j - 1, i)</code> 的下界从 <code>j - 1</code> 起（保证每段至少一个元素）—— 三处都源于同一条：段不能为空。
+<h3>9.6 把「最大」当成默认</h3>
+
+工业场景（分箱、图像分割）通常问<strong>最小</strong>化，因为那是「组内越齐越好」的代价函数。LeetCode / 面试题则常问最大来考验理解。<strong>读题时把 max/min 圈出来</strong>，代码里只差一个词。
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先给 DP 式子</strong>："<code>dp[i][j] = max_{k} dp[k][j-1] + var(k+1..i)</code>，<code>k = 2</code> 时就是扫一遍切点。"</li>
+<li><strong>再给 O(1) 方差公式</strong>："一阶二阶前缀和，<code>var = E[x^2] - E[x]^2</code>，<code>O(n^2 k)</code> 总复杂度。"</li>
+<li><strong>主动说反直觉点</strong>："切成两段可以比不切更大 —— 主例 6.92 对 14.69，因为两段各自的均值把原本抵消的偏离放大了。"</li>
+<li><strong>提恒等式</strong>："离差平方和分解 <code>SS_total = SS_within + SS_between</code>；等长切分时最大化组内等价于最小化组间，段长不等时这条捷径不成立。"</li>
+<li><strong>报边界</strong>：<code>k = 1</code> 全序列方差、<code>k = n</code> 答案 0、<code>k &gt; n</code> 无解、单点段方差 0。</li>
+<li><strong>报变体</strong>：最小化版（改一个符号，工业上更常见）、段长下界（<code>m</code> 从 <code>j-1</code> 改成 <code>max(j-1, i-minLen)</code>）、分治 DP / 斜率优化、以及它在 K-均值和图像分割里的位置。</li>
+</ol>
+<h2>结语</h2>
+
+序列切分方差题的骨架很小：一个 DP 式子、一条前缀和公式。它真正考的是两件事 —— <strong>你敢不敢相信反直觉的答案</strong>（切成两段方差和反而翻倍，因为各段均值把互相抵消的偏离单独放大了），以及<strong>你愿不愿意把 <code>O(1)</code> 的段方差算清楚</strong>（<code>E[x^2] - E[x]^2</code> 两行前缀和，换掉整个内层的 <code>O(n)</code>）。上一篇 <a href="/article/nim-stone-games/">石子游戏</a> 的功夫在归约，这一篇的功夫在公式 —— DP 题的档次，往往就藏在这两条里。</div></div></noscript>
+  </body>
+</html>
