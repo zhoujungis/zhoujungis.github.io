@@ -80,6 +80,8 @@ import { mountRand10 } from '@/viz/rand10'
 import { mountRand10Uniform } from '@/viz/rand10Uniform'
 import { mountEliminateSum10 } from '@/viz/eliminateSum10'
 import { mountEliminateSum10Order } from '@/viz/eliminateSum10Order'
+import { mountLc1928 } from '@/viz/lc1928'
+import { mountLc1928Path } from '@/viz/lc1928Path'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -443,6 +445,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc470uni': mountRand10Uniform,
   'algo-viz--txelim': mountEliminateSum10,
   'algo-viz--txorder': mountEliminateSum10Order,
+  'algo-viz--lc1928': mountLc1928,
+  'algo-viz--lc1928path': mountLc1928Path,
 }
 
 let vizHandles = []
