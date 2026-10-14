@@ -199,6 +199,16 @@ const lastUpdated = computed(() => {
 
 const projects = [
   {
+    slug: 'aidevops',
+    name: 'aidevops',
+    url: 'https://github.com/zhoujungis/ai_devops',
+    cover: '/projects/aidevops.webp',
+    alt: 'aidevops 终端客户端运行截图：pip install 与 --help',
+    strong: '把「需求 → 代码 → 测试 → Bug → 发布」上孤立的数据关联起来。',
+    desc: '这是 AI DevOps / QA Copilot 的终端客户端。它的核心不是聊天机器人，而是主动理解项目当前发生了什么：一次提交的完整关联链一条命令拿到（需求、模块、回归候选、历史 Bug、所在发布），风险分数是可解释的——10 个信号各自贡献多少，逐条列出，不是黑盒；AI 只提议，人确认后才执行，全程可审计。服务端是 Django + PostgreSQL + Redis，客户端用 Typer 和 Textual 写成，已发布到 PyPI，pip install 即可用。',
+    meta: '体验关键词：可解释、可审计、人确认后执行 · 入口 pypi.org/project/aidevops',
+  },
+  {
     slug: 'block-world-3d',
     name: 'Block World 3D',
     url: 'https://block-world-3d.pages.dev/',
