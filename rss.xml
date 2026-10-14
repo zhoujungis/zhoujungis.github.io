@@ -5,8 +5,600 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Wed, 14 Oct 2026 08:37:35 GMT</lastBuildDate>
+    <lastBuildDate>Wed, 14 Oct 2026 08:56:59 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【KMP】求 next 数组：自己跟自己的最长相等前后缀</title>
+      <link>https://zhoujungis.github.io/article/kmp-next-array/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/kmp-next-array/</guid>
+      <pubDate>Wed, 14 Oct 2026 08:55:55 GMT</pubDate>
+      <description>题目 求模式串 p = &quot;abacaba&quot; 的 next 数组 。按 最长相等真前后缀 的定义，答案是 [0,0,1,0,1,2,3] 。 ⚠️ 一句话先记住： 面试前必须确认面试官用的是哪种定义 。另有一种把首项记作 -1 的定义（严蔚敏《数据结构》风格），同一条串在那套定义下的答案是 [-1,0,0,1,0,1,2</description>
+      <category>算法</category>
+      <category>LeetCode</category>
+      <category>字符串</category>
+      <category>面试</category>
+      <content:encoded><![CDATA[<h2>题目</h2>
+
+<strong>求模式串 <code>p = "abacaba"</code> 的 next 数组</strong>。按<strong>最长相等真前后缀</strong>的定义，答案是 <strong><code>[0,0,1,0,1,2,3]</code></strong>。
+
+⚠️ 一句话先记住：<strong>面试前必须确认面试官用的是哪种定义</strong>。另有一种把首项记作 <code>-1</code> 的定义（严蔚敏《数据结构》风格），同一条串在那套定义下的答案是 <strong><code>[-1,0,0,1,0,1,2]</code></strong> —— 两种定义只差一次整体移位，但<strong>报出来的数字完全不同</strong>，报错了就是零分。
+<div class="codehilite"><pre><span></span><code><span class="nv">p</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="nv">a</span><span class="w">  </span><span class="nv">b</span><span class="w">  </span><span class="nv">a</span><span class="w">  </span><span class="nv">c</span><span class="w">  </span><span class="nv">a</span><span class="w">  </span><span class="nv">b</span><span class="w">  </span><span class="nv">a</span>
+<span class="k">next</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span><span class="mi">0</span><span class="w">  </span><span class="mi">1</span><span class="w">  </span><span class="mi">0</span><span class="w">  </span><span class="mi">1</span><span class="w">  </span><span class="mi">2</span><span class="w">  </span><span class="mi">3</span><span class="w">      </span>←<span class="w"> </span>最长相等真前后缀（本文默认）
+另一种<span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span><span class="mi">0</span><span class="w">  </span><span class="mi">1</span><span class="w">  </span><span class="mi">0</span><span class="w">  </span><span class="mi">1</span><span class="w">  </span><span class="mi">2</span><span class="w">      </span>←<span class="w"> </span>首项为<span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span>的定义
+</code></pre></div>
+
+
+这题看上去只是"背个模板"，真正的门槛却在一处很容易被含糊带过的地方：<strong><code>next[i]</code> 到底统计的是哪一段子串的前后缀</strong>。定义含糊一点（把"真"字漏掉、把"含不含自己"混了），答案就会整体错位；而算出 next 之后，<code>next[j-1]</code> 那个下标更是<strong>每一次回退的依据</strong>。
+<ul>
+<li><a href="#section-1">一、核心洞察：next 是什么，为什么能"自己跟自己比"</a></li>
+<li><a href="#section-2">二、两种定义（面试第一坑）</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、同族题：LC 28 / 459 / 214 / 1392 / 686</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：next 是什么，为什么能"自己跟自己比"</h2>
+
+先把定义钉死。<code>next[i]</code> = 子串 <code>p[0..i]</code> 的<strong>最长相等真前后缀</strong>的长度。
+
+"<strong>真</strong>"字是关键：前后缀都<strong>不能是整个子串本身</strong>，长度必须严格小于 <code>i + 1</code>。正因为排除了"整串等于整串"这种平凡情况，<code>next[0] = 0</code> 是<strong>恒成立</strong>的（长度为 1 的子串不存在真前后缀）。
+<ul>
+<li><code>p[0..2] = "aba"</code>：前缀 <code>"a"</code> 与后缀 <code>"a"</code> 相等，长度 1 → <code>next[2] = 1</code>；</li>
+<li><code>p[0..3] = "abac"</code>：<code>"a"</code> 对 <code>"c"</code>、<code>"ab"</code> 对 <code>"ac"</code> 都不等 → <code>next[3] = 0</code>；</li>
+<li><code>p[0..6] = "abacaba"</code>：<code>"aba"</code> 前后都出现，长度 3 → <code>next[6] = 3</code>。</li>
+</ul>
+
+最直白的做法是：<strong>对每个 <code>i</code>，从大到小枚举前后缀长度试到相等为止</strong>。那是 O(n²) —— 对 <code>n</code> 个位置各扫一遍。KMP 的做法只有一句话：
+<blockquote>
+
+<strong>让模式串跟自己匹配</strong>：把 <code>p</code> 同时当成"主串"和"模式串"，<code>i</code> 在主串上走，<code>j</code> 记"已匹配的前缀长度"。
+</blockquote>
+<div class="codehilite"><pre><span></span><code><span class="k">next</span><span class="o">[</span><span class="n">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="err">:</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="n">且</span><span class="w"> </span><span class="n">p</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">p</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="err">:</span><span class="w">  </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">next</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="w">     </span><span class="err">#</span><span class="w"> </span><span class="n">失配</span><span class="err">：</span><span class="n">退到更短的候选前缀</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">p</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="err">:</span><span class="w">               </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">         </span><span class="err">#</span><span class="w"> </span><span class="n">相等</span><span class="err">：</span><span class="n">候选前缀再长一位</span>
+<span class="w">    </span><span class="k">next</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span>
+</code></pre></div>
+
+
+<code>j</code> 有<strong>两副面孔</strong>，理解这两副面孔，整段代码就不需要背：
+<ol>
+<li><strong>"已匹配前缀的长度"</strong> —— 进入比较前，恒有</li>
+</ol>
+
+<code>p[0 .. j-1]  ==  p[i-j .. i-1]</code>
+
+前 <code>j</code> 个字符与"紧挨着 <code>i</code> 之前的那 <code>j</code> 个字符"逐字相等。这条不变量是全部推导的地基。
+2. <strong>"下一个要和 <code>p[i]</code> 比的 p 下标"</strong> —— 因为前 <code>j</code> 个字符已经和 <code>p[i-j..i-1]</code> 对齐了，接下来自然该拿 <code>p[j]</code> 去接 <code>p[i]</code>。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">prefix_function</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="nb">next</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">j</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="k">while</span> <span class="n">j</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">p</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">p</span><span class="p">[</span><span class="n">j</span><span class="p">]:</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="nb">next</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>        <span class="c1"># 失配：退到「更短但仍接得上」的候选前缀</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">p</span><span class="p">[</span><span class="n">j</span><span class="p">]:</span>
+            <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>                 <span class="c1"># 相等：候选前缀再长一位</span>
+        <span class="nb">next</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">j</span>
+    <span class="k">return</span> <span class="nb">next</span>
+
+<span class="c1"># p = &quot;abacaba&quot; → [0, 0, 1, 0, 1, 2, 3]</span>
+</code></pre></div>
+
+
+三个细节决定了成败：
+<ol>
+<li><strong><code>next[0] = 0</code> 是定义、不用算</strong>：循环从 <code>i = 1</code> 开始，省掉一次无意义的比较。</li>
+<li><strong>回退读的是 <code>next[j-1]</code>，不是 <code>next[j]</code></strong>：<code>p[0..j-1]</code> 自身的最长相等前后缀（长度记在 <code>next[j-1]</code> 里）正是"接得上、又更短"的那个候选。用 <code>next[j]</code> 就错位了一格。</li>
+<li><strong>回退是 <code>while</code> 不是 <code>if</code></strong>：一次退不到底就要接着退。<code>i = 3</code> 那一帧只退了一次，但长串上可能连退好几次。</li>
+</ol>
+
+一句话记住这台机器：
+<blockquote>
+
+<strong><code>j</code> 是"已匹配前缀长度"，<code>p[0..j-1]</code> 与 <code>p[i-j..i-1]</code> 永远对齐；失配就沿 <code>next[j-1]</code> 往回收，相等就让 <code>j</code> 长一位，收尾把 <code>next[i] = j</code> 记下来。</strong>
+</blockquote>
+<h2>二、两种定义（面试第一坑）</h2>
+
+同一台机器，两种记账方式。<strong>先看表，再作答。</strong>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th></th>
+<th>本文 A：前缀函数</th>
+<th>另一种 B：严蔚敏《数据结构》风格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>next[0]</code></td>
+<td><code>0</code></td>
+<td><code>-1</code>（哨兵）</td>
+</tr>
+<tr>
+<td><code>next[i]</code> 的含义</td>
+<td><code>p[0..i]</code> 的最长相等真前后缀长度</td>
+<td><code>p[0..i-1]</code> 的最长相等真前后缀长度</td>
+</tr>
+<tr>
+<td><code>"abacaba"</code> 的结果</td>
+<td><code>[0,0,1,0,1,2,3]</code></td>
+<td><code>[-1,0,0,1,0,1,2]</code></td>
+</tr>
+</tbody>
+</table></div>
+
+两者的关系干净得只有一句话：
+<div class="codehilite"><pre><span></span><code>B = [-1] + A[0 .. n-2]
+</code></pre></div>
+
+
+也就是把 A <strong>整体右移一格</strong>，再在首位补一个 <code>-1</code>。逐项验证：<code>B[1] = A[0] = 0</code>、<code>B[2] = A[1] = 0</code>、<code>B[3] = A[2] = 1</code> …… 一直到 <code>B[6] = A[5] = 2</code>，正好是 <code>[-1,0,0,1,0,1,2]</code>。
+
+为什么会有人用 B？因为它把"<strong>失配时 j 该退到哪</strong>"直接编进了数组：
+<ul>
+<li>用 <strong>A</strong> 时，失配后的动作是 <code>j = next[j-1]</code>（退完再比，<code>j</code> 可能落到 0）；</li>
+<li>用 <strong>B</strong> 时，失配后的动作是 <code>j = next[j]</code>，而 <code>B[0] = -1</code> 这个哨兵顺手把"已经退无可退"也表达出来了。</li>
+</ul>
+
+代价是 B 在下标上多绕一层：<code>B[i]</code> 描述的是 <code>p[0..i-1]</code>，而 A 的 <code>A[i]</code> 描述的就是 <code>p[0..i]</code> 自己。
+
+结论只有一条：<strong>开口先问"您用的是哪种定义"，再动手</strong>。可以用这一句把主动权拿回来 ——
+<blockquote>
+
+"next 有两种常见定义：一种是前缀函数，<code>next[i]</code> 是 <code>p[0..i]</code> 的最长相等真前后缀，<code>next[0] = 0</code>，答案是 <code>[0,0,1,0,1,2,3]</code>；另一种首项取 <code>-1</code>，<code>next[i]</code> 描述 <code>p[0..i-1]</code>，答案是 <code>[-1,0,0,1,0,1,2]</code>。两者只差一次整体移位。我按前一种讲，需要的话可以立刻换成后一种。"
+</blockquote>
+<h2>三、动画怎么看</h2>
+<div class="algo-viz algo-viz--kmp"></div>
+
+<div class="algo-viz algo-viz--kmpmatch"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--kmp</code>）：上面一行是模式串 <code>p</code> 的格子（每格一个字符 + 下标），紧挨着下面一行是 <code>next</code> 数组 —— 还没算出来的格子画成<strong>虚线框 + 灰点</strong>，算出来的染绿。<code>p</code> 行下挂三枚 chip：橙色 <code>i</code> 指当前字符，金色 <code>j</code> 指"已匹配前缀长度"（也就是下一个要跟 <code>p[i]</code> 比的下标），回退帧再多一枚绿 <code>j</code> 落到新位置。每帧一条动作：比较帧把 <code>p[i]</code>、<code>p[j]</code> 描橙框（相等则染绿），并把<strong>已匹配的那一段前后缀</strong>（<code>p[0..j-1]</code> 与 <code>p[i-j..i-1]</code>）整段刷绿；回退帧用一条<strong>虚线从 <code>p[j]</code> 连到 <code>next[j-1]</code> 那一格</strong>；落定帧把 <code>next[i]</code> 染金。下方是横幅 + 五项统计面板（<code>i</code> / <code>j</code> / 比较次数 / 回退次数 / 已定 next）+ 状态行。
+
+盯住三件事：<strong>比较帧里 <code>j</code> 一动不动</strong> —— <code>j</code> 的进退只在落定帧发生；<strong>回退帧是唯一让 <code>j</code> 变小的时刻</strong>，且它读的一定是 <code>next[j-1]</code> 那一格（虚线指过去的就是它）；以及<strong><code>next[0] = 0</code> 那一格从一开始就是绿的</strong> —— 它是定义，不是算出来的。默认 16 帧走完，<code>next = [0, 0, 1, 0, 1, 2, 3]</code>，全程 7 次比较、1 次回退。
+
+<strong>动画二</strong>（<code>algo-viz--kmpmatch</code>）：主串 <code>text</code> 一行、模式串 <code>p</code> 一行，<code>p</code> <strong>整行按 <code>j</code> 滑动对齐</strong> —— 于是 <code>p[j]</code> 恰好落在 <code>text[i]</code> 正下方，"已匹配前缀"整段对齐一目了然。比较帧把 <code>text[i]</code>、<code>p[j]</code> 描橙框（相等染绿）；回退帧在 <code>p</code> 行画一条<strong>虚线弧</strong>从旧 <code>j</code> 指到新 <code>j</code>，同时<strong>把 <code>text[i]</code> 的橙框留在原地</strong> —— 这就是"<code>i</code> 不动"的视觉证据；命中帧把 <code>text[index..index+n-1]</code> 与整条 <code>p</code> 染金。面板五项是 <code>i</code> / <code>j</code> / KMP 比较 / 暴力比较 / 命中下标，其中"暴力比较"是同一输入上暴力匹配<strong>要花的总次数</strong>（静态算出来的参照系），整局不变。
+
+两个动画分工明确：动画一<strong>算表</strong>（把 next 一个字一个字顶出来），动画二<strong>用表</strong>（拿这张 next 去 <code>text</code> 里找 <code>p</code>，并把 KMP 与暴力的账现场对一遍）。
+<h2>四、完整推演表</h2>
+
+<strong>动画一</strong>：<code>p = "abacaba"</code>（<code>n = 7</code>），逐帧走一遍。每条 <code>i</code> 一行的"动作序列"就是那几帧。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th><code>i</code></th>
+<th><code>p[i]</code></th>
+<th>本帧动作</th>
+<th><code>j</code> 收尾</th>
+<th><code>next[i]</code></th>
+<th>累计比较 / 回退</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>—</td>
+<td>—</td>
+<td><code>next[0] = 0</code>（定义，不算）</td>
+<td>0</td>
+<td>0</td>
+<td>0 / 0</td>
+</tr>
+<tr>
+<td>1</td>
+<td>b</td>
+<td>比 <code>p[0] = 'a'</code> 不等；<code>j</code> 已是 0，无处可退</td>
+<td>0</td>
+<td><strong>0</strong></td>
+<td>1 / 0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>a</td>
+<td>比 <code>p[0] = 'a'</code> 相等 → <code>j</code> 前进一位</td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td>2 / 0</td>
+</tr>
+<tr>
+<td>3</td>
+<td>c</td>
+<td>比 <code>p[1] = 'b'</code> 不等 → <strong>回退 <code>j = next[0] = 0</code></strong>；再比 <code>p[0] = 'a'</code> 不等</td>
+<td>0</td>
+<td><strong>0</strong></td>
+<td>4 / 1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>a</td>
+<td>比 <code>p[0] = 'a'</code> 相等 → <code>j</code> 前进一位</td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td>5 / 1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>b</td>
+<td>比 <code>p[1] = 'b'</code> 相等 → <code>j</code> 前进一位</td>
+<td>2</td>
+<td><strong>2</strong></td>
+<td>6 / 1</td>
+</tr>
+<tr>
+<td>6</td>
+<td>a</td>
+<td>比 <code>p[2] = 'a'</code> 相等 → <code>j</code> 前进一位</td>
+<td>3</td>
+<td><strong>3</strong></td>
+<td>7 / 1</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>i = 3</code> 是全程唯一的回退帧：<code>p[3] = 'c'</code> 撞上 <code>p[1] = 'b'</code>，<code>j</code> 从 1 退到 <code>next[0] = 0</code>，换了条更短的候选前缀接着比。它退不下去（<code>j</code> 已到 0）才定 <code>next[3] = 0</code>。
+
+最终表：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th><code>i</code></th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+<th>6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p[i]</code></td>
+<td>a</td>
+<td>b</td>
+<td>a</td>
+<td>c</td>
+<td>a</td>
+<td>b</td>
+<td>a</td>
+</tr>
+<tr>
+<td><code>next[i]</code></td>
+<td><strong>0</strong></td>
+<td><strong>0</strong></td>
+<td><strong>1</strong></td>
+<td><strong>0</strong></td>
+<td><strong>1</strong></td>
+<td><strong>2</strong></td>
+<td><strong>3</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+转换成"首项 <code>-1</code>"的定义：<code>B = [-1] + A[0..5] = [-1, 0, 0, 1, 0, 1, 2]</code>。
+
+<strong>动画二</strong>：主串 <code>text = "abababacaba"</code>（<code>m = 11</code>），模式串 <code>p = "abacaba"</code>（<code>n = 7</code>），借动画一算好的 <code>next = [0, 0, 1, 0, 1, 2, 3]</code>。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th><code>i</code></th>
+<th><code>text[i]</code></th>
+<th><code>text[i]</code> vs <code>p[j]</code></th>
+<th><code>j</code> 前 → 后</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>a</td>
+<td>vs <code>p[0] = 'a'</code> 相等</td>
+<td>0 → 1</td>
+<td>起步</td>
+</tr>
+<tr>
+<td>1</td>
+<td>b</td>
+<td>vs <code>p[1] = 'b'</code> 相等</td>
+<td>1 → 2</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>a</td>
+<td>vs <code>p[2] = 'a'</code> 相等</td>
+<td>2 → 3</td>
+<td>已匹配 <code>"aba"</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>b</td>
+<td>vs <code>p[3] = 'c'</code> 不等 → 回退 <code>j = next[2] = 1</code>；再 vs <code>p[1] = 'b'</code> 相等</td>
+<td>3 → 2</td>
+<td>第 1 次回退，<code>i</code> 不动</td>
+</tr>
+<tr>
+<td>4</td>
+<td>a</td>
+<td>vs <code>p[2] = 'a'</code> 相等</td>
+<td>2 → 3</td>
+<td></td>
+</tr>
+<tr>
+<td>5</td>
+<td>b</td>
+<td>vs <code>p[3] = 'c'</code> 不等 → 回退 <code>j = next[2] = 1</code>；再 vs <code>p[1] = 'b'</code> 相等</td>
+<td>3 → 2</td>
+<td>第 2 次回退</td>
+</tr>
+<tr>
+<td>6</td>
+<td>a</td>
+<td>vs <code>p[2] = 'a'</code> 相等</td>
+<td>2 → 3</td>
+<td></td>
+</tr>
+<tr>
+<td>7</td>
+<td>c</td>
+<td>vs <code>p[3] = 'c'</code> 相等</td>
+<td>3 → 4</td>
+<td></td>
+</tr>
+<tr>
+<td>8</td>
+<td>a</td>
+<td>vs <code>p[4] = 'a'</code> 相等</td>
+<td>4 → 5</td>
+<td></td>
+</tr>
+<tr>
+<td>9</td>
+<td>b</td>
+<td>vs <code>p[5] = 'b'</code> 相等</td>
+<td>5 → 6</td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td>a</td>
+<td>vs <code>p[6] = 'a'</code> 相等</td>
+<td>6 → 7 = n</td>
+<td><strong>命中</strong>，<code>index = 10 - 7 + 1 = 4</code></td>
+</tr>
+</tbody>
+</table></div>
+
+两次回退都发生在"<code>text</code> 里 <code>b</code> 撞上 <code>p[3] = 'c'</code>"的位置上。注意 <code>j</code> <strong>退而不乱</strong>：退到 1 之后立刻用 <code>p[1] = 'b'</code> 接住了同一个 <code>text[i] = 'b'</code>，一步没白走 —— 省下的正是 <code>p[0..2] = "aba"</code> 这个已匹配段里<strong>本来就藏着的相等前后缀</strong>（<code>"a"</code>）。
+
+账本对比（同一输入，暴力循环到命中为止）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>起点 <code>s</code></th>
+<th>暴力比较过程</th>
+<th>次数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>a 相等、b 相等、a 相等、b 撞 c 不等</td>
+<td>4</td>
+</tr>
+<tr>
+<td>1</td>
+<td>b 撞 a 不等</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>a 相等、b 相等、a 相等、b 撞 c 不等</td>
+<td>4</td>
+</tr>
+<tr>
+<td>3</td>
+<td>b 撞 a 不等</td>
+<td>1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>七个字符全相等 → 命中</td>
+<td>7</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td></td>
+<td><strong>17</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+KMP 只用 <strong>13</strong> 次比较就拿到同一个答案 <code>index = 4</code>。省下的是 <code>s = 1</code>、<code>s = 3</code> 那两次"从头重比"，以及 <code>s = 2</code> 时不用重比 <code>"ab"</code>。规模上的差别会随串长放大：<code>text = "aaaa…ab"</code>、<code>p = "aaaa…a"</code> 是经典最坏例，暴力每个起点都要比到最后一个字符，总共 O(n × m) 级；KMP 因为 <code>i</code> 一路向前，一趟就走完。
+<h2>五、同族题：LC 28 / 459 / 214 / 1392 / 686</h2>
+
+KMP 的全部内容其实就是 <strong>"一张 next 表 + 一次永不回头的扫描"</strong>。同一副骨架换个问法，就是一条完整的题链：
+<ul>
+<li><strong>LC 28 找出字符串中第一个匹配项的下标（<code>strStr()</code>）</strong>：就是<strong>动画二</strong>本身，标准库里的 <code>indexOf</code> 底层。<strong>最经典的同族。</strong></li>
+<li><strong>LC 459 重复的子字符串</strong>：不用真的去匹配，直接看 next —— <code>n</code> 能被周期周长整除时成立，判据是 <code>n % (n - next[n-1]) == 0</code> <strong>且</strong> <code>next[n-1] &gt; 0</code>。它问的是"next 表<strong>结构</strong>说明了什么"。</li>
+<li><strong>LC 214 最短回文串</strong>：把 <code>s + '#' + reverse(s)</code> 拼起来求 next，最长回文前缀的长度就是 <code>next</code> 最后一项 —— 换的是"用 next 找最长回文前缀"。</li>
+<li><strong>LC 1392 最长快乐前缀</strong>：字面定义就是 <code>next[n-1]</code>（既是前缀又是后缀的最长子串），一条 next 直接交卷。</li>
+<li><strong>LC 686 重复叠加字符串匹配</strong>：允许把 <code>a</code> 重复叠加若干次再匹配 <code>b</code>，匹配次数上界由长度关系定死 —— 换的是"主串可以现场构造"。</li>
+</ul>
+
+把它们排成一列看：<strong>"表"永远是 next 表（或它的变体 Z 函数、失配后的 border 链）；"用"永远是一次不回头的扫描；而问题可以问"第几处出现"、"能不能由周期拼成"、"最长回文前缀多长"、"最长的既是前缀又是后缀的子串"。</strong> next 表只是这条坐标轴上一个入口。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 动画一的骨架：求 next 数组（前缀函数）—— 与推演表逐帧一致</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">prefixFunction</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 失配：退到更短、但仍接得上的候选前缀</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">j</span><span class="o">++</span><span class="p">;</span><span class="w">                             </span><span class="c1">// 相等：候选前缀再长一位</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">next</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="p">;</span><span class="w">                         </span><span class="c1">// 落定，j 也顺手成了下一个「已匹配长度」</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 动画二：用 next 在 text 里找 p 的第一次出现，返回起点下标，找不到 -1</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">strStr</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">text</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">text</span><span class="p">.</span><span class="na">length</span><span class="p">(),</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefixFunction</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">text</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 失配：主串指针 i 一动不动，只回退 j</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">text</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">j</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                </span><span class="c1">// 命中：起点 = i - n + 1</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w">                               </span><span class="c1">// 扫完未命中</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">prefixFunction</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">next</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+顺手把"首项 <code>-1</code>"的定义也写出来 —— 一旦面试官说"我用的是 <code>-1</code> 那版"，改的就是<strong>两处下标</strong>：
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 另一种定义：next[0] = -1，语义是「p[0..i-1] 的最长相等真前后缀长度」</span>
+<span class="w">    </span><span class="c1">// 关系：B = [-1] + A[0 .. n-2]，即 B[i] = A[i-1]</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">prefixFunctionNegOne</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">b</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w">                               </span><span class="c1">// 哨兵</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">;</span><span class="w">                        </span><span class="c1">// 注意：退到 b[j]，不是 b[j-1]</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">j</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">b</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">b</span><span class="p">;</span><span class="w">                                </span><span class="c1">// &quot;abacaba&quot; → [-1, 0, 0, 1, 0, 1, 2]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+两个写法值得单独对比着记：A 版的下标是"<strong>长度</strong>"（<code>j</code> 就是已匹配前缀的长度，<code>p[j]</code> 是下一个待比字符），B 版的下标是"<strong>位置</strong>"（<code>j</code> 指向最后一个已匹配字符，<code>p[j + 1]</code> 才是待比字符）。<strong>但两条串出来的表只差一次整体移位</strong>。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>单字符串</strong>：<code>p = "a"</code> → <code>next = [0]</code>。长度为 1 没有真前后缀，<code>next[0]</code> 永远是 0，一行代码都不用跑。</li>
+<li><strong>全同串</strong>：<code>p = "aaaa"</code> → <code>next = [0, 1, 2, 3]</code>。每多一个字符，前后缀长度就长一位，<code>j</code> 一路自增、一次回退也没有。</li>
+<li><strong>完全无相等前后缀</strong>：<code>p = "abcd"</code> → <code>next = [0, 0, 0, 0]</code>。<code>j</code> 每次都在"退到 0 之后仍不等"里收场。</li>
+<li><strong><code>next[i]</code> 的上界是 <code>i</code></strong>：因为"真"排除了整串本身。若某个实现算出 <code>next[i] = i + 1</code>，说明"真"这个约束被漏掉了。</li>
+<li><strong>匹配未命中 → 返回 <code>-1</code></strong>：不是"返回 0"，也不是"返回最后一个位置"。<code>j</code> 从头到尾没到过 <code>n</code>，就是 <code>-1</code>。</li>
+<li><strong>模式串比主串长</strong>：<code>n &gt; m</code> 直接不可能命中（除了 <code>n = 0</code> 的退化情形），循环会自然扫空。</li>
+<li><strong>空模式串</strong>：约定 <code>n = 0</code> 时 <code>strStr</code> 返回 0（空串是任何串的前缀），<code>next</code> 是空数组。面试里属于"要先跟面试官对齐"的约定项。</li>
+<li><strong><code>text</code> 与 <code>p</code> 有非 ASCII 字符</strong>：<code>charAt</code> 按 UTF-16 码元比较，对 BMP 内的字符没问题；超出 BMP 的字符要按码点遍历。这是实现层的坑，不是算法本身的坑。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>写法</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>求 next：自己跟自己匹配（动画一）</td>
+<td><code>O(n)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+<tr>
+<td>KMP 匹配：<code>text</code> 里找 <code>p</code>（动画二）</td>
+<td><code>O(n + m)</code></td>
+<td><code>O(n)</code>（存 next）</td>
+</tr>
+<tr>
+<td>暴力匹配：每个起点从头重比</td>
+<td><code>O(n × m)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>暴力求 next：对每个 <code>i</code> 枚举前后缀长度</td>
+<td><code>O(n²)</code></td>
+<td><code>O(n)</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<code>n</code> 是模式串长度、<code>m</code> 是主串长度。<code>O(n)</code> 这一步的论证是<strong>均摊</strong>的，值得背下来：
+<blockquote>
+
+<code>j</code> 在每一轮循环里<strong>最多自增 1</strong>（只在 <code>if</code> 相等那一支），所以整个循环里 <code>j</code> 的自增总量不超过 <code>n</code>；而 <code>j</code> 的回退是把自增值<strong>还回去</strong>，总量自然也不超过自增总量。于是 <code>while</code> 的总执行次数是 <code>O(n)</code> —— 单次循环最坏能退到 0，但<strong>整轮加起来</strong>是线性的。
+</blockquote>
+
+匹配段同理：<code>i</code> 只增不减（<code>m</code> 步），<code>j</code> 的回退总量不超过它在匹配过程中自增的总量（<code>≤ m</code>），所以 <code>O(n + m)</code>。
+<h2>九、常见坑</h2>
+<ol>
+<li><strong>漏掉"真"字</strong>：把子串本身也算作前后缀，<code>next[i]</code> 会变成 <code>i + 1</code>，回退逻辑随之死循环。<strong>本题的头号坑</strong> —— 定义里"真"这个约束就是全部。</li>
+<li><strong>回退写成 <code>j = next[j]</code>（本文 A 定义下）</strong>：应该读 <code>next[j-1]</code>。差这一格会让 <code>j</code> 退到错误的候选上，答案整体错位。</li>
+<li><strong>回退用 <code>if</code> 而不是 <code>while</code></strong>：一次退不干净。<code>i = 3</code> 那帧只退一次只是巧合，长串上可能连退多次才落定。</li>
+<li><strong>两种定义混着写</strong>：A 版的比较对象是 <code>p[j]</code>、回退读 <code>next[j-1]</code>；B 版比较对象是 <code>p[j+1]</code>、回退读 <code>next[j]</code>。混用会同时错掉比较和回退两处。</li>
+<li><strong>匹配时让 <code>i</code> 回退</strong>：一旦写 <code>i = i - j + 1</code> 重来，就退化成暴力 <code>O(n × m)</code>，KMP 的唯一价值（<code>i</code> 永不回头）当场归零。</li>
+<li><strong>每轮都重算一遍 next</strong>：next 只依赖模式串，<strong>算一次反复用</strong>。匹配过程里重算是最常见的一种"白送复杂度"。</li>
+<li><strong><code>next</code> 数组下标越界</strong>：求 next 时 <code>j &lt; i ≤ n - 1</code>，<code>p[j]</code> 安全；匹配时若 <code>j</code> 已等于 <code>n</code> 还去读 <code>p[j]</code> 就越界了 —— 命中判定要在读之前做。</li>
+<li><strong>把 <code>next[i]</code> 理解成"<code>p[0..i-1]</code>"</strong>：那是 B 定义。本文 A 定义下 <code>next[i]</code> 描述的就是 <code>p[0..i]</code> 自己。</li>
+</ol>
+<h2>十、面试怎么答</h2>
+
+<strong>第一段 · 先问定义</strong>：开口就确认用哪种 —— "前缀函数定义下 <code>next[i]</code> 是 <code>p[0..i]</code> 的最长相等真前后缀、<code>next[0] = 0</code>，答案是 <code>[0,0,1,0,1,2,3]</code>；若用首项 <code>-1</code> 的那版，答案是 <code>[-1,0,0,1,0,1,2]</code>，两者差一次整体移位。"这一句既展示了你<strong>知道有两种定义</strong>，又把选择权交回给面试官。
+
+<strong>第二段 · 讲清机器</strong>：<code>next[0] = 0</code> 是定义；从 <code>i = 1</code> 起"<strong>自己跟自己匹配</strong>" —— <code>j</code> 既是"已匹配前缀长度"，也是"下一个要跟 <code>p[i]</code> 比的下标"；不变量是 <code>p[0..j-1]</code> 与 <code>p[i-j..i-1]</code> 逐字相等；失配就 <code>while</code> 沿 <code>next[j-1]</code> 往回收，相等就让 <code>j</code> 前进一步；收尾 <code>next[i] = j</code>。
+
+<strong>第三段 · 说清复杂度为什么是线性的</strong>：<code>j</code> 每次最多自增 1，回退只是把自增值还回去，<strong>均摊</strong>下来 <code>while</code> 的总步数是 O(n)。匹配段同理，<code>i</code> 只增不减，于是 <code>O(n + m)</code>。
+
+<strong>追问连跳</strong>：
+- 把"求 next"换成"<strong>在主串里找第一次出现</strong>" → LC 28 <code>strStr()</code>，动画二；
+- 问"能不能由某个子串重复拼成" → LC 459，判据 <code>n % (n - next[n-1]) == 0</code>；
+- 问"<strong>最长回文前缀</strong>" → LC 214，把 <code>s + '#' + reverse(s)</code> 求 next；
+- 问"<strong>最长的既前缀又后缀的子串</strong>" → LC 1392，答案就是 <code>next[n-1]</code>；
+- 问"主串可以现场叠加" → LC 686。
+
+一句话收尾："KMP 只有一台机器 —— <strong>一张 next 表 + 一次永不回头的扫描</strong>。next 是'自己跟自己匹配'攒出来的边界信息，扫描时靠它把'已匹配段里本来就有的相等前后缀'直接兑现，于是 <code>i</code> 永不回退、总代价 <code>O(n + m)</code>。<strong>两种定义只是同一张表的两种记账方式</strong>：<code>B = [-1] + A[0..n-2]</code>。"
+<h2>结语</h2>
+
+这道题的"难"不在代码 —— 模板只有六行 —— 而在<strong>定义</strong>。<code>next[i]</code> 描述的到底是 <code>p[0..i]</code> 还是 <code>p[0..i-1]</code>、首位是 <code>0</code> 还是 <code>-1</code>，这两问决定了报出来的数字是 <code>[0,0,1,0,1,2,3]</code> 还是 <code>[-1,0,0,1,0,1,2]</code>。<strong>面试里先把定义问清楚，再动手</strong>，比背模板有用得多。
+
+剩下的一件事就是把"自己跟自己比"这句话真正看懂：<code>j</code> 一边记着"已匹配前缀长度"，一边示意"下一个要跟谁比"；失配时沿 <code>next[j-1]</code> 往回收，收的是更短但仍接得上的候选。等这张表攒完，拿它去 <code>text</code> 里扫一遍，<code>i</code> 一次都不用回头 —— <code>O(n)</code> 攒表、<code>O(n + m)</code> 匹配，KMP 买到的就是这两件事。
+
+下一篇见。]]></content:encoded>
+    </item>
     <item>
       <title>【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</title>
       <link>https://zhoujungis.github.io/article/lc-1928-min-cost/</link>
@@ -2009,337 +2601,6 @@ Python 和 JavaScript 不用操心这两点（任意精度 / 双精度在 2^53 �
       <category>LeetCode</category>
       <category>动态规划</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-
-给一个 <code>M x N</code> 的矩阵，从 <code>1</code> 开始<strong>逆时针螺旋</strong>填入 / 打印这 <code>M x N</code> 个数，要求时间复杂度尽可能低。
-
-面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话：<strong>向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。</strong>
-
-在写任何代码之前，有一件事必须先对齐 —— 口径。
-<ul>
-<li><a href="#section-1">一、核心洞察：先把"逆时针"的口径对齐</a></li>
-<li><a href="#section-2">二、拆解：四边界收缩</a></li>
-<li><a href="#section-3">三、动画怎么看</a></li>
-<li><a href="#section-4">四、完整推演表</a></li>
-<li><a href="#section-5">五、进阶：撞墙变向法与真逆时针</a></li>
-<li><a href="#section-6">六、Java 版</a></li>
-<li><a href="#section-7">七、边界情况</a></li>
-<li><a href="#section-8">八、复杂度</a></li>
-<li><a href="#section-9">九、常见坑</a></li>
-<li><a href="#section-10">十、面试怎么答</a></li>
-</ul>
-<h2>一、核心洞察：先把"逆时针"的口径对齐</h2>
-
-这是本题最大的坑，而且它不在代码里，在<strong>名词定义</strong>里。
-
-从左上角出发，第一行只能向右走完（顶边没有向上的空间），所以第二个方向必然是向下。于是「右、下、左、上」这个顺序，<strong>几何上画出来是顺时针</strong>（1→2→3 沿顶边、4→5 沿右边、6→7 沿底边、8 沿左边）。但大量面经和教材把这一套叫作「逆时针螺旋」—— LeetCode 54（螺旋矩阵）和 59（螺旋矩阵 II）用的都是它。
-
-真正的逆时针是「<strong>下、右、上、左</strong>」：从左上角先往下走，再沿底边向右，再沿右边向上，最后沿顶边向左。
-
-两个顺序在<strong>方阵</strong>下恰好互为转置（3×3 成立，非方阵不成立 —— 这点我验证过，见第四节）。所以它们不是"对错"关系，是"两套都合法、命名混乱"的关系。
-<blockquote>
-
-面试里的正确动作：<strong>先问一句"方向顺序是右下上左还是下右上左"，或者直接声明"我按右下上左，LC 54 那一套"。</strong> 把口径钉死再写码，比写完再返工省一半时间。这篇文章两个顺序都实现、都做成了动画，你可以直接对照着看。
-</blockquote>
-<h2>二、拆解：四边界收缩</h2>
-
-最稳的写法是维护四条边界，逐圈向内收缩：
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
-    <span class="n">grid</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
-    <span class="n">top</span><span class="p">,</span> <span class="n">bottom</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cols</span> <span class="o">-</span> <span class="mi">1</span>
-    <span class="n">num</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="k">while</span> <span class="n">top</span> <span class="o">&lt;=</span> <span class="n">bottom</span> <span class="ow">and</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
-        <span class="c1"># 1) 顶边：向右</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-            <span class="n">grid</span><span class="p">[</span><span class="n">top</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
-            <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="n">top</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="c1"># 2) 右边：向下</span>
-        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">top</span><span class="p">,</span> <span class="n">bottom</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-            <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">right</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
-            <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
-        <span class="c1"># 3) 底边：向左 —— 守卫：只剩一行时不能再扫</span>
-        <span class="k">if</span> <span class="n">top</span> <span class="o">&lt;=</span> <span class="n">bottom</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">left</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
-                <span class="n">grid</span><span class="p">[</span><span class="n">bottom</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
-                <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">bottom</span> <span class="o">-=</span> <span class="mi">1</span>
-        <span class="c1"># 4) 左边：向上 —— 守卫：只剩一列时不能再扫</span>
-        <span class="k">if</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">bottom</span><span class="p">,</span> <span class="n">top</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
-                <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">left</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
-                <span class="n">num</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="k">return</span> <span class="n">grid</span>
-</code></pre></div>
-
-
-两个 <code>if</code> 守卫是全部难点所在。它们防的不是"越界"（<code>range</code> 自己会处理），而是<strong>重复写入</strong>：当剩余区域退化成一整行或一整整列时，第三条边和第一条边是同一批格子，第四条边和第二条边也是。
-
-漏掉守卫的确切症状（脚本实测，不是印象）：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>形状</th>
-<th>漏守卫的输出</th>
-<th>正确输出</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>3 x 3</code></td>
-<td><code>[[1,2,3],[8,9,4],[7,6,5]]</code></td>
-<td>相同 —— <strong>看不出来</strong></td>
-</tr>
-<tr>
-<td><code>2 x 3</code></td>
-<td><code>[[1,2,3],[6,5,4]]</code></td>
-<td>相同 —— <strong>也看不出来</strong></td>
-</tr>
-<tr>
-<td><code>1 x 3</code></td>
-<td><code>[[5,4,3]]</code></td>
-<td><code>[[1,2,3]]</code></td>
-</tr>
-<tr>
-<td><code>3 x 1</code></td>
-<td><code>[[1],[4],[3]]</code></td>
-<td><code>[[1],[2],[3]]</code></td>
-</tr>
-</tbody>
-</table></div>
-
-注意这个规律：<strong>方阵和"矮胖/瘦高但每边至少 2"的形状全都正常，只有退化到单行或单列时才炸</strong> —— 而且炸的方式是"后来的数字覆盖先前的"，1 和 2 直接消失。很多面经笼统说"非方阵会错"，不准确；<code>2 x 3</code> 就好好的。要测就测 <code>1 x N</code> 和 <code>N x 1</code>。
-<div class="algo-viz algo-viz--spiral"></div>
-
-<h2>三、动画怎么看</h2>
-
-动画用主例 <code>3 x 3</code>、方向顺序「右、下、左、上」，11 帧走完：
-<ul>
-<li><strong>网格</strong>：已填格显示数字，正在填的格子橙框，未填格虚线空壳；</li>
-<li><strong>方向箭头</strong>：画在当前格的外侧，指向本帧的推进方向 —— 撞到未填区域边缘就转向；</li>
-<li><strong>绿色虚线框</strong>：<strong>本圈</strong>的边界（动画里四边界按圈固定，不会中途跳动）；</li>
-<li><strong>右侧面板</strong>：四个方向小方块（当前方向高亮）、已填 <code>n / 9</code>、四个边界值。</li>
-</ul>
-
-教科书帧是第 4 帧：<code>1 2 3</code> 填完、<code>top</code> 内推成 1，箭头从"向右"转成"向下"，绿框还是本圈的 <code>上0 / 下2 / 左0 / 右2</code>。第 9 帧是第二圈，边界收缩成 <code>上1 / 下1 / 左1 / 右1</code>，只剩中心一格。
-<h2>四、完整推演表</h2>
-
-<code>3 x 3</code>，方向顺序「右、下、左、上」（对应动画的 9 个填数帧）：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>次序</th>
-<th>格子</th>
-<th>方向</th>
-<th>本圈边界（上/下/左/右）</th>
-<th>矩阵</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>(0,0)</td>
-<td>向右</td>
-<td>0/2/0/2</td>
-<td><code>1 . .</code></td>
-</tr>
-<tr>
-<td>2</td>
-<td>(0,1)</td>
-<td>向右</td>
-<td>0/2/0/2</td>
-<td><code>1 2 .</code></td>
-</tr>
-<tr>
-<td>3</td>
-<td>(0,2)</td>
-<td>向右</td>
-<td>0/2/0/2</td>
-<td><code>1 2 3</code></td>
-</tr>
-<tr>
-<td>4</td>
-<td>(1,2)</td>
-<td>向下</td>
-<td>0/2/0/2</td>
-<td><code>1 2 3 / . . 4</code></td>
-</tr>
-<tr>
-<td>5</td>
-<td>(2,2)</td>
-<td>向下</td>
-<td>0/2/0/2</td>
-<td><code>1 2 3 / . . 4 / . . 5</code></td>
-</tr>
-<tr>
-<td>6</td>
-<td>(2,1)</td>
-<td>向左</td>
-<td>0/2/0/2</td>
-<td><code>1 2 3 / . . 4 / . 6 5</code></td>
-</tr>
-<tr>
-<td>7</td>
-<td>(2,0)</td>
-<td>向左</td>
-<td>0/2/0/2</td>
-<td><code>1 2 3 / . . 4 / 7 6 5</code></td>
-</tr>
-<tr>
-<td>8</td>
-<td>(1,0)</td>
-<td>向上</td>
-<td>0/2/0/2</td>
-<td><code>1 2 3 / 8 . 4 / 7 6 5</code></td>
-</tr>
-<tr>
-<td>9</td>
-<td>(1,1)</td>
-<td>向右</td>
-<td>1/1/1/1</td>
-<td><code>1 2 3 / 8 9 4 / 7 6 5</code></td>
-</tr>
-</tbody>
-</table></div>
-
-终局就是九宫格的标准答案 <code>[[1,2,3],[8,9,4],[7,6,5]]</code>。
-
-换成「下、右、上、左」（真逆时针）：
-<div class="codehilite"><pre><span></span><code><span class="mf">1</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="mf">7</span>
-<span class="mf">2</span><span class="w"> </span><span class="mf">9</span><span class="w"> </span><span class="mf">6</span>
-<span class="mf">3</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="mf">5</span>
-</code></pre></div>
-
-
-<strong>它恰好是上面那个矩阵的转置。</strong> 这个关系在方阵下恒成立（我用 3×3 验证过），但<strong>非方阵不成立</strong> —— <code>2 x 3</code> 时前者是 <code>[[1,2,3],[6,5,4]]</code>、后者是 <code>[[1,6,5],[2,3,4]]</code>，完全不同的两个矩阵。所以"逆时针就是顺时针转个置"这个说法，只在方阵面试题里碰巧对。
-<div class="algo-viz algo-viz--spiralccw"></div>
-
-
-第二个动画就是「下、右、上、左」这一套，同一个状态机换了个方向顺序 —— 你可以直接对照两套动画，确认"口径"到底差在哪。
-<h2>五、进阶：撞墙变向法与真逆时针</h2>
-
-另一条实现路线是<strong>方向向量 + 撞墙变向</strong>：维护一个方向序列，每步先试探下一格，撞到边界或已填格子就换下一个方向。
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
-    <span class="n">dirs</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>   <span class="c1"># 右下上左</span>
-    <span class="n">seen</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
-    <span class="n">grid</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">cols</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)]</span>
-    <span class="n">r</span> <span class="o">=</span> <span class="n">c</span> <span class="o">=</span> <span class="n">d</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">rows</span> <span class="o">*</span> <span class="n">cols</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-        <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span>
-        <span class="n">seen</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">rows</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">cols</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">seen</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]):</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span>
-            <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dirs</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span>
-    <span class="k">return</span> <span class="n">grid</span>
-</code></pre></div>
-
-
-换方向顺序只要改 <code>dirs</code> 一行 —— 这也是本文两个动画能共用一套状态机的原因。代价是 <code>seen</code> 数组：<strong>额外空间 O(M x N)</strong>，而四边界收缩法只要 O(1)。想省空间就用边界法，想要代码短、方向好换就用撞墙法。
-
-<strong>"打印"是同一件事</strong>：如果题目只要求按螺旋顺序打印、不要求返回矩阵，把 <code>grid[r][c] = num</code> 换成 <code>print(num)</code> 就行，遍历顺序一字不改。别为"打印"单独写一套逻辑。
-<h2>六、Java 版</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">spiral</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">rows</span><span class="o">][</span><span class="n">cols</span><span class="o">]</span><span class="p">;</span>
-<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">top</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">top</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">top</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
-<span class="w">        </span><span class="n">top</span><span class="o">++</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">right</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
-<span class="w">        </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
-<span class="w">        </span><span class="c1">// 守卫：只剩一行时不能再向左扫，否则覆盖已填的值</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">top</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">bottom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">right</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">bottom</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
-<span class="w">            </span><span class="n">bottom</span><span class="o">--</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="c1">// 守卫：只剩一列时不能再向上扫</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bottom</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="o">++</span><span class="p">;</span>
-<span class="w">            </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">grid</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-想换成真逆时针，把四个循环块按「下、右、上、左」重排即可，两个守卫的位置跟着一起换。撞墙变向的 Java 版就是把 <code>dirs</code> 写成 <code>int[][] dirs = {{1,0},{0,1},{-1,0},{0,-1}}</code> 再配一个 <code>boolean[][] seen</code>。
-<h2>七、边界情况</h2>
-<ul>
-<li><strong><code>1 x 1</code></strong>：输出 <code>[[1]]</code>，循环跑一轮就结束，两个守卫都不触发。</li>
-<li><strong><code>1 x N</code> / <code>N x 1</code></strong>：<strong>守卫的唯一用武之地</strong>。漏守卫时 <code>1 x 3</code> 输出 <code>[[5,4,3]]</code>（1、2 被 4、5 覆盖），<code>3 x 1</code> 输出 <code>[[1],[4],[3]]</code>。</li>
-<li><strong><code>M != N</code> 但都 ≥ 2</strong>：<code>2 x 3</code>、<code>5 x 2</code> 这类形状漏守卫也正常，别被"非方阵必错"的说法带偏。</li>
-<li><strong><code>M</code> 或 <code>N</code> 为 0</strong>：题目一般保证正整数；真要防御，<code>while</code> 条件 <code>top &lt;= bottom &amp;&amp; left &lt;= right</code> 会直接跳过，返回空矩阵。</li>
-<li><strong>从 0 开始编号</strong>：面经里两种都有，问清楚。本文全程从 1 开始（和 LeetCode 59 一致）。</li>
-</ul>
-<h2>八、复杂度</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>维度</th>
-<th>四边界收缩</th>
-<th>撞墙变向</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>时间</td>
-<td><code>O(M x N)</code></td>
-<td><code>O(M x N)</code></td>
-</tr>
-<tr>
-<td>额外空间</td>
-<td><code>O(1)</code></td>
-<td><code>O(M x N)</code>（<code>seen</code>）</td>
-</tr>
-<tr>
-<td>输出空间</td>
-<td><code>O(M x N)</code></td>
-<td><code>O(M x N)</code></td>
-</tr>
-</tbody>
-</table></div>
-
-<strong>"时间复杂度尽可能低"的答案是：<code>O(M x N)</code> 已经是最优，没有优化空间。</strong> 理由很硬：输出本身有 <code>M x N</code> 个数，每个数至少要被写一次，所以 <code>Ω(M x N)</code> 是下界；而两种写法都恰好 <code>M x N</code> 次写入，上下界贴平。
-
-真正能省的是<strong>空间</strong>：四边界收缩法 <code>O(1)</code> 额外空间，撞墙变向法要一个 <code>seen</code>。如果面试官追问"能不能不用 <code>seen</code>"，这就是切入点。
-
-顺带一句：别用递归写这题。每圈一层递归，圈数 <code>min(M, N) / 2</code> 虽然不大，但递归没有任何优势，还会引入栈深和边界传递的额外出错点。
-<h2>九、常见坑</h2>
-<h3>9.1 口径没对齐就开写（本题头号坑）</h3>
-
-你说"逆时针"、面试官想"右下上左"，或者反过来 —— 写完全场对不上。<strong>动手前先声明方向顺序</strong>，或者画个 3×3 的九宫格跟面试官对一遍。这也是本篇花一整节讲口径的原因：它比代码更难补救。
-<h3>9.2 漏掉第三、第四条边的守卫</h3>
-
-症状是<strong>后来的数字覆盖先前的</strong>（不是越界崩溃，所以特别隐蔽）。但要注意：它只在剩余区域退化成<strong>单行或单列</strong>时触发，<code>2 x 3</code>、<code>5 x 2</code> 全都正常。回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code> 两组。
-<h3>9.3 边界更新的时机</h3>
-
-四条边的顺序必须是「先填满这一边，再把这条边界内推一格」。把 <code>top++</code> 写到循环前面，第一行就会漏掉一个格子；把 <code>right--</code> 写在整个圈结束时，右边就会多填一行。<strong>填满 → 收缩，一一对应。</strong>
-<h3>9.4 起始编号 0 还是 1</h3>
-
-面经两种都有。本文从 1 开始（对齐 LeetCode 59）。如果面试官说"从 0 开始"，把 <code>num = 1</code> 改成 <code>num = 0</code>、循环条件改成 <code>&lt; rows * cols</code> 即可，其他一字不动。
-<h3>9.5 用 seen 判断转向，却忘了判断边界</h3>
-
-撞墙变向法的试探条件是 <code>0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and not seen[nr][nc]</code> —— 三个条件缺一不可。只判 <code>seen</code> 不判边界，会在最后一格直接数组越界。
-<h3>9.6 把"填入"和"打印"当成两道题</h3>
-
-遍历顺序完全一样，差别只在"要不要存"。面试时如果只要求打印，直接输出即可；如果先问打印、再问返回矩阵，就是把 <code>print</code> 换成赋值，别重写算法。
-<h2>十、面试怎么答</h2>
-<ol>
-<li><strong>先对齐口径</strong>："我按『右、下、左、上』写，也就是 LeetCode 54 那一套；如果您要的是先往下走的真逆时针，方向序列换成下右上左就行。"</li>
-<li><strong>说清核心思路</strong>："维护四条边界，每圈先填顶边、再填右边、再填底边、再填左边，每填完一条把对应边界内推一格。"</li>
-<li><strong>主动点出守卫</strong>："第三、第四条边要加 <code>if top &lt;= bottom</code> 和 <code>if left &lt;= right</code> —— 剩余区域退化成单行/单列时会重复写入。<code>1 x 3</code> 漏守卫会输出 <code>[[5,4,3]]</code>。"</li>
-<li><strong>报复杂度并给出理由</strong>："时间 <code>O(M x N)</code>，这已经是最优 —— 输出本身有 <code>M x N</code> 个数，下界贴平。额外空间 <code>O(1)</code>。"</li>
-<li><strong>提另一条路线</strong>："也可以用方向向量 + <code>seen</code> 撞墙变向，代码更短、换方向只改一行，但要多 <code>O(M x N)</code> 空间。"</li>
-<li><strong>给变体</strong>：LC 54 螺旋矩阵（给定矩阵按此顺序读取）、LC 59 螺旋矩阵 II（从 1 填到 n²）、LC 885 螺旋矩阵 III（从某点出发按螺旋走，考验坐标推进）、以及"逆时针"口径本身。</li>
-</ol>
-<h2>结语</h2>
-
-螺旋填数是那种"代码十分钟、口径半小时"的题：算法本身简单到不值一提 —— 四边界收缩，<code>O(M x N)</code> 时间、<code>O(1)</code> 额外空间，而且 <code>O(M x N)</code> 有硬下界（输出就有 <code>M x N</code> 个数），没有优化余地。真正的知识点有两个：<strong>方向顺序的口径要先对齐</strong>（"右下上左"几何上是顺时针，却被大量面经叫作逆时针；方阵下"真逆时针"恰好是它的转置，非方阵不成立），以及<strong>两个守卫防的不是越界而是覆盖</strong>（只在单行/单列时触发，<code>1 x 3</code> 会输出 <code>[[5,4,3]]</code>）。这两点都是"不写就不会知道"的类型 —— 所以回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code>。]]></content:encoded>
     </item>
     <item>
       <title>【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</title>
@@ -2495,17 +2756,6 @@ Python 和 JavaScript 不用操心这两点（任意精度 / 双精度在 2^53 �
       <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-72-edit-distance/</guid>
       <pubDate>Wed, 30 Sep 2026 07:03:24 GMT</pubDate>
       <description>题目 给你两个单词 word1 和 word2 ，返回将 word1 转换成 word2 所使用的 最少操作数 ，可以对一个单词进行如下三种操作：插入一个字符、删除一个字符、替换一个字符。 LC 72 是腾讯 DP 方向的经典压轴：先让你写出二维推演，然后几乎必然会追问一句「空间能压到 O(n) 吗」。这一问才是分水岭</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>动态规划</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 300】最长递增子序列：加锚，再压到 O(n log n)</title>
-      <link>https://zhoujungis.github.io/article/lc-300-longest-increasing-subsequence/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-300-longest-increasing-subsequence/</guid>
-      <pubDate>Wed, 30 Sep 2026 06:33:47 GMT</pubDate>
-      <description>题目 给你一个整数数组 nums ，找到其中 最长严格递增子序列 的长度。 进阶：你能把时间复杂度降到 O(n log n) 吗？ 子序列可以跳着挑，只要保持原来的先后顺序：上面挑了 2 之后跳过 5 拿 3 ，完全合法。LC 300 是腾讯 DP 方向出现率第一的题，也是「动态规划状态定义」这件事最好的教材 —— 第</description>
       <category>算法</category>
       <category>LeetCode</category>
       <category>动态规划</category>
