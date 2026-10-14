@@ -5,8 +5,361 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Wed, 14 Oct 2026 02:09:24 GMT</lastBuildDate>
+    <lastBuildDate>Wed, 14 Oct 2026 02:12:52 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【扑克】5 张牌判断顺子：王只补缺失，补不了重复</title>
+      <link>https://zhoujungis.github.io/article/lc-61-poker-straight/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-61-poker-straight/</guid>
+      <pubDate>Wed, 14 Oct 2026 02:11:34 GMT</pubDate>
+      <description>题目 给定 5 张牌，牌面数字 1~13（A=1，J=11，Q=12，K=13），判断是不是顺子（连续 5 张）。追问：如果牌里有大小王（记作 0，可当任意牌），怎么判断？ 这就是 LeetCode 面试题 61. 扑克牌中的顺子 （剑指 Offer 61）。这题代码只有十行，但面试分数全在细节里：重复怎么办、王怎么算</description>
+      <category>算法</category>
+      <category>LeetCode</category>
+      <category>面试</category>
+      <content:encoded><![CDATA[<h2>题目</h2>
+
+给定 5 张牌，牌面数字 1~13（A=1，J=11，Q=12，K=13），判断是不是顺子（连续 5 张）。追问：如果牌里有大小王（记作 0，可当任意牌），怎么判断？
+<div class="codehilite"><pre><span></span><code>输入: [1, 2, 3, 4, 5]
+输出: true
+
+输入: [0, 0, 1, 2, 5]     两张王补上 3、4，凑出 1-2-3-4-5
+输出: true
+</code></pre></div>
+
+
+这就是 <a href="/article/lc-61-poker-straight/">LeetCode 面试题 61. 扑克牌中的顺子</a>（剑指 Offer 61）。这题代码只有十行，但面试分数全在细节里：重复怎么办、王怎么算、边界怎么判。官方样例只有两组，恰好把三个最常见的错法全部放过去了。
+<ul>
+<li><a href="#section-1">一、核心洞察：把「连续 5 张」塌缩成「相邻差」</a></li>
+<li><a href="#section-2">二、基础版：没有王，相邻差必须全是 1</a></li>
+<li><a href="#section-3">三、含大小王：排序、数王、补洞</a></li>
+<li><a href="#section-4">四、动画怎么看</a></li>
+<li><a href="#section-5">五、完整推演表</a></li>
+<li><a href="#section-6">六、Java 版：两个官方样例抓得住的错</a></li>
+<li><a href="#section-7">七、变体：环形 A、k 张王、n 张牌</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑：官方样例抓不住的三个 bug</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：把「连续 5 张」塌缩成「相邻差」</h2>
+
+<strong>不要问「这 5 张是不是顺子」，要问「排序之后，相邻两张差多少」。</strong>
+
+5 张连续的牌，排序后相邻差全是 1；有断档的地方，差就大于 1。而大小王（0）是一张「万能填空牌」：断档缺几个数，就拿几张王去填。这一句话就是全部的算法：
+<div class="codehilite"><pre><span></span><code>排序 → 数王 → 逐对检查相邻差 → 差多少就补多少王 → 王够就是顺子
+</code></pre></div>
+
+
+但有一条约束藏在题面里，漏掉它的人最多：<strong>顺子是 5 个互不相同的数。王能填「缺失的数」，填不了「重复的数」</strong> —— <code>[1,2,2,3,4]</code> 里有两个 2，再来十张王也变不成顺子。
+<blockquote>
+
+一句话总结：<strong>无重复 + 跨度够小，就一定是顺子；王只是把「跨度」的上限从 4 放宽了一点。</strong>
+</blockquote>
+<h2>二、基础版：没有王，相邻差必须全是 1</h2>
+
+先解追问之前的版本：牌面 1~13、没有王。5 张不同的牌连续，排序后每对相邻牌的差恰好是 1 —— 任何一处差 2 就意味着中间缺了一个数，而没人能补。
+
+等价的写法是用跨度：5 个互不相同的数连续，最小值和最大值必须正好差 4（比如 1-5、9-13）。于是得到两条判据，缺一不可：
+<div class="codehilite"><pre><span></span><code>无重复          （5 个数互不相同）
+max - min = 4   （跨度恰好 4）
+</code></pre></div>
+
+
+注意第二条是 <code>= 4</code> 不是 <code>&lt;= 4</code>：<code>[1,2,3,4,6]</code> 跨度 5，看着只差一点，但中间实实在在缺一个 5。
+<h2>三、含大小王：排序、数王、补洞</h2>
+
+加上大小王（0 当任意牌）之后，判据从「差必须是 1」放宽成「差超过 1 的地方，拿王去补」。完整代码：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_straight</span><span class="p">(</span><span class="n">cards</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;必须恰好 5 张牌&quot;</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span>          <span class="c1"># 王（0）小于所有牌面，自动排到最前</span>
+    <span class="n">jokers</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>        <span class="c1"># 每张王 = 一次「任意填」的机会</span>
+    <span class="n">rest</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">jokers</span><span class="p">:]</span>          <span class="c1"># 非王牌，升序</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">rest</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">rest</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">rest</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="kc">False</span>       <span class="c1"># 重复：王填不了已有的数</span>
+        <span class="k">if</span> <span class="n">rest</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">rest</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">jokers</span> <span class="o">-=</span> <span class="n">rest</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">rest</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>   <span class="c1"># 中间的洞拿王补</span>
+            <span class="k">if</span> <span class="n">jokers</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>   <span class="c1"># 王用完了还不够</span>
+    <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+
+三步分解：<strong>排序</strong>（王浮到最前）、<strong>数王</strong>（<code>jokers</code> 张王是预算）、<strong>逐对补洞</strong>（相邻差 <code>gap</code> 大于 1 就消耗 <code>gap - 1</code> 张王）。重复检查放在补洞之前 —— 这两个失败原因是独立的，谁都救不了谁。
+
+还有一个更漂亮的等价判据，一行就能写完：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_straight</span><span class="p">(</span><span class="n">cards</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span>
+    <span class="n">rest</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">rest</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rest</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">rest</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="n">rest</span><span class="p">)</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">rest</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span>
+</code></pre></div>
+
+
+为什么 <code>&lt; 5</code> 就够了？设非王牌有 <code>m = 5 - k</code> 张（<code>k</code> 是王数），它们互不相同，中间的洞数是 <code>跨度 - (m - 1)</code>。「王够」即 <code>k &gt;= 跨度 - (m - 1)</code>，代入 <code>m = 5 - k</code> 化简后正好是 <code>跨度 &lt;= 4</code>，也就是 <code>跨度 &lt; 5</code>。无王时它自动收紧成 <code>跨度 = 4</code>（因为 5 个不同数的跨度至少是 4）—— <strong>一条判据同时覆盖了两个版本</strong>。
+
+主例 <code>[0, 3, 4, 5, 7]</code>，一个王、一个洞：
+<div class="algo-viz algo-viz--poker61"></div>
+
+<h2>四、动画怎么看</h2>
+
+<strong>动画一（<code>[3, 0, 7, 5, 4]</code>，7 帧）</strong> 演示完整流程。乱序入手，排序后王浮到最前；然后逐对检查非王牌：<code>3→4</code> 差 1 天然连续，<code>4→5</code> 差 1 天然连续，<code>5→7</code> 差 2 缺一个 6 —— 拿唯一一张王补上，预算刚好用完。画面分五段：
+<ul>
+<li><strong>横幅</strong>：当前阶段（排序 / 数王 / 检查相邻对 / 判定）、动作、关键数值；</li>
+<li><strong>牌面</strong>：排序后的 5 张牌，王烫金，当前检查的相邻对橙框相连；</li>
+<li><strong>相邻对账本</strong>：每对非王牌一枚 chip（差 1 连续 / 差 N 王补 / 重复 / 王不够），检查到哪枚亮到哪枚；</li>
+<li><strong>拼出的顺子</strong>：已经接上的连续段，王补的格子烫金标注「王补」；</li>
+<li><strong>判定</strong>：是顺子（绿）/ 不是顺子（红）+ 王的用量。</li>
+</ul>
+
+值得盯的是第 6 帧（<code>5→7</code>）：这是全程唯一一次动用王，缺的 6 被烫金标出，王的预算从 1 变 0 —— 「刚好够」和「不够」之间没有任何缓冲。
+
+<strong>动画二（3 组反例，8 帧）</strong> 演示三个官方样例抓不住的错法，每组给正解和错法的判定对照 —— 三个错法全部朝同一个方向错：把不是顺子的牌放过去。
+<h2>五、完整推演表</h2>
+
+主例 <code>[0, 3, 4, 5, 7]</code>，排序后非王 <code>[3, 4, 5, 7]</code>、王 1 张：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>相邻对</th>
+<th>差</th>
+<th>动作</th>
+<th>王剩</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3 → 4</td>
+<td>1</td>
+<td>天然连续</td>
+<td>1</td>
+</tr>
+<tr>
+<td>4 → 5</td>
+<td>1</td>
+<td>天然连续</td>
+<td>1</td>
+</tr>
+<tr>
+<td>5 → 7</td>
+<td>2</td>
+<td>缺 1 个（6），王补</td>
+<td>0</td>
+</tr>
+</tbody>
+</table></div>
+
+结论：非王全部接上，拼出 <code>3-4-5-6-7</code>，需要补 1 个洞、王 1 张 —— <strong>是顺子</strong>。
+
+官方样例 <code>[0, 0, 1, 2, 5]</code>，非王 <code>[1, 2, 5]</code>、王 2 张：<code>1→2</code> 差 1；<code>2→5</code> 差 3，缺 2 个（3、4），2 张王刚好补上 —— <strong>是顺子</strong>。
+
+常用用例速查（每一行都对应一条被忽略的约束）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>输入</th>
+<th>结果</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[1,2,3,4,5]</code></td>
+<td>true</td>
+<td>官方样例，无王自然连续</td>
+</tr>
+<tr>
+<td><code>[0,0,1,2,5]</code></td>
+<td>true</td>
+<td>官方样例，2 王补 3、4</td>
+</tr>
+<tr>
+<td><code>[1,2,3,4,6]</code></td>
+<td>false</td>
+<td>差一个 5，没王</td>
+</tr>
+<tr>
+<td><code>[1,2,2,3,4]</code></td>
+<td>false</td>
+<td>重复 2，王救不了</td>
+</tr>
+<tr>
+<td><code>[0,1,2,4,6]</code></td>
+<td>false</td>
+<td>2 个洞只有 1 张王</td>
+</tr>
+<tr>
+<td><code>[0,0,1,2,13]</code></td>
+<td>false</td>
+<td>跨 12，两王杯水车薪</td>
+</tr>
+<tr>
+<td><code>[0,0,2,2,5]</code></td>
+<td>false</td>
+<td>重复 2 + 断档，双重无解</td>
+</tr>
+<tr>
+<td><code>[0,0,0,0,0]</code></td>
+<td>true</td>
+<td>全王，任意 5 张都行</td>
+</tr>
+</tbody>
+</table></div>
+
+所有判定都用「枚举王的全部填法」的暴力解校验过：0~13 的 5 张可重组合共 8568 种，扫描解与暴力解逐一一致。
+<h2>六、Java 版：两个官方样例抓得住的错</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">PokerStraight</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// cards 长度必须为 5，0 表示大小王</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isStraight</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">cards</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cards</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">cards</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">5</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">IllegalArgumentException</span><span class="p">(</span><span class="s">&quot;必须恰好 5 张牌&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">cards</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">jokers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">jokers</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">cards</span><span class="o">[</span><span class="n">jokers</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">jokers</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">jokers</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cards</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">cards</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 重复，王救不了</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">jokers</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">cards</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">cards</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">  </span><span class="c1">// 补洞</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">jokers</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 王不够</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这题没有溢出问题（5 张牌、最大 13），Java 版的坑全在变量的初始化上。两个经典错误，官方样例<strong>都能</strong>抓住，列出来是因为它们出现频率极高：
+
+<strong>错法一：<code>min</code> 用 0 初始化。</strong> 写 <code>int min = 0, max = 0</code> 再扫一遍求最值 —— 非王牌最小也比 0 大，<code>min</code> 永远停在 0，跨度虚大。<code>[1,2,3,4,5]</code> 被判成 <code>max - min = 5</code>，直接返回 false。官方样例 1 就是这个输入，一跑便知。
+
+<strong>错法二：把王算进跨度。</strong> 求 <code>max - min</code> 时没有跳过 0 —— 王比所有牌面都小，<code>min</code> 被王占走，跨度虚大。<code>[0,0,1,2,5]</code> 被算成 <code>5 - 0 = 5</code>，判 false，正确是 true。官方样例 2 一跑便知。
+
+两个错法共享同一个教训：<strong>王不是一张「数字为 0 的牌」，它是「还没有决定是什么」的牌</strong> —— 统计跨度、查重复、算差值时都不该有它的戏份，它唯一的出场方式是「补洞」。
+<h2>七、变体：环形 A、k 张王、n 张牌</h2>
+
+<strong>环形 A（10,J,Q,K,A 也算顺子）</strong>：真实扑克里 A 既能当 1 也能当 14，所以 <code>10-11-12-13-A</code> 是顺子。判法：若牌里含 A（1），把 A 换成 14 再判一次，两种身份任一成立即 true：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_straight_ring</span><span class="p">(</span><span class="n">cards</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">5</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">cards</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="mi">1</span> <span class="ow">in</span> <span class="n">cards</span><span class="p">:</span>
+        <span class="n">alt</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="mi">14</span> <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cards</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">alt</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">alt</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="n">is_straight_base</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span>   <span class="c1"># A 当 1 的普通判法</span>
+</code></pre></div>
+
+
+<code>[1,10,11,12,13]</code> 换成 <code>10-11-12-13-14</code> → true；<code>[13,1,2,3,4]</code> 两种身份都接不上（13,14,2,3,4 与 13,1,2,3,4 都断档）→ false；<code>[1,2,3,4,5]</code> 两种读法都是顺子。带王的环形版要枚举 A 的身份（2 种）× 王的填法，组合数很小，直接枚举即可。
+
+<strong>k 张王（不止 2 张）</strong>：算法一个字不用改 —— <code>jokers</code> 是计数，几张都一样。极端情况直接覆盖：<code>[0,0,0,0,5]</code> 四张王兜底任意一张牌，自然成顺子（补出 1-2-3-4-5）；<code>[0,0,0,0,0]</code> 全王同理。但真实牌堆只有两张王，输入里出现 3 张以上说明数据不合法，严谨的入口会先校验 <code>s.count(0) &lt;= 2</code>（防御式编程，面试里提一句是加分点）。
+
+<strong>n 张牌里挑 5 张（n &gt; 5）</strong>：先去重排序，然后对每个可能的顺子起点枚举 —— 看是否存在某个长度 5 的区间 <code>[a, a+4]</code>，落在区间里的不同牌数加王数 ≥ 5。核心判据不变：无重复 + 跨度 ≤ 4，只是从「判定」变成「搜索」。
+
+<strong>同花顺</strong>：加花色维度。先按花色分组，某一花色凑够 5 张后，在组内套用本题判法。本题的「无重复 + 跨度」判据在花色组内原样复用。
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>扫描 + 补洞</th>
+<th>枚举王的填法（暴力）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td>O(1)（5 张牌排序是常数级）</td>
+<td>2 张王 13² = 169 种填法；王越多越爆炸</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(1)</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table></div>
+
+这题的「效率」不是考点 —— 输入就 5 张牌，怎么写都是常数。真正的分水岭在<strong>正确性</strong>：这题名义上是「简单题」，实际是把「想清楚约束」的功夫全压在了边界和反例上。
+
+顺带一个组合数学的全景（都是脚本枚举验证过的）：1~13 里无王选 5 张共 C(13,5) = 1287 种组合，顺子只有 9 种（1-5 到 9-13），占比 0.70%；带 1 张王 37 / 715，带 2 张王 58 / 286 —— 王越多顺子越廉价，两张王在手，接近每五组牌就有一组能凑成顺子。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>王数</th>
+<th>组合总数</th>
+<th>顺子数</th>
+<th>占比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>C(13,5) = 1287</td>
+<td>9</td>
+<td>0.70%</td>
+</tr>
+<tr>
+<td>1</td>
+<td>C(13,4) = 715</td>
+<td>37</td>
+<td>5.17%</td>
+</tr>
+<tr>
+<td>2</td>
+<td>C(13,3) = 286</td>
+<td>58</td>
+<td>20.28%</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>2288</td>
+<td>104</td>
+<td>4.55%</td>
+</tr>
+</tbody>
+</table></div>
+<h2>九、常见坑：官方样例抓不住的三个 bug</h2>
+
+官方样例只有两组：<code>[1,2,3,4,5]</code> 和 <code>[0,0,1,2,5]</code>。第一组无王且完美连续，第二组两张王正好补满两个洞 —— <strong>重复、王不够补、王的记账方式，样例一个都没考到</strong>。下面三个错法在两组样例上全部返回 true，一声不响，各自的最小反例才能现形：
+<h3>9.1 不查重复，只看跨度</h3>
+
+只判 <code>max(非王) - min(非王) &lt; 5</code>，不查重复。反例 <code>[1,2,2,3,4]</code>：非王跨度 3，判据放行 —— 但两个 2 重复，王填不了已有的数。更极端的 <code>[2,2,2,2,2]</code> 跨度 0，错法照样判 true。<strong>测顺子必带一组带重复的用例。</strong>
+<h3>9.2 判据写成 ≤ 5</h3>
+
+5 张无王的牌要连续，跨度必须<strong>恰好是 4</strong>。写成 <code>&lt;= 5</code>，<code>[1,2,3,4,6]</code>（跨度 5、无王）被放过去 —— 它中间实实在在缺一个 5，而手里没有王。<code>&lt;</code> 和 <code>&lt;=</code> 的一字之差，恰好落在样例覆盖不到的边界上。
+<h3>9.3 遍历从下标 1 开始，把「王-王」也算成相邻对</h3>
+
+剑指的经典错写法：排序后 <code>for i in 1..4: gap += nums[i] - nums[i-1] - 1</code>，最后判 <code>gap &lt;= 王数</code>。看着没问题，但 0 和 0 这一对也被算了进去：<code>0 - 0 - 1 = -1</code>，<strong>每对王贡献一个负 gap，把真正的洞抵掉了</strong>。
+
+反例 <code>[0,0,1,2,6]</code>：四对相邻差的账面是 <code>-1, 0, 0, 3</code>，合计 2，两张王「刚好够」—— 实际呢？非王 <code>[1,2,6]</code>，要补的是 3、4、5 三个洞，2 张王根本不够。正确答案是 false，错法判 true。
+<div class="algo-viz algo-viz--poker61bug"></div>
+
+
+<strong>测法</strong>：<code>[1,2,2,3,4]</code>（重复）、<code>[1,2,3,4,6]</code>（跨 5 无王）、<code>[0,0,1,2,6]</code>（王被负 gap 抵掉）这三组反例应当常备 —— 每一组都精准打在一条被忽略的约束上。三个错法方向一致：<strong>把不是顺子的放过去</strong>。对照第六节的两个错法（<code>min</code> 初始化为 0、王算进跨度），那两个方向相反、会把顺子错杀，而且官方样例恰好能抓住 —— 样例的覆盖是有偏的，不能只靠它。
+<h2>十、面试怎么答</h2>
+
+30 秒版本：
+<blockquote>
+
+排序，王（0）浮到最前；数王，每张王是一次任意填的机会；逐对检查非王牌的相邻差：差 1 连续，差 N 就消耗 N-1 张王补中间的洞，遇到重复直接 false —— 王能填缺失的数，填不了已有的数。王用完还不够，就不是顺子。时间空间都是 O(1)。
+</blockquote>
+
+如果还有时间，主动补三句，分别是三个加分点：
+<ol>
+<li><strong>等价判据</strong>：非王无重复 + 非王跨度 &lt; 5，一条判据同时覆盖有王无王 —— 无王时自动收紧成跨度恰为 4；</li>
+<li><strong>三个反例</strong>：<code>[1,2,2,3,4]</code>、<code>[1,2,3,4,6]</code>、<code>[0,0,1,2,6]</code> —— 官方样例对三个经典错法全部失声，测试必须自带反例；</li>
+<li><strong>变体</strong>：A 可当 14 时枚举 A 的身份再判一次；王超过 2 张说明输入不合法，入口先校验。</li>
+</ol>
+
+这套题的完整状态机、渲染层和 28 个单测（含与暴力解的全量交叉验证：8568 种组合逐一一致）都在仓库里，动画对应文章里的两个占位符。]]></content:encoded>
+    </item>
     <item>
       <title>【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法</title>
       <link>https://zhoujungis.github.io/article/lc-233-number-of-digit-one/</link>
@@ -1625,264 +1978,6 @@ DP 的转移要求「段方差可加」—— 只有总体方差（各除各的�
       <category>LeetCode</category>
       <category>动态规划</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-
-N 堆石子，两人轮流行动，每次可以从<strong>任意一堆</strong>里取走<strong>任意正数个</strong>石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。
-<div class="codehilite"><pre><span></span><code>输入: piles = [3, 4, 5]
-输出: true
-解释: 3 ^ 4 ^ 5 = 2 不为 0 —— 先手必胜。
-</code></pre></div>
-
-
-同族还有两道更常考的变形：
-<ul>
-<li><strong>LC 877 石子游戏</strong>：一排 piles，每次只能从<strong>头部或尾部</strong>取一整堆，堆数为偶数，问先手（Alex）是否必胜；</li>
-<li><strong>LC 292 Nim 游戏</strong>：只有一堆，每次最多取 <code>m</code> 个。</li>
-</ul>
-
-三道题看起来都是博弈，解法却分属三个层次：<strong>一行异或、一次奇偶站队、一个取模</strong>。本文按这个顺序走，并且把「为什么异或非 0 就一定赢」拆成两句能背下来的论证。
-<ul>
-<li><a href="#section-1">一、核心洞察：把 N 堆压成一个数</a></li>
-<li><a href="#section-2">二、拆解：制胜一手是构造出来的，不是搜出来的</a></li>
-<li><a href="#section-3">三、动画怎么看</a></li>
-<li><a href="#section-4">四、完整推演</a></li>
-<li><a href="#section-5">五、进阶：LC 877 两端取，偶数堆靠奇偶位站队</a></li>
-<li><a href="#section-6">六、Java 版</a></li>
-<li><a href="#section-7">七、边界情况</a></li>
-<li><a href="#section-8">八、复杂度</a></li>
-<li><a href="#section-9">九、常见坑</a></li>
-<li><a href="#section-10">十、面试怎么答</a></li>
-</ul>
-<h2>一、核心洞察：把 N 堆压成一个数</h2>
-
-博弈题的难点从来不是「算」，是<strong>找不到可以递推的状态</strong>。N 堆石子每堆可以取 1 到 <code>piles[i]</code> 个，状态空间大得没法搜。
-
-Bouton 定理的做法是换一个视角：不去描述局面，而是给每个局面算一个数 —— <strong>把所有堆的数量异或起来</strong>。
-<blockquote>
-
-先手必胜，当且仅当 <code>piles[0] ^ piles[1] ^ ... ^ piles[n-1] != 0</code>。
-</blockquote>
-
-这一行代码就是全部算法。但它为什么对，靠的是两句互相补足的论证：
-<ol>
-<li><strong>异或非 0 时，一定存在一步走到异或为 0。</strong>（构造性证明，见第二节）</li>
-<li><strong>异或为 0 时，任何一步都走到异或非 0。</strong> 假设动了第 <code>i</code> 堆、<code>p -&gt; p'</code>，新局面异或仍为 0，那么 <code>p ^ p' = 0</code>，即 <code>p = p'</code> —— 等于没动，矛盾。</li>
-</ol>
-
-两条合起来就是归纳：先手每次都能把「异或非 0」的局面交还给后手，而后手无论怎么动，交回来的必然是「异或非 0」。石子总数严格递减，游戏必然结束，而最后停在那一步的人是先手。<strong>这就是「必败态」的定义 —— 不是走不动，是你怎么走都把赢的机会送给对方。</strong>
-<h2>二、拆解：制胜一手是构造出来的，不是搜出来的</h2>
-
-第一句论证需要给出构造。设全场异或为 <code>x != 0</code>：
-<ol>
-<li>取 <code>x</code> 的<strong>最高置位</strong> <code>h</code>（<code>x</code> 在这一位上为 1）；</li>
-<li>找一堆 <code>p</code> 满足 <code>(p &gt;&gt; h) &amp; 1 == 1</code> —— 一定存在，否则所有堆在这一位上都是 0，异或出来不可能是 1；</li>
-<li>把这堆从 <code>p</code> 改成 <code>p ^ x</code>。</li>
-</ol>
-
-为什么新值一定合法（非负且严格变小）：<code>p</code> 和 <code>x</code> 在第 <code>h</code> 位上都是 1，异或后这一位变成 0，而比 <code>h</code> 高的位两者都是 0、异或后不变 —— 所以 <code>p ^ x</code> 在最高位上被清掉了一位，严格小于 <code>p</code>，且不会变负。
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">first_player_wins</span><span class="p">(</span><span class="n">piles</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">piles</span><span class="p">:</span>
-        <span class="n">x</span> <span class="o">^=</span> <span class="n">p</span>
-    <span class="k">return</span> <span class="n">x</span> <span class="o">!=</span> <span class="mi">0</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">winning_move</span><span class="p">(</span><span class="n">piles</span><span class="p">):</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">piles</span><span class="p">:</span>
-        <span class="n">x</span> <span class="o">^=</span> <span class="n">p</span>
-    <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>            <span class="c1"># 必败态，没有制胜一手</span>
-    <span class="n">h</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">bit_length</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span>     <span class="c1"># 最高置位</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">piles</span><span class="p">):</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">p</span> <span class="o">&gt;&gt;</span> <span class="n">h</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">piles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">^=</span> <span class="n">x</span>      <span class="c1"># 新值 = p ^ x，严格更小且非负</span>
-            <span class="k">return</span> <span class="n">piles</span>
-</code></pre></div>
-
-<div class="algo-viz algo-viz--nim"></div>
-
-<h2>三、动画怎么看</h2>
-
-动画用主例 <code>piles = (3, 4, 5)</code>，四步走完：
-<ul>
-<li><strong>石子堆行</strong>：每格是石子的二进制，黄框 = 本帧要动的那一堆，绿框 = 已经改好的那一堆；</li>
-<li><strong>累计异或行</strong>：逐堆异或累加（<code>3 -&gt; 7 -&gt; 2</code>），这是把 N 堆压成一个数的过程；</li>
-<li><strong>制胜一面板</strong>：<code>x = 2</code> 的最高置位是 bit 1，第 1 堆（3）在这一位上为 1，把它改成 <code>3 ^ 2 = 1</code>；</li>
-<li><strong>答案条</strong>：绿色 = 先手必胜，红色 = 先手必败。</li>
-</ul>
-
-<code>(1, 2, 3)</code> 那组值得手动跑一遍：异或恒为 0，动画会直接判<strong>先手必败</strong>，并给后手的镜像策略 —— 你动哪堆，我就把那堆改成让全场异或回到 0。
-<h2>四、完整推演</h2>
-
-<code>piles = (3, 4, 5)</code>：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>步骤</th>
-<th>操作</th>
-<th>全场异或</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>开局</td>
-<td>(3, 4, 5)</td>
-<td>3 ^ 4 ^ 5 = 2</td>
-</tr>
-<tr>
-<td>定最高位</td>
-<td>x = 2，最高置位 bit 1</td>
-<td>2</td>
-</tr>
-<tr>
-<td>选堆</td>
-<td>第 1 堆（3 = 0011）在 bit 1 上为 1</td>
-<td>2</td>
-</tr>
-<tr>
-<td>改值</td>
-<td>3 改成 3 ^ 2 = 1，即取走 2 个</td>
-<td>1 ^ 4 ^ 5 = 0</td>
-</tr>
-<tr>
-<td>结论</td>
-<td>必败态交给后手</td>
-<td>先手必胜</td>
-</tr>
-</tbody>
-</table></div>
-
-验证一下第二步论证：新局面 <code>(1, 4, 5)</code> 异或为 0，后手无论怎么动都会破坏它。比如他从第 2 堆取 1 个变成 3，异或变成 <code>1 ^ 3 ^ 5 = 7</code> —— 先手再照着构造走一次即可。
-<h2>五、进阶：LC 877 两端取，偶数堆靠奇偶位站队</h2>
-
-LC 877 换了约束：<strong>只能从头部或尾部取一整堆</strong>，而且堆数保证是偶数。这时异或判定完全失效（取法受位置限制），但有个更漂亮的结论：<strong>先手必胜，而且必胜策略是开局站一次队</strong>。
-
-按原始下标把堆分成两队：偶数位一堆、奇数位一堆。先手第一次取左端，之后每一步的两端就都只剩<strong>奇数位</strong>；取右端则之后只剩偶数位。所以：
-<blockquote>
-
-<strong>第一次取哪一端，就等于选择自己整局站在偶数位还是奇数位。</strong>
-</blockquote>
-
-于是策略一句话：算两个奇偶位的和，取大的那队，用第一次取哪一端来锁定它。主例 <code>[5, 3, 4, 5]</code>：偶数位和 <code>5 + 4 = 9</code>，奇数位和 <code>3 + 5 = 8</code> —— Alex 取左端，锁定偶数位，终局 <code>9 : 8</code>。
-<div class="algo-viz algo-viz--lc877"></div>
-
-
-动画把这一点画成了对局：绿色 = 偶数位、橙色 = 奇数位，取走的堆退化成虚线壳并留下 <code>A 5</code> / <code>L 5</code> 的分值，两个「和」筹码并排，赢的那边点亮。<strong>注意 Lee 是贪心着打的（每次取两端较大的那堆），Alex 依然赢</strong> —— 因为这个策略不依赖对手怎么走。
-
-堆数是奇数时这个 trick 失效：两端奇偶不同，先手没法一次锁定一整条奇偶带，必须老老实实上区间 DP（<code>dp[i][j]</code> 表示区间 <code>[i,j]</code> 上先手能比后手多拿多少）。
-<h2>六、Java 版</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Nim</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// 判定：一行异或</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">firstPlayerWins</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="c1">// 制胜一手：返回新局面；必败态返回 null</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">winningMove</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">highestOneBit</span><span class="p">(</span><span class="n">x</span><span class="p">);</span><span class="w">      </span><span class="c1">// 最高置位</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">piles</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">piles</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">h</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">piles</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 新值 = p ^ x，严格更小且非负</span>
-<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">piles</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">                           </span><span class="c1">// 到不了这里</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-LC 877 的 Java 版就是一行（堆数保证为偶数时）：
-<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">stoneGame</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">   </span><span class="c1">// 偶数堆，先手必胜</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-面试里当然不能只写 <code>return true</code> —— 要把奇偶位和那段讲出来（见第十节）。
-<h2>七、边界情况</h2>
-<ul>
-<li><strong>只有一堆</strong>：异或就是它本身，非 0 必胜（一次全拿）、为 0 必败（这堆本来就是空的）。</li>
-<li><strong>全场为空</strong>：异或为 0，先手无法操作，必败。</li>
-<li><strong>两堆相等</strong>：异或为 0，必败 —— 后手全程镜像（你从一堆取 <code>k</code>，我从另一堆取 <code>k</code>）。</li>
-<li><strong>一堆为 0</strong>：它就是死堆，异或判定天然忽略它，不影响结论。</li>
-<li><strong>LC 877 的奇数堆</strong>：结论不成立，必须 DP；<code>[1, 5, 2]</code> 这种三堆的样例正是用来打「无脑 return true」的。</li>
-</ul>
-<h2>八、复杂度</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>问题</th>
-<th>时间</th>
-<th>空间</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Nim 判定</td>
-<td><code>O(n)</code></td>
-<td><code>O(1)</code></td>
-</tr>
-<tr>
-<td>Nim 制胜一手</td>
-<td><code>O(n)</code></td>
-<td><code>O(1)</code></td>
-</tr>
-<tr>
-<td>LC 877（偶数堆）</td>
-<td><code>O(n)</code>（算两个奇偶和）</td>
-<td><code>O(1)</code></td>
-</tr>
-<tr>
-<td>LC 877（奇数堆，区间 DP）</td>
-<td><code>O(n^2)</code></td>
-<td><code>O(n^2)</code></td>
-</tr>
-<tr>
-<td>巴什博弈 LC 292</td>
-<td><code>O(1)</code>（<code>n % (m+1)</code>）</td>
-<td><code>O(1)</code></td>
-</tr>
-</tbody>
-</table></div>
-
-真正花时间的是<strong>想清楚判定</strong>，不是算。所有 Nim 类博弈的判定都是 O(n) 甚至 O(1)，难的是把局面归约到「一个数」。
-<h2>九、常见坑</h2>
-<h3>9.1 约定搞反：最后取者胜 vs 最后取者败</h3>
-
-正常约定（Nim）是「取到最后一颗者胜」；<strong>反常博弈</strong>（misère Nim）是「取到最后一颗者败」，结论不一样：当所有堆都为 1 时胜负按堆数奇偶翻转，其余局面才回到正常约定。LeetCode 上 Nim 系列都是正常约定，但面试官会口头换约定来试你。
-<h3>9.2 制胜一手选错堆</h3>
-
-必须选「在 <code>x</code> 的最高置位上为 1」的那一堆。随便挑一堆改成 <code>p ^ x</code> 会让新值变大（变成送石子给对手），或者根本不能降到非负。构造的每一句都是在保证合法性。
-<h3>9.3 以为异或为 0 时可以「随便走」</h3>
-
-异或为 0 是先手必败态，不是平局。后手有明确策略（镜像应战），不是碰运气。把必败态当平局讲，整道题的论证就塌了。
-<h3>9.4 把 LC 877 的结论套到通用 Nim</h3>
-
-奇偶位站队只在「<strong>两端取 + 堆数偶数</strong>」下成立，因为它依赖的是「第一次取哪端就把自己钉死在一条奇偶带上」。换成「从任意一堆取任意个」，两端取的位置约束消失，奇偶带毫无意义 —— 那时仍然是异或判定。
-<h3>9.5 巴什博弈的取模写成除法</h3>
-
-LC 292 是 <code>n % (m + 1) != 0</code> 先手胜。<code>m</code> 是「每次<strong>最多</strong>取 <code>m</code> 个」，不是「必须取 <code>m</code> 个」。写成 <code>n % m</code> 或者 <code>n / (m + 1)</code> 的奇偶，都是把规则记错。
-<h3>9.6 用异或判定去做带约束的变体</h3>
-
-LC 1510（石子游戏 VII，两端取、求分数差最大）和 LC 1140（石子游戏 II，按倍数取）都带额外约束，异或判定一概失效，只能上 DP / 极小化极大。<strong>先判断约束是否破坏了「任意堆任意取」，再决定用哪套工具。</strong>
-<h2>十、面试怎么答</h2>
-<ol>
-<li><strong>先报判定</strong>："Nim 先手必胜当且仅当全场异或非 0，这是 Bouton 定理，判定 O(n)。"</li>
-<li><strong>再补两句论证</strong>："异或非 0 时，取最高置位、找一堆在这一位为 1、改成 <code>p ^ x</code>，一步走到异或 0；异或为 0 时任何一步都会走到非 0 —— 否则被改的那堆异或差为 0，等于没动。"</li>
-<li><strong>说出制胜一手的构造</strong>：不要说「存在」，要把三步讲出来；能顺手写 <code>Integer.highestOneBit</code> 是加分项。</li>
-<li><strong>接住 LC 877</strong>："两端取 + 偶数堆，先手必胜 —— 按原始下标奇偶分两队，第一次取哪端就锁定哪一队，取和大的那队。奇数堆必须区间 DP。"</li>
-<li><strong>报家族</strong>：巴什博弈 <code>n % (m+1)</code>、威佐夫博弈（两堆同取，必败态是黄金比例分割）、反常 Nim（全 1 时翻转）、SG 函数（一般博弈论，每堆可归约成一个 Nim 数）。</li>
-<li><strong>给复杂度对照</strong>：判定 O(n)、制胜一手 O(n)、LC 877 偶数堆 O(1) 结论 / 奇数堆 O(n^2) DP —— 强调「这类题的时间都花在归约上，不在计算上」。</li>
-</ol>
-<h2>结语</h2>
-
-石子游戏是博弈论进算法面试的入口，它的教学价值全在<strong>归约</strong>：把「N 堆、每堆任意取」的庞大状态空间，压成「一个异或数」—— 判定一行，构造三步。而 LC 877 提醒你，同一副石子换个约束（只能从两端取、堆数为偶数），归约的目标就换成「奇偶两条带」，解法从异或变成一次站队。<strong>博弈题的功夫从来不在搜索，在找到那个不变量</strong>：异或值、奇偶带、或者巴什博弈里的 <code>n % (m+1)</code>。]]></content:encoded>
     </item>
     <item>
       <title>【腾讯面经】相邻和为 10 消除：栈模拟与唯一性证明</title>
@@ -2041,17 +2136,6 @@ LC 1510（石子游戏 VII，两端取、求分数差最大）和 LC 1140（石�
       <category>算法</category>
       <category>LeetCode</category>
       <category>二分查找</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 224/772】基本计算器：一个来一个结，一个等优先级</title>
-      <link>https://zhoujungis.github.io/article/lc-224-772-basic-calculator/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-224-772-basic-calculator/</guid>
-      <pubDate>Tue, 29 Sep 2026 08:33:58 GMT</pubDate>
-      <description>题目 LC 224 基本计算器 ：给你一个字符串表达式 s ，请你实现一个基本计算器来计算并返回它的值。 s 由数字、 &#39;+&#39; 、 &#39;-&#39; 、 &#39;(&#39; 、 &#39;)&#39; 和空格组成， s 表示一个有效的表达式。 LC 772 基本计算器 III （腾讯特色）：在 224 的基础上加上 &#39;*&#39; 、 &#39;/&#39; ，处理运算优先级与括</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>栈</category>
       <category>面试</category>
     </item>
   </channel>
