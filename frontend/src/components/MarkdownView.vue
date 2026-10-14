@@ -82,6 +82,8 @@ import { mountEliminateSum10 } from '@/viz/eliminateSum10'
 import { mountEliminateSum10Order } from '@/viz/eliminateSum10Order'
 import { mountLc1928 } from '@/viz/lc1928'
 import { mountLc1928Path } from '@/viz/lc1928Path'
+import { mountKmp } from '@/viz/kmp'
+import { mountKmpMatch } from '@/viz/kmpMatch'
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -447,6 +449,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--txorder': mountEliminateSum10Order,
   'algo-viz--lc1928': mountLc1928,
   'algo-viz--lc1928path': mountLc1928Path,
+  'algo-viz--kmp': mountKmp,
+  'algo-viz--kmpmatch': mountKmpMatch,
 }
 
 let vizHandles = []
