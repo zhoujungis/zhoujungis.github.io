@@ -52,6 +52,8 @@ import { mountSpiral, mountSpiralCcw } from '@/viz/spiral'
 import { mountKthLarge, mountKthLargeDup } from '@/viz/kthLarge'
 import { mountDigitOne } from '@/viz/digitOne'
 import { mountDigitOneBlock } from '@/viz/digitOneBlock'
+import { mountPokerStraight } from '@/viz/pokerStraight'
+import { mountPokerStraightBug } from '@/viz/pokerStraightBug'
 import { mountMinStack } from '@/viz/minStack'
 import { mountQueueViaStacks } from '@/viz/queueViaStacks'
 import { mountBasicCalc } from '@/viz/basicCalc'
@@ -413,6 +415,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--kthdup': mountKthLargeDup,
   'algo-viz--lc233': mountDigitOne,
   'algo-viz--lc233block': mountDigitOneBlock,
+  'algo-viz--poker61': mountPokerStraight,
+  'algo-viz--poker61bug': mountPokerStraightBug,
   'algo-viz--lc155': mountMinStack,
   'algo-viz--lc232': mountQueueViaStacks,
   'algo-viz--lc224': mountBasicCalc,
