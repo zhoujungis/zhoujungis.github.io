@@ -54,6 +54,8 @@ import { mountDigitOne } from '@/viz/digitOne'
 import { mountDigitOneBlock } from '@/viz/digitOneBlock'
 import { mountPokerStraight } from '@/viz/pokerStraight'
 import { mountPokerStraightBug } from '@/viz/pokerStraightBug'
+import { mountLcs1 } from '@/viz/lcs1'
+import { mountLcs1Walk } from '@/viz/lcs1Walk'
 import { mountBitmap } from '@/viz/bitmap'
 import { mountBitmapTwoBit } from '@/viz/bitmapTwoBit'
 import { mountMinStack } from '@/viz/minStack'
@@ -423,6 +425,8 @@ const VIZ_MOUNTERS = {
   'algo-viz--lc233block': mountDigitOneBlock,
   'algo-viz--poker61': mountPokerStraight,
   'algo-viz--poker61bug': mountPokerStraightBug,
+  'algo-viz--lcs1': mountLcs1,
+  'algo-viz--lcs1walk': mountLcs1Walk,
   'algo-viz--bitmap': mountBitmap,
   'algo-viz--bitmap2bit': mountBitmapTwoBit,
   'algo-viz--lc155': mountMinStack,
