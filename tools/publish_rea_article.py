@@ -36,8 +36,11 @@ Spine claims guarded by the number check:
 - prompt-injection stance: target text is data; the untrusted_content
   marker ships on success AND failure, driven by returnsTargetContent.
 
-Cover check: this cover is an external Unsplash URL, so it is live without
-a deploy -- publish first, then run the single deploy that ships the page.
+Cover check: the cover is a site-hosted PNG (frontend/public/photos/ +
+photos/), so it must be deployed BEFORE publishing -- standard two-stage
+order: deploy the PNG, re-run this script (idempotent by slug, so id=109 is
+updated), then build + deploy again to refresh the page / articles.json /
+rss.xml.
 """
 
 import argparse
@@ -71,11 +74,8 @@ ARTICLE_EXCERPT = (
     "注入防线，并给出能力矩阵、四个官方案例、六条避坑清单，以及「软件壁垒还剩几层」"
     "的判断。"
 )
-# 外部封面（Unsplash），无需先部署即可访问，所以本次流程是「先发布、后部署一次」。
-ARTICLE_COVER = (
-    "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5"
-    "?w=1200&q=80&auto=format&fit=crop"
-)
+# 站内自制封面（tools/make_rea_cover.py，双份落盘），必须先部署才能通过封面可达性检查。
+ARTICLE_COVER = "https://zhoujungis.github.io/photos/rea-cover.png"
 
 CATEGORY = {
     "name": "科技前沿",

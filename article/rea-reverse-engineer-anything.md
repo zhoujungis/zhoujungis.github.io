@@ -1,7 +1,7 @@
 ---
 title: "一周 15 万 Star 的 REA：让 Agent 逆向一切的开源 MCP Server"
 slug: rea-reverse-engineer-anything
-cover_image: https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&q=80&auto=format&fit=crop
+cover_image: /photos/rea-cover.png
 date: 2026-10-15
 tags: [AI, 逆向工程, MCP, 开源, Agent]
 ---
