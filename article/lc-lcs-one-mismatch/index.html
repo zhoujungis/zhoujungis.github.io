@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 给定两个字符串，求 最长公共连续子序列 的长度，允许其中出现 最多一处&quot;错误&quot; ——也就是两个子串按位对齐时，至多有一个位置的字符不相等，这一整段仍然算「公共的、连续的」。 这题的现实场景很直白：DNA 序列比对（允许一个突变）、拼写纠错（允许一个错字）、日志对齐（允许一处噪声）。面试里它的地位类似「允许一次操作" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/lc-lcs-one-mismatch/" />
+    <meta property="og:title" content="【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接" />
+    <meta property="og:description" content="题目 给定两个字符串，求 最长公共连续子序列 的长度，允许其中出现 最多一处&quot;错误&quot; ——也就是两个子串按位对齐时，至多有一个位置的字符不相等，这一整段仍然算「公共的、连续的」。 这题的现实场景很直白：DNA 序列比对（允许一个突变）、拼写纠错（允许一个错字）、日志对齐（允许一处噪声）。面试里它的地位类似「允许一次操作" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/lc-lcs-one-mismatch/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/lcs1-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接" />
+    <meta name="twitter:description" content="题目 给定两个字符串，求 最长公共连续子序列 的长度，允许其中出现 最多一处&quot;错误&quot; ——也就是两个子串按位对齐时，至多有一个位置的字符不相等，这一整段仍然算「公共的、连续的」。 这题的现实场景很直白：DNA 序列比对（允许一个突变）、拼写纠错（允许一个错字）、日志对齐（允许一处噪声）。面试里它的地位类似「允许一次操作" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/lcs1-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bv_kuWZQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-15T10:41:23.575125+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接","description":"题目 给定两个字符串，求 最长公共连续子序列 的长度，允许其中出现 最多一处\"错误\" ——也就是两个子串按位对齐时，至多有一个位置的字符不相等，这一整段仍然算「公共的、连续的」。 这题的现实场景很直白：DNA 序列比对（允许一个突变）、拼写纠错（允许一个错字）、日志对齐（允许一处噪声）。面试里它的地位类似「允许一次操作","image":"https://zhoujungis.github.io/photos/lcs1-cover.png","datePublished":"2026-10-15T10:41:23.575125+08:00","dateModified":"2026-10-15T10:41:23.575125+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/lc-lcs-one-mismatch/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</h1><div class="ns-meta">2026/10/15 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+给定两个字符串，求<strong>最长公共连续子序列</strong>的长度，允许其中出现<strong>最多一处"错误"</strong>——也就是两个子串按位对齐时，至多有一个位置的字符不相等，这一整段仍然算「公共的、连续的」。
+<div class="codehilite"><pre><span></span><code>s = &quot;abcdef&quot;, t = &quot;abcdxf&quot;
+只有 e / x 这一处不同，所以 6 个字符整体就算一段带 1 处错的公共连续子串
+输出: 6
+</code></pre></div>
+
+
+这题的现实场景很直白：DNA 序列比对（允许一个突变）、拼写纠错（允许一个错字）、日志对齐（允许一处噪声）。面试里它的地位类似「允许一次操作的最长公共子序列」——<strong>考点不在 DP 本身，而在你有没有把状态分家。</strong>
+<ul>
+<li><a href="#section-1">一、先澄清题面：「连续」是子串，不是子序列</a></li>
+<li><a href="#section-2">二、双状态 DP：f 是干净的，g 才带额度</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演表</a></li>
+<li><a href="#section-5">五、空间优化：左上角必须单独存</a></li>
+<li><a href="#section-6">六、实现要点与边界</a></li>
+<li><a href="#section-7">七、追问：允许 k 处错误</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑：五个每一个都能过样例</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、先澄清题面：「连续」是子串，不是子序列</h2>
+
+题面写「公共<strong>连续</strong>子序列」，但这两个词在中文里经常混用，面试现场必须先钉死：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th></th>
+<th>连续子串（substring）</th>
+<th>子序列（subsequence）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>能否跳格</td>
+<td><strong>不能</strong>，必须一段挨一段</td>
+<td>能，可以跳</td>
+</tr>
+<tr>
+<td>对齐方式</td>
+<td>只能沿表格对角线走</td>
+<td>可以向右、向下、向右下</td>
+</tr>
+<tr>
+<td>本文的 DP</td>
+<td><code>f[i][j]</code> 只看左上角</td>
+<td><code>dp[i][j]</code> 还要看左和上</td>
+</tr>
+</tbody>
+</table></div>
+
+本系列之前写过「最长公共子序列」——那题允许跳格，转移里会出现 <code>max(左, 上, 左上)</code>。而本题<strong>只走对角线</strong>，转移里只会出现左上角。把两者搞混是第一个坑：<strong>一旦允许跳格，「连续」这个词就失效了，题目变成了另一道题。</strong>
+<h2>二、双状态 DP：f 是干净的，g 才带额度</h2>
+
+想清楚「至多一处错」意味着什么，就知道为什么一个状态不够：
+<ul>
+<li>想回答「以 s[i-1]、t[j-1] 结尾的这段，<strong>从头到尾一个错都没有</strong>能有多长」——这是一个状态；</li>
+<li>想回答「同一位置结尾，<strong>至多一处错</strong>能有多长」——这是另一个状态。</li>
+</ul>
+
+后者可能在某个字符上已经用掉了唯一那次错误。如果它继续往左接，就可能<strong>再消耗一次</strong>，配额就失效了。所以必须开两个状态，<strong>干净的那个专供「接错误」时取用</strong>：
+<div class="codehilite"><pre><span></span><code><span class="n">f</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w">  </span><span class="n">以</span><span class="w"> </span><span class="n">s</span><span class="o">[</span><span class="n">i-1</span><span class="o">]</span><span class="err">、</span><span class="n">t</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="n">结尾</span><span class="err">，</span><span class="n">全程字符相等的最长公共子串长度</span>
+<span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w">  </span><span class="n">以</span><span class="w"> </span><span class="n">s</span><span class="o">[</span><span class="n">i-1</span><span class="o">]</span><span class="err">、</span><span class="n">t</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="n">结尾</span><span class="err">，</span><span class="n">至多一处不等的最长公共子串长度</span>
+</code></pre></div>
+
+
+转移只有两条分支：
+<div class="codehilite"><pre><span></span><code><span class="n">s</span><span class="o">[</span><span class="n">i-1</span><span class="o">]</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="n">t</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="err">:</span>
+<span class="w">    </span><span class="n">f</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="o">[</span><span class="n">i-1</span><span class="o">][</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="o">[</span><span class="n">i-1</span><span class="o">][</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">        </span><span class="err">#</span><span class="w"> </span><span class="n">相等</span><span class="err">，</span><span class="n">不消耗额度</span>
+<span class="n">s</span><span class="o">[</span><span class="n">i-1</span><span class="o">]</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="n">t</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="err">:</span>
+<span class="w">    </span><span class="n">f</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">                      </span><span class="err">#</span><span class="w"> </span><span class="n">断了</span><span class="err">，</span><span class="n">干净后缀清零</span>
+<span class="w">    </span><span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">max</span><span class="p">(</span><span class="n">f</span><span class="o">[</span><span class="n">i-1</span><span class="o">][</span><span class="n">j-1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w">   </span><span class="err">#</span><span class="w"> </span><span class="n">额度只能从</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="n">接</span>
+</code></pre></div>
+
+
+<strong><code>g[i][j] = max(f[i-1][j-1] + 1, 1)</code> 这一行是整题的分水岭。</strong> 不等的时候，g 只能从<strong>干净的 f</strong> 接过额度再 +1；如果写成 <code>g[i-1][j-1] + 1</code>，同一个字符就能反复消耗配额，答案一路虚涨（第九节有可执行反例）。<code>max(..., 1)</code> 则保证「光这一格不相等」也算长度 1 的合法答案——两个毫无关系的字符之间，至少能凑出「一处错」。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lcs1</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">t</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">g</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">m</span> <span class="k">else</span> <span class="mi">0</span>
+</code></pre></div>
+
+
+答案取<strong>全表最大的 g</strong>。注意不是 <code>g[n][m]</code>——子串可以结束在任何一格。
+<div class="algo-viz algo-viz--lcs1"></div>
+
+<h2>三、动画怎么看</h2>
+
+<strong>动画一（<code>abcdef</code> / <code>abcdxf</code>，8 帧）</strong> 演示双状态表格逐行填满。画面分四段：
+<ul>
+<li><strong>横幅</strong>：当前行 / 当前动作（对角续上 · 不等断 f 接 g）/ 当前 best；</li>
+<li><strong>两串字符条</strong>：与表格列对齐，当前讲解格涉及的字符橙框标出；</li>
+<li><strong>DP 表格</strong>：每格大数字是 g、左上角小数字是 f；当前行浅底、当前讲解格烫金、全表最优格绿色；</li>
+<li><strong>转移规则面板</strong>：把当前格的等式摊开写，比如「不等 → f 断成 0，g = f 左上 4 + 1 = 5（额度只能从 f 接）」。</li>
+</ul>
+
+值得盯的是第 6 帧（第 5 行，讲解格 (5, 5)）：<code>s[4]=e</code> 对 <code>t[4]=x</code> 不等，<code>f</code> 断成 0，而 <code>g</code> 从左上角的 <code>f[4][4] = 4</code> 接过额度再 +1，拿到 5 —— 这一格就是「额度从哪来」的唯一现场。
+
+<strong>动画二（<code>abcdef</code> / <code>bcdefa</code>，13 帧）</strong> 把两条路径放在同一张小图上对照：正解走次对角线（<code>bcdef</code> 格格全等，一路涨到 5），错法走主对角线（6 个位置格格不等，却因为误用 g 左上而一路涨到 6）。
+<div class="algo-viz algo-viz--lcs1walk"></div>
+
+<h2>四、完整推演表</h2>
+
+主例 <code>s = abcdef</code>、<code>t = abcdxf</code>，每行的 g 值（每行最大值）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>行</th>
+<th>对应字符</th>
+<th>该行 g 值</th>
+<th>最大</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>s[0]=a 对 t[0]=a</td>
+<td>1 1 1 1 1 1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>s[1]=b 对 t[1]=b</td>
+<td>1 2 1 1 1 1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>3</td>
+<td>s[2]=c 对 t[2]=c</td>
+<td>1 1 3 1 1 1</td>
+<td>3</td>
+</tr>
+<tr>
+<td>4</td>
+<td>s[3]=d 对 t[3]=d</td>
+<td>1 1 1 4 1 1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>5</td>
+<td>s[4]=e 对 t[4]=x</td>
+<td>1 1 1 1 <strong>5</strong> 1</td>
+<td>5</td>
+</tr>
+<tr>
+<td>6</td>
+<td>s[5]=f 对 t[5]=f</td>
+<td>1 1 1 1 1 <strong>6</strong></td>
+<td><strong>6</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+每行的最大值严格单调递增 1→6，答案 6 落在右下角 <code>(6, 6)</code>。
+
+第 5 行是关键：讲解格 <code>(5, 5)</code> 上 <code>f[5][5] = 0</code>（e ≠ x，干净后缀断掉），<code>g[5][5] = f[4][4] + 1 = 4 + 1 = 5</code>。<strong>注意 <code>f[4][4] = 4</code> 而不是 <code>g[4][4]</code></strong>——如果这里从 g 拿，这一格就会算成 5，往后第 6 行的答案跟着再虚高一截。
+
+两个对照用例（同一个 bug 的不同体现）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>输入</th>
+<th>正解</th>
+<th>错法（不等时用 g 左上）</th>
+<th>差异来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ab</code> / <code>ba</code></td>
+<td>1</td>
+<td>2</td>
+<td>反向两字符，错法当成「一处错」串起来</td>
+</tr>
+<tr>
+<td><code>abcdef</code> / <code>bcdefa</code></td>
+<td>5</td>
+<td>6</td>
+<td>6 个不等位置被当成一次错误</td>
+</tr>
+</tbody>
+</table></div>
+
+这两个反例不是编的：在 a/b/c 字母表、长度 0~4 的<strong>全部 14641 组输入</strong>上穷举对拍，错法与正解在 <strong>61.8%</strong> 的输入上都给出不同答案。
+<h2>五、空间优化：左上角必须单独存</h2>
+
+<code>g[i][j]</code> 只依赖 <code>g[i-1][j-1]</code>，所以两行足够把空间压到 <code>O(min(n, m))</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">lcs1_rolling</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">t</span><span class="p">,</span> <span class="n">s</span>                      <span class="c1"># 让滚动维度取短边</span>
+    <span class="n">f_prev</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">g_prev</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">f_cur</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">g_cur</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">f_diag</span> <span class="o">=</span> <span class="n">f_prev</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>       <span class="c1"># 左上角：必须在覆盖 prev 之前存下</span>
+            <span class="n">g_diag</span> <span class="o">=</span> <span class="n">g_prev</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">t</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                <span class="n">f_cur</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">f_diag</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">g_cur</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">g_diag</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">f_cur</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">g_cur</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">f_diag</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">g_cur</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+        <span class="n">f_prev</span><span class="p">,</span> <span class="n">g_prev</span> <span class="o">=</span> <span class="n">f_cur</span><span class="p">,</span> <span class="n">g_cur</span>
+    <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+
+
+<strong>最容易踩的一行是 <code>f_diag = f_prev[j - 1]</code></strong>：内层循环向右走，<code>f_prev[j - 1]</code> 在被覆盖之前必须取出来；很多人在循环里直接写 <code>f_prev[j - 1]</code>，一旦把两行用同一个数组交替复用，左上角就变成了当前列的上一行值，答案悄悄错掉。这个错误不会崩、不会越界，只是答案偏小——最难查的一类 bug。
+
+滚动版与二维版的一致性，我们做了穷举对拍：a/b/c 字母表、长度 0~5 的 <strong>132496 组</strong>输入，两版答案逐组一致。
+<h2>六、实现要点与边界</h2>
+<ul>
+<li><strong>答案是全表最大值</strong>，不是 <code>g[n][m]</code>：子串结束在任何一格；</li>
+<li><strong>空串</strong>返回 0（两个空串、单侧空串都要处理）；</li>
+<li><strong>两个毫无关系的字符</strong>答案是 1（<code>max(..., 1)</code> 保证的），不是 0；</li>
+<li><strong>答案不超过较短串长度</strong>——所以可以对长串做预处理（取长度差之外的部分意义不大），或先剪掉不可能参与匹配的前后缀；</li>
+<li><strong>只回溯起点不够</strong>：如果面试官要「这段字符串本身」，还得在 <code>g</code> 达到最大值时回溯左上，直到 <code>f == 0</code> 的位置——回溯终点就是那一处错误所在。</li>
+</ul>
+<h2>七、追问：允许 k 处错误</h2>
+
+把「一处」推广成「k 处」，状态从 <code>g[i][j]</code> 变成 <code>g[i][j][e]</code>（已用 e 次错误），转移照抄同一套逻辑：
+<div class="codehilite"><pre><span></span><code><span class="n">s</span><span class="o">[</span><span class="n">i-1</span><span class="o">]</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="n">t</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="err">:</span><span class="w">  </span><span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">][</span><span class="n">e</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="o">[</span><span class="n">i-1</span><span class="o">][</span><span class="n">j-1</span><span class="o">][</span><span class="n">e</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">     </span><span class="err">#</span><span class="w"> </span><span class="n">不消耗额度</span>
+<span class="n">s</span><span class="o">[</span><span class="n">i-1</span><span class="o">]</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="n">t</span><span class="o">[</span><span class="n">j-1</span><span class="o">]</span><span class="err">:</span><span class="w">  </span><span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">][</span><span class="n">e</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="o">[</span><span class="n">i-1</span><span class="o">][</span><span class="n">j-1</span><span class="o">][</span><span class="n">e-1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">   </span><span class="err">#</span><span class="w"> </span><span class="n">从</span><span class="w"> </span><span class="n">e</span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="n">那一档接过额度</span>
+<span class="w">                     </span><span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">][</span><span class="n">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">                    </span><span class="err">#</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="n">次错误时不等就是断</span>
+</code></pre></div>
+
+
+<strong>关键的不变量还在：额度只能从「更干净的档」接</strong> —— <code>e-1</code> 档接过来，恰好保证同一格不重复消耗。k=0 时自然退化成最长公共子串。
+
+额度放宽对答案的影响非常非线性，值得记两个实测：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>输入</th>
+<th>k = 0</th>
+<th>k = 1</th>
+<th>k = 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abcdef</code> / <code>abcdxf</code></td>
+<td>4</td>
+<td><strong>6</strong></td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>abcdef</code> / <code>abxyef</code></td>
+<td>3</td>
+<td>3</td>
+<td><strong>6</strong></td>
+</tr>
+<tr>
+<td><code>kitten</code> / <code>sitting</code></td>
+<td>3</td>
+<td>5</td>
+<td><strong>6</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+第二行最典型：k=1 时答案还是 3，多给一处错误直接跳到 6（整串）。<strong>所以 k 的选取不是「多给点总没坏处」</strong>——k 从 1 到 2 可能让答案翻倍，面试时值得主动点出这一点。
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>二维 DP</th>
+<th>滚动数组</th>
+<th>k 处错误</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间</td>
+<td>O(n × m)</td>
+<td>O(n × m)</td>
+<td>O(n × m × (k + 1))</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(n × m)</td>
+<td>O(min(n, m))</td>
+<td>O(m × (k + 1))</td>
+</tr>
+<tr>
+<td>1000 × 1000 的格数</td>
+<td>10^6</td>
+<td>10^6 次运算</td>
+<td>3 × 10^6（k = 2）</td>
+</tr>
+</tbody>
+</table></div>
+
+1000 长度下，二维表 10^6 个 int 在 Java 里约 4 MB，能过；但 n、m 到 10^5 时表根本放不下，滚动数组也救不了时间（10^10 次运算），这时候就该换算法：位图 / 哈希分块 / SA-IS 之类的字符串工具（具体场景另开一篇）。
+<h2>九、常见坑：五个每一个都能过样例</h2>
+<h3>9.1 不等时误用 <code>g[i-1][j-1]</code>（本题头号 bug）</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>   <span class="c1"># 错，应为 f[i-1][j-1] + 1</span>
+</code></pre></div>
+
+
+同一个字符上第二次消耗错误配额。反例 <code>ab</code> / <code>ba</code>：正解 1，错法 2。穷举统计它与正解在 61.8% 的输入上都不同——<strong>不是个别用例的边角问题，是整体性的错</strong>。
+<h3>9.2 忘了 <code>max(..., 1)</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>   <span class="c1"># 错，缺了和 1 取最大</span>
+</code></pre></div>
+
+
+当左上角的 <code>f</code> 是 0（刚起头），这一格会算成 1 —— 对 <code>a</code> / <code>b</code> 这种单字符恰好正确，但当整串都靠这一格起步时会把长度压低一格。保险写法是 <code>max(f[i-1][j-1] + 1, 1)</code>。
+<h3>9.3 滚动数组没单独存左上角</h3>
+
+两行数组交替复用时，<code>f_prev[j-1]</code> 在被写入前必须取出；直接引用会在内层循环中被覆盖，答案静默偏小。这类 bug 不崩不越界，只能靠对拍发现。
+<h3>9.4 把「连续」当「不连续」做</h3>
+
+看到「子序列」就照 LCS 写，转移里出现 <code>max(左, 上, 左上)</code> —— 能跑，但算的是另一道题。<strong>判据很简单：转移里一旦出现 <code>左</code> 或 <code>上</code>，就说明允许跳格了，题目已经不是这道。</strong>
+<h3>9.5 以为「至多一处」=「恰好一处」</h3>
+
+若把初始状态设成「必须用掉一次错误」（比如不等时不给长度 1 的机会），那么 <code>abc</code> / <code>abc</code> 这种完全相同的输入会返回 0。题面写的是<strong>至多</strong>，包含 0 次。
+<h2>十、面试怎么答</h2>
+
+30 秒版本：
+<blockquote>
+
+两个状态。<code>f[i][j]</code> 是结尾相同且全程相等的最长公共子串长度，<code>g[i][j]</code> 是结尾相同、至多一处不等的长度。字符相等时两个状态都沿左上角 +1；不相等时 <code>f</code> 归 0，<code>g = max(f 左上 + 1, 1)</code> —— 额度只能从干净的 <code>f</code> 接，否则同一个字符会反复消耗配额。答案是全表最大的 <code>g</code>。时间 O(n × m)，滚动数组压到 O(min(n, m)) 空间。
+</blockquote>
+
+如果还有时间，主动补三句，分别是三个加分点：
+<ol>
+<li><strong>额度不变量</strong>：<code>g</code> 只能从「更干净的档」接 —— 1 处错误版从 <code>f</code> 接，k 处错误版从 <code>g[e-1]</code> 接。这是全题唯一的核心思想；</li>
+<li><strong>滚动数组的陷阱</strong>：左上角必须在覆盖前取出，否则答案静默偏小；</li>
+<li><strong>k 处错误的非线性</strong>：实测 <code>abcdef</code> / <code>abxyef</code> 在 k=1 时答案只有 3，k=2 直接跳到 6 —— k 不是「多给点总没坏处」。</li>
+</ol>
+
+这套题的完整状态机、渲染层和 26 个单测（穷举对拍 14641 组 + 滚动版 132496 组 + 1000 组随机对拍）都在仓库里，动画对应文章里的两个占位符。</div></div></noscript>
+  </body>
+</html>
