@@ -1,5 +1,5 @@
 ---
-title: 【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端
+title: 【开源】aidevops 技术拆解：研发数据关联与可解释风险
 slug: aidevops-terminal-client
 cover_image: /photos/aidevops-cover.png
 date: 2026-10-16

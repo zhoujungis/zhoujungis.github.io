@@ -44,7 +44,7 @@ SOURCE = (
     / "aidevops-terminal-client.md"
 )
 
-ARTICLE_TITLE = "【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端"
+ARTICLE_TITLE = "【开源】aidevops 技术拆解：研发数据关联与可解释风险"
 ARTICLE_SLUG = "aidevops-terminal-client"
 ARTICLE_EXCERPT = (
     "AI DevOps / QA Copilot 的终端客户端（CLI + 全屏 TUI）已发布到 PyPI："
