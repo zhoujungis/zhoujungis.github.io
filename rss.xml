@@ -5,8 +5,295 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Fri, 16 Oct 2026 07:12:50 GMT</lastBuildDate>
+    <lastBuildDate>Fri, 16 Oct 2026 07:16:25 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端</title>
+      <link>https://zhoujungis.github.io/article/aidevops-terminal-client/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/aidevops-terminal-client/</guid>
+      <pubDate>Fri, 16 Oct 2026 07:14:43 GMT</pubDate>
+      <description>前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI： aidevops ， pip install aidevops 就能装。源码在 GitHub ，MIT 协议， 项目完全开源 。 这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以</description>
+      <category>项目实践</category>
+      <category>DevOps</category>
+      <category>Python</category>
+      <category>aidevops</category>
+      <category>开源</category>
+      <content:encoded><![CDATA[前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI：<strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong>，<code>pip install aidevops</code> 就能装。源码在 <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a>，MIT 协议，<strong>项目完全开源</strong>。
+
+这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以及为什么它被关在笼子里）、每个命令怎么用，还有哪些是我刻意不做的。
+<ul>
+<li><a href="#section-1">一、它在解决什么问题：研发数据的孤岛</a></li>
+<li><a href="#section-2">二、总体架构：客户端薄，服务端厚</a></li>
+<li><a href="#section-3">三、数据是怎么进来的：双游标同步与幂等摄取</a></li>
+<li><a href="#section-4">四、模块归属：把提交钉到模块上</a></li>
+<li><a href="#section-5">五、explain：一条提交的完整关联链</a></li>
+<li><a href="#section-6">六、风险引擎：10 个信号，逐条可解释</a></li>
+<li><a href="#section-7">七、AI 分析：五个 Agent、证据校验、全链路追踪</a></li>
+<li><a href="#section-8">八、确认流与审计：AI 只提议，人说了算</a></li>
+<li><a href="#section-9">九、安装与五分钟上手</a></li>
+<li><a href="#section-10">十、脚本化与 CI</a></li>
+<li><a href="#section-11">十一、工程化：测试、类型、发布流</a></li>
+<li><a href="#section-12">十二、现状、局限与 Roadmap</a></li>
+</ul>
+<h2>一、它在解决什么问题：研发数据的孤岛</h2>
+
+一个团队日常会产生大量研发数据：需求单在 Jira 里、提交在 GitHub 里、测试结果在 CI 里、Bug 单在缺陷系统里、发布记录在发布流水线里。这些数据都存在，但<strong>散落在不同系统里，彼此不认识</strong>。
+
+于是每个开发者每天都在人肉做同一件事：这次改动动了哪些模块？这些模块历史上出过什么 Bug？相关的测试有没有覆盖？这个版本发出去，风险集中在哪？——答案全在系统里，但要把它们拼起来，得开五个标签页、翻三份导出、再凭记忆对一遍。
+
+aidevops 背后的平台做的就是这件事：<strong>把「需求 → 代码 → 测试 → Bug → 发布」这条链路上的数据关联起来</strong>，然后回答四类具体问题：
+<ul>
+<li>一次提交<strong>风险在哪里</strong>（哪个模块、哪个信号在报警、为什么）；</li>
+<li><strong>该回归测试什么</strong>（关联的历史 Bug、测试候选清单）;</li>
+<li>线上问题<strong>最可能从哪来</strong>（关联链回溯到需求和发布）；</li>
+<li>AI 看完数据后<strong>建议什么</strong>（生成测试、标记可疑点、给出调查方向）。</li>
+</ul>
+
+<code>aidevops</code> 这个终端客户端，就是把上述能力装进命令行——因为在终端里工作的开发者，不应该为了看一次风险分析切到浏览器。
+<h2>二、总体架构：客户端薄，服务端厚</h2>
+
+一句话：<strong><code>aidevops</code> 是终端客户端（CLI + 全屏 TUI），不是服务端。</strong> 它本身不含任何业务逻辑，所有能力都通过 HTTP 调用后端（Django + PostgreSQL + Redis，向量检索用 pgvector）。
+
+这个边界划得非常刻意，原因有三：
+<ol>
+<li><strong>数据与逻辑集中在服务端</strong>：关联引擎、风险模型、AI Agent 都是重计算 + 需要完整数据的组件。同步进来的提交历史、测试台账、Bug 单动辄几十万条，放客户端会退化成玩具；</li>
+<li><strong>凭据安全</strong>：Git 凭据、模型 API Key 存在服务端并 Fernet 加密落库，客户端只持有自己的访问令牌（存本地配置目录，权限 0600）；</li>
+<li><strong>多端复用</strong>：CLI、TUI、未来的 Web 前端，全部消费同一套 REST API（<code>/api/v1</code>），不存在逻辑漂移。</li>
+</ol>
+
+所以如果你只装了 <code>aidevops</code> 而没有可用的后端，<code>login</code> 第一步就会连不上——这不是 bug，是架构。本地起后端两条路：<code>cp .env.example .env</code> 后 <code>docker compose up -d --build</code>（Swagger 在 <code>/api/docs/</code>），或者 <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> 加 <code>make worker</code> / <code>make beat</code> 起 Celery。
+
+客户端技术栈：<strong>Typer</strong>（CLI 框架）、<strong>Textual</strong>（全屏 TUI）、<strong>Rich</strong>（表格与美化输出）、<strong>httpx</strong>（HTTP 客户端）。纯 Python 依赖，没有需要编译的扩展，Python ≥ 3.11。
+<h2>三、数据是怎么进来的：双游标同步与幂等摄取</h2>
+
+数据进不来，后面全是空态。摄取层是整个系统最「脏活累活」的部分，三条通道：
+
+<strong>GitHub REST 同步</strong>：增量游标 + 历史回填游标分开维护——新提交走增量，首次接入的仓库全量回填。限流退避重试（GitHub 的 rate limit 是现实约束，不是异常）。
+
+<strong>Webhook 实时摄取</strong>：push、CI 结果、issue 变更等事件实时进来。两道安全门：<strong>HMAC-SHA256 验签</strong>（确认请求真来自 GitHub）+ <strong><code>delivery_id</code> 幂等</strong>（GitHub 会重投事件，同一条 delivery 处理两次不能产生两条记录）。
+
+<strong>Celery beat 定时兜底</strong>：Webhook 会丢（网络抖动、服务重启），beat 定时任务周期性对账，保证最终一致。
+
+模块归属、测试关联这些「理解性」工作在摄取完成后异步进行。这套设计的取舍很明确：<strong>摄取层宁可慢，不可丢、不可重</strong>——因为后面所有关联和风险计算都建立在「数据是可信的」这个前提上。
+<h2>四、模块归属：把提交钉到模块上</h2>
+
+关联的第一步是回答「这次提交动了哪些模块」。听起来简单，实际是个解析问题：同一个仓库里，<code>src/auth/</code> 显然属于 auth 模块，但 <code>utils/date.py</code> 属于谁？改了 <code>tests/</code> 的提交算不算动了业务模块？
+
+aidevops 的解法是<strong>三级归属策略，按优先级落</strong>：
+<ol>
+<li><strong>覆盖规则</strong>（最高优先）：仓库维护者显式配置的路径 → 模块映射，一票定音；</li>
+<li><strong>源根推断</strong>：没有覆盖规则时，按语言惯例和仓库结构推断（比如 <code>src/</code>、<code>lib/</code> 下的顶层目录）；</li>
+<li><strong>兜底策略</strong>：以上都不适用的文件，落到明确的兜底归属，不悬空。</li>
+</ol>
+
+关键在最后半句：<strong>每一种归属都带可引用的理由</strong>。「这个文件属于 auth 模块，因为它命中了覆盖规则 <code>src/auth/**</code>」——归属不是猜的，是可以点开看的。下游的风险计算、回归候选推荐全部建立在这层可追溯的归属之上。
+<h2>五、explain：一条提交的完整关联链</h2>
+
+<strong><code>aidevops explain &lt;sha&gt;</code></strong> 是招牌命令。给一个提交 SHA，它返回这条提交在研发链路上的完整关联：
+<ul>
+<li><strong>关联需求</strong>：这个改动是为了哪个需求（或关联到哪个需求簇）；</li>
+<li><strong>模块影响</strong>：改动了哪些模块，每个模块的中心度如何；</li>
+<li><strong>回归候选</strong>：历史上和这些模块纠缠最多的测试与 Bug，哪些应该跑；</li>
+<li><strong>历史 Bug</strong>：同区域过去出过什么问题，模式是什么；</li>
+<li><strong>所在发布</strong>：这条提交进了哪个发布，发布窗口什么时候；</li>
+<li><strong>数据缺口</strong>：上面哪些环节<strong>没有数据</strong>。</li>
+</ul>
+
+最后一点值得单独强调：<strong><code>data_gaps</code> 显式区分「没有发现问题」和「我们没有数据」</strong>。工具最大的失信方式就是把无知包装成结论——比如一个从没接过测试结果的仓库，「回归候选为空」必须被解释成「我们不知道」，而不是「一切安全」。这是整个产品的诚信底线，explain 把它做成了输出的一等公民。
+<h2>六、风险引擎：10 个信号，逐条可解释</h2>
+
+<strong><code>aidevops risk &lt;sha&gt;</code></strong>（以及模块维度的 <code>aidevops module-risk &lt;id&gt;</code>）给出归一化的风险分数。它刻意做成<strong>可解释</strong>的：10 个信号各自贡献多少，逐条列出，贡献之和精确等于分数。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>信号</th>
+<th>它在度量什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>change_volume</code></td>
+<td>这次的改动量（行数、文件数）</td>
+</tr>
+<tr>
+<td><code>historical_bug_density</code></td>
+<td>所在模块的历史 Bug 密度</td>
+</tr>
+<tr>
+<td><code>test_failure_rate</code></td>
+<td>关联测试近期的失败率</td>
+</tr>
+<tr>
+<td><code>module_centrality</code></td>
+<td>被改模块在依赖图里的中心度</td>
+</tr>
+<tr>
+<td><code>change_frequency</code></td>
+<td>这个区域最近的改动频率（hotspot 检测）</td>
+</tr>
+<tr>
+<td><code>coverage_gap</code></td>
+<td>变更路径的覆盖缺口</td>
+</tr>
+<tr>
+<td><code>open_high_severity_bugs</code></td>
+<td>模块上未关闭的高严重度 Bug</td>
+</tr>
+<tr>
+<td><code>test_coverage_gap</code></td>
+<td>该模块的测试覆盖缺口</td>
+</tr>
+<tr>
+<td><code>release_proximity</code></td>
+<td>距离下一次发布还有多久（越近风险越贵）</td>
+</tr>
+<tr>
+<td><code>data_freshness_penalty</code></td>
+<td>数据太旧时的诚实惩罚（信号不可信时降权）</td>
+</tr>
+</tbody>
+</table></div>
+
+三个工程决策值得展开：
+<ul>
+<li><strong>权重是配置而非代码</strong>。10 个信号的权重存在服务端，可以在 Django admin 里调，不需要改代码重新部署；</li>
+<li><strong>三级继承</strong>：系统默认 → 组织覆盖 → 项目覆盖。一个对延迟敏感的团队可以把「临近发布」权重调高，一个测试基建薄弱的团队可以突出「覆盖缺口」；</li>
+<li><strong>贡献之和等于分数</strong>。这不是装饰——它让「我觉得这个分数不对」变成可讨论的工程问题：找到贡献最大的信号，去查它的输入。黑盒分数永远做不到这一点。</li>
+</ul>
+<h2>七、AI 分析：五个 Agent、证据校验、全链路追踪</h2>
+
+AI 层回答「看完这些数据，能不能自动做点什么」。它的结构比「接个 LLM」复杂得多：
+
+<strong>Provider 可插拔</strong>。模型凭据按组织管理（<code>aidevops providers</code> / <code>provider-add</code> / <code>provider-verify</code>），走 OpenAI 兼容协议，内置 DeepSeek、Qwen、Ollama 预设，凭据 Fernet 加密落库——模型 Key 和 Git PAT 一样，不属于客户端。
+
+<strong>五个内置 Agent</strong>，各自有明确的输入输出契约：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Code Impact</td>
+<td>分析一次提交的影响面</td>
+</tr>
+<tr>
+<td>Test Generation</td>
+<td>按场景矩阵生成测试用例（11 类场景，不是撒胡椒面）</td>
+</tr>
+<tr>
+<td>Bug Investigation</td>
+<td>围绕一个 Bug 组织证据链</td>
+</tr>
+<tr>
+<td>Root Cause Analysis</td>
+<td>从症状回溯可能的根因区域</td>
+</tr>
+<tr>
+<td>Requirement Analysis</td>
+<td>从需求文本提取可验证的验收点</td>
+</tr>
+</tbody>
+</table></div>
+
+发起用 <code>aidevops analyse -a test-generation --wait</code>，历史用 <code>analyses</code> / <code>job</code> 查。<strong><code>aidevops trace &lt;id&gt;</code></strong> 是排障神器：一次分析背后的模型调用、工具调用、各自耗时，全部可查——Agent 不是黑盒。
+
+<strong><code>aidevops findings</code> / <code>finding &lt;id&gt;</code> / <code>triage &lt;id&gt; &lt;status&gt;</code></strong> 是 AI 发现的工作台：每条发现都带<strong>证据引用</strong>——AI 说的话必须能解析回真实数据（某个提交、某条 Bug、某段测试），引用对不上就不会出现。<code>triage</code> 把发现的处置状态（待处理 / 已确认 / 误报）做成显式流转，处置过程本身就是团队的知识沉淀。
+
+<strong><code>aidevops tui</code></strong> 是全屏交互式仪表盘（Textual 实现），提交列表、发现流、建议队列都在里面，不想记命令就开它。
+
+<strong>证据校验</strong>是 AI 层的硬约束：AI 的每条引用（某个提交、某条 Bug、某个测试）必须能解析回真实数据，解析不上就不会出现在结论里。这从机制上掐掉了「模型幻觉出一条不存在的 Bug」这类事故。
+
+<strong>工具面收口</strong>：模型只能调用 13 个<strong>只读工具</strong>，全部强制按项目作用域过滤，任何写操作都不在模型的工具列表里。AI 看得到数据，但碰不到状态——这是下一节确认流的前提。
+<h2>八、确认流与审计：AI 只提议，人说了算</h2>
+
+AI 的产出永远是「建议对象」（proposal）：生成的一批测试、一个调查结论、一个处理建议。它们不会自己生效：
+<div class="codehilite"><pre><span></span><code>aidevops proposals                 # 看待确认的建议
+aidevops approve &lt;id&gt;              # 确认 → 代码固定的 Executor 执行
+aidevops reject &lt;id&gt;               # 拒绝 → 丢弃
+</code></pre></div>
+
+
+三条硬规则：
+<ol>
+<li><strong>只有 <code>approve</code> 会真正执行</strong>。执行逻辑不在模型手里，在代码写死的 Executor 里——模型只能「提」，不能「做」；</li>
+<li><strong>未确认 = 零写入</strong>。没有隐式的自动采纳，没有「默认执行、异议再撤销」；</li>
+<li><strong>全程写 <code>AuditLog</code></strong>。谁在什么时候 approve 了什么、Executor 做了什么，<code>aidevops audit</code> 一条条可查。</li>
+</ol>
+
+在 QA 这个场景里，这个取舍很明确：<strong>AI 直接改状态的信任账还没到能赊的程度</strong>。测试是质量防线，防线上不能放一个会自己动手的黑盒。
+
+多租户安全是同一思路的延伸：<strong>租户 id 只从 URL 取</strong>（不从请求体猜），非成员访问返回 404（不泄露存在性），角色不足返回 403，所有查询强制走 <code>scoped_queryset</code> 唯一入口——没有「忘了加过滤」这种事故的容身之处。
+<h2>九、安装与五分钟上手</h2>
+<div class="codehilite"><pre><span></span><code>pipx install aidevops        # 推荐：独立虚拟环境，命令直接进 PATH
+# 或者
+pip install aidevops
+</code></pre></div>
+
+
+登录走 <strong>GitHub 设备码</strong>（device flow），浏览器输个码就行，不在终端贴密码；远程服务器 / 容器用 <code>login --no-browser</code>。
+<div class="codehilite"><pre><span></span><code>aidevops login                       # GitHub 设备码登录
+aidevops org-add &quot;My Team&quot;           # 首次使用：建组织（创建者即 admin）
+aidevops projects                    # 列出项目（* 标出当前项目）
+aidevops use qa-copilot-platform     # 选中项目，后续命令默认作用于它
+aidevops status                      # 当前后端 / 账号 / 项目
+</code></pre></div>
+
+
+<strong>接入仓库</strong>是产品入口，缺任何一环后面的 <code>commits</code> / <code>risk</code> / <code>explain</code> 都是空态：
+<div class="codehilite"><pre><span></span><code><span class="nv">aidevops</span><span class="w"> </span><span class="nv">connections</span><span class="w">                                     </span>#<span class="w"> </span>看现有<span class="w"> </span><span class="nv">Git</span><span class="w"> </span>凭据，拿<span class="w"> </span><span class="nv">connection</span><span class="w"> </span><span class="nv">id</span>
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">connection</span><span class="o">-</span><span class="nv">add</span><span class="w"> </span><span class="o">-</span><span class="nv">l</span><span class="w"> </span><span class="nv">my</span><span class="o">-</span><span class="nv">github</span><span class="w"> </span><span class="o">-</span><span class="nv">t</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">PAT</span><span class="o">&gt;</span><span class="w">            </span>#<span class="w"> </span>私有库需要<span class="w"> </span><span class="nv">repo</span><span class="w"> </span>读权限
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">connection</span><span class="o">-</span><span class="nv">verify</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">connection</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w">               </span>#<span class="w"> </span>先验证凭据能用
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">repo</span><span class="o">-</span><span class="nv">add</span><span class="w"> </span><span class="o">-</span><span class="nv">c</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">connection</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w"> </span><span class="o">-</span><span class="nv">f</span><span class="w"> </span><span class="nv">owner</span><span class="o">/</span><span class="nv">repo</span><span class="w">       </span>#<span class="w"> </span>注册仓库
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">sync</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">repository</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w"> </span><span class="o">--</span><span class="k">wait</span><span class="w">                     </span>#<span class="w"> </span>拉取历史，跑完即用
+</code></pre></div>
+
+
+<code>connection</code> 是<strong>组织级</strong>凭据（管理员管理），一个凭据可注册多个仓库；<code>repo-update</code> 能调同步窗口与模块归属深度。
+
+<strong>升级</strong>用 <code>aidevops upgrade</code>。客户端每次运行都会比对 PyPI 最新版，落后了用红字提示（结果缓存 24 小时，<code>AIDEVOPS_NO_UPDATE_CHECK=1</code> 可关）。一个防呆：<code>upgrade</code> 在 <code>pip install -e</code> 的开发检出处<strong>拒绝执行</strong>——那会把你的工作区悄悄换成发布版，提示你改用 <code>git pull</code>。
+
+配置与令牌存用户配置目录（Windows <code>%LOCALAPPDATA%\aidevops\</code>，Linux <code>~/.config/aidevops/</code>），文件权限 0600。
+<h2>十、脚本化与 CI</h2>
+
+<code>--json</code> 是<strong>全局</strong>选项，放在子命令之前：
+<div class="codehilite"><pre><span></span><code>aidevops --json findings | jq &#39;.[] | select(.severity == &quot;critical&quot;)&#39;
+</code></pre></div>
+
+
+两个为管道做的细节：<code>--json</code> 模式下升级提示走 <strong>stderr</strong>，不污染 stdout；<code>AIDEVOPS_JSON=1</code> 环境变量等价于全局 flag。CI 里用 <code>AIDEVOPS_TOKEN</code> 直接注入令牌（免交互登录），<code>AIDEVOPS_BASE_URL</code> 指向测试后端做集成验证。
+
+一个实际的 CI 场景：流水线里跑 <code>aidevops --json risk $GITHUB_SHA</code>，分数超过阈值就把关联的回归候选列表贴到 PR 评论里——风险引擎和 AI 建议都变成了流水线的一等公民。
+<h2>十一、工程化：测试、类型、发布流</h2>
+
+客户端在仓库的 <code>cli/</code> 目录下，工程化配置是完整的：
+<div class="codehilite"><pre><span></span><code>python -m pytest          # 50 个客户端测试，含 Textual pilot 的 TUI 测试
+python -m ruff check .
+python -m mypy ai_devops_cli
+</code></pre></div>
+
+
+TUI 用 Textual 的 pilot 做交互测试——全屏应用的按键流、面板切换都覆盖到了，不靠人肉点。后端另有 <strong>569 个测试</strong>（4 个 network 用例默认跳过），全部不依赖外网，CI 上跑得飞快。
+
+多租户的写路径全部收口在 <code>scoped_queryset</code> 唯一入口，配合上面说的 URL 租户语义，测试可以逐条断言「租户 A 永远看不到租户 B 的数据」。
+
+PyPI 发布走 <strong>tag 触发的 trusted publishing</strong> 工作流：打 tag → GitHub Actions 构建 → OIDC 短期凭证上传 PyPI，没有本地打包、没有长期 token。
+<h2>十二、现状、局限与 Roadmap</h2>
+
+现在是 <strong>Alpha</strong>（Development Status 3），几个明确的局限：
+<ul>
+<li><strong>需要自建后端</strong>：客户端离开后端没有独立价值，想试完整流程得先跑起服务端（docker compose 一套或本地 make 一套）；</li>
+<li><strong>单组织多项目</strong>已经支持，跨组织的权限模型还在收敛；</li>
+<li><strong>真实 LLM 端到端 smoke test</strong> 在 roadmap 上（当前 Agent 测试用桩模型，逻辑路径已覆盖，真实模型的输出契约待验证）；</li>
+<li><strong>模块归属解析</strong>需要按仓库配置一次覆盖规则，零配置的准确率依赖源根推断的质量。</li>
+</ul>
+
+Roadmap 优先级：终端详情视图补完 → 真实 LLM smoke test → Celery worker 生产形态验证。
+
+如果你也在做 QA 平台，或者对「研发数据关联」和「有笼子的 AI Agent」这两个方向有兴趣，欢迎提 issue：<a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/ai_devops</a>。装起来一行命令：<code>pipx install aidevops</code>。]]></content:encoded>
+    </item>
     <item>
       <title>一周 15 万 Star 的 REA：让 Agent 逆向一切的开源 MCP Server</title>
       <link>https://zhoujungis.github.io/article/rea-reverse-engineer-anything/</link>
@@ -2019,674 +2306,6 @@ KMP 的全部内容其实就是 <strong>"一张 next 表 + 一次永不回头的
       <category>LeetCode</category>
       <category>动态规划</category>
       <category>面试</category>
-      <content:encoded><![CDATA[<h2>题目</h2>
-
-<strong>LC 1928 规定时间内到达终点的最小花费</strong>：有 <code>n</code> 个城市（编号 <code>0 .. n-1</code>）。<code>edges[i] = [x, y, time]</code> 是一条<strong>无向边</strong>，边上只有<strong>时间</strong>、<strong>没有花费</strong>。另有 <code>passingFees[v]</code>：<strong>每经过一座城市付一次</strong>该城市的通行费 —— <strong>起点与终点也要付</strong>。求从 <code>0</code> 走到 <code>n-1</code>，在总时间 <strong>≤ maxTime</strong> 的前提下<strong>最少</strong>要付多少通行费；走不到返回 <code>-1</code>。
-<div class="codehilite"><pre><span></span><code>输入: edges = [[0,1,10],[1,2,10],[2,5,10],[0,3,1],[3,4,10],[4,5,15]]
-      passingFees = [5,1,2,20,20,3]
-
-maxTime = 30 → 11   （0 → 1 → 2 → 5：耗时 10+10+10 = 30，费 5+1+2+3 = 11）
-maxTime = 29 → 48   （0 → 3 → 4 → 5：耗时 1+10+15 = 26，费 5+20+20+3 = 48）
-maxTime = 25 → -1   （最快的一条路也要 26 分钟，25 分钟内根本到不了）
-</code></pre></div>
-
-
-它看上去就是"最短路"，真正的门槛却在一处非常反直觉的地方：<strong>通往终点有两条路 —— 一条费 11、一条费 48，差的不是"哪条便宜"，而是"来不来得及"</strong>。maxTime 只差 1 分钟（30 与 29），答案就从 11 跳到 48。这一跳就是本文的全部戏肉：为什么一维的 <code>dp[v]</code> 一定会算错，以及怎么用一张<strong>分层图</strong>（官方提示）把它救回来。
-<ul>
-<li><a href="#section-1">一、核心洞察：dp 定义与状态转移</a></li>
-<li><a href="#section-2">二、为什么时刻必须进状态</a></li>
-<li><a href="#section-3">三、动画怎么看</a></li>
-<li><a href="#section-4">四、完整推演表</a></li>
-<li><a href="#section-5">五、同族题：787 / 743 / 1631 / 1514 / 1976</a></li>
-<li><a href="#section-6">六、Java 版</a></li>
-<li><a href="#section-7">七、边界情况</a></li>
-<li><a href="#section-8">八、复杂度</a></li>
-<li><a href="#section-9">九、常见坑</a></li>
-<li><a href="#section-10">十、面试怎么答</a></li>
-</ul>
-<h2>一、核心洞察：dp 定义与状态转移</h2>
-
-先说那个<strong>错的</strong>写法：跑一次最短路，<code>dp[v]</code> = 从 0 走到 <code>v</code> 的最少花费（边权 = 到达城市的通行费）。它对不对？看官方示例：<code>dp[5] = 11</code>，可这条路要 <strong>30 分钟</strong>，在 <code>maxTime = 29</code> 时<strong>根本不允许</strong>。一维写法把"它是第几时刻到的"整个丢掉了，于是<strong>把一条超时的便宜路错当成了答案</strong>。
-
-修法只有一句：<strong>把时间并进状态</strong>。
-<blockquote>
-
-不问"到某城最少花多少"，而问"<strong>在某个确定的时刻到达某城，最少花多少</strong>"。
-</blockquote>
-
-于是定义：
-<ul>
-<li><code>dp[t][v]</code> = <strong>恰好在时刻 <code>t</code></strong> 到达城市 <code>v</code> 的最小通行费；</li>
-<li><code>dp[0][0] = passingFees[0]</code> —— <strong>起点也要付自己的通行费</strong>，这是唯一的底座；</li>
-<li>其余全部是 <code>∞</code>（还没到过）；</li>
-<li>按 <code>t</code> <strong>正序</strong>逐层向外松弛每一条边：</li>
-</ul>
-<div class="codehilite"><pre><span></span><code><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">恰好在时刻</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">到达城市</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="n">的最小通行费</span>
-<span class="n">dp</span><span class="o">[</span><span class="n">0</span><span class="o">][</span><span class="n">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">0</span><span class="o">]</span><span class="w">                       </span><span class="err">（</span><span class="n">起点也要付</span><span class="err">）</span>
-<span class="n">dp</span><span class="o">[</span><span class="n">t + et</span><span class="o">][</span><span class="n">u</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">min</span><span class="p">(</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t + et</span><span class="o">][</span><span class="n">u</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">u</span><span class="o">]</span><span class="w"> </span><span class="p">)</span>
-<span class="n">答案</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">min</span><span class="w"> </span><span class="k">over</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="err">≤</span><span class="w"> </span><span class="n">maxTime</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">n-1</span><span class="o">]</span>
-</code></pre></div>
-
-
-语义是：<strong>已经知道"<code>t</code> 时刻在 <code>v</code>、花了多少"，再走一步（耗时 <code>et</code>）到 <code>u</code>，就多付一笔 <code>u</code> 的通行费</strong>。等算 <code>dp[t + et]</code> 这一层时，用到的 <code>dp[t]</code>（更早的层）早就写好了 —— 这正是"按时刻正序推进"的含义。
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">minCost</span><span class="p">(</span><span class="n">maxTime</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">passingFees</span><span class="p">):</span>
-    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">passingFees</span><span class="p">)</span>
-    <span class="n">INF</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
-    <span class="n">dp</span> <span class="o">=</span> <span class="p">[[</span><span class="n">INF</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">maxTime</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
-    <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">passingFees</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>                  <span class="c1"># 起点也要付自己的费</span>
-    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">maxTime</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">et</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>                 <span class="c1"># 无向边，两个方向都要试</span>
-            <span class="n">arr</span> <span class="o">=</span> <span class="n">t</span> <span class="o">+</span> <span class="n">et</span>
-            <span class="k">if</span> <span class="n">arr</span> <span class="o">&gt;</span> <span class="n">maxTime</span><span class="p">:</span>                  <span class="c1"># 迟到就是迟到，剪掉</span>
-                <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">INF</span><span class="p">:</span>
-                <span class="n">dp</span><span class="p">[</span><span class="n">arr</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">arr</span><span class="p">][</span><span class="n">y</span><span class="p">],</span> <span class="n">dp</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">+</span> <span class="n">passingFees</span><span class="p">[</span><span class="n">y</span><span class="p">])</span>
-            <span class="k">if</span> <span class="n">dp</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">INF</span><span class="p">:</span>
-                <span class="n">dp</span><span class="p">[</span><span class="n">arr</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">arr</span><span class="p">][</span><span class="n">x</span><span class="p">],</span> <span class="n">dp</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">+</span> <span class="n">passingFees</span><span class="p">[</span><span class="n">x</span><span class="p">])</span>
-    <span class="n">ans</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">maxTime</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">ans</span> <span class="o">==</span> <span class="n">INF</span> <span class="k">else</span> <span class="n">ans</span>
-</code></pre></div>
-
-
-三个细节决定了成败：
-<ol>
-<li><strong><code>dp[0][0]</code> 是 <code>passingFees[0]</code> 而不是 <code>0</code></strong>：起点也算"经过"，漏掉它答案会少一笔。同理，终点那笔 <code>passingFees[n-1]</code> 也在松弛里收。</li>
-<li><strong>只从"已到达"的格子出发</strong>：<code>dp[t][v]</code> 还是 <code>∞</code> 的格子产不出一条有效转移。这是"分层图一层层向外扩散"的本意，也顺手避开了 <code>∞ + fee</code> 的溢出。</li>
-<li><strong><code>arr = t + et &gt; maxTime</code> 的松弛直接剪掉</strong>：时间<strong>只能往前走、不会回头</strong>，迟到就是迟到。它们不进入后续任何层。</li>
-</ol>
-
-还有一处最容易漏：<strong>答案不在 <code>dp[0][n-1]</code>，而是 <code>min over t ≤ maxTime of dp[t][n-1]</code></strong>。到达终点不必恰好用满 <code>maxTime</code> —— "早到"和"晚到"是两组独立的格子，最后要在所有时刻上取最小。
-<h2>二、为什么时刻必须进状态</h2>
-
-这一格是整个算法的地基，值得单独说清。
-
-<code>dp[v]</code>（一维）回答的是"到城市 <code>v</code> 最少花多少"。它把<strong>两个本来不同的事实</strong>塌缩成了一个数：
-<ul>
-<li><strong>便宜但慢</strong>：<code>0 → 1 → 2 → 5</code>，费 11，耗时 30；</li>
-<li><strong>贵但快</strong>：<code>0 → 3 → 4 → 5</code>，费 48，耗时 26。</li>
-</ul>
-
-只记花费的那一维会把第一条记下来（<code>dp[5] = 11</code>），却<strong>忘了它已经超时</strong>。而"时间"这件事<strong>不能被压缩、也不等价于花费</strong>：花 11 的代价是 30 分钟，花 48 的代价是 26 分钟 —— 两种付出各换各的，没有谁支配谁。于是两个都要留在状态里，这就是<strong>官方提示的"分层图"</strong>：
-<div class="codehilite"><pre><span></span><code><span class="n">把每一层</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">画成一排城市</span><span class="w"> </span><span class="mf">0.</span><span class="p">.</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="err">：</span>
-<span class="w">  </span><span class="n">层</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">的城市</span><span class="w"> </span><span class="n">v</span><span class="w">  </span><span class="err">←</span><span class="w"> </span><span class="n">一条时间</span><span class="w"> </span><span class="n">et</span><span class="w"> </span><span class="n">的边</span><span class="w"> </span><span class="err">→</span><span class="w">  </span><span class="n">层</span><span class="w"> </span><span class="n">t</span><span class="o">+</span><span class="n">et</span><span class="w"> </span><span class="n">的城市</span><span class="w"> </span><span class="n">u</span>
-<span class="w">  </span><span class="n">点</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w">          </span><span class="n">边</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">,</span><span class="w"> </span><span class="nc">time</span><span class="p">)</span>
-<span class="w">  </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">到点</span><span class="w"> </span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="n">的最短路</span><span class="err">（</span><span class="n">边权</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">到达城市的通行费</span><span class="err">）</span>
-</code></pre></div>
-
-
-<code>maxTime</code> 就是这张图的<strong>层数上限</strong>。所谓"带时间窗的最短路径"，就是"层数有上限的最短路"。
-
-反看两个"差点踩到"的写法：
-<div class="codehilite"><pre><span></span><code><span class="c1"># 【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</span>
-<span class="c1"># 错法一：一维 dp[v]。maxTime = 29 时它会返回 11 —— 但那条路耗时 30，超时</span>
-<span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="n">INF</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
-
-<span class="c1"># 错法二：答案取 dp[maxTime][n - 1]。默认题面里 dp[5][5] = 71，</span>
-<span class="c1"># 但真正的最小是 48（在 t = 3）—— 越晚到反而越贵</span>
-<span class="n">ans</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">maxTime</span><span class="p">][</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
-</code></pre></div>
-
-
-第二条错法还有个耐人寻味的细节：同一座终点，<strong>晚到反而更贵</strong>（<code>dp[5][5] = 71 &gt; dp[3][5] = 48</code>）。因为每一步都在付目的地城市的费，"多绕一站"未必便宜。<code>min over t</code> 把这件事一次性处理干净，不必对"早到更便宜"抱任何假设。
-
-一句话记住这题的骨架：
-<blockquote>
-
-<strong><code>dp[0][0] = fees[0]</code> 是唯一的底座，<code>dp[t+et][u] = min( .. , dp[t][v] + fees[u] )</code> 是唯一的转移，层数上限 <code>maxTime</code> 是唯一的剪枝，答案在 <code>min over t</code> 上。</strong>
-</blockquote>
-<h2>三、动画怎么看</h2>
-<div class="algo-viz algo-viz--lc1928"></div>
-
-<div class="algo-viz algo-viz--lc1928path"></div>
-
-
-<strong>动画一</strong>（<code>algo-viz--lc1928</code>）：一张<strong>分层图</strong>表格 —— <strong>行 = 时刻 <code>t</code>（0 到 maxTime）、列 = 城市 <code>v</code>，格 = <code>dp[t][v]</code></strong>。行头右对齐写 <code>t = k</code>，列头写 <code>城市 v</code> 加一行 <code>费 f</code>，终点那一列垫了一条浅色竖带。没到达的格子是<strong>虚线框 + 灰 <code>∞</code></strong>，已到达的是绿底实值，底座 <code>(0,0)</code> 描金框。每帧一条 relax：<strong>源格 <code>(t, v)</code> 描重橙框，目标格 <code>(t+et, u)</code> 描框（刷新成功 = 实金框，没改进 = 橙虚线框）</strong>，一条虚线箭头从源格底边拉到目标格顶边；一枚金环跟着<strong>当前最优格</strong> <code>dp[bestT][target]</code> 走。下方是转移横幅，写出 <code>dp[arr][u] = min( dp[arr][u] , dp[t][v] + fees[u] )</code> 的现场取值，再接一个五项统计面板（<code>t</code> / <code>v → u</code> / <code>from → cand</code> / <code>已剪枝</code> / <code>答案</code>）。done 帧把回溯出的最优状态链整条点亮。
-
-盯住三件事：<strong>只有"已到达"的格子才会发一帧</strong>（<code>dp[t][v]</code> 还是 <code>∞</code> 的格子根本不产生转移）；<strong><code>arr &gt; maxTime</code> 的松弛不发帧</strong>，只在"已剪枝"计数里悄悄涨（默认题面涨到 11）；以及<strong>没改进的松弛会被点名</strong> —— "这一趟更晚也更贵，作废"。答案那格最后不在第 0 行，而在 <code>min over t</code> 取到的那一格。
-
-<strong>动画二</strong>（<code>algo-viz--lc1928path</code>）：同一张图、两条路的<strong>现场对照</strong>。底图按"从城市 0 做一次 BFS 定层"排布 —— 默认那张图刚好是 <code>col0 = {0}</code>、<code>col1 = {1,3}</code>、<code>col2 = {2,4}</code>、<code>col3 = {5}</code>，每条边标着耗时。两条高亮路叠上去：<strong>橙色 = 只图便宜</strong>（不看时间，最便宜的城市序列），<strong>绿色 = 守时间窗的最优</strong>（在 <code>maxTime</code> 内最省的那条）。左边一张卡写"只图便宜 · 不看时间"、右边一张写"守时间窗 · 最优"，卡里是 <code>城市序列 · 费 X · Y分</code>，右上角给判定（<code>超时 6 &gt; 5</code> / <code>来得及</code> / <code>最优</code>）。下方一排 chip 是<strong>状态链</strong>（<code>t = k</code> 与 <code>城市 v</code>）：<code>best</code> 帧之后逐帧沿<strong>前驱表</strong>从终点状态往回退，cursor 一格一格递减，已揭开的 chip 染绿、当前那格描金框 —— 路就是这么被还原出来的。
-
-两个动画分工明确：动画一<strong>填表</strong>（把 <code>(t, v)</code> 一层层算出来），动画二<strong>对照 + 回溯</strong>（先看"便宜路"会超时多少，再从最优状态沿前驱退回起点）。
-<h2>四、完整推演表</h2>
-
-<strong>动画一</strong>：为了让表能一页放下，用一份<strong>缩水题面</strong>（数值自拟，结构与官方示例完全相同）：
-<ul>
-<li><code>passingFees = [5, 1, 2, 20, 20, 3]</code></li>
-<li><code>edges = [[0,1,2], [1,2,2], [2,5,2], [0,3,1], [3,4,1], [4,5,1]]</code> —— 便宜那条 <code>0-1-2-5</code> 每段耗时 2，昂贵那条 <code>0-3-4-5</code> 每段耗时 1；</li>
-<li><code>maxTime = 5</code>。</li>
-</ul>
-
-于是"只图便宜"的路费 11、耗时 6（超时 1 分钟），而"守时"的路费 48、耗时 3 —— 与官方示例同款的冲突，只是数字小到能摆进表里。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th><code>t</code></th>
-<th>源格 <code>(t,v)</code></th>
-<th>→ <code>u</code></th>
-<th><code>arr</code></th>
-<th><code>from</code></th>
-<th><code>cand = from + fees[u]</code></th>
-<th>旧值</th>
-<th>判定</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>(0,0) = 5</td>
-<td>1</td>
-<td>2</td>
-<td>5</td>
-<td>6</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[2][1] = 6</code></strong></td>
-</tr>
-<tr>
-<td>0</td>
-<td>(0,0) = 5</td>
-<td>3</td>
-<td>1</td>
-<td>5</td>
-<td>25</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[1][3] = 25</code></strong></td>
-</tr>
-<tr>
-<td>1</td>
-<td>(1,3) = 25</td>
-<td>0</td>
-<td>2</td>
-<td>25</td>
-<td>30</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[2][0] = 30</code></strong></td>
-</tr>
-<tr>
-<td>1</td>
-<td>(1,3) = 25</td>
-<td>4</td>
-<td>2</td>
-<td>25</td>
-<td>45</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[2][4] = 45</code></strong></td>
-</tr>
-<tr>
-<td>2</td>
-<td>(2,0) = 30</td>
-<td>1</td>
-<td>4</td>
-<td>30</td>
-<td>31</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[4][1] = 31</code></strong></td>
-</tr>
-<tr>
-<td>2</td>
-<td>(2,0) = 30</td>
-<td>3</td>
-<td>3</td>
-<td>30</td>
-<td>50</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[3][3] = 50</code></strong></td>
-</tr>
-<tr>
-<td>2</td>
-<td>(2,1) = 6</td>
-<td>0</td>
-<td>4</td>
-<td>6</td>
-<td>11</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[4][0] = 11</code></strong></td>
-</tr>
-<tr>
-<td>2</td>
-<td>(2,1) = 6</td>
-<td>2</td>
-<td>4</td>
-<td>6</td>
-<td>8</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[4][2] = 8</code></strong></td>
-</tr>
-<tr>
-<td>2</td>
-<td>(2,4) = 45</td>
-<td>3</td>
-<td>3</td>
-<td>45</td>
-<td>65</td>
-<td>50</td>
-<td>65 ≥ 50，作废</td>
-</tr>
-<tr>
-<td>2</td>
-<td>(2,4) = 45</td>
-<td>5</td>
-<td>3</td>
-<td>45</td>
-<td>48</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[3][5] = 48</code></strong></td>
-</tr>
-<tr>
-<td>3</td>
-<td>(3,3) = 50</td>
-<td>0</td>
-<td>4</td>
-<td>50</td>
-<td>55</td>
-<td>11</td>
-<td>55 ≥ 11，作废</td>
-</tr>
-<tr>
-<td>3</td>
-<td>(3,3) = 50</td>
-<td>4</td>
-<td>4</td>
-<td>50</td>
-<td>70</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[4][4] = 70</code></strong></td>
-</tr>
-<tr>
-<td>3</td>
-<td>(3,5) = 48</td>
-<td>2</td>
-<td>5</td>
-<td>48</td>
-<td>50</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[5][2] = 50</code></strong></td>
-</tr>
-<tr>
-<td>3</td>
-<td>(3,5) = 48</td>
-<td>4</td>
-<td>4</td>
-<td>48</td>
-<td>68</td>
-<td>70</td>
-<td><strong>刷新 <code>dp[4][4] = 68</code></strong>（68 &lt; 70）</td>
-</tr>
-<tr>
-<td>4</td>
-<td>(4,0) = 11</td>
-<td>3</td>
-<td>5</td>
-<td>11</td>
-<td>31</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[5][3] = 31</code></strong></td>
-</tr>
-<tr>
-<td>4</td>
-<td>(4,4) = 68</td>
-<td>3</td>
-<td>5</td>
-<td>68</td>
-<td>88</td>
-<td>31</td>
-<td>88 ≥ 31，作废</td>
-</tr>
-<tr>
-<td>4</td>
-<td>(4,4) = 68</td>
-<td>5</td>
-<td>5</td>
-<td>68</td>
-<td>71</td>
-<td>∞</td>
-<td><strong>刷新 <code>dp[5][5] = 71</code></strong></td>
-</tr>
-</tbody>
-</table></div>
-
-<code>t = 5</code> 这一层还剩 <code>dp[5][2] = 50</code>、<code>dp[5][3] = 31</code>、<code>dp[5][5] = 71</code> 三个已达的格子，但它们再往外走 <code>arr</code> 会到 6 或 7，全部 <code>&gt; maxTime = 5</code> → 被时间窗剪掉。这些"不发帧"的松弛正是统计面板里 <strong><code>已剪枝 = 11</code></strong> 的来源。
-
-最终 dp 表（<code>∞</code> 表示该时刻到不了）：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th><code>t \ v</code></th>
-<th>0</th>
-<th>1</th>
-<th>2</th>
-<th>3</th>
-<th>4</th>
-<th>5（终点）</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td><strong>5</strong></td>
-<td>∞</td>
-<td>∞</td>
-<td>∞</td>
-<td>∞</td>
-<td>∞</td>
-</tr>
-<tr>
-<td>1</td>
-<td>∞</td>
-<td>∞</td>
-<td>∞</td>
-<td>25</td>
-<td>∞</td>
-<td>∞</td>
-</tr>
-<tr>
-<td>2</td>
-<td>30</td>
-<td>6</td>
-<td>∞</td>
-<td>∞</td>
-<td>45</td>
-<td>∞</td>
-</tr>
-<tr>
-<td>3</td>
-<td>∞</td>
-<td>∞</td>
-<td>∞</td>
-<td>50</td>
-<td>∞</td>
-<td><strong>48</strong></td>
-</tr>
-<tr>
-<td>4</td>
-<td>11</td>
-<td>31</td>
-<td>8</td>
-<td>∞</td>
-<td>68</td>
-<td>∞</td>
-</tr>
-<tr>
-<td>5</td>
-<td>∞</td>
-<td>∞</td>
-<td>50</td>
-<td>31</td>
-<td>∞</td>
-<td>71</td>
-</tr>
-</tbody>
-</table></div>
-
-<strong>答案 = <code>min over t ≤ 5 of dp[t][5]</code> = <code>min(∞, ∞, ∞, 48, ∞, 71)</code> = 48</strong>，取到它的时刻 <code>bestT = 3</code>。注意 <code>dp[5][5] = 71 &gt; 48</code>：<strong>晚一点到反而更贵</strong>，这就是"答案必须在所有 <code>t</code> 上取最小"的原因。
-
-顺前驱表回溯：<code>dp[3][5] = 48 ← dp[2][4] = 45 ← dp[1][3] = 25 ← dp[0][0] = 5</code>，得到城市序列 <strong><code>0 → 3 → 4 → 5</code></strong>（耗时 <code>1+1+1 = 3</code>，费 <code>5+20+20+3 = 48</code>）—— 正是"贵但快"的那条。
-
-<strong>动画二</strong>：同一组数据，看两条路怎么现场分高下。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>路</th>
-<th>城市序列</th>
-<th>到达时刻</th>
-<th>费</th>
-<th>耗时</th>
-<th>判定</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>只图便宜（不看时间）</td>
-<td><code>0 → 1 → 2 → 5</code></td>
-<td>0, 2, 4, 6</td>
-<td>11</td>
-<td>6</td>
-<td><strong>超时</strong> 6 &gt; 5 ✗</td>
-</tr>
-<tr>
-<td>守时间窗（最优）</td>
-<td><code>0 → 3 → 4 → 5</code></td>
-<td>0, 1, 2, 3</td>
-<td>48</td>
-<td>3</td>
-<td><strong>来得及</strong> 3 ≤ 5 ✓</td>
-</tr>
-</tbody>
-</table></div>
-
-"只图便宜"跑的是<strong>边权 = 到达城市通行费</strong>的 Dijkstra，得费 11，再回头算它要花 6 分钟 —— 一拍两瞪眼：<code>6 &gt; 5</code>，作废。而守时间窗的那条费 48，却只用 3 分钟。<code>cheap.fee (11) ≤ best.fee (48)</code> 这件事是必然的：<strong>无视时间窗等于把搜索空间放大</strong>，其最优值只会更小或相等 —— 便宜是一回事，来得及是另一回事。
-
-再沿前驱表把最优链一格一格揭开（动画二的 <code>back</code> 帧）：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th><code>cursor</code></th>
-<th>状态</th>
-<th>前驱</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>3</td>
-<td><code>(3, 5)</code></td>
-<td>← <code>(2, 4)</code></td>
-<td>从终点状态出发</td>
-</tr>
-<tr>
-<td>2</td>
-<td><code>(2, 4)</code></td>
-<td>← <code>(1, 3)</code></td>
-<td>上一格是 45</td>
-</tr>
-<tr>
-<td>1</td>
-<td><code>(1, 3)</code></td>
-<td>← <code>(0, 0)</code></td>
-<td>上一格是 25</td>
-</tr>
-<tr>
-<td>0</td>
-<td><code>(0, 0)</code></td>
-<td>—</td>
-<td>退回起点，链还原完</td>
-</tr>
-</tbody>
-</table></div>
-
-路<strong>不在 dp 的数值里</strong>，而藏在 <code>prev[arr][u] = (t, v)</code>：反复问"我是从哪个状态来的"，就退回到 <code>(0, 0)</code>。
-<h2>五、同族题：787 / 743 / 1631 / 1514 / 1976</h2>
-
-1928 的骨架是"<strong>状态维 × 时间维</strong>"的 DP —— 等价于<strong>分层图最短路</strong>。同一副骨架换个问法，就是一条完整的题链：
-<ul>
-<li><strong>LC 787 K 站中转内最便宜的航班</strong>：状态是 <code>(已用中转数 k, 城市 v)</code>，"最多 K 次中转"就是"最多 K+1 条边"，与 <code>maxTime</code> <strong>逐字同构</strong> —— 把"时间"换成"中转次数"、把"每城付费"换成"每条边有机票价"，两题骨架一模一样。<strong>最经典的同族。</strong></li>
-<li><strong>LC 743 网络延迟时间</strong>：单源最短路，但<strong>没有时间窗</strong>这个约束，答案是最晚被收到的那个时刻。1928 加上时间窗之后，就变成"路径长度（时间）还受一个上限"。</li>
-<li><strong>LC 1631 最小体力消耗路径</strong>：路径代价是"沿途<strong>最大</strong>高度差"，不是求和 —— 换的是<strong>代价的聚合方式</strong>（<code>max</code> 而非 <code>+</code>）。</li>
-<li><strong>LC 1514 概率最大的路径</strong>：聚合是<strong>乘积</strong>，且方向是<strong>最大化</strong>（换成对数就又是求和最短路）。</li>
-<li><strong>LC 1976 到达目的地的方案数</strong>：同样一张时间分层图，但问<strong>方案数</strong>，转移从 <code>min</code> 换成 <code>+</code>。</li>
-</ul>
-
-把它们排成一列看：<strong>"层"是时间 / 中转数 / 步数，"点"是城市 / 状态；边权可能是耗时、票价、高度差；聚合可能是 <code>min</code>、<code>max</code>、乘积或计数；而"窗"就是层数的上限。</strong> 1928 只是这条坐标轴上的一个点。
-<h2>六、Java 版</h2>
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// LC 1928 标准解：分层图 DP —— 与推演表逐帧一致</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">minCost</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">maxTime</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">edges</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">passingFees</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w">       </span><span class="c1">// 别用 MAX_VALUE，免得加法溢出</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">maxTime</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="p">)</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">row</span><span class="p">,</span><span class="w"> </span><span class="n">INF</span><span class="p">);</span>
-<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span><span class="w">                   </span><span class="c1">// 底座：起点也要付自己的费</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">maxTime</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">edges</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">et</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">et</span><span class="p">;</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">arr</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">maxTime</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">         </span><span class="c1">// 迟到就是迟到，剪掉</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">INF</span><span class="p">)</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">y</span><span class="o">]</span><span class="p">);</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">INF</span><span class="p">)</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="p">);</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">INF</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">maxTime</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">ans</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">);</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 时间窗内到不了 → -1</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// LC 1928 的另一种视角：状态 (花费, 已用时间, 城市) 上跑小顶堆 Dijkstra</span>
-<span class="w">    </span><span class="c1">// 第一次弹出终点，那笔花费就是答案 —— 与分层图 DP 等价，还能提前终止</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">minCost</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">maxTime</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">edges</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">passingFees</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;[]</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">List</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">g</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">edges</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="n">g</span><span class="o">[</span><span class="n">e</span><span class="o">[</span><span class="mi">0</span><span class="o">]]</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">e</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">});</span><span class="w">      </span><span class="c1">// 无向边：两个方向都加</span>
-<span class="w">            </span><span class="n">g</span><span class="o">[</span><span class="n">e</span><span class="o">[</span><span class="mi">1</span><span class="o">]]</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">e</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">});</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="n">maxTime</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span><span class="w">      </span><span class="c1">// best[v][t]：花 t 时间到 v 的最小花费</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">best</span><span class="p">)</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">row</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="p">);</span>
-<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span>
-<span class="w">        </span><span class="n">best</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">passingFees</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">});</span><span class="w">   </span><span class="c1">// {花费, 已用时间, 城市}</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">pq</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pq</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
-<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">cost</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">;</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">cost</span><span class="p">;</span><span class="w">             </span><span class="c1">// 首次弹出终点 = 最小花费</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cost</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">best</span><span class="o">[</span><span class="n">v</span><span class="o">][</span><span class="n">t</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">         </span><span class="c1">// 过期条目，跳过</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nb</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">g</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">nt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nb</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nt</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">maxTime</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">          </span><span class="c1">// 超过时间窗的边不扩</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cost</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">nb</span><span class="o">[</span><span class="mi">0</span><span class="o">]]</span><span class="p">;</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nc</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">best</span><span class="o">[</span><span class="n">nb</span><span class="o">[</span><span class="mi">0</span><span class="o">]][</span><span class="n">nt</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                    </span><span class="n">best</span><span class="o">[</span><span class="n">nb</span><span class="o">[</span><span class="mi">0</span><span class="o">]][</span><span class="n">nt</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nc</span><span class="p">;</span>
-<span class="w">                    </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">nc</span><span class="p">,</span><span class="w"> </span><span class="n">nt</span><span class="p">,</span><span class="w"> </span><span class="n">nb</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">});</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// 动画二的骨架：除了花费，再记一张前驱表，把最优路还原出来</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">minCostPath</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">maxTime</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">edges</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">passingFees</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">maxTime</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prevT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">maxTime</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">n</span><span class="o">]</span><span class="p">;</span><span class="w">     </span><span class="c1">// 前驱时刻</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prevV</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">maxTime</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">n</span><span class="o">]</span><span class="p">;</span><span class="w">     </span><span class="c1">// 前驱城市</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">dp</span><span class="p">)</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">row</span><span class="p">,</span><span class="w"> </span><span class="n">INF</span><span class="p">);</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prevT</span><span class="p">)</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">row</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
-<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">maxTime</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">edges</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">et</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">et</span><span class="p">;</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">arr</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">maxTime</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">y</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                    </span><span class="n">prevT</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span><span class="w"> </span><span class="n">prevV</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">y</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">passingFees</span><span class="o">[</span><span class="n">x</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                    </span><span class="n">prevT</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span><span class="w"> </span><span class="n">prevV</span><span class="o">[</span><span class="n">arr</span><span class="o">][</span><span class="n">x</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">y</span><span class="p">;</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">bestT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">maxTime</span><span class="p">;</span><span class="w"> </span><span class="n">t</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">INF</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">bestT</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">bestT</span><span class="o">][</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">))</span><span class="w"> </span><span class="n">bestT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">bestT</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">   </span><span class="c1">// 时间窗内无路</span>
-<span class="w">        </span><span class="n">LinkedList</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bestT</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">                            </span><span class="c1">// 沿前驱一路退回 (0,0)</span>
-<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">addFirst</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
-<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prevT</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">v</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">pv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prevV</span><span class="o">[</span><span class="n">t</span><span class="o">][</span><span class="n">v</span><span class="o">]</span><span class="p">;</span>
-<span class="w">            </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pt</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pv</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">path</span><span class="p">;</span><span class="w">                                 </span><span class="c1">// 默认题面：0 → 3 → 4 → 5</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-第二个写法值得单独记一笔：<strong>把 <code>(时刻, 城市)</code> 当作图上的点，每条边把 <code>(t, x)</code> 连到 <code>(t+et, y)</code></strong>，问题就是"从 <code>(0,0)</code> 走到某个 <code>(t, n-1)</code>（<code>t ≤ maxTime</code>）的最短路，代价在到达点上"。这和 787「K 站中转内最便宜的航班」是同一台机器 —— 那里堆里的是 <code>(票价, 中转数, 城市)</code>。
-<h2>七、边界情况</h2>
-<ul>
-<li><strong>不可达 → <code>-1</code></strong>：不是"最贵"，是"<strong>无解</strong>"。官方示例三 <code>maxTime = 25 &lt; 26</code>（最快路的耗时）直接返回 <code>-1</code>。</li>
-<li><strong><code>maxTime</code> 小于最短路耗时</strong>：无论多贵都没用，一律 <code>-1</code>。时间窗是<strong>硬约束</strong>，不是惩罚项。</li>
-<li><strong><code>maxTime</code> 大过一切可能耗时</strong>：约束失效，退化成"纯按费用最短路"，此时一维写法才碰巧正确。</li>
-<li><strong>起点也要付 <code>fees[0]</code></strong>：漏了它答案会少一笔；<strong>终点也要付 <code>fees[n-1]</code></strong>，同理。</li>
-<li><strong>无向边</strong>：<code>edges[i] = [x, y, time]</code> <strong>两个方向都要松弛</strong>，只加一个方向是最常见的静默错误。</li>
-<li><strong>重边</strong>：约束允许 <code>(x, y)</code> 出现多次（不同 <code>time</code>）。同一对城市之间应取<strong>耗时最小</strong>的那条，多出来的那些不会用上。</li>
-<li><strong>无自环</strong>：约束保证 <code>x ≠ y</code>，所以不必担心原地打转；但也意味着<strong>每一步必然推进时间</strong>，不会出现"零耗时"平层。</li>
-<li><strong><code>n = 2</code></strong>：只有一条边，答案就是 <code>fees[0] + fees[1]</code>（若 <code>et ≤ maxTime</code>），否则 <code>-1</code>。</li>
-<li><strong><code>passingFees[v]</code> 恒正</strong>：这意味着多绕一站一定多花钱，不存在"绕路省钱"的负权情形，Dijkstra 的贪心成立。</li>
-</ul>
-<h2>八、复杂度</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>写法</th>
-<th>时间</th>
-<th>空间</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1928 分层图 DP（正序逐层松弛）</td>
-<td><code>O(maxTime × E)</code></td>
-<td><code>O(maxTime × n)</code></td>
-</tr>
-<tr>
-<td>1928 小顶堆 Dijkstra on <code>(cost, t, v)</code></td>
-<td><code>O(E × maxTime × log)</code> 级别，通常提前终止</td>
-<td><code>O(n × maxTime)</code></td>
-</tr>
-<tr>
-<td>1928 前驱回溯还原路径（动画二）</td>
-<td>同 DP，多一张前驱表</td>
-<td><code>O(maxTime × n)</code></td>
-</tr>
-</tbody>
-</table></div>
-
-<code>n</code> 是城市数、<code>E = edges.length</code>、<code>maxTime</code> 是时间上限。DP 的 <code>O(maxTime × E)</code> 来自"每一层（共 <code>maxTime + 1</code> 层）× 每条边都被松弛一次"；空间要存整张 <code>dp</code> 表，因为边的耗时不同，更新会落到<strong>任意未来的层</strong>上，无法只留一层。按约束（<code>maxTime ≤ 1000</code>、<code>n ≤ 1000</code>、<code>E ≤ 1000</code>）总规模约 <code>10^6</code>，绰绰有余。
-<h2>九、常见坑</h2>
-<ol>
-<li><strong>用一维 <code>dp[v]</code></strong>：只记花费、丢掉"第几时刻到的"，会把<strong>超时的便宜路</strong>错当答案。<strong>本题的头号坑</strong> —— 官方示例里 <code>maxTime</code> 只差 1 分钟，答案就从 11 跳到 48。</li>
-<li><strong>答案取 <code>dp[maxTime][n-1]</code></strong>：到达终点不必用满时间。默认题面里 <code>dp[5][5] = 71</code>，但答案是 <code>dp[3][5] = 48</code> —— <strong>晚到反而更贵</strong>。必须 <code>min over t ≤ maxTime</code>。</li>
-<li><strong>忘了起点/终点也要付 <code>passingFees</code></strong>：起点那笔在底座里，终点那笔在每次松弛的 <code>+ passingFees[u]</code> 里。漏任何一笔答案都不对。</li>
-<li><strong>从 <code>∞</code> 的格子出发做松弛</strong>：会算出 <code>∞ + fee</code>，用 <code>int</code> 还可能溢出成负数。先判 <code>dp[t][v] &lt; INF</code> 再松弛。</li>
-<li><strong>不剪超时的边</strong>：<code>arr = t + et &gt; maxTime</code> 的松弛必须丢掉 —— 时间不回头，迟到就是迟到。</li>
-<li><strong>无向边只加一个方向</strong>：<code>edges[i] = [x, y, time]</code> 两个方向都要试，只加一边会漏解。</li>
-<li><strong><code>INF</code> 取 <code>Integer.MAX_VALUE</code></strong>：<code>INF + fee</code> 直接溢出。取 <code>MAX_VALUE / 2</code>，或末判 <code>ans &gt;= INF</code>。</li>
-<li><strong>误以为"早到一定比晚到便宜"</strong>：不成立（默认题面里 <code>dp[5][5] &gt; dp[3][5]</code>）。好在 dp 表把同一城市的每个时刻各存一份，<strong>不依赖这条假设</strong>。</li>
-<li><strong>重边只留了耗时最大的那条</strong>：应取耗时最小的；否则会白白把某些可达路判成超时。</li>
-</ol>
-<h2>十、面试怎么答</h2>
-
-<strong>第一段 · 定义与转移</strong>：<code>dp[t][v]</code> = <strong>恰好在时刻 <code>t</code></strong> 到达城市 <code>v</code> 的最小通行费，<code>dp[0][0] = passingFees[0]</code>、其余 <code>∞</code>，<code>dp[t+et][u] = min( dp[t+et][u], dp[t][v] + passingFees[u] )</code>，<code>t</code> 正序推进，答案 <code>= min over t ≤ maxTime of dp[t][n-1]</code>。<strong>开头就要说清"为什么必须是二维"</strong> —— 时间不可压缩，一维 <code>dp[v]</code> 会把超时的便宜路错当答案。
-
-<strong>第二段 · 三处剪枝与底座</strong>：只从"已到达"的格子出发（避开 <code>∞</code> 与溢出）；<code>arr &gt; maxTime</code> 的边直接剪；起点与终点都要付自己的通行费。这三条<strong>决定了答案对不对</strong>，比把代码写快更重要。
-
-<strong>第三段 · 换个视角</strong>：小顶堆 Dijkstra，状态是 <code>(花费, 已用时间, 城市)</code>，按花费出堆，<strong>第一次弹出终点即答案</strong> —— 与分层图 DP 等价，且能提前终止。这正是 787「K 站中转内最便宜的航班」的同款机器（那里状态是 <code>(票价, 中转数, 城市)</code>）。
-
-<strong>追问连跳</strong>：
-- 把"时间上限"换成"<strong>中转次数上限</strong>" → LC 787，逐字同构；
-- <strong>去掉时间窗</strong>、只要最短路 → LC 743；
-- 代价从"求和"换成"<strong>取最大</strong>" → LC 1631；换成"<strong>乘积最大</strong>" → LC 1514；
-- 问<strong>方案数</strong> → LC 1976，把 <code>min</code> 换成 <code>+</code>。
-
-一句话收尾："1928 只有一台机器 —— 一张<strong>分层图</strong>，时间当层、城市当点，<code>dp[t][v] = 恰在 t 到 v 的最少花费</code>；把时间窗当剪枝、把 <code>min</code> 套在最外层。所谓'带时间窗的路径规划'，就是'<strong>层数有上限</strong>的最短路'。"
-<h2>结语</h2>
-
-1928 的全部难度浓缩在一个反直觉上：<strong>时间不能被压缩</strong>。一维的 <code>dp[v]</code> 把"第几时刻到达"丢掉了，于是"便宜但慢"的路会被错记成答案 —— 官方示例里 <code>maxTime</code> 只差 1 分钟（30 与 29），答案就从 11 跳到 48。把时刻并进状态、摊成一张<strong>分层图</strong>之后，一切都变成一次普通的逐层松弛；剩下的两条提醒是：<strong>起点和终点都要付费</strong>，以及<strong>答案要在所有 <code>t</code> 上取最小</strong> —— 因为"晚到"可能更贵。
-
-从 <code>(0,0)</code> 一步一步扩散到 <code>(bestT, n-1)</code>，再从终点沿前驱退回起点 —— 这就是带时间窗的路径规划的全部。
-
-下一篇见。]]></content:encoded>
     </item>
     <item>
       <title>【扑克】5 张牌判断顺子：王只补缺失，补不了重复</title>
@@ -2841,17 +2460,6 @@ maxTime = 25 → -1   （最快的一条路也要 26 分钟，25 分钟内根本
       <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-139-word-break/</guid>
       <pubDate>Wed, 30 Sep 2026 10:15:56 GMT</pubDate>
       <description>题目 LC 139 单词拆分 ：给你一个字符串 s 和一个字符串列表 wordDict 作为字典。请你判断是否可以利用字典中出现的单词拼接出 s 。字典中的 单词可以重复使用 。 它是 LC 322 零钱兑换 的布尔版：硬币换成了单词，金额换成了前缀长度， min 换成了逻辑或。递推式依然只有一行，真正的门槛在三处 —</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>动态规划</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 322】零钱兑换：正序完全背包，逆序变 -1</title>
-      <link>https://zhoujungis.github.io/article/lc-322-coin-change/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-322-coin-change/</guid>
-      <pubDate>Wed, 30 Sep 2026 09:54:22 GMT</pubDate>
-      <description>题目 LC 322 零钱兑换 ：给你一个整数数组 coins 表示不同面额的硬币，以及一个整数 amount 表示总金额。计算并返回可以凑成总金额所需的 最少硬币个数 。如果没有任何一种硬币组合能组成总金额，返回 -1 。每种硬币的数量是 无限的 。 它是最标准的 完全背包 · 求最小值 ：物品可以无限取，要的是&quot;最少</description>
       <category>算法</category>
       <category>LeetCode</category>
       <category>动态规划</category>

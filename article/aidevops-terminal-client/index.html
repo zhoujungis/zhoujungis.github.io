@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI： aidevops ， pip install aidevops 就能装。源码在 GitHub ，MIT 协议， 项目完全开源 。 这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/aidevops-terminal-client/" />
+    <meta property="og:title" content="【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端" />
+    <meta property="og:description" content="前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI： aidevops ， pip install aidevops 就能装。源码在 GitHub ，MIT 协议， 项目完全开源 。 这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/aidevops-terminal-client/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/aidevops-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端" />
+    <meta name="twitter:description" content="前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI： aidevops ， pip install aidevops 就能装。源码在 GitHub ，MIT 协议， 项目完全开源 。 这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/aidevops-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bv_kuWZQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-16T15:14:43.104971+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端","description":"前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI： aidevops ， pip install aidevops 就能装。源码在 GitHub ，MIT 协议， 项目完全开源 。 这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以","image":"https://zhoujungis.github.io/photos/aidevops-cover.png","datePublished":"2026-10-16T15:14:43.104971+08:00","dateModified":"2026-10-16T15:14:43.105006+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/aidevops-terminal-client/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【开源】aidevops：把「需求 → 代码 → 测试 → Bug → 发布」串起来的终端客户端</h1><div class="ns-meta">2026/10/16 · Stack Frame</div><div class="markdown-body">前几天把 AI DevOps / QA Copilot 的终端客户端发上了 PyPI：<strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong>，<code>pip install aidevops</code> 就能装。源码在 <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a>，MIT 协议，<strong>项目完全开源</strong>。
+
+这篇文章把它讲透：它解决什么问题、数据是怎么流动的、风险分是怎么算出来的、AI 在里面扮演什么角色（以及为什么它被关在笼子里）、每个命令怎么用，还有哪些是我刻意不做的。
+<ul>
+<li><a href="#section-1">一、它在解决什么问题：研发数据的孤岛</a></li>
+<li><a href="#section-2">二、总体架构：客户端薄，服务端厚</a></li>
+<li><a href="#section-3">三、数据是怎么进来的：双游标同步与幂等摄取</a></li>
+<li><a href="#section-4">四、模块归属：把提交钉到模块上</a></li>
+<li><a href="#section-5">五、explain：一条提交的完整关联链</a></li>
+<li><a href="#section-6">六、风险引擎：10 个信号，逐条可解释</a></li>
+<li><a href="#section-7">七、AI 分析：五个 Agent、证据校验、全链路追踪</a></li>
+<li><a href="#section-8">八、确认流与审计：AI 只提议，人说了算</a></li>
+<li><a href="#section-9">九、安装与五分钟上手</a></li>
+<li><a href="#section-10">十、脚本化与 CI</a></li>
+<li><a href="#section-11">十一、工程化：测试、类型、发布流</a></li>
+<li><a href="#section-12">十二、现状、局限与 Roadmap</a></li>
+</ul>
+<h2>一、它在解决什么问题：研发数据的孤岛</h2>
+
+一个团队日常会产生大量研发数据：需求单在 Jira 里、提交在 GitHub 里、测试结果在 CI 里、Bug 单在缺陷系统里、发布记录在发布流水线里。这些数据都存在，但<strong>散落在不同系统里，彼此不认识</strong>。
+
+于是每个开发者每天都在人肉做同一件事：这次改动动了哪些模块？这些模块历史上出过什么 Bug？相关的测试有没有覆盖？这个版本发出去，风险集中在哪？——答案全在系统里，但要把它们拼起来，得开五个标签页、翻三份导出、再凭记忆对一遍。
+
+aidevops 背后的平台做的就是这件事：<strong>把「需求 → 代码 → 测试 → Bug → 发布」这条链路上的数据关联起来</strong>，然后回答四类具体问题：
+<ul>
+<li>一次提交<strong>风险在哪里</strong>（哪个模块、哪个信号在报警、为什么）；</li>
+<li><strong>该回归测试什么</strong>（关联的历史 Bug、测试候选清单）;</li>
+<li>线上问题<strong>最可能从哪来</strong>（关联链回溯到需求和发布）；</li>
+<li>AI 看完数据后<strong>建议什么</strong>（生成测试、标记可疑点、给出调查方向）。</li>
+</ul>
+
+<code>aidevops</code> 这个终端客户端，就是把上述能力装进命令行——因为在终端里工作的开发者，不应该为了看一次风险分析切到浏览器。
+<h2>二、总体架构：客户端薄，服务端厚</h2>
+
+一句话：<strong><code>aidevops</code> 是终端客户端（CLI + 全屏 TUI），不是服务端。</strong> 它本身不含任何业务逻辑，所有能力都通过 HTTP 调用后端（Django + PostgreSQL + Redis，向量检索用 pgvector）。
+
+这个边界划得非常刻意，原因有三：
+<ol>
+<li><strong>数据与逻辑集中在服务端</strong>：关联引擎、风险模型、AI Agent 都是重计算 + 需要完整数据的组件。同步进来的提交历史、测试台账、Bug 单动辄几十万条，放客户端会退化成玩具；</li>
+<li><strong>凭据安全</strong>：Git 凭据、模型 API Key 存在服务端并 Fernet 加密落库，客户端只持有自己的访问令牌（存本地配置目录，权限 0600）；</li>
+<li><strong>多端复用</strong>：CLI、TUI、未来的 Web 前端，全部消费同一套 REST API（<code>/api/v1</code>），不存在逻辑漂移。</li>
+</ol>
+
+所以如果你只装了 <code>aidevops</code> 而没有可用的后端，<code>login</code> 第一步就会连不上——这不是 bug，是架构。本地起后端两条路：<code>cp .env.example .env</code> 后 <code>docker compose up -d --build</code>（Swagger 在 <code>/api/docs/</code>），或者 <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> 加 <code>make worker</code> / <code>make beat</code> 起 Celery。
+
+客户端技术栈：<strong>Typer</strong>（CLI 框架）、<strong>Textual</strong>（全屏 TUI）、<strong>Rich</strong>（表格与美化输出）、<strong>httpx</strong>（HTTP 客户端）。纯 Python 依赖，没有需要编译的扩展，Python ≥ 3.11。
+<h2>三、数据是怎么进来的：双游标同步与幂等摄取</h2>
+
+数据进不来，后面全是空态。摄取层是整个系统最「脏活累活」的部分，三条通道：
+
+<strong>GitHub REST 同步</strong>：增量游标 + 历史回填游标分开维护——新提交走增量，首次接入的仓库全量回填。限流退避重试（GitHub 的 rate limit 是现实约束，不是异常）。
+
+<strong>Webhook 实时摄取</strong>：push、CI 结果、issue 变更等事件实时进来。两道安全门：<strong>HMAC-SHA256 验签</strong>（确认请求真来自 GitHub）+ <strong><code>delivery_id</code> 幂等</strong>（GitHub 会重投事件，同一条 delivery 处理两次不能产生两条记录）。
+
+<strong>Celery beat 定时兜底</strong>：Webhook 会丢（网络抖动、服务重启），beat 定时任务周期性对账，保证最终一致。
+
+模块归属、测试关联这些「理解性」工作在摄取完成后异步进行。这套设计的取舍很明确：<strong>摄取层宁可慢，不可丢、不可重</strong>——因为后面所有关联和风险计算都建立在「数据是可信的」这个前提上。
+<h2>四、模块归属：把提交钉到模块上</h2>
+
+关联的第一步是回答「这次提交动了哪些模块」。听起来简单，实际是个解析问题：同一个仓库里，<code>src/auth/</code> 显然属于 auth 模块，但 <code>utils/date.py</code> 属于谁？改了 <code>tests/</code> 的提交算不算动了业务模块？
+
+aidevops 的解法是<strong>三级归属策略，按优先级落</strong>：
+<ol>
+<li><strong>覆盖规则</strong>（最高优先）：仓库维护者显式配置的路径 → 模块映射，一票定音；</li>
+<li><strong>源根推断</strong>：没有覆盖规则时，按语言惯例和仓库结构推断（比如 <code>src/</code>、<code>lib/</code> 下的顶层目录）；</li>
+<li><strong>兜底策略</strong>：以上都不适用的文件，落到明确的兜底归属，不悬空。</li>
+</ol>
+
+关键在最后半句：<strong>每一种归属都带可引用的理由</strong>。「这个文件属于 auth 模块，因为它命中了覆盖规则 <code>src/auth/**</code>」——归属不是猜的，是可以点开看的。下游的风险计算、回归候选推荐全部建立在这层可追溯的归属之上。
+<h2>五、explain：一条提交的完整关联链</h2>
+
+<strong><code>aidevops explain &lt;sha&gt;</code></strong> 是招牌命令。给一个提交 SHA，它返回这条提交在研发链路上的完整关联：
+<ul>
+<li><strong>关联需求</strong>：这个改动是为了哪个需求（或关联到哪个需求簇）；</li>
+<li><strong>模块影响</strong>：改动了哪些模块，每个模块的中心度如何；</li>
+<li><strong>回归候选</strong>：历史上和这些模块纠缠最多的测试与 Bug，哪些应该跑；</li>
+<li><strong>历史 Bug</strong>：同区域过去出过什么问题，模式是什么；</li>
+<li><strong>所在发布</strong>：这条提交进了哪个发布，发布窗口什么时候；</li>
+<li><strong>数据缺口</strong>：上面哪些环节<strong>没有数据</strong>。</li>
+</ul>
+
+最后一点值得单独强调：<strong><code>data_gaps</code> 显式区分「没有发现问题」和「我们没有数据」</strong>。工具最大的失信方式就是把无知包装成结论——比如一个从没接过测试结果的仓库，「回归候选为空」必须被解释成「我们不知道」，而不是「一切安全」。这是整个产品的诚信底线，explain 把它做成了输出的一等公民。
+<h2>六、风险引擎：10 个信号，逐条可解释</h2>
+
+<strong><code>aidevops risk &lt;sha&gt;</code></strong>（以及模块维度的 <code>aidevops module-risk &lt;id&gt;</code>）给出归一化的风险分数。它刻意做成<strong>可解释</strong>的：10 个信号各自贡献多少，逐条列出，贡献之和精确等于分数。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>信号</th>
+<th>它在度量什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>change_volume</code></td>
+<td>这次的改动量（行数、文件数）</td>
+</tr>
+<tr>
+<td><code>historical_bug_density</code></td>
+<td>所在模块的历史 Bug 密度</td>
+</tr>
+<tr>
+<td><code>test_failure_rate</code></td>
+<td>关联测试近期的失败率</td>
+</tr>
+<tr>
+<td><code>module_centrality</code></td>
+<td>被改模块在依赖图里的中心度</td>
+</tr>
+<tr>
+<td><code>change_frequency</code></td>
+<td>这个区域最近的改动频率（hotspot 检测）</td>
+</tr>
+<tr>
+<td><code>coverage_gap</code></td>
+<td>变更路径的覆盖缺口</td>
+</tr>
+<tr>
+<td><code>open_high_severity_bugs</code></td>
+<td>模块上未关闭的高严重度 Bug</td>
+</tr>
+<tr>
+<td><code>test_coverage_gap</code></td>
+<td>该模块的测试覆盖缺口</td>
+</tr>
+<tr>
+<td><code>release_proximity</code></td>
+<td>距离下一次发布还有多久（越近风险越贵）</td>
+</tr>
+<tr>
+<td><code>data_freshness_penalty</code></td>
+<td>数据太旧时的诚实惩罚（信号不可信时降权）</td>
+</tr>
+</tbody>
+</table></div>
+
+三个工程决策值得展开：
+<ul>
+<li><strong>权重是配置而非代码</strong>。10 个信号的权重存在服务端，可以在 Django admin 里调，不需要改代码重新部署；</li>
+<li><strong>三级继承</strong>：系统默认 → 组织覆盖 → 项目覆盖。一个对延迟敏感的团队可以把「临近发布」权重调高，一个测试基建薄弱的团队可以突出「覆盖缺口」；</li>
+<li><strong>贡献之和等于分数</strong>。这不是装饰——它让「我觉得这个分数不对」变成可讨论的工程问题：找到贡献最大的信号，去查它的输入。黑盒分数永远做不到这一点。</li>
+</ul>
+<h2>七、AI 分析：五个 Agent、证据校验、全链路追踪</h2>
+
+AI 层回答「看完这些数据，能不能自动做点什么」。它的结构比「接个 LLM」复杂得多：
+
+<strong>Provider 可插拔</strong>。模型凭据按组织管理（<code>aidevops providers</code> / <code>provider-add</code> / <code>provider-verify</code>），走 OpenAI 兼容协议，内置 DeepSeek、Qwen、Ollama 预设，凭据 Fernet 加密落库——模型 Key 和 Git PAT 一样，不属于客户端。
+
+<strong>五个内置 Agent</strong>，各自有明确的输入输出契约：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Code Impact</td>
+<td>分析一次提交的影响面</td>
+</tr>
+<tr>
+<td>Test Generation</td>
+<td>按场景矩阵生成测试用例（11 类场景，不是撒胡椒面）</td>
+</tr>
+<tr>
+<td>Bug Investigation</td>
+<td>围绕一个 Bug 组织证据链</td>
+</tr>
+<tr>
+<td>Root Cause Analysis</td>
+<td>从症状回溯可能的根因区域</td>
+</tr>
+<tr>
+<td>Requirement Analysis</td>
+<td>从需求文本提取可验证的验收点</td>
+</tr>
+</tbody>
+</table></div>
+
+发起用 <code>aidevops analyse -a test-generation --wait</code>，历史用 <code>analyses</code> / <code>job</code> 查。<strong><code>aidevops trace &lt;id&gt;</code></strong> 是排障神器：一次分析背后的模型调用、工具调用、各自耗时，全部可查——Agent 不是黑盒。
+
+<strong><code>aidevops findings</code> / <code>finding &lt;id&gt;</code> / <code>triage &lt;id&gt; &lt;status&gt;</code></strong> 是 AI 发现的工作台：每条发现都带<strong>证据引用</strong>——AI 说的话必须能解析回真实数据（某个提交、某条 Bug、某段测试），引用对不上就不会出现。<code>triage</code> 把发现的处置状态（待处理 / 已确认 / 误报）做成显式流转，处置过程本身就是团队的知识沉淀。
+
+<strong><code>aidevops tui</code></strong> 是全屏交互式仪表盘（Textual 实现），提交列表、发现流、建议队列都在里面，不想记命令就开它。
+
+<strong>证据校验</strong>是 AI 层的硬约束：AI 的每条引用（某个提交、某条 Bug、某个测试）必须能解析回真实数据，解析不上就不会出现在结论里。这从机制上掐掉了「模型幻觉出一条不存在的 Bug」这类事故。
+
+<strong>工具面收口</strong>：模型只能调用 13 个<strong>只读工具</strong>，全部强制按项目作用域过滤，任何写操作都不在模型的工具列表里。AI 看得到数据，但碰不到状态——这是下一节确认流的前提。
+<h2>八、确认流与审计：AI 只提议，人说了算</h2>
+
+AI 的产出永远是「建议对象」（proposal）：生成的一批测试、一个调查结论、一个处理建议。它们不会自己生效：
+<div class="codehilite"><pre><span></span><code>aidevops proposals                 # 看待确认的建议
+aidevops approve &lt;id&gt;              # 确认 → 代码固定的 Executor 执行
+aidevops reject &lt;id&gt;               # 拒绝 → 丢弃
+</code></pre></div>
+
+
+三条硬规则：
+<ol>
+<li><strong>只有 <code>approve</code> 会真正执行</strong>。执行逻辑不在模型手里，在代码写死的 Executor 里——模型只能「提」，不能「做」；</li>
+<li><strong>未确认 = 零写入</strong>。没有隐式的自动采纳，没有「默认执行、异议再撤销」；</li>
+<li><strong>全程写 <code>AuditLog</code></strong>。谁在什么时候 approve 了什么、Executor 做了什么，<code>aidevops audit</code> 一条条可查。</li>
+</ol>
+
+在 QA 这个场景里，这个取舍很明确：<strong>AI 直接改状态的信任账还没到能赊的程度</strong>。测试是质量防线，防线上不能放一个会自己动手的黑盒。
+
+多租户安全是同一思路的延伸：<strong>租户 id 只从 URL 取</strong>（不从请求体猜），非成员访问返回 404（不泄露存在性），角色不足返回 403，所有查询强制走 <code>scoped_queryset</code> 唯一入口——没有「忘了加过滤」这种事故的容身之处。
+<h2>九、安装与五分钟上手</h2>
+<div class="codehilite"><pre><span></span><code>pipx install aidevops        # 推荐：独立虚拟环境，命令直接进 PATH
+# 或者
+pip install aidevops
+</code></pre></div>
+
+
+登录走 <strong>GitHub 设备码</strong>（device flow），浏览器输个码就行，不在终端贴密码；远程服务器 / 容器用 <code>login --no-browser</code>。
+<div class="codehilite"><pre><span></span><code>aidevops login                       # GitHub 设备码登录
+aidevops org-add &quot;My Team&quot;           # 首次使用：建组织（创建者即 admin）
+aidevops projects                    # 列出项目（* 标出当前项目）
+aidevops use qa-copilot-platform     # 选中项目，后续命令默认作用于它
+aidevops status                      # 当前后端 / 账号 / 项目
+</code></pre></div>
+
+
+<strong>接入仓库</strong>是产品入口，缺任何一环后面的 <code>commits</code> / <code>risk</code> / <code>explain</code> 都是空态：
+<div class="codehilite"><pre><span></span><code><span class="nv">aidevops</span><span class="w"> </span><span class="nv">connections</span><span class="w">                                     </span>#<span class="w"> </span>看现有<span class="w"> </span><span class="nv">Git</span><span class="w"> </span>凭据，拿<span class="w"> </span><span class="nv">connection</span><span class="w"> </span><span class="nv">id</span>
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">connection</span><span class="o">-</span><span class="nv">add</span><span class="w"> </span><span class="o">-</span><span class="nv">l</span><span class="w"> </span><span class="nv">my</span><span class="o">-</span><span class="nv">github</span><span class="w"> </span><span class="o">-</span><span class="nv">t</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">PAT</span><span class="o">&gt;</span><span class="w">            </span>#<span class="w"> </span>私有库需要<span class="w"> </span><span class="nv">repo</span><span class="w"> </span>读权限
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">connection</span><span class="o">-</span><span class="nv">verify</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">connection</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w">               </span>#<span class="w"> </span>先验证凭据能用
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">repo</span><span class="o">-</span><span class="nv">add</span><span class="w"> </span><span class="o">-</span><span class="nv">c</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">connection</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w"> </span><span class="o">-</span><span class="nv">f</span><span class="w"> </span><span class="nv">owner</span><span class="o">/</span><span class="nv">repo</span><span class="w">       </span>#<span class="w"> </span>注册仓库
+<span class="nv">aidevops</span><span class="w"> </span><span class="nv">sync</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">repository</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w"> </span><span class="o">--</span><span class="k">wait</span><span class="w">                     </span>#<span class="w"> </span>拉取历史，跑完即用
+</code></pre></div>
+
+
+<code>connection</code> 是<strong>组织级</strong>凭据（管理员管理），一个凭据可注册多个仓库；<code>repo-update</code> 能调同步窗口与模块归属深度。
+
+<strong>升级</strong>用 <code>aidevops upgrade</code>。客户端每次运行都会比对 PyPI 最新版，落后了用红字提示（结果缓存 24 小时，<code>AIDEVOPS_NO_UPDATE_CHECK=1</code> 可关）。一个防呆：<code>upgrade</code> 在 <code>pip install -e</code> 的开发检出处<strong>拒绝执行</strong>——那会把你的工作区悄悄换成发布版，提示你改用 <code>git pull</code>。
+
+配置与令牌存用户配置目录（Windows <code>%LOCALAPPDATA%\aidevops\</code>，Linux <code>~/.config/aidevops/</code>），文件权限 0600。
+<h2>十、脚本化与 CI</h2>
+
+<code>--json</code> 是<strong>全局</strong>选项，放在子命令之前：
+<div class="codehilite"><pre><span></span><code>aidevops --json findings | jq &#39;.[] | select(.severity == &quot;critical&quot;)&#39;
+</code></pre></div>
+
+
+两个为管道做的细节：<code>--json</code> 模式下升级提示走 <strong>stderr</strong>，不污染 stdout；<code>AIDEVOPS_JSON=1</code> 环境变量等价于全局 flag。CI 里用 <code>AIDEVOPS_TOKEN</code> 直接注入令牌（免交互登录），<code>AIDEVOPS_BASE_URL</code> 指向测试后端做集成验证。
+
+一个实际的 CI 场景：流水线里跑 <code>aidevops --json risk $GITHUB_SHA</code>，分数超过阈值就把关联的回归候选列表贴到 PR 评论里——风险引擎和 AI 建议都变成了流水线的一等公民。
+<h2>十一、工程化：测试、类型、发布流</h2>
+
+客户端在仓库的 <code>cli/</code> 目录下，工程化配置是完整的：
+<div class="codehilite"><pre><span></span><code>python -m pytest          # 50 个客户端测试，含 Textual pilot 的 TUI 测试
+python -m ruff check .
+python -m mypy ai_devops_cli
+</code></pre></div>
+
+
+TUI 用 Textual 的 pilot 做交互测试——全屏应用的按键流、面板切换都覆盖到了，不靠人肉点。后端另有 <strong>569 个测试</strong>（4 个 network 用例默认跳过），全部不依赖外网，CI 上跑得飞快。
+
+多租户的写路径全部收口在 <code>scoped_queryset</code> 唯一入口，配合上面说的 URL 租户语义，测试可以逐条断言「租户 A 永远看不到租户 B 的数据」。
+
+PyPI 发布走 <strong>tag 触发的 trusted publishing</strong> 工作流：打 tag → GitHub Actions 构建 → OIDC 短期凭证上传 PyPI，没有本地打包、没有长期 token。
+<h2>十二、现状、局限与 Roadmap</h2>
+
+现在是 <strong>Alpha</strong>（Development Status 3），几个明确的局限：
+<ul>
+<li><strong>需要自建后端</strong>：客户端离开后端没有独立价值，想试完整流程得先跑起服务端（docker compose 一套或本地 make 一套）；</li>
+<li><strong>单组织多项目</strong>已经支持，跨组织的权限模型还在收敛；</li>
+<li><strong>真实 LLM 端到端 smoke test</strong> 在 roadmap 上（当前 Agent 测试用桩模型，逻辑路径已覆盖，真实模型的输出契约待验证）；</li>
+<li><strong>模块归属解析</strong>需要按仓库配置一次覆盖规则，零配置的准确率依赖源根推断的质量。</li>
+</ul>
+
+Roadmap 优先级：终端详情视图补完 → 真实 LLM smoke test → Celery worker 生产形态验证。
+
+如果你也在做 QA 平台，或者对「研发数据关联」和「有笼子的 AI Agent」这两个方向有兴趣，欢迎提 issue：<a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/ai_devops</a>。装起来一行命令：<code>pipx install aidevops</code>。</div></div></noscript>
+  </body>
+</html>
