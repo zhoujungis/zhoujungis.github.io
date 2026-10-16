@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想知道「不打包 Chromium 能不能造浏览器」的桌面与前端工程师；想把浏览器接进 Agent 流水线的开发者；对 Tauri 2 的 child webview 能力好奇、但还没踩过坑的人 结论先行：NanoBrowser 的价值不在「又一个浏览器」，而在三个反常识的技术决定——不造渲染引擎、 永不开调试" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/nanobrowser-tauri-webview2/" />
+    <meta property="og:title" content="NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核" />
+    <meta property="og:description" content="适用读者：想知道「不打包 Chromium 能不能造浏览器」的桌面与前端工程师；想把浏览器接进 Agent 流水线的开发者；对 Tauri 2 的 child webview 能力好奇、但还没踩过坑的人 结论先行：NanoBrowser 的价值不在「又一个浏览器」，而在三个反常识的技术决定——不造渲染引擎、 永不开调试" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/nanobrowser-tauri-webview2/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/nanobrowser-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核" />
+    <meta name="twitter:description" content="适用读者：想知道「不打包 Chromium 能不能造浏览器」的桌面与前端工程师；想把浏览器接进 Agent 流水线的开发者；对 Tauri 2 的 child webview 能力好奇、但还没踩过坑的人 结论先行：NanoBrowser 的价值不在「又一个浏览器」，而在三个反常识的技术决定——不造渲染引擎、 永不开调试" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/nanobrowser-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bv_kuWZQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-16T18:39:08.317720+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核","description":"适用读者：想知道「不打包 Chromium 能不能造浏览器」的桌面与前端工程师；想把浏览器接进 Agent 流水线的开发者；对 Tauri 2 的 child webview 能力好奇、但还没踩过坑的人 结论先行：NanoBrowser 的价值不在「又一个浏览器」，而在三个反常识的技术决定——不造渲染引擎、 永不开调试","image":"https://zhoujungis.github.io/photos/nanobrowser-cover.png","datePublished":"2026-10-16T18:39:08.317720+08:00","dateModified":"2026-10-16T18:39:08.317720+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/nanobrowser-tauri-webview2/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核</h1><div class="ns-meta">2026/10/16 · Stack Frame</div><div class="markdown-body"><blockquote>
+
+适用读者：想知道「不打包 Chromium 能不能造浏览器」的桌面与前端工程师；想把浏览器接进 Agent 流水线的开发者；对 Tauri 2 的 child webview 能力好奇、但还没踩过坑的人
+结论先行：NanoBrowser 的价值不在「又一个浏览器」，而在三个反常识的技术决定——不造渲染引擎、<strong>永不开调试端口</strong>、连 DevTools 要用的 WebSocket 服务端都手写
+阅读时间：约 49 分钟 | 难度：进阶 | 收获：一份进程级架构拆解 + 进程内 CDP 内核的实现细节 + 停靠式 DevTools 面板的完整解法 + MCP 自动化的九个工具 + 一张「已经付过学费」的踩坑清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：为什么还要再造一个浏览器</li>
+<li>一分钟认识 NanoBrowser</li>
+<li>三个反常识的技术决定</li>
+<li>技术栈、版本与 release profile</li>
+<li>仓库结构：一个 workspace，两个二进制</li>
+<li>核心技术一：单窗口里的 N+1 个 webview</li>
+<li>核心技术二：进程内 CDP 内核</li>
+<li>核心技术三：手写 WebSocket 服务端</li>
+<li>核心技术四：停靠式 DevTools 面板</li>
+<li>核心技术五：z-order 与「覆层」技巧</li>
+<li>核心技术六：标签页引擎</li>
+<li>核心技术七：零框架前端</li>
+<li>核心技术八：nanoagent，一只隐形的浏览器</li>
+<li>核心技术九：MCP 服务器与九个工具</li>
+<li>核心技术十：抓包与捕获期脱敏</li>
+<li>安全模型：五道防线</li>
+<li>体积与启动账：4.52 MB 是怎么来的</li>
+<li>数据落盘：原子写、上限与盘符策略</li>
+<li>十四个已经付过学费的坑</li>
+<li>已知限制</li>
+<li>我的判断</li>
+<li>参考链接</li>
+</ul>
+<hr>
+<h2>前言：为什么还要再造一个浏览器</h2>
+
+先说清楚这个项目的坐标。NanoBrowser 是一个开源项目（仓库在 GitHub 上的 <code>zhoujungis/NanoBrowser</code>，也是本站作者自己的项目），它想回答一个很小的工程问题：
+
+<strong>如果我不想把整个 Chromium 打包进应用，还能不能做出一款用起来像 Chrome 的桌面浏览器？</strong>
+
+大多数「自己做浏览器」的方案最后都滑向同一件事：把 Chromium 或 Electron 一起打包进去，于是安装包动辄 100 MB 起步，每个应用还各自背一份内核、各自占一份内存。到了 2026 年，仍然没有人愿意为「一个能用的浏览器壳」付出这个代价。
+
+NanoBrowser 的答案是另一条路：<strong>不造引擎，只造壳</strong>。渲染引擎直接用 Windows 上已经装好的 WebView2（也就是系统里那份 Chromium/Edge），应用本身只做「壳」的部分——标签页、地址栏、书签、历史、下载、查找、快捷键、主题——以及一件更硬的事：<strong>把 DevTools 协议接进进程里</strong>。
+
+结果是两个二进制：可见的 GUI 浏览器 <code>nanobrowser.exe</code> 约 <strong>4.52 MB</strong>，无界面的自动化浏览器 <code>nanoagent.exe</code> 约 <strong>4.24 MB</strong>。两者共用同一个库 crate，也共用同一套进程内 DevTools 协议桥。
+
+这篇文章不吹概念，只拆实现。它的技术密度集中在几个地方：<strong>一个窗口里塞进三类兄弟 HWND</strong>、<strong>在没有调试端口的条件下说 CDP</strong>、<strong>手写 SHA-1 握手与 WebSocket 帧编解码</strong>、<strong>把官方 DevTools 前端塞进同一个窗口的子 webview 里并给它一个能拖拽的停靠面板</strong>。这几件事每一件都有一个「不试不知道、试了才知道反常识」的细节，下面逐个展开。
+<hr>
+<h2>一分钟认识 NanoBrowser</h2>
+
+一句话定义：<strong>一个 Tauri 2 写的 Chrome 式浏览器壳，加一个能被 AI 工具驱动的无界面浏览器</strong>。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>二进制</th>
+<th>用途</th>
+<th>Release 体积</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nanobrowser.exe</code></td>
+<td>可见的 GUI 浏览器</td>
+<td>约 4.52 MB</td>
+</tr>
+<tr>
+<td><code>nanoagent.exe</code></td>
+<td>无界面自动化浏览器（CLI + MCP）</td>
+<td>约 4.24 MB</td>
+</tr>
+</tbody>
+</table></div>
+
+它能做的浏览器功能，按「多久能感觉到」排序：
+<ul>
+<li><strong>Chrome 式标签条</strong>：拖拽重排（带 FLIP 动画）、固定/取消固定、中键关闭、每个标签的右键菜单、溢出处理、<code>Ctrl+Shift+T</code> 重开刚关掉的标签。</li>
+<li><strong>完整浏览器外壳</strong>：带建议下拉的地址栏、书签栏、页内查找、下载管理、历史、缩放、明/暗/跟随系统三态主题、原生窗口按钮。</li>
+<li><strong>停靠式 DevTools</strong>：把<strong>真正的</strong>官方 DevTools 前端加载进同窗口的一个子 webview，可停靠到<strong>底部</strong>或<strong>右侧</strong>，有一条可拖拽的分隔条调整尺寸——不是弹窗。</li>
+<li><strong><code>nano://</code> 内部页</strong>：新标签页、历史、书签、下载、设置、关于。</li>
+<li><strong>无界面 agent</strong>：一次性 CLI 命令，以及一个 stdio 上的 MCP 服务器；带脱敏的网络抓包、可信输入合成与截图。</li>
+</ul>
+
+值得注意的是：整个前端是<strong>手写的 HTML/CSS/JS，没有任何打包器</strong>。没有 npm、没有 Vite、没有框架。这不是标新立异，而是一个刻意的体积与复杂度取舍——后面会讲到它换来了什么、又付出了什么。
+<hr>
+<h2>三个反常识的技术决定</h2>
+
+在深入代码之前，先把三个「和直觉相反」的决定摆出来，因为后面所有细节都从它们长出来。
+
+<strong>决定一：不造引擎。</strong> NanoBrowser 不含任何渲染引擎、反汇编器或 JS 引擎。它驱动的是系统已安装的 WebView2。代价是「Windows only」（整栈建立在 WebView2 的 COM interop 上），收益是应用体积压到个位数的 MB，并且天然共享系统的安全更新。
+
+<strong>决定二：永不开调试端口。</strong> GUI 和 agent 都<strong>不</strong>传 <code>--remote-debugging-port</code>。所有 CDP 流量都走进程内的 <code>ICoreWebView2::CallDevToolsProtocolMethod</code>。这条决定最反常识的地方在于：DevTools 面板明明需要一个 WebSocket，但这个 socket 是<strong>进程内自己开的 loopback 服务</strong>，而不是浏览器暴露的调试端口——它有准入门槛、存活期跟着面板走，对进程外不可用。
+
+<strong>决定三：硬依赖一律手写。</strong> 最难的那块——DevTools 用的 WebSocket 桥——是本项目自己实现的 SHA-1 握手 + base64 accept key + 文本/关闭帧编解码，没有引入 <code>tungstenite</code> 之类的现成库。
+
+这三个决定共同定义了这个项目的性格：<strong>尽量复用系统已有的东西，把自研面积压缩到只剩「必须自己写、且值得自己写」的那一层。</strong>
+<hr>
+<h2>技术栈、版本与 release profile</h2>
+
+技术栈表（版本都写在 <code>Cargo.toml</code> 里）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>选择</th>
+<th>版本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>应用框架</td>
+<td>Tauri</td>
+<td>2.12.4</td>
+</tr>
+<tr>
+<td>WebView 抽象</td>
+<td>wry</td>
+<td>0.57.0</td>
+</tr>
+<tr>
+<td>引擎</td>
+<td>Microsoft Edge WebView2（Chromium）</td>
+<td>系统安装</td>
+</tr>
+<tr>
+<td>WebView2 COM 绑定</td>
+<td><code>webview2-com</code></td>
+<td>0.39.1</td>
+</tr>
+<tr>
+<td>Win32 绑定</td>
+<td><code>windows</code></td>
+<td>0.62.2</td>
+</tr>
+<tr>
+<td>序列化</td>
+<td><code>serde</code> / <code>serde_json</code></td>
+<td>1.0.154</td>
+</tr>
+<tr>
+<td>语言</td>
+<td>Rust</td>
+<td>edition 2021</td>
+</tr>
+</tbody>
+</table></div>
+
+Tauri 启用了两个 feature，而且<strong>两个都是必须的</strong>：
+<div class="codehilite"><pre><span></span><code><span class="n">tauri</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;2&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">features</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;unstable&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;devtools&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+<ul>
+<li><code>unstable</code>：child webview 那一整套 API（<code>add_child</code>、<code>get_webview</code>、逐 webview 的 <code>devtools(false)</code>）都在它后面。没有它，这个项目的核心拓扑就不成立。</li>
+<li><code>devtools</code>：暴露 <code>ICoreWebView2</code> 互操作能力，协议桥要用。</li>
+</ul>
+
+release profile 逐项为体积调优：
+<div class="codehilite"><pre><span></span><code><span class="k">[profile.release]</span>
+<span class="n">opt-level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;s&quot;</span><span class="w">    </span><span class="c1"># 为体积优化，而非为速度</span>
+<span class="n">lto</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w">         </span><span class="c1"># 链接期优化，跨 crate 内联与裁剪</span>
+<span class="n">codegen-units</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span><span class="c1"># 牺牲编译速度换取更激进的优化</span>
+<span class="n">strip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w">       </span><span class="c1"># 去掉符号</span>
+<span class="n">panic</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;abort&quot;</span><span class="w">    </span><span class="c1"># 去掉展开（unwinding）相关的表</span>
+</code></pre></div>
+
+
+这几行合起来，是把「一个 Rust + Tauri 应用」压到 4 MB 量级的关键。注意 <code>panic = "abort"</code> 的副作用：它意味着<strong>没有 catch-unwind 兜底</strong>，任何 panic 都是进程级终止，所以这个项目在边界处更倾向于「返回 <code>Option</code>/<code>Err</code>」而不是「先写上去再说」。
+
+crates 源通过 <code>.cargo/config.toml</code> 里的 <code>rsproxy</code> 镜像。
+<hr>
+<h2>仓库结构：一个 workspace，两个二进制</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">NanoBrowser</span><span class="o">/</span>
+<span class="err">├─</span><span class="w"> </span><span class="n">start</span><span class="o">.</span><span class="n">bat</span><span class="w">                       </span><span class="c1"># 启动器：优先 release，回退 debug</span>
+<span class="err">├─</span><span class="w"> </span><span class="o">.</span><span class="n">cargo</span><span class="o">/</span><span class="n">config</span><span class="o">.</span><span class="n">toml</span><span class="w">              </span><span class="c1"># rsproxy 镜像</span>
+<span class="err">├─</span><span class="w"> </span><span class="n">ui</span><span class="o">/</span><span class="w">                             </span><span class="c1"># 前端：纯 HTML/CSS/JS，无打包器</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">index</span><span class="o">.</span><span class="n">html</span><span class="w">                   </span><span class="c1"># 可信外壳：标签条、工具栏、SVG 图标 sprite</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">shell</span><span class="o">.</span><span class="n">js</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">shell</span><span class="o">.</span><span class="n">css</span><span class="w">         </span><span class="c1"># 外壳行为与样式</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">internal</span><span class="o">.</span><span class="n">css</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">internal</span><span class="o">.</span><span class="n">js</span><span class="w">   </span><span class="c1"># 内部页共用的样式与脚本</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">ntp</span><span class="o">.</span><span class="n">html</span><span class="o">|</span><span class="n">js</span><span class="w">                  </span><span class="c1"># nano://newtab   新标签页</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">history</span><span class="o">.</span><span class="n">html</span><span class="o">|</span><span class="n">js</span><span class="w">              </span><span class="c1"># nano://history</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">bookmarks</span><span class="o">.</span><span class="n">html</span><span class="o">|</span><span class="n">js</span><span class="w">            </span><span class="c1"># nano://bookmarks</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">downloads</span><span class="o">.</span><span class="n">html</span><span class="o">|</span><span class="n">js</span><span class="w">            </span><span class="c1"># nano://downloads</span>
+<span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">settings</span><span class="o">.</span><span class="n">html</span><span class="o">|</span><span class="n">js</span><span class="w">             </span><span class="c1"># nano://settings</span>
+<span class="err">│</span><span class="w">  </span><span class="err">└─</span><span class="w"> </span><span class="n">about</span><span class="o">.</span><span class="n">html</span><span class="w">                   </span><span class="c1"># nano://about</span>
+<span class="err">└─</span><span class="w"> </span><span class="n">src</span><span class="o">-</span><span class="n">tauri</span><span class="o">/</span>
+<span class="w">   </span><span class="err">├─</span><span class="w"> </span><span class="n">tauri</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">json</span><span class="w">              </span><span class="c1"># productName、frontendDist=../ui、withGlobalTauri</span>
+<span class="w">   </span><span class="err">├─</span><span class="w"> </span><span class="n">capabilities</span><span class="o">/</span><span class="w">                </span><span class="c1"># 逐 webview 的权限作用域</span>
+<span class="w">   </span><span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">default</span><span class="o">.</span><span class="n">json</span><span class="w">              </span><span class="c1"># 给 &quot;shell&quot; webview</span>
+<span class="w">   </span><span class="err">│</span><span class="w">  </span><span class="err">└─</span><span class="w"> </span><span class="n">tabs</span><span class="o">.</span><span class="n">json</span><span class="w">                 </span><span class="c1"># 给 &quot;tab-*&quot;：本地页 vs 远程页</span>
+<span class="w">   </span><span class="err">└─</span><span class="w"> </span><span class="n">src</span><span class="o">/</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">lib</span><span class="o">.</span><span class="n">rs</span><span class="w">                    </span><span class="c1"># 库 crate，导出 cdp 模块</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">main</span><span class="o">.</span><span class="n">rs</span><span class="w">                   </span><span class="c1"># GUI 二进制：窗口 + shell webview + 接线</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">cdp</span><span class="o">.</span><span class="n">rs</span><span class="w">                    </span><span class="c1"># 进程内 CDP 桥（两个二进制共用）</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">state</span><span class="o">.</span><span class="n">rs</span><span class="w">                  </span><span class="c1"># Settings / Profile / AppState / Tab / 常量</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">profile</span><span class="o">.</span><span class="n">rs</span><span class="w">                </span><span class="c1"># 数据目录、profile.json 的读取与原子保存</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">tabs</span><span class="o">.</span><span class="n">rs</span><span class="w">                   </span><span class="c1"># 标签生命周期、布局、下载、快捷键</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">inject</span><span class="o">.</span><span class="n">rs</span><span class="w">                 </span><span class="c1"># 逐标签的 init script（快捷键、favicon、查找）</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">commands</span><span class="o">.</span><span class="n">rs</span><span class="w">               </span><span class="c1"># `#[tauri::command]` 面</span>
+<span class="w">      </span><span class="err">├─</span><span class="w"> </span><span class="n">devtools</span><span class="o">.</span><span class="n">rs</span><span class="w">               </span><span class="c1"># 停靠面板 + WebSocket 桥（全项目最复杂）</span>
+<span class="w">      </span><span class="err">└─</span><span class="w"> </span><span class="n">bin</span><span class="o">/</span><span class="n">nanoagent</span><span class="o">/</span>
+<span class="w">         </span><span class="err">├─</span><span class="w"> </span><span class="n">main</span><span class="o">.</span><span class="n">rs</span><span class="w">                </span><span class="c1"># 隐藏窗口，模式分发（--mcp vs 一次性）</span>
+<span class="w">         </span><span class="err">├─</span><span class="w"> </span><span class="n">browser</span><span class="o">.</span><span class="n">rs</span><span class="w">             </span><span class="c1"># navigate/read/click/fill/screenshot/cookies/wait</span>
+<span class="w">         </span><span class="err">├─</span><span class="w"> </span><span class="n">cli</span><span class="o">.</span><span class="n">rs</span><span class="w">                 </span><span class="c1"># 一次性命令前端 + --help</span>
+<span class="w">         </span><span class="err">├─</span><span class="w"> </span><span class="n">mcp</span><span class="o">.</span><span class="n">rs</span><span class="w">                 </span><span class="c1"># stdio 上的 MCP 服务器</span>
+<span class="w">         </span><span class="err">├─</span><span class="w"> </span><span class="n">traffic</span><span class="o">.</span><span class="n">rs</span><span class="w">             </span><span class="c1"># Network.* 抓包 + 捕获期脱敏</span>
+<span class="w">         </span><span class="err">└─</span><span class="w"> </span><span class="n">paths</span><span class="o">.</span><span class="n">rs</span><span class="w">               </span><span class="c1"># 数据目录与自动化 profile 目录</span>
+</code></pre></div>
+
+
+结构上有两个信号值得注意：
+
+其一，<strong><code>cdp.rs</code> 在 <code>lib.rs</code> 里被导出为库</strong>，<code>main.rs</code>（GUI）与 <code>bin/nanoagent/main.rs</code>（agent）都依赖它。这是「一个内核、两种入口」的物理落点——两个二进制共享同一份协议桥实现，而不是各写一份。
+
+其二，<strong><code>devtools.rs</code> 被单独列出来当作最复杂模块</strong>，README 甚至把它的设计说明单独写成了一章。这在下面的核心技术四里会展开。
+<hr>
+<h2>核心技术一：单窗口里的 N+1 个 webview</h2>
+
+这是整个项目的架构地基，也是理解后面一切的钥匙。
+<h3>拓扑：三类兄弟 HWND</h3>
+
+NanoBrowser 的整个界面<strong>只有一个操作系统窗口</strong>。窗口内部最多有三类<strong>子 webview</strong>，而每一个子 webview 都是<strong>兄弟 HWND</strong>（不是父子关系）：
+<div class="codehilite"><pre><span></span><code><span class="err">┌─</span><span class="w"> </span><span class="n">main</span><span class="w"> </span><span class="n">window</span><span class="w"> </span><span class="err">───────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">  </span><span class="n">shell</span><span class="w"> </span><span class="n">webview</span><span class="w">  </span><span class="p">(</span><span class="n">label</span><span class="w"> </span><span class="s2">&quot;shell&quot;</span><span class="p">)</span><span class="w">   </span><span class="err">←</span><span class="w"> </span><span class="n">y</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">shell_h</span><span class="w">         </span><span class="err">│</span>
+<span class="err">│</span><span class="w">    </span><span class="err">标签条</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="err">工具栏</span><span class="p">(</span><span class="mi">44</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="err">书签栏</span><span class="p">(</span><span class="mi">28</span><span class="err">，可选</span><span class="p">)</span><span class="w">               </span><span class="err">│</span>
+<span class="err">├──────────────────────────┬──────────────────────────────────┤</span>
+<span class="err">│</span><span class="w">  </span><span class="n">page</span><span class="w"> </span><span class="n">webview</span><span class="w">            </span><span class="err">│</span><span class="w">  </span><span class="n">devtools</span><span class="w"> </span><span class="n">panel</span><span class="w"> </span><span class="n">webview</span><span class="w">          </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="p">(</span><span class="n">label</span><span class="w"> </span><span class="s2">&quot;tab-&lt;id&gt;&quot;</span><span class="p">)</span><span class="w">      </span><span class="err">│</span><span class="w">  </span><span class="p">(</span><span class="n">label</span><span class="w"> </span><span class="s2">&quot;devtools&quot;</span><span class="p">)</span><span class="w">              </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">每个标签一个，只有当前</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">仅打开时存在；底部或右侧</span><span class="w">        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">可见的那个在显示</span><span class="w">        </span><span class="err">│</span><span class="w">                                  </span><span class="err">│</span>
+<span class="err">└──────────────────────────┴──────────────────────────────────┘</span>
+</code></pre></div>
+
+<ul>
+<li><strong>shell</strong>：可信的浏览器外壳（<code>ui/index.html</code>），它持有全部 IPC 命令。用 Tauri 的话说，这是唯一「被信任」的 webview。</li>
+<li><strong><code>tab-&lt;id&gt;</code></strong>：每个标签一个子 webview，<strong>延迟创建</strong>，切换时隐藏/显示。所有标签 webview 共用<strong>同一个</strong> WebView2 user-data 目录，所以 Cookie 与登录态在标签之间是通的。</li>
+<li><strong><code>devtools</code></strong>：停靠面板，首次打开时才创建（见核心技术四）。</li>
+</ul>
+
+布局在 Rust 里算（<code>tabs.rs::layout</code>），逐个用 <code>set_position</code> / <code>set_size</code> 落地到各个 webview。
+<h3><code>shell_h</code> 的推导</h3>
+
+外壳高度不是拍脑袋定的，是从三段 chrome 高度推出来的：
+<div class="codehilite"><pre><span></span><code>shell_h = STRIP_H(40) + TOOLBAR_H(44) + (bookmarks_bar ? BM_H(28) : 0)
+</code></pre></div>
+
+
+也就是<strong>不带书签栏 84 逻辑像素、带书签栏 112 逻辑像素</strong>。页面区域是 <code>shell_h</code> 以下的全部空间。
+
+这里用的是<strong>逻辑像素</strong>（Tauri 的 <code>LogicalSize</code> / <code>LogicalPosition</code>），缩放由 <code>scale_factor</code> 折算——<code>tabs.rs::win_size</code> 会读 <code>inner_size()</code> 再除以 <code>scale_factor</code>，避免在 HiDPI 屏上把窗口坐标和逻辑坐标算混。
+<h3>状态模型</h3>
+
+<code>AppState</code> 由<strong>一把 <code>Mutex</code></strong> 守护，交给 Tauri 管理：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tabs: Vec&lt;Tab&gt;</code></td>
+<td>活着的标签</td>
+</tr>
+<tr>
+<td><code>active: Option&lt;u32&gt;</code></td>
+<td>当前标签 id</td>
+</tr>
+<tr>
+<td><code>closed: Vec&lt;(String, String)&gt;</code></td>
+<td><code>(url, title)</code> 栈，供 <code>Ctrl+Shift+T</code></td>
+</tr>
+<tr>
+<td><code>shell_h: f64</code></td>
+<td>chrome 高度（见上）</td>
+</tr>
+<tr>
+<td><code>profile: Profile</code></td>
+<td>持久化的设置/书签/历史/下载/会话/窗口几何</td>
+</tr>
+<tr>
+<td><code>next_id: u32</code></td>
+<td>标签 id 分配器</td>
+</tr>
+<tr>
+<td><code>sys_dark: bool</code></td>
+<td>系统深色模式标志</td>
+</tr>
+<tr>
+<td><code>overlay: bool</code></td>
+<td>shell 当前是否被撑满整个窗口</td>
+</tr>
+<tr>
+<td><code>devtools_open: bool</code></td>
+<td>面板是否可见</td>
+</tr>
+<tr>
+<td><code>devtools_h: f64</code></td>
+<td>底部停靠时的面板高度</td>
+</tr>
+<tr>
+<td><code>devtools_w: f64</code></td>
+<td>右侧停靠时的面板宽度</td>
+</tr>
+<tr>
+<td><code>win_save_pending: bool</code></td>
+<td>窗口几何持久化的去抖标志</td>
+</tr>
+</tbody>
+</table></div>
+
+而一个 <code>Tab</code> 携带：<code>id, label, url, title, loading, pinned, icon, internal, live, zoom_idx, can_back, can_fwd, expect_internal, nav_pos, nav_total, pending_nav</code>，外加一个<strong>不透明的逐标签 token</strong>（安全模型的关键，见后）。
+
+注意 <code>live</code> 这个字段：它表示「这个标签的真实 webview 是否已经创建」。标签可以是「逻辑存在但 webview 还没建」的——这是延迟创建的直接体现，也是会话恢复（启动时读回一堆 URL）能很快出界面的原因。
+<h3>IPC 面</h3>
+
+shell 通过 <strong>40 个 <code>#[tauri::command]</code></strong> 调 Rust（都在 <code>commands.rs</code>，在 <code>main.rs</code> 里用 <code>generate_handler!</code> 注册）。按功能分组：
+<ul>
+<li><strong>读状态</strong>：<code>get_initial_state</code>、<code>get_tabs</code>、<code>get_settings</code>、<code>get_bookmarks</code>、<code>get_history</code>、<code>get_downloads</code>、<code>get_top_sites</code></li>
+<li><strong>导航</strong>：<code>navigate</code>、<code>new_tab</code>、<code>activate</code>、<code>go_back</code>、<code>go_forward</code>、<code>reload</code>、<code>stop</code>、<code>internal_nav</code></li>
+<li><strong>标签</strong>：<code>close_tab_cmd</code>、<code>toggle_pin</code>、<code>move_tab</code>、<code>duplicate_tab</code>、<code>close_others</code>、<code>close_to_right</code>、<code>reopen_tab_cmd</code></li>
+<li><strong>界面</strong>：<code>zoom</code>、<code>omnibox_suggest</code>、<code>find_query</code>、<code>find_move</code>、<code>find_close</code>、<code>chrome_overlay</code>、<code>sys_theme_changed</code></li>
+<li><strong>DevTools</strong>：<code>toggle_devtools</code>、<code>set_devtools_size</code>、<code>set_devtools_side</code>、<code>devtools_drag_end</code></li>
+<li><strong>数据</strong>：<code>add_bookmark</code>、<code>remove_bookmark</code>、<code>update_bookmark</code>、<code>delete_history</code>、<code>clear_history</code>、<code>set_settings</code>、<code>open_downloads_folder</code></li>
+</ul>
+
+Rust 用 Tauri 事件把状态推回前端：<code>tabs-state</code>、<code>omnibox-state</code>、<code>bookmarks-changed</code>、<code>theme-changed</code>、<code>sys-theme</code>、<code>find-result</code>、<code>focus-omnibox</code>、<code>open-findbar</code>、<code>dt-drag</code>。
+
+一个值得学的细节：<strong>前端不轮询，Rust 主动推</strong>。<code>emit_tabs_state</code> 会把整个标签列表序列化成一个 <code>TabView</code> 数组推出去，<code>emit_omnibox</code> 推的是当前标签的 <code>url / title / loading / zoom / starred / canBack / canFwd / id</code>。连「窗口标题」都是在 Rust 侧拼好的：
+<div class="codehilite"><pre><span></span><code>title = 当前标签标题非空 ? &quot;&lt;标题&gt; - NanoBrowser&quot; : &quot;NanoBrowser&quot;
+</code></pre></div>
+
+<h3>为什么必须知道「兄弟 HWND」</h3>
+
+这一条是本文后面所有「反常识坑」的总源头：<strong>子 webview 是兄弟 HWND，后创建的会盖在先创建的上面</strong>。shell 是第一个创建的，页面 webview 是后创建的——所以在默认情况下，<strong>页面 webview 盖在 shell 上面</strong>。
+
+这直接导致两个后果：
+<ol>
+<li>shell 里任何<strong>溢出到 chrome 区域之外</strong>的 UI（主菜单、地址栏建议下拉、标签右键菜单）都会被页面 webview 裁掉。</li>
+<li>一个子 webview <strong>看不到自己边界之外</strong>的鼠标移动——这会让 DevTools 面板的拖拽调整尺寸变得非常棘手。</li>
+</ol>
+
+这两条分别对应下面的核心技术五与核心技术四。
+<hr>
+<h2>核心技术二：进程内 CDP 内核</h2>
+
+<code>cdp.rs</code> 是这个项目的心脏，两个二进制共用。它的设计完全被 <code>ICoreWebView2::CallDevToolsProtocolMethod</code> 的两个性质塑形。
+<h3>性质一：没有 <code>{"id": ...}</code> 信封</h3>
+
+如果你写过基于调试端口的 CDP 客户端，你会习惯这套信封：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Page.navigate&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">}}</span>
+</code></pre></div>
+
+
+然后按 <code>id</code> 把回复对回去。但 <code>CallDevToolsProtocolMethod</code> <strong>没有这一层</strong>：你给它方法名和参数，它的完成回调只拿到<strong>这个方法自己的结果对象</strong>——没有 id，没有信封。
+
+所以回复<strong>无法按 id 关联</strong>。项目的解法是：给每次调用打一个<strong>递增序号</strong>（内部用 <code>AtomicU64</code> 分配），把这个序号<strong>烘进这次调用专属的回调闭包里</strong>；回调触发时按序号把结果分发到对应的等待者。
+<h3>性质二：回调跑在 WebView2（也就是 UI）线程</h3>
+
+第二条性质更致命：<strong>完成回调运行在 WebView2 的 UI 线程上</strong>。如果你在这个线程上等待回调返回，那就是自己等自己——<strong>直接死锁</strong>。而且这个 bug 在隐藏窗口（agent）上尤其容易触发。
+
+所以项目的调用模型是：
+<ul>
+<li><strong>每次调用都是 fire-and-forget</strong>：发出即返回，不等。</li>
+<li><strong>调用方永远是 worker 线程，绝不是 UI 线程</strong>。调用方发出请求后，阻塞在一个 <code>Mutex</code> + <code>Condvar</code> 上，直到回复落进共享状态再被唤醒。</li>
+<li>也就是说，<code>cdp.rs</code> 内部是 <code>AtomicU64 seq</code>（发序号）+ <code>Mutex&lt;Sink&gt;</code> + <code>Condvar</code>（等回复）+ <code>pending</code>（暂存回调式回复）这样一套结构。</li>
+</ul>
+<h3>两种调用风格</h3>
+
+在此之上，暴露出两种风格，用途严格区分：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>API</th>
+<th>风格</th>
+<th>谁在用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>call</code> / <code>call_raw</code> / <code>call_within</code></td>
+<td><strong>阻塞</strong>等回复（默认 30 秒超时）</td>
+<td>自动化 agent</td>
+</tr>
+<tr>
+<td><code>send</code></td>
+<td>把回复交给回调，<strong>不阻塞</strong></td>
+<td>DevTools WebSocket 桥（它必须不阻塞，要在自己的 socket 线程上应答）</td>
+</tr>
+</tbody>
+</table></div>
+
+这个区分不是风格偏好，是<strong>硬约束</strong>：DevTools 桥的服务循环跑在自己的线程上，如果它在发 CDP 请求时阻塞等待，就会和「给面板回包」互相卡死。
+
+默认超时 30 秒，超时的错误文案是固定的：
+<div class="codehilite"><pre><span></span><code>CDP &lt;method&gt; timed out
+</code></pre></div>
+
+
+（这里的手法值得抄：把方法名放进错误信息，线上排查时一眼能看出卡在哪个协议方法上。）
+<h3>其它必须知道的细节</h3>
+<ul>
+<li><strong>空回复变成 <code>null</code></strong>。有些 CDP 方法本身没有返回值，回调里拿到的是空——项目统一把它规范成 <code>null</code>，而不是空字符串或未定义。</li>
+<li><strong><code>on_event(event, cb)</code></strong> 通过 <code>GetDevToolsProtocolEventReceiver</code> 订阅事件。关键点：<strong>一旦注册，订阅对象归 WebView2 所有</strong>，所以回调的生命周期和 webview 一样长——你不能「取消订阅」，只能让 webview 消失。</li>
+<li><strong><code>with_webview</code> 必须在主线程之外调用</strong>。这是个容易踩的线程约束。</li>
+<li><strong><code>Cdp::webview()</code> 是统一入口</strong>：它既能解析子 webview（<code>"tab-&lt;id&gt;"</code>、<code>"devtools"</code>），也能解析 <code>WebviewWindow</code>（<code>"nanoagent"</code>）。一份实现同时服务 GUI 的三种子 webview和 agent 的主窗口——这就是「一个内核、两种入口」在代码上的兑现方式。</li>
+</ul>
+
+把这几点合起来看，<code>cdp.rs</code> 其实干的是同一件事：<strong>把一个「回调式、跑在 UI 线程、没有请求 id」的 COM 接口，包装成一个「可阻塞、可从任意 worker 线程调用、按序号关联」的 Rust API</strong>。这是整个项目里最像基础设施的一块。
+<hr>
+<h2>核心技术三：手写 WebSocket 服务端</h2>
+
+DevTools 前端需要一条 WebSocket 才能说话。项目没有引 <code>tungstenite</code>，而是在 <code>ws.rs</code> 里手写了服务端。
+<h3>握手</h3>
+
+标准的 WebSocket 升级握手，逐项自己实现：
+<ol>
+<li>从 TCP 流里把 HTTP 请求头读出来。这里有两个自我保护：<strong>单次读缓冲 2048 字节</strong>，<strong>累计请求头超过 16384 字节就放弃</strong>——防止有人对着这个端口灌一个巨大的请求头。</li>
+<li>逐字节扫描请求头，直到找到 <code>\r\n\r\n</code> 才算「头读完」。</li>
+<li>取出 <code>Sec-WebSocket-Key</code>，按 RFC 6455 算 accept key：<code>base64(sha1(key + GUID))</code>。SHA-1 与 base64 都是<strong>自己实现的</strong>（<code>sha1</code>、<code>b64</code>、<code>accept_key</code>），GUID 是那个固定的 <code>258EAFA5-E914-47DA-95CA-C5AB0DC85B11</code> 魔数。</li>
+<li>回 <code>101 Switching Protocols</code>，带上 <code>Sec-WebSocket-Accept</code>。</li>
+</ol>
+<h3>帧编解码</h3>
+<ul>
+<li><strong>收帧</strong>（<code>take_frame</code>）：处理掩码、处理长度扩展（1/2/4 字节长度），还能处理<strong>分片</strong>（一个逻辑消息跨多个 TCP 读）。</li>
+<li><strong>发帧</strong>（<code>encode_frame</code>）：按 payload 大小选择 1/2/4 字节长度编码；<strong>服务端侧不掩码</strong>（RFC 规定服务端发出的帧不加掩码）。</li>
+<li>支持文本帧、<code>PONG</code>、<code>CLOSE</code> 三种 op。</li>
+</ul>
+<h3>服务循环的「心跳」</h3>
+
+<code>Ws::accept</code> 在读请求头之后会做一件小事，但它决定了整条桥的形态：
+<div class="codehilite"><pre><span></span><code>s.set_read_timeout(25ms)
+</code></pre></div>
+
+
+这不是「超时失败」，而是<strong>把 25 毫秒当成服务循环的 tick</strong>。服务循环靠轮询这个 socket 跑：一次读返回 <code>Ok(0)</code> 代表面板走了；返回 <code>WouldBlock</code> / <code>TimedOut</code> 代表「暂时没数据」，用 <code>is_idle(err)</code> 判定，然后继续下一轮。这样单个线程就能同时兼顾「读面板消息」和「收 CDP 事件」两件事，不需要额外的 select/epoll。
+<h3>测试</h3>
+
+<code>tests/ws_bridge.rs</code> 用一个<strong>独立实现的客户端编码器</strong>来验证服务端——刻意不拿解码器去对拍它自己的逆运算。测试覆盖的行为包括：
+<ul>
+<li>握手完成并回报自己的 session path（校验 <code>101</code> 与 <code>Sec-WebSocket-Accept</code> 的具体值）；</li>
+<li><strong>不带 session key 的连接：不返回任何响应头、不返回任何字节</strong>——这条测试在断言「这个端口不是公开调试端口」；</li>
+<li><strong>70 KB 的大 payload 跨多次 read 后完整还原</strong>；</li>
+<li><code>PING</code> 回 <code>PONG</code>；</li>
+<li><code>CLOSE</code> 回一个<strong>空 payload</strong> 的关闭帧。</li>
+</ul>
+<hr>
+<h2>核心技术四：停靠式 DevTools 面板</h2>
+
+这是全项目最复杂的一块，也是最值得读的一块。README 给它单独开了一章。
+<h3>为什么需要它</h3>
+
+WebView2 其实<strong>自带真正的 DevTools 前端</strong>，但它只通过 <code>OpenDevToolsWindow</code> 暴露，而那是弹出一个<strong>独立窗口</strong>。想要 Chrome 那种「停靠在窗口内」的面板，就得换条路。
+
+两条更省事的路都被否掉了：
+<ul>
+<li><strong><code>--remote-debugging-port</code></strong>：不可行。开这个端口后，<strong>只有 shell webview 会成为 CDP target</strong>，页面 webview 无法被官方前端 attach。</li>
+<li><strong>自己写一个极简面板</strong>：被否掉，因为会失去 Elements / Console / Network / Sources 的完整体验。</li>
+</ul>
+
+最终路线：<strong>官方前端 + 进程内 loopback WebSocket 桥</strong>。
+<h3>URL 与那个反常识的 fragment 陷阱</h3>
+
+面板加载的 URL 长这样：
+<div class="codehilite"><pre><span></span><code><span class="n">devtools</span><span class="p">:</span><span class="o">//</span><span class="n">devtools</span><span class="o">/</span><span class="n">bundled</span><span class="o">/</span><span class="n">inspector</span><span class="o">.</span><span class="n">html</span><span class="err">?</span><span class="n">ws</span><span class="o">=</span><span class="mf">127.0</span><span class="o">.</span><span class="mf">0.1</span><span class="p">:</span><span class="n">PORT</span><span class="o">/</span><span class="n">devtools</span><span class="o">/</span><span class="n">page</span><span class="o">/&lt;</span><span class="n">session</span><span class="o">-</span><span class="n">id</span><span class="o">&gt;</span><span class="c1">#nanoSide=bottom|right</span>
+</code></pre></div>
+
+
+拆开看：
+<ul>
+<li><code>devtools://devtools/bundled/</code> 是 WebView2 已经编好的 DevTools bundle——不用自己打包前端。</li>
+<li>它通过一条<strong>本进程提供的 loopback WebSocket</strong> 说 CDP。</li>
+<li>停靠边（bottom/right）放在 <strong>fragment</strong>（<code>#nanoSide=...</code>）里，<strong>不能放进 query string</strong>。</li>
+</ul>
+
+最后这一条是本项目最有价值的一个「非显然约束」，值得单独强调：
+<blockquote>
+
+<strong>在 <code>?ws=</code> 后面追加第二个 query key（比如 <code>&amp;nanoSide=right</code>），会让 WebView2 的 <code>devtools://</code> handler 直接让这次加载失败</strong>，页面显示 Chromium 的「无法访问此页面」错误页。而 fragment 由浏览器自己解析、根本不会到达那个 handler，所以是安全的。
+</blockquote>
+
+这个坑有个更阴的后续：<strong>调试它的时候不能相信 <code>webview.url()</code></strong>——错误页依然会报告你请求的那个 URL，看起来一切正常。可靠的信号是两个：<strong>桥有没有收到客户端</strong>、<strong>它注册了多少个 domain</strong>。
+<h3>桥的准入：它不是调试端口</h3>
+
+<code>devtools.rs</code> 跑的这条 loopback WebSocket 有三重约束：
+<ol>
+<li>绑定到<strong>随机 loopback 端口</strong>；</li>
+<li><strong>只接受本次进程为面板 URL 铸出来的那一个 session id</strong>——请求路径必须是 <code>/devtools/page/&lt;session-id&gt;</code>，不匹配就不理；</li>
+<li>每一个 CDP 请求都被<strong>转发给某个页面 webview</strong>，走的是 <code>ICoreWebView2::CallDevToolsProtocolMethod</code>。</li>
+</ol>
+
+为什么这样就不算「开调试端口」？因为一个扫描 <code>localhost</code> 的页面会发现一个监听者，<strong>你不带那个 id 它什么都不答</strong>；而那个 id 只在面板存活期间存在。<strong>进程外没有任何东西能 attach 到这两个浏览器。</strong>这条和前面的「不传 <code>--remote-debugging-port</code>」合起来，构成了安全模型里「无调试套接字」那一层。
+<h3>事件：一张静态表 + 惰性订阅</h3>
+
+这里有个很典型的「协议实现不完整」的坑：
+
+<code>Schema.getDomains</code> <strong>报告了 35 个 domain，但一个事件名都不返回</strong>。也就是说，<strong>事件无法动态发现</strong>。
+
+项目的解法是维护一张<strong>静态事件名表</strong>，并且<strong>按 domain 惰性订阅</strong>——前端实际 enable 了哪个 domain，才去订阅那个 domain 的事件。表里覆盖的是常用域，例如：
+<div class="codehilite"><pre><span></span><code><span class="n">Runtime</span><span class="w">       </span><span class="n">consoleAPICalled</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">exceptionThrown</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">executionContextCreated</span><span class="w"> </span><span class="o">/</span>
+<span class="w">              </span><span class="n">executionContextDestroyed</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">executionContextsCleared</span><span class="w"> </span><span class="o">/</span>
+<span class="w">              </span><span class="n">bindingCalled</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">inspectRequested</span>
+<span class="n">Debugger</span><span class="w">      </span><span class="n">scriptParsed</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">scriptFailedToParse</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">paused</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">resumed</span><span class="w"> </span><span class="o">/</span>
+<span class="w">              </span><span class="n">breakpointResolved</span>
+<span class="n">Profiler</span><span class="w">      </span><span class="n">consoleProfileStarted</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">consoleProfileFinished</span>
+<span class="n">HeapProfiler</span><span class="w">  </span><span class="n">addHeapSnapshotChunk</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">heapStatsUpdate</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">lastSeenObjectId</span><span class="w"> </span><span class="o">/</span>
+<span class="w">              </span><span class="n">reportHeapSnapshotProgress</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">resetProfiles</span>
+<span class="n">Console</span><span class="w">       </span><span class="n">messageAdded</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">messageRepeatCountUpdated</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">messagesCleared</span>
+<span class="n">Page</span><span class="w">          </span><span class="n">domContentEventFired</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">loadEventFired</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">frameNavigated</span><span class="w"> </span><span class="o">/</span>
+<span class="w">              </span><span class="n">lifecycleEvent</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">javascriptDialogOpening</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">screencastFrame</span><span class="w"> </span><span class="o">/</span>
+<span class="w">              </span><span class="n">downloadWillBegin</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="o">...</span>
+</code></pre></div>
+
+
+两条稳健性设计：
+<ul>
+<li><strong>单个事件订阅失败就跳过它，而不是整个 domain 一起放弃</strong>。</li>
+<li><strong><code>Page.startScreencast</code> 在 WebView2 上没有实现</strong>（agent 的截图要另想办法，见后）。这类调用会被包装成 <strong>CDP error 返回给前端</strong>，而不是把桥弄崩。</li>
+</ul>
+
+桥的主循环还负责：把「空回复」规范成 <code>{}</code>（面板期待一个对象）、把错误回复包装成 JSON-RPC error、从 method 里提取 domain 并按 <code>(标签, domain)</code> 去重订阅、把事件参数为空时补 <code>{}</code> 再以 <code>{"method":..., "params":...}</code> 推给面板。
+<h3>几何：<code>split</code> 与六个常量</h3>
+
+面板尺寸全部在 <code>devtools.rs::split</code> 里算。它返回<strong>页面矩形</strong>和<strong>面板矩形</strong>，好处是「停靠规则可以脱离真实窗口做单测」（内部把状态当参数传进 <code>split_geometry</code>）。
+
+六个常量：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>常量</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MIN_H</code></td>
+<td>96</td>
+<td>底部停靠时面板的最小高度</td>
+</tr>
+<tr>
+<td><code>DEFAULT_H</code></td>
+<td>320</td>
+<td>底部停靠时首次打开的高度</td>
+</tr>
+<tr>
+<td><code>MIN_PAGE_H</code></td>
+<td>96</td>
+<td>留给页面的最小高度</td>
+</tr>
+<tr>
+<td><code>MIN_W</code></td>
+<td>240</td>
+<td>右侧停靠时面板的最小宽度</td>
+</tr>
+<tr>
+<td><code>DEFAULT_W</code></td>
+<td>480</td>
+<td>右侧停靠时首次打开的宽度</td>
+</tr>
+<tr>
+<td><code>MIN_PAGE_W</code></td>
+<td>240</td>
+<td>留给页面的最小宽度</td>
+</tr>
+</tbody>
+</table></div>
+
+两种停靠的矩形：
+<ul>
+<li><strong>底部</strong>：页面 <code>(content_w, content_h - h)</code>；面板 <code>(0, shell_h + page_h, content_w, h)</code>。</li>
+<li><strong>右侧</strong>：页面 <code>(content_w - w, content_h)</code>；面板 <code>(page_w, shell_h, w, content_h)</code>。</li>
+</ul>
+
+<code>clamp_axis</code> 保证面板与页面<strong>两边都不低于各自的最小值</strong>——所以窗口再小，也不会出现「面板把页面挤没」或「页面把面板挤没」。
+
+还有一个时序细节：<code>open()</code> 会<strong>先把窗口布局算好、再让面板可见</strong>，避免面板「以上一个会话的几何尺寸闪一帧」。
+<h3>grip 拖拽：子 webview 看不到界外的鼠标</h3>
+
+面板边缘有一条「grip」（抓条）。但它有个物理限制：<strong>子 webview 看不到自己边界之外的指针移动</strong>。面板只有那么高/那么宽，鼠标一移出面板边界（到页面上），面板就收不到 <code>pointermove</code> 了。
+
+项目的解法是把光标<strong>绕道 shell</strong>：
+<ol>
+<li>鼠标按下时，面板让 Rust 执行 <code>set_overlay(true)</code>——shell webview 被撑满整个窗口并置顶。</li>
+<li>shell 里有一个<strong>全窗口的捕获层</strong>（<code>#dt-grab</code>），它把 <code>clientX</code> / <code>clientY</code> 转给 <code>set_devtools_size</code>。</li>
+<li>Rust 侧算新尺寸：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="n">bottom</span><span class="p">:</span><span class="w">  </span><span class="n">devtools_h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">clamp</span><span class="p">(</span><span class="n">window_h</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">clientY</span><span class="p">)</span>
+<span class="n">right</span><span class="p">:</span><span class="w">   </span><span class="n">devtools_w</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">clamp</span><span class="p">(</span><span class="n">window_w</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">clientX</span><span class="p">)</span>
+</code></pre></div>
+
+<ol>
+<li>鼠标松开，撤掉捕获层、恢复覆层。</li>
+</ol>
+
+注意这条链路和核心技术五的「覆层」是<strong>同一个机制</strong>——项目里那个 <code>overlay</code> 标志同时服务两件事：菜单不被裁、grip 能跨边界拖。
+<h3>面板与原生之间的信令：一个不存在的域名</h3>
+
+这是全项目最漂亮的一个技巧。面板是一个 <code>devtools://</code> 文档，在那个环境里：
+<ul>
+<li><strong>Tauri 的 IPC 不存在</strong>；</li>
+<li><strong>WebView2 的宿主对象 <code>window.chrome.webview</code> 也不存在</strong>。</li>
+</ul>
+
+两条常规通道全断。于是面板只能这样跟 Rust 说话：
+<div class="codehilite"><pre><span></span><code><span class="nb">window</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="s1">&#39;https://nano-dt.invalid/&lt;action&gt;&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;_blank&#39;</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>nano-dt.invalid</code> 是一个<strong>不可能存在的域名</strong>，永远不会真的被访问。而 Rust 侧在 <code>on_new_window</code> 里<strong>看到了这次弹窗请求</strong>，从路径上读出 action，然后返回：
+<div class="codehilite"><pre><span></span><code>NewWindowResponse::Deny
+</code></pre></div>
+
+
+<strong>什么都不导航，什么都不加载，只把那个「弹窗请求」当成一条消息。</strong>这是「把副作用通道当信号通道用」的一个教科书式用法。
+<h3>生命周期</h3>
+<ul>
+<li><code>F12</code>、<code>Ctrl+Shift+I</code> 和主菜单都调 <code>toggle_devtools</code> → <code>devtools::toggle_for</code>。</li>
+<li><code>activate</code> / <code>create_tab</code> 调 <code>devtools::retarget</code>，让面板<strong>跟着当前标签走</strong>。</li>
+<li><code>close_tab</code> 调 <code>devtools::forget</code>，把死标签的协议状态清掉。</li>
+<li><strong>在面板内部按 <code>F12</code> 会把面板关掉</strong>。</li>
+<li>停靠边持久化在 <code>settings.devtoolsSide</code>；<strong>切换停靠边会重载面板</strong>，好让 grip 出现在正确的边。</li>
+<li>所有 webview——shell、页面标签、<strong>以及面板本身</strong>——都用了 <code>.devtools(false)</code>。</li>
+</ul>
+
+最后一条要点名：<code>.devtools(false)</code> 关掉的是<strong>原生 DevTools 弹窗</strong>（<code>AreDevToolsEnabled = false</code>），但它<strong>不影响 <code>CallDevToolsProtocolMethod</code></strong>。所以这个项目可以「杀掉原生弹窗」的同时「保留完整的 CDP 能力」。这是 README 专门列出的坑之一，也是整个停靠方案能成立的前提。
+<hr>
+<h2>核心技术五：z-order 与「覆层」技巧</h2>
+
+回到核心技术一里埋的那个雷：<strong>页面 webview 后创建，盖在 shell 上面</strong>。这会把所有溢出的 shell UI 裁掉——主菜单、地址栏建议下拉、标签右键菜单。
+
+解法是 <code>chrome_overlay</code> 命令 → <code>tabs.rs::set_overlay</code>：
+<ol>
+<li>菜单/建议列表打开的期间，<strong>把 shell webview 撑到整个窗口</strong>，并用 <code>SetWindowPos(HWND_TOP)</code> 把它提到最上面。</li>
+<li>关闭时，把 shell 恢复成 <code>shell_h</code>。</li>
+<li><strong>在任何标签创建/激活/关闭之后</strong>，<code>ensure_shell_top</code> 重新确认 z-order——否则新创建的页面 webview 又会上来，把 chrome 重新盖住。</li>
+</ol>
+
+<code>raise_shell</code> 的 Win32 调用是：
+<div class="codehilite"><pre><span></span><code>SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
+             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
+</code></pre></div>
+
+
+四个标志位合起来的意思是：<strong>只改 z 序，不动位置、不动尺寸、不抢焦点、保持可见</strong>。这里最容易忽略的是 <code>SWP_NOACTIVATE</code>——没有它，每次开菜单都会把窗口激活一次，焦点会乱跳。
+
+于是「撑满 + 置顶」这套组合拳被两处复用：<strong>菜单溢出</strong>与<strong>面板 grip 拖拽</strong>。一处机制，两个场景，这是这个项目里少见的「抽象刚好够用」的地方。
+<hr>
+<h2>核心技术六：标签页引擎</h2>
+
+<code>tabs.rs</code> 是最大的业务文件，里面塞了很多值得单独看的小算法。
+<h3>地址栏输入解析：三分支</h3>
+
+<code>parse_input</code> 把地址栏里的一串字变成导航目标，规则三分支：
+<ol>
+<li>空输入 → <code>nano://newtab</code>；</li>
+<li>是内部页（<code>nano://...</code>）→ <strong>原样使用</strong>；</li>
+<li>「看起来像 URL」→ 必要时补 <code>https://</code>；</li>
+<li>否则 → 用配置的搜索引擎搜。</li>
+</ol>
+
+第 3 步的判定 <code>looks_like_url</code> 有精确规则：
+<ul>
+<li>以 <code>http://</code> 或 <code>https://</code> 开头 → 再 <code>Url::parse</code> 校验通过才认；</li>
+<li>含空格或是空串 → <strong>不认</strong>（这是「用户想搜索」的强信号）；</li>
+<li>否则给候选补 <code>https://</code>，再要求：</li>
+<li>host 等于 <code>localhost</code>，<strong>或</strong>能解析成 IP，<strong>或</strong>至少含两个点分段（也就是「有点像域名」）；</li>
+<li>且<strong>首字符必须是 ASCII 字母或数字</strong>。</li>
+</ul>
+
+这几条加起来，就是在「<code>example.com</code> 应该当网址」和「<code>how to code</code> 应该当搜索」之间划一条尽量不出错的线。
+<h3>下载：竞态安全的命名</h3>
+
+同名文件不覆盖，而是变成 <code>report (1).pdf</code>、<code>report (2).pdf</code>……听起来简单，但有个竞态：<strong>如果两个下载同时开始，两边都可能判断「这个路径没人占」，然后都写同一个文件。</strong>
+
+项目用了一个<strong>原子占位</strong>来消灭这个竞态：先用 <code>create_new</code> 独占创建那个文件（占位），占上了才算「这个路径归我」；WebView2 之后再往里填内容。<code>unique_path</code> 在冲突时最多尝试 1000 个候选名，<code>reserve</code> 就是那次原子创建。
+<blockquote>
+
+一句话记住：<strong>用文件系统的原子性去仲裁命名，而不是用内存里的判断。</strong>
+</blockquote>
+<h3>favicon：把端口带上</h3>
+
+<code>favicon_for</code> 猜图标地址时有个容易漏的细节：
+<div class="codehilite"><pre><span></span><code>scheme://host:port/favicon.ico
+</code></pre></div>
+
+
+<strong>端口必须带上</strong>。因为一个跑在非默认端口上的站点，去掉端口后就会指向<strong>另一个 origin</strong> 的图标——猜错不只是难看，是语义错误。
+<h3>缩放：15 档固定阶梯</h3>
+
+<code>ZOOM_STEPS</code> 是一个 15 档的固定数组（<code>state.rs</code>）：
+<div class="codehilite"><pre><span></span><code><span class="mf">0.25</span><span class="p">,</span><span class="w"> </span><span class="mf">0.33</span><span class="p">,</span><span class="w"> </span><span class="mf">0.5</span><span class="p">,</span><span class="w"> </span><span class="mf">0.67</span><span class="p">,</span><span class="w"> </span><span class="mf">0.75</span><span class="p">,</span><span class="w"> </span><span class="mf">0.8</span><span class="p">,</span><span class="w"> </span><span class="mf">0.9</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.1</span><span class="p">,</span><span class="w"> </span><span class="mf">1.25</span><span class="p">,</span><span class="w"> </span><span class="mf">1.5</span><span class="p">,</span><span class="w"> </span><span class="mf">1.75</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.5</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span>
+</code></pre></div>
+
+
+取值时用 <code>zoom_idx.min(len - 1)</code> 夹一下——<strong>旧 profile 里存了一个越界索引也不能 panic</strong>。这条在 <code>panic = "abort"</code> 的构建里尤其重要：一次越界就是整个进程没了。测试里也钉住了这一点（索引写成 999 时仍返回 3.0）。
+<h3>快捷键：在两个世界之间分流</h3>
+
+快捷键在两个地方被处理，取决于<strong>当前焦点在页面里还是在外壳里</strong>：
+<ul>
+<li><strong>页面里</strong>按键 → 由注入脚本 <code>inject.rs</code> 上报 → <code>tabs.rs::handle_shortcut</code> 处理；</li>
+<li><strong>外壳里</strong>按键 → <code>shell.js</code> 直接处理。</li>
+</ul>
+
+完整映射表：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>快捷键</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ctrl+T</code></td>
+<td>新建标签</td>
+</tr>
+<tr>
+<td><code>Ctrl+W</code></td>
+<td>关闭标签</td>
+</tr>
+<tr>
+<td><code>Ctrl+Shift+T</code></td>
+<td>重开最近关闭的标签</td>
+</tr>
+<tr>
+<td><code>Ctrl+Tab</code> / <code>Ctrl+Shift+Tab</code></td>
+<td>下一个 / 上一个标签</td>
+</tr>
+<tr>
+<td><code>Ctrl+1</code> 到 <code>Ctrl+8</code></td>
+<td>按序号选标签</td>
+</tr>
+<tr>
+<td><code>Ctrl+9</code></td>
+<td>选最后一个标签</td>
+</tr>
+<tr>
+<td><code>Ctrl+L</code></td>
+<td>聚焦地址栏</td>
+</tr>
+<tr>
+<td><code>Ctrl+F</code></td>
+<td>页内查找</td>
+</tr>
+<tr>
+<td><code>Ctrl+D</code></td>
+<td>收藏当前页</td>
+</tr>
+<tr>
+<td><code>Ctrl+H</code></td>
+<td>历史</td>
+</tr>
+<tr>
+<td><code>Ctrl+J</code></td>
+<td>下载</td>
+</tr>
+<tr>
+<td><code>Ctrl+Shift+O</code></td>
+<td>书签管理</td>
+</tr>
+<tr>
+<td><code>Alt+←</code> / <code>Alt+→</code></td>
+<td>后退 / 前进</td>
+</tr>
+<tr>
+<td><code>Ctrl++</code> / <code>Ctrl+-</code></td>
+<td>放大 / 缩小</td>
+</tr>
+<tr>
+<td><code>Ctrl+0</code></td>
+<td>重置缩放</td>
+</tr>
+<tr>
+<td><code>F5</code></td>
+<td>刷新（交给引擎）</td>
+</tr>
+<tr>
+<td><code>F11</code></td>
+<td>切换全屏</td>
+</tr>
+<tr>
+<td><code>F12</code> / <code>Ctrl+Shift+I</code></td>
+<td>切换停靠 DevTools 面板</td>
+</tr>
+</tbody>
+</table></div>
+
+这里有一条<strong>克制</strong>值得注意：编辑键（<code>Ctrl+C/V/X/A</code>）以及 <code>Ctrl+R</code> / <code>Ctrl+P</code>、<code>Ctrl+Shift+1</code> 到 <code>Ctrl+Shift+9</code> 都<strong>刻意放行给引擎</strong>，不拦截。原因很实际：浏览器壳最怕的就是「自作聪明地吞掉网页要用的按键」。同一条约束下，<code>F5</code> 也没被拦，直接交给引擎。
+<hr>
+<h2>核心技术七：零框架前端</h2>
+
+前端在 <code>ui/</code>，是手写的 HTML/CSS/JS，<strong>没有打包器、没有框架、没有 npm</strong>。它换来的是：
+<ul>
+<li>没有构建步骤——改一行 HTML 直接生效；</li>
+<li>体积几乎为零（对比一个 Electron + React 的起步体积）；</li>
+<li>与 Rust 的接口面极其简单：<code>withGlobalTauri</code> 打开，页面里直接用全局的 Tauri API 调那 40 个命令。</li>
+</ul>
+
+代价也有：<strong>没有组件复用，没有类型检查，状态和 DOM 得自己管</strong>。所以 <code>shell.js</code> 里花了很大力气在「手动但确定」的交互实现上。
+<h3>标签拖拽：FLIP + 一次确定性的 click 抑制</h3>
+
+标签拖拽重排是 <code>shell.js</code> 里最精细的一段：
+<ul>
+<li>用 <code>pointermove</code> / <code>pointerup</code> / <code>pointercancel</code> 驱动，被拖的标签跟着光标走，<strong>兄弟标签用 FLIP 过渡滑到旁边</strong>——这样标签条<strong>始终在预览「松手后会落到哪」</strong>。</li>
+<li>松手后调 <code>invoke("move_tab", ...)</code> 让 Rust 真正重排。</li>
+<li>这里有个容易出错的地方：<strong>拖拽结束后，浏览器还会补发一次 <code>click</code></strong>，如果你不去管它，就会「刚拖完就顺手点了一下标签」。项目的做法是置一个 <code>suppressClick</code> 标志，<strong>在下一次标签按下时重置</strong>——而不是靠「等一个 tick 再清标志」这类时序 hack。它是<strong>确定性的</strong>，不依赖任务队列的调度速度。</li>
+</ul>
+<h3>其它前端要点</h3>
+<ul>
+<li><strong>建议下拉</strong>：<code>suggest()</code> 调 <code>omnibox_suggest</code>（Rust 侧从历史 + 书签里匹配，<strong>最多 8 条并去重</strong>），<code>renderSug()</code> 建 DOM，<code>pickSug()</code> 处理点击与键盘选择并导航。</li>
+<li><strong>主题</strong>：<code>resolvedDark()</code> 把「设置里的 system + 系统深色标志」解析成最终值，然后只是把 <code>document.documentElement.dataset.theme</code> 设成 <code>dark</code> / <code>light</code>。整套设计变量挂在 CSS 的 <code>:root</code> 与 <code>[data-theme="dark"]</code> 上——换主题不改任何组件的类名。</li>
+<li><strong>窗口控制图标</strong>：控件图标是靠 JS 注入的，而<strong>注入时 SVG 的 CSS 类必须一起带上</strong>。这是 README 点名的坑：不带类名的话，那些靠类名定尺寸的字形（最典型是全屏的「恢复」图标）会以默认的超大尺寸渲染出来。</li>
+</ul>
+<hr>
+<h2>核心技术八：nanoagent，一只隐形的浏览器</h2>
+
+<code>nanoagent</code> 是<strong>同一套浏览器引擎，装进一个永远不显示的窗口</strong>，交给 AI 工具驱动。
+
+设计属性：
+<ul>
+<li>窗口用 <code>visible(false)</code>、<code>skip_taskbar(true)</code>、<code>decorations(false)</code> 创建，并且用<strong>自己的</strong> WebView2 user-data 目录（<code>data\automation</code>），和 GUI 的 profile <strong>完全隔离</strong>——自动化登录态和人的 Cookie 永远不混。</li>
+<li>控制走<strong>进程内</strong> CDP 桥：<strong>没有调试端口</strong>。</li>
+<li>一次性调用<strong>每次起一个全新浏览器</strong>；MCP 模式则<strong>跨很多次工具调用保持一个热着的页面</strong>。</li>
+</ul>
+<h3>一次性 CLI</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">nanoagent</span><span class="w"> </span><span class="c1">--mcp                              stdio 上说 MCP（长会话）</span>
+<span class="n">nanoagent</span><span class="w"> </span><span class="o">&lt;</span><span class="n">命令</span><span class="o">&gt;</span><span class="w"> </span><span class="o">[</span><span class="n">参数...</span><span class="o">]</span><span class="w">                    </span><span class="n">执行一个动作后退出</span>
+
+<span class="n">navigate</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w">                               </span><span class="n">打开</span><span class="w"> </span><span class="n">URL</span><span class="err">，</span><span class="n">打印</span><span class="w"> </span><span class="err">{</span><span class="n">url</span><span class="p">,</span><span class="n">title</span><span class="err">}</span>
+<span class="k">read</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">[</span><span class="n">selector</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">--html</span><span class="o">]</span><span class="w">               </span><span class="n">打印页面文本</span><span class="err">（</span><span class="n">或</span><span class="w"> </span><span class="n">HTML</span><span class="err">）</span>
+<span class="n">shot</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="k">out</span><span class="p">.</span><span class="n">png</span><span class="o">&gt;</span><span class="w">                         </span><span class="n">存一张</span><span class="w"> </span><span class="n">PNG</span><span class="w"> </span><span class="n">截图</span>
+<span class="n">cookies</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w">                                </span><span class="n">列出该页在</span><span class="w"> </span><span class="n">profile</span><span class="w"> </span><span class="n">里的</span><span class="w"> </span><span class="n">cookie</span>
+<span class="n">traffic</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">[</span><span class="n">limit</span><span class="o">]</span><span class="w">                        </span><span class="n">打印记录到的请求</span><span class="err">（</span><span class="n">密钥已脱敏</span><span class="err">）</span>
+<span class="n">eval</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="n">js</span><span class="o">&gt;</span><span class="w">                              </span><span class="n">执行</span><span class="w"> </span><span class="n">JS</span><span class="err">，</span><span class="n">打印返回值</span>
+<span class="n">click</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="n">selector</span><span class="o">&gt;</span><span class="w">                       </span><span class="n">用可信鼠标事件点击</span>
+<span class="n">fill</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="n">selector</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="k">value</span><span class="o">&gt;</span><span class="w">                </span><span class="n">往输入框打字</span>
+<span class="n">wait</span><span class="w"> </span><span class="o">&lt;</span><span class="n">url</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&lt;</span><span class="n">selector</span><span class="o">&gt;</span><span class="w"> </span><span class="o">[</span><span class="n">timeout_ms</span><span class="o">]</span><span class="w">           </span><span class="n">等某个元素出现</span>
+</code></pre></div>
+
+<h3>三个实现细节，全是坑</h3>
+
+<strong>其一，可信输入。</strong> <code>click</code> 用的是 <code>Input.dispatchMouseEvent</code>（依次发 <code>mouseMoved</code> / <code>mousePressed</code> / <code>mouseReleased</code>），<code>fill</code> 用的是 <code>Input.insertText</code>。二者合起来的效果是：<strong>网页看到的是真实的用户输入，而不是脚本直接改 DOM 的值</strong>。这一点对「对付那些用 <code>isTrusted</code> 判别自动化的页面」很关键。
+
+<strong>其二，截图绕道 screencast。</strong> WebView2 <strong>没有实现 <code>Page.captureScreenshot</code></strong>。但隐藏窗口<strong>依然在合成（composite）</strong>，所以截图走的是 <code>Page.startScreencast</code>：订阅帧事件、缓存帧。README 还留了一条退路：<strong>如果哪天隐藏窗口不再合成了，官方给的兜底方案是把窗口移到屏幕外，而不是设 <code>visible(false)</code></strong>。
+
+<strong>其三，就绪判定与线程纪律。</strong> worker 会<strong>最多轮询 600 次、每次间隔 50 毫秒</strong>去问 <code>is_ready()</code>，因为 <strong>webview 必须先有一个在跑的事件循环才会应答 CDP</strong>。而等待 CDP 回复时<strong>绝不能阻塞 UI 线程</strong>（会死锁）——回复落进共享状态，worker 线程在条件变量上等。这两条合起来就是 <code>cdp.rs</code> 那个设计在 agent 场景下的具体收益。
+<hr>
+<h2>核心技术九：MCP 服务器与九个工具</h2>
+
+<code>--mcp</code> 模式在 stdin/stdout 上说 <strong>JSON-RPC 2.0</strong>，实现 <code>tools/list</code> 与 <code>tools/call</code>，<code>serverInfo.name</code> 是 <code>"nanobrowser-agent"</code>。
+
+九个工具：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>browser_navigate</code></td>
+<td>打开 URL，返回 <code>{url,title}</code></td>
+</tr>
+<tr>
+<td><code>browser_read</code></td>
+<td>页面文本或 HTML，可选 selector</td>
+</tr>
+<tr>
+<td><code>browser_click</code></td>
+<td>合成一个<strong>可信</strong>鼠标事件</td>
+</tr>
+<tr>
+<td><code>browser_fill</code></td>
+<td><code>Input.insertText</code> 打进某个 selector</td>
+</tr>
+<tr>
+<td><code>browser_wait_for</code></td>
+<td>轮询直到 selector 存在</td>
+</tr>
+<tr>
+<td><code>browser_screenshot</code></td>
+<td>PNG 字节</td>
+</tr>
+<tr>
+<td><code>browser_cookies</code></td>
+<td>自动化 profile 的 cookie</td>
+</tr>
+<tr>
+<td><code>browser_traffic</code></td>
+<td>记录到的请求，已脱敏</td>
+</tr>
+<tr>
+<td><code>browser_eval</code></td>
+<td>执行 JS，返回其值</td>
+</tr>
+</tbody>
+</table></div>
+
+主循环很简单也很典型：<strong>按行读 stdin</strong>，解析 <code>method / params / id</code>，分发 <code>initialize</code> / <code>tools/list</code> / <code>tools/call</code>，然后把回复写回 stdout。它是纯 stdio 的——没有网络、没有端口，天然适合被本地 Agent 进程管起来。
+
+把这九个工具和前面的能力对照一下就能看出设计意图：<strong>navigate / read / click / fill / wait / screenshot / eval 是「手和眼」，cookies 是「会话」，traffic 是「可观测性」</strong>。恰好覆盖了「让 Agent 操作网页」这件事的最小完备集合。
+<hr>
+<h2>核心技术十：抓包与捕获期脱敏</h2>
+
+<code>traffic.rs</code> 订阅 <code>Network.*</code> 事件，记录请求。它的安全设计有一个核心原则：<strong>在捕获的那一刻脱敏，而不是在输出的时候脱敏</strong>。
+
+这个区别很重要：如果是「先存后脱敏」，那么<strong>明文密钥已经躺在日志缓冲区里</strong>了，任何一次 dump 都可能把它带走。而「捕获期脱敏」意味着<strong>密钥从一开始就没进过缓冲区</strong>。
+
+脱敏规则：
+<ul>
+<li><strong>18 个敏感键子串</strong>（大小写不敏感）：<code>password, passwd, pwd, pass, token, secret, apikey, api_key, api-key, auth, cookie, session, csrf, credit, card, cvv, ssn, otp</code>。命中就替换成三个星号，<strong>JSON body 与 header map 都适用</strong>。</li>
+<li><code>Authorization</code> / <code>Cookie</code> 头、以及表单 body，都被同一套规则覆盖。</li>
+<li>body 会被截断（<code>MAX_BODY = 4096</code>、<code>MAX_VALUE = 512</code>），缓冲区上限 <code>MAX_ENTRIES = 500</code>。</li>
+<li><strong>日志只在内存里</strong>——不落盘。</li>
+<li><strong>脱敏不可关闭</strong>。</li>
+</ul>
+
+还有一个「重定向覆盖」的坑：<strong>一个重定向会复用同一个 CDP <code>requestId</code></strong>，如果按原始 id 存，后来的记录会<strong>覆盖掉原始请求、丢掉它的 body</strong>。所以条目是按<strong>重定向链推导出来的唯一键</strong>存的，而不是按原始 id。
+<hr>
+<h2>安全模型：五道防线</h2>
+
+把散落各处的安全设计收一下，一共有五层。
+<h3>防线一：页面事件的来源校验（token）</h3>
+
+每个标签 webview 的 init script 里嵌着一个 <strong>Rust 铸出来的不透明随机 token</strong>（<code>new_token()</code>，<strong>24 位十六进制</strong>）。它带来的性质是：
+<ul>
+<li><strong>页面无法为另一个标签伪造事件</strong>——因为它不知道那个标签的 token；</li>
+<li>Rust 用 <code>tab_id_by_token</code> 反查发送者，<strong>从不相信页面自报的标签 id</strong>。</li>
+</ul>
+
+也就是说，标签的身份是<strong>由 Rust 侧铸造、注入到页面里</strong>的，而不是页面说了算。这是「页面不可信」这条原则在工程上的具体兑现。
+<h3>防线二：favicon 当敌意数据</h3>
+
+favicon 由页面上报、由可信 shell 显示，所以它被当成<strong>敌意输入</strong>：
+<ul>
+<li>插入前<strong>先做 HTML 转义</strong>；</li>
+<li>配一个 <code>&lt;img onerror&gt;</code>，加载失败就换成内置的地球图标。</li>
+</ul>
+
+结论：<strong>页面永远无法把一个自选 URL 注入进 shell</strong>。
+<h3>防线三：逐 webview 的能力作用域</h3>
+
+Tauri 的能力（capability）是<strong>按 webview 标签</strong>划分的：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>能力</th>
+<th>作用于</th>
+<th>授予</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shell</code></td>
+<td><code>"shell"</code></td>
+<td><code>core:default</code> + 窗口控制/查询权限</td>
+</tr>
+<tr>
+<td><code>tab-local</code></td>
+<td>跑内部页的 <code>tab-*</code></td>
+<td><code>core:default</code> + <code>core:event:allow-emit</code> → 完整应用 IPC</td>
+</tr>
+<tr>
+<td><code>tab-remote</code></td>
+<td>外部 URL 上的 <code>tab-*</code></td>
+<td><strong>只有</strong> <code>core:event:allow-emit</code>——远程页只能<strong>上报 UI 事件</strong>，永远不能调命令</td>
+</tr>
+</tbody>
+</table></div>
+
+这是整个安全模型里最关键的一格：<strong>内部页（可信）拿完整 IPC，外部页（不可信）只拿「能上报事件」这一件事</strong>。哪怕注入脚本被页面骗了，它能做的也只有 emit 一个 UI 事件。
+
+但这里有一个反直觉的坑（README 明确点名）：<strong><code>tab-remote</code> 必须覆盖所有端口</strong>（<code>https://*:*</code>、<code>http://*:*</code>，再加 <code>https://*/*</code>）。因为如果某个跑在非默认端口上的站点<strong>没被能力声明匹配到</strong>，它在 Tab webview 里会<strong>一次性地失去全部注入功能</strong>——快捷键、hover 状态、查找高亮、favicon 上报<strong>同时</strong>失效。这类「明明是配置问题，症状却像代码坏了」的坑，最难查。
+<h3>防线四：没有调试套接字</h3>
+
+两个二进制都<strong>不传</strong> <code>--remote-debugging-port</code>；所有 CDP 都走进程内的 <code>CallDevToolsProtocolMethod</code>。GUI 的 DevTools WebSocket 桥虽然监听 loopback，但<strong>绑定随机端口 + 只认本次铸的 session id</strong>（核心技术四）。所以进程外无法 attach。
+<h3>防线五：profile 隔离</h3>
+
+自动化浏览器用自己的 WebView2 数据目录，和 GUI 的<strong>分开</strong>。Cookie 与登录态<strong>双向都不跨越这条边界</strong>。
+<hr>
+<h2>体积与启动账：4.52 MB 是怎么来的</h2>
+
+把前面的决定串起来算一遍这笔账：
+<ol>
+<li><strong>不含渲染引擎</strong>（复用系统 WebView2）——省掉的是最大的一块。</li>
+<li><strong>release profile 全部向体积倾斜</strong>（<code>opt-level = "s"</code>、<code>lto</code>、<code>codegen-units = 1</code>、<code>strip</code>、<code>panic = "abort"</code>）。</li>
+<li><strong>不引 WebSocket 库</strong>（手写 SHA-1 + 帧编解码）——省掉一个依赖树。</li>
+<li><strong>前端零框架零打包器</strong>——UI 资产接近于零。</li>
+<li><strong>Rust + Tauri</strong>：Tauri 本身不捆绑 WebView，比起「把 Chromium 塞进二进制」的路线，天然小一个数量级。</li>
+</ol>
+
+于是 GUI 侧 <strong>4.52 MB</strong>、agent 侧 <strong>4.24 MB</strong>，且<strong>两者共享同一个库 crate</strong>——协议桥只有一份代码。
+
+启动路径也顺着这个思路：<code>start.bat</code> <strong>优先跑 release 二进制，找不到才回退 debug</strong>。对一个「壳」来说，冷启动时间几乎就是「创建窗口 + 加载本地 HTML」的时间，没有引擎初始化要等。
+<hr>
+<h2>数据落盘：原子写、上限与盘符策略</h2>
+<h3>目录</h3>
+
+所有路径都从<strong>可执行文件的位置</strong>推导，并为测试留了环境变量覆盖：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>路径</th>
+<th>环境变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据根</td>
+<td><code>&lt;项目&gt;\data</code></td>
+<td><code>NANO_DATA_DIR</code></td>
+</tr>
+<tr>
+<td>持久化 profile</td>
+<td><code>&lt;项目&gt;\data\profile.json</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>WebView2 user-data（GUI）</td>
+<td><code>&lt;项目&gt;\data\webview</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>默认下载目录</td>
+<td><code>&lt;项目&gt;\Downloads</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>自动化 profile</td>
+<td><code>&lt;项目&gt;\data\automation</code></td>
+<td><code>NANOBROWSER_AGENT_DIR</code></td>
+</tr>
+<tr>
+<td>agent 数据根</td>
+<td><code>&lt;项目&gt;\data</code></td>
+<td><code>NANOBROWSER_DATA_DIR</code></td>
+</tr>
+</tbody>
+</table></div>
+
+这也是项目那句「一切都待在 D: 盘」的落点：<strong>运行时数据、缓存、下载、WebView2 的 user-data 全在项目目录内，不往系统盘写东西</strong>。
+<h3><code>profile.json</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="s2">&quot;settings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="s2">&quot;searchEngine&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bing&quot;</span><span class="p">,</span><span class="w">        </span><span class="o">//</span><span class="w"> </span><span class="n">bing</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">baidu</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">google</span>
+<span class="w">    </span><span class="s2">&quot;theme&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;system&quot;</span><span class="p">,</span><span class="w">             </span><span class="o">//</span><span class="w"> </span><span class="n">system</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">light</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">dark</span>
+<span class="w">    </span><span class="s2">&quot;homepage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nano://newtab&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;bookmarksBar&quot;</span><span class="p">:</span><span class="w"> </span><span class="bp">true</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;startup&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;session&quot;</span><span class="p">,</span><span class="w">          </span><span class="o">//</span><span class="w"> </span><span class="n">session</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">ntp</span>
+<span class="w">    </span><span class="s2">&quot;downloadsDir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span><span class="w">            </span><span class="o">//</span><span class="w"> </span><span class="err">空</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">用默认下载目录</span>
+<span class="w">    </span><span class="s2">&quot;devtoolsSide&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bottom&quot;</span><span class="w">       </span><span class="o">//</span><span class="w"> </span><span class="n">bottom</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">right</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="s2">&quot;bookmarks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;added&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;icon&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">],</span>
+<span class="w">  </span><span class="s2">&quot;history&quot;</span><span class="p">:</span><span class="w">   </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;time&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">],</span><span class="w">   </span><span class="o">//</span><span class="w"> </span><span class="err">上限</span><span class="w"> </span><span class="mi">500</span>
+<span class="w">  </span><span class="s2">&quot;downloads&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;time&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">                   </span><span class="s2">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;done&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">],</span><span class="w">                          </span><span class="o">//</span><span class="w"> </span><span class="err">上限</span><span class="w"> </span><span class="mi">100</span>
+<span class="w">  </span><span class="s2">&quot;session&quot;</span><span class="p">:</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;tabs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;...&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;active&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="s2">&quot;window&quot;</span><span class="p">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;x&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;y&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1280</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;h&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">800</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;maximized&quot;</span><span class="p">:</span><span class="w"> </span><span class="bp">false</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三条值得抄的做法：
+<ul>
+<li><strong>原子保存</strong>：JSON 先写成 <code>.profile.tmp</code>，再 <strong>rename 覆盖</strong> <code>profile.json</code>。这样<strong>写到一半崩溃也不会把 profile 弄坏</strong>（rename 在同一目录内是原子的）。</li>
+<li><strong>上限容错</strong>：读的时候顺手 <code>history.truncate(500)</code>、<code>downloads.truncate(100)</code>——<strong>旧文件被人为改大了也不至于把内存吃穿</strong>。</li>
+<li><strong>窗口几何去抖</strong>：<code>win_save_pending</code> 标志配合去抖，避免拖动窗口时每一帧都往磁盘写一次。</li>
+</ul>
+<hr>
+<h2>十四个已经付过学费的坑</h2>
+
+README 专门用一节把这些「反常识约束」列了出来，这里逐条过一遍（并按主题归类），因为它们是这个项目最有价值的部分——<strong>每一条都意味着一次真实的调试</strong>。
+
+<strong>布局 / z-order</strong>
+<ol>
+<li>每个标签是独立 HWND，<strong>后创建的页面 webview 会盖住 shell</strong>，裁掉菜单与建议下拉。解法：菜单打开期间把 shell 撑满窗口并置顶，关闭时还原，并在标签创建/激活/关闭后再确认一次 z-order。</li>
+<li><strong>子 webview 看不到自己边界之外的指针移动</strong>，所以面板调尺寸必须把光标路由过 shell 里的全窗口捕获层。</li>
+<li><strong>窗口控制图标是 JS 注入的，SVG 的 CSS 类必须一起带过去</strong>，否则靠类名定尺寸的字形（如全屏恢复图标）会按默认的超大尺寸渲染。</li>
+</ol>
+
+<strong>并发 / 下载</strong>
+<ol>
+<li><strong>按索引并发关闭标签会删错邻居</strong>——必须在锁内重新查一次标签再关。</li>
+<li><strong>同 URL 的并发下载如果只按 URL 匹配就会互相顶掉</strong>——改用原子 <code>create_new</code> 占位来抢路径。</li>
+</ol>
+
+<strong>CDP</strong>
+<ol>
+<li><strong>在 UI 线程上等 CDP 回复会死锁</strong>（隐藏窗口尤其）。必须回调写共享状态 + worker 线程轮询/等待。</li>
+<li><strong>重定向复用同一个 <code>requestId</code> 会覆盖原始请求记录、丢掉它的 body</strong>——改用重定向链推导的唯一键。</li>
+<li><strong><code>--remote-debugging-port</code> 是死路</strong>：只有 shell webview 会成为 CDP target。</li>
+<li><strong><code>Schema.getDomains</code> 只列 domain、不给事件名</strong>——必须自备静态事件表 + 按 domain 惰性订阅。</li>
+<li><strong><code>AreDevToolsEnabled = false</code>（也就是 <code>.devtools(false)</code>）不影响 <code>CallDevToolsProtocolMethod</code></strong>——于是可以关掉原生弹窗，同时保留完整 CDP。</li>
+</ol>
+
+<strong>停靠 DevTools</strong>
+<ol>
+<li><strong><code>devtools://</code> 是特权页</strong>，<code>window.chrome.webview</code> 与 Tauri IPC 都不存在；<code>window.open</code> + <code>on_new_window -&gt; Deny</code> 是唯一信令通道。</li>
+<li><strong>在 <code>?ws=</code> 后加第二个 query key 会让 <code>devtools://</code> 加载整个失败</strong>——额外数据只能放 <strong>fragment</strong>。而且测这个的时候<strong>不能相信 <code>webview.url()</code></strong>（错误页仍报告请求的 URL）；可靠信号是「桥有没有收到客户端」与「注册了多少 domain」。</li>
+<li><strong>grip 在朝向页面的那条边上</strong>，光标随停靠轴变化；拖拽数学是 <code>panel_h = window_h - clientY</code>（底部）或 <code>panel_w = window_w - clientX</code>（右侧）。</li>
+</ol>
+
+<strong>能力配置</strong>
+<ol>
+<li><strong>没被能力声明匹配到的非默认端口站点，会一次性失去全部注入特性</strong>（快捷键、hover 状态、查找高亮、favicon 上报）。</li>
+</ol>
+
+这十四条里，有好几条我建议直接记住结论：<strong>12 是「WebView2 的 devtools URL 不接受第二个 query key」</strong>，<strong>10 是「关原生 DevTools 不影响进程内 CDP」</strong>，<strong>2 是「子 webview 是独立的，看不见外面」</strong>。这三条最反直觉，也最容易在别的项目里重演。
+<hr>
+<h2>已知限制</h2>
+
+README 也老老实实列了限制，值得一并转达：
+<ul>
+<li><strong>历史与新标签页的「热门站点」仍在猜 favicon</strong>（按 <code>scheme://host/favicon.ico</code> 拼），而<strong>只有书签存了页面真实上报的图标</strong>。把两者统一到书签的逻辑上，是一个已知的后续项。</li>
+<li>停靠面板<strong>只支持底部和右侧</strong>（没有左侧，也不支持拆成独立窗口）。</li>
+<li><strong>仅 Windows</strong>：整栈建立在 WebView2 的 COM interop 上。</li>
+<li>仓库里<strong>除了 <code>tauri.conf.json</code> 里声明的 <code>nsis</code> 打包目标之外，没有提交任何发布流水线</strong>。</li>
+<li>仓库里<strong>没有 LICENSE</strong>——按 README 自己的提醒，分发前需要先补一个。</li>
+</ul>
+<hr>
+<h2>我的判断</h2>
+
+读完这个代码库，最值得带走的三件事不是「浏览器怎么做」，而是三个更普适的工程判断：
+
+<strong>第一，「不造引擎」是一种能力，不是一个偷懒。</strong> 大部分项目的默认思路是「我需要什么就实现什么」。NanoBrowser 反过来：<strong>先问系统已经有什么</strong>。Windows 上已经有 Chromium 了，那就只造壳。它换来了 4.5 MB 的体积、几乎为零的引擎维护成本，代价是「Windows only」——而这个代价对它的目标用户是<strong>可接受的</strong>。识别「哪些代价是可以接受的」，比「技术选型对比表」重要得多。
+
+<strong>第二，真正难的不是功能，是「宿主环境的边界」。</strong> 这个项目里绝大部分复杂度不在「实现浏览器功能」，而在四件事：<strong>子 webview 是兄弟 HWND</strong>、<strong>CDP 回调跑在 UI 线程且没有请求 id</strong>、<strong><code>devtools://</code> 里没有任何常规 IPC 通道</strong>、<strong><code>devtools://</code> 的 URL 不接受第二个 query key</strong>。全都是宿主给的不变量。这类「不可协商的约束」决定了架构的形状，也决定了项目里那一长串坑。
+
+<strong>第三，「把副作用通道当信号通道」值得学。</strong> 面板到原生那条 <code>window.open('https://nano-dt.invalid/...')</code> + <code>Deny</code> 的链路，是一种很干净的破局思路：当两条正规通道都被宿主断掉时，<strong>找一个一定会被拦截的副作用，把参数挂在它上面</strong>。它不优雅，但它<strong>正确、可靠、且不需要宿主配合</strong>。
+
+最后回到那三个决定——不造引擎、不开调试端口、硬依赖手写。它们合起来其实是一句话：<strong>把复用做到极限，把自研面积压到只剩「必须自己写、且值得自己写」的那一层。</strong> 一个 4.5 MB 的浏览器不是省出来的，是<strong>在每一个岔路口都选了「不重复造」</strong>的结果。
+<hr>
+<h2>参考链接</h2>
+<ul>
+<li>仓库：<a href="https://github.com/zhoujungis/NanoBrowser" rel="noopener noreferrer" target="_blank">zhoujungis/NanoBrowser</a></li>
+<li>项目 README（英文）：<a href="https://github.com/zhoujungis/NanoBrowser/blob/main/README.md" rel="noopener noreferrer" target="_blank">README.md</a></li>
+<li>项目 README（中文）：<a href="https://github.com/zhoujungis/NanoBrowser/blob/main/README.zh-CN.md" rel="noopener noreferrer" target="_blank">README.zh-CN.md</a></li>
+<li>Tauri 2 文档：<a href="https://tauri.app/" rel="noopener noreferrer" target="_blank">tauri.app</a></li>
+<li>Microsoft Edge WebView2 文档：<a href="https://learn.microsoft.com/microsoft-edge/webview2/" rel="noopener noreferrer" target="_blank">WebView2</a></li>
+<li>Chrome DevTools Protocol 规范：<a href="https://chromedevtools.github.io/devtools-protocol/" rel="noopener noreferrer" target="_blank">CDP</a></li>
+<li>Model Context Protocol 规范：<a href="https://modelcontextprotocol.io/" rel="noopener noreferrer" target="_blank">modelcontextprotocol.io</a></li>
+</ul></div></div></noscript>
+  </body>
+</html>
