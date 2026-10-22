@@ -1,5 +1,5 @@
 ---
-title: "NanoHermes 拆解：一个不依赖 async 运行时的 Rust 终端编码 Agent，与它的 Tauri 桌面外壳"
+title: "NanoHermes 不养 async"
 slug: nanohermes-rust-coding-agent
 cover_image: /photos/nanohermes-cover.png
 date: 2026-10-22

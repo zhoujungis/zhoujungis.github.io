@@ -1,5 +1,5 @@
 ---
-title: "NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核"
+title: "NanoBrowser 手写 CDP"
 slug: nanobrowser-tauri-webview2
 cover_image: /photos/nanobrowser-cover.png
 date: 2026-10-16

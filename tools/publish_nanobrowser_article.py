@@ -38,9 +38,7 @@ SOURCE = (
     / "nanobrowser-tauri-webview2.md"
 )
 
-ARTICLE_TITLE = (
-    "NanoBrowser 拆解：4.5 MB 的 Tauri + WebView2 浏览器与它手写的进程内 CDP 内核"
-)
+ARTICLE_TITLE = "NanoBrowser 手写 CDP"
 ARTICLE_SLUG = "nanobrowser-tauri-webview2"
 ARTICLE_EXCERPT = (
     "NanoBrowser 是一个用 Rust + Tauri 2 手写的极轻量桌面浏览器：它不打包 Chromium，"
