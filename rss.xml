@@ -5,8 +5,1867 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Thu, 22 Oct 2026 03:51:43 GMT</lastBuildDate>
+    <lastBuildDate>Thu, 22 Oct 2026 04:08:43 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>02 Agent 上下文：留什么，丢什么</title>
+      <link>https://zhoujungis.github.io/article/agent-context-keep-or-drop/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/agent-context-keep-or-drop/</guid>
+      <pubDate>Thu, 22 Oct 2026 04:08:25 GMT</pubDate>
+      <description>适用读者：已经写出第一版 Agent 循环、开始被「历史越跑越长」折磨的人；想知道 compact 到底该保留什么的人；准备给 Agent 加记忆、加检索、加多代理，但先想把上下文预算算清楚的人 结论先行：上下文不是聊天记录，而是「下一步还需要的工作集」。留什么的标准只有一个——下一条消息里，模型会不会用到它。Nano</description>
+      <category>AI编程</category>
+      <category>Agent</category>
+      <category>Agent 工程</category>
+      <category>上下文工程</category>
+      <category>架构设计</category>
+      <content:encoded><![CDATA[<blockquote>
+
+适用读者：已经写出第一版 Agent 循环、开始被「历史越跑越长」折磨的人；想知道 <code>compact</code> 到底该保留什么的人；准备给 Agent 加记忆、加检索、加多代理，但先想把上下文预算算清楚的人
+结论先行：上下文不是聊天记录，而是「下一步还需要的工作集」。留什么的标准只有一个——下一条消息里，模型会不会用到它。NanoHermes 用四层上限把这件事变成可计算的：单个文件 4 MB 就拒绝、单个工具结果 20,000 字节就截断、项目文档 20,000 字符封顶、会话总量 120,000 字符就压缩；压缩时保留最近 10 条消息，把更早的部分换成一段不超过 300 词的摘要。本文拆开这套预算、切点和摘要策略，并说明哪些信息必须留、哪些可以丢
+阅读时间：约 30 分钟 | 难度：进阶 | 收获：一套可复用的上下文预算表 + 压缩算法的逐行解释 + 摘要该保留的四类信息 + 七个会让上下文悄悄坏掉的陷阱
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：上下文不是聊天记录</li>
+<li>一次请求里到底装了什么</li>
+<li>四层预算：从单文件到整个会话</li>
+<li>一条工具结果为什么能吃掉半个窗口</li>
+<li>稳定前缀：系统消息为什么应该只读</li>
+<li>系统提示词：短，而且分层</li>
+<li>项目文档：拼接顺序与 20,000 字符截断</li>
+<li>记忆注入：2,400 字符的硬预算</li>
+<li>工具输出：每个工具都必须有上限</li>
+<li>三种截断语义：拒绝、截断、摘要</li>
+<li><code>clamp</code> 的实现：字节、字符边界与省略说明</li>
+<li>压缩触发：120,000 字符是怎么算的</li>
+<li>为什么按字符算，不按 token 算</li>
+<li>保留最近 10 条，而不是最近 10 轮</li>
+<li>切点：为什么不能落在 tool 消息中间</li>
+<li>摘要：一次额外的模型请求</li>
+<li>摘要输入里有什么，没有什么</li>
+<li>摘要提示词要求保留的四类信息</li>
+<li>摘要失败时的降级</li>
+<li>摘要之后的消息序列</li>
+<li>什么该留：五类信息</li>
+<li>什么该丢：四类内容</li>
+<li>上下文、记忆、会话：三个不同的东西</li>
+<li>压缩的代价：延迟、损失与漂移</li>
+<li>一个 12 轮任务的示意账本</li>
+<li>七个常见上下文陷阱</li>
+<li>如何验证压缩没有坏</li>
+<li>收尾：下一篇讲记忆</li>
+<li>参考</li>
+</ul>
+<hr>
+<h2>前言：上下文不是聊天记录</h2>
+
+第一篇讲循环时，我们把消息列表当成一个整体：模型回什么，就往后追加什么。只要历史合法，循环就能一直转。
+
+但历史不会免费。模型没有记忆，每一轮请求都要把完整历史重新发一遍。所谓「上下文窗口」，是一个每轮都被重新填充的容器，不是一份持久保存的聊天记录。
+
+Agent 上下文的难点从来不是「存不下」，而是「带什么」。
+
+这带来一个和普通程序完全不同的约束：<strong>上下文的成本不是存储成本，而是每轮重复支付的输入成本。</strong> 你把一段 20,000 字符的工具结果留在历史里，不是占了一次磁盘，而是让接下来的每一次模型请求都多带 20,000 字符。跑十轮，就是二十万字符的重复输入。
+
+所以「留什么，丢什么」不是整理癖，而是 Agent 的核心算法之一。留得太多，模型抓不住重点，延迟和账单一起上涨；丢得太多，模型忘了目标、忘了改过哪个文件、忘了刚才哪条路走不通，开始原地打转。
+
+这一篇的答案可以压成一句话：
+<blockquote>
+
+<strong>留下来的是「下一步还需要的工作集」，不是「已经发生过的事」。</strong>
+</blockquote>
+
+判断标准也很简单：下一条消息里，模型会不会用到它？会，就留；不会，就丢；不确定，就压成一句摘要。
+<hr>
+<h2>一次请求里到底装了什么</h2>
+
+一次模型请求的 <code>messages</code> 数组，通常由七种东西组成。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>典型来源</th>
+<th>体积特征</th>
+<th>变化频率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>系统提示词</td>
+<td><code>prompt::system_prompt</code></td>
+<td>固定，约 30 行</td>
+<td>启动 / 改配置时</td>
+</tr>
+<tr>
+<td>项目约定</td>
+<td><code>AGENTS.md</code> 逐层拼接</td>
+<td>最多 20,000 字符</td>
+<td>改文件时</td>
+</tr>
+<tr>
+<td>项目上下文</td>
+<td><code>NANOHERMES.md</code></td>
+<td>无单独上限</td>
+<td>改文件时</td>
+</tr>
+<tr>
+<td>技能清单</td>
+<td><code>skills::listing</code></td>
+<td>每个技能一行</td>
+<td>启动时</td>
+</tr>
+<tr>
+<td>记忆块</td>
+<td><code>memory::render_block</code></td>
+<td>最多 2,400 字符</td>
+<td>每轮重检索</td>
+</tr>
+<tr>
+<td>对话消息</td>
+<td>user / assistant / tool</td>
+<td>随轮次增长</td>
+<td>每轮</td>
+</tr>
+<tr>
+<td>压缩摘要</td>
+<td><code>summarize_messages</code></td>
+<td>最多 300 词</td>
+<td>超预算时</td>
+</tr>
+</tbody>
+</table></div>
+
+前三项和技能清单都属于系统消息，只在启动或配置变化时重建。记忆块虽然也在系统消息里，但每轮都会按标记替换。对话消息是增长的主体，压缩摘要则是为了截住这个增长。
+
+大多数人的直觉是「对话消息最多」，实际不一定。一个 <code>read_file</code> 返回 2,000 行，经 <code>clamp</code> 截到 20,000 字节；五次这样的读取就是 100,000 字节，已经接近整个会话预算。真正吃掉窗口的往往不是模型说的话，而是工具的输出。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>估算体积</th>
+<th>占 120k 预算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>系统提示词 + 项目约定</td>
+<td>2,000–22,000 字符</td>
+<td>2%–18%</td>
+</tr>
+<tr>
+<td>记忆块</td>
+<td>≤2,400 字符</td>
+<td>≤2%</td>
+</tr>
+<tr>
+<td>一条普通工具结果</td>
+<td>200–2,000 字符</td>
+<td>0.2%–1.7%</td>
+</tr>
+<tr>
+<td>一条被截断的工具结果</td>
+<td>20,000 字节</td>
+<td>≈17%</td>
+</tr>
+<tr>
+<td>最近 10 条消息</td>
+<td>5,000–40,000 字符</td>
+<td>4%–33%</td>
+</tr>
+<tr>
+<td>压缩摘要</td>
+<td>约 1,500–2,500 字符</td>
+<td>1%–2%</td>
+</tr>
+</tbody>
+</table></div>
+
+这张表解释了一个常见现象：<strong>上下文爆炸通常不是因为聊得多，而是因为某几次工具调用返回了太多东西。</strong> 一个没有上限的 <code>cat</code>、一次全仓库 <code>grep</code>、一个把整页 HTML 塞回来的 <code>web_fetch</code>，就能让预算瞬间见底。
+<hr>
+<h2>四层预算：从单文件到整个会话</h2>
+
+NanoHermes 没有用一个统一的「上下文管理器」，而是在四个层次上分别设上限。每一层负责不同的失败模式。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层次</th>
+<th>上限</th>
+<th>位置</th>
+<th>超限行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单文件读取</td>
+<td>4 MB</td>
+<td><code>fs::MAX_FILE_BYTES</code></td>
+<td>拒绝，提示用 <code>offset</code> / <code>limit</code> 分块</td>
+</tr>
+<tr>
+<td>搜索扫描</td>
+<td>单文件 1 MB、200 条命中、单行 240 字符</td>
+<td><code>search.rs</code></td>
+<td>跳过超大文件，命中数到顶就停</td>
+</tr>
+<tr>
+<td>glob 枚举</td>
+<td>500 个文件</td>
+<td><code>search.rs</code></td>
+<td>截断并注明 capped</td>
+</tr>
+<tr>
+<td>单工具返回</td>
+<td>20,000 字节</td>
+<td><code>Ctx.max_output</code> + <code>clamp</code></td>
+<td>截断并注明省略多少</td>
+</tr>
+<tr>
+<td>命令捕获</td>
+<td>stdout / stderr 各 256 KB</td>
+<td><code>shell::CAPTURE_BYTES</code></td>
+<td>继续读但丢弃多余部分</td>
+</tr>
+<tr>
+<td>后台任务</td>
+<td>512 KB</td>
+<td><code>tasks::CAPTURE_BYTES</code></td>
+<td>保留前 512 KB，注明省略</td>
+</tr>
+<tr>
+<td>网页响应</td>
+<td>2 MB</td>
+<td><code>web::MAX_RESPONSE_BYTES</code></td>
+<td>截断响应体，继续提取文本</td>
+</tr>
+<tr>
+<td>网页正文</td>
+<td>默认 20,000 字符</td>
+<td><code>web_fetch.max_chars</code></td>
+<td>截断并注明</td>
+</tr>
+<tr>
+<td>项目文档</td>
+<td>20,000 字符</td>
+<td><code>prompt::MAX_PROJECT_DOCS</code></td>
+<td>截断并注明</td>
+</tr>
+<tr>
+<td>技能正文</td>
+<td>20,000 字符</td>
+<td><code>skills::MAX_BODY_CHARS</code></td>
+<td>截断并注明</td>
+</tr>
+<tr>
+<td>记忆注入</td>
+<td>2,400 字符、最多 4 条</td>
+<td><code>memory::INJECT_*</code></td>
+<td>放不下的条目不注入</td>
+</tr>
+<tr>
+<td>会话总量</td>
+<td>120,000 字符</td>
+<td><code>CONTEXT_CHAR_BUDGET</code></td>
+<td>摘要旧消息</td>
+</tr>
+</tbody>
+</table></div>
+
+为什么要分四层，而不是只在会话层做一次压缩？
+
+<strong>第一，压缩太晚。</strong> 如果只在 120,000 字符时才处理，模型已经为前面那些巨型结果付过很多轮输入费了。工具层的上限在结果产生时就生效，成本立刻被截住。
+
+<strong>第二，压缩太贵。</strong> 压缩本身是一次模型请求。如果每次都要把 4 MB 的文件内容读进来再摘要，摘要请求本身就可能超窗。工具层先拒绝，压缩层才有机会处理「值得摘要」的内容。
+
+<strong>第三，压缩会丢信息。</strong> 一个 20,000 字节的工具结果被截断，模型至少还能看到前 20,000 字节；如果整段被摘要掉，细节就没了。能在工具层解决的，不要留到压缩层。
+
+这四层的关系可以概括成一句话：<strong>越靠近产生点，越应该硬截断；越靠近会话层，越应该做摘要。</strong> 硬截断便宜、无损于「存在性」，但会丢细节；摘要贵、保留语义，但会引入模型误差。两者不能互相替代。
+<hr>
+<h2>一条工具结果为什么能吃掉半个窗口</h2>
+
+假设模型调用 <code>read_file</code> 读一个 2,000 行的文件，每行平均 80 字符。原始内容约 160,000 字符。
+
+<code>fs::read_file</code> 不会把 160,000 字符直接交给模型。它先按 <code>limit</code> 取前 2,000 行，再交给 <code>dispatch</code>；<code>dispatch</code> 的最后一步是 <code>clamp(s, ctx.max_output)</code>，默认 20,000 字节。所以模型最终看到的是前 20,000 字节，加上一行 <code>… output truncated (N chars omitted)</code>。
+
+这 20,000 字节进入历史后，还会被 JSON 序列化一次。换行变成 <code>\n</code>，引号变成 <code>\"</code>，再套上 <code>{"role":"tool","tool_call_id":"...","content":"..."}</code> 的外壳。体积会再涨几个百分点。假设涨 3%，就是 20,600 字符。
+
+在 120,000 字符的预算里，这一条结果占 17%。五次这样的读取，就是 85%。如果再叠加系统提示词、项目文档和模型自己的解释，预算很快就满了。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>原始体积</th>
+<th>回灌体积</th>
+<th>占 120k</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>读 200 行小文件</td>
+<td>16,000 字符</td>
+<td>16,000 字符</td>
+<td>13%</td>
+</tr>
+<tr>
+<td>读 2,000 行大文件</td>
+<td>160,000 字符</td>
+<td>20,000 字节</td>
+<td>17%</td>
+</tr>
+<tr>
+<td>全仓库 grep 200 条</td>
+<td>48,000 字符</td>
+<td>20,000 字节</td>
+<td>17%</td>
+</tr>
+<tr>
+<td><code>git diff</code> 一个大改动</td>
+<td>可能 500,000 字符</td>
+<td>20,000 字节</td>
+<td>17%</td>
+</tr>
+<tr>
+<td><code>web_fetch</code> 一篇文章</td>
+<td>最多 2 MB</td>
+<td>默认 20,000 字符</td>
+<td>17%</td>
+</tr>
+</tbody>
+</table></div>
+
+注意最后一行：<code>web_fetch</code> 自己还有一层 <code>max_chars</code>，默认也是 20,000。也就是说，网页抓取和工具截断的上限恰好撞在一起。这不是巧合，而是同一个预算在两层各设了一次闸。
+
+这也解释了一个设计选择：<strong>所有内置工具的结果都要经过 <code>dispatch</code> 的 <code>clamp</code>，而不是让每个工具自己决定要不要截断。</strong> 单个工具可能忘记，也可能低估自己的输出；统一在出口截断，才能保证「任何工具都不会一次性灌爆上下文」。
+<hr>
+<h2>稳定前缀：系统消息为什么应该只读</h2>
+
+系统消息在 <code>messages[0]</code>，每一轮都排在最前面。它的内容直接影响两件事：模型的行为，和推理服务的缓存命中。
+
+NanoHermes 的系统消息由 <code>system_content</code> 构建，包含内置提示词、<code>NANOHERMES.md</code> 项目上下文和技能清单。它在三种时机重建：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>时机</th>
+<th>动作</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>新建会话</td>
+<td><code>default_messages</code> 构建</td>
+<td>从零开始</td>
+</tr>
+<tr>
+<td>恢复会话</td>
+<td><code>refresh_system</code> 替换</td>
+<td>配置可能已经变了</td>
+</tr>
+<tr>
+<td><code>reset</code></td>
+<td>重新构建</td>
+<td>开新话题，保留规则</td>
+</tr>
+</tbody>
+</table></div>
+
+注意「恢复会话」这一行：加载会话文件时，NanoHermes 不会原样使用文件里的系统消息，而是用当前配置重新生成并替换。系统消息是配置，不是对话。用户的权限模式、人设、AGENTS.md 都可能变；原样恢复会让会话带着过期规则跑。
+
+但系统消息也不是完全只读的。记忆块每轮都会被 <code>set_memory_block</code> 替换，而记忆块挂在系统消息的末尾。这意味着系统消息的<strong>前半段稳定，后半段每轮变化</strong>。
+
+对推理服务来说，前缀缓存通常按 token 前缀匹配。稳定的前半段可以命中缓存，记忆块之后的部分则每轮重新计算。这是一个可以接受的折中：把变化的东西放在系统消息末尾，至少保住了前面那一大段稳定前缀。
+
+反过来，如果把记忆块插在系统提示词中间，或者每轮在系统消息开头加时间戳，前缀缓存就会整段失效。<strong>上下文设计不只是「放什么」，还包括「放在哪、多久变一次」。</strong>
+<hr>
+<h2>系统提示词：短，而且分层</h2>
+
+第一篇已经讲过系统提示词的五个来源，这里从「体积」角度再看一遍。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>来源</th>
+<th>内容</th>
+<th>上限</th>
+<th>变化频率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内置提示词</td>
+<td>身份、六条规则、工作区路径</td>
+<td>约 30 行</td>
+<td>启动时</td>
+</tr>
+<tr>
+<td>权限模式提示</td>
+<td>Goal / Debug / Plan 的一行约束</td>
+<td>一行</td>
+<td>切换模式时</td>
+</tr>
+<tr>
+<td>用户人设</td>
+<td><code>system_prompt</code> 配置</td>
+<td>无单独上限</td>
+<td>启动时</td>
+</tr>
+<tr>
+<td><code>AGENTS.md</code></td>
+<td>全局 + 祖先目录逐层</td>
+<td>20,000 字符</td>
+<td>改文件时</td>
+</tr>
+<tr>
+<td><code>NANOHERMES.md</code></td>
+<td>工作区根目录的项目上下文</td>
+<td>无单独上限</td>
+<td>改文件时</td>
+</tr>
+<tr>
+<td>技能清单</td>
+<td>每个技能的名字 + 一句话描述</td>
+<td>每个技能一行</td>
+<td>启动时</td>
+</tr>
+</tbody>
+</table></div>
+
+这里有两个不对称，值得单独说。
+
+<strong>第一，<code>AGENTS.md</code> 有 20,000 字符上限，<code>NANOHERMES.md</code> 没有。</strong> <code>prompt::project_docs</code> 会在拼接后截断，并追加 <code>… project guidance truncated</code>；<code>system_content</code> 读 <code>NANOHERMES.md</code> 时是整文件读入，没有单独的 cap。它最终会被 120,000 字符的会话预算兜住，但在那之前，它已经进入了每一次请求。这是一个真实的边界：项目上下文文件应该保持短，不要把它当成文档仓库。
+
+<strong>第二，技能清单只放名字和描述，正文按需加载。</strong> <code>skills::listing</code> 为每个技能生成一行，真正的说明在模型调用 <code>skill</code> 工具时才读取，读取时还有 20,000 字符上限。这个设计把「知道有什么」和「读到全部」分开了。清单很便宜，正文很贵，只在需要时支付。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">system_content</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Config</span><span class="p">,</span><span class="w"> </span><span class="n">skills</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="k">crate</span><span class="p">::</span><span class="n">skills</span><span class="p">::</span><span class="n">Skill</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">system</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prompt</span><span class="p">::</span><span class="n">system_prompt</span><span class="p">(</span><span class="n">cfg</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">project_ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">workspace</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="s">&quot;NANOHERMES.md&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">read_to_string</span><span class="p">(</span><span class="o">&amp;</span><span class="n">project_ctx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">text</span><span class="p">.</span><span class="n">trim</span><span class="p">().</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n</span><span class="s">=== Project context (NANOHERMES.md) ===</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="w">            </span><span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="n">text</span><span class="p">.</span><span class="n">trim</span><span class="p">());</span>
+<span class="w">            </span><span class="n">system</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="sc">&#39;\n&#39;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">skills</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">system</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="sc">&#39;\n&#39;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="k">crate</span><span class="p">::</span><span class="n">skills</span><span class="p">::</span><span class="n">listing</span><span class="p">(</span><span class="n">skills</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">system</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+系统提示词每轮都重发。一段 2,000 token 的提示词，跑 20 轮就是 40,000 token 的输入。提示词里的每一句都要为「每轮都值得」辩护：身份和工具规则值得，项目约定值得，三千字的公司介绍不值得。
+<hr>
+<h2>项目文档：拼接顺序与 20,000 字符截断</h2>
+
+<code>AGENTS.md</code> 不是只读工作区根目录的那一个。NanoHermes 会从全局配置目录开始，沿着文件系统根到工作区，逐层收集。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">project_docs</span><span class="p">(</span><span class="n">workspace</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Path</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">candidates</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">PathBuf</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Vec</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">home</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">env</span><span class="p">::</span><span class="n">var_os</span><span class="p">(</span><span class="s">&quot;HOME&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">candidates</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">PathBuf</span><span class="p">::</span><span class="n">from</span><span class="p">(</span><span class="n">home</span><span class="p">).</span><span class="n">join</span><span class="p">(</span><span class="s">&quot;.nanohermes&quot;</span><span class="p">).</span><span class="n">join</span><span class="p">(</span><span class="s">&quot;AGENTS.md&quot;</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">chain</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;&amp;</span><span class="n">Path</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">workspace</span><span class="p">.</span><span class="n">ancestors</span><span class="p">().</span><span class="n">collect</span><span class="p">();</span>
+<span class="w">    </span><span class="n">chain</span><span class="p">.</span><span class="n">reverse</span><span class="p">();</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">dir</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">chain</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">DOC_NAMES</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">candidates</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">dir</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// canonicalize 去重，读文件，拼成 parts</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">joined</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parts</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">joined</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">joined</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">joined</span><span class="p">.</span><span class="n">truncate</span><span class="p">(</span><span class="n">end</span><span class="p">);</span>
+<span class="w">        </span><span class="n">joined</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">… project guidance truncated&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nb">Some</span><span class="p">(</span><span class="n">joined</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+顺序有两层含义。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层级</th>
+<th>读取顺序</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全局</td>
+<td><code>~/.nanohermes/AGENTS.md</code> 最前</td>
+<td>所有项目共享的偏好</td>
+</tr>
+<tr>
+<td>外层目录</td>
+<td>文件系统根 → 工作区</td>
+<td>越大范围越靠前</td>
+</tr>
+<tr>
+<td>内层目录</td>
+<td>工作区最具体</td>
+<td>越具体越靠后，优先级越高</td>
+</tr>
+</tbody>
+</table></div>
+
+「越具体越靠后」不是形式主义。模型读长文本时，靠后的内容通常更容易被当成当前指令。把工作区自己的规则放在最后，等于让它覆盖上层的通用规则。这不是硬编码的优先级，而是通过顺序表达的软优先级。
+
+去重则处理另一种情况：同一个文件通过符号链接或多条路径到达时，只读一次。<code>canonicalize</code> 失败时退回原路径，宁可重复也不漏读。
+
+20,000 字符的截断发生在拼接之后，所以它截掉的是「最后面」的内容——也就是最具体的项目规则。这是一个有意的取舍：全局偏好和上层约定先保住，工作区规则如果太长，只能牺牲尾部。更好的做法当然是把工作区的 <code>AGENTS.md</code> 写短，而不是依赖截断。
+<hr>
+<h2>记忆注入：2,400 字符的硬预算</h2>
+
+记忆块是系统消息里唯一每轮变化的部分。它的预算很小，但很硬。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INJECT_TOP_K</code></td>
+<td>4</td>
+<td>最多注入 4 条记忆</td>
+</tr>
+<tr>
+<td><code>INJECT_CHAR_BUDGET</code></td>
+<td>2,400</td>
+<td>注入块的总字符预算</td>
+</tr>
+<tr>
+<td><code>MAX_TEXT</code></td>
+<td>400</td>
+<td>单条记忆的长度上限</td>
+</tr>
+<tr>
+<td>标记</td>
+<td><code>BLOCK_START</code> / <code>BLOCK_END</code></td>
+<td>定位并整体替换旧块</td>
+</tr>
+</tbody>
+</table></div>
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">render_block</span><span class="p">(</span><span class="n">entries</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="o">&amp;</span><span class="n">Entry</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">entries</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">from</span><span class="p">(</span><span class="n">BLOCK_START</span><span class="p">);</span>
+<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">以下是从过往会话中检索到的相关记忆（由对话自动提炼，仅供参考；用户当前指令优先）：</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="k">usize</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">entries</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">- [{}] {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">kind</span><span class="p">.</span><span class="n">label</span><span class="p">(),</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">text</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">line</span><span class="p">.</span><span class="n">chars</span><span class="p">().</span><span class="n">count</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">INJECT_CHAR_BUDGET</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">used</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">line</span><span class="p">.</span><span class="n">chars</span><span class="p">().</span><span class="n">count</span><span class="p">();</span>
+<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="n">line</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="sc">&#39;\n&#39;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="n">BLOCK_END</span><span class="p">);</span>
+<span class="w">    </span><span class="n">out</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码的关键是 <code>break</code>，不是 <code>continue</code>。预算不够时，它不会跳过这一条去尝试更短的后面几条，而是直接停止。原因很简单：检索结果已经按相关度排好序，越往后越不重要；为了塞进一条低相关记忆而跳过一条高相关记忆，是得不偿失的。
+
+<code>set_block</code> 则负责替换。它先找到旧块的起止标记，删掉整段，再把新块追加到系统消息末尾；新块为空时只删除，不追加。这个「替换而不是追加」的设计，是第一篇里提过的那个坑：如果每轮追加，系统提示词会随轮次线性增长，几轮之后就吃掉整个预算。
+
+记忆块的文案里有一句「仅供参考；用户当前指令优先」。这不是客套。检索是按相关度算的，相关不等于正确；一条过期的偏好可能比当前指令更「相关」。把优先级写进注入文本，是让模型在冲突时有明确的裁决规则。
+<hr>
+<h2>工具输出：每个工具都必须有上限</h2>
+
+一个不能限制输出的工具，就是一个上下文炸弹。它可能来自一次 <code>cat</code> 大文件、一次全仓库搜索、一次网页抓取，或者一条输出日志的构建命令。
+
+NanoHermes 在每个可能产生大输出的地方都设了闸。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>工具 / 层</th>
+<th>上限</th>
+<th>超限行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_file</code></td>
+<td>文件 4 MB；默认 2,000 行</td>
+<td>超大文件直接拒绝，提示分块</td>
+</tr>
+<tr>
+<td><code>grep</code></td>
+<td>单文件 1 MB；200 条命中；单行 240 字符</td>
+<td>跳过超大文件，命中到顶停止</td>
+</tr>
+<tr>
+<td><code>glob</code></td>
+<td>500 个文件</td>
+<td>截断并注明 capped</td>
+</tr>
+<tr>
+<td><code>run_command</code></td>
+<td>stdout / stderr 各 256 KB</td>
+<td>继续读但丢弃，结果注明截断</td>
+</tr>
+<tr>
+<td>后台任务</td>
+<td>512 KB</td>
+<td>保留前 512 KB，注明省略字节</td>
+</tr>
+<tr>
+<td><code>web_fetch</code></td>
+<td>响应 2 MB；正文默认 20,000 字符</td>
+<td>截断响应，正文按 <code>max_chars</code> 截断</td>
+</tr>
+<tr>
+<td><code>web_search</code></td>
+<td>结果条数与摘要长度受限</td>
+<td>返回前几条</td>
+</tr>
+<tr>
+<td>所有内置工具</td>
+<td>20,000 字节</td>
+<td><code>dispatch</code> 统一 <code>clamp</code></td>
+</tr>
+</tbody>
+</table></div>
+
+这些数字不是拍脑袋来的，它们对应不同的失败模式。
+
+<strong>4 MB 是「读不读」的边界。</strong> 超过这个大小，读进来也没有意义：模型不可能在 20,000 字节的截断里看到全貌，不如直接告诉它「文件太大，用 offset/limit 分块读」。这是一个拒绝，不是截断。
+
+<strong>1 MB 是「搜不搜」的边界。</strong> <code>grep</code> 会遍历整个工作区。单文件超过 1 MB 时跳过，避免把压缩包、打包产物、日志文件当源码扫描。跳过是静默的，但结果里会体现「没搜到」，模型可以通过 <code>glob</code> 或 <code>read_file</code> 再确认。
+
+<strong>200 条命中是「够不够」的边界。</strong> 搜索的目的通常是定位，不是穷举。200 条足够让模型找到目标文件；再多，模型也读不完。到顶后停止，并在结果末尾注明，避免模型误以为只有这些。
+
+<strong>256 KB 是「命令能喊多大声」的边界。</strong> 一条构建命令可能输出几 MB 日志。<code>read_capped</code> 只保留前 256 KB，剩下的一边读一边丢——必须继续读，否则管道会阻塞，子进程会卡住。这是「丢弃但不能停止读取」的典型场景。
+
+<strong>20,000 字节是「一条结果能占多少窗口」的边界。</strong> 它不关心工具是什么，所有内置工具的结果都从这里过。它是最外层的保险，防止某个工具忘记自己的上限。
+<hr>
+<h2>三种截断语义：拒绝、截断、摘要</h2>
+
+「截断」不是一个动作，而是三种不同的语义。混用它们，模型就会收到自相矛盾的信号。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>语义</th>
+<th>例子</th>
+<th>模型看到什么</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>拒绝</td>
+<td><code>read_file</code> 超过 4 MB</td>
+<td><code>... is N bytes (&gt; 4194304); read it in chunks</code></td>
+<td>明确，不浪费上下文</td>
+<td>需要模型再发一次请求</td>
+</tr>
+<tr>
+<td>硬截断 + 说明</td>
+<td><code>dispatch</code> 的 <code>clamp</code></td>
+<td>前 20,000 字节 + <code>N chars omitted</code></td>
+<td>便宜，保留开头</td>
+<td>尾部信息丢失</td>
+</tr>
+<tr>
+<td>计数上限 + 说明</td>
+<td><code>grep</code> 到 200 条</td>
+<td>200 条 + <code>stopped after 200 matches</code></td>
+<td>结果可预期</td>
+<td>可能漏掉后面的命中</td>
+</tr>
+<tr>
+<td>响应截断 + 说明</td>
+<td><code>web_fetch</code> 超过 2 MB</td>
+<td>文本 + <code>response truncated at ...</code></td>
+<td>仍能提取正文</td>
+<td>页面可能不完整</td>
+</tr>
+<tr>
+<td>摘要</td>
+<td><code>compact</code></td>
+<td>一段 300 词摘要</td>
+<td>保留语义，体积小</td>
+<td>多一次请求，有信息损失</td>
+</tr>
+</tbody>
+</table></div>
+
+三种语义的共同要求是：<strong>必须留下痕迹。</strong> 静默截断是最坏的选择。模型看不到「被截断」的提示，就会把不完整的结果当成完整结果，基于缺失的信息做决定。一个 <code>grep</code> 如果悄悄只返回前 200 条，模型可能以为仓库里只有这些匹配，然后改错文件。
+
+NanoHermes 的每条截断路径都带说明：
+<ul>
+<li><code>clamp</code>：<code>… output truncated (N chars omitted)</code></li>
+<li><code>grep</code>：<code>… stopped after 200 matches</code></li>
+<li><code>glob</code>：<code>… capped at 500 files</code></li>
+<li><code>read_file</code>：<code>… N more lines (total M)</code></li>
+<li><code>shell</code>：<code>… stdout truncated (N bytes not shown)</code></li>
+<li>后台任务：<code>… output truncated (N bytes not shown)</code></li>
+<li><code>web_fetch</code>：<code>[response truncated at 2097152 bytes]</code></li>
+</ul>
+
+这些说明本身也占体积，但它们是上下文里性价比最高的几十个字符。没有它们，模型会基于错误的完整性假设行动。
+<hr>
+<h2><code>clamp</code> 的实现：字节、字符边界与省略说明</h2>
+
+<code>clamp</code> 只有十几行，但它处理了三个容易出错的细节。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">clamp</span><span class="p">(</span><span class="n">s</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">s</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">        </span><span class="s">&quot;{}</span><span class="se">\n</span><span class="s">… output truncated ({} chars omitted)&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="o">&amp;</span><span class="n">s</span><span class="p">[</span><span class="o">..</span><span class="n">end</span><span class="p">],</span>
+<span class="w">        </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">end</span>
+<span class="w">    </span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>第一，上限按字节算。</strong> <code>s.len()</code> 返回字节数，不是字符数。对纯 ASCII 输出（日志、代码、命令结果）两者一致；对中文输出，一个汉字占 3 个字节，20,000 字节大约只能装 6,600 个汉字。
+
+<strong>第二，切点必须落在 UTF-8 字符边界。</strong> 如果直接 <code>&amp;s[..max]</code>，而 <code>max</code> 恰好落在某个三字节汉字的中间，Rust 会 panic。<code>while !s.is_char_boundary(end)</code> 往前退，最多退两个字节，保证切片合法。
+
+<strong>第三，省略说明按字节算，却写成 chars。</strong> 这是代码里的一个小不一致：<code>s.len() - end</code> 是字节数，文案却写 <code>chars omitted</code>。对 ASCII 没问题，对中文会高估省略的字符数。这个不一致不影响安全，但会让模型对「还剩多少」判断偏保守。知道这一点，比假装它不存在好。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>输入</th>
+<th>上限</th>
+<th>输出</th>
+<th>实际保留</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>纯 ASCII 30,000 字节</td>
+<td>20,000</td>
+<td>前 20,000 字节 + 说明</td>
+<td>20,000 字符</td>
+</tr>
+<tr>
+<td>中文 30,000 字节（10,000 字）</td>
+<td>20,000</td>
+<td>前 20,000 字节 + 说明</td>
+<td>约 6,666 字</td>
+</tr>
+<tr>
+<td>边界落在汉字中间</td>
+<td>20,000</td>
+<td>退到 19,998 字节</td>
+<td>合法 UTF-8</td>
+</tr>
+</tbody>
+</table></div>
+
+这也是为什么 <code>max_output</code> 的单位在文档里应该写「字节」而不是「字符」。源码里 <code>Ctx.max_output</code> 是 <code>usize</code>，没有单位；<code>clamp</code> 用 <code>len()</code>，实际是字节。文章里说「20,000 字节」比说「20,000 字符」准确。
+<hr>
+<h2>压缩触发：120,000 字符是怎么算的</h2>
+
+压缩的入口是 <code>compact</code>，它在每轮工具结果回填之后调用。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">compact_with</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">force</span><span class="p">:</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">size</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">m</span><span class="o">|</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">to_string</span><span class="p">().</span><span class="n">len</span><span class="p">()).</span><span class="n">sum</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">force</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">CONTEXT_CHAR_BUDGET</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">KEEP_RECENT</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">().</span><span class="n">saturating_sub</span><span class="p">(</span><span class="n">KEEP_RECENT</span><span class="p">);</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">[</span><span class="n">start</span><span class="p">][</span><span class="s">&quot;role&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">dropped</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">drain</span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="n">start</span><span class="p">).</span><span class="n">collect</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">note</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">summarize_messages</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dropped</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Some</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;[Earlier conversation summary]</span><span class="se">\n</span><span class="s">{summary}&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="s">&quot;[Earlier conversation was omitted to keep the context small]&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;system&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">note</span><span class="w"> </span><span class="p">}));</span>
+<span class="w">    </span><span class="n">dropped</span><span class="p">.</span><span class="n">len</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这里有四个判定。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>判定</th>
+<th>条件</th>
+<th>不满足时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预算</td>
+<td><code>size &gt; 120_000</code></td>
+<td>不压缩</td>
+</tr>
+<tr>
+<td>消息数</td>
+<td><code>messages.len() &gt; 11</code></td>
+<td>不压缩（没有足够旧消息可丢）</td>
+</tr>
+<tr>
+<td>强制</td>
+<td><code>force == true</code>（<code>/compact</code>）</td>
+<td>忽略前两个判定</td>
+</tr>
+<tr>
+<td>切点</td>
+<td><code>start &gt; 1</code> 且不在 tool 消息上</td>
+<td>不压缩</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>size</code> 的计算方式是 <code>messages.iter().map(|m| m.to_string().len()).sum()</code>。它量的是<strong>序列化后的 JSON 长度</strong>，不是消息内容的长度。
+
+<code>/compact</code> 命令走的是 <code>compact_now()</code>，它调用 <code>compact_with(true)</code> 强制压缩，跳过预算判定；交互式用户可以在预算还没爆之前主动整理一次。
+
+这很重要。一条 <code>tool</code> 消息的 JSON 包含 <code>role</code>、<code>tool_call_id</code>、<code>content</code> 三个键，加上引号、冒号和转义。内容里的每个换行会变成两个字符 <code>\n</code>，每个双引号会变成 <code>\"</code>。所以 <code>size</code> 总是比「所有 content 长度之和」大一些。对代码和日志这种换行密集的内容，差距可能到 5%–10%。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>原始字符</th>
+<th>序列化后</th>
+<th>膨胀</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一段 1,000 行日志</td>
+<td>50,000</td>
+<td>约 52,000</td>
+<td>4%</td>
+</tr>
+<tr>
+<td>一段 2,000 行代码</td>
+<td>80,000</td>
+<td>约 84,000</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>大量引号的 JSON</td>
+<td>20,000</td>
+<td>约 24,000</td>
+<td>20%</td>
+</tr>
+</tbody>
+</table></div>
+
+这也意味着 <code>CONTEXT_CHAR_BUDGET</code> 的 120,000 是「JSON 字符数」，不是「模型 token 数」，也不是「对话内容字符数」。把它当成一个保守的近似值，而不是精确的窗口大小。
+<hr>
+<h2>为什么按字符算，不按 token 算</h2>
+
+精确的上下文管理应该按 token 算。每个模型有自己的 tokenizer，同样的文本在不同模型上 token 数不同。按 token 算，才能精确卡住窗口。
+
+NanoHermes 选择按字符算，原因有三个。
+
+<strong>第一，tokenizer 是重依赖。</strong> 一个模型对应一份词表，几十 MB 到几百 MB。引入 tokenizer 意味着要么绑定某个模型家族，要么为每个模型维护一份。NanoHermes 的依赖只有三个 crate，不想为了估算引入第四第五个。
+
+<strong>第二，字符数足够做保守近似。</strong> 对英文和代码，大约 3–4 个字符一个 token；对中文，大约 1–2 个字符一个 token。120,000 字符大致落在 30,000–60,000 token 之间。只要预算取得比真实窗口小，误差方向就是安全的。
+
+<strong>第三，字符数可解释。</strong> 用户看到「上下文 120,000 字符」，能直观理解；看到「上下文 37,842 token」，反而不知道还剩多少空间。对一个交互式 CLI 来说，可解释性比精确性更重要。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>文本类型</th>
+<th>字符 / token（近似）</th>
+<th>120k 字符约合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>英文散文</td>
+<td>4</td>
+<td>30,000 token</td>
+</tr>
+<tr>
+<td>源代码</td>
+<td>3–3.5</td>
+<td>34,000–40,000 token</td>
+</tr>
+<tr>
+<td>中文</td>
+<td>1–1.5</td>
+<td>80,000–120,000 token</td>
+</tr>
+<tr>
+<td>中英混合 + 代码</td>
+<td>2–3</td>
+<td>40,000–60,000 token</td>
+</tr>
+</tbody>
+</table></div>
+
+注意中文那一行：如果上下文里全是中文，120,000 字符可能已经接近 120,000 token，超过很多模型的窗口。这是字符预算的盲区。NanoHermes 的主要场景是代码和英文技术文本，中文占比通常不高；如果你的场景以中文长文为主，应该把预算调低，或者换成 token 估算。
+<hr>
+<h2>保留最近 10 条，而不是最近 10 轮</h2>
+
+压缩保留的是最近 10 <strong>条消息</strong>，不是最近 10 轮对话。
+
+这两个单位差别很大。一轮对话的消息数取决于模型调用了多少工具：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>一轮里的动作</th>
+<th>消息数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>用户提问 + 模型纯文本回答</td>
+<td>2 条（user + assistant）</td>
+</tr>
+<tr>
+<td>用户提问 + 模型调 1 个工具 + 总结</td>
+<td>4 条（user + assistant + tool + assistant）</td>
+</tr>
+<tr>
+<td>用户提问 + 模型调 5 个工具 + 总结</td>
+<td>7 条（user + assistant + 5 tool + assistant）</td>
+</tr>
+<tr>
+<td>用户提问 + 3 轮工具调用，每轮 2 个</td>
+<td>1 + 3 × (1 + 2) + 1 = 11 条</td>
+</tr>
+</tbody>
+</table></div>
+
+如果按「最近 10 轮」保留，最后一种情况会保留 110 条，预算根本压不住。按「最近 10 条」，无论一轮调了多少工具，保留的消息数都有上限。
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">().</span><span class="n">saturating_sub</span><span class="p">(</span><span class="n">KEEP_RECENT</span><span class="p">);</span>
+<span class="k">while</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">[</span><span class="n">start</span><span class="p">][</span><span class="s">&quot;role&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>saturating_sub</code> 处理「消息数少于 10」的情况，结果是 0；后面的 <code>start &lt;= 1</code> 会直接返回，不会误删系统消息。
+
+保留 10 条的目的是保证「最近一次工具交互」还在。一次带 5 个工具调用的轮次会占 7 条；再加一条 user、一条 assistant，刚好 9 条。10 条足够覆盖一次完整的工具往返，让模型知道刚才发生了什么。
+<hr>
+<h2>切点：为什么不能落在 tool 消息中间</h2>
+
+切点的第一版逻辑是「从倒数第 10 条开始，前面的都丢掉」。这会产生一个致命问题：如果倒数第 10 条正好是一条 <code>tool</code> 消息，丢掉它前面的 assistant 工具调用、却保留这条结果，历史里就会出现一条没有对应调用的工具结果。
+
+下一轮请求，API 会直接拒绝：
+<blockquote>
+
+messages with role 'tool' must be a response to a preceding message with 'tool_calls'
+</blockquote>
+
+更隐蔽的情况是：某些兼容层不拒绝，但模型会看到一组对不上的结果，开始胡言乱语。
+
+NanoHermes 的处理是把切点往后推，直到它不是 <code>tool</code> 消息：
+<div class="codehilite"><pre><span></span><code><span class="k">while</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">[</span><span class="n">start</span><span class="p">][</span><span class="s">&quot;role&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这个循环最多推过整轮的工具结果。推过之后，被丢掉的区域里包含完整的 assistant 调用和它的全部结果；保留的区域从一条非 tool 消息开始，历史仍然合法。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>切点位置</th>
+<th>丢掉的内容</th>
+<th>保留的历史</th>
+<th>合法性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>落在 user 上</td>
+<td>旧的 user 及之前</td>
+<td>user + assistant + tool...</td>
+<td>合法</td>
+</tr>
+<tr>
+<td>落在 assistant 上</td>
+<td>旧的 assistant 及之前</td>
+<td>assistant + tool...</td>
+<td>合法</td>
+</tr>
+<tr>
+<td>落在 tool 上（未调整）</td>
+<td>assistant 调用，但保留 tool</td>
+<td>孤立的 tool</td>
+<td>非法</td>
+</tr>
+<tr>
+<td>落在 tool 上（调整后）</td>
+<td>整轮调用与结果</td>
+<td>下一条非 tool 消息</td>
+<td>合法</td>
+</tr>
+</tbody>
+</table></div>
+
+还有一个边界：<code>start &lt;= 1</code> 时直接返回。<code>messages[0]</code> 是系统消息，<code>messages[1]</code> 是摘要或第一条对话。如果切点落在 1 或更前，说明没有足够的旧消息可丢，压缩应该放弃，而不是把系统消息也丢掉。
+
+这个「切点不能落在 tool 上」的规则，是第一篇里「历史必须合法」不变量的直接延伸。压缩不是随便删一段，它必须维持消息序列的配对关系。
+<hr>
+<h2>摘要：一次额外的模型请求</h2>
+
+压缩不是把旧消息删掉就完事。它要让模型用一段话概括被丢掉的内容，这段话再作为一条 <code>system</code> 消息插回历史。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">summarize_messages</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">messages</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="n">Value</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">messages</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">None</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">excerpt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">messages</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">role</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;role&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">r</span><span class="o">|</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">as_str</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="s">&quot;?&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;content&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Some</span><span class="p">(</span><span class="n">Value</span><span class="p">::</span><span class="nb">String</span><span class="p">(</span><span class="n">s</span><span class="p">))</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">clone</span><span class="p">(),</span>
+<span class="w">            </span><span class="nb">Some</span><span class="p">(</span><span class="n">Value</span><span class="p">::</span><span class="n">Array</span><span class="p">(</span><span class="n">arr</span><span class="p">))</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">arr</span>
+<span class="w">                </span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">                </span><span class="p">.</span><span class="n">filter_map</span><span class="p">(</span><span class="o">|</span><span class="n">p</span><span class="o">|</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;text&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">as_str</span><span class="p">()))</span>
+<span class="w">                </span><span class="p">.</span><span class="n">collect</span><span class="p">::</span><span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">_</span><span class="o">&gt;&gt;</span><span class="p">()</span>
+<span class="w">                </span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">),</span>
+<span class="w">            </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">new</span><span class="p">(),</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">content</span><span class="p">.</span><span class="n">trim</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">content</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">excerpt</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{role}: {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">content</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">excerpt</span><span class="p">.</span><span class="n">trim</span><span class="p">().</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">None</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">llm</span><span class="p">::</span><span class="n">summarize</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">excerpt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">s</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">s</span><span class="p">),</span>
+<span class="w">        </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nb">None</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码先做一件事：把消息压成 <code>role: content</code> 的纯文本。多模态消息只取 <code>text</code> 部分，图片 URL 不进入摘要；内容为空的消息直接跳过。
+
+然后调用 <code>llm::summarize</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">summarize</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Config</span><span class="p">,</span><span class="w"> </span><span class="n">text</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">summarizer_cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
+<span class="w">    </span><span class="n">summarizer_cfg</span><span class="p">.</span><span class="n">stream</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">system</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;You are a conversation summarizer for a coding agent. Write a concise summary \</span>
+<span class="s">                  of the excerpt below, preserving: the user&#39;s goal, key decisions, file paths \</span>
+<span class="s">                  changed, and current task state. Use at most 300 words. Reply with the summary only.&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">messages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span>
+<span class="w">        </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;system&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">system</span><span class="w"> </span><span class="p">}),</span>
+<span class="w">        </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;user&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">text</span><span class="w"> </span><span class="p">}),</span>
+<span class="w">    </span><span class="p">];</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="n">summarizer_cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Value</span><span class="p">::</span><span class="n">Array</span><span class="p">(</span><span class="fm">vec!</span><span class="p">[]),</span><span class="w"> </span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="p">{})</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">trim</span><span class="p">().</span><span class="n">to_string</span><span class="p">())</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意三个参数：<code>stream = false</code>（摘要不需要流式）、<code>tools = []</code>（不允许摘要器调用工具）、<code>temperature</code> 沿用主配置（默认 0）。摘要是一次普通的、非流式的、无工具的模型请求。
+<hr>
+<h2>摘要输入里有什么，没有什么</h2>
+
+这是整篇文章最容易被忽略的一节。
+
+<code>summarize_messages</code> 只读取每条消息的 <code>content</code>。它<strong>不读取</strong> <code>tool_calls</code> 里的 <code>function.name</code> 和 <code>function.arguments</code>。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>消息类型</th>
+<th>进入摘要的内容</th>
+<th>不进入摘要的内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>user</td>
+<td>文本（多模态只取 text）</td>
+<td>图片数据</td>
+</tr>
+<tr>
+<td>assistant（纯文本）</td>
+<td><code>content</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>assistant（工具调用）</td>
+<td>通常为空，整条跳过</td>
+<td><code>tool_calls</code> 的 name、arguments、id</td>
+</tr>
+<tr>
+<td>tool</td>
+<td>工具结果全文</td>
+<td><code>tool_call_id</code>、对应的调用名</td>
+</tr>
+</tbody>
+</table></div>
+
+这意味着摘要器看到的序列可能是这样的：
+<div class="codehilite"><pre><span></span><code>user: 把 README 里的安装命令改成 pnpm
+assistant: 我先看看 README。
+tool: 1→# Project
+2→
+3→## Install
+4→npm install
+...
+assistant: 已经改成 pnpm。
+</code></pre></div>
+
+
+它能看到「读了 README」「结果是这些行」，但看不到「调用的是 <code>read_file</code>，参数是 <code>path=README.md</code>」。如果工具结果本身没有包含文件名，摘要就会丢失「改的是哪个文件」这条关键信息。
+
+这是一个真实的局限，也是摘要提示词要求「保留 file paths changed」的原因：既然结构化字段进不来，就只能靠工具结果里的路径和模型的文本描述来补。NanoHermes 的 <code>read_file</code> 输出不带文件名，所以摘要器只能从上下文推断；<code>edit_file</code> 的结果带路径，通常能补上。
+
+如果你要改进这一点，有两个方向：
+<ol>
+<li><strong>在摘要输入里保留工具名和参数。</strong> 把 assistant 消息的 <code>tool_calls</code> 渲染成 <code>assistant: [read_file] {"path":"README.md"}</code>，而不是跳过。</li>
+<li><strong>让工具结果自带身份。</strong> 每个工具返回时带上「我在哪个文件上做了什么」，例如 <code>read_file README.md</code>。</li>
+</ol>
+
+两种做法都会增加摘要输入的长度，但能显著减少「摘要后不知道改了哪个文件」的问题。
+<hr>
+<h2>摘要提示词要求保留的四类信息</h2>
+
+摘要提示词很短，只列了四类必须保留的信息：
+<blockquote>
+
+the user's goal, key decisions, file paths changed, and current task state. Use at most 300 words.
+</blockquote>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>保留项</th>
+<th>回答的问题</th>
+<th>丢失后的症状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>用户目标</td>
+<td>我们到底在做什么？</td>
+<td>模型开始做无关的事，或者重复问需求</td>
+</tr>
+<tr>
+<td>关键决策</td>
+<td>为什么选这个方案？</td>
+<td>模型推翻已定方案，来回改</td>
+</tr>
+<tr>
+<td>改过的文件路径</td>
+<td>动过哪些地方？</td>
+<td>模型重复修改，或者漏掉某个文件</td>
+</tr>
+<tr>
+<td>当前任务状态</td>
+<td>进行到哪一步？</td>
+<td>模型重复已完成的工作，或者不知道下一步</td>
+</tr>
+</tbody>
+</table></div>
+
+这四类信息有一个共同点：<strong>它们都是「下一步」需要的，而不是「过去」的完整记录。</strong> 摘要不保留逐字对话，不保留每个工具的输出，也不保留模型的解释过程。它保留的是能让下一个模型接上手的「工作交接单」。
+
+300 词的上限也不是随便定的。一段 300 词的摘要大约 1,500–2,500 字符，占 120,000 预算的 1%–2%。如果摘要写到 2,000 词，它就变成了另一种上下文膨胀：压缩一次，塞回去一大段。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>摘要长度</th>
+<th>字符估算</th>
+<th>占预算</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100 词</td>
+<td>500–800</td>
+<td>&lt;1%</td>
+<td>短任务</td>
+</tr>
+<tr>
+<td>300 词</td>
+<td>1,500–2,500</td>
+<td>1%–2%</td>
+<td>默认</td>
+</tr>
+<tr>
+<td>1,000 词</td>
+<td>5,000–8,000</td>
+<td>4%–7%</td>
+<td>长任务，但会挤占最近消息</td>
+</tr>
+</tbody>
+</table></div>
+
+摘要提示词里还有一句 <code>Reply with the summary only</code>。这是为了防止模型在摘要前后加「好的，以下是摘要」这类客套话。客套话也会进入上下文，而且没有任何信息量。
+<hr>
+<h2>摘要失败时的降级</h2>
+
+摘要是一次网络请求，可能失败：API 超时、限流、返回空内容、摘要器把内容全滤掉。<code>summarize_messages</code> 的返回类型是 <code>Option&lt;String&gt;</code>，失败就返回 <code>None</code>。
+
+<code>compact_with</code> 对 <code>None</code> 的处理是插入一行占位说明：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">note</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">summarize_messages</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dropped</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">Some</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;[Earlier conversation summary]</span><span class="se">\n</span><span class="s">{summary}&quot;</span><span class="p">),</span>
+<span class="w">    </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="s">&quot;[Earlier conversation was omitted to keep the context small]&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>失败原因</th>
+<th><code>summarize_messages</code> 的行为</th>
+<th>最终结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>被丢弃的消息为空</td>
+<td>返回 <code>None</code></td>
+<td>插入占位说明</td>
+</tr>
+<tr>
+<td>所有消息 content 都为空</td>
+<td>返回 <code>None</code></td>
+<td>插入占位说明</td>
+</tr>
+<tr>
+<td>摘要请求失败</td>
+<td>返回 <code>None</code></td>
+<td>插入占位说明</td>
+</tr>
+<tr>
+<td>摘要返回空字符串</td>
+<td>返回 <code>None</code></td>
+<td>插入占位说明</td>
+</tr>
+<tr>
+<td>摘要成功</td>
+<td>返回 <code>Some</code></td>
+<td>插入摘要</td>
+</tr>
+</tbody>
+</table></div>
+
+为什么失败也要插入一行，而不是什么都不插？
+
+因为模型需要知道「有一段历史被省略了」。如果压缩后历史直接从系统消息跳到最近的工具结果，模型会以为自己一直只有这么点上下文，可能重复已经做过的工作，或者对用户的指令感到困惑。一行 <code>[Earlier conversation was omitted ...]</code> 至少告诉它：前面还有东西，只是没带过来。
+
+这也是「截断必须留痕」原则在压缩层的体现。失败不可怕，静默失败才可怕。
+<hr>
+<h2>摘要之后的消息序列</h2>
+
+压缩前后的消息序列对比，能直观看出这套算法的效果。
+
+压缩前（示意）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>序号</th>
+<th>role</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>system</td>
+<td>系统提示词 + 记忆块</td>
+</tr>
+<tr>
+<td>1</td>
+<td>user</td>
+<td>第一轮指令</td>
+</tr>
+<tr>
+<td>2</td>
+<td>assistant</td>
+<td>工具调用 A</td>
+</tr>
+<tr>
+<td>3</td>
+<td>tool</td>
+<td>A 的结果</td>
+</tr>
+<tr>
+<td>4</td>
+<td>assistant</td>
+<td>工具调用 B</td>
+</tr>
+<tr>
+<td>5</td>
+<td>tool</td>
+<td>B 的结果</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td>n-10</td>
+<td>user</td>
+<td>最近的指令</td>
+</tr>
+<tr>
+<td>n-9</td>
+<td>assistant</td>
+<td>工具调用 C</td>
+</tr>
+<tr>
+<td>n-8</td>
+<td>tool</td>
+<td>C 的结果</td>
+</tr>
+<tr>
+<td>n-7</td>
+<td>assistant</td>
+<td>总结</td>
+</tr>
+</tbody>
+</table></div>
+
+压缩后：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>序号</th>
+<th>role</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>system</td>
+<td>系统提示词 + 记忆块</td>
+</tr>
+<tr>
+<td>1</td>
+<td>system</td>
+<td><code>[Earlier conversation summary]</code> + 300 词摘要</td>
+</tr>
+<tr>
+<td>2</td>
+<td>user</td>
+<td>最近的指令</td>
+</tr>
+<tr>
+<td>3</td>
+<td>assistant</td>
+<td>工具调用 C</td>
+</tr>
+<tr>
+<td>4</td>
+<td>tool</td>
+<td>C 的结果</td>
+</tr>
+<tr>
+<td>5</td>
+<td>assistant</td>
+<td>总结</td>
+</tr>
+</tbody>
+</table></div>
+
+注意三点。
+
+<strong>第一，系统提示词仍然是 0。</strong> 摘要插在 1，不替换系统提示词。这样配置、规则、记忆块都保留。
+
+<strong>第二，摘要是 <code>system</code> 角色，不是 <code>assistant</code>。</strong> 它是「背景知识」，不是「模型说过的话」。用 system 角色能让模型把它当成指令性上下文，而不是对话历史。
+
+<strong>第三，最近 10 条原样保留。</strong> 摘要负责旧历史，最近的消息负责「刚才发生了什么」。两者分工明确。
+
+多次压缩时，旧摘要会被再次摘要。第二次压缩的 <code>dropped</code> 区域包含第一次插入的 system 摘要，<code>summarize_messages</code> 会把它的 content 也拼进 excerpt。这意味着摘要会「滚动合并」，不会越积越多，但也会有<strong>摘要的摘要</strong>带来的信息漂移：第一次摘要丢掉的细节，第二次无法恢复；第二次摘要还可能把第一次的错误结论继续放大。
+<hr>
+<h2>什么该留：五类信息</h2>
+
+把「下一步会不会用到」这个标准展开，可以落成五类信息。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>具体内容</th>
+<th>为什么留</th>
+<th>通常在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>目标与约束</td>
+<td>用户要什么、不许做什么、验收标准</td>
+<td>决定方向，丢了就白干</td>
+<td>最近的 user 消息、摘要</td>
+</tr>
+<tr>
+<td>关键决策</td>
+<td>选了什么方案、为什么否决另一个</td>
+<td>防止反复横跳</td>
+<td>assistant 文本、摘要</td>
+</tr>
+<tr>
+<td>改动路径</td>
+<td>改过哪些文件、新增了哪些文件</td>
+<td>防止重复修改、漏改</td>
+<td>工具结果、摘要</td>
+</tr>
+<tr>
+<td>失败尝试</td>
+<td>哪条路走不通、报了什么错</td>
+<td>防止重复踩坑</td>
+<td>工具结果、assistant 文本</td>
+</tr>
+<tr>
+<td>当前状态</td>
+<td>做到哪一步、下一步做什么</td>
+<td>接续任务</td>
+<td>最近几条消息</td>
+</tr>
+</tbody>
+</table></div>
+
+这五类里，前四类可以进摘要，第五类必须留在最近消息里。原因是「当前状态」变化最快，摘要一次就可能过期；而目标、决策、路径、失败尝试相对稳定，适合压缩成一段话。
+
+一个反例是「完整的文件内容」。很多人觉得「模型读过这个文件，应该留着」，于是把 2,000 行代码留在历史里。但模型下一步真正需要的是「这个文件里哪个函数要改」，而不是整份文件。完整内容应该留在磁盘上，需要时再读；上下文里留路径、行号和结论就够了。
+<hr>
+<h2>什么该丢：四类内容</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>为什么可丢</th>
+<th>例外</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>重复的寒暄与确认</td>
+<td>「好的」「收到」「继续」不含决策信息</td>
+<td>用户在这些话里加了新约束</td>
+</tr>
+<tr>
+<td>完整文件内容</td>
+<td>磁盘上有，需要时可重读</td>
+<td>文件已被删除或外部修改</td>
+</tr>
+<tr>
+<td>成功命令的长输出</td>
+<td>退出码为 0 时，输出通常只是过程</td>
+<td>输出里有测试结果、警告、关键日志</td>
+</tr>
+<tr>
+<td>已摘要的中间步骤</td>
+<td>摘要已经保留了结论</td>
+<td>需要逐字复现某个步骤</td>
+</tr>
+</tbody>
+</table></div>
+
+「成功命令的长输出」这一条最容易判断错。<code>cargo build</code> 成功时输出几百行编译日志，模型通常只需要知道「成功了」；但如果输出里有 warning，warning 可能是下一步的线索。NanoHermes 的 shell 工具不会自动区分，它把退出码和输出一起返回，由模型自己判断。压缩时，摘要器可能会把成功的日志概括成「构建通过」，warning 就丢了。
+
+这就是为什么「什么该丢」不能完全交给摘要器。摘要器只看 content，不懂任务；它可能把一条关键的 warning 当成噪音。更稳妥的做法是：在工具层就把「成功但啰嗦」的输出压短，比如只保留退出码和最后几行；而不是留给压缩层去猜。
+<hr>
+<h2>上下文、记忆、会话：三个不同的东西</h2>
+
+这三个概念经常被混为一谈，但它们的生命周期和用途完全不同。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>上下文</th>
+<th>记忆</th>
+<th>会话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>存储</td>
+<td>内存里的 <code>messages</code></td>
+<td><code>~/.nanohermes/memory.json</code></td>
+<td><code>--session</code> 指定的 JSON 文件</td>
+</tr>
+<tr>
+<td>生命周期</td>
+<td>一次请求 / 一个轮次</td>
+<td>跨会话长期</td>
+<td>一次会话</td>
+</tr>
+<tr>
+<td>内容</td>
+<td>完整消息序列</td>
+<td>提炼后的短句</td>
+<td>完整消息序列</td>
+</tr>
+<tr>
+<td>体积</td>
+<td>最多 120,000 字符</td>
+<td>最多 500 条，每条 400 字符</td>
+<td>不设上限</td>
+</tr>
+<tr>
+<td>检索</td>
+<td>无，全量发送</td>
+<td>BM25 + 中英文分词</td>
+<td>无，启动时整体加载</td>
+</tr>
+<tr>
+<td>注入</td>
+<td>直接作为 <code>messages</code></td>
+<td>最多 4 条、2,400 字符</td>
+<td>不注入，恢复为 <code>messages</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>上下文</strong>是「这一次请求要带什么」，<strong>记忆</strong>是「跨会话值得记住什么」，<strong>会话</strong>是「这次对话的完整存档」。
+
+会话文件不设上限，因为它保存在磁盘上，不参与每次请求。加载会话时，它会被读回 <code>messages</code>，然后由上下文预算接管。记忆则是另一个方向：它从会话里提炼，但不保存全文；下次会话按当前指令检索，只注入最相关的几条。
+
+<code>replace_messages</code> 是这三个概念在 daemon 模式下的交汇点：一个 Agent 实例可以服务多个隔离会话，通过替换 <code>messages</code> 切换上下文。记忆和会话文件仍然是各自独立的。
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">replace_messages</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msgs</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">mem</span><span class="p">::</span><span class="n">replace</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="n">msgs</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这也解释了为什么 token 用量要上报增量而不是累计值：同一个 Agent 可能在不同会话之间切换，累计值会把这些互不相关的任务加在一起。上下文可以替换，账本必须按轮次分清。
+<hr>
+<h2>压缩的代价：延迟、损失与漂移</h2>
+
+压缩不是免费的。它至少有三类代价。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>代价</th>
+<th>表现</th>
+<th>缓解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>延迟</td>
+<td>压缩时多一次模型请求，用户多等一轮</td>
+<td>只在超预算时触发；<code>/compact</code> 手动控制</td>
+</tr>
+<tr>
+<td>信息损失</td>
+<td>旧细节被 300 词摘要替代</td>
+<td>保留最近 10 条；摘要要求保留路径与决策</td>
+</tr>
+<tr>
+<td>摘要漂移</td>
+<td>多次压缩后，摘要的摘要越来越抽象</td>
+<td>尽量在任务边界压缩；不要频繁压缩</td>
+</tr>
+<tr>
+<td>缓存失效</td>
+<td>摘要插入 <code>messages[1]</code>，后续前缀变化</td>
+<td>接受；压缩本来就不频繁</td>
+</tr>
+<tr>
+<td>成本</td>
+<td>摘要请求本身消耗 token</td>
+<td>摘要输入是旧历史，通常小于重发成本</td>
+</tr>
+</tbody>
+</table></div>
+
+延迟是最容易被低估的。压缩发生在工具结果回填之后、下一轮请求之前，用户会感觉「这一轮特别慢」。如果压缩又触发了一次摘要请求，延迟就是「工具时间 + 摘要时间 + 下一轮模型时间」。在长任务里，这可能多出几秒到十几秒。
+
+信息损失则是结构性的。摘要器只看到 <code>role: content</code>，看不到工具名和参数；它可能把「改了 <code>src/main.rs</code> 的第 42 行」概括成「修改了主文件」。下一次模型想继续改，就得重新读文件。这不是摘要器的错，是输入里就没有这些信息。
+
+摘要漂移更隐蔽。第一次摘要保留了「用户要求用 pnpm」，第二次摘要可能把它合并成「包管理器相关改动」，第三次就只剩「依赖调整」。每一轮压缩都在做有损压缩，损失会累积。缓解办法是：<strong>在任务边界主动压缩，而不是等到预算爆掉；在摘要提示词里把「用户目标」放在第一位；关键约束不要只依赖摘要，放进 <code>AGENTS.md</code> 或记忆。</strong>
+<hr>
+<h2>一个 12 轮任务的示意账本</h2>
+
+下面是一个按默认上限估算的账本，用来说明压缩在什么时候发生。数字是示意，不是某次真实运行的精确值。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>消息数</th>
+<th>序列化字符</th>
+<th>动作</th>
+<th>压缩后字符</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>3</td>
+<td>4,000</td>
+<td>读一个文件</td>
+<td>4,000</td>
+</tr>
+<tr>
+<td>2</td>
+<td>6</td>
+<td>12,000</td>
+<td>读两个文件</td>
+<td>12,000</td>
+</tr>
+<tr>
+<td>3</td>
+<td>10</td>
+<td>26,000</td>
+<td>grep + 读文件</td>
+<td>26,000</td>
+</tr>
+<tr>
+<td>4</td>
+<td>14</td>
+<td>38,000</td>
+<td>编辑 + 跑测试</td>
+<td>38,000</td>
+</tr>
+<tr>
+<td>5</td>
+<td>20</td>
+<td>52,000</td>
+<td>读测试输出</td>
+<td>52,000</td>
+</tr>
+<tr>
+<td>6</td>
+<td>24</td>
+<td>64,000</td>
+<td>再改一处</td>
+<td>64,000</td>
+</tr>
+<tr>
+<td>7</td>
+<td>30</td>
+<td>78,000</td>
+<td>读大文件（截断 20k）</td>
+<td>78,000</td>
+</tr>
+<tr>
+<td>8</td>
+<td>36</td>
+<td>96,000</td>
+<td>跑全量测试</td>
+<td>96,000</td>
+</tr>
+<tr>
+<td>9</td>
+<td>42</td>
+<td>118,000</td>
+<td>再读一个文件</td>
+<td>118,000</td>
+</tr>
+<tr>
+<td>10</td>
+<td>48</td>
+<td>132,000</td>
+<td>超过 120k，触发压缩</td>
+<td>约 32,000</td>
+</tr>
+<tr>
+<td>11</td>
+<td>54</td>
+<td>46,000</td>
+<td>继续修改</td>
+<td>46,000</td>
+</tr>
+<tr>
+<td>12</td>
+<td>60</td>
+<td>60,000</td>
+<td>完成</td>
+<td>60,000</td>
+</tr>
+</tbody>
+</table></div>
+
+几个观察：
+<ul>
+<li><strong>压缩不是均匀发生的。</strong> 第 10 轮之前一直在增长，第 10 轮一次掉回 32,000，然后重新增长。</li>
+<li><strong>压缩后不是「很小」，而是「大约最近 10 条 + 摘要」。</strong> 最近 10 条可能就有 20,000–30,000 字符，加上摘要 2,000，就是 30,000 左右。</li>
+<li><strong>总输入成本远大于最后的消息数。</strong> 每一轮都要重发当时的历史。前 9 轮的平均历史约 60,000 字符，9 轮就是 540,000 字符的输入；压缩后又要重新累积。</li>
+<li><strong>压缩只能降低单次请求大小，不能降低总成本。</strong> 总成本是各轮历史之和，压缩把曲线压下去一次，但曲线还会继续涨。</li>
+</ul>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值（示意）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单次请求峰值</td>
+<td>约 132,000 字符</td>
+</tr>
+<tr>
+<td>压缩次数</td>
+<td>1 次</td>
+</tr>
+<tr>
+<td>压缩后大小</td>
+<td>约 32,000 字符</td>
+</tr>
+<tr>
+<td>12 轮累计输入</td>
+<td>约 700,000 字符</td>
+</tr>
+<tr>
+<td>压缩节省的后续输入</td>
+<td>每轮约 100,000 字符 × 剩余轮数</td>
+</tr>
+</tbody>
+</table></div>
+
+这也解释了为什么「工具输出上限」比「压缩」更重要：压缩只在超预算时发生一次，而工具输出上限在每一次工具返回时都生效。前者是消防栓，后者是防火门。
+<hr>
+<h2>七个常见上下文陷阱</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>陷阱</th>
+<th>症状</th>
+<th>正确做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只截断，不留痕</td>
+<td>模型以为结果完整，基于缺失信息行动</td>
+<td>每条截断都带 <code>omitted</code> / <code>truncated</code> 说明</td>
+</tr>
+<tr>
+<td>在 UTF-8 中间截断</td>
+<td>Rust panic，或者输出乱码</td>
+<td>退到 <code>is_char_boundary</code></td>
+</tr>
+<tr>
+<td>按「最近 N 轮」保留</td>
+<td>一轮调 5 个工具，保留 10 轮就是 70 条</td>
+<td>按消息条数保留</td>
+</tr>
+<tr>
+<td>切点落在 tool 上</td>
+<td>历史出现孤立工具结果，API 400</td>
+<td>切点后移到非 tool 消息</td>
+</tr>
+<tr>
+<td>摘要包含完整工具参数</td>
+<td>摘要输入膨胀，甚至超过摘要器窗口</td>
+<td>只取 content，或显式渲染关键字段</td>
+</tr>
+<tr>
+<td>每轮追加记忆块</td>
+<td>系统消息线性增长</td>
+<td>按标记整体替换</td>
+</tr>
+<tr>
+<td>纯聊天不触发压缩</td>
+<td>长对话没有工具调用，历史只增不减</td>
+<td>定期 <code>/compact</code>，或把压缩移到每次请求前</td>
+</tr>
+</tbody>
+</table></div>
+
+最后一条值得展开。<code>compact</code> 的调用点在工具结果回填之后；如果一轮对话没有工具调用，循环在 <code>turn.tool_calls.is_empty()</code> 处就 <code>break</code> 了，根本走不到 <code>compact</code>。所以纯聊天会话不会自动压缩，直到某一轮调用了工具，或者用户手动执行 <code>/compact</code>。
+
+这是一个真实的边界。对 coding agent 来说，长任务几乎都伴随工具调用，所以影响不大；但如果你把 NanoHermes 当纯聊天用，就要知道这个限制。
+
+还有一个更隐蔽的陷阱：<strong>把压缩当成「删除」</strong>。压缩不是删除，是替换成摘要；摘要本身也在上下文里占体积。如果摘要写得比原文还长，压缩就变成了负优化。300 词的上限就是防止这件事。
+<hr>
+<h2>如何验证压缩没有坏</h2>
+
+压缩是少数「看起来跑通了，其实已经坏了」的机制。它不会立刻报错，模型会在几轮之后开始重复劳动或答非所问。
+
+可以用下面这组检查。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>检查</th>
+<th>方法</th>
+<th>期望</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>历史合法性</td>
+<td>检查每条 tool 消息前是否有对应 <code>tool_call_id</code> 的 assistant 调用</td>
+<td>一一配对</td>
+</tr>
+<tr>
+<td>切点合法性</td>
+<td>压缩后第一条非系统消息不是 tool</td>
+<td>不是 tool</td>
+</tr>
+<tr>
+<td>摘要存在</td>
+<td>压缩后 <code>messages[1]</code> 是 system 摘要或占位说明</td>
+<td>存在</td>
+</tr>
+<tr>
+<td>预算生效</td>
+<td>压缩后序列化总字符 &lt; 120,000</td>
+<td>小于预算</td>
+</tr>
+<tr>
+<td>最近消息完整</td>
+<td>最近 10 条与原历史尾部一致</td>
+<td>未被改写</td>
+</tr>
+<tr>
+<td>模型知道目标</td>
+<td>压缩后问「我们在做什么」</td>
+<td>能答出目标与当前状态</td>
+</tr>
+<tr>
+<td>模型知道路径</td>
+<td>问「改过哪些文件」</td>
+<td>能答出关键路径</td>
+</tr>
+</tbody>
+</table></div>
+
+其中「模型知道目标」和「知道路径」是最实用的两项。它们直接检验摘要提示词的四类信息有没有被保留。如果模型答不出，说明摘要丢了关键内容，应该调整摘要提示词，而不是继续压缩。
+
+自动化测试也可以覆盖前五项。NanoHermes 的 <code>memory.rs</code> 里有 <code>block_round_trip_replaces_instead_of_accumulating</code> 这样的测试，验证记忆块替换而不是追加；<code>compact</code> 也可以写类似的测试：构造 20 条消息，强制压缩，断言系统消息还在、最近 10 条没变、中间多了一条摘要、没有孤立 tool。
+<hr>
+<h2>收尾：下一篇讲记忆</h2>
+
+上下文解决的是「这一次请求带什么」，记忆解决的是「下一次会话还记得什么」。
+
+两者共享同一个约束：<strong>体积有限，必须选择。</strong> 上下文的选择发生在每一轮，记忆的选择发生在会话结束和下一次会话开始。上下文用 120,000 字符的预算和 10 条最近消息；记忆用 4 条、2,400 字符的注入预算，以及 500 条、每条 400 字符的存储上限。
+
+下一篇《03 Agent 记忆：不接向量库也能长期记忆》会拆开 <code>memory.rs</code>：BM25 怎么打分、中英文怎么分词、记忆怎么从对话里提炼、为什么用标记替换而不是追加、以及「不接向量库」到底损失了什么。
+<hr>
+<h2>参考</h2>
+<ul>
+<li><code>agent/src/agent.rs</code>：<code>compact_with</code>、<code>summarize_messages</code>、<code>system_content</code>、<code>replace_messages</code></li>
+<li><code>agent/src/llm.rs</code>：<code>summarize</code></li>
+<li><code>agent/src/prompt.rs</code>：<code>system_prompt</code>、<code>project_docs</code>、<code>MAX_PROJECT_DOCS</code></li>
+<li><code>agent/src/memory.rs</code>：<code>INJECT_TOP_K</code>、<code>INJECT_CHAR_BUDGET</code>、<code>render_block</code>、<code>set_block</code></li>
+<li><code>agent/src/tools/mod.rs</code>：<code>Ctx.max_output</code>、<code>dispatch</code>、<code>clamp</code></li>
+<li><code>agent/src/tools/fs.rs</code>、<code>search.rs</code>、<code>shell.rs</code>、<code>tasks.rs</code>、<code>web.rs</code>：各工具的输出上限</li>
+<li><code>agent/src/skills.rs</code>：<code>MAX_BODY_CHARS</code>、<code>listing</code></li>
+</ul>
+
+仓库：<code>D:\NanoHermes</code>（Rust 2021，<code>agent</code> crate 无 async 运行时）]]></content:encoded>
+    </item>
     <item>
       <title>01 Agent 的本质：一个两百行的循环</title>
       <link>https://zhoujungis.github.io/article/agent-loop-two-hundred-lines/</link>
@@ -4235,681 +6094,6 @@ Roadmap 优先级：终端详情视图补完 → 真实 LLM smoke test → Celer
       <category>安全</category>
       <category>开源</category>
       <category>逆向工程</category>
-      <content:encoded><![CDATA[<blockquote>
-
-适用读者：想搞清楚"REA 到底能不能用"的工程师；在评估"要不要把逆向能力接进自己的 Agent 流水线"的团队
-结论先行：REA 不是一个反编译器，而是<strong>把已有逆向引擎编排给 Agent 的中间层</strong>。它的价值在"证据"，不在"魔法"
-阅读时间：约 40 分钟 | 难度：中高级 | 收获：一份三层架构与证据模型的技术拆解 + 一份能力矩阵 + 一份避坑清单 + 一个关于"软件壁垒还剩几层"的判断
-</blockquote>
-
-<strong>目录</strong>
-<ul>
-<li>前言：2026 年 10 月的那一周</li>
-<li>REA 是什么：不是反编译器，是"翻译官"</li>
-<li>它的设计核心：证据契约</li>
-<li>核心技术一：三层架构——契约层、桥接层、引擎层</li>
-<li>核心技术二：一条结论是怎么被解剖的</li>
-<li>核心技术三：无损解析——数字与二进制字段怎么保真</li>
-<li>核心技术四：脱敏的"零改写"原则</li>
-<li>核心技术五：从抓包到路径模板的推断算法</li>
-<li>核心技术六：资源预算、快照与生命周期</li>
-<li>核心技术七：把目标里的文字当数据</li>
-<li>能力矩阵：它到底能拆什么</li>
-<li>三步上手：一句话装进你的 Agent</li>
-<li>四个官方案例：比参数更有说服力</li>
-<li>从抓包到 API 盘点：一条被低估的路</li>
-<li>边界与坑：上手前必须知道的六件事</li>
-<li>赛道辨壁垒：哪些还在收费，哪些已经开源</li>
-<li>REA 爆红之后：软件壁垒分五层</li>
-<li>我的判断</li>
-<li>常见问题</li>
-<li>参考链接</li>
-</ul>
-<hr>
-<h2>前言：2026 年 10 月的那一周</h2>
-
-2026 年 10 月的第一周，GitHub 上出现了一次很不寻常的爬升。一个叫 <strong>REA（Reverse Engineer Anything，"逆向一切"）</strong> 的仓库从 10 月 4 日开始冲进 Trending，日增 Star 一路陡峭上扬：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>日期</th>
-<th>当日新增 Star</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>10 月 4 日</td>
-<td>1,373</td>
-</tr>
-<tr>
-<td>10 月 7 日</td>
-<td>5,602</td>
-</tr>
-<tr>
-<td>10 月 9 日</td>
-<td>19,375</td>
-</tr>
-<tr>
-<td>10 月 10 日</td>
-<td>26,572</td>
-</tr>
-<tr>
-<td>10 月 11 日</td>
-<td>31,255</td>
-</tr>
-</tbody>
-</table></div>
-
-（数据来自 Trendshift 的日度追踪，见文末参考链接。）仓库 <code>morluto/rea</code> 实际创建于 2026 年 4 月，沉寂了半年，10 月第一周突然放量：10 月 12 日突破 11.5 万 Star、2.5 万 Fork；10 月 13 日有报道称已达 15.7 万 Star、3.6 万 Fork。<strong>不同来源在不同时间点抓到的数字并不一致，这本身就是"它还在涨"的证据</strong>——要看准确值，以 GitHub 仓库页面为准。
-
-它的官网首页只有一句话：
-<blockquote>
-
-<strong>See a feature you like. Understand how it works, down to the binary level.</strong>
-（看到某个功能，理解它的工作原理——一直到二进制层面。）
-</blockquote>
-
-围绕它的连锁反应更夸张。有开发者把 Adobe 全家桶逆向后用 Rust 重写并开源，有人把 Office 2003 搬进了浏览器，还有人拿它逆向自家智能马桶、让 Codex 帮忙写了个控制 App。AI 博主 Matthew Berman 在 10 月 8 日发了一条推，正文只有一句：<strong>"Reverse Engineer Anything 😂 Software is done."</strong>
-
-热度归热度。这篇文章想聊的是热度之外的三个问题：<strong>它到底是什么、它做对了什么、以及它改变不了什么。</strong>
-<hr>
-<h2>REA 是什么：不是反编译器，是"翻译官"</h2>
-
-先说最容易被误解的一点：<strong>REA 自己不是一个反编译器，它内部也不含反汇编器和调试器</strong>。
-
-它的真实身份是一个<strong>给编程助手（Agent）用的逆向工具编排层</strong>——一个本地运行的 MCP Server（Model Context Protocol 服务器），外加同名的 CLI 工具和一套调查报告式的流程说明。整条链路是这样跑的：
-<ol>
-<li>你用自然语言对编程助手说："帮我看看 Windows 计算器为什么 <code>200 + 10%</code> 等于 <code>220</code>。"</li>
-<li>助手通过 MCP 调用 REA 的工具；</li>
-<li>REA 在本地拉起 Hopper / Ghidra / IDA 等分析引擎，读取目标程序，把伪代码、汇编、字符串、符号、调用关系<strong>连同证据</strong>一起返回；</li>
-<li>助手基于这些证据解释行为，或者直接帮你重写一份。</li>
-</ol>
-
-官方把设计哲学概括成三步闭环：<strong>拆解（REA 取证）→ 讲清（助手解释）→ 照着重做（实现 + 测试验证）</strong>。
-
-和"输入软件、输出源码"的魔法叙事不同，REA 的文档反复强调两条克制的边界：
-<ul>
-<li><strong>它不承诺还原原始源码。</strong> 反编译伪代码是<strong>重建</strong>：编译器优化会抹掉并改写信息，符号会被剥离，动态行为可能永远含糊。官方明确表示不主张"恢复原始源代码"或"自动克隆应用"。</li>
-<li><strong>"证据不全，不等于没有差异"</strong>（incomplete evidence never implies equivalence）。每一次工具调用都会留下一条确定性的证据记录：产物摘要、提供者身份、置信度、权威性、局限说明、代码位置。分析中没能弄清的部分，会被作为"<strong>残留未知项</strong>"（residual unknowns）<strong>显式保留并追踪</strong>，而不是悄悄丢掉。</li>
-</ul>
-
-第二条才是 REA 和"给 Ghidra 套个壳"的本质区别。
-<hr>
-<h2>它的设计核心：证据契约</h2>
-
-学术界早就指出过 LLM 做逆向的通病：<strong>会幻觉、难以复现、缺乏对机器级语义的扎根</strong>。McGill 大学与加拿大国防研究部门的一篇知识体系化论文（综述了 44 篇论文、18 个用大模型做逆向的开源项目）给出的结论是：这类系统普遍"看起来懂了，其实没扎根"。
-
-REA 的对策不是把模型换得更强，而是<strong>逼 Agent 把作业写完整</strong>：
-<ul>
-<li>每个结论都要挂上它的来源：文件摘要、字节区间、抓包 JSON 指针；</li>
-<li>模型没查清的部分必须写成"未知项"，而不是填一个像模像样的答案；</li>
-<li>静态分析与动态观测严格分家——<strong>看静态代码</strong>和<strong>看运行行为</strong>是两套工具、两套权限。</li>
-</ul>
-
-这里必须提<strong>信任模型</strong>：所有分析都在<strong>本地</strong>跑，目标软件不会上传到任何托管服务。但要注意，反编译得到的代码会进入你所使用模型的上下文——<strong>模型供应商有自己的数据政策</strong>。
-
-一句话总结这一节：REA 的核心资产不是"能拆多少种格式"，而是那套<strong>可追溯、可复现、承认未知</strong>的证据模型。
-<hr>
-<h2>核心技术一：三层架构——契约层、桥接层、引擎层</h2>
-
-REA 的代码结构可以拆成三层，理解这三层就理解了它 90% 的技术含量。
-
-<strong>第一层：契约层（MCP Server + CLI）。</strong> 关键设计是<strong>一个应用内核，两种入口</strong>。CLI 和 MCP 跑的是<strong>同一套 application workflow、同一套证据契约</strong>——命令名只是两种拼法：MCP 侧叫 <code>inspect_web_network_capture</code>，CLI 侧叫 <code>inspect-web-network-capture</code>。完整清单是一份<strong>自动生成的 catalog</strong>（仓库里的 <code>product-catalog.json</code>）。
-
-还有一个容易被忽略的工程决策：<strong>输入校验发生在应用边界，而不是工具入口各自实现一遍</strong>。SDK 通过 Standard Schema 接口拿到<strong>原始参数</strong>，再由应用统一校验——这样"显式敏感值声明"这类参数能顺带覆盖非法参数名等修正细节；而<strong>协议信封（JSON-RPC envelope）的校验权仍归 MCP SDK</strong>。这条分界线避免了"同一个参数在两处校验、语义不一致"的经典问题。
-
-<strong>第二层：桥接层（Provider bridge）。</strong> 这是 REA 真正在写的那部分代码：
-<ul>
-<li><strong>Ghidra</strong>：通过一个<strong>认证过的本地 socket</strong> 桥接驱动 Ghidra 的 <strong>headless</strong> 模式；</li>
-<li><strong>Hopper</strong>：REA 在操作需要时代为启动（macOS 上首次运行可能弹 demo/激活对话框，需要人工处理）；</li>
-<li><strong>IDA</strong>：走独立的适配层，可选启用原生 MCP 桥；</li>
-<li><strong>JEB</strong>：<strong>不自带头</strong>，通过 <code>REA_JEB_MCP_URL</code> 接入<strong>调用方自己启动</strong>的 JEB MCP 服务。</li>
-</ul>
-
-<strong>会话是有状态的</strong>：<code>open_binary</code> 时传入的 <code>provider_id</code> 会<strong>绑定在这个会话上</strong>，直到显式切换或关闭；也可以用 <code>REA_ANALYSIS_PROVIDER</code> 设一个常驻偏好，再用 <code>--provider</code> 临时覆盖。没有显式指定时，如果<strong>只有一个</strong> provider 支持该目标就自动用它；<strong>多个</strong>才要求你选；选不出来返回 <code>ambiguous</code>，并给出 <code>details.candidate_ids</code> 让你挑。
-
-长任务的处理也很实在：会话通过 <code>analysis_activity</code> 上报<strong>仍在进行的工作</strong>；客户端等待超时，<strong>不代表 provider 停了</strong>，它可能还在分析；<code>cleanup_incomplete</code> 会点出那些"关闭或清理无法被确认"的资源。冷启动的 Ghidra 第一次查询也给了两条逃生通道：<code>REA_GHIDRA_STARTUP_TIMEOUT_MS</code> 与 <code>REA_HOPPER_STARTUP_TIMEOUT_MS</code> 放宽启动死线。
-
-<strong>第三层：引擎层。</strong> Hopper / Ghidra / IDA / JEB，外加 pwntools、pwndbg、JADX、adb、Apktool、Binwalk / Unblob、TShark、sigrok-cli、WABT、LLDB、mitmdump 等。这一层 REA <strong>什么都不打包、什么都不授权</strong>，只用你已经合法拥有的东西。
-<hr>
-<h2>核心技术二：一条结论是怎么被解剖的</h2>
-
-REA 最有价值的设计在这层。<strong>产出证据的工具，会同时返回"完整的规范证据记录"</strong>，文本与结构化内容各一份：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>字段</th>
-<th>含义</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>structuredContent.normalized_result</code></td>
-<td>操作结果本身</td>
-</tr>
-<tr>
-<td><code>structuredContent.evidence_id</code></td>
-<td>这条证据的身份标识</td>
-</tr>
-<tr>
-<td><code>structuredContent.raw_result</code></td>
-<td>上游 provider 的原始表示（<strong>与结果区分开</strong>，没有时为 <code>null</code>）</td>
-</tr>
-<tr>
-<td><code>structuredContent.analysis_profile</code></td>
-<td>分析档案；<strong>必填</strong>——缺这个字段的记录直接被拒绝，而且它参与"语义身份"计算</td>
-</tr>
-</tbody>
-</table></div>
-
-一句规范化的证据记录，按文档定义包含四类东西：<strong>产物身份</strong>（artifact identity）、<strong>源码位置</strong>（source locations）、<strong>观测</strong>（observations）、<strong>推断</strong>（inferences），以及<strong>未解决问题</strong>（unresolved findings）。CLI 侧对应三个命令：<code>evidence-import</code> 校验既有证据包、<code>evidence-export</code> 导出规范形式、<code>compare</code> 比较两份证据包。
-
-这里有个很实用的性质：<strong>证据可以直接喂给比较工具</strong>。<code>analyze_function</code> 的证据能直接交给 <code>compare_functions</code>，<code>inspect_artifact</code> 的证据能直接交给 <code>compare_artifacts</code>。也就是说，"拆开 A 的某函数"和"拆开 B 的某函数"之后做的<strong>差异分析</strong>，是建立在同一份证据格式上的。
-
-<strong>未知项是有台账的。</strong> <code>list_unknowns</code> 默认返回所有当前未知项，也可以用 <code>offset</code> / <code>limit</code> 分页，跟 <code>next_offset</code> 翻到底；<code>total</code> 是总数；<strong>每页保持稳定的未知项 ID 顺序</strong>——不过它反映的是会话当前状态，所以遍历期间最好别动台账。
-
-<strong>调用图不给你假的安全感。</strong> <code>get_call_graph</code> 返回按遍历深度分键的 <code>graph</code>，外加一个顶层 <code>limitations</code> 数组（去重后的执行注意事项）；每个节点各自带<strong>关系覆盖率</strong>和<strong>该次读取特有的限制</strong>，以及观测到的 <code>calls</code>。文档写了一句很重要的话：
-<blockquote>
-
-<strong>空的调用列表 + 部分或未知的覆盖，并不能证明这个函数没有调用。</strong>
-</blockquote>
-
-<code>trace_call_path</code> 同理：每一次"受限展开"都会写进 <code>residual_unknowns</code> 并把 <code>truncated</code> 置真；只有当<strong>遍历真的穷尽且没有未解析的关系读取</strong>时，才敢报 <code>not_reached</code>；存在未解析展开却没达到目标，答案就是 <code>unknown</code>——<strong>宁可说不知道。</strong>
-<hr>
-<h2>核心技术三：无损解析——数字与二进制字段怎么保真</h2>
-
-抓包分析这类活儿，最容易死在"解析器把原文改坏了"。REA 在这块的技术选择相当硬核。
-
-<strong>HAR 解析是一条锁定了依赖版本的流水线</strong>：<code>har-schema@2.0.0</code> 的 draft-06 schema、<code>ajv@8.20.0</code>、<code>ajv-formats@3.0.1</code>、<code>jsonc-parser@3.3.1</code> 作为 JSON 访问器、<code>lossless-json@4.3.1</code> 负责数字表示——全部 pin 在 npm lockfile 里。<strong>只支持 HAR 1.2 profile</strong>；未知扩展保留为"被报告的"证据，而不是被丢掉。
-
-<strong>数字不走浮点。</strong> <code>numeric_literals</code> 保留 HAR 的<strong>数字词法</strong>与原生整数/浮点表示，包括<strong>不安全整数</strong>（超出 JS 安全整数范围）和<strong>非有限的原生浮点</strong>。无法安全表示为 JSON 数字的值，在展示视图里是 <code>null</code>；不标准但落在标准字段上的不安全数字<strong>直接判 schema 校验失败</strong>，而扩展里的不安全数字通过 sidecar 保留。
-
-<strong>二进制字节和声明大小脱钩。</strong> <code>binary_fields</code> 三者独立保留：<strong>暴露的字节、base64、SHA-256</strong>，互不推导。合法的 <code>content.encoding: "base64"</code> 会被精确解码；但 <strong>producer 已经解码过的 Unicode 文本、缺失的文本、未知编码，都不能用来确立原始 body 字节</strong>。原生字节字段在合法时另有一份精确的 UTF-8 展示视图。<strong>"缺失内容"和"空内容"永远是两回事。</strong>
-
-<strong>恶意/畸形 JSON 也有对付办法。</strong> 重复的对象键（<strong>包括值相等和转义写法的</strong>）在 materialization 之前就被拒绝；以原型链属性名命名的键（比如 proto 的双下划线写法）按<strong>普通 own 成员</strong>保留，<strong>不做原型污染</strong>。原始抓包文件<strong>永不被修改</strong>。
-<hr>
-<h2>核心技术四：脱敏的"零改写"原则</h2>
-
-几乎所有工具做脱敏都会<strong>替换</strong>——把 token 换掉、给字段套上星号占位符。REA 明确反着来，理由很值得学：
-<blockquote>
-
-<strong>用替换标记做脱敏，会让被声明的字面量又出现在结果里。</strong>
-</blockquote>
-
-所以它的规则是"<strong>整字段置 null，不写替代文本</strong>"：
-<ul>
-<li>显式声明走 MCP 的 <code>sensitive_values</code>，或 CLI 重复的 <code>--sensitive-value</code>；<strong>这些声明不会被持久化进 Evidence 参数</strong>，只保留一个计数；</li>
-<li>命中的<strong>文本或 UTF-8 字节值</strong>，会把<strong>整个字段</strong>替换为被报告的 <code>null</code>，而不是塞一个标记进去；</li>
-<li><strong>摘要也一起排除</strong>：被 redact 的字节字段<strong>既不保留原始字节，也不保留摘要</strong>；如果连文件摘要本身都被显式排除，那么 <code>artifact.sha256</code> 与 Evidence 的 <code>subject</code> 都置 <code>null</code>，并附上解释；</li>
-<li><strong>属性名级</strong>的排除（<code>scope: "property-name"</code>）会指向它<strong>真实的父节点</strong>，<strong>不发明</strong>替代属性名或子指针；</li>
-<li>header 与 cookie 的认证值、已知的 URL userinfo 是<strong>结构性排除</strong>（包括原生备份）；那些"没有安全 raw span 可切"的凭据写法（比如缺斜杠或多余的斜杠拼出来的 HTTP URL）会被<strong>整个传输字段</strong>排除。</li>
-</ul>
-
-一句话：<strong>它宁愿给你一个空洞，也不给你一个假的。</strong>
-<hr>
-<h2>核心技术五：从抓包到路径模板的推断算法</h2>
-
-把保留的抓包证据交给 <code>inspect_analysis_view</code>，<code>view</code> 形如：
-<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;api-surface&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;offset&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">}</span>
-</code></pre></div>
-
-
-它就按 <strong>HTTP 方法 + WHATWG 定义的 URL origin + 路径模板</strong>给请求分组，并按 origin、模板、方法排序。<strong>query、fragment、凭据、header、body 都不会被复制进分组</strong>。四条模板规则是精确的：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>规则</th>
-<th>分段的确切格式</th>
-<th>占位符</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>numeric</code></td>
-<td>只含 ASCII 数字</td>
-<td><code>{numeric}</code></td>
-</tr>
-<tr>
-<td><code>uuid</code></td>
-<td>RFC 9562 文本 UUID，任意版本，大小写不敏感</td>
-<td><code>{uuid}</code></td>
-</tr>
-<tr>
-<td><code>hex</code></td>
-<td>至少 32 位十六进制数字</td>
-<td><code>{hex}</code></td>
-</tr>
-<tr>
-<td><code>iso-date</code></td>
-<td>合法的 <code>YYYY-MM-DD</code> 日历日期</td>
-<td><code>{iso-date}</code></td>
-</tr>
-</tbody>
-</table></div>
-
-规则按表顺序作用在<strong>"记录中仍然处于编码状态的请求路径"</strong>上，而且是在 <strong>WHATWG 移除 dot-segment 之前</strong>读取的。这一条很关键：
-<blockquote>
-
-<code>/a/%2e%2e/admin</code> 和 <code>/admin</code> 会被<strong>保持为不同的路径</strong>。
-</blockquote>
-
-（很多实现会先把路径规范化再匹配，结果这两条混成一条，模板就错了。）分段索引从<strong>去掉前导斜杠之后的第 0 段</strong>开始；每个匹配到的分段会列出它<strong>观测到的字面量</strong>，并标注 <code>basis: "inferred"</code>——<strong>明说是推断。</strong> 版本前缀、短的不透明 ID、带数字的路由名<strong>保持字面量</strong>，不做过度模板化。合并的条件很严：<strong>方法、origin、精确分段规则三者全同</strong>才合并；不做进一步跨样本的模式推断。
-
-<strong>它明确不做的事</strong>：不做 handler 身份断言、不做 schema 断言、不做因果断言，也不产生任何网络活动。
-
-<strong>不知道怎么归类就归到"未知"</strong>：null URL 记为 <code>url-redacted</code>；无法解析的、没有 origin 的、缺 <code>scheme://authority</code> 的（例如 <code>https:host/path</code>）、authority 里带 tab 或换行的，记为 <code>url-unparseable</code>；HAR 的 <code>status: 0</code> 与空 <code>mimeType</code> 一律<strong>保持未知</strong>，不发明状态码和 MIME。请求对象或方法缺失的，<strong>显式排除</strong>。
-
-还有一个"拒绝执行"的细节值得单独说：如果父证据是用 <code>sensitive_values</code> 检查过的，或者它的证据里<strong>没有记录</strong> <code>sensitive_value_count</code>，这个视图会直接返回一个类型化错误，规范 token 是：
-<div class="codehilite"><pre><span></span><code>sensitive_values_unretained
-</code></pre></div>
-
-
-<strong>理由</strong>：这个视图要写出路径模板和限制说明文本，而那些文本<strong>无法与父级没有保留的声明核对</strong>——所以它拒绝执行，而不是猜。这是我在开源工具里见过最克制的一种错误处理。
-<hr>
-<h2>核心技术六：资源预算、快照与生命周期</h2>
-
-REA 对"内存和超时"的态度，比大多数 CLI 工具严肃得多。
-
-<strong>完整证据的预算是写死的</strong>：32 MiB 输入、96 MiB 解码回复、64 层嵌套；<strong>任何一项超限都不返回"部分成功"。</strong> API 面投影另有一个 96 MiB 的表示预算：整组或一次合并<strong>先准入、再分配</strong>保留集合；每条记录的预留用完即释放；<strong>只 materialize 你请求的那一页</strong>。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>环节</th>
-<th>限额</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>HAR 解码</td>
-<td>自有 192 MiB Node old-generation heap + 1 个 V8 worker（<strong>继承的 <code>NODE_OPTIONS</code> 不能提高它</strong>）</td>
-</tr>
-<tr>
-<td>Windows 上的解码进程</td>
-<td>Job Object 把提交内存限到 704 MiB（192 + 512 预留）</td>
-</tr>
-<tr>
-<td>原生解码（Linux）</td>
-<td>768 MiB 地址空间、30 秒 CPU、96 MiB 文件输出</td>
-</tr>
-<tr>
-<td>两个命令的墙钟</td>
-<td>30 秒 deadline + 独立监督的进程清理</td>
-</tr>
-<tr>
-<td>自有解码器诊断</td>
-<td>stdout 与 stderr 合计最多保留 1 MiB，溢出即丢并报告</td>
-</tr>
-</tbody>
-</table></div>
-
-<strong>MCP 传输层同样有预算。</strong> stdio 客户端有 <strong>10 MiB 接收缓冲</strong>（要同时装 text 与 structured 两份表示，还要给 JSON-RPC 信封留位置）。装不下就返回 <code>resource_constraint</code> 并标 <code>details.resource: "transport"</code>——但<strong>证据本身仍完整留在会话里</strong>：<code>details.reported_limits.evidence_reference</code> 可以拿去做 <code>inspect_analysis_view</code> 或 <code>export_evidence_bundle</code>。超大的原生函数证据还会顺手给出 <code>details.reported_limits.continuation</code>——一个<strong>现成可调用</strong>的分页请求。客户端缓冲更大的话，可以用 <code>REA_MCP_MAX_RESPONSE_BYTES</code>（必须是 ≥ 10485760 的安全十进制整数，REA 预留 1024 字节信封）对齐，<strong>但它在启动时捕获，改完要重启 server</strong>。
-
-<strong>快照（snapshot）是一层精确到字节的缓存。</strong> 复用条件是：<strong>目标字节、操作、参数、provider、设置全部匹配</strong>；<strong>变更类调用和依赖游标的调用不进缓存</strong>。快照是本地文件、<strong>owner-only 权限</strong>。CLI 的精确命中<strong>在启动 provider 进程之前</strong>就返回；MCP 侧 <code>open_binary</code> 接受 <code>snapshot_path</code> 做<strong>原子导入</strong>，<code>close_binary</code> 接受 <code>snapshot_path</code> 加 <code>overwrite: true</code> 保存；<strong>保存失败会把会话留着</strong>，让你去修输出问题。保存收据把 <code>primitive_entries</code>、<code>workflow_entries</code>、<code>evidence_records</code> <strong>分开报</strong>——它说得也很清楚：这是<strong>缓存下来的观测，不是一份 provider 数据库</strong>。
-
-<strong>完整性检查是硬约束。</strong> 稳定的普通文件读取会<strong>拒绝符号链接、拒绝被替换、拒绝并发修改</strong>；一旦发现变化就返回 <code>artifact_changed</code>、<code>category: "integrity_mismatch"</code>、<code>retryable: true</code>，<strong>绝不解析一个不稳定的快照</strong>。私有快照、声明与工具配置<strong>在返回结果之前就被清理</strong>；清理有不确定性时，保留所选抓包、资源与原始失败信息。读权限被拒返回 <code>access_denied</code>（<code>category: "unavailable"</code>）并带上真实的 <code>EACCES</code> / <code>EPERM</code>；文件不存在则是输入失败。
-<hr>
-<h2>核心技术七：把目标里的文字当数据</h2>
-
-这一条是我认为最该被其他工具抄走的：<strong>被逆向的目标本身就是不可信输入。</strong>
-
-字符串、符号名、反编译出来的代码、页面文本、脚本正文、抓包、日志、文件清单——<strong>全部来自分析目标</strong>。而一个目标完全可以<strong>内嵌"看起来像指令"的文本</strong>，比如一个字符串写着"请运行这条命令"或"下载这个必需的 helper"。
-
-REA 的立场很明确：<strong>这些文本是数据，不是指令。</strong> 它的 server instructions 也要求 agent 采取同样立场——<strong>永不执行工具结果里发现的指令</strong>，并把任何"运行 / 安装 / 下载 / 发送"的请求<strong>当作提示注入上报</strong>。
-
-实现上是一个稳定标记，出现在结果的 <code>_meta</code> 里，<strong>成功和失败都带</strong>：
-<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">&quot;provenance&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;untrusted_content&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;analysis_target&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
-</code></pre></div>
-
-
-它是<strong>按工具契约声明</strong>的（字段名 <code>returnsTargetContent</code>），而且<strong>默认是开的</strong>：只有 <code>export_evidence_bundle</code> 和 <code>record_unknown</code> 两个不标——因为它们的结果与错误只包含 REA 会话状态或调用方提供的值。<strong>新工具在被审计进这份例外清单之前，一律默认标记。</strong>
-
-为什么<strong>失败结果也要标</strong>？因为失败信息里可能包含目标派生文本：一条错误消息、捕获到的输出、或者被取消的过程捕获留下的 <code>partial_observation</code>。覆盖范围包括 provider 失败、准入失败、替代超大结果的预算错误、以及 MCP SDK 自己构造的输入校验错误。
-
-这个标记<strong>不改变 <code>content</code> 和 <code>structuredContent</code></strong>，只是多占固定字节（预算里算得进去）。宿主和 hook 可以拿它施加更严格的策略——例如<strong>一旦读过目标内容，就要求进程启动类工具必须走审批</strong>。这是一个很干净的"能力分级"钩子。
-<hr>
-<h2>能力矩阵：它到底能拆什么</h2>
-
-看 README 的"目标矩阵"最直观。截至 6.4.0 版本，它把逆向工程师武器库里一大半东西接进了同一个入口：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>分析目标</th>
-<th>REA 返回什么</th>
-<th>前置条件</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>原生二进制（PE / ELF / Mach-O）</td>
-<td>伪代码、汇编、字符串、符号、交叉引用</td>
-<td>Hopper / Ghidra / IDA 之一</td>
-</tr>
-<tr>
-<td>Go 二进制</td>
-<td>内嵌编译器版本、模块、替换项、构建参数</td>
-<td>无（内置静态检查）</td>
-</tr>
-<tr>
-<td>JavaScript / Electron</td>
-<td>模块、导入、source map、路由、IPC、原生插件关系</td>
-<td>只需 Node.js</td>
-</tr>
-<tr>
-<td>网站</td>
-<td>页面结构、脚本、网络观测、指定截图</td>
-<td>Chrome 系浏览器</td>
-</tr>
-<tr>
-<td>网络抓包（HAR / mitmproxy）</td>
-<td>请求、响应、暴露的载荷、源码位置</td>
-<td>HAR；Linux 原生抓包需 mitmdump</td>
-</tr>
-<tr>
-<td>.NET 程序集</td>
-<td>元数据、CIL 指令、声明的原生依赖、构建对比</td>
-<td>无（纯静态）</td>
-</tr>
-<tr>
-<td>Android APK</td>
-<td>Manifest 声明、类、反编译方法与引用</td>
-<td>无头 JADX + 完整 JDK</td>
-</tr>
-<tr>
-<td>Android 设备</td>
-<td>设备、包、进程、日志、dumps、截屏、文件传输</td>
-<td>调用方自备 adb</td>
-</tr>
-<tr>
-<td>Flutter 应用</td>
-<td>Dart 快照摘要、各 ABI 库摘要、引擎构建溯源</td>
-<td>无（静态解析 APK）</td>
-</tr>
-<tr>
-<td>固件</td>
-<td>区域划分、提取结果、向原生分析的移交</td>
-<td>Binwalk / Unblob（Linux）</td>
-</tr>
-<tr>
-<td>WASM</td>
-<td>校验、节、导入导出的精确 WAT 形式</td>
-<td>调用方自备 WABT</td>
-</tr>
-<tr>
-<td>EVM 字节码</td>
-<td>分发选择器、字节偏移、推断参数与可变性</td>
-<td>Linux x64 本地运行</td>
-</tr>
-<tr>
-<td>SQLite 数据库</td>
-<td>表、列、索引、视图、触发器及行数据</td>
-<td>本地库 / WAL 快照</td>
-</tr>
-<tr>
-<td>Linux 崩溃记录</td>
-<td>原始记录、各线程寄存器与信号、映射候选</td>
-<td>pwntools，可选 GDB / pwndbg</td>
-</tr>
-<tr>
-<td>离线 ELF 布局</td>
-<td>节段、原始符号与重定位、静态缓解措施候选</td>
-<td>Linux x64 + pwntools</td>
-</tr>
-<tr>
-<td>数据包记录</td>
-<td>字段、重复值、过滤器、解码规则</td>
-<td>TShark 4.x</td>
-</tr>
-<tr>
-<td>逻辑信号记录</td>
-<td>解码器注解、采样范围、诊断</td>
-<td>sigrok-cli</td>
-</tr>
-<tr>
-<td>进程行为</td>
-<td>终端输出、交互、退出与文件系统观测、运行对比</td>
-<td>Linux / macOS + PTY</td>
-</tr>
-<tr>
-<td>Apple 应用包</td>
-<td>文件清单、摘要、plist、Bundle 结构、提取资源</td>
-<td>无</td>
-</tr>
-</tbody>
-</table></div>
-
-还有两个"活"的通道，权限设计得很保守：
-<ul>
-<li><strong>浏览器与运行时观测</strong>：走 Chrome DevTools Protocol，<strong>默认关闭</strong>，需要回环端点 + 显式批准的页面来源，<strong>纯被动</strong>——不执行 JS、不导航、不点击；查询参数、凭据、Cookie 和存储内容一律不保留。</li>
-<li><strong>Node / Electron 的 V8 Inspector 观测</strong>：只发两条启用消息，记录脚本位置和执行上下文的生命周期。<strong><code>require</code> / <code>import</code> 边、EventEmitter 活动、Electron IPC 被明确列为"未知"，而不是默默推断。</strong></li>
-</ul>
-
-据第三方整理，REA 暴露了约 <strong>41 个原生检查工具与 14 套调查流程</strong>，覆盖 Mach-O / ELF / PE、.NET、Electron、网站与 Android APK，全部在本地执行。
-<h3>版本节奏：快得离谱，也是一种风险</h3>
-
-REA 的迭代速度本身就是一道风景线：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>版本</th>
-<th>时间</th>
-<th>主要内容</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>3.2</td>
-<td>10 月 3 日</td>
-<td>—</td>
-</tr>
-<tr>
-<td>4.0</td>
-<td>10 月 5 日</td>
-<td>—</td>
-</tr>
-<tr>
-<td>4.1.0</td>
-<td>10 月 6 日</td>
-<td>无头 JADX 的 APK 分析、Binwalk / Unblob 固件分析</td>
-</tr>
-<tr>
-<td>5.0</td>
-<td>10 月 7 日</td>
-<td>—</td>
-</tr>
-<tr>
-<td>6.0</td>
-<td>10 月 8 日</td>
-<td>离线 ELF 布局、崩溃记录、Windows x64 的 PE（实验性）、EVM、LLDB 观测、Mach-O dylib 解析</td>
-</tr>
-<tr>
-<td>6.1 – 6.4</td>
-<td>10 月 9 – 11 日</td>
-<td>密集修补</td>
-</tr>
-</tbody>
-</table></div>
-
-官方建议"保持更新，修 Bug 很勤"。但项目采用 <code>always-bump-minor</code> 策略——<strong>minor 版本也可能包含破坏性变更</strong>，6.2 的迁移文档就改了<strong>每一条 MCP 结果的形状</strong>。如果你要写脚本解析 REA 的 JSON 输出，<strong>请锁版本、读 changelog</strong>。
-<hr>
-<h2>三步上手：一句话装进你的 Agent</h2>
-
-REA 的安装被刻意做成了"一句话"级别。官网甚至直接告诉你：把下面这段话复制给编程助手就行——
-<blockquote>
-
-使用 <code>npx rea-agents setup</code> 安装 REA，并连接到这个编程助手。先展示安装计划，等我确认后再执行，然后验证安装结果。
-</blockquote>
-<h3>环境要求</h3>
-<ul>
-<li><strong>Node.js</strong>：<code>22.x</code>（<code>&gt;= 22.19</code>）、<code>24.x</code>（<code>&gt;= 24.11</code>）或 <code>26+</code>，外加 npm。<strong>注意 23 和 25 不在支持列表里。</strong></li>
-<li><strong>深度原生二进制分析</strong>：需要 Hopper、Ghidra 或 IDA 之一。静态 JavaScript、.NET、网站与抓包分析<strong>不需要任何原生引擎</strong>，有 Node.js 就够。</li>
-</ul>
-<h3>安装与配置</h3>
-<div class="codehilite"><pre><span></span><code>npx<span class="w"> </span>rea-agents<span class="w"> </span>setup
-</code></pre></div>
-
-
-这个命令做的事情很值得表扬：让你选择要接入的 Agent，打印将要发生的配置变更，<strong>确认默认是"否"</strong>，你批准后才写入；写入前自动备份现有配置，写入后再读回校验。支持 Claude Code、Claude Desktop、Codex、Cursor、Gemini CLI、Windsurf、GitHub Copilot CLI、VS Code、Grok Build 等主流助手，用 <code>--client</code> 选择。
-
-有个细节很能说明作者的性格：安装程序<strong>能检测到 Devin，但故意不配置它</strong>——因为 Devin 没有文档化的本地 MCP 边界。这种"有所不为"的克制在 Agent 工具里相当罕见。
-
-装好之后<strong>重启助手</strong>，然后就可以提问了。官方示例：
-<div class="codehilite"><pre><span></span><code>Understand how search works in the Notes app, show me the evidence,
-and build a similar feature for my project.
-</code></pre></div>
-
-<h3>不想配 Agent？直接用 CLI</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1"># 一次性分析某个 JS / Electron 应用目录或 ASAR</span>
-npx<span class="w"> </span>-y<span class="w"> </span>rea-agents@latest<span class="w"> </span>analyze-javascript-application<span class="w"> </span>/absolute/path/to/app<span class="w"> </span>--json
-
-<span class="c1"># 或者全局安装后日常使用</span>
-npm<span class="w"> </span>install<span class="w"> </span>--global<span class="w"> </span>rea-agents
-rea<span class="w"> </span>doctor<span class="w"> </span>--json
-rea<span class="w"> </span>--help
-</code></pre></div>
-
-
-CLI 和 MCP 跑的是<strong>同一套工作流</strong>，所以也可以脱离 Agent 写脚本做批量分析。
-<hr>
-<h2>四个官方案例：比参数更有说服力</h2>
-
-项目的 showcase 是它最诚实的宣传。有意思的是，这些案例全是<strong>范围很窄、可验证</strong>的问题，而不是"帮我重建整个 App"。
-
-<strong>案例一：Windows 计算器的 <code>%</code> 按钮。</strong> REA 读取 <code>calc.exe</code> 安装目录中的库，定位到百分比处理函数，还原出的可读摘要大致长这样：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">operation</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">multiply</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">operation</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">divide</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">percent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
-<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">percent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">previous</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-对应到行为上：<code>200 + 10%</code> 取的是<strong>第一个数</strong>的 10%（即 20），得到 220；而 <code>200 × 10%</code> 则把 10% 变成 0.1，结果是 20。助手还对照微软公开源码里的运算符 ID 定义（<code>IDC_MUL 92</code>、<code>IDC_DIV 91</code>、<code>0x64 = 100</code>）来给还原出的分支命名——<strong>用公开源码交叉验证逆向结论</strong>，这正是 REA 推崇的工作方式。
-
-<strong>案例二：Chrome 小恐龙游戏。</strong> REA 通过本地调试连接读取页面实际运行的 <code>index.js</code>，挖出三条参数：起始速度 6、加速度 0.001、速度上限 13。官方在受控环境里调用原版的更新函数验证：禁用障碍物和自动调度后，更新 4,000 次速度为 10.0，更新 10,000 次到达 13.0。然后把还原出的规则做成一个带速度滑块的教学版小游戏。
-
-<strong>案例三：DX-Ball 的音效声相（sound-pan）重建。</strong> 这是最硬核的一个：助手顺着一次声音调用追到"位置转声相"的辅助函数，检查 x86 指令，把不完整的伪代码补成 C 代码。<strong>最终重建版通过了 3,205 个原始 x86 测试用例，并逐字节复现了全部 63 个编译后的函数字节。</strong> 重建代码公开在 GitHub（<code>N0zoM1z0/dx-ball</code>）。
-
-<strong>案例四：Notion 的 Electron 剪贴板桥。</strong> 从渲染进程的 clipboard API 出发，经 preload 和 IPC 追进 Electron 主进程，读出富剪贴板格式。
-
-注意这个模式：<strong>它们都是"一个问题、一条数据通路、一个可验证的答案"</strong>。这也是今天 Agent 驱动逆向真正好用的边界。
-<h3>也有泼冷水的</h3>
-
-"重建整个 App"的 Demo 视频看着爽，产出的是"像那么回事"的东西。有早期评测拿 REA 与一个"裸 Agent"在简单的 Mac 应用上对比，<strong>发现差距并不大，而且 REA 那一轮更慢</strong>。价值出现在"问题具体 + 目标复杂"的地方——这是选择用不用它时最该记住的一句话。
-<hr>
-<h2>从抓包到 API 盘点：一条被低估的路</h2>
-
-如果你做后端、经常要"看懂别人家的接口"，REA 有一条非常实用的路径。
-
-它的 <code>inspect_web_network_capture</code> 工具离线读取 HAR 文件（Linux 上也支持原生 mitmproxy 抓包）。它有几个让人放心的设计：
-<ul>
-<li><strong>从不重放记录的 URL</strong>；</li>
-<li>校验每一条记录，保留请求与响应体<strong>及其摘要</strong>；</li>
-<li><strong>结构化地排除</strong>授权头、Cookie 和 URL 里的凭据，不让它们进入证据。</li>
-</ul>
-
-然后做一件 API 团队一看就懂的事：把保留下来的证据交给 <code>inspect_analysis_view</code> 的 <code>api-surface</code> 视图，REA 会<strong>按方法、来源和推断出的路径模板给请求分组</strong>——数字 ID 变成 <code>{numeric}</code>，UUID 变成 <code>{uuid}</code>，长十六进制串变成 <code>{hex}</code>，日期变成 <code>{iso-date}</code>；每一组都引用它来自哪些记录，并标出状态码或内容类型混杂的情况。
-
-文档说得很克制：这个视图<strong>不做任何 schema 或 handler 层面的断言，它是"推断出的清单"，不是 spec</strong>。
-
-但这份清单恰好是接下去的起点：把它导进接口管理工具（如 Apidog 的 HAR 导入流程），把 <code>{numeric}</code> 这类占位符<strong>升级成真正的路径参数</strong>，再开 mock、写断言、跑 CI。分工很清楚——<strong>REA 负责"读懂证据并解释"，接口平台负责"把证据变成契约"</strong>。
-<hr>
-<h2>边界与坑：上手前必须知道的六件事</h2>
-
-<strong>一、版本节奏是把双刃剑。</strong> 九天发了七个小版本，而且 <code>always-bump-minor</code> 意味着 minor 也可能是破坏性的。6.2 改了每条 MCP 结果的形状。<strong>解析它的 JSON 就锁版本。</strong>
-
-<strong>二、它是连接器，不是沙箱。</strong> 项目的安全政策明确写着：本地 provider 桥<strong>不构成沙箱</strong>，打开一个不受信任的二进制就是在<strong>你的用户权限下</strong>跑它的解析。分析不可信目标请放进隔离环境。
-
-<strong>三、平台限制很具体。</strong> Ghidra 在 Linux x64 上支持最完整；<strong>Windows 上的 PE 原生分析目前标为"实验性"</strong>；Hopper 没有 Windows 版本；固件提取、EVM、WASM 路径都是 Linux x64；原生 mitmproxy 解码要求 <strong>mitmdump 12.2.3（精确版本）+ Linux</strong>。
-
-<strong>四、法律责任仍在你自己身上。</strong> README 把用途限定为合法的研究、分析与重建，并声明<strong>授权责任在用户</strong>。<strong>复制竞品功能，在法律上和工具出现之前是同一个问题。</strong> 项目还不得不声明：它<strong>没有发行任何代币</strong>，任何同名币种都与它无关。
-
-<strong>五、它还很早。</strong> 超过 100 位贡献者，同时有 170 多个未处理的 issue 与 PR。文档很用心，但 showcase 路径之外要有遇到毛边的心理准备。
-
-<strong>六、它不是免费午餐的全部。</strong> 代码是 MIT、npm 包免费；但 Hopper 是<strong>收费的独立软件</strong>（有自己的授权），选它做原生分析要自己合法购买。REA <strong>不发放任何商业工具许可</strong>。
-<hr>
-<h2>赛道辨壁垒：哪些还在收费，哪些已经开源</h2>
-
-"逆向一切"之后，专业逆向软件还有护城河吗？要分开看——<strong>壁垒从来不在"能不能拆"，而在"拆完之后的质量、效率和法律空间"。</strong>
-
-<strong>仍然有壁垒的：</strong>
-<ul>
-<li><strong>IDA Pro / Hex-Rays 反编译器</strong>：商业授权，价格不菲，但面对重度优化的二进制，它的反编译可读性与函数还原质量至今仍是业界标杆。REA 可以驱动 IDA，但它不打包授权——<strong>工具的使用权本身就是第一道壁垒</strong>。</li>
-<li><strong>Hopper</strong>：macOS / Linux 的商业软件（有免费 demo），在 macOS 原生分析上体验最好。</li>
-<li><strong>JEB</strong>：Android / ARM 上的反编译与混淆对抗有独门优势，REA 通过 <code>REA_JEB_MCP_URL</code> 接入<strong>调用方自启</strong>的 JEB MCP。</li>
-<li><strong>反编译质量本身</strong>：加壳、虚拟化、重度混淆、JIT 的目标，"拆开"和"看懂"之间仍有巨大鸿沟。REA 的证据契约是在<strong>管理这道鸿沟，而不是消除它</strong>。</li>
-<li><strong>运行时观测的边界</strong>：浏览器观测默认关闭、需回环端点与显式批准、纯被动——这些限制是安全上的必要壁垒，也意味着"看动态行为"比"看静态代码"麻烦得多。</li>
-</ul>
-
-<strong>已经或可以完全开源的：</strong>
-<ul>
-<li><strong>REA 本身</strong>：MIT，编排层、证据模型、CLI、MCP 契约、流程说明全部公开。</li>
-<li><strong>反编译核心已经免费可得</strong>：Ghidra（NSA 开发、Apache 协议、<strong>免费</strong>）。REA 在 Linux 上通过认证过的本地 socket 桥接驱动 Ghidra 的 headless 模式——也就是说，<strong>在 Linux 上，"Agent + 完整反编译流水线"可以完全由开源软件组成，零授权成本</strong>。</li>
-<li><strong>整条外围链路早已开源</strong>：JADX（Android）、Binwalk / Unblob（固件）、TShark（抓包）、sigrok-cli（信号）、pwntools / pwndbg（ELF 与崩溃分析）、WABT（WASM）、mitmproxy、EVMole、Frida（动态插桩）。</li>
-<li><strong>连"前任"也都是开源的</strong>：REA 之前，GhidraMCP（2025 年 3 月）和 ida-pro-mcp（2025 年 3 月）已经把 Agent 接进了 Ghidra 和 IDA。<strong>REA 的差异不在创意，而在广度与打包</strong>：几十种引擎和格式一个安装搞定，外加证据与未知项管理。</li>
-</ul>
-
-一句话总结这道壁垒题：<strong>"把 Agent 接进反编译器"已经完全开源且零成本；仍然收费的，是商业反编译器在极端目标上的质量优势、商业授权本身、以及法律划定的使用空间。</strong>
-<hr>
-<h2>REA 爆红之后：软件壁垒分五层</h2>
-
-这是每个技术人都该问一遍的问题。我的答案是：<strong>会磨平一部分，而且是最容易赚钱的那部分；但磨不平的，恰恰是真正值钱的那部分。</strong>
-
-<strong>第一层：实现层的壁垒——正在快速磨平。</strong> "把一个功能做出来"曾经是核心竞争力所在：我知道怎么实现，你不知道。现在，只要功能跑在设备上，它就能被拆解、理解、重写。靠"我会做你不会做"吃饭的模式，寿命进入倒计时。
-
-<strong>第二层：工程质量层的壁垒——部分磨平。</strong> 逆向能拿到逻辑，但拿不到工程体系：测试覆盖率、CI/CD、灰度发布、容灾降级、性能调优的积累。Adobe 被逆向重写的替代版就是活样本——公开反馈是"还原了 90% 以上的使用体验，但工具对不准、画笔卡顿"。<strong>差的这 10%，是工程与规模堆出来的。</strong>
-
-<strong>第三层：规模与成本层的壁垒——不会磨平，反而被放大。</strong> AI 和开源让"从 0 到 1"变便宜，但让"从 1 到 100"的规模优势更值钱。这是个马太效应更强的时代，而不是更弱的时代。
-
-<strong>第四层：运营与数据层的壁垒——与逆向无关。</strong> 用户关系、品牌心智、渠道网络、需求洞察、产品节奏——这些不写在代码里。<strong>代码是快照，运营是河流</strong>：逆向你拿得到过去的代码，拿不到未来的迭代方向和"为什么做"。
-
-<strong>第五层：法律与产权层的壁垒——不是技术能磨平的。</strong> 恰恰相反，<strong>逆向技术越普及，这一层越会成为主战场。</strong>
-
-还有<strong>一个正在发生的新信号：逆向能力开始在二手交易平台上明码标价。</strong> 协议逆向、软件逆向、解包与脚本定制都成了可下单的服务。这意味着交付形态完成了三级跳：<strong>作品（破解版软件）→ 服务（代逆向）→ 工具（REA 这样的产品）</strong>。当一门手艺被公开定价，说明供给端已经足够充裕，稀缺性正在消失。当然市场还远未成熟——5,000 元的逆向服务和 4.56 元的流程代办摆在同一个搜索结果里，说明"逆向"在买家心智里还没有价格锚点。但参照开源工具替代商业软件的路径，<strong>这个锚点建立只是时间问题</strong>。
-<hr>
-<h2>我的判断</h2>
-
-把上面的分析收成三句话：
-<ol>
-<li>
-
-<strong>REA 值得关注，但它不是"软件的末日"。</strong> 它是一件<strong>打包得很好、边界写得很清楚</strong>的工具——把几十种已有引擎接到 Agent 面前，并且老老实实告诉你"哪部分没查出来"。<strong>这份克制本身就是它最值钱的部分。</strong>
-</li>
-<li>
-
-<strong>用它，就用在"具体的、可验证的"问题上。</strong> 一个函数的逻辑、一条 IPC 通路的走向、一份抓包暴露的接口清单——这些场景下它是真提效。"帮我重建整个应用"当成 Demo 看就行。
-</li>
-<li>
-
-<strong>真正被磨平的，是"实现"这一层的壁垒；真正被放大的，是规模、运营和法律这三层。</strong> 逆向工具在拆代码，但它拆不走"为什么做、为谁做、下一步往哪走"。<strong>产品最后的护城河，大概率就是商业化运营、规模成本、法律产权这三件事。</strong>
-</li>
-</ol>
-<hr>
-<h2>常见问题</h2>
-
-<strong>REA 免费吗？</strong> 代码是 MIT 协议，npm 包免费。但 Hopper 是收费产品，选它做原生分析要自己购买；Ghidra 免费。
-
-<strong>它会把我的 App 或二进制上传吗？</strong> 不会。分析在本地运行。但<strong>工具结果会发给你 Agent 所用的模型供应商</strong>，那边的数据政策归它管。
-
-<strong>一开始就必须装 Ghidra 或 IDA 吗？</strong> 不需要。JavaScript、Electron、.NET、网站和抓包分析都不需要额外引擎。<strong>只有原生二进制的深挖才要引擎。</strong>
-
-<strong>它能从流量里直接生成 OpenAPI 吗？</strong> 不能。它的 <code>api-surface</code> 是带路径模板的<strong>推断清单</strong>，不含 schema 断言。把它导进接口管理平台，那里的端点定义才能导出 OpenAPI。
-
-<strong>该不该现在就用？</strong> 如果你的问题是"某个函数怎么实现的""某条消息走哪条通路"，现在就值得试；如果目标是"照着重做一个完整产品"，先降低预期。另外：<strong>锁版本、读 changelog、在隔离环境里分析不可信目标。</strong>
-<hr>
-<h2>参考链接</h2>
-<ul>
-<li><a href="https://rea.tools/" rel="noopener noreferrer" target="_blank">REA 官网（rea.tools）</a></li>
-<li><a href="https://github.com/morluto/rea" rel="noopener noreferrer" target="_blank">REA 仓库：morluto/rea（GitHub）</a></li>
-<li><a href="https://github.com/morluto/rea/blob/main/docs/cli.md" rel="noopener noreferrer" target="_blank">docs/cli.md — CLI 与证据契约</a></li>
-<li><a href="https://github.com/morluto/rea/blob/main/docs/mcp-contracts.md" rel="noopener noreferrer" target="_blank">docs/mcp-contracts.md — MCP 运行时契约</a></li>
-<li><a href="https://github.com/morluto/rea/blob/main/docs/web-network-captures.md" rel="noopener noreferrer" target="_blank">docs/web-network-captures.md — 抓包证据与 API 面推断</a></li>
-<li><a href="https://github.com/morluto/rea/blob/main/docs/installation.md" rel="noopener noreferrer" target="_blank">docs/installation.md — 安装与 provider 配置</a></li>
-<li><a href="https://dev.to/hassann/what-is-rea-reverse-engineer-anything-the-mcp-server-that-hit-115k-github-stars-in-a-week-2hhn" rel="noopener noreferrer" target="_blank">What Is REA (Reverse Engineer Anything)? — apidog / dev.to</a></li>
-<li><a href="https://developer.cloud.tencent.com/article/2760825" rel="noopener noreferrer" target="_blank">一周 15 万 Star 的 REA 到底是个啥 — 腾讯云开发者社区</a></li>
-<li><a href="https://developer.aliyun.com/article/1770646" rel="noopener noreferrer" target="_blank">太猛了，一个月干到 15W+：REA 逆向工具 — 阿里云开发者社区</a></li>
-<li><a href="http://m.toutiao.com/group/7695299637465121315/" rel="noopener noreferrer" target="_blank">比 Jev 更爆火！逆向灭霸 REA 一天登顶 GitHub — 36 氪</a></li>
-<li><a href="https://www.eigent.ai/blog/rea-reverse-engineer-anything" rel="noopener noreferrer" target="_blank">REA (Reverse Engineer Anything): How Agents Decompile and Rebuild Apps — Eigent</a></li>
-</ul>]]></content:encoded>
     </item>
     <item>
       <title>【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</title>
@@ -5062,18 +6246,6 @@ CLI 和 MCP 跑的是<strong>同一套工作流</strong>，所以也可以脱离
       <category>LeetCode</category>
       <category>图</category>
       <category>拓扑排序</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</title>
-      <link>https://zhoujungis.github.io/article/lc-994-rotting-oranges/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/lc-994-rotting-oranges/</guid>
-      <pubDate>Mon, 12 Oct 2026 04:24:51 GMT</pubDate>
-      <description>题目 LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面细节先钉死：</description>
-      <category>算法</category>
-      <category>BFS</category>
-      <category>LeetCode</category>
-      <category>图</category>
       <category>面试</category>
     </item>
   </channel>
