@@ -1,0 +1,1224 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：已经让单个 agent 跑起来、现在想让它「分头干活」的人；被「四个子代理同时改同一个文件」坑过的人；想知道任务板和限流门到底该由谁持有的人 结论先行：多体的难点从来不是并行，而是 责任边界 ——任务板、限流门、工具上下文这三样东西是共享的，而提示词、消息历史、模型选择是个体的。NanoHermes 把这两组" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/agent-multiagent-subagents-board-and-gate/" />
+    <meta property="og:title" content="Agent 多体：子代理、任务板与限流" />
+    <meta property="og:description" content="适用读者：已经让单个 agent 跑起来、现在想让它「分头干活」的人；被「四个子代理同时改同一个文件」坑过的人；想知道任务板和限流门到底该由谁持有的人 结论先行：多体的难点从来不是并行，而是 责任边界 ——任务板、限流门、工具上下文这三样东西是共享的，而提示词、消息历史、模型选择是个体的。NanoHermes 把这两组" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/agent-multiagent-subagents-board-and-gate/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/agent-multiagent-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Agent 多体：子代理、任务板与限流" />
+    <meta name="twitter:description" content="适用读者：已经让单个 agent 跑起来、现在想让它「分头干活」的人；被「四个子代理同时改同一个文件」坑过的人；想知道任务板和限流门到底该由谁持有的人 结论先行：多体的难点从来不是并行，而是 责任边界 ——任务板、限流门、工具上下文这三样东西是共享的，而提示词、消息历史、模型选择是个体的。NanoHermes 把这两组" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/agent-multiagent-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>Agent 多体：子代理、任务板与限流 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bv_kuWZQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-22T15:24:03.982542+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 多体：子代理、任务板与限流","description":"适用读者：已经让单个 agent 跑起来、现在想让它「分头干活」的人；被「四个子代理同时改同一个文件」坑过的人；想知道任务板和限流门到底该由谁持有的人 结论先行：多体的难点从来不是并行，而是 责任边界 ——任务板、限流门、工具上下文这三样东西是共享的，而提示词、消息历史、模型选择是个体的。NanoHermes 把这两组","image":"https://zhoujungis.github.io/photos/agent-multiagent-cover.png","datePublished":"2026-10-22T15:24:03.982542+08:00","dateModified":"2026-10-22T15:24:03.982542+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/agent-multiagent-subagents-board-and-gate/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>Agent 多体：子代理、任务板与限流</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><div class="markdown-body"><blockquote>
+
+适用读者：已经让单个 agent 跑起来、现在想让它「分头干活」的人；被「四个子代理同时改同一个文件」坑过的人；想知道任务板和限流门到底该由谁持有的人
+结论先行：多体的难点从来不是并行，而是<strong>责任边界</strong>——任务板、限流门、工具上下文这三样东西是共享的，而提示词、消息历史、模型选择是个体的。NanoHermes 把这两组东西切得很清楚，但切完之后留了三个洞：防嵌套只挡了工具清单没挡执行、限流门不检查中断也不可重入、任务板跨会话不清空
+阅读时间：约 58 分钟 | 难度：进阶 | 收获：子代理的完整构造过程 + 任务板与限流门的实现细节 + 七个多体失效模式 + 七处可加固点
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：多体不是把主循环复制四份</li>
+<li>结论先行：三个共享对象与它们的责任边界</li>
+<li>一个子代理是什么：提示词、工具白名单、可选模型</li>
+<li>配置即契约：subagents.json 的形状</li>
+<li>按名字查找：不存在的子代理会发生什么</li>
+<li>子代理的工具清单是怎么裁出来的</li>
+<li>防嵌套只挡住了广告位，没挡住执行</li>
+<li>子代理内部为什么是串行的</li>
+<li>子代理继承了什么：sub_cfg 与父配置的差异面</li>
+<li>子代理不注入记忆，也不沉淀记忆</li>
+<li>子代理共享 Ctx：三个被忽视的副作用</li>
+<li>任务板：一个只追加的观测结构</li>
+<li>任务 id 是 agent-N：单调递增与跨会话累积</li>
+<li>结果预览 500 字符：板上是摘录，模型手里是全量</li>
+<li>duration 测的是哪一段时间</li>
+<li>门：一个手写计数信号量的四个细节</li>
+<li>排队也显示 running：登记发生在 acquire 之前</li>
+<li>门不检查中断：Ctrl-C 卡在等槽位</li>
+<li>门不重入：嵌套子代理可能自我死锁</li>
+<li>限流只限了并发数，没限请求速率</li>
+<li>重试风暴：四份退避曲线没有抖动</li>
+<li>fallback 模型：降级是静默的</li>
+<li>为什么是 4：一个常识上限的代价</li>
+<li>agent_list 会不会真的被模型用起来</li>
+<li>子代理的中间过程在终端里是静默的</li>
+<li>钩子分不出父子：没有 NANOHERMES_AGENT</li>
+<li>权限模式对多体的语义</li>
+<li>七个多体的失效模式</li>
+<li>怎么把多体测出来</li>
+<li>七处可以加固的地方</li>
+<li>小结：多体先要分清谁的责任</li>
+</ul>
+<h2>前言：多体不是把主循环复制四份</h2>
+
+把 agent 拆成多个角色的直觉通常是：既然一个循环能干活，那就跑四个循环。这个直觉在代码上很容易实现——起四个线程，每个线程一份消息历史，各自调工具，最后汇总。
+
+但它会立刻撞上三个问题：
+<ul>
+<li>四个子代理各自调 <code>edit_file</code> 改同一个文件，谁的改动算数</li>
+<li>每个子代理都想在终端上打印进度，输出会交叉成乱码</li>
+<li>如果每个子代理再派一个子代理，谁来保证不会指数爆炸</li>
+</ul>
+
+这三个问题的共同点是：<strong>它们不是并行问题，而是「什么东西该共享、什么东西该独立」的问题</strong>。改文件冲突是共享了文件系统；输出乱码是共享了 stdout；指数爆炸是共享了「派发能力」这件事却没有共享配额。
+
+NanoHermes 的做法是把多体拆成三块：子代理定义（配置层的契约）、任务板（观测层的共享状态）、限流门（资源层的配额）。前两块加起来不到两百行，第三块只有三十行。本文按「个体 → 共享 → 配额」的顺序把它们走一遍，然后专门拆解三处「切得不够干净」留下的洞。
+
+05 讲的是「几件事同时做」，06 讲的是「这些事能做什么」，07 要把两者合起来——当四个子代理同时跑、每个都能在你机器上执行命令时，责任边界画在哪里。
+<h2>结论先行：三个共享对象与它们的责任边界</h2>
+
+一次 <code>subagent</code> 调用的全貌：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层次</th>
+<th>对象</th>
+<th>归属</th>
+<th>子代理能用吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>个体</td>
+<td>系统提示词</td>
+<td><code>def.prompt</code>，每个子代理独立</td>
+<td>是自己的</td>
+</tr>
+<tr>
+<td>个体</td>
+<td>消息历史</td>
+<td>局部 <code>messages</code>，从零开始</td>
+<td>只装任务描述</td>
+</tr>
+<tr>
+<td>个体</td>
+<td>模型与采样参数</td>
+<td><code>sub_cfg</code>，可被 <code>def.model</code> 覆盖</td>
+<td>可以不同</td>
+</tr>
+<tr>
+<td>共享</td>
+<td>任务板 <code>board</code></td>
+<td><code>Ctx</code>，父代理持有</td>
+<td>读写，登记自己的任务</td>
+</tr>
+<tr>
+<td>共享</td>
+<td>限流门 <code>gate</code></td>
+<td><code>Ctx</code>，父代理持有</td>
+<td>必须拿许可</td>
+</tr>
+<tr>
+<td>共享</td>
+<td>工具上下文 <code>Ctx</code></td>
+<td>根路径、审批、沙箱、待办、后台任务、记忆目录</td>
+<td>全部共享</td>
+</tr>
+</tbody>
+</table></div>
+
+这张表最下面三行是本文的重点。共享本身是对的——如果每个子代理都有独立的待办清单，用户会看到五份互不相干的计划；如果每个子代理都有独立的后台任务表，<code>task_kill</code> 就变成了盲盒。但共享的代价是：<strong>子代理能做的破坏，不止是改文件，还包括改状态</strong>。
+
+判断一个多体实现是否健康，有个简单的问法：子代理能不能把父代理的状态搞乱？如果答案是能，那么这些状态应该被拆成「只读共享」和「可写独立」两份，或者至少加一层归属标记。
+<h2>一个子代理是什么：提示词、工具白名单、可选模型</h2>
+
+<code>SubAgentDef</code> 只有四个字段：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">SubAgentDef</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">prompt</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="sd">/// If non-empty, only these tools are available to the sub-agent.</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">allowed_tools</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="sd">/// Optional model override for this sub-agent.</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">model</span><span class="p">:</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这是一个很克制的设计。它没有给子代理独立的：
+- 迭代上限（继承父代理的 <code>max_iterations</code>）
+- 权限模式（继承）
+- 审批策略（继承）
+- 沙箱设置（继承）
+
+克制的好处是配置简单，坏处是「子代理」这个抽象比它看起来弱得多。它本质上是一个<strong>换了提示词、换了工具清单、可能换了模型的同一套 Agent</strong>——而不是一个受独立约束的新角色。
+
+<code>allowed_tools</code> 的语义要精确理解：注释写的是「只有这些工具对子代理可用」，但实现里它作用于<strong>给模型看的工具清单</strong>，不作用于执行期的权限检查。这个区别后面第 6、7 节展开。
+
+<code>model</code> 的语义同样要精确：它只改 <code>sub_cfg.model</code>，也就是只改发给模型 API 的那个模型名。它不改 <code>max_tokens</code>、不改 <code>temperature</code>、不改 <code>timeout_secs</code>。所以「用一个便宜模型跑子代理省钱」是成立的，但「用一个小模型限制子代理的输出长度」不成立——那要靠 <code>max_tokens</code>，而它没有暴露。
+<h2>配置即契约：subagents.json 的形状</h2>
+
+子代理定义从一个独立 JSON 文件加载，路径由 <code>--subagents</code> 指定：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;subagents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;reviewer&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You review Rust code for correctness and security. Read the diff, then list concrete defects with file:line.&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;allowed_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;read_file&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;list_dir&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;grep&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;glob&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;git_diff&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;verifier&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You run the test suite and report failures. Never modify source files.&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;allowed_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;run_command&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;read_file&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个加载细节值得注意。
+
+<strong>第一，<code>prompt</code> 是必填的，缺了就整体失败。</strong>
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">prompt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">spec</span>
+<span class="w">    </span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;prompt&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">p</span><span class="o">|</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span>
+<span class="w">    </span><span class="p">.</span><span class="n">ok_or_else</span><span class="p">(</span><span class="o">||</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;sub-agent `{name}` missing `prompt`&quot;</span><span class="p">))</span><span class="o">?</span>
+<span class="w">    </span><span class="p">.</span><span class="n">to_string</span><span class="p">();</span>
+</code></pre></div>
+
+
+<strong>第二，<code>allowed_tools</code> 是「没写就等于全给」。</strong>
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">allowed_tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">spec</span>
+<span class="w">    </span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;allowed_tools&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">a</span><span class="o">|</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">as_array</span><span class="p">())</span>
+<span class="w">    </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">arr</span><span class="o">|</span><span class="w"> </span><span class="n">arr</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">filter_map</span><span class="p">(</span><span class="o">|</span><span class="n">x</span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="p">.</span><span class="n">as_str</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">to_string</span><span class="p">())).</span><span class="n">collect</span><span class="p">())</span>
+<span class="w">    </span><span class="p">.</span><span class="n">unwrap_or_default</span><span class="p">();</span>
+</code></pre></div>
+
+
+空 <code>Vec</code> 在裁剪处被解释成「不限制」（见下节）。所以一份只写了 <code>prompt</code> 的子代理配置，拿到的是和主代理一样的全部能力。这和 06 里 <code>allowed_tools: []</code> 的语义陷阱是同一个方向——安全失败（fail closed）在这里表现为「你以为限制了，其实没有」。
+
+<strong>第三，加载失败只警告不退出。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">match</span><span class="w"> </span><span class="n">config</span><span class="p">::</span><span class="n">SubAgentDef</span><span class="p">::</span><span class="n">load_all</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">defs</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">subagents</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">defs</span><span class="p">;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">eprintln!</span><span class="p">(</span><span class="s">&quot;warning: sub-agents config {}: {e}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">display</span><span class="p">()),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+JSON 写错一个逗号，结果是「没有子代理」而不是「启动失败」。随后 <code>build_tools</code> 又靠 <code>subagents.is_empty()</code> 决定要不要挂 <code>subagent</code> 工具，于是模型看不到这个工具，用户看到的是「它好像不会委派」——而真正的原因（配置文件解析失败）只在被淹没的 stderr 警告里出现过一次。
+<h2>按名字查找：不存在的子代理会发生什么</h2>
+
+<code>subagent</code> 工具的两个参数是 <code>name</code> 和 <code>task</code>，都必填。名字查找是线性扫描：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">def</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span>
+<span class="w">    </span><span class="p">.</span><span class="n">cfg</span>
+<span class="w">    </span><span class="p">.</span><span class="n">subagents</span>
+<span class="w">    </span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">name</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="n">ok_or_else</span><span class="p">(</span><span class="o">||</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;unknown sub-agent `{name}`&quot;</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+
+
+失败路径是有价值的：错误会经 <code>finish_err</code> 记到任务板上，状态是 <code>failed</code>，预览里是那句 <code>unknown sub-agent</code>。也就是说模型可以自己发现「我记错了名字」。
+
+但它也有一个盲点：<strong>没有可发现性输入</strong>。<code>subagent</code> 工具的 JSON schema 里，<code>name</code> 只是一个 <code>string</code>，描述是「要调用的子代理名字」，没有任何 enum 或默认值列出可用名字。模型能知道有哪些子代理，唯一的途径是系统提示词里写了——而 <code>prompt.rs</code> 里根本没有拼装子代理名单这回事（<code>system_prompt</code> 只处理模式提示、persona、<code>AGENTS.md</code>）。子代理名字对模型是隐形的。
+
+实践中这意味着：要么用户在自己的 persona 里手写名单，要么模型只能靠猜。而猜错的成本是一次失败的 LLM 往返（它得先决定调用，拿到 <code>unknown sub-agent</code> 才知道错了，再猜一次）。
+<h2>子代理的工具清单是怎么裁出来的</h2>
+
+裁剪分三步，顺序不能换：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. 先拿父代理的完整清单（已经过权限模式和黑白名单过滤）</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">all_tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">build_tools</span><span class="p">();</span>
+<span class="c1">// 2. 如果子代理声明了白名单，按名字过滤</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">tool_list</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">def</span><span class="p">.</span><span class="n">allowed_tools</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">all_tools</span><span class="p">.</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">into_iter</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">filter</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">tname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="cm">/* ... name ... */</span><span class="p">;</span>
+<span class="w">            </span><span class="n">def</span><span class="p">.</span><span class="n">allowed_tools</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">any</span><span class="p">(</span><span class="o">|</span><span class="n">a</span><span class="o">|</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">tname</span><span class="p">)</span>
+<span class="w">        </span><span class="p">})</span>
+<span class="w">        </span><span class="p">.</span><span class="n">collect</span><span class="p">()</span>
+<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">all_tools</span><span class="p">.</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">()</span>
+<span class="p">};</span>
+<span class="c1">// 3. 排除 `subagent` 自己，防止无限嵌套</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">tool_list</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tool_list</span><span class="p">.</span><span class="n">into_iter</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="n">filter</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="cm">/* name */</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="s">&quot;subagent&quot;</span><span class="p">))</span>
+<span class="w">    </span><span class="p">.</span><span class="n">collect</span><span class="p">();</span>
+</code></pre></div>
+
+
+第一步是关键的：<strong>子代理的工具清单是父代理清单的子集</strong>。这意味着 06 里的五道闸门对子代理仍然有效——<code>plan</code> 模式下的子代理也拿不到 <code>write_file</code>，<code>disallowed_tools</code> 里的工具也一样不在。这一点比「给子代理独立的权限配置」要安全得多，因为它保证了子代理不可能比父代理更能干。
+
+第二步的匹配是精确字符串比较，没有通配。写 <code>"read_*"</code> 不会匹配 <code>read_file</code>——shim 一个也没有，就是字面量 <code>find</code>。这和 06 里钩子的 <code>matches()</code> 支持通配形成了对比：同一个配置体系里，两处匹配规则不同，是容易踩的。
+
+第三步用名字排除 <code>subagent</code>。这个做法在「防止模型看到这个工具」这个目标上是有效的，但它的作用域仅限于此（下节展开）。
+
+还有一个容易忽略的点：<code>agent_list</code> <strong>没有</strong>被排除。所以子代理可以看到任务板上所有任务，包括父代理自己的、以及兄弟们的结果预览。对「让子代理了解全局进度」这是优点；对「子代理被裁掉了大部分工具但仍能读到别人的产出」这是信息面被意外放宽——一个只允许 <code>read_file</code> 的审查子代理，可以通过 <code>agent_list</code> 看到另一个子代理的完整结果摘要（500 字符）。如果那个摘要里含敏感内容，<code>allowed_tools</code> 的限制就被绕过了。
+<h2>防嵌套只挡住了广告位，没挡住执行</h2>
+
+那行 <code>!= Some("subagent")</code> 的注释写得很明确：「防止无限嵌套」。它确实防住了最常见的一条路径：子代理看不到 <code>subagent</code> 工具，所以不会主动调用它。
+
+但它防的不是全部。理由在 <code>execute</code> 的检查链上：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">check_tool</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: {reason}&quot;</span><span class="p">);</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>check_tool</code> 查三样东西：模式封禁、黑名单、非空白名单。<code>subagent</code> 不在任何模式的 <code>blocked_tools</code> 里，也不在默认的黑名单里，而默认白名单是空的——所以<strong>执行期没有任何一层会拒绝 <code>subagent</code></strong>。拒绝只发生在「模型看不见它」这一步。
+
+于是只要模型输出里出现了一次 <code>"name": "subagent"</code> 的工具调用，链路就通了：<code>run_tool</code> 里的分支是纯字符串比较。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;subagent&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">sname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;name&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">n</span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">as_str</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;task&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">as_str</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_subagent</span><span class="p">(</span><span class="n">sname</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这种调用从哪来？
+<ul>
+<li>模型幻觉出一个不存在的工具名（少见，但 <code>subagent</code> 是它在父代理上下文里见过的名字，属于记忆污染）</li>
+<li>会话是从父代理继承的消息历史里恢复的，历史里有 <code>subagent</code> 的调用样例</li>
+<li>用户通过 MCP 或 persona 明确要求「即使工具清单里没有也试着调用」</li>
+</ul>
+
+第三条不成立——模型不会执行「清单外」的指令。但第二条成立：<code>replace_messages</code> 会把一份含 <code>subagent</code> 调用记录的会话装进来，模型看得见它曾经用过这个工具。这时候工具清单里没有它，模型的合规概率很高，但推不出必然。
+
+所以正确的说法是：<strong>防嵌套是一道「广告位过滤」，不是一道「执行期闸门」</strong>。要让它是闸门，应该在 <code>check_tool</code> 里加一条「子代理上下文禁止 <code>subagent</code>」，或者给 <code>Ctx</code> 加一个 <code>depth: usize</code> 并在 <code>run_subagent</code> 入口断言 <code>depth == 0</code>。后者更彻底：它同时防住了嵌套过深（比如允许两层、禁止三层）。
+<h2>子代理内部为什么是串行的</h2>
+
+子代理循环里，工具调用是一个 <code>for</code> 而不是 <code>thread::scope</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="o">..</span><span class="n">sub_cfg</span><span class="p">.</span><span class="n">max_iterations</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">llm</span><span class="p">::</span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sub_cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">tools</span><span class="p">,</span><span class="w"> </span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="p">{})</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
+<span class="w">    </span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">assistant_message</span><span class="p">(</span><span class="o">&amp;</span><span class="n">turn</span><span class="p">));</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// Execute sub-agent tool calls sequentially (sub-agents are bounded).</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">);</span>
+<span class="w">        </span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">call</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">out</span><span class="w"> </span><span class="p">}));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注释给的理由是「子代理是有界的」。这个理由站得住：父代理的并行是为了让四个不相关的工具调用重叠，而子代理的数量本来就被门限在 4，再往下并行会让实际并发数变成 4 × N，门的语义就失真了。
+
+但这个选择和 05 里讲的另一件事冲突：父代理的并行工具调用走 <code>thread::scope</code>，子代理串行。也就是说<strong>「同一套 <code>execute</code> 在两个不同的编排策略下被调用」</strong>。后果是 05 里那个「同文件并发 <code>edit_file</code> 丢失更新」的缺陷，在子代理内部不存在（串行天然不冲突），但父代理的四个并行子代理之间仍然存在——它们各自串行，四者并行，最后一起写同一个文件。
+
+换句话说，串行只消除了「一层内的冲突」，没有消除「跨层的冲突」。真正需要的是文件级锁或是「同一文件不允许两个子代理同时写」的调度约束。
+
+还有一处更细的差别：子代理循环里<strong>没有调用 <code>compact()</code></strong>。父代理每轮结束都会：
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="p">.</span><span class="n">compact</span><span class="p">();</span>
+</code></pre></div>
+
+
+子代理则是跑满 <code>max_iterations</code> 也不压缩。40 轮 × 每轮最多 20,000 字符的工具结果（<code>max_output</code>），最坏情况接近 800k 字符留在局部 <code>messages</code> 里——而父代理的预算是 120,000。子代理没有自己的预算，也没有借用父代理的。
+<h2>子代理继承了什么：sub_cfg 与父配置的差异面</h2>
+
+<code>sub_cfg</code> 是父配置的克隆，改动只有两处：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">sub_cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
+<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">def</span><span class="p">.</span><span class="n">model</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">sub_cfg</span><span class="p">.</span><span class="n">model</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="c1">// Sub-agents never stream (we want the full response to return).</span>
+<span class="n">sub_cfg</span><span class="p">.</span><span class="n">stream</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+</code></pre></div>
+
+
+完整差异表：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>子代理的值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>model</code></td>
+<td><code>def.model</code> 或父值</td>
+<td>唯一的能力差异点</td>
+</tr>
+<tr>
+<td><code>stream</code></td>
+<td>强制 false</td>
+<td>要完整响应</td>
+</tr>
+<tr>
+<td><code>max_iterations</code></td>
+<td>父值（默认 40）</td>
+<td>一个子代理可以跑满 40 轮</td>
+</tr>
+<tr>
+<td><code>temperature</code></td>
+<td>父值（默认 0.0）</td>
+<td>不可为子代理单独调</td>
+</tr>
+<tr>
+<td><code>max_tokens</code></td>
+<td>父值（默认 4096）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>timeout_secs</code></td>
+<td>父值（默认 120）</td>
+<td>单次请求超时</td>
+</tr>
+<tr>
+<td><code>max_retries</code></td>
+<td>父值（默认 2）</td>
+<td>重试次数</td>
+</tr>
+<tr>
+<td><code>permission_mode</code></td>
+<td>父值</td>
+<td>子代理不会比父代理更宽</td>
+</tr>
+<tr>
+<td><code>allowed_tools</code></td>
+<td>父值（<strong>不是</strong> <code>def.allowed_tools</code>）</td>
+<td>关键差异，见下</td>
+</tr>
+<tr>
+<td><code>hooks</code></td>
+<td>父值</td>
+<td>钩子对子代理生效</td>
+</tr>
+</tbody>
+</table></div>
+
+表里那个加粗的行是本文第二重要的发现：
+
+<strong>执行期的权限检查用的是 <code>self.cfg</code>，不是 <code>sub_cfg</code>。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">run_subagent_inner</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">);</span><span class="w">   </span><span class="c1">// &lt;- self.execute，内部用 self.cfg.check_tool</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>self.cfg.allowed_tools</code> 是父代理的允许列表。如果用户给它配了 <code>["read_file", "grep"]</code>，那么子代理的所有工具调用都会被这个列表卡住——包括那些在 <code>def.allowed_tools</code> 里明确允许的。反过来，如果父代理的 <code>allowed_tools</code> 是空的（默认），那么 <code>def.allowed_tools</code> 就<strong>完全不参与执行检查</strong>。
+
+结论要写清楚：<code>def.allowed_tools</code> 是一个「广告位过滤」，执行期真正生效的是父代理的 <code>allowed_tools</code>。两者叠加的效果是「交集，但只在对父代理收紧时收紧」。所以：
+<ul>
+<li>想让子代理只会读 → 靠 <code>def.allowed_tools</code>，工具清单里就没有写工具，模型基本不会去调</li>
+<li>想保证子代理不可能写 → 必须在 <code>check_tool</code> 层面收紧，而不是靠 <code>def.allowed_tools</code></li>
+</ul>
+
+05 里把这条记成了「子代理的 <code>allowed_tools</code> 不参与执行检查」，07 补上了另一半：它不仅不参与，还会被父代理的列表<strong>反向覆盖</strong>。
+<h2>子代理不注入记忆，也不沉淀记忆</h2>
+
+03 里讲过，父代理每一轮开头都会重检索记忆并整体替换系统消息里的注入块：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">user_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">content_text</span><span class="p">(</span><span class="o">&amp;</span><span class="n">content</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">memory_dir</span><span class="p">.</span><span class="n">clone</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">retrieve_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">);</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">set_memory_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">block</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+子代理没有这一步。它的消息向量是手搓的两条：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">messages</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span>
+<span class="w">    </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;system&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">def</span><span class="p">.</span><span class="n">prompt</span><span class="w"> </span><span class="p">}),</span>
+<span class="w">    </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;user&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">task</span><span class="w"> </span><span class="p">}),</span>
+<span class="p">];</span>
+</code></pre></div>
+
+
+于是子代理的视野里只有三样东西：自己的提示词、父代理给的任务描述、以及自己调工具的结果。它不知道用户上周提过什么偏好，也不知道这个仓库的历史约定。
+
+这个设计有两个真实的后果。
+
+<strong>第一，任务描述必须自包含。</strong> 父代理写 <code>task</code> 的时候，不能写「按之前说的那个方式改」——子代理看不到「之前」。它得把上下文压进 task 字符串里，而 task 字符串本身没有长度限制检查（<code>clamp</code> 只作用于工具返回值，不作用于入参）。一段 10k 字符的 task 会原样进到子代理的第一次请求里。
+
+<strong>第二，子代理的产出不会沉淀成记忆。</strong> <code>distill_memories</code> 只在父代理的 <code>run()</code> 收尾被调用：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">completed</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">memory</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">distill_memories</span><span class="p">(</span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">,</span><span class="w"> </span><span class="n">had_tools</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+子代理跑完不提炼。这是对的——否则四个子代理会各自往记忆库里塞四条近似的记录，而 03 里讲的去重阈值（12 字节）不足以合并它们。代价是：如果子代理是唯一看到某个关键结论的角色（比如它读了一个父代理没读的文件），那个结论只存在于它返回的那段文本里，父代理转述时可能丢细节。
+<h2>子代理共享 Ctx：三个被忽视的副作用</h2>
+
+<code>Ctx</code> 里的东西全部被父子共享，因为 <code>run_subagent</code> 走的是 <code>self.execute</code>，而 <code>self.ctx</code> 只有一个。三个副作用：
+
+<strong>副作用一：待办清单会被覆盖。</strong> <code>todo_write</code> 的实现是整体替换：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">replace</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">items</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Todo</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">guard</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">items</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">    </span><span class="o">*</span><span class="n">guard</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">items</span><span class="p">;</span>
+<span class="w">    </span><span class="n">render</span><span class="p">(</span><span class="o">&amp;</span><span class="n">guard</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+一个子代理写自己的三步步计划，父代理刚建的五步计划就没了。<code>MAX_ITEMS = 50</code> 也不能阻止这件事——它是替换不是追加。所以「让子代理自己规划」这件事在多体下是不安全的，除非待办清单加上归属字段（<code>owner</code>）并按 owner 过滤。
+
+<strong>副作用二：后台任务会被杀掉。</strong> <code>TaskManager</code> 同样是 <code>Ctx</code> 里的一个字段，子代理的 <code>task_kill</code> 能杀父代理起的后台服务。而 <code>task_list</code> 会列出所有任务，包括不是它起的。06 讲的「工具名不是能力边界」在这里有一个多体版本：<strong>「谁起的任务」这个信息在任务表里不存在</strong>，所以没有任何一层能阻止跨角色操作。
+
+<strong>副作用三：记忆目录是共享的。</strong> 子代理可以调 <code>memory_save</code> 往父代理的记忆库里写。子代理的 <code>def.prompt</code> 里如果写了「把你发现的重要事实存入记忆」，它会照做，而这些记录没有「由哪个子代理写入」的标记。03 讲的四类记忆里，<code>fact</code> 类是可以跨会话再被检索回来的——一条子代理写的、写错的「事实」，会污染后续所有会话。
+
+这三个副作用的共同修法是同一个：<strong>给共享状态加归属</strong>。<code>Todo { owner }</code>、<code>Task { owner }</code>、<code>Memory { source }</code>，然后在工具层按当前角色过滤。改动不大，但需要先承认「共享」是有代价的。
+<h2>任务板：一个只追加的观测结构</h2>
+
+任务板是这篇文章里最完整的部分。它的结构只有两个锁：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Board</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">jobs</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Job</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">seq</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="kt">u64</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>Job</code> 记录了七个字段：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Job</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">id</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">status</span><span class="p">:</span><span class="w"> </span><span class="nc">JobStatus</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">duration</span><span class="p">:</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="n">Duration</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">started</span><span class="p">:</span><span class="w"> </span><span class="nc">Instant</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个设计点：
+
+<strong>第一，<code>started</code> 是私有的，<code>duration</code> 是公开的。</strong> 外部只能看到「跑了多久」，看不到「什么时候开始」。这避免了时间戳时钟漂移带来的困惑，但也意味着「两个任务是不是同时跑的」这个问题在板子上回答不了——只有 <code>list()</code> 的顺序（登记顺序）和每个任务的耗时，没有区间重叠信息。
+
+<strong>第二，状态只有三种：<code>Running</code>、<code>Done</code>、<code>Failed</code>。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="nc">JobStatus</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Running</span><span class="p">,</span><span class="w"> </span><span class="n">Done</span><span class="p">,</span><span class="w"> </span><span class="n">Failed</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+没有 <code>Cancelled</code>、没有 <code>Queued</code>、没有 <code>TimedOut</code>。第七节会讲 <code>Queued</code> 的缺失为什么是一个真实问题（排队中的任务显示成 running）。
+
+<strong>第三，只追加，不清理。</strong> 没有 <code>remove</code>、没有 <code>clear</code>、没有容量上限。<code>jobs</code> 会一直长，<code>seq</code> 会一直涨。
+
+<code>finish</code> 用 id 查找，找不到就静默返回：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">finish</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">:</span><span class="w"> </span><span class="nc">JobStatus</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">jobs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">jobs</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">job</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">jobs</span><span class="p">.</span><span class="n">iter_mut</span><span class="p">().</span><span class="n">find</span><span class="p">(</span><span class="o">|</span><span class="n">j</span><span class="o">|</span><span class="w"> </span><span class="n">j</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">status</span><span class="p">;</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">job</span><span class="p">.</span><span class="n">started</span><span class="p">.</span><span class="n">elapsed</span><span class="p">());</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">preview</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+「找不到就静默返回」在这里是安全的，因为 id 是从 <code>start</code> 拿到的、不可能凭空出现。但如果将来加了板子的清理逻辑，这个静默就会变成「任务永远停在 running」——所以「只追加」和「静默 finish」是一对必须同时成立的设计。改一个就得改另一个。
+<h2>任务 id 是 agent-N：单调递增与跨会话累积</h2>
+
+id 的生成是「先拿 seq 锁、自增、拼字符串、再拿 jobs 锁、push」：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">start</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">seq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">seq</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">    </span><span class="o">*</span><span class="n">seq</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;agent-{seq}&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">jobs</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">push</span><span class="p">(</span><span class="n">Job</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">id</span><span class="p">:</span><span class="w"> </span><span class="nc">id</span><span class="p">.</span><span class="n">clone</span><span class="p">(),</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">});</span>
+<span class="w">    </span><span class="n">id</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+先 seq 后 jobs 的锁顺序是一致的，没有反向获取，所以不存在死锁。代价是这两个锁可以合并成一个（用一个 <code>Mutex&lt;BoardInner&gt;</code> 同时装 <code>jobs</code> 和 <code>seq</code>），但拆开的好处是 <code>list()</code> 只锁 <code>jobs</code>，不需要等 seq 锁——在读多写少的场景下这是划算的。
+
+id 的可读性值得一提：<code>agent-1</code>、<code>agent-2</code>。它比 UUID 更好用（人能读、能口头引用、能排序），代价是它只在一个 <code>Board</code> 实例内唯一。
+
+这个「只在一个实例内唯一」在多体下有个真实的后果，因为守护进程模式是<strong>一个 Agent 服务所有会话</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">replace_messages</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msgs</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">mem</span><span class="p">::</span><span class="n">replace</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="n">msgs</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>replace_messages</code> 只换 <code>messages</code>。<code>Ctx</code> 里的 <code>board</code>、<code>todos</code>、<code>tasks</code> 都不换。所以：
+<ul>
+<li>会话 A 起了三个子代理，id 是 <code>agent-1..3</code></li>
+<li>会话 B 接到请求，第一个子代理的 id 是 <code>agent-4</code></li>
+<li>会话 B 的模型调 <code>agent_list</code>，看到的是六个任务，包括 A 的</li>
+</ul>
+
+而 <code>agent_list</code> 工具的描述写的是「List the sub-agent delegations started in this session」——<strong>这句话在守护进程模式下是不成立的</strong>。这是本文第三重要的发现：一个观测工具的语义在两种运行模式下不同，而它的描述只描述了其中一种。
+
+修法有两种：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 方案一：给 Job 加 session 字段，agent_list 只返回当前会话的</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Job</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="k">pub</span><span class="w"> </span><span class="n">session</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">}</span>
+
+<span class="c1">// 方案二：会话切换时清空板子</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">clear</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">jobs</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">clear</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+方案一保留了「跨会话审计」的可能性，方案二更简单但会丢掉历史。对一个把任务板当观测工具（而不是审计日志）的实现，方案一更合适。
+<h2>结果预览 500 字符：板上是摘录，模型手里是全量</h2>
+
+<code>RESULT_PREVIEW = 500</code>，预览的做法是先把换行压成空格、再按字符边界截断、最后补一个省略号：
+<div class="codehilite"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">RESULT_PREVIEW</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">500</span><span class="p">;</span>
+
+<span class="k">fn</span><span class="w"> </span><span class="nf">preview</span><span class="p">(</span><span class="n">text</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">flat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">text</span><span class="p">.</span><span class="n">replace</span><span class="p">(</span><span class="sc">&#39;\n&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot; &quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">flat</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">RESULT_PREVIEW</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">flat</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RESULT_PREVIEW</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">flat</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}…&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">flat</span><span class="p">[</span><span class="o">..</span><span class="n">end</span><span class="p">])</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个细节都对：按字节比较但按字符边界回退（中文不会切碎）、换行替换让每行预览天然是一行（<code>render_agent_board</code> 不用再做处理）、超长才补省略号。
+
+但要注意一个不对称：<strong>板子上是 500 字符的摘录，模型手里是完整的工具返回值。</strong> <code>finish_ok</code> 存的是 <code>preview(result)</code>，而 <code>run_subagent</code> 返回给 <code>run_tool</code> 的是原始 <code>result</code>：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_subagent_inner</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
+<span class="k">match</span><span class="w"> </span><span class="o">&amp;</span><span class="n">result</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">finish_ok</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">text</span><span class="p">),</span>
+<span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">err</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">finish_err</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">err</span><span class="p">),</span>
+<span class="p">}</span>
+<span class="n">result</span>
+</code></pre></div>
+
+
+这个不对称是对的——模型需要完整结果，板子只需要可读摘要。但它意味着<strong>板子不是审计日志</strong>：想知道子代理到底说了什么，得回看会话历史，而会话历史会被 <code>compact()</code> 压缩掉。03 讲的「压缩是不可逆的」在这里又出现一次：压缩之后，一个已完成子代理的完整产出可能只剩下一句话的摘要，而板子上只有前 500 字符。
+
+还有一个更细的问题：<code>preview</code> 的长度是 500 <strong>字节</strong>还是 500 字符？看代码，<code>flat.len()</code> 是字节长度，<code>is_char_boundary(end)</code> 也是字节下标——所以是 500 字节。中文环境下 500 字节只有约 166 个汉字。命名里那个 <code>PREVIEW</code> 没有标明单位，和 04 里 <code>clamp</code> 注释写 chars 实为字节是同一类问题。
+<h2>duration 测的是哪一段时间</h2>
+
+<code>duration</code> 在 <code>finish</code> 里算：
+<div class="codehilite"><pre><span></span><code><span class="n">job</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">job</span><span class="p">.</span><span class="n">started</span><span class="p">.</span><span class="n">elapsed</span><span class="p">());</span>
+</code></pre></div>
+
+
+<code>started</code> 是 <code>Instant::now()</code>，在 <code>start</code> 里赋值。而 <code>start</code> 发生在 <code>acquire</code> 之前：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">start</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_subagent_inner</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
+</code></pre></div>
+
+
+所以 <code>duration</code> 里包含：等待槽位的时间 + 实际执行的时间。这又是那个「登记在拿许可之前」的设计的第二个后果（第一个是状态显示问题，下一节讲）。
+
+对观测来说，这个口径是错的。用户看到 <code>agent-7 [done] reviewer (12.3s)</code>，想知道的是「审查花了 12.3 秒」，实际含义是「从父代理决定派发到审查结束一共 12.3 秒」，其中可能有 8 秒在排队。
+
+正确的做法是记两个时间点——<code>queued_at</code> 和 <code>started_at</code>——或者干脆在 <code>acquire</code> 之后才登记：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">start</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span><span class="w">  </span><span class="c1">// 拿到槽位才算开始</span>
+</code></pre></div>
+
+
+但这样做的代价是：排队中的任务在板子上不可见，用户看到的是「什么都没有」，然后突然出现四个任务。所以更完整的修法是保留登记位置，同时把状态拆成 <code>Queued</code> 和 <code>Running</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="nc">JobStatus</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Queued</span><span class="p">,</span><span class="w"> </span><span class="n">Running</span><span class="p">,</span><span class="w"> </span><span class="n">Done</span><span class="p">,</span><span class="w"> </span><span class="n">Failed</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+这需要 <code>Gate</code> 在拿到槽位后回调板子改状态，或者让 <code>acquire</code> 返回一个「我拿到槽位了」的时刻。改动不大，但它把「排队」这个真实存在的状态显式化了。
+<h2>门：一个手写计数信号量的四个细节</h2>
+
+<code>Gate</code> 只有三十行，但每一行都有取舍：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Gate</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">active</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="kt">usize</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">cv</span><span class="p">:</span><span class="w"> </span><span class="nc">Condvar</span><span class="p">,</span>
+<span class="w">    </span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="k">impl</span><span class="w"> </span><span class="n">Gate</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">new</span><span class="p">(</span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Self</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Gate</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">active</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="n">cv</span><span class="p">:</span><span class="w"> </span><span class="nc">Condvar</span><span class="p">::</span><span class="n">new</span><span class="p">(),</span><span class="w"> </span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="nc">max</span><span class="p">.</span><span class="n">max</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">GateGuard</span><span class="o">&lt;&#39;</span><span class="nb">_</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">active</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">GateGuard</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">gate</span><span class="p">:</span><span class="w"> </span><span class="nc">self</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">impl</span><span class="w"> </span><span class="nb">Drop</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">GateGuard</span><span class="o">&lt;&#39;</span><span class="nb">_</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">drop</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">active</span><span class="p">.</span><span class="n">saturating_sub</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">notify_one</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>细节一：<code>max.max(1)</code>。</strong> 一个 0 的配额会让所有 <code>acquire</code> 永久阻塞。用 <code>max(1)</code> 兜住，是「宁可放一个过去，也不能整体卡死」的选择。它对，但只在「配额是从配置来的」这个前提下对——如果配额将来从环境变量或服务端下发，<code>max(1)</code> 会把一个配置错误静默转成一个比预期宽松的策略，而不是报错。更明确的做法是让 <code>new</code> 返回 <code>Result</code>，0 直接拒绝。
+
+<strong>细节二：<code>while</code> 而不是 <code>if</code>。</strong> 这是条件变量的标准要求：被唤醒之后条件可能已经不成立（另一个线程抢先拿走了槽位）。用 <code>if</code> 会超发。
+
+<strong>细节三：<code>notify_one</code> 而不是 <code>notify_all</code>。</strong> 一次释放腾出一个槽位，唤醒一个等待者就够了。用 <code>notify_all</code> 会让所有等待者醒来抢锁、然后除一个以外全部重新睡下——惊群。
+
+<strong>细节四：计数放在 <code>GateGuard</code> 的 <code>Drop</code> 里。</strong> 这是 RAII：即使 <code>run_subagent_inner</code> 提前返回（<code>?</code> 传播错误），槽位也会释放。05 里讲 <code>InterruptGuard</code> 时提过同一个模式，这是这套代码里第二次出现，说明作者对这件事有意识。
+
+但 <code>notify_one</code> 和 <code>saturating_sub</code> 组合起来有一个隐含假设：<strong>没有降级路径</strong>。<code>saturating_sub</code> 让计数永远不为负，代价是「多释放一次」不会报错，只会静默地少放一个槽位过去。如果哪天加了一条不走 <code>GateGuard</code> 的释放路径（比如手动 <code>release()</code>），计数就会和真实并发数脱钩，而且没有任何断言会发现。
+
+测试覆盖得不错：
+<div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">gate_caps_concurrency</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">gate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">Gate</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span>
+<span class="w">    </span><span class="c1">// 6 个线程抢 2 个槽位，记录峰值</span>
+<span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">peak</span><span class="p">.</span><span class="n">load</span><span class="p">(</span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;peak was {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">peak</span><span class="p">.</span><span class="n">load</span><span class="p">(</span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">));</span>
+<span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="o">*</span><span class="n">gate</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">(),</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;all permits released&quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+第二句断言是关键——它同时验证了「不超过上限」和「全部归还」。但 <code>gate.active</code> 是私有字段，测试在同一个模块里所以能访问；这个断言值得升级成一个公开的 <code>available()</code> 方法，好让外部也能检查「是否有泄漏」。
+<h2>排队也显示 running：登记发生在 acquire 之前</h2>
+
+把这两个函数并排看：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">run_subagent</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">start</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span><span class="w">   </span><span class="c1">// 状态 = Running</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span><span class="w">       </span><span class="c1">// 可能在这里等很久</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>start</code> 把状态写成 <code>Running</code>，然后才可能阻塞在 <code>acquire</code>。所以第 5 个任务会以 <code>running</code> 的状态出现在板上，持续到某个槽位空出来。
+
+<code>agent_list</code> 的渲染是直白的：
+<div class="codehilite"><pre><span></span><code><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;- {} [{}] {} ({}) — {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">job</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">status</span><span class="p">.</span><span class="n">as_str</span><span class="p">(),</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">duration</span><span class="p">,</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">task</span>
+<span class="p">));</span>
+</code></pre></div>
+
+
+<code>duration</code> 在未完成时显示 <code>…</code>：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">Some</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{:.1}s&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">as_secs_f64</span><span class="p">()),</span>
+<span class="w">    </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="s">&quot;…&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+所以一个排队中的任务显示成 <code>- agent-5 [running] verifier (…) — run the tests</code>。用户体验上是「五个任务在跑，其实只有四个」，而在一个 4 并发、每个任务跑两分钟的场景里，这个误报能持续几分钟。
+
+这个问题的严重性取决于谁来读板子。如果只有用户读，它是显示瑕疵；如果模型读（它有 <code>agent_list</code> 工具），它会影响决策——模型可能因为「五个都在跑」而放弃派发更多任务，实际还有空位；也可能反过来，因为看到任务在跑而重复派发。
+
+修法就是上一节说的：<code>Queued</code> 状态 + 拿到槽位后改状态。或者更简单——把 <code>start</code> 移到 <code>acquire</code> 之后，接受「排队不可见」。
+<h2>门不检查中断：Ctrl-C 卡在等槽位</h2>
+
+<code>Gate::acquire</code> 是一个无超时的阻塞等待：
+<div class="codehilite"><pre><span></span><code><span class="k">while</span><span class="w"> </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">active</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+它没有任何退出条件，除了「有槽位空出来」。这意味着两件事：
+
+<strong>第一，中断标志在这里不起作用。</strong> 父代理的中断检查只在步骤边界：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="o">..</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">max_iterations</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">interrupted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+用户按 Ctrl-C，标志被设上，但主线程正阻塞在 <code>execute</code> → <code>run_subagent</code> → <code>gate.acquire()</code> 里面，看不到标志。要等到某个子代理跑完、<code>run()</code> 回到下一轮循环的开头，中断才生效。而一个子代理最长可以跑 40 轮，每轮一次 LLM 往返——120 秒超时 × 40 轮的最坏情况是 80 分钟。
+
+<strong>第二，等待是不可取消的。</strong> 即使把中断检查加到 <code>acquire</code> 里，<code>Condvar::wait</code> 本身也不返回中断状态；需要的是 <code>wait_timeout</code> 配合轮询：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">interrupt</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">AtomicBool</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="n">GateGuard</span><span class="o">&lt;&#39;</span><span class="nb">_</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">interrupt</span><span class="p">.</span><span class="n">load</span><span class="p">(</span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">None</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">guard</span><span class="p">,</span><span class="w"> </span><span class="n">_timeout</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">wait_timeout</span><span class="p">(</span><span class="n">active</span><span class="p">,</span><span class="w"> </span><span class="n">Duration</span><span class="p">::</span><span class="n">from_millis</span><span class="p">(</span><span class="mi">200</span><span class="p">)).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">guard</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="nb">Some</span><span class="p">(</span><span class="n">GateGuard</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">gate</span><span class="p">:</span><span class="w"> </span><span class="nc">self</span><span class="w"> </span><span class="p">})</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+轮询间隔是这类问题的常用解法：它把「无限期等待」变成「最长 200ms 的响应延迟」，代价是每 200ms 一次虚假唤醒。在四个槽位的规模下，这个代价可以忽略。
+
+值得注意的是这个缺陷和 05 里「子代理不检查中断」是同一类问题的两个位置：中断这件事需要<strong>在每一个可能长时间阻塞的地方</strong>都检查一次，只在一处检查等于没检查。
+<h2>门不重入：嵌套子代理可能自我死锁</h2>
+
+这是本文唯一一个会导致<strong>永久卡死</strong>的发现。它的前提是上一节讲的「防嵌套只挡广告位」：只要模型输出了 <code>subagent</code> 调用，嵌套就会发生。而嵌套会再走一遍 <code>run_subagent</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">run_subagent</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">start</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span><span class="w">   </span><span class="c1">// 内层在这里等</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+外层子代理<strong>已经持有一个许可</strong>，它在整个 <code>run_subagent_inner</code> 期间不释放（<code>_permit</code> 活到函数结束）。所以：
+<ul>
+<li>4 个槽位，父代理派了 4 个外层子代理，全部许可被占</li>
+<li>每个外层子代理各调一次 <code>subagent</code>，4 个内层调用并发进入 <code>acquire</code></li>
+<li>内层的 4 个线程都在 <code>wait</code>，等外层释放；外层在等内层返回</li>
+<li>环闭合，永久阻塞</li>
+</ul>
+
+<code>Condvar::wait</code> 没有超时，所以这不是「卡一会儿」，是「一直到进程被杀」。
+
+有意思的是这个场景需要满足几个条件才会真的发生：模型得在工具清单里没有 <code>subagent</code> 的情况下仍然输出这个调用。概率不高，但它的后果是灾难级的（整个 turn 永久挂起，用户看到的是 agent 不动了，Ctrl-C 也不一定救得回来——因为 Ctrl-C 只设标志，而标志在这个等待里不被检查）。
+
+正确的修法有两条，建议同时做：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. 执行期闸门：把「子代理不可再派子代理」变成 check_tool 的硬规则</span>
+<span class="c1">//    Ctx 加 depth，run_subagent 入口断言</span>
+<span class="k">if</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">depth</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="s">&quot;nested sub-agents are not supported&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">());</span><span class="w"> </span><span class="p">}</span>
+
+<span class="c1">// 2. 让门可重入：许可数 &gt;= 1 时，同一执行链的重复获取直接通过</span>
+<span class="c1">//    或者在嵌套时不再 acquire（外层已经代表这条链占了位）</span>
+</code></pre></div>
+
+
+第一条是根治：不允许的调用直接报错，报错会记在任务板上（<code>failed</code>），模型能看懂。第二条是把配额语义从「线程数」改成「执行链条数」——也就是「一个子代理算一个单位的预算，它内部再怎么嵌套都不额外占位」。两者选一即可，但必须选一个：现在的实现是「既不禁止嵌套，也不让门重入」，这是唯一会死锁的组合。
+<h2>限流只限了并发数，没限请求速率</h2>
+
+<code>Gate</code> 限的是「同时有几个子代理在跑」，这是一个<strong>并发度</strong>限制。它不限制：
+<ul>
+<li>每秒发多少次 LLM 请求</li>
+<li>总共发多少次</li>
+<li>单个子代理能跑多少轮</li>
+</ul>
+
+四个槽位、每个子代理 40 轮，一轮一次请求，那么一个 turn 最多产生 160 次 LLM 请求。如果父代理自己也在跑（40 轮），总共 200 次。这些请求全部在几分钟内打出去，而 API 侧的限流是按 token 或请求/分钟计的。
+
+这是一个语义错配：<strong>本地的并发控制解决不了远端的速率限制</strong>。门做得再好，远端返回 429 的时候还是得退避。
+
+真正需要的是一层「预算」——不是「同时几个」，而是「一共多少」。这在多体场景下尤其重要，因为子代理的轮数是不可预测的（它不会因为「这次任务很简单」而少跑几轮，它跑满到模型不再调工具为止）。
+
+一个务实的做法是给 <code>Ctx</code> 加一个共享的计数器和上限：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Budget</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">remaining</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="kt">usize</span><span class="o">&gt;</span><span class="p">,</span><span class="w">   </span><span class="c1">// 剩余请求数</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+父代理和所有子代理从同一个预算里扣。扣完了子代理就返回「预算耗尽」而不是继续跑。这让「一个 turn 最多花多少钱」变成一个可配置的量，而不是「4 × 40 × 单次成本」这个上限。
+<h2>重试风暴：四份退避曲线没有抖动</h2>
+
+失败重试的逻辑在 <code>llm::chat</code> 里：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">attempt</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">max_retries</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">attempt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">backoff_ms</span><span class="p">(</span><span class="n">cfg</span><span class="p">.</span><span class="n">retry_base_ms</span><span class="p">,</span><span class="w"> </span><span class="n">attempt</span><span class="p">);</span>
+<span class="w">    </span><span class="fm">eprintln!</span><span class="p">(</span><span class="s">&quot;note: request failed ({e}); retrying in {delay}ms (attempt {attempt}/{})&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.);</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">sleep</span><span class="p">(</span><span class="n">Duration</span><span class="p">::</span><span class="n">from_millis</span><span class="p">(</span><span class="n">delay</span><span class="p">));</span>
+<span class="w">    </span><span class="k">continue</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+退避函数是纯指数的：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">backoff_ms</span><span class="p">(</span><span class="n">base_ms</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span><span class="w"> </span><span class="n">attempt</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u64</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">base_ms</span>
+<span class="w">        </span><span class="p">.</span><span class="n">saturating_mul</span><span class="p">(</span><span class="mi">2</span><span class="k">u64</span><span class="p">.</span><span class="n">saturating_pow</span><span class="p">(</span><span class="n">attempt</span><span class="p">.</span><span class="n">saturating_sub</span><span class="p">(</span><span class="mi">1</span><span class="p">)))</span>
+<span class="w">        </span><span class="p">.</span><span class="n">min</span><span class="p">(</span><span class="mi">30_000</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+默认参数：<code>max_retries = 2</code>、<code>retry_base_ms = 500</code>。所以第一次失败等 500ms，第二次等 1000ms，然后放弃（走 fallback 模型或不走）。
+
+<code>is_retryable_error</code> 只认两类：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">is_retryable_error</span><span class="p">(</span><span class="n">e</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">contains</span><span class="p">(</span><span class="s">&quot;HTTP 429&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="cm">/* 5xx */</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意它是<strong>字符串匹配</strong>，而不是状态码解析。<code>e.contains("HTTP 429")</code> 依赖错误消息的格式恰好包含这个子串——如果真的改了错误格式（比如换成 <code>status: 429</code>），重试就会静默失效。04 里讲 <code>clamp</code> 的单位标注问题时提过同一个模式：错误字符串是接口，但它的形状没有被测试固定下来。
+
+回到多体。四份退避曲线完全没有随机化，所以如果 API 在某一刻对这四个子代理同时返回 429（比如同一个 key 的配额被打满），它们的重试是<strong>同步的</strong>：四个线程都在 500ms 后重试，然后都在 1000ms 后重试。这就是教科书里的惊群重试（thundering herd），只不过规模从「上千个客户端」缩小到「四个子代理」。
+
+修法是标准的三件套：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. 加抖动：delay = base * 2^(n-1) * (0.5 + rand*0.5)</span>
+<span class="c1">// 2. 尊重 Retry-After 响应头</span>
+<span class="c1">// 3. 在共享层做退避：一个子代理被 429 之后，其他子代理也暂停一会儿</span>
+</code></pre></div>
+
+
+第三条在多体场景下比前两条更重要——因为「四个子代理打同一个 API key」这个事实，只有共享层知道。
+
+顺带说一句：退避的重试是<strong>阻塞的 <code>thread::sleep</code></strong>。四个子代理各睡 500ms 不影响别的线程（它们是独立线程），但父代理自己的重试会阻塞整个 turn。这个设计本身没问题，只是要知道代价：一次 429 会让那条时间线静默 500ms 到 30 秒。
+<h2>fallback 模型：降级是静默的</h2>
+
+重试耗尽之后还有一层：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">fallback</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">fallback_model</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="fm">eprintln!</span><span class="p">(</span><span class="s">&quot;note: primary model failed ({e}); retrying with fallback model `{fallback}`&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="n">fallback</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+<span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">);</span>
+</code></pre></div>
+
+
+三个观察。
+
+<strong>第一，fallback 是「换模型重试一次」，不是「换到备用通道」。</strong> 它对 429 和 5xx 都触发，但前提是主模型已经重试过 <code>max_retries</code> 次。
+
+<strong>第二，它只对「重试耗尽的错误」生效。</strong> 一个 401（鉴权失败）既不重试也不 fallback，直接返回错误。这个分类是对的：鉴权问题换模型也解决不了。
+
+<strong>第三，降级的可见性很低。</strong> 那行 <code>eprintln!</code> 是唯一提示。用户如果用的是 JSON 输出模式或者守护进程模式，这行 note 会混在 stderr 里。而<strong>子代理的降级对父代理完全不可见</strong>——子代理的两次 <code>llm::chat</code> 都可能降级到 fallback 模型，父代理拿到的只是最终文本，不知道这份结果是哪个模型产出的。
+
+这在成本核算上是真实的问题：一个 turn 里四个子代理全降级到 fallback（可能贵得多或便宜得多），用量统计只记得总 token 数，不记得模型。<code>UsageTotals</code> 记得 <code>requests</code> / <code>prompt_tokens</code> / <code>completion_tokens</code>，没有 <code>model</code> 维度。
+<h2>为什么是 4：一个常识上限的代价</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">MAX_PARALLEL_SUBAGENTS</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</code></pre></div>
+
+
+这个 4 是硬编码的，不可配置。它的合理性论证大概是：写代码的工作很少真正需要超过 4 个并发子任务；4 个并发的 LLM 请求对大部分 API 套餐是安全的；4 个并行的 <code>run_command</code> 对本地机器也不会打满。
+
+但它带来三个代价。
+
+<strong>代价一：它也是「父代理并行工具调用的并发度上限」</strong>。因为父代理的工具调用是「一个工具一个线程」，如果父代理一次性发出 8 个 <code>subagent</code> 调用（模型完全可以这么做），那么 4 个拿许可、4 个排队——而排队的 4 个线程<strong>各自占着一个工具线程</strong>。工具线程没有上限（05 讲过），所以这里不会崩，只是 4 个线程白占着。
+
+<strong>代价二：它不可配置意味着不能按机器和套餐调整。</strong> 一台 64 核机器上跑 4 个子代理是浪费，一个只有 2 个并发的 API 套餐上跑 4 个会一直在 429。这个数字应该来自配置，和 <code>max_iterations</code> 一样。
+
+<strong>代价三：它和「一个 turn 能派多少子代理」是两个独立的事。</strong> 模型的工具 schema 没有限制 <code>subagent</code> 在同一个 turn 里出现几次，所以模型可以一次派 20 个。20 个任务全部登记在板上（<code>Running</code>），4 个在跑，16 个在排队——每个排队任务都显示成 running（第 17 节）。
+
+把这三条合起来看，比「4 太小」更有价值的问题是：<strong>这个数字在代码里的位置决定了它的语义模糊</strong>。它在 <code>agent.rs</code> 里作为一个模块常量，看起来是「主循环的行为参数」；实际它是「资源配额」，属于 <code>Ctx</code> 或配置层。位置一变，可配置和可测试都会自然解决。
+<h2>agent_list 会不会真的被模型用起来</h2>
+
+<code>agent_list</code> 的工具描述和参数都极简：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">agent_list_tool_spec</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Value</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">        </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;function&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;function&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="s">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;agent_list&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;List the sub-agent delegations started in this session (id, status, name, task, result preview).&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;object&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span><span class="w"> </span><span class="s">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+它的输出是逐行文本：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">from</span><span class="p">(</span><span class="s">&quot;Sub-agent jobs:</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="k">for</span><span class="w"> </span><span class="n">job</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">jobs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;- {} [{}] {} ({}) — {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">status</span><span class="p">.</span><span class="n">as_str</span><span class="p">(),</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">duration</span><span class="p">,</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">task</span><span class="p">));</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">job</span><span class="p">.</span><span class="n">result</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;  result: {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">result</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+有个细节：<code>result</code> 那行用的是「两空格缩进」，但上一行已经用 <code>—</code> 引了 task，所以一个带结果的条目实际占两行，视觉上是一组。这是可读的。
+
+更值得讨论的是「模型会不会用它」。在父代理的工作流里，<code>agent_list</code> 的用途是：
+<ul>
+<li>派了子代理之后，等它跑完再看结果（但 <code>subagent</code> 本身是阻塞的，派出去就等返回，所以这条不成立）</li>
+<li>检查刚才派了什么（模型记不住的时候）</li>
+<li>看历史的失败原因</li>
+</ul>
+
+第一条不成立这件事值得展开。<code>subagent</code> 是<strong>同步阻塞</strong>的——父代理调用它，就等在那儿直到子代理返回。这和多体直觉里的「派出去，回来拿结果」不同。所以在这个实现里：
+<ul>
+<li>模型无法「先派 4 个，再去看谁的进度」</li>
+<li>一个 turn 内的 4 个 <code>subagent</code> 调用是<strong>并行但都阻塞</strong>的（靠父代理的 <code>thread::scope</code>），所以它们确实重叠执行</li>
+<li>但 <code>agent_list</code> 在父代理这边只能在别的工具调用里顺带看一眼，它的价值主要是「事后审计」而不是「进度跟踪」</li>
+</ul>
+
+换句话说，<code>agent_list</code> 的价值在异步派发的架构里会大得多。在当前架构里，它更像一个「可观测性兜底」：出问题的时候，模型和用户能回头看看发生了什么。
+<h2>子代理的中间过程在终端里是静默的</h2>
+
+父代理的工具调用会经过 <code>Style::tool_call</code> 打印：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">call</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">zip</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">tool_call</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">summarize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">arguments</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">result</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+而子代理的循环里是：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">);</span>
+<span class="w">    </span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">call</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">out</span><span class="w"> </span><span class="p">}));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>没有 <code>style.tool_call</code>。</strong> 所以子代理调用的每一个工具在终端上都是不可见的——用户看到的是「派了 reviewer，等了两分钟，回来一段文字」，中间那次 <code>read_file</code>、那次 <code>run_command</code>、那条命令的输出，全都没有显示。
+
+在守护进程模式下这个更明显：守护进程会把 <code>UiSink</code> 装上让工具调用流到客户端（<code>stream_turn</code> 的注释写了这一点），但子代理的内部调用不走这条路径，因为它们压根不调 <code>style</code> 的方法。
+
+这是一个明确的可用性缺口。修法有两种：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 方案一：直接打印，但加上角色前缀</span>
+<span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">tool_call</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}:{}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">summarize</span><span class="p">(</span><span class="o">..</span><span class="p">.),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">out</span><span class="p">);</span>
+
+<span class="c1">// 方案二：给 Style 加一层缩进/前缀上下文</span>
+</code></pre></div>
+
+
+方案一的代价是输出会交叉——四个子代理的调用会交错打印，没有归属就仍然读不懂。所以真正需要的是「带角色标签的样式」，也就是 05 讲「并发审批共用 stdin」时暴露的同一类问题：<strong>多体需要一层「谁在说话」的表达能力，而现在这一层不存在</strong>。
+<h2>钩子分不出父子：没有 NANOHERMES_AGENT</h2>
+
+06 讲过钩子通过环境变量拿到工具名和事件名：
+<div class="codehilite"><pre><span></span><code><span class="c1">// hooks::run 里设置的环境变量</span>
+<span class="n">NANOHERMES_TOOL_NAME</span>
+<span class="n">NANOHERMES_HOOK_EVENT</span>
+</code></pre></div>
+
+
+子代理的每次工具调用也会走 <code>execute</code>，所以 <code>PreToolUse</code> 钩子<strong>对子代理同样生效</strong>——这是好消息：06 里那道「用户自定义否决」的闸门在多体下没有失效。
+
+但它拿到的信息里没有「这是谁发起的调用」：
+<ul>
+<li><code>NANOHERMES_TOOL_NAME=write_file</code> —— 父代理写的还是 reviewer 子代理写的？</li>
+<li>钩子无法根据调用者做不同策略</li>
+<li>钩子也无法记录「子代理 A 一共改了几个文件」</li>
+</ul>
+
+环境变量里缺一个 <code>NANOHERMES_AGENT</code>（父代理为空、子代理为名字）、<code>NANOHERMES_AGENT_ID</code>（<code>agent-7</code>）。加上它之后，钩子就能实现「子代理只能读、父代理可以写」这类策略——而这正是多体最需要的粒度。
+
+顺带说，加了这两个变量还能同时解决另一个问题：钩子的输出会原样回到模型，如果钩子打印了 <code>[agent-7]</code> 前缀，模型就能知道那条否决意见是谁触发的。
+<h2>权限模式对多体的语义</h2>
+
+06 讲的五种权限模式在多体下需要重新理解一遍。因为子代理继承父代理的模式，所以模式的分层是「父代理决定、子代理跟随」。逐一看：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>父代理能派子代理吗</th>
+<th>子代理能做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default</code></td>
+<td>能</td>
+<td>和父代理一样</td>
+</tr>
+<tr>
+<td><code>accept-edits</code></td>
+<td>能</td>
+<td>文件改动免问（<code>auto_approve</code> 不影响文件工具），命令仍问</td>
+</tr>
+<tr>
+<td><code>plan</code></td>
+<td>能</td>
+<td>派发本身允许，但写工具被封，命令被封</td>
+</tr>
+<tr>
+<td><code>goal</code></td>
+<td>能</td>
+<td>全放开，没有人可以问</td>
+</tr>
+<tr>
+<td><code>debug</code></td>
+<td>能</td>
+<td>能跑命令复现，不能改文件</td>
+</tr>
+</tbody>
+</table></div>
+
+两个值得注意的地方。
+
+<strong>第一，<code>plan</code> 模式允许派子代理。</strong> <code>blocked_tools</code> 里没有 <code>subagent</code>，所以 Plan 模式下模型可以派子代理，子代理也继承 Plan 模式从而被封住写工具。结果是「派了 4 个子代理，它们什么都不能改」。这个组合没有安全隐患（写不了就是写不了），但它会消耗四次 LLM 往返去得到一个「我做不到」的结论。合理的行为是在 <code>plan</code> 模式下直接把 <code>subagent</code> 从工具清单里去掉——因为纯分析任务不需要委派。
+
+<strong>第二，<code>goal</code> 模式和子代理的组合是最危险的。</strong> <code>goal</code> 强制 <code>auto_approve = true</code> 且 <code>ApprovalPolicy::Never</code>。四条并行的子代理、每条都能跑命令、没有人被问过——06 讲的「<code>goal</code> 是唯一主动放弃人类监督的模式」在多体下被放大了四倍。这不一定是错的（无人值守场景就是要这个），但它意味着 <code>goal</code> + 多体的风险面是乘法关系而不是加法关系，配置文档应该写清楚这一点。
+
+还有一个更微妙的：<code>PermissionMode</code> 是按「这一轮的意图」设计的，而子代理是「这一轮里的一个子角色」。把同一个模式原样继承下去，等于假设「这一轮的意图对所有角色都成立」。多数情况下成立，但 <code>debug</code> 模式是个反例——父代理在 debug 模式下不能改文件，而一个修 bug 的子代理可能恰恰需要改文件。这时候只能退出 debug 模式，没有「父代理 debug、子代理 default」这种组合。
+<h2>七个多体的失效模式</h2>
+
+把前面各节的现象按后果分级：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>严重度</th>
+<th>失效模式</th>
+<th>根源</th>
+<th>可否修</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>致命</td>
+<td>嵌套子代理 + 门不可重入 → 永久死锁</td>
+<td>防嵌套只过滤工具清单</td>
+<td>能，入口加 depth 断言</td>
+</tr>
+<tr>
+<td>高</td>
+<td>中断在门等待中失效，Ctrl-C 最长等 80 分钟</td>
+<td>只在步骤边界检查中断</td>
+<td>能，<code>wait_timeout</code> 轮询</td>
+</tr>
+<tr>
+<td>高</td>
+<td>共享待办清单被子代理整体覆盖</td>
+<td><code>todo_write</code> 是替换语义</td>
+<td>能，加 owner 字段</td>
+</tr>
+<tr>
+<td>高</td>
+<td>共享后台任务可被子代理杀掉</td>
+<td>任务表无归属信息</td>
+<td>能，加 owner 字段</td>
+</tr>
+<tr>
+<td>中</td>
+<td>子代理能通过 <code>agent_list</code> 读到其他任务的结果摘要</td>
+<td><code>agent_list</code> 不排除、也只按名字裁工具</td>
+<td>能，按角色过滤</td>
+</tr>
+<tr>
+<td>中</td>
+<td><code>duration</code> 含排队时间，观测口径错误</td>
+<td>登记早于 <code>acquire</code></td>
+<td>能，拆两个时间点</td>
+</tr>
+<tr>
+<td>中</td>
+<td>排队任务显示成 running</td>
+<td>缺 <code>Queued</code> 状态</td>
+<td>能，加枚举值</td>
+</tr>
+</tbody>
+</table></div>
+
+分级依据是「会不会造成不可恢复的后果」。死锁是不可恢复的（要靠杀进程）；其余都是可恢复的（重试、刷新、手动清理）。
+
+有一条容易漏掉但没有列进来：<code>def.allowed_tools</code> 不参与执行检查。它不列在里面是因为它本身不产生错误行为——它只是让「用户以为的隔离」比「实际的隔离」更严。这类问题不会以故障形式出现，而是以「某天发现子代理改了不该改的文件」的形式出现。它属于安全审查项，不属于失效模式。
+<h2>怎么把多体测出来</h2>
+
+多体的测试难点是「并发 + 阻塞 + 时间」。四个可以直接写的测试：
+
+<strong>测试一：门上限不被突破。</strong> 现成的 <code>gate_caps_concurrency</code> 就是模板：N 个线程抢 M 个槽位，记录峰值、断言 <code>peak &lt;= M</code>，最后断言计数归零。断言计数归零这一条比断言峰值更重要——它证明没有泄漏。
+
+<strong>测试二：板子的状态迁移完整。</strong> 现成的 <code>board_records_jobs_in_order</code> 覆盖了 <code>Running → Done</code> 和 <code>Running → Failed</code>。值得补的是「同一 id 重复 finish」和「finish 一个不存在的 id」，前者应该幂等（当前实现是：第二次 finish 会用第二次的 result 覆盖第一次，状态也被覆盖），后者应该静默。
+
+<strong>测试三：嵌套被拒绝。</strong> 当前没有这个测试，因为当前也没有这个功能——但这是最容易写的一条：
+<div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">nested_subagents_are_refused</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 在 depth = 1 的上下文里调 subagent，期望 Err</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+写这个测试的价值不在覆盖率，而在把「防嵌套靠工具清单」这个隐式设计变成显式契约。测试写了，<code>depth</code> 字段就会被加上。
+
+<strong>测试四：中断能打断等待。</strong> 用 <code>wait_timeout</code> 版本的门，一个线程持有许可不放，另一个线程设上中断标志后 <code>acquire</code>，断言它在 200ms 内返回 <code>None</code>。这条测试会失败在当前实现上，这正是它的价值。
+
+还有一条不好写但值得讨论的：<strong>怎么验证「不会死锁」</strong>。经典做法是压力测试——用比槽位多的线程反复 acquire/release 几千次；如果实现里有锁顺序问题，它会在某个时刻卡住。但卡住的表现是「测试不结束」，需要外部超时。所以压力测试必须配一个 watchdog：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 主线程 join 带超时；超时则打印所有线程的状态并 abort</span>
+<span class="c1">// Rust 标准库没有 join_timeout，常用做法是用 channel + recv_timeout</span>
+</code></pre></div>
+
+
+这条测试能覆盖锁顺序和计数泄漏两类问题，但对「嵌套死锁」覆盖不到——因为嵌套死锁需要模型配合。所以嵌套那条必须靠单元测试，不能靠压力测试。
+<h2>七处可以加固的地方</h2>
+
+按「投入产出比」排序：
+
+<strong>一、给 <code>Ctx</code> 加 <code>depth</code>，在 <code>run_subagent</code> 入口断言。</strong> 三行代码，消除唯一一个致命失效模式。同时它让「以后支持两层嵌套」变成一个显式的数值改动（<code>if depth &gt;= max_depth</code>）而不是结构性重写。
+
+<strong>二、<code>Gate::acquire</code> 改成可中断 + 带超时。</strong> <code>wait_timeout</code> 轮询 200ms，同时检查中断标志。它同时解决「Ctrl-C 卡住」和「死锁不可恢复」两个问题——即使嵌套死锁真的发生，中断也能把它打破。
+
+<strong>三、<code>JobStatus</code> 加 <code>Queued</code>，并把 <code>duration</code> 拆成排队时长和执行时长。</strong> 改动涉及 <code>board.rs</code> 和 <code>render_agent_board</code> 两处，但观测口径会立刻变准。
+
+<strong>四、<code>SubAgentDef</code> 加 <code>max_iterations</code>。</strong> 子代理继承父代理的 40 轮是个危险的默认值——一个「跑测试并报告」的子代理不该有 40 轮预算。加一个可选字段、默认取一个比父代理小的值（比如 10），能让多体的成本可控。
+
+<strong>五、把 <code>MAX_PARALLEL_SUBAGENTS</code> 从常量变成配置。</strong> 移进 <code>Config</code>，加 CLI flag 和 JSON 字段。这条改动是「让 4 变成可调」，但它真正的价值是让「配额」这个概念在代码里有正确的位置。
+
+<strong>六、给共享状态加归属。</strong> <code>Todo { owner }</code>、<code>Task { owner }</code>、<code>Memory { source }</code>，工具层按角色过滤。这是列表中改动面最大的一条，也是唯一能根治「子代理搞乱父代理状态」的一条。
+
+<strong>七、给 <code>def.allowed_tools</code> 加执行期检查。</strong> 在 <code>run_subagent_inner</code> 里包一层：把子代理上下文的 <code>check_tool</code> 换成「父代理允许 × 子代理允许」的交集。做法是给 <code>execute</code> 传一个可选的额外过滤集，或者在子代理期间用一个 <code>sub_cfg</code> 构造一个临时检查函数。
+
+前三条改动都很小、收益明确，是「今天就能做」的。后四条里第四条和第五条属于配置层，第六条和第七条属于权限层，都需要先想清楚语义——比如 <code>owner</code> 用什么标识（<code>agent-7</code>？还是父代理给的 <code>def.name</code>？）——再动手。
+<h2>小结：多体先要分清谁的责任</h2>
+
+把 07 讲的东西压成三句话。
+
+<strong>第一，多体的抽象比它看起来弱。</strong> <code>SubAgentDef</code> 只有四个字段，子代理本质上是「换了提示词、换了工具清单、可能换了模型的同一个 Agent」。这意味着很多你以为隔离了的东西其实没隔离：待办清单、后台任务、记忆目录、钩子可见性，全部是共享的。
+
+<strong>第二，共享本身不是缺陷，无归属的共享才是。</strong> 任务板、限流门、<code>Ctx</code> 都该共享——否则用户看到五份互不相干的计划，<code>task_kill</code> 变成盲盒。问题在于共享的对象上没有「这是谁的」这个字段，于是任何角色都能改任何状态。加 owner 是这类问题的通用解。
+
+<strong>第三，三个切得不干净的地方有共同的形状：把「广告位过滤」当成了「执行期闸门」。</strong> 防嵌套靠工具清单、子代理的工具限制靠工具清单、可用子代理名字靠系统提示词——三处都是「让模型看不见」而不是「让调用不成立」。这个区别在单代理场景下无关紧要（模型看不见就不会调），在多体场景下会放大成死锁、越权和信息泄漏。
+
+NanoHermes 在多体上的实现有一处特别值得肯定：<code>GateGuard</code> 的 <code>Drop</code> 归还、<code>while</code> 重检条件、<code>notify_one</code> 而非 <code>notify_all</code>，这三个细节说明作者对手写信号量的坑是清楚的，测试里那句「all permits released」的断言也证明他知道要验证泄漏。真正的问题不在门的实现，而在门的<strong>语义边界</strong>——它管的是「同时几个」，而多体真正需要的是「谁的预算、谁的配额、谁的可见范围」。
+
+下一篇进入观测：给每个轮次记一本账。07 讲的是「一次委派发生了什么」，08 要讲的是「怎么把这些事记下来、算清楚、看清楚」——用量统计、日志、以及一个 turn 的成本应该怎么归集到发起它的人身上。</div></div></noscript>
+  </body>
+</html>
