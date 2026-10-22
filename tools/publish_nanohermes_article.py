@@ -38,7 +38,7 @@ SOURCE = (
     / "nanohermes-rust-coding-agent.md"
 )
 
-ARTICLE_TITLE = "NanoHermes 不养 async"
+ARTICLE_TITLE = "NanoHermes：零运行时的 Rust Agent"
 ARTICLE_SLUG = "nanohermes-rust-coding-agent"
 ARTICLE_EXCERPT = (
     "NanoHermes 是一个 Rust 写的轻量 coding agent：单二进制、常驻内存主要跟上下文"

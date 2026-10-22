@@ -1,5 +1,5 @@
 ---
-title: "NanoHermes 不养 async"
+title: "NanoHermes：零运行时的 Rust Agent"
 slug: nanohermes-rust-coding-agent
 cover_image: /photos/nanohermes-cover.png
 date: 2026-10-22

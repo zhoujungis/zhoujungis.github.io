@@ -1,5 +1,5 @@
 ---
-title: "NanoBrowser 手写 CDP"
+title: "NanoBrowser 拆解：手写进程内 CDP"
 slug: nanobrowser-tauri-webview2
 cover_image: /photos/nanobrowser-cover.png
 date: 2026-10-16
