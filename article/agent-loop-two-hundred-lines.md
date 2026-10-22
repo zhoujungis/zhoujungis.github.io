@@ -1,5 +1,5 @@
 ---
-title: "01 Agent 的本质：一个两百行的循环"
+title: "Agent 的本质：一个两百行的循环"
 slug: agent-loop-two-hundred-lines
 cover_image: /photos/agent-loop-cover.png
 date: 2026-10-22
@@ -1189,7 +1189,7 @@ self.style.usage(1, turn.usage.prompt_tokens, turn.usage.completion_tokens);
 
 上下文是 Agent 最稀缺的资源。工具结果、文件内容、错误信息、历史对话都在争夺同一块窗口。留得太多，模型抓不住重点、成本飙升；丢得太多，模型忘了自己在干什么。NanoHermes 用「12 万字符预算 + 最近 10 条 + 摘要替换」处理这个问题，但真正的难点在于：**摘要该保留什么。**
 
-下一篇《02 Agent 上下文：留什么，丢什么》会拆开 `compact`、`summarize` 和工具输出上限，讨论一个更本质的问题：什么样的信息值得跨轮携带。
+下一篇《Agent 上下文：留什么，丢什么》会拆开 `compact`、`summarize` 和工具输出上限，讨论一个更本质的问题：什么样的信息值得跨轮携带。
 
 系列其余篇目：
 

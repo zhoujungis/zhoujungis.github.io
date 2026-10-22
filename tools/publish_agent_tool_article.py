@@ -1,4 +1,4 @@
-"""Publish "04 Agent 工具设计：为什么输出都要有上限".
+"""Publish "Agent 工具设计：为什么输出都要有上限".
 
 Usage:
     backend/venv/Scripts/python.exe tools/publish_agent_tool_article.py --dry-run
@@ -37,7 +37,7 @@ SOURCE = (
     / "agent-tool-design-output-budgets.md"
 )
 
-ARTICLE_TITLE = "04 Agent 工具设计：为什么输出都要有上限"
+ARTICLE_TITLE = "Agent 工具设计：为什么输出都要有上限"
 ARTICLE_SLUG = "agent-tool-design-output-budgets"
 ARTICLE_EXCERPT = (
     "工具设计不只是写几个函数加一份 JSON schema：真正要处理的是三层契约——"

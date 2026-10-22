@@ -1,4 +1,4 @@
-"""Publish "02 Agent 上下文：留什么，丢什么".
+"""Publish "Agent 上下文：留什么，丢什么".
 
 Usage:
     backend/venv/Scripts/python.exe tools/publish_agent_context_article.py --dry-run
@@ -37,7 +37,7 @@ SOURCE = (
     / "agent-context-keep-or-drop.md"
 )
 
-ARTICLE_TITLE = "02 Agent 上下文：留什么，丢什么"
+ARTICLE_TITLE = "Agent 上下文：留什么，丢什么"
 ARTICLE_SLUG = "agent-context-keep-or-drop"
 ARTICLE_EXCERPT = (
     "上下文不是聊天记录，而是「下一步还需要的工作集」。NanoHermes 用四层上限把这件事"

@@ -1,4 +1,4 @@
-"""Publish "01 Agent 的本质：一个两百行的循环".
+"""Publish "Agent 的本质：一个两百行的循环".
 
 Usage:
     backend/venv/Scripts/python.exe tools/publish_agent_loop_article.py --dry-run
@@ -37,7 +37,7 @@ SOURCE = (
     / "agent-loop-two-hundred-lines.md"
 )
 
-ARTICLE_TITLE = "01 Agent 的本质：一个两百行的循环"
+ARTICLE_TITLE = "Agent 的本质：一个两百行的循环"
 ARTICLE_SLUG = "agent-loop-two-hundred-lines"
 ARTICLE_EXCERPT = (
     "把 Agent 的所有名词剥掉，剩下的就是一个循环：把消息发给模型，模型要么回文本，"

@@ -1,4 +1,4 @@
-"""Publish "03 Agent 记忆：不接向量库也能长期记忆".
+"""Publish "Agent 记忆：不接向量库也能长期记忆".
 
 Usage:
     backend/venv/Scripts/python.exe tools/publish_agent_memory_article.py --dry-run
@@ -37,7 +37,7 @@ SOURCE = (
     / "agent-memory-without-vector-db.md"
 )
 
-ARTICLE_TITLE = "03 Agent 记忆：不接向量库也能长期记忆"
+ARTICLE_TITLE = "Agent 记忆：不接向量库也能长期记忆"
 ARTICLE_SLUG = "agent-memory-without-vector-db"
 ARTICLE_EXCERPT = (
     "长期记忆的难点不在存，而在下一次用得上。NanoHermes 不接向量库：一个 "
