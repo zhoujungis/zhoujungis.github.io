@@ -259,18 +259,24 @@ fn truncate(s: &str, max: usize) -> String {
 
 错误详情被截到 800 字节。这个上限对「别把一整页 HTML 塞进终端」是合理的，但对观测来说意味着：**服务端返回的长错误在账上永远只剩开头**。当你要排查一次诡异的 400 时，被截掉的那段往往才是关键。错误应当按「终端显示截断、账本全文留存」两个口径分别处理。
 
-## 记账点写在 `?` 之后：失败轮次不计入
+## 记账点写在错误返回之后：失败轮次不计入
 
 主循环里的记账只有四行，位置很关键：
 
 ```rust
-let turn = self.complete()?;
+let turn = match self.complete() {
+    Ok(turn) => turn,
+    Err(e) => {
+        self.persist();
+        return Err(e);
+    }
+};
 self.usage.requests += 1;
 self.usage.prompt_tokens += turn.usage.prompt_tokens;
 self.usage.completion_tokens += turn.usage.completion_tokens;
 ```
 
-`?` 在记账之前。`complete()` 返回 `Err` 时，函数直接向上返回，四行一行都不会执行。这意味着整个账本的口径其实是「**成功的模型请求**」，而不是「发生过的模型请求」。
+错误分支在记账之前。`complete()` 返回 `Err` 时，`persist()` 之后直接向上返回，记账那四行一行都不会执行。这意味着整个账本的口径其实是「**成功的模型请求**」，而不是「发生过的模型请求」。
 
 在单人、网络稳定的场景下这个差别很小。但在真实使用里，失败并不罕见：超时、429、5xx、流中断、JSON 形状不对。这些失败大多数不产生计费（429 通常在服务端就被挡住），所以「不计入」在钱上未必错；但它在**可靠性观测**上是错的——你看不出「这次任务重试了 7 次才成功」，也看不出「这个端点的失败率是 30%」。
 
@@ -373,7 +379,7 @@ let note = match self.summarize_messages(&dropped) {
 };
 ```
 
-把被丢弃的消息拼成一个摘录（每个消息截 1200 字符），发给模型要一段不超过 300 词的总结。这次请求的 prompt 可能有好几万 token——因为它塞的就是半个上下文。
+把被丢弃的消息原样拼成一个摘录（这里没有逐条截断，只有整个摘要请求的输入），发给模型要一段不超过 300 词的总结。这次请求的 prompt 可能有好几万 token——因为它塞的就是半个上下文。
 
 对一个 40 轮的长任务，压缩可能触发好几次。每次都是一次实打实的大请求，但账本上只多了一行 `context compacted: N older message(s) replaced by a summary` 的 note，没有一个 token。
 

@@ -91,7 +91,7 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-22T16:13:34.659287+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 观测：给每个轮次记一本账","description":"适用读者：跑过几天 agent、开始关心「这次任务到底花了多少」的人；被「重启之后成本归零」骗过的人；做过多体、发现子代理的花费无处可查的人 结论先行：观测不是往代码里撒日志，而是让每一笔消耗都能落到一行可审计的账上—— 谁发起的、做了什么、花了多少、什么时候 。NanoHermes 有观测的零件（ UsageTota","image":"https://zhoujungis.github.io/photos/agent-observability-cover.png","datePublished":"2026-10-22T16:13:34.659287+08:00","dateModified":"2026-10-22T16:13:34.659287+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/agent-observability-turn-ledger/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 观测：给每个轮次记一本账","description":"适用读者：跑过几天 agent、开始关心「这次任务到底花了多少」的人；被「重启之后成本归零」骗过的人；做过多体、发现子代理的花费无处可查的人 结论先行：观测不是往代码里撒日志，而是让每一笔消耗都能落到一行可审计的账上—— 谁发起的、做了什么、花了多少、什么时候 。NanoHermes 有观测的零件（ UsageTota","image":"https://zhoujungis.github.io/photos/agent-observability-cover.png","datePublished":"2026-10-22T16:13:34.659287+08:00","dateModified":"2026-10-23T14:31:55.807960+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/agent-observability-turn-ledger/"}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -423,17 +423,23 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 
 
 错误详情被截到 800 字节。这个上限对「别把一整页 HTML 塞进终端」是合理的，但对观测来说意味着：<strong>服务端返回的长错误在账上永远只剩开头</strong>。当你要排查一次诡异的 400 时，被截掉的那段往往才是关键。错误应当按「终端显示截断、账本全文留存」两个口径分别处理。
-<h2>记账点写在 <code>?</code> 之后：失败轮次不计入</h2>
+<h2>记账点写在错误返回之后：失败轮次不计入</h2>
 
 主循环里的记账只有四行，位置很关键：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">complete</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">complete</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">turn</span><span class="p">,</span>
+<span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">persist</span><span class="p">();</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
 <span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">requests</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
 <span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="p">;</span>
 <span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="p">;</span>
 </code></pre></div>
 
 
-<code>?</code> 在记账之前。<code>complete()</code> 返回 <code>Err</code> 时，函数直接向上返回，四行一行都不会执行。这意味着整个账本的口径其实是「<strong>成功的模型请求</strong>」，而不是「发生过的模型请求」。
+错误分支在记账之前。<code>complete()</code> 返回 <code>Err</code> 时，<code>persist()</code> 之后直接向上返回，记账那四行一行都不会执行。这意味着整个账本的口径其实是「<strong>成功的模型请求</strong>」，而不是「发生过的模型请求」。
 
 在单人、网络稳定的场景下这个差别很小。但在真实使用里，失败并不罕见：超时、429、5xx、流中断、JSON 形状不对。这些失败大多数不产生计费（429 通常在服务端就被挡住），所以「不计入」在钱上未必错；但它在<strong>可靠性观测</strong>上是错的——你看不出「这次任务重试了 7 次才成功」，也看不出「这个端点的失败率是 30%」。
 
@@ -551,7 +557,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 </code></pre></div>
 
 
-把被丢弃的消息拼成一个摘录（每个消息截 1200 字符），发给模型要一段不超过 300 词的总结。这次请求的 prompt 可能有好几万 token——因为它塞的就是半个上下文。
+把被丢弃的消息原样拼成一个摘录（这里没有逐条截断，只有整个摘要请求的输入），发给模型要一段不超过 300 词的总结。这次请求的 prompt 可能有好几万 token——因为它塞的就是半个上下文。
 
 对一个 40 轮的长任务，压缩可能触发好几次。每次都是一次实打实的大请求，但账本上只多了一行 <code>context compacted: N older message(s) replaced by a summary</code> 的 note，没有一个 token。
 
