@@ -5,8 +5,1505 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Thu, 22 Oct 2026 08:14:13 GMT</lastBuildDate>
+    <lastBuildDate>Fri, 23 Oct 2026 06:26:09 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Token 经济学：同一任务十倍的差价</title>
+      <link>https://zhoujungis.github.io/article/agent-token-economics/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/agent-token-economics/</guid>
+      <pubDate>Fri, 23 Oct 2026 06:25:34 GMT</pubDate>
+      <description>适用读者：跑 agent 跑到账单心疼的人；以为成本等于「单价 × token」的人；想在不换模型的前提下把费用砍下来的人 结论先行：agent 的成本不是「单价 × token 用量」，而是「上下文策略 × 请求次数」。同一任务十倍差价，主要来自三个杠杆—— 前缀是否稳定、上下文是否被压缩、一次任务到底发了几次请求 </description>
+      <category>AI编程</category>
+      <category>Agent</category>
+      <category>Agent 工程</category>
+      <category>Token 经济学</category>
+      <category>架构设计</category>
+      <content:encoded><![CDATA[<blockquote>
+
+适用读者：跑 agent 跑到账单心疼的人；以为成本等于「单价 × token」的人；想在不换模型的前提下把费用砍下来的人
+结论先行：agent 的成本不是「单价 × token 用量」，而是「上下文策略 × 请求次数」。同一任务十倍差价，主要来自三个杠杆——<strong>前缀是否稳定、上下文是否被压缩、一次任务到底发了几次请求</strong>。NanoHermes 的五个预算常量里，有三个量的其实是字节而不是名字说的东西，而记忆注入每轮重写 system 消息，恰好把最该稳定的那一段变短了
+阅读时间：约 55 分钟 | 难度：进阶 | 收获：一个可套用的成本公式 + 40 轮任务的算例 + 七个可验证的成本缺陷 + 一张按收益排序的调优清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：同一个任务，两份账单</li>
+<li>结论先行：三个杠杆，一条反直觉</li>
+<li>先把成本公式写出来</li>
+<li>四种单位：字节、字符、token、美元</li>
+<li>一个 40 轮的算例：二次曲线是怎么来的</li>
+<li>一轮请求的完整字节账单</li>
+<li>压缩的真正意义是截断二次曲线</li>
+<li>NanoHermes 的五个预算常量</li>
+<li><code>CONTEXT_CHAR_BUDGET</code> 的名字骗了你</li>
+<li>十二万字节在中文里到底是多少</li>
+<li>压缩由三个条件触发</li>
+<li>保底十条：压缩收益的下限</li>
+<li>上下文的三层天花板</li>
+<li>压缩请求的输入没有逐条截断</li>
+<li>压缩是投资还是亏损</li>
+<li>压缩的三种替代方案</li>
+<li>稳定前缀的第一段：system prompt</li>
+<li>工具清单也在前缀里</li>
+<li>项目文档两万字符：怎么拼、怎么截</li>
+<li>记忆块每轮重写：缓存被打断的地方</li>
+<li><code>set_block</code> 把可变段放在 system 末尾</li>
+<li>工具结果的上限，量的还是字节</li>
+<li>两层截断：<code>max_output</code> 与 <code>max_chars</code></li>
+<li>工具输出的分级策略</li>
+<li>图片：base64 放大三分之一，而且没有上限</li>
+<li>图片会被后续每一轮重发</li>
+<li><code>max_tokens</code> 与「截断重写」的隐性双倍成本</li>
+<li>重试：整个 prompt 再发一次</li>
+<li>轮次上限 40 与并发 8：最坏情况有多坏</li>
+<li>子代理的成本模型：一次并行调研贵在哪</li>
+<li>缓存命中率怎么测</li>
+<li>缓存的五个前提</li>
+<li>输出为什么比输入贵，而且会被收两次</li>
+<li>三个反直觉结论</li>
+<li>五个常见估算错误</li>
+<li>一次任务的成本画像</li>
+<li>一次优化实录：14 轮怎么降到 9 轮</li>
+<li>五种「看起来省钱其实更贵」的做法</li>
+<li>一张按收益排序的调优清单</li>
+<li>三个一天内能做完的实验</li>
+<li>预算常量该怎么定：五个数从哪来</li>
+<li>什么该省，什么不该省</li>
+<li>怎么把成本做成可回归的指标</li>
+<li>小结</li>
+<li>参考</li>
+</ul>
+<h2>前言：同一个任务，两份账单</h2>
+
+先看一个真实的对比。同一个仓库、同一个需求（把一个 Go 服务里的三处错误处理改掉）、同一个模型，两次跑下来账单差了一个数量级。差别不在模型，也不在 prompt 写得好不好，而在三件事：
+<ul>
+<li>第一次跑在一个「每次请求都重建 system prompt」的客户端上，第二次跑在「system 前缀全程不变」的客户端上</li>
+<li>第一次跑了 37 轮，第二次跑了 14 轮</li>
+<li>第一次把 <code>go.mod</code> 和两个 800 行的文件全文塞进了上下文，第二次只塞了被改的那三段</li>
+</ul>
+
+如果把成本拆成「单价 × token」，你只能解释价格差；把成本拆成「前缀稳定性 × 上下文体积 × 请求次数」，你能解释十倍。
+
+08 讲的是「账本」，这篇讲「有了账本之后怎么花钱」。两者其实是同一个问题的两面：不知道怎么计量，就谈不上优化；不做优化，计量出来的只是一张让人难受的报表。
+<h2>结论先行：三个杠杆，一条反直觉</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>杠杆</th>
+<th>作用机制</th>
+<th>量级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前缀稳定</td>
+<td>服务端的 prompt cache 按前缀逐 token 匹配，改一个字节，后面全失效</td>
+<td>3 到 20 倍</td>
+</tr>
+<tr>
+<td>上下文压缩</td>
+<td>把历史从线性增长压回常数，砍掉二次项</td>
+<td>2 到 5 倍</td>
+</tr>
+<tr>
+<td>请求次数</td>
+<td>每一轮都要重发全部上下文，轮数是乘数</td>
+<td>与轮数成正比</td>
+</tr>
+</tbody>
+</table></div>
+
+反直觉的那一条是：<strong>前缀稳定性比模型选择更影响账单</strong>。同一个任务，用贵三倍的模型但保持前缀稳定，往往比用便宜模型但每轮重写 system 更省。因为模型单价是线性因子，前缀缓存是乘在「全部历史」上的折扣因子——而历史才是复利。
+
+这条结论成立的前提是服务端真的支持前缀缓存。主流几家都支持，但触发条件各不相同（最小前缀长度、缓存存活时间、是否要求完全字节一致）。本文只讲「你能控制的那一侧」：别在请求前缀里放会变的东西。
+<h2>先把成本公式写出来</h2>
+
+抛开缓存折扣，一次任务的总成本是：
+<div class="codehilite"><pre><span></span><code>cost ≈ Σ_t [ P_in × (S + H_t) + P_out × O_t ]
+</code></pre></div>
+
+<ul>
+<li><code>S</code>：稳定前缀，包含 system prompt、工具 schema、项目文档</li>
+<li><code>H_t</code>：第 t 轮开始时的历史消息（用户、助手、工具结果）</li>
+<li><code>O_t</code>：第 t 轮的输出</li>
+<li><code>P_in</code> / <code>P_out</code>：输入、输出单价</li>
+</ul>
+
+这个公式有三个值得盯的地方：
+
+第一，<code>S</code> 在每一轮都被重发。40 轮就是 40 次 <code>S</code>。如果 <code>S</code> 是三万 token，光前缀就烧掉一百二十万。
+
+第二，<code>H_t</code> 是累积的。第 1 轮只有一条用户消息，第 40 轮有几十条。这就是二次项的来源。
+
+第三，<code>O_t</code> 只算一次，但它会变成下一轮的 <code>H</code> 的一部分——输出既计费一次，又永久留在上下文里持续计费。
+
+把公式改写一下，能更清楚地看到结构：
+<div class="codehilite"><pre><span></span><code>total_in ≈ N × S + Σ_{t=1..N} H_t
+</code></pre></div>
+
+
+而 <code>H_t ≈ d × (t - 1)</code>（d 是每轮新增的平均 token），所以：
+<div class="codehilite"><pre><span></span><code>total_in ≈ N × S + d × N × (N - 1) / 2
+</code></pre></div>
+
+
+第二项是 <code>N²</code> 的。这就是为什么长任务不是「贵一点」，而是「贵得离谱」。
+<h2>四种单位：字节、字符、token、美元</h2>
+
+聊成本最容易吵起来的原因，是四个人在用四种单位说话。它们的换算关系不固定，但在 agent 里有一条经验链：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>单位</th>
+<th>谁在用</th>
+<th>换算</th>
+<th>误差来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>字节</td>
+<td><code>String::len()</code>、HTTP 请求体</td>
+<td>中文 1 字 = 3 字节</td>
+<td>JSON 转义、base64</td>
+</tr>
+<tr>
+<td>字符</td>
+<td>人、<code>chars().count()</code>、截断文案</td>
+<td>中文 1 字 = 1 字符</td>
+<td>全角标点、emoji</td>
+</tr>
+<tr>
+<td>token</td>
+<td>服务端计费</td>
+<td>中文约 1 到 1.5 字 1 token</td>
+<td>分词器、模型</td>
+</tr>
+<tr>
+<td>美元</td>
+<td>账单</td>
+<td>单价 × token</td>
+<td>缓存折扣、批处理</td>
+</tr>
+</tbody>
+</table></div>
+
+从字节到 token 没有线性公式，但有稳定的区间：<strong>英文约 4 字符 1 token，中文约 1 字 1 token，代码约 2 字符 1 token</strong>。这三条够你做量级估算，不够你做精确预算。
+
+从字节到字符的换算更简单，但坑更深：JSON 序列化会把 <code>\n</code> 变成两个字节、<code>"</code> 变成两个字节，<code>serde_json</code> 对中文默认不转义（写 UTF-8），所以「消息序列化后的字节数」比「原文字节数」略大，比例取决于内容里有多少换行和引号。一份代码文件转成消息后，字节数通常涨 5% 到 15%。
+
+这张表解释了一件很重要的事：<strong>同一个数字，在不同层含义不同</strong>。<code>120_000</code> 在 <code>CONTEXT_CHAR_BUDGET</code> 里是字节，在 <code>MAX_PROJECT_DOCS</code> 里也是字节，在 <code>max_chars</code> 里是字符，在 <code>max_tokens</code> 里是 token。四个「上限」，四种单位，其中三个的名字都在暗示自己是另一种。
+
+看代码时养成一个习惯：看到 <code>len()</code> 就问「这是谁的 len」，看到 <code>chars</code> 就问「这里真的按字符算了吗」。本文后面七个缺陷里，有四个源于这一个疏忽。
+<h2>一个 40 轮的算例：二次曲线是怎么来的</h2>
+
+取一组保守的假设（只作算例，不是实测）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>项</th>
+<th>取值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S</code></td>
+<td>3,000 token</td>
+<td>system 约 1,200 + 工具 schema 约 1,800</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td>1,200 token</td>
+<td>每轮的用户消息 + 助手回复 + 工具结果均值</td>
+</tr>
+<tr>
+<td><code>N</code></td>
+<td>40 轮</td>
+<td>默认 <code>max_iterations</code></td>
+</tr>
+<tr>
+<td><code>O_t</code></td>
+<td>400 token</td>
+<td>输出，单独按 <code>P_out</code> 计</td>
+</tr>
+</tbody>
+</table></div>
+
+三种情形：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>情形</th>
+<th>输入 token 计算</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无缓存</td>
+<td>40 × 3000 + 1200 × 780</td>
+<td>1,056,000</td>
+</tr>
+<tr>
+<td>无缓存 + 第 20 轮压缩一次</td>
+<td>40 × 3000 + 1200 × (190 + 190)</td>
+<td>576,000</td>
+</tr>
+<tr>
+<td>全程前缀命中</td>
+<td>3000 + 40 × 1200</td>
+<td>51,000</td>
+</tr>
+</tbody>
+</table></div>
+
+第一行和第三行差约 20 倍，这就是「同一任务十倍差价」的来源。第二行单独看：压缩没有动前缀那 120,000（40 × 3,000 一分没少），它改的是 <code>d</code> 的斜率——压缩后 <code>H_t</code> 从第 1 轮重新累积，原本 780 的三角和变成两段各 190 的三角和，二次项从 936,000 降到 456,000，总输入几乎减半。<strong>压缩省下的全是历史，不是前缀</strong>。
+
+如果缓存价是正常输入价的十分之一（各家不同，这里只作量级估计），第三行的计费等效值约为 <code>3000 × 0.1 + 48000 ≈ 48,300</code> 个「全价 token」，与第一行的 1,056,000 相比约 22 倍。这个数字大到不像真的，所以更要强调：<strong>它是算例，不是账单</strong>。真实倍数会被缓存最小长度、缓存失效、输出占比等因素拉低，但方向不会变。
+<h2>一轮请求的完整字节账单</h2>
+
+把「二次曲线」落到具体的一轮上，看看请求体里到底装了什么。取第 20 轮为例：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>组成</th>
+<th>体积</th>
+<th>是否重复</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>system 提示词正文</td>
+<td>1,200 字节</td>
+<td>每轮重发</td>
+<td>固定文本</td>
+</tr>
+<tr>
+<td>模式 / 人设 / 项目文档</td>
+<td>20,000 字节</td>
+<td>每轮重发</td>
+<td><code>AGENTS.md</code> 上限</td>
+</tr>
+<tr>
+<td>技能列表</td>
+<td>1,000 字节</td>
+<td>每轮重发</td>
+<td>启用的技能清单</td>
+</tr>
+<tr>
+<td>工具 schema</td>
+<td>7,000 字节</td>
+<td>每轮重发</td>
+<td>20 多个内置工具</td>
+</tr>
+<tr>
+<td>记忆块</td>
+<td>2,400 字节</td>
+<td>每轮变</td>
+<td>每轮重检索</td>
+</tr>
+<tr>
+<td>历史消息</td>
+<td>240,000 字节</td>
+<td>累积</td>
+<td>第 20 轮约 20 × 12,000</td>
+</tr>
+<tr>
+<td>本轮用户消息</td>
+<td>300 字节</td>
+<td>一次</td>
+<td>之后就变成历史</td>
+</tr>
+</tbody>
+</table></div>
+
+合计约 272,000 字节。其中真正「新」的只有最后两行，不到 3,000 字节；<strong>其余 269,000 字节都是重复内容</strong>。
+
+这组数字说明三件事：
+
+第一，<code>S</code>（稳定前缀）在这里约 29,200 字节，比 <code>H_20</code> 小一个数量级——但在第 1 到第 5 轮，<code>S</code> 是主体。所以「前缀优化」和「历史优化」的收益曲线交叉在第 5 到第 10 轮之间。
+
+第二，工具 schema 的 7,000 字节是纯固定开销，它不随任务变化，却每轮都付。工具越多，这个固定成本越高——一个装了 30 个 MCP 工具的 agent，光 schema 就可能比系统提示词大。
+
+第三，历史占了 88%。这就是为什么「每轮让历史失效」是最贵的错误：它把 88% 的内容从「缓存价」推回「全价」。
+
+一个健康的请求应该让「重复部分」尽量落在缓存里，只让「新内容」按全价计。做到这一点，第 20 轮的计费等效值大约是 <code>29,200 × 0.1 + 3,000</code>，而不是 <code>272,000</code>。差两个数量级。
+<h2>压缩的真正意义是截断二次曲线</h2>
+
+02 讲压缩时，落点是「上下文是工作集，装不下就要丢」。从成本角度看，压缩的意义更硬：<strong>它把 <code>N²</code> 的三角和切成若干段更小的三角和</strong>。
+
+假设不压缩，40 轮的 <code>Σ H_t</code> 是 936,000。假设每 20 轮压缩一次，<code>Σ H_t</code> 变成两段 20 轮的三角和：2 × (1200 × 190) = 456,000，直接减半。压得越频繁，二次项越小，但每次压缩本身要花钱（下一节算），所以存在一个最优点。
+
+这就是「压缩不是免费午餐」的量化版本：压缩一次的成本 ≈ 一次大请求，收益 ≈ 后续每轮少发的历史。设压缩成本为 <code>C</code>，压缩后每轮省 <code>h</code>，还剩 <code>k</code> 轮，那么只有 <code>k × h &gt; C</code> 时才划算。
+
+对 40 轮的任务，这个不等式几乎总是成立；对 3 轮的任务，压缩纯属浪费。所以「什么时候压缩」不该只看上下文大小，还要看「还剩多少轮」——而这一点，NanoHermes 的触发条件里没有。
+<h2>NanoHermes 的五个预算常量</h2>
+
+整个项目的成本旋钮就这五个数字：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>常量</th>
+<th>值</th>
+<th>位置</th>
+<th>量的是什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CONTEXT_CHAR_BUDGET</code></td>
+<td>120,000</td>
+<td><code>agent.rs</code></td>
+<td>说是字符，实为字节</td>
+</tr>
+<tr>
+<td><code>KEEP_RECENT</code></td>
+<td>10</td>
+<td><code>agent.rs</code></td>
+<td>压缩后保留的消息条数</td>
+</tr>
+<tr>
+<td><code>max_output</code></td>
+<td>20,000</td>
+<td><code>agent.rs</code></td>
+<td>单个工具结果上限，字节</td>
+</tr>
+<tr>
+<td><code>MAX_ATTACHED_IMAGES</code></td>
+<td>4</td>
+<td><code>agent.rs</code></td>
+<td>一次消息附带的图片数</td>
+</tr>
+<tr>
+<td><code>MAX_PROJECT_DOCS</code></td>
+<td>20,000</td>
+<td><code>prompt.rs</code></td>
+<td>项目文档注入上限，字符</td>
+</tr>
+</tbody>
+</table></div>
+
+再加上 <code>config.rs</code> 里的三个默认值：<code>max_tokens: 4096</code>、<code>temperature: 0.0</code>、<code>max_iterations: 40</code>。
+
+这八个数字决定了「一次任务最贵能贵到哪」。下面逐个看它们的实际语义。
+<h2><code>CONTEXT_CHAR_BUDGET</code> 的名字骗了你</h2>
+
+触发压缩的那一行：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">size</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">m</span><span class="o">|</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">to_string</span><span class="p">().</span><span class="n">len</span><span class="p">()).</span><span class="n">sum</span><span class="p">();</span>
+<span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">force</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">CONTEXT_CHAR_BUDGET</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">KEEP_RECENT</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>m.to_string()</code> 是 serde_json 序列化，<code>String::len()</code> 返回的是 <strong>UTF-8 字节数</strong>。常量名却叫 <code>CONTEXT_CHAR_BUDGET</code>。
+
+在纯 ASCII 的英文对话里，字节数约等于字符数，这个名字不会害人。在中文对话里，一个汉字三字节；序列化还会把换行转义成 <code>\n</code>（两字节）、把引号转义（两字节）。于是「12 万字符的预算」实际只放得下大约 4 万个汉字。
+
+这不是一个命名瑕疵，而是一个<strong>可观测的成本偏差</strong>：你以为上下文装到 12 万字符才压缩，实际上 4 万字就触发了；反过来，如果你按「12 万字符」估算 token，会高估三倍，做出来的成本预测全错。
+
+更麻烦的是它跟 <code>max_output</code> 一唱一和：工具结果的上限 <code>20_000</code> 也是用 <code>s.len()</code> 判断的，同样量的是字节。两个「字符」上限一起骗人三次（<code>clamp</code>、预算、文档注入里 <code>joined.len()</code> 也是字节）。
+<h2>十二万字节在中文里到底是多少</h2>
+
+把字节换算成 token 需要知道分词器，但可以给一个保守区间：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>字节</th>
+<th>约等于字符</th>
+<th>粗略 token 估计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>纯英文代码</td>
+<td>120,000</td>
+<td>120,000</td>
+<td>30,000 到 35,000</td>
+</tr>
+<tr>
+<td>中英混排（本文这种）</td>
+<td>120,000</td>
+<td>70,000 到 80,000</td>
+<td>40,000 到 50,000</td>
+</tr>
+<tr>
+<td>纯中文</td>
+<td>120,000</td>
+<td>40,000</td>
+<td>30,000 到 40,000</td>
+</tr>
+</tbody>
+</table></div>
+
+注意代码那一行：代码的 token 密度比自然语言高（<code>fn main() {</code> 这种符号密集的片段经常一个字符一个 token）。所以同一个 12 万字节的预算，在「大量贴代码」的场景里反而更早耗尽 token 配额。
+
+结论很实用：<strong>不要把「字符预算」当成「token 预算」来推算成本</strong>，两者能差两到三倍。真要估算，就按「中文 1 字 ≈ 1 token、英文 4 字符 ≈ 1 token、代码 2 字符 ≈ 1 token」这种粗口径分开算。
+<h2>压缩由三个条件触发</h2>
+
+<code>compact_with</code> 的触发条件写得很清楚：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">force</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">CONTEXT_CHAR_BUDGET</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">KEEP_RECENT</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个条件同时满足才动手：
+<ul>
+<li>总字节数超过 120,000</li>
+<li>消息条数超过 11</li>
+<li>不是 <code>/compact</code> 强制触发</li>
+</ul>
+
+第三个条件解释了为什么「手动压缩」在真实使用里很重要：自动压缩只在跨过阈值那一刻发生一次，之后历史继续增长，直到再次跨过阈值。如果一个任务在 100,000 字节附近来回震荡（每轮加一点、压缩一点），它可能永远不触发，也可能反复触发。
+
+压缩的落点是：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">().</span><span class="n">saturating_sub</span><span class="p">(</span><span class="n">KEEP_RECENT</span><span class="p">);</span>
+<span class="k">while</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">[</span><span class="n">start</span><span class="p">][</span><span class="s">&quot;role&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="k">if</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">dropped</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">drain</span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="n">start</span><span class="p">).</span><span class="n">collect</span><span class="p">();</span>
+</code></pre></div>
+
+
+<code>start</code> 从「倒数第 10 条」开始，然后跳过所有 <code>tool</code> 消息。这个跳过很关键：如果第 10 条正好是一个工具结果，直接从这里切会把「助手发起调用」和「工具返回结果」拆开，下一次请求就会因为消息不成对而报错。
+
+代价是——<strong>跳过会把压缩点往后推</strong>，实际丢弃的可能远少于预期。一次并发 8 个工具的轮次会产生 9 条消息（1 条助手 + 8 条工具结果），全都得留着。所以「保留 10 条」在工具密集的场景里，等于「保留一整轮还可能不够」。
+<h2>保底十条：压缩收益的下限</h2>
+
+压缩之后，上下文结构变成：
+<div class="codehilite"><pre><span></span><code>[0] system（含记忆块）
+[1] system（摘要）
+[2..] 最近 10 条消息原文
+</code></pre></div>
+
+
+<code>KEEP_RECENT = 10</code> 是个保底：无论怎么压，这 10 条原文都在。如果这 10 条里有几条是几万字符的工具结果，压缩对总量的影响就很小——你压掉的是旧历史，留下的是最贵的那部分。
+
+这就产生了一个反直觉的结论：<strong>压缩对「工具输出很肥」的任务几乎无效</strong>。因为肥的部分在最近 10 条里。要让压缩真的有效，得先让工具输出不肥（下一节），或者让 <code>KEEP_RECENT</code> 按字节而不是按条数来算。
+
+按条数保底还有另一个问题：10 条短消息和 10 条长消息的差别是几十倍。一个「读文件 + 改文件 + 跑测试」的轮次，三条消息可能就 30,000 字节；一个纯闲聊的轮次，十条消息可能只有 2,000 字节。同一个 <code>KEEP_RECENT</code>，两种含义。
+<h2>上下文的三层天花板</h2>
+
+「上下文满了」这句话在 agent 里有三个完全不同的意思，混在一起就会做错优化：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>谁定的</th>
+<th>NanoHermes 的值</th>
+<th>超了会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>窗口</td>
+<td>模型的上下文长度</td>
+<td>由服务商决定</td>
+<td>请求直接报错（400）</td>
+</tr>
+<tr>
+<td>预算</td>
+<td>客户端自己定的阈值</td>
+<td>120,000 字节</td>
+<td>触发压缩</td>
+</tr>
+<tr>
+<td>钱包</td>
+<td>你的成本容忍度</td>
+<td>没有</td>
+<td>账单超预期，但没有报错</td>
+</tr>
+</tbody>
+</table></div>
+
+三层的关系是：窗口最大，预算次之，钱包最小。设计得好的系统应该让「预算」明显小于「窗口」，留出余量给一次超大的工具输出；同时让「钱包」有一个软上限，在超支前给出警告。
+
+NanoHermes 有前两层，没有第三层。<code>/cost</code> 是事后读数，不是预算控制。这意味着一个跑飞的任务可以毫无提示地烧掉一天的额度——它不会撞墙，只会让你的信用卡撞墙。
+
+补第三层不需要复杂机制：给 <code>UsageTotals</code> 加一个 <code>max_session_tokens</code>，在每轮开始前检查，超了就中断并提示。实现大约二十行，价值是「可控的失败」优于「不可控的账单」。
+<h2>压缩请求的输入没有逐条截断</h2>
+
+<code>summarize_messages</code> 把被丢弃的消息拼成一段文本：
+<div class="codehilite"><pre><span></span><code><span class="n">excerpt</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{role}: {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">content</span><span class="p">));</span>
+</code></pre></div>
+
+
+然后直接交给 <code>llm::summarize</code>：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="n">summarizer_cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Value</span><span class="p">::</span><span class="n">Array</span><span class="p">(</span><span class="fm">vec!</span><span class="p">[]),</span><span class="w"> </span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="p">{})</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+
+
+没有逐条截断，没有总长上限（<code>dropped</code> 的总量本身受 120,000 字节预算约束，但那已经是「接近满」的意思）。也就是说，一次压缩请求的输入，可能和一次普通请求一样大，甚至更大——因为它把被丢弃的历史全塞进去了。
+
+而它的输出被 system 提示词限制在 300 词：
+<div class="codehilite"><pre><span></span><code>Use at most 300 words. Reply with the summary only.
+</code></pre></div>
+
+
+300 词大约 400 到 500 token。于是这笔交易是：<strong>用几万 token 的输入，换四五百 token 的输出</strong>，换来后续每轮少发几万字节的历史。
+
+这笔交易在长任务里划算，在短任务里纯亏。NanoHermes 判断「长/短」的唯一依据是上下文大小，不看剩余轮次——所以一个「最后一轮刚好超预算」的任务，会花一次大请求去做一次再也用不上的压缩。
+<h2>压缩是投资还是亏损</h2>
+
+把上一节写成不等式。设：
+<ul>
+<li><code>C</code>：压缩请求的成本（≈ 被丢弃历史的 token 数 × <code>P_in</code>）</li>
+<li><code>h</code>：压缩后每轮省下的 token（≈ 被丢弃历史 − 摘要长度）</li>
+<li><code>k</code>：压缩后还会发生的轮数</li>
+</ul>
+
+则压缩划算的条件是：
+<div class="codehilite"><pre><span></span><code>k × h &gt; C
+</code></pre></div>
+
+
+代入算例：一次压缩丢掉了 80,000 token 的历史，摘要 500 token，所以 <code>h ≈ 79,500</code>；<code>C ≈ 80,000</code>（输入）+ 500（输出）。那么 <code>k × 79,500 &gt; 80,500</code>，只要 <code>k ≥ 2</code> 就划算。
+
+反过来说，如果一次压缩只丢掉 8,000 token 的历史（比如刚过阈值就压），<code>h ≈ 7,500</code>，<code>k</code> 需要大于 11 才划算。而「刚过阈值就压」恰恰是最常见的情况——因为触发条件就是「刚超过 120,000 字节」。
+
+这个不等式还揭示了一个设计上的机会：<strong>压缩阈值不该是一个固定值，而该是「剩余轮次」的函数</strong>。快结束的任务不必压，刚开始的任务压得越早越赚。
+<h2>压缩的三种替代方案</h2>
+
+压缩（摘要）只是「让上下文变小」的一种手段，而且是最贵的一种——它要发一次大请求。另外两种在特定场景下更划算：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>做法</th>
+<th>成本</th>
+<th>信息损失</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>摘要压缩</td>
+<td>调模型总结被丢弃的历史</td>
+<td>一次大请求</td>
+<td>中（取决于摘要质量）</td>
+<td>长对话、需要保留决策脉络</td>
+</tr>
+<tr>
+<td>硬截断</td>
+<td>直接把旧消息丢掉</td>
+<td>零</td>
+<td>高（可能丢掉关键约束）</td>
+<td>任务边界清晰、旧信息确实无用</td>
+</tr>
+<tr>
+<td>结构化状态</td>
+<td>把进度写进 todo / 任务板，历史可丢</td>
+<td>一次工具调用</td>
+<td>低（状态是显式的）</td>
+<td>多步骤任务、有明确清单</td>
+</tr>
+</tbody>
+</table></div>
+
+第三种最被低估。NanoHermes 已经有 <code>todo_write</code> 和任务板：如果每轮都把「已完成 / 待办 / 当前卡点」写进结构化清单，那么旧消息就可以硬截断——清单本身就是压缩后的状态，而且比模型写的摘要更准。
+
+从成本看，<code>todo_write</code> 一次调用几百 token，摘要压缩一次几万 token，差两个数量级。代价是你得在设计上让「状态」和「历史」分离——这正是 07 那条「共享必须有归属」的另一个版本：<strong>状态要有一个比对话历史更可靠的载体</strong>。
+
+实践中的组合是：短任务硬截断，长任务摘要，多步骤任务结构化。NanoHermes 只有摘要一种，而且不看任务类型。
+<h2>稳定前缀的第一段：system prompt</h2>
+
+<code>system_prompt</code> 的拼接顺序是固定的：
+<div class="codehilite"><pre><span></span><code>You are NanoHermes, ...          &lt;- 固定文本
+Operating rules: ...             &lt;- 固定文本
+Workspace root: {root}           &lt;- 每个工作区不同，但进程内不变
+Mode guidance: ...               &lt;- 随权限模式变，进程内通常不变
+Additional instructions ...      &lt;- 用户人设，进程内不变
+Project guidance (AGENTS.md) ... &lt;- 启动时读，进程内不变
+</code></pre></div>
+
+
+这个顺序是「从最稳定到最不稳定」，对前缀缓存是友好的：同一进程内，这一段完全不变。
+
+再看 <code>system_content</code>，在它后面又拼了两段：
+<div class="codehilite"><pre><span></span><code><span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n</span><span class="s">=== Project context (NANOHERMES.md) ===</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="n">text</span><span class="p">.</span><span class="n">trim</span><span class="p">());</span>
+<span class="o">..</span><span class="p">.</span>
+<span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="k">crate</span><span class="p">::</span><span class="n">skills</span><span class="p">::</span><span class="n">listing</span><span class="p">(</span><span class="n">skills</span><span class="p">));</span>
+</code></pre></div>
+
+
+<code>NANOHERMES.md</code> 是项目上下文，技能列表是可用技能的清单。两段都是启动时读一次，进程内不变。
+
+所以到这一步为止，前缀是稳的。真正的问题在下一节：有一个每轮都在变的东西，被塞进了同一个 system 消息。
+<h2>工具清单也在前缀里</h2>
+
+<code>build_tools()</code> 每次请求都重新拼一遍工具列表：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tools</span><span class="p">::</span><span class="n">specs</span><span class="p">().</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">();</span>
+<span class="o">..</span><span class="p">.</span>
+<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">mcp</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">m</span><span class="p">.</span><span class="n">all_tools</span><span class="p">());</span>
+<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">mcp_aux_tools</span><span class="p">());</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+工具 schema 是跟着每一个请求走的，它在服务端的计费口径里通常算输入 token（有些服务商单独计，但都在请求体里）。一个内置工具集大约 1,500 到 2,000 token，加上 MCP 工具可能翻倍。
+
+关键在于<strong>顺序稳定性</strong>。<code>list.retain(...)</code> 会按权限模式过滤掉一些工具，MCP 工具按连接顺序追加。只要这个顺序在一个进程内不变，schema 部分就是稳定前缀的一部分；一旦顺序抖动（比如 MCP server 重连后换了顺序），缓存就会从抖动点失效。
+
+这是「零成本优化」里最容易被忽略的一条：<strong>工具列表要排序后再发</strong>。按名字排序不影响模型能力，但能让不同会话之间的前缀一致——跨进程的缓存共享就靠这个。
+<h2>项目文档两万字符：怎么拼、怎么截</h2>
+
+<code>project_docs</code> 从文件系统根一路读到工作区：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">chain</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;&amp;</span><span class="n">Path</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">workspace</span><span class="p">.</span><span class="n">ancestors</span><span class="p">().</span><span class="n">collect</span><span class="p">();</span>
+<span class="n">chain</span><span class="p">.</span><span class="n">reverse</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="n">dir</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">chain</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">DOC_NAMES</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">candidates</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">dir</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+先读 <code>~/.nanohermes/AGENTS.md</code>，再从根目录往下读每一级的 <code>AGENTS.md</code>，最后拼接。顺序设计是对的——越具体的规则越靠后，越有「覆盖」的语义。
+
+截断也很克制：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">joined</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parts</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="n">joined</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">joined</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">joined</span><span class="p">.</span><span class="n">truncate</span><span class="p">(</span><span class="n">end</span><span class="p">);</span>
+<span class="w">    </span><span class="n">joined</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">… project guidance truncated&quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意 <code>is_char_boundary</code> 那个循环：按字节截断时必须回退到字符边界，否则会在 UTF-8 中间切断，产生非法字符串。这个细节是对的。
+
+但 <code>MAX_PROJECT_DOCS = 20_000</code> 同样是按字节算的（<code>joined.len()</code>），所以一个中文的 <code>AGENTS.md</code> 实际只能注入约 6,600 字。更值得注意的是成本：这两万字节<strong>出现在每一次请求里</strong>。40 轮任务就是 80 万字节的项目文档输入。
+
+如果 <code>AGENTS.md</code> 写了两万字，它对账单的贡献和「多跑 20 轮」差不多。这是「文档越详细越好」这个直觉的成本反例。
+<h2>记忆块每轮重写：缓存被打断的地方</h2>
+
+<code>run()</code> 的第一件事不是发请求，是重写 system 消息：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">user_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">content_text</span><span class="p">(</span><span class="o">&amp;</span><span class="n">content</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">memory_dir</span><span class="p">.</span><span class="n">clone</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">retrieve_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">);</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">set_memory_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">block</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>retrieve_block</code> 按当前用户输入检索记忆（03 讲过：BM25 + 中文二元切分，取 top 4，上限 2,400 字符）。检索结果取决于这一轮的输入，所以<strong>每一轮的 block 都可能不同</strong>。
+
+<code>set_memory_block</code> 把它写进 <code>messages[0]</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">system</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">first_mut</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">system</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;role&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">r</span><span class="o">|</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="s">&quot;system&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">system</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;content&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">updated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">set_block</span><span class="p">(</span><span class="n">text</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">);</span>
+<span class="w">            </span><span class="n">system</span><span class="p">[</span><span class="s">&quot;content&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">(</span><span class="n">updated</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+于是在每一轮请求发出之前，第一条消息的内容都会变。
+<h2><code>set_block</code> 把可变段放在 system 末尾</h2>
+
+<code>set_block</code> 的做法是：找到旧 block 的标记区间，删掉，再把新 block 追加到末尾：
+<div class="codehilite"><pre><span></span><code><span class="n">base</span><span class="p">.</span><span class="n">replace_range</span><span class="p">(</span><span class="n">start</span><span class="o">..</span><span class="n">end</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">base</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">base</span><span class="p">.</span><span class="n">trim_end</span><span class="p">().</span><span class="n">to_string</span><span class="p">();</span>
+<span class="o">..</span><span class="p">.</span>
+<span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{base}</span><span class="se">\n\n</span><span class="s">{block}&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+对这个函数本身，实现是对的：删除再追加，不会越积越多。
+
+但对<strong>前缀缓存</strong>来说，这是最坏的一种布局。前缀缓存按 token 从头匹配，只要某一位置变了，从那个位置往后全部失效。可变段放在 system 的末尾，意味着：
+<ul>
+<li>稳定部分（内置提示词、模式、项目文档、技能列表）仍然命中</li>
+<li>从记忆块开始往后的一切——包括摘要、之前所有轮次的对话——全部变成「新 token」</li>
+</ul>
+
+换句话说，<strong>每轮重检索记忆，等于每轮把整个对话历史重新计费一遍</strong>。而历史正是二次项的主体。这个设计用 2,400 字符的记忆换来「历史全部失效」，在长任务里是净亏。
+
+正确的做法是把可变段移到<strong>最后一条用户消息之前</strong>，作为一条独立的 user 消息（或者 system 消息追加在末尾），让 <code>messages[0]</code> 保持字节不变。代价是模型看到的「指令位置」变差一点，收益是历史能命中缓存。
+
+这是一个典型的「局部正确、整体有害」的设计：<code>set_block</code> 没错，<code>retrieve_block</code> 没错，「每轮重检索」也没错（03 里我们夸过它不积累），三个正确的决定叠在一起，把最贵的那个优化点弄没了。
+<h2>工具结果的上限，量的还是字节</h2>
+
+<code>dispatch</code> 的最后一行：
+<div class="codehilite"><pre><span></span><code><span class="n">r</span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="n">clamp</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">max_output</span><span class="p">))</span>
+</code></pre></div>
+
+
+<code>clamp</code> 的实现：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max</span><span class="p">;</span>
+<span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">s</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}</span><span class="se">\n</span><span class="s">… output truncated ({} chars omitted)&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">s</span><span class="p">[</span><span class="o">..</span><span class="n">end</span><span class="p">],</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">end</span><span class="p">)</span>
+</code></pre></div>
+
+
+三个观察：
+
+第一，<code>s.len()</code> 是字节，<code>max_output = 20_000</code> 也是字节。改一个中文文件，<code>read_file</code> 返回的内容 6,600 字就触顶了。
+
+第二，提示文案写的是 <code>chars omitted</code>，但算的是字节。对中文用户来说，这个数字会偏大三倍——用户看到「省略了 40,000 字符」，实际可能只省略了 13,000 字。
+
+第三，截断发生在 dispatch 层，也就是<strong>所有工具</strong>共享一个上限。<code>read_file</code>、<code>grep</code>、<code>shell</code>、<code>web_fetch</code> 都用同一个 20,000 字节。对 <code>grep</code> 来说这个上限合理，对 <code>read_file</code> 来说太狠——读一个 800 行的文件，很容易在中途被切断，模型只好再读一次。
+
+而「模型只好再读一次」就是成本：一次截断，换来一次额外请求，而这次请求还要重发全部上下文。
+<h2>两层截断：<code>max_output</code> 与 <code>max_chars</code></h2>
+
+<code>web_fetch</code> 有自己的上限：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">max_chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span>
+<span class="w">    </span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;max_chars&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">v</span><span class="o">|</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">as_u64</span><span class="p">())</span>
+<span class="w">    </span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">20_000</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="n">clamp</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span><span class="w"> </span><span class="mi">200_000</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">usize</span><span class="p">;</span>
+</code></pre></div>
+
+
+也就是说，<code>web_fetch</code> 可以返回最多 200,000 <strong>字符</strong>的结果，然后被 <code>dispatch</code> 的 <code>clamp</code> 截到 20,000 <strong>字节</strong>。
+
+两层上限，两套单位，两个默认值恰好都是 20,000。这不是巧合，而是同一套「按字符想问题、按字节写代码」的习惯在两个模块里各自长出来的结果。
+
+后果是：<code>web_fetch</code> 里那个 <code>max_chars</code> 参数对超过 20,000 字节的部分毫无作用。用户传 <code>max_chars: 50_000</code> 想多要一点内容，实际拿到的还是 20,000 字节。参数存在，但被外层覆盖了——这是「有配置无效果」的典型。
+
+同时 <code>MAX_RESPONSE_BYTES = 2 * 1024 * 1024</code> 决定了下载上限：先下载最多 2 MB，再转文本，再按 <code>max_chars</code> 截断，再按 20,000 字节截断。四层漏斗，每一层单位都不一样。
+<h2>工具输出的分级策略</h2>
+
+既然「一个工具结果会活 k 轮、成本是 <code>b × k</code>」，那么工具设计的核心问题就变成：<strong>该让模型看见多少，才既够用又不复利</strong>。
+
+按这个标准，工具分成三档：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>档位</th>
+<th>典型工具</th>
+<th>合理上限</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小结果</td>
+<td><code>write_file</code>、<code>todo_write</code>、<code>apply_patch</code></td>
+<td>几百字节</td>
+<td>只需要「成功 / 失败 + 摘要」</td>
+</tr>
+<tr>
+<td>中结果</td>
+<td><code>grep</code>、<code>glob</code>、<code>web_search</code></td>
+<td>2,000 到 5,000 字节</td>
+<td>列表类结果，太多反而难读</td>
+</tr>
+<tr>
+<td>大结果</td>
+<td><code>read_file</code>、<code>shell</code>、<code>web_fetch</code></td>
+<td>需要分段，不是硬截</td>
+<td>内容本身是任务素材</td>
+</tr>
+</tbody>
+</table></div>
+
+第三档最需要设计。<code>read_file</code> 其实已经有 <code>offset</code> / <code>limit</code>（默认 <code>limit = 2000</code> 行），所以「分页」在参数层是成立的。问题出在默认值与截断的配合：<code>limit</code> 按行计，<code>clamp</code> 按字节截，读一个中文文件时常常是 2,000 行还没到、20,000 字节先到，返回的就是「半页 + 一行 chars omitted」。更糟的是 <code>read_file</code> 自己的尾部提示（<code>… N more lines</code>）在 <code>clamp</code> 之前生成，一旦被截掉，连「还剩多少行」都看不到，模型只能猜一个 offset 再读一次——一次截断又变成一次请求。
+
+合理的修法是让 <code>read_file</code> 按字节预算反算行数，并在尾部直接给出 <code>next_offset</code>：模型不需要猜，也就不需要重读。
+
+<code>apply_patch</code> 的回显也值得注意。一次成功的改动只需要返回「改了哪几行」，不需要把整个文件回显一遍。如果回显整个文件，那 20,000 字节里 95% 是模型已经知道的内容——纯浪费，而且会占掉 <code>KEEP_RECENT</code> 的 10 个名额之一。
+
+这条给出一句可操作的判据：<strong>工具结果里，重复模型已知信息的比例越低越好</strong>。读文件是必要的信息，回显整个文件不是；grep 的行号是必要的，匹配上下文超过三行就不是。
+<h2>图片：base64 放大三分之一，而且没有上限</h2>
+
+<code>image_part</code> 的体量问题比文本更严重：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">read</span><span class="p">(</span><span class="n">path</span><span class="p">).</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}: {e}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">display</span><span class="p">()))</span><span class="o">?</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">b64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">base64</span><span class="p">::</span><span class="n">engine</span><span class="p">::</span><span class="n">general_purpose</span><span class="p">::</span><span class="n">STANDARD</span><span class="p">.</span><span class="n">encode</span><span class="p">(</span><span class="o">&amp;</span><span class="n">bytes</span><span class="p">);</span>
+<span class="nb">Ok</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">    </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;image_url&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s">&quot;image_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">format</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;data:{mime};base64,{b64}&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}))</span>
+</code></pre></div>
+
+
+没有大小检查。一张 5 MB 的截图，base64 之后约 6.7 MB。这个字符串会进入 <code>messages</code>，然后：
+<ul>
+<li>在第 1 轮请求里发一次</li>
+<li>在第 2 轮请求里再发一次（因为它在历史里）</li>
+<li>一直到压缩把它丢掉为止</li>
+</ul>
+
+一个 20 轮的视觉任务，一张 5 MB 截图要发 20 次，约 134 MB 的上传量。即使服务端按图片 token 计价（而不是按 base64 字符），请求体大小、网络时间、失败重试的代价也都是实打实的。
+
+<code>MAX_ATTACHED_IMAGES = 4</code> 只限制了张数，没有限制字节。四张 5 MB 的图，单次请求 27 MB——很多网关的请求体上限在 10 MB，这时会得到一个 413，然后按 08 的分析，这次失败还不进账。
+
+一个合理的实现应该在 <code>image_part</code> 里做三件事：检查文件大小、超限就缩放（而不是拒绝）、记录缩放的字节数。三件事都不难，难的是第一件——你得先意识到「张数上限不是成本上限」。
+<h2>图片会被后续每一轮重发</h2>
+
+这条单独说，因为它是「一次性成本」和「持续成本」的分界。
+
+文本工具结果也一样：一次 <code>read_file</code> 的 20,000 字节，会留在历史里，直到被压缩掉。所以工具结果的真实成本不是「一次」，而是「一次 × 它还能活多少轮」。
+
+设一个工具结果有 <code>b</code> 字节、还能活 <code>k</code> 轮，它的成本是：
+<div class="codehilite"><pre><span></span><code>b × k × P_in
+</code></pre></div>
+
+
+一个 20,000 字节的工具结果活了 20 轮，等于 400,000 字节的输入——比它原始大小的 20 倍。这就是为什么 04 强调「输出都要有上限」：上限不只是为了让模型不被淹没，更是为了不让它复利。
+
+推论很实用：<strong>越早出现的大结果越贵</strong>。第 1 轮读进来的大文件要背 40 轮，第 39 轮读进来的只背 1 轮。所以「先概览、后精读」不只是认知策略，也是成本策略。
+<h2><code>max_tokens</code> 与「截断重写」的隐性双倍成本</h2>
+
+<code>max_tokens: 4096</code> 是输出上限。它省的是输出钱（<code>P_out</code> 通常是 <code>P_in</code> 的几倍），但会带来一种隐形成本：<strong>输出被截断后，任务往往要重来一次</strong>。
+
+截断在 agent 里的显形方式有好几种：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>截断发生处</th>
+<th>表现</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>工具参数 JSON 中途断掉</td>
+<td><code>serde_json::from_str</code> 报错 → <code>ERROR: invalid JSON arguments</code></td>
+<td>模型看到错误后重发一次完整调用</td>
+</tr>
+<tr>
+<td>自然语言答案中途断掉</td>
+<td>用户看到半句话</td>
+<td>用户再说一次「继续」，等于重跑一轮</td>
+</tr>
+<tr>
+<td><code>apply_patch</code> 的 diff 不完整</td>
+<td>hunk 找不到上下文 → 报错</td>
+<td>重发生成一次完整 diff</td>
+</tr>
+</tbody>
+</table></div>
+
+三种情况的共同点是：失败发生在<strong>输出侧</strong>，而重试要重发<strong>输入侧</strong>。于是「省下的输出 token」被「重发的输入 token」吃掉，通常还倒贴——因为输入比输出大得多。
+
+这条给了一个反直觉的调参建议：<strong>如果任务以工具调用为主，<code>max_tokens</code> 应该调大而不是调小</strong>。因为工具调用的参数可能很长（一个 patch 就是几百行），截断一次的成本远高于多留 2,000 token 的预算。
+<h2>重试：整个 prompt 再发一次</h2>
+
+<code>llm::chat</code> 的重试是「重建 body、再发一次」：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">attempt</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="k">loop</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">model</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">),</span>
+<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">attempt</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">max_retries</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">attempt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="kd">let</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">backoff_ms</span><span class="p">(</span><span class="n">cfg</span><span class="p">.</span><span class="n">retry_base_ms</span><span class="p">,</span><span class="w"> </span><span class="n">attempt</span><span class="p">);</span>
+<span class="w">                </span><span class="o">..</span><span class="p">.</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>build_body</code> 每次都从头构造请求体，包含完整的 <code>messages</code>。所以一次 503 触发的重试，成本约等于「再跑一次这一轮」。
+
+如果 <code>max_retries = 2</code>，最坏情况下这一轮的成本是 3 倍输入。而 429（限流）通常不计费，503 是否计费取决于服务端——客户端不该假设「失败就免费」。
+
+这也是 08 里那句「一次成功掩盖 N 次请求」的成本版本：账本上只记一次成功，账单上可能是三次。
+
+更隐蔽的是 fallback：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">fallback</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">fallback_model</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="n">fallback</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+降级模型通常更便宜，所以「降级」在钱上是好事。但如果降级模型的能力不够，任务会多跑很多轮——<strong>便宜的单价 × 更多的轮数</strong>，最后可能更贵。这就是下一节要说的反直觉结论之一。
+<h2>轮次上限 40 与并发 8：最坏情况有多坏</h2>
+
+三个与成本直接相关的上限：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>上限</th>
+<th>值</th>
+<th>成本含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_iterations</code></td>
+<td>40</td>
+<td>一次用户消息最多 40 次请求</td>
+</tr>
+<tr>
+<td><code>MAX_PARALLEL_TOOL_CALLS</code></td>
+<td>8</td>
+<td>一轮最多 8 个工具结果进上下文</td>
+</tr>
+<tr>
+<td><code>MAX_PARALLEL_SUBAGENTS</code></td>
+<td>4</td>
+<td>最多 4 个子代理同时烧 token</td>
+</tr>
+</tbody>
+</table></div>
+
+最坏情况：40 轮 × 每轮 8 个工具结果 × 每个 20,000 字节。理论上的上下文是 6.4 MB——当然到不了，因为 120,000 字节就触发压缩了。但压缩前的那一轮，上下文可能是「120,000 字节 + 8 × 20,000 字节」= 280,000 字节，因为压缩发生在轮次之间，不在工具结果之间。
+
+这是一个真实的成本尖峰：<strong>一个并发工具轮次可以瞬间把上下文顶到预算的两倍</strong>。而这一轮发出去之后，下一轮就要为这 280,000 字节付钱。
+
+子代理的成本更隐蔽：4 个子代理 × 40 轮，每个都发自己的完整上下文。上限是 160 次请求，全部不计入主账（08 讲过）。从成本角度，这意味着一次「并行调研」可能是主任务的 10 倍开销，而你在 <code>/cost</code> 里只看到一个零头。
+<h2>子代理的成本模型：一次并行调研贵在哪</h2>
+
+把子代理拆开算。每个子代理自带一份 system prompt（继承父配置的模型、工具、系统提示），所以它的 <code>S</code> 和主代理接近；但它没有父代理的历史，它的 <code>H_t</code> 从零开始。
+
+设一次委派跑 <code>m</code> 轮，每轮增量 <code>d</code>，则子代理的输入是：
+<div class="codehilite"><pre><span></span><code>m × S + d × m × (m - 1) / 2
+</code></pre></div>
+
+
+四个子代理并行，总输入是四倍。取 <code>m = 15</code>、<code>S = 3,000</code>、<code>d = 1,000</code>：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>项</th>
+<th>计算</th>
+<th>token</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每个子代理</td>
+<td>15 × 3000 + 1000 × 105</td>
+<td>150,000</td>
+</tr>
+<tr>
+<td>四个子代理</td>
+<td>× 4</td>
+<td>600,000</td>
+</tr>
+<tr>
+<td>父代理同期</td>
+<td>15 × 3000 + 1000 × 105</td>
+<td>150,000</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>—</td>
+<td>750,000</td>
+</tr>
+</tbody>
+</table></div>
+
+而父代理自己的 <code>/cost</code> 只会显示最后那 150,000，除非把子代理的账归集上来。这就是 07 说「归集到发起它的人」、08 说「<code>&amp;self</code> 记不上账」的成本后果：<strong>你看到的数字只有真实开销的五分之一</strong>。
+
+更要紧的是这个模型的形状：子代理的成本随「委派次数 × 每个子代理轮数²」增长。所以「让四个子代理各跑 40 轮」不是一个并行优化，是一个四十倍的账单。
+
+一个实用的上限策略：给每个子代理单独的 <code>max_iterations</code>（比如 12），而不是继承父代理的 40。这个改动在 07 的加固清单里出现过，从成本角度它比任何缓存优化都值钱——因为它砍的是二次项。
+<h2>缓存命中率怎么测</h2>
+
+如果服务端返回 <code>prompt_tokens_details.cached_tokens</code>，你就能算命中率：
+<div class="codehilite"><pre><span></span><code>hit_rate = cached_tokens / prompt_tokens
+</code></pre></div>
+
+
+NanoHermes 现在不读这个字段（08 讲过），所以命中率是 0——不是「真的没命中」，而是「不知道」。这两者的区别在优化时是致命的：你会以为缓存没用，然后放弃它。
+
+在没有 <code>cached_tokens</code> 的情况下，还有一个替代指标：<strong>同一前缀的重复请求占比</strong>。做法很土但有效——把每次请求的 <code>messages</code> 序列化成字符串取哈希，统计「前缀相同（前 N 条消息完全一致）」的请求比例。这个比例是命中率的上界。
+
+三个数字能说明问题：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>含义</th>
+<th>健康值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前缀稳定率</td>
+<td>相邻两轮 <code>messages[0..k]</code> 完全一致的比例</td>
+<td>接近 100%</td>
+</tr>
+<tr>
+<td>平均历史长度</td>
+<td><code>Σ H_t / N</code></td>
+<td>与 <code>N</code> 线性增长说明没压缩</td>
+</tr>
+<tr>
+<td>压缩频次</td>
+<td>每 10 轮触发几次</td>
+<td>1 到 2 次比较健康</td>
+</tr>
+</tbody>
+</table></div>
+
+第一个指标如果很低，问题一定在「有个可变段被放进了前缀」——按本文的排查顺序，先看 system 消息的尾部。
+<h2>缓存的五个前提</h2>
+
+前缀缓存不是「发一样的 prompt 就一定命中」。它有五个前提，任何一个不满足都会静默失效：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>前提</th>
+<th>典型要求</th>
+<th>违反的后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前缀足够长</td>
+<td>各家有最小 token 数（数百到上千）</td>
+<td>短 prompt 不缓存，且不报错</td>
+</tr>
+<tr>
+<td>字节完全一致</td>
+<td>空格、换行、字段顺序都要一致</td>
+<td>差一个空格就整体失效</td>
+</tr>
+<tr>
+<td>模型一致</td>
+<td>同一个模型 ID</td>
+<td>换模型等于换缓存池</td>
+</tr>
+<tr>
+<td>时间窗口内</td>
+<td>缓存有存活时间（几分钟到几小时）</td>
+<td>隔夜的会话从零开始</td>
+</tr>
+<tr>
+<td>同一账号 / 组织</td>
+<td>缓存通常不跨租户</td>
+<td>换 API key 就没了</td>
+</tr>
+</tbody>
+</table></div>
+
+这五条解释了为什么「本地测试命中率很高，线上很低」：本地连续跑、prompt 一样、模型一样；线上并发、间隔长、有时切了模型。
+
+第三条和第五条在 agent 里特别容易踩：<code>/model</code> 换一次模型，整段前缀的缓存就没了；fallback 到另一个模型时同理。所以「换模型」这个操作的真实成本不止是新模型的单价，还包括「丢掉已有缓存」。
+
+一个可操作的检查顺序：先确认前缀长度够（把 system 加长到阈值以上），再确认字节一致（对两次请求做 diff），再看时间间隔，最后才怀疑服务商。绝大多数「缓存没用」是第二条。
+<h2>输出为什么比输入贵，而且会被收两次</h2>
+
+主流定价里，输出单价通常是输入的 3 到 5 倍。原因不神秘：输出是逐 token 生成的，每个 token 都要一次前向计算；输入是可以并行的。
+
+对 agent 来说，这个差价被放大了一次：<strong>输出会变成下一轮的输入</strong>。一个 400 token 的回答，先按输出价收一次，然后作为历史的一部分，在后续每一轮按输入价再收一次。
+
+所以一次任务的输出成本是：
+<div class="codehilite"><pre><span></span><code>Σ_t [ P_out × O_t + P_in × O_t × (N - t) ]
+</code></pre></div>
+
+
+第二项才是大头。一个第 5 轮产生的 400 token 输出，会在第 6 到第 40 轮被重发 35 次。按 <code>P_out = 4 × P_in</code> 算，这笔输出的总成本约等于 <code>4 × 400 + 400 × 35 = 15,600</code> 个输入 token 的等效值——是它「标价」的 39 倍。
+
+这给了一个很实用的推论：<strong>啰嗦的中间输出比啰嗦的最终输出贵得多</strong>。模型每轮说一句「我现在要读文件了，因为……」，这句话会在剩下所有轮次里重复计费。system prompt 里那句「Do not over-narrate」不只是体验优化，它是一条成本指令。
+<h2>三个反直觉结论</h2>
+
+<strong>第一，便宜模型可能更贵。</strong> 便宜模型的指令遵循和工具调用准确率通常更差，表现为「多跑几轮」「重复读同一个文件」「参数格式错」。单价降 5 倍、轮数涨 3 倍，总价只降一点；如果涨到 6 倍，反而更贵。判断标准不是单价，是「完成同一任务的 token 总量」。
+
+<strong>第二，更长的上下文不一定更贵（有缓存时）。</strong> 前缀命中之后，历史里重复的部分按缓存价计，通常只有原价的十分之一。所以「每次把完整历史发过去」在有缓存时并不像看上去那么可怕——可怕的是「每轮改一个字节」。
+
+<strong>第三，重试的代价可能高于失败本身。</strong> 一次 503 触发的重试，成本约等于再跑一轮；而 <code>max_retries = 2</code> 让最坏情况变成 3 倍。所以「重试次数」是一个成本参数，不只是可靠性参数。
+
+三条合起来是一句话：<strong>成本优化的对象是 token 流，不是单价表。</strong>
+<h2>五个常见估算错误</h2>
+
+在实测之前，大多数人会先用「感觉」估成本。五种感觉最容易错：
+
+<strong>第一，按「每次对话」估，而不是按「每轮」估。</strong> 一次对话可能只有 1 轮，也可能 40 轮。按对话估会严重低估长任务——而长任务才是成本的主体。
+
+<strong>第二，把「上下文大小」直接当「输入 token」。</strong> 120,000 字节的中文上下文约 4 万字，比 12 万字符的直觉小不了多少，但 token 数取决于分词器，代码密集时能到 6 万。差两倍起步。
+
+<strong>第三，忘了输出会重复计费。</strong> 很多人只算 <code>P_out × O</code>，不算它作为历史被重发的部分。对长任务，后者是前者的几十倍。
+
+<strong>第四，以为重试是免费的。</strong> 429 通常不计费，但 5xx、超时、流中断都可能计费。更关键的是，即使不计费，重试也会拉长任务、增加轮数。
+
+<strong>第五，忽略子代理。</strong> 一次委派的账不进主账，这既是观测缺陷，也是估算缺陷。四个子代理跑 15 轮的成本，可以是主代理的四倍。
+
+把这五条反过来，就是一张估算清单：按轮算、按字节换算 token、算输出的二次计费、给重试留 3 倍余量、把子代理乘进去。
+<h2>一次任务的成本画像</h2>
+
+如果 08 的账本做出来了，你可以在任务结束后打出一张这样的画像：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;task&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;修掉三处错误处理&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;turns&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;by_who&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;main&quot;</span><span class="p">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">186</span><span class="err">_</span><span class="mi">000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="err">_</span><span class="mi">400</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;agent-3&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">18</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">271</span><span class="err">_</span><span class="mi">000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="err">_</span><span class="mi">100</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;compact&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">78</span><span class="err">_</span><span class="mi">000</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">480</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;by_kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">31</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">214</span><span class="err">_</span><span class="mi">000</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">46</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">61</span><span class="err">_</span><span class="mi">000</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;hook&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">92</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="err">_</span><span class="mi">400</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;cache&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;reported&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;hit_rate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.71</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;top_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;read_file&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;avg_input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">11</span><span class="err">_</span><span class="mi">200</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;grep&quot;</span><span class="p">,</span><span class="w">      </span><span class="nt">&quot;calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;avg_input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="err">_</span><span class="mi">300</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这张画像能回答四个问题，而 <code>/cost</code> 一个都答不了：
+<ul>
+<li>钱花在谁身上（主代理 186k，子代理 271k——子代理才是大头）</li>
+<li>钱花在哪种动作上（模型 214 秒，工具 61 秒，钩子 3.4 秒）</li>
+<li>缓存到底有没有用（命中率 0.71，说明前缀基本稳定）</li>
+<li>哪个工具最贵（<code>read_file</code> 平均每次 11,200，是 <code>grep</code> 的 8 倍）</li>
+</ul>
+
+最后一行最有行动价值：如果 <code>read_file</code> 平均每次 11,200 字节、被调 19 次，那它就是「默认分页」这个优化的第一目标。优化的顺序应该由画像决定，而不是由直觉决定。
+<h2>一次优化实录：14 轮怎么降到 9 轮</h2>
+
+把前面的方法串起来走一遍。这是一个修 bug 的任务，原始画像：14 轮、主代理输入 186,000、<code>read_file</code> 19 次、<code>grep</code> 12 次。
+
+<strong>第一步，找出「最贵的一类动作」。</strong> <code>read_file</code> 19 次、平均 11,200 字节，合计 212,800 字节，比主代理的全部输入还多。原因是模型在读大文件时被 <code>clamp</code> 截断，截断后的结果里又没有「下一段从第几行开始」，它只好换个 offset 盲试一次。
+
+<strong>第二步，只改一处。</strong> 让 <code>read_file</code> 按字节预算反算安全行数，并在返回值末尾写明 <code>next_offset</code>。没有改模型，没有改系统提示词。
+
+<strong>第三步，重跑同一个任务。</strong> 结果：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>优化前</th>
+<th>优化后</th>
+<th>变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>轮数</td>
+<td>14</td>
+<td>9</td>
+<td>−36%</td>
+</tr>
+<tr>
+<td><code>read_file</code> 次数</td>
+<td>19</td>
+<td>7</td>
+<td>−63%</td>
+</tr>
+<tr>
+<td>主代理输入</td>
+<td>186,000</td>
+<td>101,000</td>
+<td>−46%</td>
+</tr>
+<tr>
+<td>缓存命中率</td>
+<td>0.71</td>
+<td>0.78</td>
+<td>+7 个点</td>
+</tr>
+</tbody>
+</table></div>
+
+三件事同时改善，而且它们互为因果：轮数少了，历史短了，缓存命中率也高了。
+
+<strong>第四步，确认能力没掉。</strong> 用同一批任务复跑，看最终 diff 是否一致。这一步很重要——如果轮数降了但改动质量掉了，省下来的钱是假的。
+
+这个实录说明一件很朴素的事：<strong>大多数成本问题不是「用贵了」，而是「用多了」</strong>。19 次读同一个文件不是模型笨，是工具逼它这么做的。工具的粒度决定了模型的轮数，模型的轮数决定了账单。
+
+所以成本优化的第一现场不是计费面板，是工具描述。
+<h2>五种「看起来省钱其实更贵」的做法</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>做法</th>
+<th>看起来省</th>
+<th>实际更贵的原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>把 <code>max_tokens</code> 调到 512</td>
+<td>输出便宜</td>
+<td>工具参数被截断 → 整轮重来</td>
+</tr>
+<tr>
+<td>把 <code>max_output</code> 调到 2,000</td>
+<td>工具结果小</td>
+<td>模型读不到全貌 → 再读一次</td>
+</tr>
+<tr>
+<td>每轮压缩</td>
+<td>上下文小</td>
+<td>压缩请求本身很贵，短任务纯亏</td>
+</tr>
+<tr>
+<td>用便宜模型 + 更多轮次</td>
+<td>单价低</td>
+<td>轮数是乘数，历史是二次项</td>
+</tr>
+<tr>
+<td>关掉记忆（省 2,400 字符）</td>
+<td>前缀短</td>
+<td>模型重复问同一件事 → 多跑几轮</td>
+</tr>
+</tbody>
+</table></div>
+
+第五行值得展开。记忆注入的 2,400 字符确实占地方，但它省下的是「模型重新问你叫什么、你的项目用什么框架、上次那个 bug 修到哪了」。一次重复提问就是一轮请求，而一轮请求的输入是几万字节。<strong>2,400 换几万，怎么算都划算</strong>——前提是它别放在会打断缓存的位置。
+<h2>一张按收益排序的调优清单</h2>
+
+按「改一行代码能省多少」排序：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>改动</th>
+<th>预期收益</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>把记忆块从 <code>messages[0]</code> 移到最后一条用户消息之前</td>
+<td>历史全部命中缓存，长任务 3 到 10 倍</td>
+<td>指令位置变弱</td>
+</tr>
+<tr>
+<td>2</td>
+<td>工具列表按名字排序后再发</td>
+<td>跨会话前缀一致</td>
+<td>无</td>
+</tr>
+<tr>
+<td>3</td>
+<td>修正 <code>CONTEXT_CHAR_BUDGET</code> 的计量口径（字节当字符）</td>
+<td>成本预测变准，压缩时机变合理</td>
+<td>需要重定阈值</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>clamp</code> 的 <code>max</code> 改成按字符算（或改名改文案）</td>
+<td>中文场景上限符合直觉</td>
+<td>无</td>
+</tr>
+<tr>
+<td>5</td>
+<td>给 <code>image_part</code> 加字节上限与缩放</td>
+<td>避免单请求 27 MB</td>
+<td>需要图像库</td>
+</tr>
+<tr>
+<td>6</td>
+<td>压缩触发加「剩余轮次」条件</td>
+<td>短任务不再白压</td>
+<td>需要任务预估</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>KEEP_RECENT</code> 改成按字节保底</td>
+<td>工具密集任务压缩有效</td>
+<td>需要重算切点</td>
+</tr>
+<tr>
+<td>8</td>
+<td>读 <code>cached_tokens</code> 并计入账本</td>
+<td>命中率可测</td>
+<td>08 的账本改造</td>
+</tr>
+</tbody>
+</table></div>
+
+前两条几乎零风险，可以先做。第三到第七条需要重新定阈值，要配测试。第八条依赖账本。
+<h2>三个一天内能做完的实验</h2>
+
+如果你不想改代码，也想验证本文的判断，三个实验就够。它们都不需要看服务商的后台，只需要把请求体记下来。
+
+<strong>实验一：把 system 消息固定，看请求字节数的变化。</strong>
+
+做法：临时把 <code>set_memory_block</code> 调用注释掉，跑同一个 10 轮任务两次（一次带记忆、一次不带），记录每轮请求体的字节数。预期结果是请求字节数几乎不变（记忆只有 2,400 字节），但如果你能拿到 <code>cached_tokens</code>，会发现命中的字节数暴涨。这个实验证明「成本变化不体现在请求大小上，体现在缓存命中上」。
+
+<strong>实验二：把 <code>read_file</code> 的默认分页改成按字节预算。</strong>
+
+做法：让模型读一个 1,500 行的中文文件。现在默认 <code>limit = 2000</code> 行会先撞上 20,000 字节的 <code>clamp</code>，而截断后的结果里没有「下一段从哪开始」，模型很可能再盲读一次。改成按平均行长反算行数、并在尾部给出 <code>next_offset</code> 之后，两次 8,000 字节的定向读取取代了一次截断加一次盲读。预期总字节下降 20% 到 30%，轮数下降 1 轮。这个实验证明「截断不是省，是延期支付」。
+
+<strong>实验三：把 <code>max_tokens</code> 从 4096 调到 8192，看失败率。</strong>
+
+做法：跑十个包含大 patch 的任务，统计「<code>invalid JSON arguments</code> 错误」出现的次数。预期 4096 时会有一两次截断，8192 时为零，而总输出 token 几乎不变（因为没截断时输出长度本来就不变）。这个实验证明「输出上限调小」是个伪优化。
+
+三个实验的共同点是：<strong>不需要真实账单，只需要请求体的字节数和轮数</strong>。这两个数字在本地就能拿到，比等月度账单快得多，也比凭感觉可靠得多。
+<h2>预算常量该怎么定：五个数从哪来</h2>
+
+NanoHermes 的五个常量看起来像拍的，其实都能从「一条历史消息的典型大小」推出来。推导顺序是：先量，再定。
+
+先量三个数：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>观测量</th>
+<th>怎么量</th>
+<th>典型值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单条工具结果的 P50 / P95</td>
+<td>跑 20 个真实任务，记 <code>clamp</code> 前的字节数</td>
+<td>3,000 / 18,000</td>
+</tr>
+<tr>
+<td>每轮新增字节 <code>d</code></td>
+<td>一次任务的总字节 ÷ 轮数</td>
+<td>8,000 到 15,000</td>
+</tr>
+<tr>
+<td>稳定前缀字节 <code>S</code></td>
+<td>序列化 <code>messages[0]</code> + 工具 schema</td>
+<td>25,000 到 30,000</td>
+</tr>
+</tbody>
+</table></div>
+
+有了这三个数，五个常量就有依据了：
+<ul>
+<li><code>max_output</code>：取工具结果的 P95 再留一点余量。P95 是 18,000 时定 20,000，这个取值与观测吻合，是合理的</li>
+<li><code>KEEP_RECENT</code>：至少保留「一整轮」的消息。一轮最多 1 条助手 + 8 条工具结果 = 9 条，所以 10 是合理的</li>
+<li><code>CONTEXT_CHAR_BUDGET</code>：要让压缩后的上下文仍然容纳得下 <code>S</code> + 若干轮。若模型窗口是 200k token，用 120k 字节（约 40k token）作预算，留了五倍余量</li>
+<li><code>MAX_PROJECT_DOCS</code>：项目文档属于 <code>S</code>，它的大小应该明显小于 <code>S</code> 的总量。20,000 与 29,000 的比例是 0.7，其实偏高</li>
+<li><code>MAX_ATTACHED_IMAGES</code>：由请求体上限和单图体积决定。四张 5 MB 图已经 27 MB，超过多数网关的 10 MB，所以这个数需要配合单图上限才有意义</li>
+</ul>
+
+最后一个数字暴露了推导链的缺口：<code>MAX_ATTACHED_IMAGES</code> 是按「张数」定的，缺了「单图字节上限」这个前置约束。<strong>只定张数不定体积，等于没定</strong>。
+
+这套推导方法可以套到任何 agent 上。核心思想是：每个上限都应该能回答「它对应的是哪个观测量」，答不出来的上限就是拍的，而拍的上限迟早会在某个真实任务上暴露。
+<h2>什么该省，什么不该省</h2>
+
+成本优化有一条隐形的边界：省到某一步，能力会掉。掉在哪里，比省了多少更重要。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>优化对象</th>
+<th>省下来的</th>
+<th>掉的能力</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>系统提示词</td>
+<td>几百到几千 token</td>
+<td>指令遵循、工具使用规范</td>
+<td>不该省，这是最便宜的能力投资</td>
+</tr>
+<tr>
+<td>项目文档</td>
+<td>最多 20,000 字节</td>
+<td>项目约定、命名习惯</td>
+<td>可以省，但按需加载比砍掉更好</td>
+</tr>
+<tr>
+<td>工具 schema</td>
+<td>每个工具几百 token</td>
+<td>对应能力直接消失</td>
+<td>不该省，砍工具等于砍手脚</td>
+</tr>
+<tr>
+<td>历史消息</td>
+<td>每轮累积</td>
+<td>上下文连贯、已做的决定</td>
+<td>可以省，优先用结构化状态替代</td>
+</tr>
+<tr>
+<td>工具输出</td>
+<td>每轮 20,000 字节</td>
+<td>模型看到的信息完整度</td>
+<td>谨慎，截断会导致重读</td>
+</tr>
+<tr>
+<td>输出长度</td>
+<td>每轮几百 token</td>
+<td>解释质量</td>
+<td>可以省，中间叙述最该省</td>
+</tr>
+<tr>
+<td>记忆注入</td>
+<td>2,400 字节</td>
+<td>用户偏好、历史教训</td>
+<td>不该省，它是省轮数的</td>
+</tr>
+</tbody>
+</table></div>
+
+读这张表的方式是看第三列：<strong>如果砍掉它会直接消灭一项能力，就不该砍；如果只是让模型多跑一轮，就该砍</strong>。工具 schema 和系统提示词属于前者，历史与叙述属于后者。
+
+还有一个反直觉的：记忆注入看着像「锦上添花」，其实是最划算的一项。2,400 字节换掉「模型重复问你一遍项目背景」，而重复问一次的代价是一整轮请求。按前面的公式，一轮请求的输入是几万字节。所以这项的投入产出比大概是 1:20。
+
+省钱省到记忆头上，是最常见的错误优化。
+<h2>怎么把成本做成可回归的指标</h2>
+
+成本最容易退化的地方不是「某天突然翻倍」，而是「每次加一个功能，涨 5%」。这种退化只有回归测试能抓住。
+
+做法：用 <code>e2e_mock_llm</code> 那套 mock 端点，跑一个固定的任务脚本，断言「请求次数」和「总字节数」不超过基线：
+<div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">a_fixed_task_costs_no_more_than_the_baseline</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 同一个脚本化任务：读一个文件、改两处、跑一次测试。</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">agent</span><span class="p">,</span><span class="w"> </span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">run_scripted_task</span><span class="p">();</span>
+<span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">agent</span><span class="p">.</span><span class="n">usage</span><span class="p">().</span><span class="n">requests</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;轮数膨胀&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">requests</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">r</span><span class="o">|</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">len</span><span class="p">()).</span><span class="n">sum</span><span class="p">::</span><span class="o">&lt;</span><span class="kt">usize</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">180_000</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;上下文膨胀&quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意这里断言的是「请求次数」和「请求体总字节」，不是 token——因为没有真实服务端。字节数与 token 强相关，作为回归指标足够灵敏。
+
+再加一条前缀断言：
+<div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">the_system_prefix_does_not_change_between_turns</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 同一个 agent 连跑两轮，第一轮之后的 messages[0] 必须逐字节一致。</span>
+<span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">snapshot_after_turn</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">snapshot_after_turn</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这条测试会立刻失败——因为记忆块每轮重写。它失败得越早越好：这正是我们想让它暴露的成本缺陷。
+<h2>小结</h2>
+
+把这篇压成四句话。
+
+<strong>第一，成本是「前缀 × 历史 × 轮数」，不是「单价 × token」。</strong> 单价是线性因子，历史是二次项。一个 40 轮任务的输入 token 大约是 <code>N × S + d × N² / 2</code>，第二项才是大头。
+
+<strong>第二，压缩的价值是把二次曲线切成几段小曲线。</strong> 它不是为了「装得下」，而是为了把 <code>N²</code> 变成若干个更小的 <code>N²</code>。所以压缩频率有个最优点，由「压缩成本 vs 剩余轮次的节省」决定，而不是由「阈值多少」决定。
+
+<strong>第三，前缀缓存是最大的单点优化，而它最怕「每轮改一个字节」。</strong> NanoHermes 把每轮重检索的记忆块放在 <code>messages[0]</code> 的末尾，等于每轮让整段历史失效。这是本文最值得改的一处，也是「三个正确决定叠成一个错误」的典型案例。
+
+<strong>第四，三个上限都叫「字符」，量的都是字节。</strong> <code>CONTEXT_CHAR_BUDGET</code>、<code>MAX_PROJECT_DOCS</code>、<code>max_output</code>，在中文场景里全都比名字许诺的小三倍。这不会让程序出错，但会让所有成本估算和截断行为偏离直觉——而观测的第一要求是「数字的含义和你以为的一致」。
+
+下一篇写评测：有了账本、懂了成本，下一个问题就是「你怎么知道改动让它变好了」。答案不是跑分，是一批可复现的失效样本。
+<hr>
+<h2>参考</h2>
+<ul>
+<li><code>agent/src/agent.rs</code>：<code>CONTEXT_CHAR_BUDGET</code>、<code>KEEP_RECENT</code>、<code>MAX_ATTACHED_IMAGES</code>、<code>MAX_PARALLEL_TOOL_CALLS</code>、<code>max_output</code>、<code>compact_with</code>、<code>summarize_messages</code>、<code>set_memory_block</code>、<code>build_tools</code>、<code>execute</code></li>
+<li><code>agent/src/prompt.rs</code>：<code>system_prompt</code>、<code>project_docs</code>、<code>read_head</code>、<code>MAX_PROJECT_DOCS</code></li>
+<li><code>agent/src/llm.rs</code>：<code>chat</code>、<code>build_body</code>、<code>summarize</code>、<code>backoff_ms</code>、<code>max_tokens</code></li>
+<li><code>agent/src/tools/mod.rs</code>：<code>clamp</code>、<code>dispatch</code></li>
+<li><code>agent/src/tools/web.rs</code>：<code>max_chars</code>、<code>MAX_RESPONSE_BYTES</code>、<code>FETCH_TIMEOUT_SECS</code></li>
+<li><code>agent/src/memory.rs</code>：<code>set_block</code>、<code>retrieve_block</code>、<code>BLOCK_START</code></li>
+<li><code>agent/src/main.rs</code>：<code>build_content</code>、<code>image_part</code></li>
+<li><code>agent/src/config.rs</code>：<code>max_tokens</code>、<code>temperature</code>、<code>max_iterations</code>、<code>max_retries</code>、<code>retry_base_ms</code></li>
+</ul>]]></content:encoded>
+    </item>
     <item>
       <title>Agent 观测：给每个轮次记一本账</title>
       <link>https://zhoujungis.github.io/article/agent-observability-turn-ledger/</link>
@@ -5580,1499 +7077,6 @@ NanoHermes 的实现不完美——本文列了七个可以修的缺陷，其中
       <category>Agent 工程</category>
       <category>工具设计</category>
       <category>架构设计</category>
-      <content:encoded><![CDATA[<blockquote>
-
-适用读者：正在给 Agent 加工具、发现「加了工具反而更容易崩」的人；被一次 <code>cat</code> 大文件或一条刷屏命令撑爆上下文的人；想让工具集可维护、可审计的人
-结论先行：工具设计有三层契约——拓扑（有哪些工具）、形状（参数与描述）、预算（输出上限）。前两层决定模型「能不能用对」，第三层决定它「用了之后会不会把上下文搞坏」。NanoHermes 的答案是：每个工具自己封顶，再加一道全局兜底 <code>clamp(s, 20_000)</code>
-阅读时间：约 52 分钟 | 难度：进阶 | 收获：24 个工具的完整清单与三层契约 + 十三个输出上限的取值理由 + 截断的三种语义 + 工具设计的八条原则 + 九个会悄悄失效的陷阱
-</blockquote>
-
-<strong>目录</strong>
-<ul>
-<li>前言：工具的边界就是 Agent 的边界</li>
-<li>结论先行：三层契约</li>
-<li>第一层拓扑：24 个工具从哪来</li>
-<li>工具为什么会自己变多：skill、MCP、subagent</li>
-<li>第二层形状：JSON schema 是唯一接口</li>
-<li>描述文本也是契约：一句描述要说清三件事</li>
-<li>参数校验的第一道门</li>
-<li>第三层预算：为什么输出必须封顶</li>
-<li>三个无限来源</li>
-<li>一张总表：十三个上限</li>
-<li>统一出口：dispatch 末尾的 clamp</li>
-<li>clamp 的注释与实现不一致：字符还是字节</li>
-<li>截断的三种语义：拒绝、截断、丢弃</li>
-<li>read_file：4 MB 的准入门与 2000 行的窗口</li>
-<li>read_file 的三个细节：行号宽度、lossy 解码、二进制</li>
-<li>grep：200 条命中与 240 字符裁剪</li>
-<li>grep 没有文件数上限</li>
-<li>glob：500 个文件与一条假消息</li>
-<li>list_dir：唯一没有上限的读取工具</li>
-<li>run_command：256 KB × 2 与超时</li>
-<li>双线程排空：为什么不能先 wait 再 read</li>
-<li>后台任务：把长命令移出关键路径</li>
-<li>后台任务的一个真实缺陷：stderr 从未被读走</li>
-<li>web_fetch：2 MB 与 20,000 字符</li>
-<li>skill 与项目文档：同样吃预算</li>
-<li>错误即结果：Err(String) 的另一半价值</li>
-<li>审批与确认：哪些工具默认要问</li>
-<li>只读工具会跳过哪些目录</li>
-<li>输出顺序：稳定排序为什么重要</li>
-<li>工具的隐性成本：token、选择困难与误用</li>
-<li>工具设计八条原则</li>
-<li>九个常见陷阱</li>
-<li>怎么验证你的工具真的安全</li>
-<li>小结：上限是设计，不是补丁</li>
-</ul>
-<h2>前言：工具的边界就是 Agent 的边界</h2>
-
-一个 Agent 能做什么，不取决于它的模型多聪明，而取决于它手里有哪些工具。工具集决定了能力的上界：没有 <code>edit_file</code>，它就没法改代码；没有 <code>run_command</code>，它就没法跑测试；没有 <code>web_fetch</code>，它就没法读文档。
-
-但工具集也决定了失败的下界。一个只做读取的工具如果返回 3 MB 文本，这一轮对话就废了——不是模型答不上来，而是返回的内容把上下文挤满，后面的工具结果无处安放。这种失败比「模型答错」更隐蔽：模型会把截断后的半截内容当成全部，基于不完整的信息自信地给结论。
-
-所以工具设计不只是「写几个函数 + 一份 JSON schema」，真正要处理的是三层问题：给模型看什么工具（拓扑）、让它怎么调用（形状）、调用回来多少数据（预算）。NanoHermes 的工具层不到 1200 行，但每一层都有明确设计，本文按这三层拆开讲。
-<h2>结论先行：三层契约</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>层次</th>
-<th>载体</th>
-<th>出错后的症状</th>
-<th>本文对应章节</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>拓扑</td>
-<td><code>build_tools</code> 返回的数组</td>
-<td>模型用了不存在的工具，或该有的能力没有</td>
-<td>24 个工具从哪来</td>
-</tr>
-<tr>
-<td>形状</td>
-<td><code>specs()</code> 里的 name / description / parameters</td>
-<td>参数传错、描述误导、反复试错</td>
-<td>JSON schema 是唯一接口</td>
-</tr>
-<tr>
-<td>预算</td>
-<td>每个工具的内部上限 + <code>clamp</code></td>
-<td>上下文被一次工具调用撑爆</td>
-<td>十三个上限</td>
-</tr>
-<tr>
-<td>错误</td>
-<td><code>Result&lt;String, String&gt;</code></td>
-<td>一旦出错整个轮次中断</td>
-<td>错误即结果</td>
-</tr>
-<tr>
-<td>权限</td>
-<td><code>check_tool</code> + 审批策略</td>
-<td>危险操作无人确认，或安全模式下改坏文件</td>
-<td>审批与确认</td>
-</tr>
-</tbody>
-</table></div>
-
-五层里，只有「预算」这一层是绝大多数教程不讲、但线上事故最多的一层。因为拓扑和形状错了会立刻报错，预算错了不会报错——它只是悄悄让模型看到半截数据。
-<h2>第一层拓扑：24 个工具从哪来</h2>
-
-工具列表不是硬编码的一整个数组，而是拼出来的：
-<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">build_tools</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Value</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tools</span><span class="p">::</span><span class="n">specs</span><span class="p">().</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">();</span>
-<span class="w">    </span><span class="c1">// 只有真的发现了 skill 才把 skill 工具暴露出去。</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">skills</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">skill_tool_spec</span><span class="p">());</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">mcp</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">m</span><span class="p">.</span><span class="n">all_tools</span><span class="p">());</span>
-<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">mcp_aux_tools</span><span class="p">());</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="c1">// 丢掉当前配置不允许的工具。</span>
-<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="n">retain</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* cfg.check_tool(name).is_ok() */</span><span class="w"> </span><span class="p">});</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">subagents</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">subagent_tool_spec</span><span class="p">());</span>
-<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">agent_list_tool_spec</span><span class="p">());</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="n">Value</span><span class="p">::</span><span class="n">Array</span><span class="p">(</span><span class="n">list</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-<code>specs()</code> 里有 21 个内置工具，按用途分成六组：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>分组</th>
-<th>工具</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>文件读写</td>
-<td><code>read_file</code>、<code>write_file</code>、<code>edit_file</code>、<code>apply_patch</code>、<code>list_dir</code></td>
-<td>五个，覆盖「看、整体写、局部改、多处改、列目录」</td>
-</tr>
-<tr>
-<td>搜索</td>
-<td><code>grep</code>、<code>glob</code></td>
-<td>内容搜索与文件名搜索</td>
-</tr>
-<tr>
-<td>执行</td>
-<td><code>run_command</code>、<code>task_output</code>、<code>task_list</code>、<code>task_kill</code></td>
-<td>一个前台加三个后台管理</td>
-</tr>
-<tr>
-<td>网络</td>
-<td><code>web_fetch</code>、<code>web_search</code></td>
-<td>拉页面与搜结果</td>
-</tr>
-<tr>
-<td>状态</td>
-<td><code>todo_write</code>、<code>todo_read</code></td>
-<td>会话内的计划列表</td>
-</tr>
-<tr>
-<td>版本控制</td>
-<td><code>git_status</code>、<code>git_diff</code>、<code>git_log</code>、<code>git_commit</code></td>
-<td>三个只读加一个写入</td>
-</tr>
-<tr>
-<td>记忆</td>
-<td><code>memory_save</code>、<code>memory_search</code></td>
-<td>跨会话记忆的读写</td>
-</tr>
-</tbody>
-</table></div>
-
-再加三个条件性的：<code>skill</code>（发现技能才加）、<code>subagent</code> 与 <code>agent_list</code>（配置了子代理才加）。MCP 服务器还会动态并入自己的工具，以及四个辅助工具 <code>mcp_list_resources</code>、<code>mcp_read_resource</code>、<code>mcp_list_prompts</code>、<code>mcp_get_prompt</code>。
-
-拼装顺序是先内置、再 skill、再 MCP、最后子代理，这决定了工具在提示词里的先后，而模型对靠前的工具往往更顺手。内置排最前是合理的——它们最可靠、不依赖外部。
-<h2>工具为什么会自己变多：skill、MCP、subagent</h2>
-
-一个容易忽略的事实：工具数量不是常量。同一个二进制，在不同工作区、不同配置下，暴露的工具可能差出十几个。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>来源</th>
-<th>触发条件</th>
-<th>增量</th>
-<th>谁在控制</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>内置</td>
-<td>永远</td>
-<td>21</td>
-<td>代码</td>
-</tr>
-<tr>
-<td><code>skill</code></td>
-<td>发现至少一个技能</td>
-<td>+1</td>
-<td>工作区里的技能目录</td>
-</tr>
-<tr>
-<td>MCP</td>
-<td>配了 MCP 服务器</td>
-<td>+N（服务器自己声明）</td>
-<td><code>config.json</code> 的 mcp 段</td>
-</tr>
-<tr>
-<td>MCP 辅助</td>
-<td>配了 MCP 服务器</td>
-<td>+4</td>
-<td>代码</td>
-</tr>
-<tr>
-<td><code>subagent</code></td>
-<td>配了子代理</td>
-<td>+2</td>
-<td><code>config.json</code> 的 subagents 段</td>
-</tr>
-</tbody>
-</table></div>
-
-这带来一个可维护性要求：工具多了，模型选错的概率上升，用户看 <code>/tools</code> 输出也会疲劳。NanoHermes 的做法是三条：
-<ol>
-<li>条件性工具绝不无条件暴露。没发现技能就不给 <code>skill</code>，没配子代理就不给 <code>subagent</code>——避免模型去调用一个必然报错的工具。</li>
-<li>权限不允许的工具直接过滤掉（<code>list.retain(...)</code>），让模型看不到当前模式下会被拒绝的工具，不浪费一次调用去撞墙。</li>
-<li>相关能力合并成一个工具。<code>todo_write</code> 用「替换整个列表」的语义，省掉 add/update/remove/clear 四个工具；<code>run_command</code> 用 <code>background</code> 参数覆盖后台执行，而不是单独一个 <code>run_in_background</code>。</li>
-</ol>
-
-第 3 条是有争议的取舍：合并会让单个 schema 变复杂。但对模型来说，理解「带一个 <code>background</code> 布尔值的 <code>run_command</code>」比记住两个名字更省认知。
-<h2>第二层形状：JSON schema 是唯一接口</h2>
-
-模型看到的工具定义只有三段：名字、描述、参数 schema。这三段就是全部契约，没有任何隐式约定能被模型猜到。
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;function&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;function&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;read_file&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Read a text file from the workspace. Returns content with line numbers. Use offset/limit for large files.&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;File path, absolute or relative to the workspace root.&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;offset&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1-based first line to read (default 1).&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Maximum number of lines to read (default 2000).&quot;</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">},</span>
-<span class="w">      </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-四个字段各有明确职责，缺一项就会产生一类误用：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>字段</th>
-<th>职责</th>
-<th>缺失/含糊的后果</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>name</code></td>
-<td>模型调用的标识</td>
-<td>——</td>
-</tr>
-<tr>
-<td><code>description</code></td>
-<td>什么时候用它、返回什么形状</td>
-<td>模型用错工具、或该用不用</td>
-</tr>
-<tr>
-<td><code>properties[].description</code></td>
-<td>参数语义与默认值</td>
-<td>参数填错、猜默认值、反复试</td>
-</tr>
-<tr>
-<td><code>required</code></td>
-<td>哪些参数必须有</td>
-<td>模型漏传关键参数，多一次失败往返</td>
-</tr>
-</tbody>
-</table></div>
-
-其中两句是刻意写的：<code>Returns content with line numbers</code> 告诉模型返回格式，<code>Use offset/limit for large files</code> 告诉它大文件怎么办——这直接决定了模型遇到大文件时会不会改成分页读。
-
-反面例子：<code>grep</code> 描述里的 <code>Search file contents for a literal substring</code>，<code>literal</code> 这个词很关键，它明确说明不支持正则；否则模型可能传一个 <code>\d+</code> 或 <code>.*</code> 进来，然后得到「没有匹配」的假结论。而 <code>include</code> 说明写的 <code>Glob filter, e.g. '*.rs' or 'src/**/*.ts'</code>，用两个例子代替语法描述，对模型比抽象说明更有效。
-<h2>描述文本也是契约：一句描述要说清三件事</h2>
-
-把 24 个工具的 <code>description</code> 摆在一起看，能总结出一个模式：好描述 = 做什么 + 返回什么 + 边界或注意事项。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>工具</th>
-<th>描述里的关键短语</th>
-<th>它解决的问题</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>write_file</code></td>
-<td><code>Prefer edit_file for small changes</code></td>
-<td>防止模型用整文件覆盖去做小改动</td>
-</tr>
-<tr>
-<td><code>edit_file</code></td>
-<td><code>must match the file byte-for-byte, including indentation</code></td>
-<td>减少「匹配不到」的失败</td>
-</tr>
-<tr>
-<td><code>apply_patch</code></td>
-<td><code>instead of edit_file</code> + <code>must include @@ hunks with matching context</code></td>
-<td>划清与 <code>edit_file</code> 的边界</td>
-</tr>
-<tr>
-<td><code>run_command</code></td>
-<td><code>Use non-interactive flags</code></td>
-<td>防止命令卡在等待输入</td>
-</tr>
-<tr>
-<td><code>run_command</code></td>
-<td><code>Set background=true for long-running tasks, then poll with task_output</code></td>
-<td>教会两段式用法</td>
-</tr>
-<tr>
-<td><code>web_search</code></td>
-<td><code>Follow up with web_fetch on a result URL to read the page</code></td>
-<td>教会组合用法</td>
-</tr>
-<tr>
-<td><code>todo_write</code></td>
-<td><code>Replaces any previous list</code></td>
-<td>消除「是追加还是替换」的歧义</td>
-</tr>
-<tr>
-<td><code>memory_save</code></td>
-<td><code>One concise, self-contained sentence</code></td>
-<td>保证记忆可脱离上下文理解</td>
-</tr>
-<tr>
-<td><code>git_commit</code></td>
-<td><code>Asks the user to confirm unless auto-approval is enabled</code></td>
-<td>让模型预知可能被拒绝</td>
-</tr>
-</tbody>
-</table></div>
-
-最值得学的是「跨工具指路」这一类：<code>write_file</code> 指向 <code>edit_file</code>、<code>apply_patch</code> 指向 <code>edit_file</code>、<code>web_search</code> 指向 <code>web_fetch</code>、<code>run_command</code> 指向 <code>task_output</code>。它们不增加任何能力，但显著减少错误选择，工具集越大收益越高。
-
-反面例子：<code>task_list</code> 的描述只有一句 <code>List all background tasks with their id, command and status (running/finished).</code>，正确但偏薄——没说清输出格式，模型只能靠调一次来学。对低频、低风险的只读工具可以接受；如果它经常被误用，就该补上返回示例。
-<h2>参数校验的第一道门</h2>
-
-schema 是给模型看的建议，不是强制的。模型完全可能少传一个字段、传错类型，或者传个空字符串。所以每个工具入口都要有自己的校验。
-
-<code>fs.rs</code> 里有一个共用的取值助手：
-<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">req_str</span><span class="o">&lt;&#39;</span><span class="na">a</span><span class="o">&gt;</span><span class="p">(</span><span class="n">args</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="o">&#39;</span><span class="na">a</span><span class="w"> </span><span class="nc">Value</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;&amp;&#39;</span><span class="na">a</span><span class="w"> </span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">args</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-<span class="w">        </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">v</span><span class="o">|</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span>
-<span class="w">        </span><span class="p">.</span><span class="n">ok_or_else</span><span class="p">(</span><span class="o">||</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;missing string field `{key}`&quot;</span><span class="p">))</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-一行办三件事：字段不存在、类型不是字符串、值是 <code>null</code>，全部归为「missing string field」，错误里带上字段名，模型才能自己修。
-
-可选参数统一给默认值而不是设为必填，原则是「覆盖最常见用法，且不产生危险行为」：<code>offset</code> 默认 1、<code>limit</code> 默认 2000、<code>timeout_secs</code> 默认 120、<code>max_chars</code> 默认 20000。危险值另用 <code>clamp</code> 挡住——<code>timeout_secs</code> 限在 1..3600 秒，<code>max_chars</code> 限在 500..200,000 字符，模型不能要求一个跑一整天不超时的命令，也不能一次要 100 MB 文本。
-
-另一类是「空值防御」：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>工具</th>
-<th>拒绝的输入</th>
-<th>错误文本</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>run_command</code></td>
-<td><code>command.trim().is_empty()</code></td>
-<td><code>`command` must not be empty</code></td>
-</tr>
-<tr>
-<td><code>grep</code> / <code>glob</code></td>
-<td><code>pattern.is_empty()</code></td>
-<td><code>`pattern` must not be empty</code></td>
-</tr>
-<tr>
-<td><code>edit_file</code></td>
-<td><code>old_string</code> 为空</td>
-<td><code>`old_string` must not be empty; use write_file to create a file</code></td>
-</tr>
-<tr>
-<td><code>apply_patch</code></td>
-<td><code>diff.trim()</code> 为空</td>
-<td><code>`diff` must not be empty</code></td>
-</tr>
-<tr>
-<td><code>git_commit</code></td>
-<td><code>message.trim()</code> 为空</td>
-<td><code>`message` must not be empty</code></td>
-</tr>
-<tr>
-<td><code>web_search</code></td>
-<td><code>query.trim()</code> 为空</td>
-<td><code>`query` must not be empty</code></td>
-</tr>
-</tbody>
-</table></div>
-
-这些检查看起来多余（模型为什么要传空字符串？），但挡住了两类真实情况：模型在「先占位再补」的推理中发出半成品调用；JSON 解析失败被兜成空对象，此时所有字段都是缺失。
-
-还有一个顺序细节：<code>edit_file</code> 的空 <code>old_string</code> 检查和 <code>apply_patch</code> 的空 <code>diff</code> 检查都写在读文件之前。参数错误应该在碰到文件系统之前暴露，既省一次 IO，也避免「文件不存在」盖住「参数没填」的真实原因。
-<h2>第三层预算：为什么输出必须封顶</h2>
-
-前面两层讲「怎么调」，这一层讲「调完回来多少」，它最容易被忽略，也最容易出事。
-
-反直觉的是：上下文最大的杀手往往不是用户输入，而是工具输出。用户打一行字可能几十个字符，一条 <code>run_command</code> 的输出可以是几兆。没有上限就会出三种坏结果：
-<ol>
-<li>上下文被挤爆。单次调用就超过 120,000 字符的会话预算，触发压缩，丢掉真正的历史；而压缩摘要还要多一次模型调用。</li>
-<li>模型被噪音淹没。<code>ls -R</code> 或 <code>npm install</code> 的几千行里真正有用的可能只有三行，但模型必须读完全部。</li>
-<li>请求直接失败。很多模型服务有单请求 token 上限，超了直接报错，整轮白跑。</li>
-</ol>
-
-反过来说，上限也是一种信息压缩手段：告诉模型「你看到的不是全部」，让它意识到该分页、缩小范围或换个工具。<strong>上限本身就是提示词的一部分。</strong>
-<h2>三个无限来源</h2>
-
-工具输出的长度风险来自三个方向，每个方向的封顶位置都不一样。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>来源</th>
-<th>为什么可能无限</th>
-<th>封顶的位置</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>文件</td>
-<td>用户可能有一个 500 MB 的日志文件</td>
-<td><code>read_file</code> 的准入门 + <code>clamp</code></td>
-</tr>
-<tr>
-<td>命令</td>
-<td><code>npm install</code>、<code>cargo build</code>、<code>git log</code> 的输出条数不可控</td>
-<td>管道读取时的捕获上限</td>
-</tr>
-<tr>
-<td>网络</td>
-<td>一个页面可以任意长，也可能是 100 MB 的压缩包</td>
-<td>响应体字节上限 + 字符裁剪</td>
-</tr>
-<tr>
-<td>目录</td>
-<td>一个目录可以有十万个条目</td>
-<td>读文件数上限（<code>grep</code>/<code>glob</code>）+ <code>clamp</code></td>
-</tr>
-</tbody>
-</table></div>
-
-对应到实现，封顶分四层：<strong>枚举前过滤</strong>（<code>grep</code> 跳过超过 1 MB 的文件）、<strong>读取时限制</strong>（<code>read_capped</code> 只留前 256 KB）、<strong>产出后裁剪</strong>（<code>clip</code> 把每行截到 240 字符）、<strong>出口兜底</strong>（<code>clamp</code> 统一截到 20,000 字节）。四层的顺序不能乱：枚举阶段不先按体积过滤，一个巨型文件就能拖慢整次 <code>grep</code>；读取阶段不限制，进程内存先炸，根本轮不到出口兜底。
-<h2>一张总表：十三个上限</h2>
-
-把散在各个文件里的常量集中起来看，会发现它们其实是一套完整的预算体系。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>常量</th>
-<th>位置</th>
-<th>值</th>
-<th>管什么</th>
-<th>超限后的行为</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>max_output</code></td>
-<td><code>Ctx</code></td>
-<td>20,000</td>
-<td>所有工具的最终输出</td>
-<td>截断 + 标注省略字节数</td>
-</tr>
-<tr>
-<td><code>MAX_FILE_BYTES</code></td>
-<td><code>tools/fs.rs</code></td>
-<td>4 MB</td>
-<td>单次 <code>read_file</code> 的准入</td>
-<td>直接报错，提示分块读</td>
-</tr>
-<tr>
-<td><code>MAX_MATCHES</code></td>
-<td><code>tools/search.rs</code></td>
-<td>200</td>
-<td><code>grep</code> 命中条数</td>
-<td>停止遍历 + 一行说明</td>
-</tr>
-<tr>
-<td><code>MAX_FILES</code></td>
-<td><code>tools/search.rs</code></td>
-<td>500</td>
-<td><code>glob</code> 结果文件数</td>
-<td>停止收集 + 一行说明</td>
-</tr>
-<tr>
-<td><code>MAX_FILE_BYTES</code></td>
-<td><code>tools/search.rs</code></td>
-<td>1 MB</td>
-<td><code>grep</code> 单文件准入</td>
-<td>静默跳过该文件</td>
-</tr>
-<tr>
-<td><code>MAX_LINE_CHARS</code></td>
-<td><code>tools/search.rs</code></td>
-<td>240</td>
-<td><code>grep</code> 单行长度</td>
-<td>裁剪 + 省略号</td>
-</tr>
-<tr>
-<td><code>CAPTURE_BYTES</code></td>
-<td><code>tools/shell.rs</code></td>
-<td>256 KB</td>
-<td>前台命令每个流</td>
-<td>排空丢弃 + 一行说明</td>
-</tr>
-<tr>
-<td><code>CAPTURE_BYTES</code></td>
-<td><code>tools/tasks.rs</code></td>
-<td>512 KB</td>
-<td>后台任务累计输出</td>
-<td>排空丢弃 + 一行说明</td>
-</tr>
-<tr>
-<td><code>MAX_RESPONSE_BYTES</code></td>
-<td><code>tools/web.rs</code></td>
-<td>2 MB</td>
-<td>单次下载的响应体</td>
-<td>排空丢弃 + 一行说明</td>
-</tr>
-<tr>
-<td><code>MAX_BODY_CHARS</code></td>
-<td><code>skills.rs</code></td>
-<td>20,000</td>
-<td>单个技能正文</td>
-<td>截断</td>
-</tr>
-<tr>
-<td><code>MAX_PROJECT_DOCS</code></td>
-<td><code>prompt.rs</code></td>
-<td>20,000</td>
-<td>拼接后的项目文档</td>
-<td>截断 + 一行说明</td>
-</tr>
-<tr>
-<td><code>MAX_ITEMS</code></td>
-<td><code>tools/todo.rs</code></td>
-<td>50</td>
-<td>计划列表条数</td>
-<td>报错，拒绝写入</td>
-</tr>
-<tr>
-<td><code>RESULT_PREVIEW</code></td>
-<td><code>board.rs</code></td>
-<td>500</td>
-<td>子代理结果在列表里的预览</td>
-<td>截断</td>
-</tr>
-</tbody>
-</table></div>
-
-三个观察：
-<ol>
-<li><strong>单位不统一。</strong> 有的按字节（<code>MAX_FILE_BYTES</code>、<code>CAPTURE_BYTES</code>、<code>max_output</code>），有的按"字符"名义但其实也是字节（见下一节），有的真的按字符（<code>MAX_BODY_CHARS</code>、<code>MAX_LINE_CHARS</code>）。对英文和代码影响不大，对中文和 emoji 差别是三倍。</li>
-<li><strong>超限行为不统一。</strong> 三种：报错（<code>read_file</code>、<code>todo_write</code>）、截断加标注（<code>clamp</code>、<code>clip</code>、<code>CAPTURE_BYTES</code>）、静默跳过（<code>grep</code> 跳过 1 MB 以上的文件）。</li>
-<li><strong>数量级分层清晰。</strong> 单次读文件最宽（4 MB），其次是网络（2 MB）、后台任务（512 KB）、前台命令（256 KB），最后统一收到 20,000 字节。这个梯度反映的是「数据从哪来」——本地文件最可信也最可控，网络最不可控。</li>
-</ol>
-
-最容易被忽略的是 <code>RESULT_PREVIEW = 500</code>：子代理结果在 <code>agent_list</code> 里的显示长度。它决定了父代理「扫一眼」任务板能看到多少，500 字符约一两句话，刚好够判断子代理是完成了还是卡住了。
-<h2>统一出口：dispatch 末尾的 clamp</h2>
-
-不管工具内部怎么封顶，最后还有一道统一的出口：
-<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">dispatch</span><span class="p">(</span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">args</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Value</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Ctx</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="s">&quot;read_file&quot;</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">fs</span><span class="p">::</span><span class="n">read_file</span><span class="p">(</span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">),</span>
-<span class="w">        </span><span class="c1">// … 二十多个分支 …</span>
-<span class="w">        </span><span class="n">other</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;unknown tool `{other}`&quot;</span><span class="p">)),</span>
-<span class="w">    </span><span class="p">};</span>
-<span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="n">clamp</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">max_output</span><span class="p">))</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-这一行的价值在于「不可绕过」：新增工具时作者可能忘了限输出，但只要走 <code>dispatch</code>，就一定被 <code>clamp</code> 收一遍。这是典型的「默认安全」——不安全的写法需要刻意绕过，而不是刻意加上。
-
-<code>clamp</code> 只有十行，但有两个细节：
-<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">clamp</span><span class="p">(</span><span class="n">s</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max</span><span class="p">;</span>
-<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">s</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="fm">format!</span><span class="p">(</span>
-<span class="w">        </span><span class="s">&quot;{}</span><span class="se">\n</span><span class="s">… output truncated ({} chars omitted)&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="o">&amp;</span><span class="n">s</span><span class="p">[</span><span class="o">..</span><span class="n">end</span><span class="p">],</span>
-<span class="w">        </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">end</span>
-<span class="w">    </span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-第一个细节是<strong>字符边界回退</strong>。<code>&amp;s[..end]</code> 要求 <code>end</code> 落在 UTF-8 边界上，否则直接 panic；切到第 20,000 字节时很可能正切在某个中文字符中间（中文占三字节），所以必须往前退。最多退两个字节，但少了它，Agent 会 panic 而不是截断。
-
-第二个细节是<strong>省略字节数</strong>。标注 <code>(3600 chars omitted)</code> 让模型知道这里少了东西，但写的是 <code>chars</code>、算的是字节。中文场景下实际省略的字符数是标注值的三分之一。
-
-还有一处不对称：<code>Result::map</code> 只处理 <code>Ok</code> 分支，<code>Err</code> 原样透传，所以错误信息<strong>不</strong>受 <code>max_output</code> 限制。理论上工具可以返回一条超长错误把上下文撑大，实践中错误都很短，但这个差别值得记住。
-<h2>clamp 的注释与实现不一致：字符还是字节</h2>
-
-<code>Ctx</code> 里的字段声明写着：
-<div class="codehilite"><pre><span></span><code><span class="sd">/// Max characters of tool output fed back to the model (keeps context small).</span>
-<span class="k">pub</span><span class="w"> </span><span class="n">max_output</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">,</span>
-</code></pre></div>
-
-
-注释说是 <strong>characters</strong>。而 <code>clamp</code> 用的是 <code>s.len()</code>——Rust 里 <code>String::len()</code> 返回的是<strong>字节数</strong>。所以 <code>max_output = 20_000</code> 实际是 20,000 字节。
-
-这个差别在中文内容上是三倍：纯 ASCII 的 20,000 字节正好是 20,000 字符；中文（UTF-8 三字节）只有约 6,666 字；中英混排约 10,000 字符。对读中文注释、搜中文文档、拉中文页面，这个差别都会实际发生——中文内容的可比容量只有英文的三分之一。
-
-同一份代码里还有相反的写法：<code>web_fetch</code> 的 <code>clip_chars</code>、<code>grep</code> 的 <code>MAX_LINE_CHARS</code>、技能正文的 <code>MAX_BODY_CHARS</code> 都真的按字符。所以同一个项目里有两套语义，取决于作者当时用的是 <code>s.len()</code> 还是 <code>chars().count()</code>。
-
-这不是需要立刻修的 bug——20,000 字节对绝大多数场景够用。但它是一个<strong>必须写进文档的不一致</strong>，因为任何基于「max_output 是字符数」的容量估算都会错。改法很简单：把 <code>Ctx</code> 的注释从 <code>Max characters</code> 改成 <code>Max bytes</code>（零成本），或把 <code>clamp</code> 改成按 <code>chars()</code> 计数（更符合直觉，但每次都要遍历字符串）。
-<h2>截断的三种语义：拒绝、截断、丢弃</h2>
-
-超限之后做什么，不是一个统一的问题。三种做法各有适用场景，选错了会制造很难查的问题。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>语义</th>
-<th>实现</th>
-<th>用在哪</th>
-<th>优点</th>
-<th>风险</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>拒绝</td>
-<td>返回 <code>Err</code></td>
-<td><code>read_file</code> 超 4 MB、<code>todo_write</code> 超 50 条</td>
-<td>模型立刻知道要换策略</td>
-<td>多一次失败往返</td>
-</tr>
-<tr>
-<td>截断加标注</td>
-<td>保留前缀 + 说明省略量</td>
-<td><code>clamp</code>、<code>clip</code>、<code>CAPTURE_BYTES</code></td>
-<td>有信息可用，模型知道不完整</td>
-<td>标注本身也占预算</td>
-</tr>
-<tr>
-<td>静默丢弃</td>
-<td>跳过，不提示</td>
-<td><code>grep</code> 跳过超 1 MB 的文件</td>
-<td>不打断流程</td>
-<td>模型以为「没有匹配」</td>
-</tr>
-</tbody>
-</table></div>
-
-第三种最危险，来看具体位置：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">::</span><span class="n">metadata</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="p">};</span>
-<span class="k">if</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">MAX_FILE_BYTES</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w">   </span><span class="c1">// 超过 1 MB 的文件直接跳过，不报不提示</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-如果模型在一堆小文件里搜一个字符串，而那个字符串恰好只出现在一个大文件里，它会得到 <code>no matches for ...</code>。这个结论是错的，但模型无从判断，因为它不知道有文件被跳过了。
-
-为什么仍然选静默跳过？因为在遍历整个目录树时，为每个超限文件输出一行提示，会让「匹配不到」这种情况返回几十行噪音，反而更糟。折中方案是在最终输出里追加一句「N 个文件因体积被跳过」——只需要一个计数器，成本极低，收益是一整类误判的消除。
-
-同理，<code>read_capped</code> 的「排空丢弃」也是一种设计：
-<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="p">(</span><span class="k">crate</span><span class="p">)</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">read_capped</span><span class="p">(</span><span class="k">mut</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="nc">impl</span><span class="w"> </span><span class="n">Read</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="kt">usize</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">kept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Vec</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="k">usize</span><span class="p">;</span>
-<span class="w">    </span><span class="k">loop</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">read</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">buf</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">break</span><span class="p">,</span>
-<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="n">kept</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">CAPTURE_BYTES</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                    </span><span class="kd">let</span><span class="w"> </span><span class="n">room</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CAPTURE_BYTES</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">kept</span><span class="p">.</span><span class="n">len</span><span class="p">();</span>
-<span class="w">                    </span><span class="n">kept</span><span class="p">.</span><span class="n">extend_from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">buf</span><span class="p">[</span><span class="o">..</span><span class="n">n</span><span class="p">.</span><span class="n">min</span><span class="p">(</span><span class="n">room</span><span class="p">)]);</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="k">ref</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">kind</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">io</span><span class="p">::</span><span class="n">ErrorKind</span><span class="p">::</span><span class="n">Interrupted</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">continue</span><span class="p">,</span>
-<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">break</span><span class="p">,</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="p">(</span><span class="n">kept</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-它必须继续读完（而不是直接停止读取），否则子进程会因管道写满而阻塞。所以「丢弃」在这里是「读走但不留」，而不是「不读」。返回的 <code>total</code> 就是用来算省略量的。这个函数在三个地方被复用：<code>shell.rs</code>（前台命令）、<code>tasks.rs</code>（后台任务）、<code>git.rs</code>（git 输出），只是各自的 <code>CAPTURE_BYTES</code> 不同。
-<h2>read_file：4 MB 的准入门与 2000 行的窗口</h2>
-
-<code>read_file</code> 是使用频率最高的工具，也是唯一一个用「拒绝」而不是「截断」来保护自己的读取工具：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">meta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">::</span><span class="n">metadata</span><span class="p">(</span><span class="o">&amp;</span><span class="n">full</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="k">if</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">MAX_FILE_BYTES</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span>
-<span class="w">        </span><span class="s">&quot;{} is {} bytes (&gt; {}); read it in chunks with offset/limit&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="n">full</span><span class="p">.</span><span class="n">display</span><span class="p">(),</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">len</span><span class="p">(),</span><span class="w"> </span><span class="n">MAX_FILE_BYTES</span>
-<span class="w">    </span><span class="p">));</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-错误信息里给了明确的下一步动作：<code>read it in chunks with offset/limit</code>。这比「文件太大」有用得多——它把模型从「我该怎么办」直接引到「用 offset 和 limit」。
-
-<code>MAX_FILE_BYTES = 4 MB</code> 这个数字怎么来的？它不是输出预算，而是<strong>内存预算</strong>。文件会被完整读进内存再按行切分，所以 4 MB 对应的是「单次分配 4 MB 是安全的」。真正的输出预算由后面两层管：2000 行的默认窗口，以及出口的 20,000 字节 <code>clamp</code>。
-
-两者的关系值得算一遍。一个 3.5 MB、每行 100 字节的日志约 35,000 行；默认读前 2000 行约 200 KB，出口 <code>clamp</code> 再切到 20,000 字节，也就是约 200 行。于是模型以为自己要了 2000 行，实际只拿到 200 行加一条截断标注——不注意看标注，它就会基于前 200 行下结论。
-
-更彻底的做法有两种：把 <code>limit</code> 默认值降到跟输出预算匹配（比如 300），让「请求的行数」和「拿到的行数」大致一致；或者在截断标注里写明「本文件共 N 行，你看到的是前 M 行」。NanoHermes 只做了后者的一半（有标注、默认值没调），代价是模型得自己换算。
-
-窗口读的实现里还有一个易错的表达式：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">offset</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">limit</span><span class="p">).</span><span class="n">min</span><span class="p">(</span><span class="n">total</span><span class="p">);</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">width</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">end</span><span class="p">.</span><span class="n">to_string</span><span class="p">().</span><span class="n">len</span><span class="p">();</span>
-<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">line</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">lines</span><span class="p">[(</span><span class="n">offset</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="o">..</span><span class="n">end</span><span class="p">].</span><span class="n">iter</span><span class="p">().</span><span class="n">enumerate</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">offset</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
-<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{n:&gt;width$}→{line}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">));</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-行号右对齐的宽度取自 <code>end</code>（窗口最后一行号）而不是 <code>total</code>（文件总行数）：读第 1 到 2000 行时宽度是 4，只读第 1 到 9 行时宽度就是 1。列宽随窗口变化，不同次调用的对齐方式不一致——对模型影响很小（它读数字），但人把两次输出拼起来看 diff 时会有点干扰。
-<h2>read_file 的三个细节：行号宽度、lossy 解码、二进制</h2>
-
-除了行号宽度，<code>read_file</code> 还有两个行为值得单独说。
-
-<strong>第一，是 <code>from_utf8_lossy</code> 而不是严格解码。</strong> 如果文件里有非法 UTF-8 字节（GBK 编码的中文文本、损坏的日志、二进制混入），<code>lossy</code> 会把这些字节替换成 <code>U+FFFD</code> 而不是报错。对 Agent 来说这是对的选择：宁可让模型看到几个替换字符，也不要因为一个坏字节整个文件读不出来。
-
-<strong>第二，<code>read_file</code> 不做二进制检测，而 <code>grep</code> 做。</strong>
-<div class="codehilite"><pre><span></span><code><span class="sd">/// Exposed for reuse by the search module.</span>
-<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">is_binary</span><span class="p">(</span><span class="n">bytes</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="kt">u8</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">bytes</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">take</span><span class="p">(</span><span class="mi">8192</span><span class="p">).</span><span class="n">any</span><span class="p">(</span><span class="o">|&amp;</span><span class="n">b</span><span class="o">|</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-这个函数只被 <code>grep</code> 调用。<code>read_file</code> 拿到一个 2 MB 的 PNG（在 4 MB 准入门之内）会照读不误，返回一大段带 <code>` 的乱码，然后被</code>clamp<code>截到 20,000 字节。模型通常能自己意识到这是二进制文件，但这一轮基本浪费了。修法只需在</code>read_file<code>里加同一句</code>is_binary(&amp;bytes)<code>检查并返回</code>Err("… looks like a binary file")`：判据是「前 8192 字节里有 NUL 字节」，对真正的文本文件零误报，对绝大多数二进制文件都能命中——一行修一个类。
-<h2>grep：200 条命中与 240 字符裁剪</h2>
-
-<code>grep</code> 是唯一同时有四重限制的工具：
-<div class="codehilite"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">MAX_MATCHES</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">200</span><span class="p">;</span>
-<span class="k">const</span><span class="w"> </span><span class="n">MAX_FILES</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">500</span><span class="p">;</span>
-<span class="k">const</span><span class="w"> </span><span class="n">MAX_FILE_BYTES</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1024</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="p">;</span>
-<span class="k">const</span><span class="w"> </span><span class="n">MAX_LINE_CHARS</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">240</span><span class="p">;</span>
-</code></pre></div>
-
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>限制</th>
-<th>值</th>
-<th>作用点</th>
-<th>触发的输出</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>命中条数</td>
-<td>200</td>
-<td>内层循环，达标即刻停止遍历</td>
-<td><code>… stopped after 200 matches</code></td>
-</tr>
-<tr>
-<td>单文件体积</td>
-<td>1 MB</td>
-<td>进入文件前判断</td>
-<td>无提示（静默跳过）</td>
-</tr>
-<tr>
-<td>单行长度</td>
-<td>240</td>
-<td>匹配成功后的行裁剪</td>
-<td>行尾 <code>…</code></td>
-</tr>
-<tr>
-<td>文件数</td>
-<td>500</td>
-<td>——</td>
-<td>只在 <code>glob</code> 里用，<code>grep</code> 不用</td>
-</tr>
-</tbody>
-</table></div>
-
-命中条数的实现有一个细节值得学：
-<div class="codehilite"><pre><span></span><code><span class="n">for_each_file</span><span class="p">(</span><span class="o">&amp;</span><span class="n">base</span><span class="p">,</span><span class="w"> </span><span class="o">|</span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="n">rel</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">truncated</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-<span class="w">    </span><span class="c1">// …</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">hay</span><span class="p">.</span><span class="n">contains</span><span class="p">(</span><span class="o">&amp;</span><span class="n">needle</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}:{}:{}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">rel</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">clip</span><span class="p">(</span><span class="n">line</span><span class="p">)));</span>
-<span class="w">        </span><span class="n">hits</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">hits</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">MAX_MATCHES</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="n">truncated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
-<span class="w">            </span><span class="k">return</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">});</span>
-</code></pre></div>
-
-
-用 <code>truncated</code> 标志而不是 <code>break</code>——因为 <code>for_each_file</code> 接收的是闭包，闭包里没法写 <code>break</code>。第一行的 <code>if truncated { return }</code> 让后续文件在闭包入口就直接返回，效果等同于提前终止遍历，但遍历本身还在走（每个剩余文件都要进一次闭包）。对大仓库来说这会多走一些空转，代价可接受。
-
-输出格式是 <code>path:line:text</code>，路径用相对路径并把反斜杠统一换成 <code>/</code>（<code>replace('\\', "/")</code>）。统一成正斜杠让输出跨平台一致，模型不用区分两种路径风格，也不会把反斜杠和分隔冒号混在一起（虽然 Windows 盘符的 <code>C:</code> 仍有歧义）。
-
-还有一个性能隐患：大小写不敏感搜索对每一行都做一次 <code>to_lowercase()</code>，两个分配加两次遍历，一万行的文件就是几万次小分配。更快的做法是无分配的 <code>eq_ignore_ascii_case</code> 匹配。这不影响正确性，但 <code>grep</code> 是使用频率最高的工具之一，值得优化。
-<h2>grep 没有文件数上限</h2>
-
-<code>MAX_FILES = 500</code> 只出现在 <code>glob</code> 里。<code>grep</code> 遍历时不限制文件数——它只靠 <code>MAX_MATCHES</code> 兜底。
-
-最坏场景是：在一个有 50 万个文件的目录树里搜一个几乎不存在的字符串。<code>grep</code> 会走遍每个文件（每个都做一次 <code>fs::read</code>），最后返回 <code>no matches</code>，中间可能耗掉几分钟。没有超时，没有文件数上限，也没有进度输出。<code>glob</code> 至少从第 501 个匹配起不再收集，虽然遍历同样继续。Agent 通常在项目根目录搜索，文件数在几千量级，所以这不是紧急问题；但如果工作区里有一个没被忽略规则覆盖的巨大生成目录，<code>grep</code> 就会变成一次「不返回的操作」。改进方向有两个：给 <code>for_each_file</code> 加已访问文件计数并提前终止；把忽略目录改成可配置。
-
-顺带说一个设计上的优点：<code>grep</code> 的 <code>include</code> 参数走 <code>path_matches</code>，会同时尝试匹配相对路径和文件名：
-<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">path_matches</span><span class="p">(</span><span class="n">pattern</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">rel</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">glob_match</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span><span class="w"> </span><span class="n">rel</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rel</span><span class="p">.</span><span class="n">rsplit</span><span class="p">(</span><span class="sc">&#39;/&#39;</span><span class="p">).</span><span class="n">next</span><span class="p">().</span><span class="n">unwrap_or</span><span class="p">(</span><span class="n">rel</span><span class="p">);</span>
-<span class="w">    </span><span class="n">glob_match</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-所以 <code>include: "*.rs"</code> 能匹配 <code>src/main.rs</code>（用文件名匹配），<code>include: "src/**/*.ts"</code> 也能匹配（用相对路径匹配）。这个双路尝试让模型不用纠结「我该写相对路径还是文件名」，是一个很实用的小设计。
-<h2>glob：500 个文件与一条假消息</h2>
-
-<code>glob</code> 的分段匹配器有三条规则：模式用完了必须路径也用完（<code>*.rs</code> 不匹配 <code>src/main.rs</code>）；<code>**</code> 可以吃零到多段（<code>src/**/*.rs</code> 能匹配 <code>src/main.rs</code>）；普通段用 <code>*</code> 和 <code>?</code> 做段内通配（<code>*</code> 不跨 <code>/</code>）。单元测试把这三条都锁住了。
-
-<code>for_each_file</code> 用的是显式栈而不是递归：不会因深层目录栈溢出，而且「先把条目收完再下降」避免了持有 <code>read_dir</code> 句柄时同时递归的资源问题。
-
-最后是那条假消息。截断判断用的是：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">matches</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">MAX_FILES</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">… capped at {MAX_FILES} files&quot;</span><span class="p">));</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-条件是 <code>&gt;=</code> 500。如果一个项目恰好有 500 个匹配文件（没有第 501 个），输出照样附上「已截断到 500 个」，模型会以为还有更多，去用别的办法继续找。正确判据应该是「是否因为达到上限而没收集到某个匹配」——在超出分支里把 <code>overflowed</code> 置真即可。差别只在边界情况，但「假截断」比「不截断」更容易误导：它让模型主动放弃已经拿到的完整结果。
-<h2>list_dir：唯一没有上限的读取工具</h2>
-
-<code>list_dir</code> 是这套工具里唯一一个完全不做内部限制的读取工具：列出目录下所有条目，靠出口 <code>clamp</code> 兜底。后果可以推算：5000 个文件、每行约 40 字符，总输出约 200 KB，<code>clamp</code> 切到 20,000 字节后只剩约 500 行，目录的后 90% 完全不可见。
-
-这和 <code>read_file</code> 处理大文件的方式形成对比：<code>read_file</code> 会报错让模型分块读，<code>list_dir</code> 则默默给前 500 条，而且没有分页参数（只有 <code>path</code>），模型想「看第 501 到 1000 条」只能换个更深的子目录。典型用法（看看项目有什么）没问题，但面对构建产物、数据集这类大目录时，它会给出一幅误导性的「不完整全景」。低成本改法是加一条 300 条的内部上限，结尾注明「共 N 个条目，显示前 300」。
-
-另一个小问题是每个文件的大小用 <code>human_size</code>（<code>1.5 MB</code> 这种）输出。对人友好，但 <code>1048576</code> 变成 <code>1.0 MB</code> 后，模型想找最大的几个文件得先解析单位再比较。这不是错，是「为谁优化」的选择。
-<h2>run_command：256 KB × 2 与超时</h2>
-
-<code>run_command</code> 是能力最强也最危险的工具。它的预算设计有四处：
-<div class="codehilite"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">CAPTURE_BYTES</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">256</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="p">;</span>
-</code></pre></div>
-
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>约束</th>
-<th>值</th>
-<th>触发后的行为</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>每个流的捕获量</td>
-<td>256 KB</td>
-<td>排空丢弃，报告里说明省略字节数</td>
-</tr>
-<tr>
-<td>超时</td>
-<td>默认 120s，clamp 到 1..3600</td>
-<td>杀进程，报告 <code>command timed out after Ns and was killed</code></td>
-</tr>
-<tr>
-<td>工作目录</td>
-<td>默认工作区根目录</td>
-<td><code>resolve</code> 到绝对路径</td>
-</tr>
-<tr>
-<td>输出结构</td>
-<td>exit code + stdout 段 + stderr 段</td>
-<td>空流显示 <code>(empty)</code></td>
-</tr>
-</tbody>
-</table></div>
-
-256 KB 是「每个流」，所以理论最坏是 512 KB，然后又会被出口 <code>clamp</code> 收到 20,000 字节。也就是说 <code>read_capped</code> 的 256 KB 几乎从不成为用户可见的限制——它只是防止内存被一条刷屏命令吃掉。
-
-真正会被用户看到的是超时。超时的实现是轮询：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">exit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">loop</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">try_wait</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="nb">Some</span><span class="p">(</span><span class="n">status</span><span class="p">))</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">break</span><span class="w"> </span><span class="n">status</span><span class="p">.</span><span class="n">code</span><span class="p">(),</span>
-<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="nb">None</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">start</span><span class="p">.</span><span class="n">elapsed</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">Duration</span><span class="p">::</span><span class="n">from_secs</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">kill</span><span class="p">();</span>
-<span class="w">                </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">wait</span><span class="p">();</span>
-<span class="w">                </span><span class="n">timed_out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
-<span class="w">                </span><span class="k">break</span><span class="w"> </span><span class="nb">None</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">            </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">sleep</span><span class="p">(</span><span class="n">Duration</span><span class="p">::</span><span class="n">from_millis</span><span class="p">(</span><span class="mi">25</span><span class="p">));</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;failed to wait for command: {e}&quot;</span><span class="p">)),</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">};</span>
-</code></pre></div>
-
-
-25 毫秒的轮询在灵活（能实现超时）和省 CPU 之间折中，精度约 ±25 ms，对秒级超时够用。<code>kill()</code> 后紧跟 <code>wait()</code> 也是必要的：只发信号不回收会留下僵尸进程。超时时 <code>exit</code> 是 <code>None</code>，报告写成 <code>exit code: killed</code>，让模型能区分正常失败和被超时杀掉。
-
-<code>run_command</code> 还是少数会主动调用审批的工具：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="k">crate</span><span class="p">::</span><span class="n">sandbox</span><span class="p">::</span><span class="n">needs_approval</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">auto_approve</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">approval</span><span class="p">,</span><span class="w"> </span><span class="n">command</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">confirm</span><span class="p">(</span><span class="n">command</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="s">&quot;Command denied by the user. Do not retry it; ask what to do instead.&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">());</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-这里返回的是 <code>Ok</code> 而不是 <code>Err</code>，且文本里明确写了两条指令：<code>Do not retry it</code>（别重试）和 <code>ask what to do instead</code>（问用户）。把拒绝做成「一条给模型看的指令」而不是「一个错误」，是这套设计里最聪明的几处之一——因为对模型来说，「用户拒绝」和「命令失败」需要完全不同的反应：前者要停下来问，后者可以换命令重试。如果返回 <code>Err</code> 并写成通用错误，模型很可能把被拒绝的命令换个写法再试一次，而这正是用户拒绝的意图所在。
-<h2>双线程排空：为什么不能先 wait 再 read</h2>
-
-<code>run_command</code> 里有一段看起来多余的代码：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">out_pipe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="p">.</span><span class="n">take</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;stdout piped&quot;</span><span class="p">);</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">err_pipe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stderr</span><span class="p">.</span><span class="n">take</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;stderr piped&quot;</span><span class="p">);</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">out_thread</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="n">out_pipe</span><span class="p">));</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">err_thread</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="n">err_pipe</span><span class="p">));</span>
-</code></pre></div>
-
-
-为什么不能直接 <code>child.wait_with_output()</code>？因为那会等到进程退出才开始读输出。而管道缓冲区有上限（Linux 通常 64 KB），一个输出超过 64 KB 的子进程会在写管道时阻塞，永远不退出——于是 <code>wait</code> 永远不返回。这就是经典的管道死锁。
-
-两个线程各读一个流，主线程只负责等待和超时判断。这样即使子进程输出几兆，管道也不会被填满（因为一直有人在读走）。注释里写得很直白：
-<div class="codehilite"><pre><span></span><code><span class="c1">// Drain both pipes on separate threads so a chatty child can never deadlock</span>
-<span class="c1">// by filling the OS pipe buffer while we wait for it to exit.</span>
-</code></pre></div>
-
-
-这个模式在 <code>git.rs</code> 里被复用了一次（<code>git diff</code> 也可能输出几兆），在 <code>tasks.rs</code> 里则没有复用——这个差异正是下一节要说的缺陷。
-<h2>后台任务：把长命令移出关键路径</h2>
-
-前台 <code>run_command</code> 的超时上限是 3600 秒，但即使在范围内，让模型干等一次 <code>cargo build</code> 也不划算：这一轮的所有时间都花在等命令上，而模型其实可以去读代码、写文档，最后再回来收结果。
-
-所以有 <code>background: true</code>：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">args</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;background&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">v</span><span class="o">|</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">as_bool</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">super</span><span class="p">::</span><span class="n">tasks</span><span class="p">::</span><span class="n">run_background</span><span class="p">(</span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-后台任务的注册表住在 <code>Ctx</code> 里，被所有工具共享，用 <code>Mutex&lt;HashMap&lt;String, Task&gt;&gt;</code> 保护：
-<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">TaskManager</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">tasks</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="n">HashMap</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="n">Task</span><span class="o">&gt;&gt;</span><span class="p">,</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-任务 id 是「进程 id + 纳秒时间戳」。用纳秒而不是自增计数器，是为了同一毫秒内启动多个任务时不冲突，也省掉一个全局计数器；带进程 id 则是让<strong>跨进程</strong>的日志能看出任务属于哪个 agent 实例。
-
-配套的三个管理工具形成完整的生命周期：<code>task_list</code> 看有哪些任务和状态，<code>task_output</code> 收增量输出，<code>task_kill</code> 终止。<code>output()</code> 的实现是「drain 增量」而不是「返回全量」：
-<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">output</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">task_id</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">tasks</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="n">get_mut</span><span class="p">(</span><span class="n">task_id</span><span class="p">).</span><span class="n">ok_or</span><span class="p">(</span><span class="cm">/* unknown task */</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">child</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="p">.</span><span class="n">child</span><span class="p">.</span><span class="n">as_mut</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="p">.</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">kept</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">);</span>
-<span class="w">            </span><span class="n">task</span><span class="p">.</span><span class="n">out_buf</span><span class="p">.</span><span class="n">extend_from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">kept</span><span class="p">);</span>
-<span class="w">            </span><span class="n">task</span><span class="p">.</span><span class="n">out_total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
-<span class="w">            </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">out</span><span class="p">);</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="c1">// …</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="c1">// …</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-<code>take()</code> 之后又放回去，是因为 <code>read_capped</code> 按值接收 reader；写法有点绕，但避免了给 <code>Task</code> 加额外的生命周期参数。
-
-累计输出受 <code>CAPTURE_BYTES = 512 KB</code> 限制，比前台命令的 256 KB 大一倍。理由是合理的：后台任务的输出会被多次 <code>task_output</code> 分批取走，累计量自然更大，而且它是「累计保留」而不是「单次报告」。
-<h2>后台任务的一个真实缺陷：stderr 从未被读走</h2>
-
-看 <code>TaskManager::spawn</code> 里的进程配置：
-<div class="codehilite"><pre><span></span><code><span class="n">cmd</span><span class="p">.</span><span class="n">current_dir</span><span class="p">(</span><span class="n">cwd</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">stdin</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">null</span><span class="p">())</span>
-<span class="w">    </span><span class="p">.</span><span class="n">stdout</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">piped</span><span class="p">())</span>
-<span class="w">    </span><span class="p">.</span><span class="n">stderr</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">piped</span><span class="p">());</span>
-</code></pre></div>
-
-
-stdout 和 stderr 都被设成了管道。但回头看上一节的 <code>output()</code>：它只 <code>take()</code> 并读取 <code>child.stdout</code>。<code>Task</code> 结构体里也只有一个 <code>out_buf</code> 字段，没有对应的错误缓冲区。stderr 被设成管道后，<strong>没有任何代码去读它</strong>。
-
-这意味着一件很严重的事：如果一个后台命令往 stderr 写超过管道缓冲区（常见是 64 KB），它会在写 stderr 时永久阻塞，进程永远不退出，<code>task_output</code> 永远显示 <code>running</code>。而模型会一直轮询一个永远不会完成的任务。
-
-什么时候会遇到？比想象的多：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>场景</th>
-<th>stderr 输出量</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>cargo build</code>（进度条、warning）</td>
-<td>编译警告很容易超过 64 KB</td>
-</tr>
-<tr>
-<td><code>npm install</code>（弃用警告、audit 报告）</td>
-<td>常见几 KB 到几十 KB</td>
-</tr>
-<tr>
-<td>任何带进度条的 CLI（pip、docker）</td>
-<td>进度条持续重绘，量很大</td>
-</tr>
-<tr>
-<td>一个报了很多错的测试命令</td>
-<td>无上限</td>
-</tr>
-</tbody>
-</table></div>
-
-对照组是前台 <code>run_command</code>：它用两个线程同时排空两个管道，所以同样的问题不存在。<code>git.rs</code> 的 <code>run_git</code> 也做了同样的事（两个线程）。只有后台任务这条路径漏了。
-
-修法有两种：把 stderr 合并进 stdout（<code>2&gt;&amp;1</code>，但要改命令字符串，不干净），或者给 <code>Task</code> 加一个 <code>err_buf</code>，在 <code>output()</code> 里同样 drain stderr。后者更正确：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="k">mut</span><span class="w"> </span><span class="n">err</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stderr</span><span class="p">.</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">kept</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">err</span><span class="p">);</span>
-<span class="w">    </span><span class="n">task</span><span class="p">.</span><span class="n">err_buf</span><span class="p">.</span><span class="n">extend_from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">kept</span><span class="p">);</span>
-<span class="w">    </span><span class="n">task</span><span class="p">.</span><span class="n">err_total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
-<span class="w">    </span><span class="n">child</span><span class="p">.</span><span class="n">stderr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">err</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-这样既解决阻塞，也让错误信息可见——现在后台任务的 stderr 内容是完全丢失的，模型只能看到 stdout。对一个 Agent 工具来说，「命令失败了但看不到错误信息」是个很糟糕的状态。
-
-这个缺陷值得单独列出来，因为它完美展示了一类问题：<strong>同一个项目里，两条相似路径（前台/后台）采用了不同的排空策略，其中一条是错的，而没有测试覆盖「后台命令输出大量 stderr」这个场景</strong>。这类问题靠代码审查很难发现，因为错误路径看起来完全正常——它只是永远不结束。
-<h2>web_fetch：2 MB 与 20,000 字符</h2>
-
-网络是三个无限来源里最不可控的。<code>web_fetch</code> 为此做了两层限制：
-<div class="codehilite"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">MAX_RESPONSE_BYTES</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="p">;</span>
-
-<span class="kd">let</span><span class="w"> </span><span class="n">max_chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span>
-<span class="w">    </span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;max_chars&quot;</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">v</span><span class="o">|</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">as_u64</span><span class="p">())</span>
-<span class="w">    </span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">20_000</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">clamp</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span><span class="w"> </span><span class="mi">200_000</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">usize</span><span class="p">;</span>
-</code></pre></div>
-
-
-第一层是响应体：最多留 2 MB，其余读走丢弃。第二层是文本裁剪：<code>clip_chars</code> 按<strong>字符</strong>裁到 <code>max_chars</code>，默认 20,000。注意这一层和出口 <code>clamp</code> 的 20,000 字节语义不同——<code>web_fetch</code> 先按字符裁到 20,000 字，如果这是中文，就是 60,000 字节，然后再被出口 <code>clamp</code> 切到 20,000 字节。两次裁剪都有用，但第二次才是最终生效的那个。
-
-<code>max_chars</code> 被 clamp 在 500 到 200,000 之间。下限 500 防止模型要一个没用的碎片；上限 200,000 防止一次要 100 MB 文本。但上限 200,000 其实永远不会生效，因为出口 <code>clamp</code> 只有 20,000 字节——一个诚实的参数范围应该是 <code>clamp(500, 20_000)</code>，或者至少让参数上限和出口预算一致。
-
-响应体保留量的检查也值得看：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;URL: {url}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
-<span class="k">if</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">bytes</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;[response truncated at {MAX_RESPONSE_BYTES} bytes]</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">));</span>
-<span class="p">}</span>
-<span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="n">clip_chars</span><span class="p">(</span><span class="o">&amp;</span><span class="n">text</span><span class="p">,</span><span class="w"> </span><span class="n">max_chars</span><span class="p">));</span>
-</code></pre></div>
-
-
-<code>total &gt; bytes.len()</code> 这个判断是「实际读到多少 vs 保留了多少」，比「响应头里的 Content-Length」可靠——因为分块传输、gzip 压缩都可能让 Content-Length 缺失或不准。这是「按实际发生的事实判断」而不是「按声明判断」，在 HTTP 场景下是唯一正确的做法。
-
-<code>web_search</code> 只有结果条数限制（<code>count</code> 默认 5，clamp 到 1..10）。这是合理的：搜索结果结构固定（标题 + URL + 摘要），条数就是长度的唯一决定因素。但如果单个摘要特别长，输出仍可能很大——只是被出口 <code>clamp</code> 兜住。
-
-最后注意「限制输出」不等于「限制计算量」：<code>html_to_text</code> 要遍历整个 HTML 做标签剥离、实体解码、空白折叠，最后才裁剪，所以一个 2 MB 的页面仍会被完整解析一遍。对 Agent 的调用频率无所谓，但如果把 <code>web_fetch</code> 放进循环跑几千次，瓶颈就在这里。
-<h2>skill 与项目文档：同样吃预算</h2>
-
-两个不是「工具输出」但同样吃预算的地方也有上限。
-
-<strong>技能正文</strong>：<code>skills.rs</code> 的 <code>MAX_BODY_CHARS = 20_000</code>。<code>skill</code> 工具加载一个技能时会返回完整正文，如果技能文档写得极长，就会把上下文挤满。20,000 字符和 <code>web_fetch</code> 的默认值一致，是一个「够详尽的说明文档，但不会喧宾夺主」的量级。
-
-<strong>项目文档</strong>：<code>prompt.rs</code> 的 <code>MAX_PROJECT_DOCS = 20_000</code>。这里处理的是 <code>AGENTS.md</code>——全局的一份加上从仓库根目录到工作区沿途的每一份，拼接后的总量受 20,000 字符限制，超了就截断并追加 <code>… project guidance truncated</code>。
-<div class="codehilite"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">20_000</span><span class="p">;</span>
-<span class="k">const</span><span class="w"> </span><span class="n">DOC_NAMES</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="kt">str</span><span class="p">;</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s">&quot;AGENTS.md&quot;</span><span class="p">];</span>
-</code></pre></div>
-
-
-拼接顺序是「全局 → 根目录 → … → 工作区」，并用 <code>canonicalize</code> 去重（防止符号链接让同一文件被读两次）。这里有个真实的风险：截断是从尾部切的，而排在尾部的正是<strong>最靠近工作区、也最具体</strong>的那份约定。仓库根目录写 15,000 字符、子目录再写 8,000 字符，总长 23,000 超限，被切掉的恰恰是子目录那份的后半部分。更合理的策略是「从工作区往上收集，总量够了就停」，保留最具体的那部分。
-
-技能列表也占预算，但每个技能只有一行，所以影响线性且很小；真正的大头是用 <code>skill</code> 工具加载技能时的正文。这个设计是对的：<strong>索引常驻，正文按需拉取</strong>，和 RAG 思路一致，只是索引极简。
-<h2>错误即结果：Err(String) 的另一半价值</h2>
-
-工具层的所有失败都用 <code>Result&lt;String, String&gt;</code> 表达，错误是字符串。这个决定有三层含义。
-
-第一层是<strong>错误文本是给模型看的</strong>，不是给日志看的。所以每条错误都写成了「出了什么问题 + 该怎么办」：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>工具</th>
-<th>错误文本</th>
-<th>给模型的下一步</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>read_file</code></td>
-<td><code>… is N bytes (&gt; 4194304); read it in chunks with offset/limit</code></td>
-<td>用 offset/limit 分块读</td>
-</tr>
-<tr>
-<td><code>edit_file</code></td>
-<td><code>`old_string` not found in … — read the file and match it exactly, including whitespace</code></td>
-<td>先读文件，注意空白</td>
-</tr>
-<tr>
-<td><code>edit_file</code></td>
-<td><code>`old_string` occurs 3 times; pass replace_all=true or provide more context</code></td>
-<td>加参数或补充上下文</td>
-</tr>
-<tr>
-<td><code>grep</code></td>
-<td><code>no matches for `xxx`</code></td>
-<td>换个词，或确认范围</td>
-</tr>
-<tr>
-<td><code>skill</code></td>
-<td><code>unknown skill `x`; available: a, b, c</code></td>
-<td>从可用列表里选</td>
-</tr>
-<tr>
-<td><code>subagent</code></td>
-<td><code>unknown sub-agent `x`</code></td>
-<td>换个名字</td>
-</tr>
-<tr>
-<td><code>git</code></td>
-<td><code>git status exited with 128\n…</code></td>
-<td>附带 git 自己的报错</td>
-</tr>
-</tbody>
-</table></div>
-
-<code>skill</code> 那条把可用名字都列出来了，<code>git</code> 那条把 git 的 stderr 拼进来了。这两条都是「把模型需要的信息放在错误里」，避免了「报错 → 再查一次可用列表 → 再调用」的两轮往返。
-
-第二层是<strong>错误不会中断轮次</strong>。<code>execute</code> 把错误包装成工具结果字符串，继续下一轮：
-<div class="codehilite"><pre><span></span><code><span class="c1">// tools::dispatch 的 Err 在 run_tool 里被格式化成 `ERROR: {e}`</span>
-</code></pre></div>
-
-
-如果工具错误直接冒泡成异常，一次拼错参数就会终止整个任务。做成字符串意味着模型看到 <code>ERROR: …</code> 之后可以自己纠正——读文件、改参数、重试。这是 Agent 和普通程序最大的差别之一：<strong>错误是一等输入，不是例外</strong>。
-
-第三层是一个反直觉的推论：错误文本也应该有上限，而现在没有。<code>clamp</code> 只作用于 <code>Ok</code> 分支。如果某个工具返回一条 100 KB 的错误（比如把整个 <code>git diff</code> 当成失败信息返回），它会原样进上下文。实践中没有工具这么做，但「出口只保护成功路径」是一个应该被记住的不对称。
-<h2>审批与确认：哪些工具默认要问</h2>
-
-工具的能力和危险程度不成正比。<code>read_file</code> 再怎么写也不会毁掉代码；<code>run_command</code> 一条 <code>rm -rf</code> 就够了。所以工具还要按危险程度分级管控。
-
-<code>check_tool</code> 是第一道闸门，任何工具在执行前都要过：
-<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">check_tool</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">permission_mode</span><span class="p">.</span><span class="n">blocked_tools</span><span class="p">().</span><span class="n">contains</span><span class="p">(</span><span class="o">&amp;</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;tool `{name}` is not available in {:?} mode&quot;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">permission_mode</span><span class="p">));</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">disallowed_tools</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">any</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;tool `{name}` is disallowed by configuration&quot;</span><span class="p">));</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="bp">self</span><span class="p">.</span><span class="n">allowed_tools</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="bp">self</span><span class="p">.</span><span class="n">allowed_tools</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">any</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;tool `{name}` is not in the allowed list&quot;</span><span class="p">));</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-顺序有讲究：模式封禁最优先（「当前场景不允许」），然后黑名单（用户明确不要的），最后白名单（只允许这些，属于「收窄」逻辑，只需在前两条都没否掉时判断）。注意被封禁的工具<strong>根本不会出现在工具列表里</strong>（<code>build_tools</code> 里的 <code>retain</code>），而 <code>check_tool</code> 的报错发生在调用时。前者防「模型选错」，后者防「绕过」——如果模型从历史消息里学到一个当前不可用的工具名并尝试调用，会在这里被拦住。
-
-第二道闸门是<strong>执行前的交互确认</strong>，只针对命令类工具：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>工具</th>
-<th>默认是否确认</th>
-<th>依据</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>run_command</code></td>
-<td>按 <code>approval</code> 策略</td>
-<td>命令不可静态分析</td>
-</tr>
-<tr>
-<td><code>git_commit</code></td>
-<td>按 <code>approval</code> 策略</td>
-<td>写历史，但可撤销</td>
-</tr>
-<tr>
-<td><code>write_file</code> / <code>edit_file</code> / <code>apply_patch</code></td>
-<td>否（除特定模式）</td>
-<td>文件可回滚</td>
-</tr>
-</tbody>
-</table></div>
-
-五种权限模式覆盖了主要场景：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>模式</th>
-<th>阻断的工具</th>
-<th>典型用法</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>default</code></td>
-<td>无</td>
-<td>日常使用</td>
-</tr>
-<tr>
-<td><code>accept-edits</code></td>
-<td>无（但强制保留 shell 确认）</td>
-<td>信任文件编辑、不信命令</td>
-</tr>
-<tr>
-<td><code>plan</code></td>
-<td><code>write_file</code>、<code>edit_file</code>、<code>apply_patch</code>、<code>run_command</code>、<code>git_commit</code></td>
-<td>只读分析</td>
-</tr>
-<tr>
-<td><code>debug</code></td>
-<td><code>write_file</code>、<code>edit_file</code>、<code>apply_patch</code>、<code>git_commit</code></td>
-<td>可以跑命令复现，但绝不改文件</td>
-</tr>
-<tr>
-<td><code>goal</code></td>
-<td>无（且不确认任何操作）</td>
-<td>无人值守</td>
-</tr>
-</tbody>
-</table></div>
-
-<code>plan</code> 和 <code>debug</code> 的区别很能说明问题：<code>plan</code> 连 <code>run_command</code> 都禁掉（计划阶段不应该有副作用），<code>debug</code> 允许跑命令复现问题，但绝不允许改文件——「不要把已经坏掉的状态弄得更坏」。
-
-这个设计把「工具的能力」和「场景的约束」分开了：工具和 <code>Ctx</code> 都不需要知道对方，两者在一个统一的检查函数里汇合。新增工具时只需考虑两件事：名字要不要进某个模式的封禁列表，以及是否需要交互确认。
-<h2>只读工具会跳过哪些目录</h2>
-
-<code>for_each_file</code> 有一份硬编码的忽略目录列表：
-<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">is_ignored_dir</span><span class="p">(</span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="fm">matches!</span><span class="p">(</span><span class="n">name</span><span class="p">,</span>
-<span class="w">        </span><span class="s">&quot;.git&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;target&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;node_modules&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;__pycache__&quot;</span>
-<span class="w">        </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.venv&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;venv&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;dist&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;build&quot;</span>
-<span class="w">        </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.idea&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.cache&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.next&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;vendor&quot;</span>
-<span class="w">        </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.tox&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.mypy_cache&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.ruff_cache&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;.pytest_cache&quot;</span>
-<span class="w">    </span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-十五个名字覆盖主流生态的构建产物目录：Rust 的 <code>target</code>、Node 的 <code>node_modules</code> / <code>dist</code> / <code>build</code> / <code>.next</code>、Python 的 <code>__pycache__</code> / <code>.venv</code> / <code>.tox</code> 与各种缓存、PHP 的 <code>vendor</code>、IDE 的 <code>.idea</code>。这解决的是很实际的问题：一个中等 Node 项目的 <code>node_modules</code> 可能有十万个文件，不跳过的话「全局找一下这个名字」就会遍历十万个第三方文件。硬编码的优点是开箱即用，缺点是遇到列表外的生成目录（<code>out</code>、<code>bin</code>、<code>obj</code>、<code>.gradle</code>、<code>Pods</code>）只能改代码。
-
-<code>grep</code> 和 <code>glob</code> 都走 <code>for_each_file</code>，共享这份列表；<code>list_dir</code> 不走它，所以列目录时能看到 <code>node_modules</code>（这通常正是用户想要的）。这个区分是对的：<strong>搜索要过滤，列举要完整</strong>。
-<h2>输出顺序：稳定排序为什么重要</h2>
-
-三个工具在返回前会排序，理由都值得记一下。
-
-<code>list_dir</code> 把目录和文件分开排序：
-<div class="codehilite"><pre><span></span><code><span class="n">dirs</span><span class="p">.</span><span class="n">sort</span><span class="p">();</span>
-<span class="n">files</span><span class="p">.</span><span class="n">sort</span><span class="p">();</span>
-</code></pre></div>
-
-
-先输出全部目录再输出全部文件。不排序的话顺序取决于文件系统返回顺序（Linux 上通常是 inode 顺序，看起来是随机的），模型很难判断哪些是主要目录；「目录在前、按字母序」则是人和模型都容易理解的约定。
-
-<code>glob</code> 也排序（<code>matches.sort()</code>）。<code>for_each_file</code> 用栈（<code>pop</code> 取最后一个），收集顺序是「深度优先但逆序」，天然是乱的；排序后同一个模式两次调用返回完全一致的顺序，对缓存结果和对比差异都很重要。
-
-<code>grep</code> <strong>不</strong>排序：按遍历顺序输出命中行，文件内是行号升序，跨文件是遍历顺序，但结果带 <code>path:line</code> 前缀，信息不丢失。不排序的好处是截断发生时被截掉的必然是「遍历靠后」的文件，否则得先收集全部命中才能排序。
-
-三条规则合起来是一个原则：<strong>凡是会「按位置截断」的输出，顺序就决定了什么会被保留</strong>。<code>list_dir</code> 不截断，顺序只是可读性问题；<code>glob</code> 的顺序决定了 500 个文件里保留哪 500 个；<code>grep</code> 的顺序决定了 200 条命中里保留哪 200 条。后者最值得改进——按「路径 + 行号」排序再截断会让输出稳定得多，代价是多占一点内存。
-<h2>工具的隐性成本：token、选择困难与误用</h2>
-
-工具不是免费的。每个工具都要在每次请求里带上完整定义，24 个工具大约占 2,500 到 4,000 个 token（取决于描述长度）。按 100 轮对话算，光工具定义就是几十万 token 的输入。
-
-更重要的成本不是钱，是<strong>选择困难</strong>。工具越多，模型选错的概率越高。特别容易混淆的组合有：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>容易混淆的一对</th>
-<th>区别</th>
-<th>缓解手段</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>write_file</code> vs <code>edit_file</code></td>
-<td>整体覆盖 vs 精确替换</td>
-<td><code>write_file</code> 描述里写明 <code>Prefer edit_file for small changes</code></td>
-</tr>
-<tr>
-<td><code>edit_file</code> vs <code>apply_patch</code></td>
-<td>单点替换 vs 多处改动</td>
-<td><code>apply_patch</code> 描述里写明 <code>instead of edit_file</code> 与多行场景</td>
-</tr>
-<tr>
-<td><code>grep</code> vs <code>glob</code></td>
-<td>搜内容 vs 搜文件名</td>
-<td>描述里分别用 <code>file contents</code> 和 <code>Find files by</code></td>
-</tr>
-<tr>
-<td><code>run_command</code> vs <code>task_output</code></td>
-<td>执行 vs 收结果</td>
-<td><code>run_command</code> 描述里指明「后台执行后用 task_output 轮询」</td>
-</tr>
-<tr>
-<td><code>memory_save</code> vs <code>todo_write</code></td>
-<td>跨会话 vs 会话内</td>
-<td>两者描述里都强调了各自的持久性范围</td>
-</tr>
-<tr>
-<td><code>web_fetch</code> vs <code>web_search</code></td>
-<td>读已知 URL vs 找未知 URL</td>
-<td><code>web_search</code> 描述里指明后续用 <code>web_fetch</code></td>
-</tr>
-</tbody>
-</table></div>
-
-第三列是最有价值的技巧：<strong>用描述消除歧义，而不是靠模型猜</strong>。每一对容易混淆的工具，至少有一方的描述里出现了另一方的名字。工具集越大，这条越该成为硬性要求。
-
-另一类隐性成本是<strong>能力重叠</strong>：<code>apply_patch</code> 能做的 <code>edit_file</code> 基本都能做。重复不是错误，它给了模型更多选择，但要求描述足够清楚，否则模型会随手选一个，失败再换另一个试。
-<h2>工具设计八条原则</h2>
-
-把上面所有观察收拢，可以提炼出八条可以直接用的规则。
-
-<strong>一、每个输出都必须有上限，且默认生效。</strong> 上限不是「这个工具可能会很长所以加一下」，而是「所有工具都加，然后对确实不会长的工具放宽」。默认安全，而非默认信任。
-
-<strong>二、上限要分层，不能只有一层。</strong> 枚举前过滤（文件体积）、读取时限制（捕获字节数）、产出后裁剪（单行长度）、出口兜底（全局 clamp）。只有出口兜底的话，内存和耗时问题照样发生。
-
-<strong>三、超限必须可见。</strong> 三种语义里，「静默丢弃」只应该用在「提示本身会造成噪音」的场景，且应该有一个计数汇总。模型不知道信息不完整，就会基于不完整信息给结论——这是最贵的失败模式。
-
-<strong>四、错误文本要写「下一步做什么」。</strong> 不是 <code>file too large</code>，而是 <code>read it in chunks with offset/limit</code>。同理，拒绝要写成指令：<code>Do not retry it; ask what to do instead</code>。
-
-<strong>五、拒绝用 <code>Ok</code> + 指令，失败用 <code>Err</code> + 原因。</strong> 两者对模型意味着完全不同的反应。混在一起会让模型对被拒绝的操作反复重试。
-
-<strong>六、默认值必须覆盖最常见用法，且不能产生危险行为。</strong> <code>offset: 1</code>、<code>limit: 2000</code>、<code>timeout: 120</code>、<code>max_chars: 20000</code> 都是「常见且安全」。反过来，如果一个参数的危险值恰好是默认值（比如「默认删除」），设计就错了。
-
-<strong>七、单位要统一，或者明确标注。</strong> 同一个项目里混用字节和字符是源头性混乱，因为它不报错、只让所有容量估算偏离。选一种，写进字段注释。
-
-<strong>八、用描述消除工具之间的歧义。</strong> 每对容易混淆的工具，至少一方的描述里要点名另一方。这是投入产出比最高的一项工作。
-
-还有一条不在这八条里但同样重要：<strong>给相似的两条代码路径写对称的实现</strong>。前台命令和后台任务的排空策略不一致，直接导致了 stderr 死锁。如果写后台任务时把前台的 <code>run_command</code> 打开对照一遍，这个问题五分钟就能发现。
-<h2>九个常见陷阱</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>陷阱</th>
-<th>表现</th>
-<th>修法</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>工具输出无上限</td>
-<td>一次调用就把上下文挤爆，触发压缩</td>
-<td>出口统一 <code>clamp</code> + 每个工具内部封顶</td>
-</tr>
-<tr>
-<td>静默跳过不报数</td>
-<td>模型把「文件被跳过」当成「没有匹配」</td>
-<td>统计跳过数量，在末尾汇总一行</td>
-</tr>
-<tr>
-<td>单位混用</td>
-<td>中文内容的实际容量只有英文三分之一</td>
-<td>统一字节或统一字符，写进注释</td>
-</tr>
-<tr>
-<td>默认值与上限不匹配</td>
-<td>请求 2000 行，实际拿到 200 行</td>
-<td>让默认值贴近真实产出，或在标注里说明</td>
-</tr>
-<tr>
-<td>截断标注算错单位</td>
-<td>标注 <code>chars</code> 实际是字节</td>
-<td>标注用实际单位，或改成正确计数</td>
-</tr>
-<tr>
-<td>错误没有可行动信息</td>
-<td>模型重试同一个错误参数</td>
-<td>错误文本写明下一步动作</td>
-</tr>
-<tr>
-<td>拒绝与失败混同</td>
-<td>被拒绝的操作被换个写法重试</td>
-<td>拒绝返回 <code>Ok</code> + 停止指令</td>
-</tr>
-<tr>
-<td>只有一条管道被排空</td>
-<td>命令输出到另一条流时永久阻塞</td>
-<td>两个流都排空，或用重定向合并</td>
-</tr>
-<tr>
-<td>忽略目录写死</td>
-<td>项目特有的生成目录无法排除</td>
-<td>支持配置追加，或至少提供覆盖开关</td>
-</tr>
-</tbody>
-</table></div>
-
-这九个里有四个（静默跳过、单位混用、单位不一致的标注、只有一条管道被排空）不会产生任何报错——它们安静地让工具变差，往往要等到某次具体事故才被发现。这也是「输出预算」这一层值得单独写一篇文章的原因：它是最不可见的一层。
-<h2>怎么验证你的工具真的安全</h2>
-
-一套可执行的检查清单，按发现问题的成本从低到高排列。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>检查</th>
-<th>方法</th>
-<th>预期</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>出口是否有兜底</td>
-<td>读 <code>dispatch</code>（或等价的唯一出口）末尾</td>
-<td>有统一截断，且对所有工具生效</td>
-</tr>
-<tr>
-<td>每个工具是否自封顶</td>
-<td>搜所有常量定义</td>
-<td>每个读/执行类工具都有上限</td>
-</tr>
-<tr>
-<td>单位是否统一</td>
-<td>对比常量名与实现里的 <code>len()</code> / <code>chars().count()</code></td>
-<td>一致，或注释明确</td>
-</tr>
-<tr>
-<td>二进制文件</td>
-<td>让 Agent 读一个 PNG</td>
-<td>明确报错，而不是返回乱码</td>
-</tr>
-<tr>
-<td>大文件</td>
-<td>让 Agent 读一个 10 MB 日志</td>
-<td>报错并提示用 offset/limit</td>
-</tr>
-<tr>
-<td>巨型目录</td>
-<td>让 Agent 列一个有五千文件的目录</td>
-<td>有上限提示，不是静默截断</td>
-</tr>
-<tr>
-<td>刷屏命令</td>
-<td>跑一个连续输出 5 分钟的脚本</td>
-<td>超时被杀，报告说明；内存不涨</td>
-</tr>
-<tr>
-<td>双流阻塞</td>
-<td>后台跑一个往 stderr 写 1 MB 的命令</td>
-<td>任务能正常结束（这是最容易漏的一项）</td>
-</tr>
-<tr>
-<td>空参数</td>
-<td>直接调用工具传空字符串</td>
-<td>明确报错，且报错发生在 IO 之前</td>
-</tr>
-<tr>
-<td>权限模式</td>
-<td>用 <code>plan</code> 模式尝试改文件</td>
-<td>工具不出现在列表里，直接调用被拒</td>
-</tr>
-<tr>
-<td>审批</td>
-<td>在默认模式下跑一条危险命令</td>
-<td>出现确认提示；拒绝后模型不重试</td>
-</tr>
-<tr>
-<td>上限触发</td>
-<td>临时把 <code>MAX_MATCHES</code> 改成 3</td>
-<td>输出带截断说明，条数正确</td>
-</tr>
-</tbody>
-</table></div>
-
-其中「双流阻塞」是唯一一个几乎必然发现 bug 的检查：写一个每秒往 stderr 打印一行的脚本，用后台模式跑十秒，再 <code>task_output</code> 看它能不能结束。如果它永远显示 <code>running</code>，就命中了那条死锁。
-<h2>小结：上限是设计，不是补丁</h2>
-
-把这篇的结论压缩成五句话：
-<ol>
-<li>工具设计有三层：拓扑（有哪些）、形状（怎么调）、预算（回来多少）。前两层决定能不能用对，第三层决定用了之后上下文还在不在。</li>
-<li>上限必须分层且默认生效。枚举前过滤、读取时限制、产出后裁剪、出口兜底——四层缺一层，就有对应的资源问题。</li>
-<li>超限必须有痕迹。静默跳过是最贵的失败模式，因为它让模型基于不完整的信息自信地下结论。</li>
-<li>错误文本是提示词的一部分。写「下一步做什么」，比写「哪里错了」有用得多。</li>
-<li>相似路径要对称实现。前台和后台命令的排空策略不一致，直接导致了永久阻塞。</li>
-</ol>
-
-一个 Agent 的工具层，说到底是「把外部世界翻译成模型能消化的文本」的一层。翻译的质量取决于两件事：翻译得准不准（schema 与描述），以及翻译的量可不可控（预算）。绝大多数教程只讲第一件，但线上事故多来自第二件。
-
-NanoHermes 的工具层不完美：<code>read_file</code> 不做二进制检测、<code>grep</code> 没有文件数上限、后台任务的 stderr 从不读取、<code>clamp</code> 的单位标注有误、<code>glob</code> 会报「假截断」。但这些缺陷都是可以指认、可以定位、可以逐个修掉的——它们不是「设计上没想到」，而是「实现上漏了一处」。这个差别很重要：前者需要重新架构，后者只需要补一次代码。
-
-下一篇进入《Agent 并发：不用 async 运行时怎么并行》。工具解决了「单次拿回多少」，并发要解决的是「一轮里同时做几件事」——同一个哲学用两次，一次用在数据量上，一次用在时间上。]]></content:encoded>
     </item>
     <item>
       <title>Agent 记忆：不接向量库也能长期记忆</title>
@@ -7232,17 +7236,6 @@ NanoHermes 的工具层不完美：<code>read_file</code> 不做二进制检测�
       <guid isPermaLink="true">https://zhoujungis.github.io/article/kth-largest-with-duplicates/</guid>
       <pubDate>Tue, 13 Oct 2026 07:39:39 GMT</pubDate>
       <description>题目 给一个长度为 N 的 有重复元素 的数组，输出第 10 大的数。要求注意合法性校验、边界条件与异常处理。 同题在 LeetCode 上是 LC 215 数组中的第 K 个最大元素 ， k 是参数化的。 本题真正难的既不是算法也不是堆，是「第 10 大」这四个字在有重复元素时有两种完全不同的解释。 一、核心洞察：先</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>动态规划</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</title>
-      <link>https://zhoujungis.github.io/article/spiral-matrix-fill/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/spiral-matrix-fill/</guid>
-      <pubDate>Tue, 13 Oct 2026 07:11:23 GMT</pubDate>
-      <description>题目 给一个 M x N 的矩阵，从 1 开始 逆时针螺旋 填入 / 打印这 M x N 个数，要求时间复杂度尽可能低。 面试现场通常是画个九宫格，让你从 1 开始往里填。思路一句话： 向右、向下、向左、向上循环，每撞到未填区域的边缘就变向。 在写任何代码之前，有一件事必须先对齐 —— 口径。 一、核心洞察：先把&quot;逆时</description>
       <category>算法</category>
       <category>LeetCode</category>
       <category>动态规划</category>
