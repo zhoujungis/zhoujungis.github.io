@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/nanodb/" />
+    <meta property="og:title" content="NanoDB：Go 嵌入式文档数据库" />
+    <meta property="og:description" content="适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/nanodb/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/nanodb-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NanoDB：Go 嵌入式文档数据库" />
+    <meta name="twitter:description" content="适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/nanodb-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>NanoDB：Go 嵌入式文档数据库 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bv_kuWZQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-26T18:23:00.670661+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"NanoDB：Go 嵌入式文档数据库","description":"适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、","image":"https://zhoujungis.github.io/photos/nanodb-cover.png","datePublished":"2026-10-26T18:23:00.670661+08:00","dateModified":"2026-10-26T18:23:00.670661+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/nanodb/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>NanoDB：Go 嵌入式文档数据库</h1><div class="ns-meta">2026/10/26 · Stack Frame</div><div class="markdown-body"><blockquote>
+
+适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人
+结论先行：NanoDB 是一个<strong>零第三方依赖</strong>的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、二级/文本/地理索引、乐观事务、原子批量、SQL 只读子集，全部装进 34 个 Go 文件：源码 6,592 行、测试 3,199 行，合计 9,791 行。它把「数据库的每个部件都可以很朴素」这件事演示得非常清楚：WAL 就是 JSON Lines 文件，事务就是集合快照加版本号校验，查询规划就是「挑候选集最小的索引」。读完这篇文章，你会知道这些部件各自的取舍在哪、坑在哪、什么场景下够用
+阅读时间：约 38 分钟 | 难度：进阶 | 收获：一份可运行的架构地图 + 六个关键实现的源码级拆解 + 一张诚实的限制清单与选型对照表
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：为什么还值得写一个数据库</li>
+<li>项目速览：它到底是什么</li>
+<li>五分钟上手：三种入口与 Go 嵌入</li>
+<li>架构与代码地图</li>
+<li>数据模型：文档、集合与 <code>_id</code></li>
+<li>持久化核心：快照 + WAL</li>
+<li>查询执行：一条 <code>find</code> 的流水线</li>
+<li>索引系统：从二分定位到二元组分词</li>
+<li>事务：集合粒度的乐观可串行化</li>
+<li>原子批量：一条 WAL 记录装下一整批</li>
+<li>SQL 只读子集与聚合管道</li>
+<li>HTTP 服务：token、角色与事务会话</li>
+<li>性能实测：数字与优化点</li>
+<li>测试与工程质量</li>
+<li>横向对比：它在坐标系的哪个位置</li>
+<li>已知限制（诚实清单）</li>
+<li>适用与不适用场景</li>
+<li>结语</li>
+</ul>
+<h2>前言：为什么还值得写一个数据库</h2>
+
+SQLite 有两百万行，LevelDB 是精巧的 LSM 教科书，MongoDB 是分布式系统的庞然大物。一个 2026 年的项目再写一个「数据库」，听起来像重复造轮子。
+
+但造轮子的目的从来不是轮子本身。NanoDB 这个项目回答的是一组非常具体的问题：
+<ul>
+<li>一个支持事务的数据库，<strong>最短路径</strong>有多短？</li>
+<li>「崩溃后不丢已提交数据」这件事，去掉所有工程黑话之后，剩下多少行代码？</li>
+<li>文档模型 + 二级索引 + 乐观并发控制，这三者如何在一个内存数据结构上咬合在一起？</li>
+</ul>
+
+答案是：约一万行 Go，零第三方依赖，<code>go build</code> 一次就能跑。更重要的是，它的每个部件都可以被单个读者在一小时内读完——这在真实数据库里几乎不可能。读完 SQLite 的 pager 层需要多久？读完 RocksDB 的 compaction 又需要多久？
+
+所以这篇文章的读法是双重的：<strong>既把它当一个可用的工具看，也把它当一份「数据库部件解剖标本」看</strong>。前者告诉你什么时候能用它，后者告诉你如果你自己要写，应该先写什么、后写什么、哪里必须一次做对。
+<h2>项目速览：它到底是什么</h2>
+
+NanoDB 是一个用 Go 编写的轻量级<strong>嵌入式文档数据库</strong>（NoSQL），当前版本 0.1.0。「嵌入式」意味着它没有独立的守护进程协议——它就是你进程里的一个库，同时附带 CLI、交互式 shell 和 REST 服务三种包装。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>情况</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>语言与版本</td>
+<td>Go 1.22+，<code>go.mod</code> 单模块 <code>nanodb</code></td>
+</tr>
+<tr>
+<td>第三方依赖</td>
+<td>0 个（纯标准库，无 cgo）</td>
+</tr>
+<tr>
+<td>代码规模</td>
+<td>34 个 <code>.go</code> 文件、9,791 行（源码 6,592 + 测试 3,199，实测统计）</td>
+</tr>
+<tr>
+<td>数据模型</td>
+<td>集合 → JSON 文档，<code>_id</code> 为非空字符串</td>
+</tr>
+<tr>
+<td>持久化</td>
+<td><code>snapshot.json</code>（全量）+ <code>wal.log</code>（增量，JSON Lines）</td>
+</tr>
+<tr>
+<td>并发</td>
+<td>单进程多 goroutine 安全；数据目录操作系统级独占锁</td>
+</tr>
+<tr>
+<td>入口</td>
+<td>一次性 CLI 命令、交互式 shell、REST 服务</td>
+</tr>
+<tr>
+<td>测试</td>
+<td><code>engine</code> / <code>server</code> 覆盖率约 80%，<code>cmd</code> 约 75%</td>
+</tr>
+<tr>
+<td>定位</td>
+<td>中小规模数据、工具类项目、桌面/边缘场景</td>
+</tr>
+</tbody>
+</table></div>
+
+一句话概括它的取舍：<strong>把「单机、内存驻留、JSON 原生」做到位，明确放弃分布式</strong>。不支持副本、分片、集群，同一数据目录同一时间只允许一个进程打开——这些不是没做完，是划在边界外的东西，README 的「已知限制」一节把它们全部列了出来。
+
+一个容易被忽略但很能说明气质的细节：<code>go build -o bin/nanodb ./cmd/nanodb</code> 不需要网络，因为它没有任何依赖需要下载。在一个依赖树动辄几百 MB 的时代，这件事本身就值得写进简介。
+<h2>五分钟上手：三种入口与 Go 嵌入</h2>
+<h3>一次性 CLI</h3>
+<div class="codehilite"><pre><span></span><code>go<span class="w"> </span>build<span class="w"> </span>-o<span class="w"> </span>bin/nanodb<span class="w"> </span>./cmd/nanodb
+
+<span class="c1"># 插入（自动生成 _id）</span>
+./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>put<span class="w"> </span>users<span class="w"> </span><span class="s1">&#39;{&quot;name&quot;:&quot;Alice&quot;,&quot;age&quot;:30}&#39;</span>
+
+<span class="c1"># 条件查询 + 排序 + 分页</span>
+./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>find<span class="w"> </span>users<span class="w"> </span><span class="s1">&#39;{&quot;age&quot;:{&quot;$gte&quot;:18}}&#39;</span><span class="w"> </span>-sort<span class="w"> </span>age:-1<span class="w"> </span>-limit<span class="w"> </span><span class="m">10</span>
+
+<span class="c1"># 更新、统计、删除</span>
+./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>update<span class="w"> </span>users<span class="w"> </span>u2<span class="w"> </span><span class="s1">&#39;{&quot;$inc&quot;:{&quot;age&quot;:1}}&#39;</span>
+./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>count<span class="w"> </span>users<span class="w"> </span><span class="s1">&#39;{&quot;age&quot;:{&quot;$gt&quot;:20}}&#39;</span>
+./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>delete<span class="w"> </span>users<span class="w"> </span>u2
+</code></pre></div>
+
+
+所有命令成功时把结果以缩进 JSON 打到 stdout，失败时退出码为 1、错误以 <code>错误:</code> 前缀写 stderr——脚本里可以直接判断。
+<h3>交互式 shell</h3>
+
+不指定子命令就进入 shell，事务模式下提示符变成 <code>nano(tx)&gt;</code>，直接退出或 EOF 会自动回滚未提交事务：
+<div class="codehilite"><pre><span></span><code>$ ./bin/nanodb -db ./data
+NanoDB 0.1.0 交互式 shell。JSON 参数请用单引号包裹。
+nano&gt; begin
+事务已开始
+nano(tx)&gt; put users &#39;{&quot;name&quot;:&quot;Bob&quot;}&#39;
+nano(tx)&gt; commit
+事务已提交
+</code></pre></div>
+
+<h3>REST 服务</h3>
+<div class="codehilite"><pre><span></span><code>./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>serve<span class="w"> </span>-addr<span class="w"> </span>:8080<span class="w"> </span>-token<span class="w"> </span>secret
+curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;X-NanoDB-Token: secret&#39;</span><span class="w"> </span>localhost:8080/v1/users
+</code></pre></div>
+
+
+三个入口共享同一套引擎能力，不是三套实现——<code>cmd/nanodb/main.go</code>（722 行）只做参数分发，<code>server/server.go</code>（764 行）只做路由与鉴权，真正的逻辑全部在 <code>engine/</code> 包里。这是第一个值得记住的架构决策：<strong>入口很薄，引擎唯一</strong>。
+<h3>Go 嵌入（本体用法）</h3>
+
+对嵌入式数据库来说，CLI 和 REST 都是外挂，真正的本体是库调用：
+<div class="codehilite"><pre><span></span><code><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">engine</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">&quot;./data&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">engine</span><span class="p">.</span><span class="nx">Options</span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Sync</span><span class="p">:</span><span class="w">             </span><span class="kc">true</span><span class="p">,</span><span class="w">        </span><span class="c1">// 每次写入 fsync</span>
+<span class="w">    </span><span class="nx">CompactThreshold</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w">     </span><span class="c1">// WAL 超 4 MiB 自动压缩</span>
+<span class="p">})</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">panic</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="k">defer</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+
+<span class="nx">doc</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">Insert</span><span class="p">(</span><span class="s">&quot;users&quot;</span><span class="p">,</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Alice&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;age&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">})</span>
+<span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="nx">doc</span><span class="p">[</span><span class="s">&quot;_id&quot;</span><span class="p">])</span>
+
+<span class="nx">docs</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">Find</span><span class="p">(</span><span class="s">&quot;users&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">engine</span><span class="p">.</span><span class="nx">Query</span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Filter</span><span class="p">:</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;age&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;$gte&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">18</span><span class="p">}},</span>
+<span class="w">    </span><span class="nx">Sort</span><span class="p">:</span><span class="w">   </span><span class="p">[]</span><span class="nx">engine</span><span class="p">.</span><span class="nx">SortField</span><span class="p">{{</span><span class="nx">Field</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;age&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Desc</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}},</span>
+<span class="w">    </span><span class="nx">Limit</span><span class="p">:</span><span class="w">  </span><span class="mi">10</span><span class="p">,</span>
+<span class="p">})</span>
+<span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">docs</span><span class="p">))</span>
+</code></pre></div>
+
+
+API 是平铺的方法表：<code>Insert / InsertMany / Get / Find / Count / Replace / Update / UpdateMany / Delete / DeleteMany / Batch / Aggregate / QuerySQL / CreateIndex / DropIndex / Compact / Stats / Close</code>，与 CLI 子命令一一对应。两个使用注意：
+<ul>
+<li>传 <code>nil</code>（或不传 Options）得到默认行为 <code>Sync: true</code>；显式传 <code>&amp;engine.Options{}</code> 反而意味着<strong>你选了</strong> <code>Sync: false</code>——Go 的零值语义在这里有个小陷阱，README 特意点了出来。</li>
+<li>一切读写返回副本，改返回值不会回写数据库；要改就走 <code>Update</code>/<code>Replace</code>。</li>
+</ul>
+<h2>架构与代码地图</h2>
+<div class="codehilite"><pre><span></span><code>NanoDB/
+├── cmd/nanodb/
+│   └── main.go              # CLI 参数、命令分发、shell、serve、user 管理（722 行）
+├── server/
+│   ├── server.go            # REST 路由、事务会话（764 行）
+│   ├── auth.go              # 鉴权、角色与集合白名单
+│   └── users.go             # users.json 账号存储
+├── engine/                  # 全部核心逻辑
+│   ├── db.go                # 存储引擎、CRUD、WAL、快照、压缩（928 行）
+│   ├── query.go             # 过滤编译、排序、Top-N、投影（585 行）
+│   ├── index.go             # 单字段/复合索引、查询计划（804 行）
+│   ├── text.go / geo.go     # 文本倒排索引、地理索引
+│   ├── sql.go               # SQL 只读子集的词法、语法与执行（624 行）
+│   ├── aggregate.go         # 聚合管道
+│   ├── tx.go                # 显式事务
+│   ├── batch.go             # 原子批量写入
+│   ├── lock*.go             # 目录独占锁（Windows LockFileEx / Unix flock）
+│   └── id.go / copy.go      # _id 生成、文档深拷贝
+└── docs/
+    └── transaction-isolation.md   # 事务隔离级别完整说明
+</code></pre></div>
+
+
+依赖方向只有一条：<code>cmd</code> 和 <code>server</code> 依赖 <code>engine</code>，<code>engine</code> 不依赖任何人。没有接口层的抽象森林——<code>collection</code>、<code>index</code>、<code>Tx</code> 都是具体类型，因为只有一个实现，为「未来可能的第二个实现」预留接口是过度设计。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>行数</th>
+<th>职责一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>engine/db.go</code></td>
+<td>928</td>
+<td>内存数据结构 + WAL + 快照压缩 + 目录锁</td>
+</tr>
+<tr>
+<td><code>engine/index.go</code></td>
+<td>804</td>
+<td>索引结构与查询计划选择</td>
+</tr>
+<tr>
+<td><code>server/server.go</code></td>
+<td>764</td>
+<td>REST 路由与 HTTP 事务会话</td>
+</tr>
+<tr>
+<td><code>cmd/nanodb/main.go</code></td>
+<td>722</td>
+<td>CLI 与 shell</td>
+</tr>
+<tr>
+<td><code>engine/sql.go</code></td>
+<td>624</td>
+<td>SQL 只读子集的三段式实现</td>
+</tr>
+<tr>
+<td><code>engine/query.go</code></td>
+<td>585</td>
+<td>过滤编译、匹配、排序、分页、投影</td>
+</tr>
+</tbody>
+</table></div>
+<h2>数据模型：文档、集合与 <code>_id</code></h2>
+
+数据目录里只有几个文件：
+<div class="codehilite"><pre><span></span><code>data/
+├── snapshot.json   # 某一时刻的全量数据与索引定义
+├── wal.log         # 快照之后的增量操作（JSON Lines）
+├── LOCK            # 进程独占锁（空文件，操作系统加锁）
+└── users.json      # 可选：HTTP 账号
+</code></pre></div>
+
+
+层级是「集合 → 文档」，集合类似表但没有固定结构。规则不多，但每条都有讲究：
+<ul>
+<li>文档必须是 JSON 对象；<code>_id</code> 必须是非空字符串，没提供就自动生成：<strong>13 位十六进制毫秒时间戳 + 12 位随机字符</strong>——时间前缀让生成的 ID 天然近似有序，插入时不会把索引写成完全随机的形态。</li>
+<li>写入会深拷贝，调用方之后改原对象不影响数据库；读取返回的也是副本。这条规则消灭了一整类「共享 map 被意外改写」的并发 bug，代价是每次读写都要拷贝——对内存驻留的中小数据集，这是划算的保险。</li>
+<li>字段名支持点号路径（<code>profile.city</code>）用于查询、排序、投影和索引，但文档本身保持自由嵌套。</li>
+<li>以 <code>$</code> 开头的字段名会被当成操作符——这是兼容 MongoDB 习惯带来的历史约束，README 明确提醒不要用 <code>$</code> 做普通字段名。</li>
+<li>CLI / HTTP 写入的数字统一解码为 <code>float64</code>，Go 嵌入传 <code>int</code> 则保留原类型，比较时统一按数值处理——跨入口的类型行为被显式定义过，而不是留给你撞。</li>
+</ul>
+
+字段值与三类能力的支持矩阵（README 原表的浓缩版）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>JSON 类型</th>
+<th>存储</th>
+<th>过滤/排序</th>
+<th>可建索引</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>字符串</td>
+<td>支持</td>
+<td>等值、正则、字典序</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>数字</td>
+<td>支持</td>
+<td>按数值比较</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>布尔</td>
+<td>支持</td>
+<td>等值</td>
+<td>支持</td>
+</tr>
+<tr>
+<td><code>null</code></td>
+<td>支持</td>
+<td>仅 <code>$eq: null</code> / <code>$exists</code></td>
+<td>不写入索引</td>
+</tr>
+<tr>
+<td>数组</td>
+<td>支持</td>
+<td>multikey（任意元素命中）</td>
+<td>元素逐个索引</td>
+</tr>
+<tr>
+<td>对象</td>
+<td>支持</td>
+<td>整体等值匹配</td>
+<td>不写入索引</td>
+</tr>
+</tbody>
+</table></div>
+
+「null 和对象不进索引」这条尤其容易被忽略：索引里没有它们，靠索引取候选集就可能漏掉文档。后面会看到，NanoDB 用一个 <code>incomplete</code> 标记和「候选集只作为过滤前置、仍做全量匹配」的组合来兜住这类问题的变体。
+<h2>持久化核心：快照 + WAL</h2>
+
+这是整个项目最核心的一节。所有数据库的持久化问题归根结底是同一个问题：<strong>写到一半断电了怎么办？</strong> NanoDB 的答案由三层构成，每层都不超过几十行代码。
+<h3>记录长什么样：JSON Lines</h3>
+
+<code>wal.log</code> 每行一条完整记录，顺序即写入顺序：
+<div class="codehilite"><pre><span></span><code>{&quot;op&quot;:&quot;put&quot;,&quot;coll&quot;:&quot;users&quot;,&quot;doc&quot;:{&quot;_id&quot;:&quot;u1&quot;,&quot;name&quot;:&quot;Alice&quot;,&quot;age&quot;:30}}
+{&quot;op&quot;:&quot;delete&quot;,&quot;coll&quot;:&quot;users&quot;,&quot;id&quot;:&quot;u2&quot;}
+{&quot;op&quot;:&quot;index.create&quot;,&quot;coll&quot;:&quot;users&quot;,&quot;field&quot;:&quot;age&quot;,&quot;unique&quot;:true}
+{&quot;op&quot;:&quot;batch&quot;,&quot;ops&quot;:[{&quot;op&quot;:&quot;put&quot;,&quot;coll&quot;:&quot;users&quot;,&quot;doc&quot;:{&quot;_id&quot;:&quot;u3&quot;}}]}
+{&quot;op&quot;:&quot;drop&quot;,&quot;coll&quot;:&quot;users&quot;}
+</code></pre></div>
+
+
+操作类型一共七种：<code>put</code>（插入/覆盖，更新也写成覆盖式 <code>put</code>）、<code>delete</code>、<code>drop</code>、<code>batch</code>、<code>tx</code>、<code>index.create</code>、<code>index.drop</code>。批量和事务各是一条父记录、<code>ops</code> 里装子操作——这保证了「一整批要么全在要么全不在」在恢复时也是原子的。
+
+JSON Lines 的取舍非常直白：可读、可 grep、一行即一条完整记录，代价是比二进制格式占更多空间、解析更慢。对一个目标场景是中小数据量的库，这个交换是合理的——而且它让「崩溃恢复」的实现退化成了「逐行解析，坏行截断」。
+<h3>第一层：撕裂记录截断</h3>
+
+进程在写一行的中途崩溃，文件末尾会留下半行。<code>engine/db.go</code> 的 <code>replay</code> 返回「有效前缀长度」，<code>openWAL</code> 据此截断：
+<div class="codehilite"><pre><span></span><code><span class="c1">// replay 顺序重放 WAL，返回有效前缀长度。</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">db</span><span class="w"> </span><span class="o">*</span><span class="nx">DB</span><span class="p">)</span><span class="w"> </span><span class="nx">replay</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">offset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">nl</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">IndexByte</span><span class="p">(</span><span class="nx">data</span><span class="p">[</span><span class="nx">offset</span><span class="p">:],</span><span class="w"> </span><span class="sc">&#39;\n&#39;</span><span class="p">)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">nl</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nx">offset</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="w">   </span><span class="c1">// 没有换行符：末尾是半行，截断点</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="o">...</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">json</span><span class="p">.</span><span class="nx">Unmarshal</span><span class="p">(</span><span class="nx">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">rec</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;nanodb: corrupt wal near byte %d: %w&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">offset</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="o">...</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">offset</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意两种错误被区别对待：<strong>末尾没有换行</strong>是正常撕裂，截断即可，之前已提交的数据不受影响；<strong>中间某行解析失败</strong>是真正的损坏，直接报错拒绝打开——静默跳过中间的坏行会把「丢数据」伪装成「成功恢复」，这是恢复逻辑里最不能让步的边界。
+<h3>第二层：写失败自己也要回退</h3>
+
+光有恢复还不够，写入方必须保证不会把半条记录留在文件里等下次恢复。<code>appendRecord</code> 里有一段容易被跳过、但注释写得极其到位的代码：
+<div class="codehilite"><pre><span></span><code><span class="nx">n</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">wal</span><span class="p">.</span><span class="nx">Write</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">n</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 写失败可能在文件尾部留下半条记录，必须回退到上一个完整记录，</span>
+<span class="w">    </span><span class="c1">// 否则后续追加会与残缺字节拼成一条非法记录，导致重启后无法打开。</span>
+<span class="w">    </span><span class="nx">db</span><span class="p">.</span><span class="nx">rollbackWALLocked</span><span class="p">()</span>
+<span class="w">    </span><span class="o">...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>rollbackWALLocked</code> 就是 <code>Truncate(walBytes) + Seek</code>——<code>walBytes</code> 始终记录最后一个完整记录的末尾位置，它同时是内存计数和恢复锚点。同样的回退也挂在 <code>fsync</code> 失败上。
+
+还有一个藏在 <code>openWAL</code> 里的 Windows 坑，值得原样引用：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 不使用 O_APPEND：Windows 下该标志会移除 GENERIC_WRITE，导致后续 Truncate 报 Access is denied。</span>
+<span class="c1">// 写入均由 db.mu 串行化，显式 Seek 到末尾即可保持追加语义。</span>
+<span class="nx">f</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">OpenFile</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">O_CREATE</span><span class="o">|</span><span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="p">,</span><span class="w"> </span><span class="nx">filePerm</span><span class="p">)</span>
+</code></pre></div>
+
+
+「文档里说跨平台，实际只在 Linux 测过」是很多项目的通病，而这里的选择（不用 <code>O_APPEND</code>、靠锁串行化 + 显式 Seek 换取 Truncate 能力）是只有真在 Windows 上跑过才会做出的修正。跨平台不是口号，是这类具体到一个 flag 的决定。
+<h3>第三层：gen 代数防压缩窗口期崩溃</h3>
+
+快照 + WAL 结构固有的危险窗口是：压缩时「快照已重命名、WAL 还没清空」的瞬间崩溃，重放会把已经进快照的旧记录<strong>再叠加一遍</strong>——对普通 <code>put</code> 无害，对唯一索引就是一次假冲突，对 <code>delete</code> 后又插入的场景甚至可能复活数据。
+
+NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），每次压缩递增，每条 WAL 记录也带写入时的代数。重放规则只有一行：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 早于当前快照代数的记录已经被快照覆盖，直接跳过。</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">rec</span><span class="p">.</span><span class="nx">Gen</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">walGen</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">offset</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">nl</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="k">continue</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+于是那个危险窗口被彻底关掉了：无论崩溃发生在压缩的哪一步，旧代记录要么被跳过、要么快照还是旧代照常重放，两种状态都是自洽的。这是一个很小的机制（一个 <code>uint64</code> 字段加一个比较），但它是「设计出来的正确」和「碰巧没出事」的分界线。
+
+压缩本身的顺序也讲究：<strong>先写临时快照 → <code>fsync</code> → 原子重命名 → 再清空 WAL</strong>。任何时刻崩溃，磁盘上都至少存在一份完整的旧或新快照。另外 <code>maybeCompactLocked</code> 被放在事务提交、批量完成等「内存状态已全部应用」的位置，注释写明了原因——如果在 <code>appendRecord</code> 内部压缩，快照可能早于尚未应用的删除/建索引操作。
+<h3>目录独占锁：单进程语义的物理保证</h3>
+
+「同一数据目录同一时间只能被一个进程打开」如果只靠约定，迟早会出现两个进程同时写。NanoDB 用操作系统级文件锁把它变成物理事实：<code>lock_windows.go</code> 用 <code>LockFileEx</code>，<code>lock_unix.go</code> 用 <code>flock</code>，第二个进程打开直接返回 <code>ErrLocked</code>，进程异常退出时系统自动释放锁——不会留下「上次崩溃导致永久锁死」的僵尸状态。两个平台各自几十行、通过构建标签选择，是 Go 里处理这类问题的教科书姿势。
+<h2>查询执行：一条 <code>find</code> 的流水线</h2>
+
+一次 <code>db.Find(coll, q)</code> 在 <code>queryCollection</code>（<code>engine/db.go</code>）里走过五步，每步都有一个明确的优化动机：
+<div class="codehilite"><pre><span></span><code>planCandidates（索引选候选集）
+    → compileFilter（过滤条件预编译）
+    → 逐文档匹配
+    → Top-N / 全量排序
+    → skip/limit 截断 → 投影拷贝
+</code></pre></div>
+
+<h3>第一步：挑候选集最小的索引</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// planCandidates 从过滤条件中挑选候选集最小的索引，返回 nil 表示走全表扫描。</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">collection</span><span class="p">)</span><span class="w"> </span><span class="nx">planCandidates</span><span class="p">(</span><span class="nx">filter</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">struct</span><span class="p">{}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="o">...</span>
+<span class="w">    </span><span class="nx">conds</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">][]</span><span class="kt">any</span><span class="p">,</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">filter</span><span class="p">))</span>
+<span class="w">    </span><span class="nx">collectConditions</span><span class="p">(</span><span class="nx">filter</span><span class="p">,</span><span class="w"> </span><span class="nx">conds</span><span class="p">)</span>
+<span class="w">    </span><span class="o">...</span>
+<span class="w">    </span><span class="nx">consider</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">ids</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">struct</span><span class="p">{})</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">ids</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">best</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">ids</span><span class="p">)</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">best</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">best</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">ids</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">ix</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">indexes</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">consider</span><span class="p">(</span><span class="nx">ix</span><span class="p">.</span><span class="nx">lookup</span><span class="p">(</span><span class="nx">conds</span><span class="p">))</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">tx</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">texts</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">consider</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">lookup</span><span class="p">(</span><span class="nx">conds</span><span class="p">[</span><span class="s">&quot;$text&quot;</span><span class="p">]))</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">field</span><span class="p">,</span><span class="w"> </span><span class="nx">gx</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">geos</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">consider</span><span class="p">(</span><span class="nx">gx</span><span class="p">.</span><span class="nx">lookup</span><span class="p">(</span><span class="nx">conds</span><span class="p">[</span><span class="nx">field</span><span class="p">]))</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">best</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+没有代价模型、没有统计信息、没有 histogram——就是「每个能用的索引都问一遍，谁的候选集最小用谁」。对单机内存库，这是性价比最高的规划器：索引查找本身是 <code>O(log n + 命中数)</code>，问三四个索引的开销远小于选错索引扫全表的开销。
+
+<code>collectConditions</code> 的注释同样值得引用：<strong>「收集顶层与 <code>$and</code> 中的字段条件；<code>$or</code>/<code>$not</code> 无法安全地取候选集」</strong>。<code>$or</code> 的候选集是各分支的并集，取小了会漏文档——所以这里宁可不用索引也不冒险。查询规划器最重要的品质不是聪明，是<strong>知道自己什么时候不该聪明</strong>。选中索引后拿到的也只是候选集，最终仍要过一遍完整过滤，双保险。
+<h3>第二步：过滤器只编译一次</h3>
+
+朴素实现里，每匹配一条文档都要重新遍历 filter map、遇到 <code>$regex</code> 重新编译正则。<code>compileFilter</code> 把这件事提到扫描之前：
+<div class="codehilite"><pre><span></span><code><span class="c1">// compileFilter 把过滤条件转成切片，避免在逐文档匹配时反复分配 map 迭代器。</span>
+<span class="c1">// 同时预编译正则条件，避免扫描时每篇文档都重新编译同一条正则。</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">compileFilter</span><span class="p">(</span><span class="nx">filter</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="nx">filterClause</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+非法正则被编译为 <code>re = nil</code> 直接视为不命中，而不是每条文档报一次错。10 万条文档的扫描里，这两条决定了分配次数是 2,012 还是几十万——性能表里「等值查询全表扫描 12 ms / 2,012 次分配」的 <code>allocs/op</code> 基本就是预编译的成果。
+<h3>第四步：带 limit 的排序走 Top-N 堆</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">q</span><span class="p">.</span><span class="nx">Sort</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Limit</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">k</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">out</span><span class="p">)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Skip</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">out</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Limit</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">out</span><span class="p">)</span><span class="o">-</span><span class="nx">q</span><span class="p">.</span><span class="nx">Skip</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">k</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Skip</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Limit</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="nx">out</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">topNSortDocs</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Sort</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">)</span><span class="w">   </span><span class="c1">// 大小为 k 的最大堆</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">sortDocs</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">q</span><span class="p">.</span><span class="nx">Sort</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+只取前 50 条时，用大小为 <code>skip + limit</code> 的最大堆扫一遍，堆顶永远是「当前前 k 条里最靠后的那条」，最后对 k 条小数组排一次序。复杂度从 <code>O(n log n)</code> 降到 <code>O(n log k)</code>，实测在 10 万条随机序数据上是 <strong>6.5 ms 对 85.3 ms——十三倍差距</strong>。另一个配套优化是排序键预抽取：先把每条文档的排序字段取出来存成键，避免每次比较都回表取嵌套字段。
+
+<code>skip</code> 的处理也有个细节：<code>k = skip + limit</code> 意味着先取到「跳过之后还够用」为止，而不是排完整个结果集再切片。
+<h2>索引系统：从二分定位到二元组分词</h2>
+<h3>二级索引与 <code>incomplete</code> 标记</h3>
+
+索引结构是「有序键 → 文档 ID 集合」，支持单字段、复合（<code>"a,b"</code>）、唯一约束和数组 multikey（数组元素逐个进索引，任意元素命中即命中）。范围查询用二分定位边界：
+<div class="codehilite"><pre><span></span><code><span class="c1">// spanFor 按首字段的范围条件二分定位条目区间。</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">ix</span><span class="w"> </span><span class="o">*</span><span class="nx">index</span><span class="p">)</span><span class="w"> </span><span class="nx">spanFor</span><span class="p">(</span><span class="nx">op</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">entrySpan</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span>
+</code></pre></div>
+
+
+于是范围查询复杂度是 <code>O(log n + 命中数)</code>，不再从头扫到尾——这是性能表里「范围查询 索引 3.1 ms vs 全表 27.3 ms」的来源。
+
+复合索引有一个诚实的设计：含数组字段的文档无法按 tuple 语义进入复合索引，此时索引被标记 <code>incomplete</code>，<code>lookup</code> 对不完整索引直接返回 <code>nil</code>（表示不可用），查询规划回退全表扫描。<strong>宁可慢，不可错</strong>——一个「部分可见」的索引如果被当成完整索引用，结果会静默丢文档，这比慢一个数量级严重得多。
+<h3>文本索引：没有词典的中文搜索</h3>
+
+全文索引覆盖文档内所有字符串，用 <code>$text</code> 查询。分词逻辑核心只有三十行：
+<div class="codehilite"><pre><span></span><code><span class="c1">// tokenizeText 按字母/数字切成词元；纯汉字片段额外生成二元组，</span>
+<span class="c1">// 这样中文查询无需分词词典也能按片段匹配。</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">tokenizeText</span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="o">...</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">han</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">word</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">word</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">out</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">word</span><span class="p">[</span><span class="nx">i</span><span class="p">:</span><span class="nx">i</span><span class="o">+</span><span class="mi">2</span><span class="p">]))</span><span class="w">   </span><span class="c1">// 「数据库」→ 数据/据库</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">out</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">ToLower</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">word</span><span class="p">)))</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="o">...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+汉字二元组（bigram）是一个经典的无词典方案：「数据库」切成「数据」「据库」，查询侧同样切片后做 AND 匹配，不需要任何分词词典就能支持中文。代价在「已知限制」里写得很清楚：没有停用词、词干、同义词，没有相关度评分，多词是纯 AND，结果不按相关度排序——它是<strong>能用的检索，不是搜索引擎</strong>。但对一个内嵌数据库来说，这个定位是准确的：多数场景只需要「把含这几个词的文档捞出来」。
+<h3>地理索引：经度有序 + haversine</h3>
+
+地理索引按经度有序存储，支持 <code>$geoWithin</code> 的 <code>$box</code>（矩形）与米制 <code>$circle</code>（圆）。圆判定用 haversine 球面距离：
+<div class="codehilite"><pre><span></span><code><span class="c1">// haversineMeters 计算两点间的球面距离（米）。</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">haversineMeters</span><span class="p">(</span><span class="nx">lon1</span><span class="p">,</span><span class="w"> </span><span class="nx">lat1</span><span class="p">,</span><span class="w"> </span><span class="nx">lon2</span><span class="p">,</span><span class="w"> </span><span class="nx">lat2</span><span class="w"> </span><span class="kt">float64</span><span class="p">)</span><span class="w"> </span><span class="kt">float64</span>
+</code></pre></div>
+
+
+矩形先用有序结构收窄候选、圆再逐点算距离，把昂贵的三角函数调用限制在小候选集上。限制同样是诚实的：不支持多边形与 GeoJSON 的 <code>Polygon</code>/<code>LineString</code>，不处理跨 180° 经线，<code>$geoWithin</code> 结果不按距离排序。
+<h2>事务：集合粒度的乐观可串行化</h2>
+
+NanoDB 的事务没有锁等待、没有死锁、没有 MVCC 的 undo 链——它用的是最朴素也最适配「内存 + 单进程」的方案：<strong>集合快照 + 版本号校验</strong>。
+
+<code>Tx</code> 的结构（<code>engine/tx.go</code>）一眼就能看懂：
+<div class="codehilite"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">Tx</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">mu</span><span class="w">       </span><span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+<span class="w">    </span><span class="nx">db</span><span class="w">       </span><span class="o">*</span><span class="nx">DB</span>
+<span class="w">    </span><span class="nx">snap</span><span class="w">     </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">collection</span><span class="w"> </span><span class="c1">// 事务内集合快照</span>
+<span class="w">    </span><span class="nx">versions</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">uint64</span><span class="w">      </span><span class="c1">// 各集合首次访问时的版本</span>
+<span class="w">    </span><span class="nx">writes</span><span class="w">   </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">bool</span><span class="w">        </span><span class="c1">// 事务内发生过写入的集合</span>
+<span class="w">    </span><span class="nx">walOps</span><span class="w">   </span><span class="p">[]</span><span class="nx">walRecord</span>
+<span class="w">    </span><span class="nx">done</span><span class="w">     </span><span class="kt">bool</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+工作流程是：
+<ol>
+<li><strong>Begin 不持任何数据库锁</strong>，只是空手开张。</li>
+<li><strong>首次访问某集合时</strong>，<code>db.mu.RLock</code> 下记录版本号并深拷贝整个集合——此后读写全部基于这份快照，天然可重复读，也能看到自己未提交的写入。</li>
+<li><strong>Commit 时</strong>一次性拿写锁，校验整个读集：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 校验事务访问过的整个读集，避免丢失更新与不可重复读；</span>
+<span class="c1">// 只读事务同样校验快照一致性。</span>
+<span class="k">for</span><span class="w"> </span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">ver</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">tx</span><span class="p">.</span><span class="nx">versions</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">versions</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nx">ver</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">tx</span><span class="p">.</span><span class="nx">finishLocked</span><span class="p">()</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;%w: collection %q changed during transaction&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">ErrConflict</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<ol>
+<li>校验通过 → 整批改动<strong>只写一条</strong> <code>{"op":"tx","ops":[...]}</code> WAL 记录 → 替换受影响集合 → 版本号 +1。校验失败 → 返回 <code>ErrConflict</code>、改动全部丢弃，调用方重新 <code>Begin</code> 重试。</li>
+</ol>
+
+这个设计的含义需要展开说：
+<ul>
+<li><strong>冲突粒度是集合</strong>。事务期间只要有人改了你读过的任何一个集合（哪怕改的是另一条文档），提交就失败——这就是注释里承认的「假冲突」。集合级校验比文档级便宜得多（一个 <code>uint64</code> 比较 vs 每文档一条记录），对低冲突场景这是对的取舍，对热点集合的高并发写则会产生大量无谓重试。</li>
+<li><strong>不会死锁</strong>。没有锁等待，唯一的同步点是 Commit 时短暂的写锁，冲突的结局是立刻返回错误而不是排队。<code>Begin</code> 到 <code>Commit</code> 之间数据库完全可被其他写入使用。</li>
+<li><strong>只读事务也要 <code>Commit()</code></strong>——它用来认证「我读到的跨集合视图是一致的」。省掉这一步，跨集合的快照一致性就没有裁判。</li>
+<li>事务方法可被多个 goroutine 并发调用（内部一把 <code>tx.mu</code>），事务结束后任何方法返回 <code>ErrTxDone</code>，<code>defer tx.Rollback()</code> 幂等。</li>
+</ul>
+
+一个转账例子（README 的标准片段）：
+<div class="codehilite"><pre><span></span><code><span class="nx">tx</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">Begin</span><span class="p">()</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">}</span>
+<span class="k">defer</span><span class="w"> </span><span class="nx">tx</span><span class="p">.</span><span class="nx">Rollback</span><span class="p">()</span><span class="w"> </span><span class="c1">// 幂等；提交后调用返回 ErrTxDone</span>
+
+<span class="k">if</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tx</span><span class="p">.</span><span class="nx">Update</span><span class="p">(</span><span class="s">&quot;accounts&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">from</span><span class="p">,</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;$inc&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;balance&quot;</span><span class="p">:</span><span class="w"> </span><span class="o">-</span><span class="mi">100</span><span class="p">}});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
+<span class="p">}</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tx</span><span class="p">.</span><span class="nx">Update</span><span class="p">(</span><span class="s">&quot;accounts&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">to</span><span class="p">,</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;$inc&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;balance&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">}});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
+<span class="p">}</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tx</span><span class="p">.</span><span class="nx">Commit</span><span class="p">();</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">errors</span><span class="p">.</span><span class="nx">Is</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">engine</span><span class="p">.</span><span class="nx">ErrConflict</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 事务期间相关集合被其他写入修改，需重新 Begin 后重试</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+完整的隔离级别对照、语义细节与重试建议在 <code>docs/transaction-isolation.md</code>——把「事务语义」单独成文档而不是散在代码注释里，是这个项目文档质量的一个缩影。
+<h2>原子批量：一条 WAL 记录装下一整批</h2>
+
+事务解决「多步 + 可回滚」，批量解决「一次性、无中间状态」的写入。<code>batch</code> 的实现策略是<strong>克隆暂存</strong>：
+<ul>
+<li>整批写操作先在涉及集合的克隆上执行，任何一步失败（重复 <code>_id</code>、唯一索引冲突、非法更新表达式、目标文档不存在）就整批作废，正式数据完全没碰过。</li>
+<li>成功时所有改动作为一个 <code>batch</code> 父记录写入——<strong>一条</strong> WAL 记录，恢复时整批重放，不存在半提交。</li>
+<li>可以跨集合操作；<code>update</code> 目标不存在算错误，<code>delete</code> 目标不存在不算错误（结果里 <code>deleted: false</code>）——两个方向的语义都按「调用方最可能的意图」定义过。</li>
+</ul>
+
+「克隆上暂存」的代价是批量期间的内存峰值（多出几个集合的拷贝），换来的是<strong>原子性不需要回滚逻辑</strong>——失败路径只要把克隆扔掉，没有「撤销做了一半的索引维护」这种最难写对的代码。这与事务复用同一套快照机制，属于同一个设计家族。
+
+批量还能从标准输入灌入（<code>batch -</code>），配合「成功只写一条 WAL 记录」，导入十万条数据就是一次 <code>fsync</code> 而不是十万次——批量写入在 WAL 结构下的收益是乘性的。
+<h2>SQL 只读子集与聚合管道</h2>
+<h3>SQL：手写三段式，复用同一引擎</h3>
+
+<code>engine/sql.go</code>（624 行）是一个手写的 SQL 只读子集：词法 → 语法 → 执行，支持 <code>SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT/OFFSET</code> 与 <code>COUNT(*)</code>。
+
+关键在于它<strong>不带自己的执行引擎</strong>：解析结果被翻译成与 REST / CLI 完全相同的 <code>Query</code> 结构（filter、sort、limit、skip、fields），然后走同一套 <code>compileFilter</code>、同一套索引规划、同一套 Top-N 排序。所以「SQL 查询和 find 查询性能一致」不是巧合，是它们根本就是同一条流水线的两种入口。
+
+代价是能力边界明确：没有 JOIN、GROUP BY、HAVING、DISTINCT、子查询、UNION、列别名，聚合只支持 <code>COUNT(*)</code>，<code>LIKE</code> 大小写敏感。对一个嵌入式库的查询糖来说，这个子集覆盖了「从脚本里捞数据」的绝大多数动作。
+<h3>聚合管道</h3>
+
+八个阶段：<code>$match</code>、<code>$group</code>、<code>$sort</code>、<code>$skip</code>、<code>$limit</code>、<code>$project</code>、<code>$unwind</code>、<code>$count</code>，累加器支持 <code>$sum/$avg/$min/$max/$first/$last/$push</code>。语义对齐 MongoDB 的命名，让熟悉 Mongo 的人零学习成本。限制也照旧诚实：没有 <code>$lookup</code>、<code>$facet</code>、窗口函数、<code>$out</code>/<code>$merge</code>，且<strong>聚合不使用索引</strong>（<code>$match</code> 在管道最前面时可以依赖调用方把过滤下推，但聚合自身不做索引规划）。
+<h2>HTTP 服务：token、角色与事务会话</h2>
+
+<code>server/</code> 把引擎包成 REST：
+<ul>
+<li><strong>基础路由</strong>：<code>/healthz</code>、<code>/v1/&lt;collection&gt;</code> 的 CRUD、查询参数承载 <code>filter</code>/<code>sort</code>/<code>limit</code>/<code>skip</code>/<code>fields</code>/<code>count</code>、<code>/v1/admin/compact</code> 等管理端点。</li>
+<li><strong>鉴权</strong>：<code>-token</code> 为空表示不鉴权；设置后请求需带 <code>X-NanoDB-Token</code> 头。共享 token 是 admin 入口，还可以按用户发放 token，限制 <code>admin/write/read</code> 三种角色与集合白名单（精确匹配）。</li>
+<li><strong>HTTP 事务</strong>：<code>POST /v1/transactions</code> 开事务拿 <code>tx_id</code>，在 <code>/v1/transactions/$TX/...</code> 下读写，最后 <code>commit</code> 或 <code>rollback</code>。事务会话存在<strong>服务端内存</strong>中，30 分钟未使用自动回滚，服务停机时回滚所有未提交事务——长事务不会把快照内存无限期钉住。</li>
+<li><strong>防御性细节</strong>：单请求体上限 8 MiB（大导入改用 CLI <code>batch -</code>）、参数校验、统一错误码、请求体解析失败不半开连接。</li>
+</ul>
+
+值得注意的是 HTTP 事务与 Go 事务<strong>共享同一套 <code>Tx</code> 实现</strong>，session 层只负责 <code>tx_id → *Tx</code> 的映射与超时回收。这是「入口薄、引擎唯一」的又一次体现。
+<h2>性能实测：数字与优化点</h2>
+
+10 万条文档、等值/范围查询命中 1000 条时的参考值（Windows 本机实测，项目 README 提供，随机器与负载波动较大）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>耗时</th>
+<th>分配次数/op</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>等值查询 · 索引</td>
+<td>3.0 ms</td>
+<td>2,037</td>
+</tr>
+<tr>
+<td>等值查询 · 全表扫描</td>
+<td>12.0 ms</td>
+<td>2,012</td>
+</tr>
+<tr>
+<td>范围查询 · 索引</td>
+<td>3.1 ms</td>
+<td>2,037</td>
+</tr>
+<tr>
+<td>范围查询 · 全表扫描</td>
+<td>27.3 ms</td>
+<td>2,012</td>
+</tr>
+<tr>
+<td>投影查询 · 索引</td>
+<td>3.1 ms</td>
+<td>2,037</td>
+</tr>
+<tr>
+<td>排序 + 分页（1 万命中，skip 500 / limit 50）</td>
+<td>12.9 ms</td>
+<td>208</td>
+</tr>
+<tr>
+<td>随机序排序 Top-50（10 万命中）</td>
+<td>6.5 ms</td>
+<td>6</td>
+</tr>
+<tr>
+<td>随机序全量排序（10 万命中）</td>
+<td>85.3 ms</td>
+<td>6</td>
+</tr>
+</tbody>
+</table></div>
+
+从这张表能读出四件事：
+<ol>
+<li><strong>索引的收益是 4–9 倍</strong>（等值 3.0 vs 12.0，范围 3.1 vs 27.3），范围查询的差距更大——全表扫描每个文档都要重新比较，索引是二分加遍历命中段。</li>
+<li><strong>Top-N 是十三倍</strong>（6.5 vs 85.3）——只取前 N 条时永远不要全量排序。</li>
+<li><strong><code>allocs/op</code> 比耗时更可信</strong>。README 特别注明连续跑基准会触发 CPU 降频、绝对耗时波动可能超过 30%，横向对比以分配次数为准——这是一个被基准测试毒打过的团队才会写下的提醒。</li>
+<li>排序 + 分页只有 208 次分配，因为排序键预抽取 + Top-N 堆把「比较」和「回表」解耦了。</li>
+</ol>
+
+对应的调优建议也都是这篇文章讲过的机制的使用说明：高频过滤字段建索引但别建太多；只要部分字段就用 <code>fields</code> 投影（边拷贝边投影，分配数与不投影一致）；只要前 N 条就同时给 <code>sort</code> 和 <code>limit</code>；能接受掉电丢最近写入就用 <code>-no-sync</code> 换吞吐；写入密集就调大 <code>CompactThreshold</code> 减少压缩次数（代价是重启重放变长）。
+<h2>测试与工程质量</h2>
+<div class="codehilite"><pre><span></span><code>go<span class="w"> </span>vet<span class="w"> </span>./...
+go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./...
+go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-cover<span class="w"> </span>./...
+go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-race<span class="w"> </span>./...<span class="w">        </span><span class="c1"># 需要 CGO 与 C 编译器，Windows 需装 gcc</span>
+go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./engine<span class="w"> </span>-run<span class="w"> </span><span class="s1">&#39;^$&#39;</span><span class="w"> </span>-bench<span class="w"> </span>Benchmark<span class="w"> </span>-benchmem
+</code></pre></div>
+
+
+实测 <code>go test ./...</code> 三个包全部通过（<code>cmd</code> 0.87s、<code>engine</code> 1.08s、<code>server</code> 1.58s）。覆盖率 engine 80%、server 80%、cmd 75%。
+
+覆盖面清单能看出测试的重点放在哪：
+<ul>
+<li><strong>引擎</strong>：CRUD、查询操作符、排序/分页/投影、四类索引与唯一约束、聚合、SQL 解析执行、批量原子性、事务隔离与冲突、<strong>WAL 重放、压缩、目录锁</strong>、关闭后行为、更新错误路径。</li>
+<li><strong>server</strong>：鉴权、角色与集合白名单、账号存储、路由、405、参数校验、错误码、事务会话与超时回收、请求体上限。</li>
+<li><strong>CLI</strong>：参数解析、一次性命令全链路、shell 事务与 EOF 回滚、serve 启停。</li>
+</ul>
+
+值得表扬的是把「WAL 重放」「压缩」「目录锁」「EOF 自动回滚」这类<strong>崩溃与边界场景</strong>写进了常规测试，而不是只测 happy path——持久化项目的事故几乎全部发生在这些地方。基准测试统一用 10 万条文档，<code>BenchmarkSortRandom*</code> 做随机序数据上的全量排序与 Top-N 的 A/B，对应上面性能表的第 7、8 行。
+
+另外从 git 历史能看到工程流程本身也在被维护：CI 每次提交自动生成语义版本 tag 与 Release、统一 LF 换行、显式处理 Go module cache——一个 0.1.0 项目把发布链路先铺好，说明它是打算长期维护的。
+<h2>横向对比：它在坐标系的哪个位置</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>NanoDB</th>
+<th>SQLite</th>
+<th>LevelDB / BadgerDB</th>
+<th>MongoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>形态</td>
+<td>嵌入式，单进程</td>
+<td>嵌入式，单进程</td>
+<td>嵌入式 KV</td>
+<td>独立服务，分布式</td>
+</tr>
+<tr>
+<td>数据模型</td>
+<td>JSON 文档 + 集合</td>
+<td>关系表 + SQL</td>
+<td>字节 KV</td>
+<td>JSON 文档</td>
+</tr>
+<tr>
+<td>查询语言</td>
+<td>类 Mongo 查询 + 只读 SQL + 聚合</td>
+<td>完整 SQL</td>
+<td>无（键/迭代器）</td>
+<td>Mongo 查询 + 聚合</td>
+</tr>
+<tr>
+<td>事务</td>
+<td>显式事务、集合粒度乐观</td>
+<td>单库 ACID（SQLite 级）</td>
+<td>无 / Badger 有受限 MVCC</td>
+<td>多文档事务（4.0+）</td>
+</tr>
+<tr>
+<td>二级索引</td>
+<td>有，含文本/地理</td>
+<td>有 B-tree</td>
+<td>需自建（二级索引模式）</td>
+<td>有，含各类</td>
+</tr>
+<tr>
+<td>持久化</td>
+<td>快照 + JSON Lines WAL</td>
+<td>pager + WAL</td>
+<td>LSM + WAL</td>
+<td>WiredTiger + WAL</td>
+</tr>
+<tr>
+<td>依赖</td>
+<td>0</td>
+<td>0（C）</td>
+<td>0</td>
+<td>服务端 + 驱动</td>
+</tr>
+<tr>
+<td>数据规模</td>
+<td>内存可容纳</td>
+<td>TB 级磁盘</td>
+<td>TB 级磁盘</td>
+<td>集群级</td>
+</tr>
+</tbody>
+</table></div>
+
+定位差异的本质：
+<ul>
+<li><strong>vs SQLite</strong>：SQLite 是关系型 + 完整 SQL + 磁盘分页，数据量可以远超内存；NanoDB 是文档模型 + 内存驻留，卖点是 JSON 原生与 Go 嵌入的零摩擦。要 SQL 分析大量数据，选 SQLite；要在 Go 服务里塞一个即用即走的 JSON 存储，NanoDB 更顺手。</li>
+<li><strong>vs LevelDB 系</strong>：那是 KV 引擎，没有查询语言、没有二级索引抽象，用它做文档存储要自己写整层。NanoDB 卖的就是上面那一整层。</li>
+<li><strong>vs MongoDB</strong>：Mongo 是网络协议 + 副本集 + 分片的完整系统，运维成本和心智负担完全不是一个量级。NanoDB 没有任何分布式野心，它就是进程里的一百多 KB 数据文件。</li>
+</ul>
+<h2>已知限制（诚实清单）</h2>
+
+这一节直接来自项目的自我陈述——<strong>一个数据库项目最值得信任的信号，是它把限制写得比特性还细</strong>：
+<ul>
+<li><strong>内存驻留</strong>：文档与索引都在内存，数据规模受内存限制；WAL 是 JSON Lines，存储开销高于二进制格式。</li>
+<li><strong>无分布式</strong>：不支持副本、分片、集群；同一目录同一时间单进程。</li>
+<li><strong>事务能力边界</strong>：隔离级别固定不可配置、冲突粒度是集合（有假冲突）；不支持 Savepoint、事务内 DDL（<code>drop</code>、<code>index create/drop</code>、<code>compact</code>）、跨进程事务。</li>
+<li><strong>文本检索是近似方案</strong>：二元组分词，无停用词/词干/同义词/相关度评分，多词 AND，索引字段固定为 <code>*</code>（查询可用 <code>$path</code> 限定）。</li>
+<li><strong>地理查询受限</strong>：仅 <code>$box</code> 与 <code>$circle</code>，无多边形与 GeoJSON 几何，不处理跨 180° 经线，<code>$geoWithin</code> 不按距离排序。</li>
+<li><strong>SQL 是只读子集</strong>：无 JOIN / GROUP BY / HAVING / DISTINCT / 子查询 / UNION，聚合仅 <code>COUNT(*)</code>。</li>
+<li><strong>聚合不走索引</strong>：无 <code>$lookup</code>、<code>$facet</code>、窗口函数、<code>$out</code>/<code>$merge</code>。</li>
+<li><strong>复合索引遇数组回退</strong>：含数组字段的文档不进复合索引，该索引的查询规划回退全表扫描。</li>
+<li><strong>权限粒度粗</strong>：集合白名单是精确匹配，无通配符与字段级权限；HTTP 单请求体 8 MiB。</li>
+<li><strong>数组插入（POST 数组）非原子</strong>：需要原子性时用批量或事务。</li>
+</ul>
+<h2>适用与不适用场景</h2>
+
+<strong>适合</strong>：
+<ul>
+<li>Go 工具/服务里的本地存储：配置、任务队列、爬虫状态、桌面应用的资料库——不想为了「存几万条 JSON」引一个数据库服务。</li>
+<li>中小规模、数据量能放进内存的读多写少场景，配合索引与 Top-N 有毫秒级响应。</li>
+<li>教学与二次开发：一万行、零依赖、部件齐全，想改 WAL 格式、加一种索引、练习事务实现，都是绝佳的起点。</li>
+<li>边缘/单机部署：没有 cgo、没有外部服务，一个二进制走天下。</li>
+</ul>
+
+<strong>不适合</strong>：
+<ul>
+<li>数据量超出内存、或需要 TB 级持久化——那是 SQLite / LSM 系的领域。</li>
+<li>多进程并发写同一目录、需要多节点高可用——项目明确放弃。</li>
+<li>高并发热点集合的重事务——集合级乐观冲突会带来大量重试。</li>
+<li>需要全文检索相关度排序、复杂 SQL 分析、地理位置精确计算的生产需求。</li>
+</ul>
+<h2>结语</h2>
+
+回到开头的三个问题：
+<ol>
+<li><strong>支持事务的数据库最短路径有多短？</strong> <code>Tx</code> 结构体加一个版本号校验循环——<code>engine/tx.go</code> 整个文件就是「集合快照 + 提交时读集校验」，没有锁管理器、没有 undo 日志，却给出了可重复读与丢失更新防护，冲突时明确报 <code>ErrConflict</code> 让调用方重试。</li>
+<li><strong>「崩溃后不丢已提交数据」还剩多少行代码？</strong> 三层：<code>replay</code> 识别有效前缀并截断撕裂记录，<code>appendRecord</code> 写失败回退到上一条完整记录，<code>gen</code> 代数让压缩窗口期的崩溃自我消解。核心不到一百行——难的不是代码量，是想清楚每个崩溃点的状态。</li>
+<li><strong>文档模型 + 索引 + 并发如何咬合？</strong> 写入路径统一经过 <code>collection.add</code> 同步维护四类索引，事务通过克隆集合快照把索引一起带上，查询规划只在候选集层面「选最小」、最终仍全量过滤兜底。</li>
+</ol>
+
+NanoDB 不会取代 SQLite，也不打算取代 MongoDB。它的价值在于把数据库的黑箱拆开摆在桌面上：<strong>WAL 是带换行的 JSON，事务是比较版本号，查询规划是挑候选集最少的那个</strong>。这些机制朴素到几乎能背下来——而朴素正是它们可信的原因。
+
+如果你曾想「自己写个数据库试试」，这个项目给出的答案是：可以，而且不用太多行。下一步不是读更多论文，是 <code>git clone</code> 之后把 <code>replay</code>、<code>Commit</code> 和 <code>planCandidates</code> 这三个函数各改坏一次，看看测试是不是还亮着——那会是比任何文章都快的入门方式。</div></div></noscript>
+  </body>
+</html>
