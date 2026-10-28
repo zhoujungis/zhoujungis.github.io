@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <link rel="canonical" href="https://zhoujungis.github.io/article/wal-deep-dive/" />
+    <meta property="og:title" content="先写日志，再写数据：WAL 原理与源码细读" />
+    <meta property="og:description" content="适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧" />
+    <meta property="og:url" content="https://zhoujungis.github.io/article/wal-deep-dive/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://zhoujungis.github.io/photos/wal-cover.png" />
+    <meta property="og:image:secure_url" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="先写日志，再写数据：WAL 原理与源码细读" />
+    <meta name="twitter:description" content="适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧" />
+    <meta name="twitter:image" content="https://zhoujungis.github.io/photos/wal-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>先写日志，再写数据：WAL 原理与源码细读 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Bv_kuWZQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.B9R1jo7P.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-28T14:27:31.773070+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先写日志，再写数据：WAL 原理与源码细读","description":"适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧","image":"https://zhoujungis.github.io/photos/wal-cover.png","datePublished":"2026-10-28T14:27:31.773070+08:00","dateModified":"2026-10-28T14:27:31.773070+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/wal-deep-dive/"}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>先写日志，再写数据：WAL 原理与源码细读</h1><div class="ns-meta">2026/10/28 · Stack Frame</div><div class="markdown-body"><blockquote>
+
+适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人
+结论先行：WAL 不是一个功能，而是四条很小的约定——<strong>只追加、逐条校验、读到第一个坏帧就停、先记账再动数据</strong>。本文不写一行自造代码，全部证据来自 SQLite <code>src/wal.c</code> 与 LevelDB / RocksDB 的 log 层源码：32 字节文件头 + 24 字节页帧头、7 字节物理记录头 + 32 KB 块、两种校验和算法、salt 防回卷、先 WAL 后 memtable 的写序铁律、组提交、<code>synchronous</code> 三档的真义、checkpoint 四模式、恢复四模式。读完你能对着这些常量和函数名，把一个最小但正确的 WAL 在纸上画出来
+阅读时间：约 50 分钟 | 难度：进阶 | 收获：两套真实 WAL 格式的逐字源码拆解 + 一条完整的崩溃恢复证据链 + 一份自研 WAL 设计清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：崩溃为什么恰好落在「改了一半」</li>
+<li>先立契约：WAL 只承诺四件事</li>
+<li>格式一：SQLite 的页帧——32 字节头与 24 字节帧头</li>
+<li>格式二：LevelDB 的物理记录——7 字节头与 32 KB 块</li>
+<li>校验和：两种算法，同一个「覆盖到哪」的问题</li>
+<li>恢复：读到第一个坏帧就停</li>
+<li>salt：让回卷后的旧帧自动失效</li>
+<li>提交点：一个字段决定事务的原子性</li>
+<li>写序铁律：先 WAL，后 memtable</li>
+<li>组提交：一次同步摊给一批写入</li>
+<li>fsync 语义：<code>synchronous</code> 三档在 WAL 下的真义</li>
+<li>checkpoint：日志不能无限长</li>
+<li>恢复模式：损坏发生时你要哪种世界线</li>
+<li>读端可见性：快照上界是怎么来的</li>
+<li>WAL 是门通用手艺：MANIFEST 与 NanoDB 的 JSON Lines</li>
+<li>自研 WAL 设计清单</li>
+<li>结语</li>
+</ul>
+<h2>前言：崩溃为什么恰好落在「改了一半」</h2>
+
+所有存储系统都面对同一个凶案现场：你正要把一批字节写进数据文件，写到一半，断电了。
+
+没有 WAL 的世界里，数据文件是<strong>就地更新</strong>的。一页索引刚写进新指针、指向的那页数据还没写；或者数据页的前 4 KB 是新版本、后 4 KB 还是旧版本——撕裂页（torn page）就此诞生。重启之后，文件系统给你的是一个<strong>物理上合法、逻辑上自相矛盾</strong>的文件：校验和对不上，或者更糟，指针指向一个从未存在过的偏移。
+
+WAL（Write-Ahead Logging，预写日志）的全部思想可以用一句话说完：<strong>在动数据文件之前，先把「打算怎么动」追加写进另一个只进不退的文件；崩溃之后，按日志把数据文件重放到一个一致状态。</strong>
+
+这看起来只是「换个顺序」，但把这句话变成工程，需要回答一连串非常具体的问题：
+<ul>
+<li>「追加」的记录长什么样，怎么知道一条记录是完整的？</li>
+<li>写到一半崩溃，恢复程序怎么区分「完整记录」和「垃圾字节」？</li>
+<li>日志写重了、写循环了、被复用了，旧内容冒充新内容怎么办？</li>
+<li>「先写日志再动数据」中的「先」，在代码里的确切位置在哪？</li>
+<li>fsync 到底在哪个时刻必须发生，不发生会丢什么？</li>
+<li>日志不能无限增长，把内容搬回数据文件的时机和姿势是什么？</li>
+<li>崩溃留下的日志尾巴已经损坏，是拒绝启动、还是尽量抢救？</li>
+</ul>
+
+SQLite 和 LevelDB / RocksDB 对这些问题给出了两套独立演化出来的答案。它们的文件格式完全不同，但把源码摊开之后你会发现，<strong>背后的四条约定一条不差</strong>。这篇文章就按这四条约定组织：先看两套格式，再看校验、恢复、salt、提交点、写序、组提交、同步语义、checkpoint、恢复模式、读端可见性——最后归纳成一份设计清单。
+<h2>先立契约：WAL 只承诺四件事</h2>
+
+先把手洗干净，再看案发现场。一个正确的 WAL，无论实现是谁，都必须做到这四件事：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>约定</th>
+<th>要解决的事故</th>
+<th>在 SQLite</th>
+<th>在 LevelDB / RocksDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 只追加（append-only）</td>
+<td>就地改写日志 = 制造撕裂</td>
+<td>帧顺序写到文件尾，checkpoint 后从头覆写并换盐</td>
+<td><code>log::Writer</code> 顺序 <code>Append</code>，块尾不足填零换块</td>
+</tr>
+<tr>
+<td>2. 逐条自带校验</td>
+<td>撕裂页、位翻转、半条记录</td>
+<td>32 位双通道滚动校验和（链式，前帧校验和做初值）</td>
+<td>CRC32C，覆盖 type + payload</td>
+</tr>
+<tr>
+<td>3. 遇坏即停</td>
+<td>垃圾字节被当成数据回放</td>
+<td><code>walDecodeFrame</code> 返回 0 即 <code>break</code>，<code>mxFrame</code> 停在最后提交帧</td>
+<td><code>ReadRecord</code> 返回 false 即结束，半条逻辑记录直接丢弃</td>
+</tr>
+<tr>
+<td>4. 先记账再动数据</td>
+<td>内存里的「已提交」在断电后无凭据</td>
+<td><code>walFrames</code> 先写帧再标记可见</td>
+<td><code>AddRecord</code> →（可选 <code>Sync</code>）→ <code>InsertInto</code></td>
+</tr>
+</tbody>
+</table></div>
+
+四条里最反直觉的是第 3 条的措辞：<strong>遇坏即停，而不是遇坏即修</strong>。恢复程序永远不猜测、不扫描、不尝试从坏字节后面「重新同步」——它只承认从文件开头连续通过校验的那一段。损坏点之后的所有字节，无论看起来多像数据，一律当作不存在。这个保守选择是后面一切正确性的地基，源码里你会看到它被重复实现了三遍。
+
+还有一对概念先立好，全文都要用：
+<ul>
+<li><strong>物理日志</strong>：记录「哪一页变成了什么内容」。SQLite 的 WAL 记录的是完整页镜像，恢复 = 把页原样抄回数据文件。</li>
+<li><strong>逻辑日志</strong>：记录「做了什么操作」。LevelDB / RocksDB 的 WAL 记录的是 WriteBatch（插入 / 删除了哪些键值），恢复 = 重新执行一遍这些操作。</li>
+</ul>
+
+两种路线对格式、校验、恢复的影响贯穿全文，边读边对照。
+<h2>格式一：SQLite 的页帧——32 字节头与 24 字节帧头</h2>
+
+SQLite 的 WAL 文件由一个 32 字节的文件头和一串「帧」组成，每帧 = 24 字节帧头 + 一个完整的数据库页。<code>wal.c</code> 开头的注释把文件头布局钉死了：
+<div class="codehilite"><pre><span></span><code><span class="o">**</span><span class="w">     </span><span class="mi">0</span><span class="o">:</span><span class="w"> </span><span class="n">Magic</span><span class="w"> </span><span class="n">number</span><span class="p">.</span><span class="w">  </span><span class="mh">0x377f0682</span><span class="w"> </span><span class="n">or</span><span class="w"> </span><span class="mh">0x377f0683</span>
+<span class="o">**</span><span class="w">     </span><span class="mi">4</span><span class="o">:</span><span class="w"> </span><span class="n">File</span><span class="w"> </span><span class="n">format</span><span class="w"> </span><span class="n">version</span><span class="p">.</span><span class="w">  </span><span class="n">Currently</span><span class="w"> </span><span class="mi">3007000</span>
+<span class="o">**</span><span class="w">     </span><span class="mi">8</span><span class="o">:</span><span class="w"> </span><span class="n">Database</span><span class="w"> </span><span class="n">page</span><span class="w"> </span><span class="n">size</span><span class="p">.</span><span class="w">  </span><span class="n">Example</span><span class="o">:</span><span class="w"> </span><span class="mi">1024</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">12</span><span class="o">:</span><span class="w"> </span><span class="n">Checkpoint</span><span class="w"> </span><span class="n">sequence</span><span class="w"> </span><span class="n">number</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">16</span><span class="o">:</span><span class="w"> </span><span class="n">Salt</span><span class="mi">-1</span><span class="p">,</span><span class="w"> </span><span class="n">random</span><span class="w"> </span><span class="n">integer</span><span class="w"> </span><span class="n">incremented</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">each</span><span class="w"> </span><span class="n">checkpoint</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">20</span><span class="o">:</span><span class="w"> </span><span class="n">Salt</span><span class="mi">-2</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">different</span><span class="w"> </span><span class="n">random</span><span class="w"> </span><span class="n">integer</span><span class="w"> </span><span class="n">changing</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">each</span><span class="w"> </span><span class="n">ckpt</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">24</span><span class="o">:</span><span class="w"> </span><span class="n">Checksum</span><span class="mi">-1</span><span class="w"> </span><span class="p">(</span><span class="n">first</span><span class="w"> </span><span class="n">part</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">checksum</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">first</span><span class="w"> </span><span class="mi">24</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">header</span><span class="p">).</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">28</span><span class="o">:</span><span class="w"> </span><span class="n">Checksum</span><span class="mi">-2</span><span class="w"> </span><span class="p">(</span><span class="n">second</span><span class="w"> </span><span class="n">part</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">checksum</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">first</span><span class="w"> </span><span class="mi">24</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">header</span><span class="p">).</span>
+</code></pre></div>
+
+
+注意这个头自身的最后 4 个字节是<strong>前 24 字节的校验和</strong>——头也被校验，坏头 = 整个文件作废。写头的代码在 <code>walFrames()</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="p">(</span><span class="n">WAL_MAGIC</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">SQLITE_BIGENDIAN</span><span class="p">));</span>
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span><span class="w"> </span><span class="n">WAL_MAX_VERSION</span><span class="p">);</span>
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">8</span><span class="p">],</span><span class="w"> </span><span class="n">szPage</span><span class="p">);</span>
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">12</span><span class="p">],</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">nCkpt</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">nCkpt</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="n">sqlite3_randomness</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">);</span>
+<span class="w">    </span><span class="n">memcpy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">16</span><span class="p">],</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span>
+<span class="w">    </span><span class="n">walChecksumBytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">aWalHdr</span><span class="p">,</span><span class="w"> </span><span class="n">WAL_HDRSIZE</span><span class="mi">-2</span><span class="o">*</span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">);</span>
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">24</span><span class="p">],</span><span class="w"> </span><span class="n">aCksum</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aWalHdr</span><span class="p">[</span><span class="mi">28</span><span class="p">],</span><span class="w"> </span><span class="n">aCksum</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+</code></pre></div>
+
+
+<code>WAL_MAGIC</code> 的最低位借给了字节序：<code>0x377f0682</code> 表示校验和按本机字节序计算，置 1 变成 <code>0x377f0683</code> 表示大端——一个 magic 位同时完成了「这是不是一个 WAL」和「用什么字节序读它」两件事。恢复时的头校验（<code>walIndexRecover</code>）对任何一项不满足都是同一个动作 <code>goto finished</code>，即放弃整个文件：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">magic</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aBuf</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+<span class="w">    </span><span class="n">szPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aBuf</span><span class="p">[</span><span class="mi">8</span><span class="p">]);</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="p">(</span><span class="n">magic</span><span class="o">&amp;</span><span class="mh">0xFFFFFFFE</span><span class="p">)</span><span class="o">!=</span><span class="n">WAL_MAGIC</span>
+<span class="w">     </span><span class="o">||</span><span class="w"> </span><span class="n">szPage</span><span class="o">&amp;</span><span class="p">(</span><span class="n">szPage</span><span class="mi">-1</span><span class="p">)</span>
+<span class="w">     </span><span class="o">||</span><span class="w"> </span><span class="n">szPage</span><span class="o">&gt;</span><span class="n">SQLITE_MAX_PAGE_SIZE</span>
+<span class="w">     </span><span class="o">||</span><span class="w"> </span><span class="n">szPage</span><span class="o">&lt;</span><span class="mi">512</span>
+<span class="w">    </span><span class="p">){</span>
+<span class="w">      </span><span class="k">goto</span><span class="w"> </span><span class="n">finished</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">bigEndCksum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u8</span><span class="p">)(</span><span class="n">magic</span><span class="o">&amp;</span><span class="mh">0x00000001</span><span class="p">);</span>
+<span class="w">    </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">szPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">szPage</span><span class="p">;</span>
+<span class="w">    </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">nCkpt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aBuf</span><span class="p">[</span><span class="mi">12</span><span class="p">]);</span>
+<span class="w">    </span><span class="n">memcpy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">aBuf</span><span class="p">[</span><span class="mi">16</span><span class="p">],</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span>
+
+<span class="w">    </span><span class="cm">/* Verify that the WAL header checksum is correct */</span>
+<span class="w">    </span><span class="n">walChecksumBytes</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">bigEndCksum</span><span class="o">==</span><span class="n">SQLITE_BIGENDIAN</span><span class="p">,</span>
+<span class="w">        </span><span class="n">aBuf</span><span class="p">,</span><span class="w"> </span><span class="n">WAL_HDRSIZE</span><span class="mi">-2</span><span class="o">*</span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aFrameCksum</span>
+<span class="w">    </span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aFrameCksum</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">!=</span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aBuf</span><span class="p">[</span><span class="mi">24</span><span class="p">])</span>
+<span class="w">     </span><span class="o">||</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aFrameCksum</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">!=</span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aBuf</span><span class="p">[</span><span class="mi">28</span><span class="p">])</span>
+<span class="w">    </span><span class="p">){</span>
+<span class="w">      </span><span class="k">goto</span><span class="w"> </span><span class="n">finished</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+
+页大小校验那行 <code>szPage&amp;(szPage-1)</code> 是「是否 2 的幂」的位运算惯用写法——WAL 里页大小同时是帧的定长步长，不是 2 的幂就没法用偏移公式 <code>WAL_HDRSIZE + (iFrame-1)*(szPage+WAL_FRAME_HDRSIZE)</code> 定位任意帧。
+
+帧头的布局同样是注释先行：
+<div class="codehilite"><pre><span></span><code><span class="o">**</span><span class="w">     </span><span class="mi">0</span><span class="o">:</span><span class="w"> </span><span class="n">Page</span><span class="w"> </span><span class="n">number</span><span class="p">.</span>
+<span class="o">**</span><span class="w">     </span><span class="mi">4</span><span class="o">:</span><span class="w"> </span><span class="n">For</span><span class="w"> </span><span class="n">commit</span><span class="w"> </span><span class="n">records</span><span class="p">,</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">database</span><span class="w"> </span><span class="n">image</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">pages</span>
+<span class="o">**</span><span class="w">        </span><span class="n">after</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">commit</span><span class="p">.</span><span class="w"> </span><span class="n">For</span><span class="w"> </span><span class="n">all</span><span class="w"> </span><span class="n">other</span><span class="w"> </span><span class="n">records</span><span class="p">,</span><span class="w"> </span><span class="n">zero</span><span class="p">.</span>
+<span class="o">**</span><span class="w">     </span><span class="mi">8</span><span class="o">:</span><span class="w"> </span><span class="n">Salt</span><span class="mi">-1</span><span class="w"> </span><span class="p">(</span><span class="n">copied</span><span class="w"> </span><span class="n">from</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">wal</span><span class="o">-</span><span class="n">header</span><span class="p">)</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">12</span><span class="o">:</span><span class="w"> </span><span class="n">Salt</span><span class="mi">-2</span><span class="w"> </span><span class="p">(</span><span class="n">copied</span><span class="w"> </span><span class="n">from</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">wal</span><span class="o">-</span><span class="n">header</span><span class="p">)</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">16</span><span class="o">:</span><span class="w"> </span><span class="n">Checksum</span><span class="mf">-1.</span>
+<span class="o">**</span><span class="w">    </span><span class="mi">20</span><span class="o">:</span><span class="w"> </span><span class="n">Checksum</span><span class="mf">-2.</span>
+</code></pre></div>
+
+
+组帧的代码 <code>walEncodeFrame</code> 展示了校验和是怎么「链」起来的：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">WAL_FRAME_HDRSIZE</span><span class="o">==</span><span class="mi">24</span><span class="w"> </span><span class="p">);</span>
+<span class="w">  </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">iPage</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span><span class="w"> </span><span class="n">nTruncate</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">iReCksum</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">memcpy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">8</span><span class="p">],</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span>
+
+<span class="w">    </span><span class="n">nativeCksum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">bigEndCksum</span><span class="o">==</span><span class="n">SQLITE_BIGENDIAN</span><span class="p">);</span>
+<span class="w">    </span><span class="n">walChecksumBytes</span><span class="p">(</span><span class="n">nativeCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aFrame</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">);</span>
+<span class="w">    </span><span class="n">walChecksumBytes</span><span class="p">(</span><span class="n">nativeCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aData</span><span class="p">,</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">szPage</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">);</span>
+
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">16</span><span class="p">],</span><span class="w"> </span><span class="n">aCksum</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+<span class="w">    </span><span class="n">sqlite3Put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">20</span><span class="p">],</span><span class="w"> </span><span class="n">aCksum</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+<span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="p">{</span>
+<span class="w">    </span><span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">8</span><span class="p">],</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">16</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+关键在于调用约定：<code>walChecksumBytes</code> 的入参里，<code>aCksum</code> <strong>既是输入也是输出</strong>——校验和以前一帧的校验和为初值，先累加帧头前 8 字节（页号 + 提交标志 + 盐），再累加整整一页数据。于是每一帧的校验和都把前面所有帧的历史压了进去：<strong>链条上任何一帧被改，后面每一帧的校验和都会失配</strong>。
+
+落盘顺序也在 <code>walWriteOneFrame</code> 里写死了——先头后体：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">walEncodeFrame</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">pgno</span><span class="p">,</span><span class="w"> </span><span class="n">nTruncate</span><span class="p">,</span><span class="w"> </span><span class="n">pData</span><span class="p">,</span><span class="w"> </span><span class="n">aFrame</span><span class="p">);</span>
+<span class="w">  </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walWriteToLog</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">aFrame</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">aFrame</span><span class="p">),</span><span class="w"> </span><span class="n">iOffset</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">rc</span><span class="p">;</span>
+<span class="w">  </span><span class="cm">/* Write the page data */</span>
+<span class="w">  </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walWriteToLog</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">pData</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">szPage</span><span class="p">,</span><span class="w"> </span><span class="n">iOffset</span><span class="o">+</span><span class="k">sizeof</span><span class="p">(</span><span class="n">aFrame</span><span class="p">));</span>
+</code></pre></div>
+
+
+先写 24 字节头、再写页体，意味着崩溃最可能留下的形态是「头完整、体撕裂」——而校验和恰恰覆盖页体，体撕裂必被发现。设计和事故现场是对得上的。
+<h2>格式二：LevelDB 的物理记录——7 字节头与 32 KB 块</h2>
+
+LevelDB 的 log 层走的是另一条路：不认识页，只认识「一条条记录」，并把它们切成 32 KB 的块存储。<code>db/log_format.h</code> 定义了全部格式：
+<div class="codehilite"><pre><span></span><code><span class="k">enum</span><span class="w"> </span><span class="nc">RecordType</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// Zero is reserved for preallocated files</span>
+<span class="w">  </span><span class="n">kZeroType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+
+<span class="w">  </span><span class="n">kFullType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+
+<span class="w">  </span><span class="c1">// For fragments</span>
+<span class="w">  </span><span class="n">kFirstType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<span class="w">  </span><span class="n">kMiddleType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<span class="w">  </span><span class="n">kLastType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span>
+<span class="p">};</span>
+<span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">kMaxRecordType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kLastType</span><span class="p">;</span>
+
+<span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">kBlockSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">32768</span><span class="p">;</span>
+
+<span class="c1">// Header is checksum (4 bytes), length (2 bytes), type (1 byte).</span>
+<span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">kHeaderSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+一条物理记录 = 7 字节头 + payload。四种 type 的存在是因为一个逻辑记录可能超过块的剩余空间，必须<strong>跨块分片</strong>：放得下就是 <code>kFullType</code>，放不下就拆成 <code>kFirstType</code> + 若干 <code>kMiddleType</code> + <code>kLastType</code>。写端的头编码在 <code>log_writer.cc</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="c1">// Format the header</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">buf</span><span class="p">[</span><span class="n">kHeaderSize</span><span class="p">];</span>
+<span class="w">  </span><span class="n">buf</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">static_cast</span><span class="o">&lt;</span><span class="kt">char</span><span class="o">&gt;</span><span class="p">(</span><span class="n">length</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xff</span><span class="p">);</span>
+<span class="w">  </span><span class="n">buf</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">static_cast</span><span class="o">&lt;</span><span class="kt">char</span><span class="o">&gt;</span><span class="p">(</span><span class="n">length</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span>
+<span class="w">  </span><span class="n">buf</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">static_cast</span><span class="o">&lt;</span><span class="kt">char</span><span class="o">&gt;</span><span class="p">(</span><span class="n">t</span><span class="p">);</span>
+
+<span class="w">  </span><span class="c1">// Compute the crc of the record type and the payload.</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">crc32c</span><span class="o">::</span><span class="n">Extend</span><span class="p">(</span><span class="n">type_crc_</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="w"> </span><span class="n">ptr</span><span class="p">,</span><span class="w"> </span><span class="n">length</span><span class="p">);</span>
+<span class="w">  </span><span class="n">crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">crc32c</span><span class="o">::</span><span class="n">Mask</span><span class="p">(</span><span class="n">crc</span><span class="p">);</span><span class="w">  </span><span class="c1">// Adjust for storage</span>
+<span class="w">  </span><span class="n">EncodeFixed32</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">crc</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>type_crc_[t]</code> 是启动时预计算的「type 字节的 CRC 种子」（<code>InitTypeCrc</code> 里 <code>crc32c::Value(&amp;t, 1)</code>），<code>Extend</code> 把 payload 的 CRC 接在种子上——于是<strong>一个 CRC 同时覆盖 type 和数据</strong>。<code>Mask</code> 是 CRC32C 的存储掩码（异或固定魔数），防止全零数据算出全零校验和这种「看起来合法」的退化情况。
+
+块尾剩余不足 7 字节时无法容纳头，<code>AddRecord</code> 直接填零换块——这也解释了为什么恢复端必须容忍「预分配文件尾部的零字节」：零是<strong>结构上必然出现</strong>的填充，不是损坏。
+
+RocksDB 沿用了同一套骨架，只是多了一种回收块头（额外 4 字节 log number，并把 log number 也纳入 CRC，用 <code>Crc32cCombine</code> 把两段 CRC 拼起来）：
+<div class="codehilite"><pre><span></span><code><span class="k">constexpr</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">kBlockSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">32768</span><span class="p">;</span>
+
+<span class="c1">// Header is checksum (4 bytes), length (2 bytes), type (1 byte)</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">kHeaderSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="c1">// Recyclable header is checksum (4 bytes), length (2 bytes), type (1 byte),</span>
+<span class="c1">// log number (4 bytes).</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">kRecyclableHeaderSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</code></pre></div>
+
+
+到这里两套格式的骨架都齐了，可以回答第一个问题：<strong>「怎么知道一条记录是完整的？」</strong> SQLite 答：帧头 + 页体的链式校验和对得上。LevelDB 答：7 字节头里的 CRC 对得上，且分片重组拼得出 <code>kLastType</code> 的收尾。两套答案都把「完整」定义成了<strong>可计算的谓词</strong>，而不是「读起来像」。
+<h2>校验和：两种算法，同一个「覆盖到哪」的问题</h2>
+
+SQLite 用的不是现成的 CRC，而是一对 32 位滚动累加器。<code>walChecksumBytes</code> 的核心循环朴素到只剩五行：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="p">{</span>
+<span class="w">    </span><span class="k">do</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">s1</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="o">*</span><span class="n">aData</span><span class="o">++</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">s2</span><span class="p">;</span>
+<span class="w">      </span><span class="n">s2</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="o">*</span><span class="n">aData</span><span class="o">++</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">s1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span><span class="k">while</span><span class="p">(</span><span class="w"> </span><span class="n">aData</span><span class="o">&lt;</span><span class="n">aEnd</span><span class="w"> </span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">aData</span><span class="o">==</span><span class="n">aEnd</span><span class="w"> </span><span class="p">);</span>
+
+<span class="w">  </span><span class="n">aOut</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="p">;</span>
+<span class="w">  </span><span class="n">aOut</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>s1</code>、<code>s2</code> 都是 <code>u32</code>，C 标准规定无符号溢出按模 2³² 回绕——「上限」这件事由类型系统免费提供。文件头注释解释了它的数学性质：
+<div class="codehilite"><pre><span></span><code><span class="o">**</span><span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="mi">2</span><span class="err">:</span>
+<span class="o">**</span><span class="w">     </span><span class="n">s0</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">x</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">s1</span><span class="p">;</span>
+<span class="o">**</span><span class="w">     </span><span class="n">s1</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">x</span><span class="o">[</span><span class="n">i+1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">s0</span><span class="p">;</span>
+<span class="o">**</span><span class="w">   </span><span class="n">endfor</span>
+<span class="o">**</span>
+<span class="o">**</span><span class="w"> </span><span class="n">Note</span><span class="w"> </span><span class="n">that</span><span class="w"> </span><span class="n">s0</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="k">are</span><span class="w"> </span><span class="k">both</span><span class="w"> </span><span class="n">weighted</span><span class="w"> </span><span class="n">checksums</span><span class="w"> </span><span class="k">using</span><span class="w"> </span><span class="n">fibonacci</span><span class="w"> </span><span class="n">weights</span>
+<span class="o">**</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nf">reverse</span><span class="w"> </span><span class="k">order</span><span class="w"> </span><span class="p">(</span><span class="n">the</span><span class="w"> </span><span class="n">largest</span><span class="w"> </span><span class="n">fibonacci</span><span class="w"> </span><span class="n">weight</span><span class="w"> </span><span class="n">occurs</span><span class="w"> </span><span class="k">on</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="k">first</span><span class="w"> </span><span class="k">element</span>
+<span class="o">**</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="k">sequence</span><span class="w"> </span><span class="n">being</span><span class="w"> </span><span class="n">summed</span><span class="p">.)</span><span class="w">  </span><span class="n">The</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="k">value</span><span class="w"> </span><span class="n">spans</span><span class="w"> </span><span class="ow">all</span><span class="w"> </span><span class="mi">32</span><span class="o">-</span><span class="nc">bit</span>
+<span class="o">**</span><span class="w"> </span><span class="n">terms</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="k">sequence</span><span class="w"> </span><span class="n">whereas</span><span class="w"> </span><span class="n">s0</span><span class="w"> </span><span class="n">omits</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">final</span><span class="w"> </span><span class="n">term</span><span class="p">.</span>
+</code></pre></div>
+
+
+每个字节都被乘上一个斐波那契权重参与最终结果，且<strong>越早的字节权重越大</strong>（倒序斐波那契权重）。这个性质对 WAL 至关重要：靠后的帧校验和依赖前面每一帧的初值，任何一处改动都会沿链条传播到末尾——改动藏不住。性能上，热路径还展开了 8 路（64 字节一循环），说明这段代码是真跑在每帧路径上的。
+
+LevelDB 用标准 CRC32C，但有一个容易被忽略的细节：<strong>length 字段不进校验和</strong>。读端 <code>log_reader.cc</code> 的验证逻辑把覆盖范围写得很清楚：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="c1">// Check crc</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">checksum_</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">expected_crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">crc32c</span><span class="o">::</span><span class="n">Unmask</span><span class="p">(</span><span class="n">DecodeFixed32</span><span class="p">(</span><span class="n">header</span><span class="p">));</span>
+<span class="w">      </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">actual_crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">crc32c</span><span class="o">::</span><span class="n">Value</span><span class="p">(</span><span class="n">header</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">length</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">actual_crc</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">expected_crc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// Drop the rest of the buffer since &quot;length&quot; itself may have</span>
+<span class="w">        </span><span class="c1">// been corrupted and if we trust it, we could find some</span>
+<span class="w">        </span><span class="c1">// fragment of a real log record that just happens to look</span>
+<span class="w">        </span><span class="c1">// like a valid log record.</span>
+<span class="w">        </span><span class="kt">size_t</span><span class="w"> </span><span class="n">drop_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buffer_</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+<span class="w">        </span><span class="n">buffer_</span><span class="p">.</span><span class="n">clear</span><span class="p">();</span>
+<span class="w">        </span><span class="n">ReportCorruption</span><span class="p">(</span><span class="n">drop_size</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;checksum mismatch&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">kBadRecord</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>header + 6</code> 是 type 字节，往后再数 <code>1 + length</code>——校验覆盖 type + payload，<strong>跳过了偏移 4~5 的 length</strong>。length 一旦被翻转，按错误长度切出来的 CRC 必然对不上，所以损坏仍会被发现；但注释揭示了真正的防御对象：<strong>不信任 length 之后，就绝不拿它去找「下一个看起来合法的记录」</strong>。发现坏 CRC 的处置是 <code>buffer_.clear()</code> 丢弃整个缓冲——宁可多丢，不可错认。这正是「遇坏即停」在字节级的执行方式。
+<h2>恢复：读到第一个坏帧就停</h2>
+
+SQLite 恢复的主循环在 <code>walIndexRecover</code>，逐帧推进，坏帧即断：
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">for</span><span class="p">(</span><span class="n">iFrame</span><span class="o">=</span><span class="n">iFirst</span><span class="p">;</span><span class="w"> </span><span class="n">iFrame</span><span class="o">&lt;=</span><span class="n">iLast</span><span class="p">;</span><span class="w"> </span><span class="n">iFrame</span><span class="o">++</span><span class="p">){</span>
+<span class="w">        </span><span class="n">i64</span><span class="w"> </span><span class="n">iOffset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walFrameOffset</span><span class="p">(</span><span class="n">iFrame</span><span class="p">,</span><span class="w"> </span><span class="n">szPage</span><span class="p">);</span>
+<span class="w">        </span><span class="n">u32</span><span class="w"> </span><span class="n">pgno</span><span class="p">;</span><span class="w">                 </span><span class="cm">/* Database page number for frame */</span>
+<span class="w">        </span><span class="n">u32</span><span class="w"> </span><span class="n">nTruncate</span><span class="p">;</span><span class="w">            </span><span class="cm">/* dbsize field from frame header */</span>
+
+<span class="w">        </span><span class="cm">/* Read and decode the next log frame. */</span>
+<span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3OsRead</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">pWalFd</span><span class="p">,</span><span class="w"> </span><span class="n">aFrame</span><span class="p">,</span><span class="w"> </span><span class="n">szFrame</span><span class="p">,</span><span class="w"> </span><span class="n">iOffset</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">!=</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="n">isValid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walDecodeFrame</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">pgno</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">nTruncate</span><span class="p">,</span><span class="w"> </span><span class="n">aData</span><span class="p">,</span><span class="w"> </span><span class="n">aFrame</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="o">!</span><span class="n">isValid</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walIndexAppend</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="n">iFrame</span><span class="p">,</span><span class="w"> </span><span class="n">pgno</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">NEVER</span><span class="p">(</span><span class="n">rc</span><span class="o">!=</span><span class="n">SQLITE_OK</span><span class="p">)</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+
+<span class="w">        </span><span class="cm">/* If nTruncate is non-zero, this is a commit record. */</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">nTruncate</span><span class="w"> </span><span class="p">){</span>
+<span class="w">          </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">mxFrame</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">iFrame</span><span class="p">;</span>
+<span class="w">          </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">nPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nTruncate</span><span class="p">;</span>
+<span class="w">          </span><span class="p">...</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+
+坏帧的判定在 <code>walDecodeFrame</code>，三道检查缺一不可——先对盐，再对校验和：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">memcmp</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">8</span><span class="p">],</span><span class="w"> </span><span class="mi">8</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="p">...</span>
+<span class="w">  </span><span class="n">walChecksumBytes</span><span class="p">(</span><span class="n">nativeCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aFrame</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">);</span>
+<span class="w">  </span><span class="n">walChecksumBytes</span><span class="p">(</span><span class="n">nativeCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aData</span><span class="p">,</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">szPage</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">,</span><span class="w"> </span><span class="n">aCksum</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">aCksum</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">!=</span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">16</span><span class="p">])</span>
+<span class="w">   </span><span class="o">||</span><span class="w"> </span><span class="n">aCksum</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">!=</span><span class="n">sqlite3Get4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">aFrame</span><span class="p">[</span><span class="mi">20</span><span class="p">])</span>
+<span class="w">  </span><span class="p">){</span>
+<span class="w">    </span><span class="cm">/* Checksum failed. */</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>!isValid</code> 直接 <code>break</code>，循环之后 <code>if( iFrame&lt;=iLast ) break;</code> 让外层也停下。<strong>回放范围因此永远是「从开头到最后一个连续通过校验的帧」</strong>，崩溃时写了一半的尾帧自然出局。
+
+LevelDB 的恢复循环在 <code>db_impl.cc</code> 的 <code>RecoverLogFile</code>，同样朴素：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">reader</span><span class="p">.</span><span class="n">ReadRecord</span><span class="p">(</span><span class="o">&amp;</span><span class="n">record</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">scratch</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">record</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">12</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">reporter</span><span class="p">.</span><span class="n">Corruption</span><span class="p">(</span><span class="n">record</span><span class="p">.</span><span class="n">size</span><span class="p">(),</span>
+<span class="w">                          </span><span class="n">Status</span><span class="o">::</span><span class="n">Corruption</span><span class="p">(</span><span class="s">&quot;log record too small&quot;</span><span class="p">));</span>
+<span class="w">      </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">SetContents</span><span class="p">(</span><span class="o">&amp;</span><span class="n">batch</span><span class="p">,</span><span class="w"> </span><span class="n">record</span><span class="p">);</span>
+<span class="w">    </span><span class="p">...</span>
+<span class="w">    </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">InsertInto</span><span class="p">(</span><span class="o">&amp;</span><span class="n">batch</span><span class="p">,</span><span class="w"> </span><span class="n">mem</span><span class="p">);</span>
+</code></pre></div>
+
+
+而「坏 CRC 之后为什么不去找下一个记录」这个问题，在它上方十行的注释里给出了正面回答：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="c1">// We intentionally make log::Reader do checksumming even if</span>
+<span class="w">  </span><span class="c1">// paranoid_checks==false so that corruptions cause entire commits</span>
+<span class="w">  </span><span class="c1">// to be skipped instead of propagating bad information (like overly</span>
+<span class="w">  </span><span class="c1">// large sequence numbers).</span>
+<span class="w">  </span><span class="n">log</span><span class="o">::</span><span class="n">Reader</span><span class="w"> </span><span class="nf">reader</span><span class="p">(</span><span class="n">file</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">reporter</span><span class="p">,</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="cm">/*checksum*/</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="cm">/*initial_offset*/</span><span class="p">);</span>
+</code></pre></div>
+
+
+<strong>即使 <code>paranoid_checks=false</code> 也强制开校验</strong>——因为「跳过整个提交」远好于「回放出一半提交」。一个坏批次如果被部分采纳，超前的 sequence 号会污染后续所有写入的排序。
+
+分片重组的原子性由 <code>ReadRecord</code> 的状态机保证，EOF 时的处置尤其能体现取舍：
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="no">kEof</span><span class="p">:</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">in_fragmented_record</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="c1">// This can be caused by the writer dying immediately after</span>
+<span class="w">          </span><span class="c1">// writing a physical record but before completing the next; don&#39;t</span>
+<span class="w">          </span><span class="c1">// treat it as a corruption, just ignore the entire logical record.</span>
+<span class="w">          </span><span class="n">scratch</span><span class="o">-&gt;</span><span class="n">clear</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+</code></pre></div>
+
+
+崩溃点落在一条逻辑记录的两个分片之间是<strong>正常事故</strong>，不算损坏：<code>scratch-&gt;clear()</code> 把拼了一半的记录整体丢掉，返回 false 结束恢复。分片机制在这里顺手提供了原子性——<strong>只有拼出 <code>kLastType</code> 的记录才会被交付，半条记录在结构上就不可能进入 memtable</strong>。
+<h2>salt：让回卷后的旧帧自动失效</h2>
+
+只追加的文件总会遇到「追到头了」的一天：WAL 回卷覆写，或 checkpoint 后从头开始。危险在于，如果只是简单地从偏移 0 重新写，新帧覆盖旧帧的过程中一旦崩溃，文件里会留下<strong>新帧和旧帧的混合体</strong>——它们校验和都合法（各自的链是自洽的），恢复程序无法分辨谁是这一轮的。
+
+SQLite 的解法是给每一轮一个身份：<strong>salt</strong>。帧头偏移 8 处复制写入时刻的文件头盐，恢复时先比盐再算校验和（上一节 <code>walDecodeFrame</code> 的第一道检查就是它）。换盐的时机写在 <code>wal.c</code> 的注释里：
+<div class="codehilite"><pre><span></span><code>** After each checkpoint, the salt-1 value is incremented and the salt-2
+** value is randomized.  This prevents old and new frames in the WAL from
+** being considered valid at the same time and being checkpointing together
+** following a crash.
+</code></pre></div>
+
+
+换盐的动作在 <code>walRestartHdr</code>，同时把可见帧上界清零：
+<div class="codehilite"><pre><span></span><code><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">walRestartHdr</span><span class="p">(</span><span class="n">Wal</span><span class="w"> </span><span class="o">*</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="n">u32</span><span class="w"> </span><span class="n">salt1</span><span class="p">){</span>
+<span class="w">  </span><span class="k">volatile</span><span class="w"> </span><span class="n">WalCkptInfo</span><span class="w"> </span><span class="o">*</span><span class="n">pInfo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walCkptInfo</span><span class="p">(</span><span class="n">pWal</span><span class="p">);</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w">                          </span><span class="cm">/* Loop counter */</span>
+<span class="w">  </span><span class="n">u32</span><span class="w"> </span><span class="o">*</span><span class="n">aSalt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">;</span><span class="w">   </span><span class="cm">/* Big-endian salt values */</span>
+<span class="w">  </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">nCkpt</span><span class="o">++</span><span class="p">;</span>
+<span class="w">  </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">mxFrame</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="n">sqlite3Put4byte</span><span class="p">((</span><span class="n">u8</span><span class="o">*</span><span class="p">)</span><span class="o">&amp;</span><span class="n">aSalt</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">sqlite3Get4byte</span><span class="p">((</span><span class="n">u8</span><span class="o">*</span><span class="p">)</span><span class="o">&amp;</span><span class="n">aSalt</span><span class="p">[</span><span class="mi">0</span><span class="p">]));</span>
+<span class="w">  </span><span class="n">memcpy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">aSalt</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">&amp;</span><span class="n">salt1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">);</span>
+<span class="w">  </span><span class="n">walIndexWriteHdr</span><span class="p">(</span><span class="n">pWal</span><span class="p">);</span>
+<span class="w">  </span><span class="n">AtomicStore</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pInfo</span><span class="o">-&gt;</span><span class="n">nBackfill</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="p">...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>salt1</code> 自增 1、<code>salt2</code> 换成 <code>sqlite3_randomness</code> 出来的随机数。覆写区里那些「上一轮的帧」帧头里存的是旧盐，<code>memcmp</code> 立刻判负——<strong>旧帧不是被删除的，是被判无效的</strong>。这层保险的成本只有每帧 8 字节的 memcpy 和恢复时一次 memcmp，却把「日志回卷 + 中途崩溃」这个最阴险的场景整个关进了笼子。
+
+一个细节值得注意：<code>walRestartHdr</code> 只有在拿得到读槽锁（没有活跃读者）时才会被调用——换盐会让所有读者的旧快照失效，所以必须等它们退出。<strong>正确性机制和并发控制在这里是同一把锁。</strong>
+<h2>提交点：一个字段决定事务的原子性</h2>
+
+多页事务意味着一个事务对应多帧。崩溃可能落在事务中间，恢复怎么知道「这个事务算不算数」？
+
+答案藏在帧头偏移 4 的 <code>nTruncate</code> 字段：<strong>普通帧为 0，只有提交帧写入提交后的数据库大小</strong>。回放循环里那行注释 <code>/* If nTruncate is non-zero, this is a commit record. */</code> 是全部机关所在：
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="cm">/* If nTruncate is non-zero, this is a commit record. */</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">nTruncate</span><span class="w"> </span><span class="p">){</span>
+<span class="w">          </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">mxFrame</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">iFrame</span><span class="p">;</span>
+<span class="w">          </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">nPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nTruncate</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>mxFrame</code>（可见帧上界）只在遇到提交帧时推进。崩溃如果发生在提交帧之前，恢复会读完那些 <code>nTruncate == 0</code> 的孤儿帧，但 <code>mxFrame</code> 停在上一个提交点——<strong>未提交的尾巴在逻辑上不存在</strong>。原子性不是靠「回滚」实现的，是靠「上界不动」实现的。
+
+LevelDB 的提交点是另一副面孔：WriteBatch 的 12 字节头。<code>db/write_batch.cc</code> 的布局注释：
+<div class="codehilite"><pre><span></span><code><span class="c1">// WriteBatch::rep_ :=</span>
+<span class="c1">//    sequence: fixed64</span>
+<span class="c1">//    count: fixed32</span>
+<span class="c1">//    data: record[count]</span>
+<span class="c1">// record :=</span>
+<span class="c1">//    kTypeValue varstring varstring         |</span>
+<span class="c1">//    kTypeDeletion varstring</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="c1">// WriteBatch header has an 8-byte sequence number followed by a 4-byte count.</span>
+<span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">kHeader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">12</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>sequence</code> 是这批操作的第一个序号，<code>count</code> 是操作数。写之前 <code>SetSequence</code> 把全局序号接上，重放时 <code>Iterate</code> 逐条按序号递增插入，收尾校验 <code>found != Count</code> 报 <code>"WriteBatch has wrong count"</code>。<strong>一个批次 = 日志里的一条逻辑记录</strong>，配合上一节的分片原子性，批次要么整体进入 memtable，要么整体不进。
+
+两条路线殊途同归：原子性的边界都是「日志里的一条记录的结束」，区别只是 SQLite 用一个专用字段（提交帧的 <code>nTruncate</code>）标记，LevelDB 用记录自身的完整性（count 与实际条数一致）承载。
+<h2>写序铁律：先 WAL，后 memtable</h2>
+
+「先写日志再动数据」中的「先」，在源码里是两行相邻的语句。LevelDB <code>db_impl.cc</code> 的写路径，注释和代码一起说完了这件事：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="c1">// Add to log and apply to memtable.  We can release the lock</span>
+<span class="w">    </span><span class="c1">// during this phase since &amp;w is currently responsible for logging</span>
+<span class="w">    </span><span class="c1">// and protects against concurrent loggers and concurrent writes</span>
+<span class="w">    </span><span class="c1">// into mem_.</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">mutex_</span><span class="p">.</span><span class="n">Unlock</span><span class="p">();</span>
+<span class="w">      </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">log_</span><span class="o">-&gt;</span><span class="n">AddRecord</span><span class="p">(</span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">Contents</span><span class="p">(</span><span class="n">write_batch</span><span class="p">));</span>
+<span class="w">      </span><span class="kt">bool</span><span class="w"> </span><span class="n">sync_error</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">.</span><span class="n">sync</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">logfile_</span><span class="o">-&gt;</span><span class="n">Sync</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="n">sync_error</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">InsertInto</span><span class="p">(</span><span class="n">write_batch</span><span class="p">,</span><span class="w"> </span><span class="n">mem_</span><span class="p">);</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">mutex_</span><span class="p">.</span><span class="n">Lock</span><span class="p">();</span>
+</code></pre></div>
+
+
+逐行读：<code>AddRecord</code>（写 WAL）→ 可选 <code>Sync</code>（fsync）→ <code>InsertInto</code>（进 memtable）。<strong>每一步都以 <code>status.ok()</code> 为闸门</strong>：WAL 写失败就不进内存，同步失败也不进内存。反过来（先改内存再写日志）在单机崩溃下是不可辩护的——内存里的「已提交」断电即蒸发，日志却还没落地，等于向用户承诺了不存在的持久性。
+
+RocksDB 在多写线程下保持了同样的顺序，并把「先 WAL 后 memtable」写进了回调语义——它的写路径在 <code>db/db_impl/db_impl_write.cc</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="c1">// PreReleaseCallback is called after WAL write and before memtable write</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">PERF_TIMER_FOR_WAIT_GUARD</span><span class="p">(</span><span class="n">write_memtable_time</span><span class="p">);</span>
+<span class="w">      </span><span class="p">...</span>
+<span class="w">        </span><span class="n">w</span><span class="p">.</span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">InsertInto</span><span class="p">(</span>
+<span class="w">            </span><span class="n">write_group</span><span class="p">,</span><span class="w"> </span><span class="n">current_sequence</span><span class="p">,</span><span class="w"> </span><span class="n">column_family_memtables_</span><span class="p">.</span><span class="n">get</span><span class="p">(),</span>
+<span class="w">            </span><span class="p">...</span>
+</code></pre></div>
+
+
+而 WAL 写入的实际落点是 <code>WriteToWAL</code> 里的 <code>log_writer-&gt;AddRecord(...)</code>，由 <code>WriteGroupToWAL</code> 统一调度。顺序在两代实现里没有动过，因为它就是 WAL 的定义本身。
+
+SQLite 是物理路线，等价物是「帧先落盘，帧序号（<code>mxFrame</code>）后可见」——<code>walFrames</code> 先 <code>walWriteToLog</code> 把帧写完，最后才 <code>walIndexWriteHdr</code> 推进头里的 <code>mxFrame</code>。<strong>日志文件里的字节先于共享内存里的头存在</strong>，读者永远看不到「指向不存在帧」的头。
+<h2>组提交：一次同步摊给一批写入</h2>
+
+fsync 是 WAL 的主要成本来源：每次提交都同步，盘就变成串行设备。组提交（group commit）的思路是让一个写线程替排队的所有人一次写完。LevelDB 用一个 <code>writers_</code> 队列实现：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">writers_</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="o">&amp;</span><span class="n">w</span><span class="p">);</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">w</span><span class="p">.</span><span class="n">done</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">&amp;</span><span class="n">w</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">writers_</span><span class="p">.</span><span class="n">front</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">w</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">Wait</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+队头醒来后把后面排队的写请求<strong>合并成一个批次</strong>再落盘：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">updates</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// nullptr batch is for compactions</span>
+<span class="w">    </span><span class="n">WriteBatch</span><span class="o">*</span><span class="w"> </span><span class="n">write_batch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BuildBatchGroup</span><span class="p">(</span><span class="o">&amp;</span><span class="n">last_writer</span><span class="p">);</span>
+<span class="w">    </span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">SetSequence</span><span class="p">(</span><span class="n">write_batch</span><span class="p">,</span><span class="w"> </span><span class="n">last_sequence</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="n">last_sequence</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">WriteBatchInternal</span><span class="o">::</span><span class="n">Count</span><span class="p">(</span><span class="n">write_batch</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>BuildBatchGroup</code> 把 <code>writers_</code> 里合适的请求拼进同一个 <code>WriteBatch</code>（并受字节上限约束，避免饿死小写入）——合并之后，N 个提交共享一次 <code>AddRecord</code> 和一次 <code>Sync</code>，而 <code>SetSequence</code> + <code>last_sequence += Count</code> 保证它们在日志里拿到连续的序号。<strong>组提交不改变日志的语义单位（每个请求仍是自己的批次），只改变 I/O 的聚合粒度。</strong>
+
+RocksDB 把同一个模式显式命名为 leader / follower，注释把意图说得很直白：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="c1">// else we are the leader of the write batch group</span>
+<span class="w">  </span><span class="n">assert</span><span class="p">(</span><span class="n">w</span><span class="p">.</span><span class="n">state</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">WriteThread</span><span class="o">::</span><span class="n">STATE_GROUP_LEADER</span><span class="p">);</span>
+<span class="w">  </span><span class="n">Status</span><span class="w"> </span><span class="n">status</span><span class="p">;</span>
+<span class="w">  </span><span class="c1">// Once reaches this point, the current writer &quot;w&quot; will try to do its write</span>
+<span class="w">  </span><span class="c1">// job.  It may also pick up some of the remaining writers in the &quot;writers_&quot;</span>
+<span class="w">  </span><span class="c1">// when it finds suitable, and finish them in the same write batch.</span>
+<span class="w">  </span><span class="c1">// This is how a write job could be done by the other writer.</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="n">PERF_TIMER_GUARD</span><span class="p">(</span><span class="n">write_wal_time</span><span class="p">);</span>
+<span class="w">        </span><span class="n">io_s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WriteGroupToWAL</span><span class="p">(</span><span class="n">write_group</span><span class="p">,</span><span class="w"> </span><span class="n">wal_context</span><span class="p">.</span><span class="n">writer</span><span class="p">,</span><span class="w"> </span><span class="n">wal_used</span><span class="p">,</span>
+<span class="w">                               </span><span class="n">wal_context</span><span class="p">.</span><span class="n">need_wal_sync</span><span class="p">,</span>
+<span class="w">                               </span><span class="n">wal_context</span><span class="p">.</span><span class="n">need_wal_dir_sync</span><span class="p">,</span><span class="w"> </span><span class="n">last_sequence</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">                               </span><span class="o">*</span><span class="n">wal_context</span><span class="p">.</span><span class="n">wal_file_number_size</span><span class="p">);</span>
+</code></pre></div>
+
+
+leader 一次 <code>WriteGroupToWAL</code> 覆盖整组，然后整组共享一次 <code>InsertInto</code>。同步的时机（<code>need_wal_sync</code>）由 <code>WriteOptions::sync</code> 在组内取并——<strong>组里只要有一个请求要求同步，整组就得同步</strong>，这是组提交的公平性代价，也是它能把 N 次 fsync 压成 1 次的全部原因。
+<h2>fsync 语义：<code>synchronous</code> 三档在 WAL 下的真义</h2>
+
+「什么时候必须 fsync」是 WAL 最容易讲糊涂的问题。SQLite 把它做成了可配置项，并在源码里留下了完整的推导链。
+
+先看三档的取值（<code>sqlite.h.in</code>）：
+<div class="codehilite"><pre><span></span><code><span class="cp">#define SQLITE_SYNC_NORMAL        0x00002</span>
+<span class="cp">#define SQLITE_SYNC_FULL          0x00003</span>
+<span class="cp">#define SQLITE_SYNC_DATAONLY      0x00010</span>
+</code></pre></div>
+
+
+关键设计在 <code>wal.h</code> 的两个掩码宏——<strong>一个 <code>PRAGMA</code> 值被拆成两份</strong>，分别用于提交路径和 checkpoint 路径：
+<div class="codehilite"><pre><span></span><code><span class="cp">#define WAL_SYNC_FLAGS(X)   ((X)&amp;0x03)</span>
+<span class="cp">#define CKPT_SYNC_FLAGS(X)  (((X)&gt;&gt;2)&amp;0x03)</span>
+</code></pre></div>
+
+
+拼装逻辑在 <code>pager.c</code> 的 <code>sqlite3PagerSetFlags</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">noSync</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">syncFlags</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pgFlags</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">PAGER_FULLFSYNC</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">syncFlags</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_SYNC_FULL</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="p">{</span>
+<span class="w">    </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">syncFlags</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_SYNC_NORMAL</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">walSyncFlags</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">syncFlags</span><span class="o">&lt;&lt;</span><span class="mi">2</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">fullSync</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">walSyncFlags</span><span class="w"> </span><span class="o">|=</span><span class="w"> </span><span class="n">pPager</span><span class="o">-&gt;</span><span class="n">syncFlags</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>walSyncFlags = syncFlags&lt;&lt;2</code> 把基础同步档放到高位（checkpoint 用），<strong>低位默认是 0</strong>；只有 <code>fullSync</code>（即 <code>synchronous=FULL</code>）才把低位补上。而提交路径恰好只看低位：
+<div class="codehilite"><pre><span></span><code>  ** Padding and syncing only occur if this set of frames complete a
+  ** transaction and if PRAGMA synchronous=FULL.  If synchronous==NORMAL
+  ** or synchronous==OFF, then no padding or syncing are needed.
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">isCommit</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">WAL_SYNC_FLAGS</span><span class="p">(</span><span class="n">sync_flags</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span><span class="w"> </span><span class="p">){</span>
+</code></pre></div>
+
+
+三段代码拼出完整结论：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>配置</th>
+<th>提交时（WAL 尾部 fsync）</th>
+<th>checkpoint 时（数据文件 fsync）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OFF</code></td>
+<td>不同步</td>
+<td>不同步</td>
+</tr>
+<tr>
+<td><code>NORMAL</code></td>
+<td><strong>不同步</strong></td>
+<td>同步</td>
+</tr>
+<tr>
+<td><code>FULL</code></td>
+<td>同步</td>
+<td>同步</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>NORMAL</code> 为什么敢不在提交时同步？因为 WAL 模式下提交只往日志<strong>追加</strong>字节，不改数据文件；崩溃最多丢日志尾部——而日志尾部本来就允许丢（遇坏即停），数据文件则由 checkpoint 的同步兜底。<code>wal.c</code> 里那段著名注释把好处点破了：
+<div class="codehilite"><pre><span></span><code><span class="o">**</span><span class="w"> </span><span class="n">All</span><span class="w"> </span><span class="n">I</span><span class="o">/</span><span class="n">O</span><span class="w"> </span><span class="n">barrier</span><span class="w"> </span><span class="n">operations</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="n">k</span><span class="p">.</span><span class="n">a</span><span class="w"> </span><span class="n">fsyncs</span><span class="p">)</span><span class="w"> </span><span class="n">occur</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">this</span><span class="w"> </span><span class="n">routine</span><span class="w"> </span><span class="n">when</span>
+<span class="o">**</span><span class="w"> </span><span class="n">SQLite</span><span class="w"> </span><span class="n">is</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">WAL</span><span class="o">-</span><span class="n">mode</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">synchronous</span><span class="o">=</span><span class="n">NORMAL</span><span class="p">.</span><span class="w">  </span><span class="n">That</span><span class="w"> </span><span class="n">means</span><span class="w"> </span><span class="n">that</span><span class="w"> </span><span class="k">if</span>
+<span class="o">**</span><span class="w"> </span><span class="n">checkpoints</span><span class="w"> </span><span class="n">are</span><span class="w"> </span><span class="k">always</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">background</span><span class="w"> </span><span class="n">thread</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="n">background</span>
+<span class="o">**</span><span class="w"> </span><span class="n">process</span><span class="p">,</span><span class="w"> </span><span class="n">foreground</span><span class="w"> </span><span class="n">threads</span><span class="w"> </span><span class="n">will</span><span class="w"> </span><span class="n">never</span><span class="w"> </span><span class="n">block</span><span class="w"> </span><span class="n">on</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">lengthy</span><span class="w"> </span><span class="n">fsync</span><span class="w"> </span><span class="n">call</span><span class="p">.</span>
+</code></pre></div>
+
+
+<strong>同步从提交路径挪到了 checkpoint 路径</strong>，前台线程不再被 fsync 卡住，代价是进程崩溃可能丢掉最后几笔提交（但数据库永远是一致的）。<code>FULL</code> 则每笔提交都过一道 I/O 屏障——丢的只是未提交数据，一行都不会少。三档的本质不是「安全级别」，而是<strong>「你愿意在哪个环节赌多大的丢失窗口」</strong>。
+<h2>checkpoint：日志不能无限长</h2>
+
+WAL 只追加，数据文件原地不动——总得有人把日志内容搬回数据文件，这就是 checkpoint。搬完之后日志何去何从，构成了四种模式。先看枚举定义（<code>sqlite.h.in</code>，注意不在 <code>wal.h</code>）：
+<div class="codehilite"><pre><span></span><code><span class="cp">#define SQLITE_CHECKPOINT_NOOP    -1  </span><span class="cm">/* Do no work at all */</span>
+<span class="cp">#define SQLITE_CHECKPOINT_PASSIVE  0  </span><span class="cm">/* Do as much as possible w/o blocking */</span>
+<span class="cp">#define SQLITE_CHECKPOINT_FULL     1  </span><span class="cm">/* Wait for writers, then checkpoint */</span>
+<span class="cp">#define SQLITE_CHECKPOINT_RESTART  2  </span><span class="cm">/* Like FULL but wait for readers */</span>
+<span class="cp">#define SQLITE_CHECKPOINT_TRUNCATE 3  </span><span class="cm">/* Like RESTART but also truncate WAL */</span>
+</code></pre></div>
+
+
+四档是严格递进的：<code>PASSIVE</code> 不等任何人、能回填多少算多少；<code>FULL</code> 抢写锁、等写入者让路，回填不完返回 BUSY；<code>RESTART</code> 再等读者退出，好让日志<strong>从头复用</strong>（配合换盐）；<code>TRUNCATE</code> 在此基础上把日志文件截成 0 字节。模式差异的代码在 <code>walCheckpoint</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">eMode</span><span class="o">!=</span><span class="n">SQLITE_CHECKPOINT_PASSIVE</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">writeLock</span><span class="w"> </span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pInfo</span><span class="o">-&gt;</span><span class="n">nBackfill</span><span class="o">&lt;</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">mxFrame</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_BUSY</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">eMode</span><span class="o">&gt;=</span><span class="n">SQLITE_CHECKPOINT_RESTART</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="n">u32</span><span class="w"> </span><span class="n">salt1</span><span class="p">;</span>
+<span class="w">      </span><span class="n">sqlite3_randomness</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">salt1</span><span class="p">);</span>
+<span class="w">      </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">pInfo</span><span class="o">-&gt;</span><span class="n">nBackfill</span><span class="o">==</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">mxFrame</span><span class="w"> </span><span class="p">);</span>
+<span class="w">      </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walBusyLock</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="n">xBusy</span><span class="p">,</span><span class="w"> </span><span class="n">pBusyArg</span><span class="p">,</span><span class="w"> </span><span class="n">WAL_READ_LOCK</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">WAL_NREADER</span><span class="mi">-1</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">eMode</span><span class="o">==</span><span class="n">SQLITE_CHECKPOINT_TRUNCATE</span><span class="w"> </span><span class="p">){</span>
+</code></pre></div>
+
+
+<code>TRUNCATE</code> 分支的尾部把两件事一起做了——换盐 + 截断：
+<div class="codehilite"><pre><span></span><code><span class="w">          </span><span class="n">walRestartHdr</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="n">salt1</span><span class="p">);</span>
+<span class="w">          </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3OsTruncate</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">pWalFd</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+</code></pre></div>
+
+
+还有一层降级语义藏在 <code>sqlite3WalCheckpoint</code>：非 <code>PASSIVE</code> 模式要抢写锁，抢不到不报错，而是<strong>降级成 <code>PASSIVE</code></strong> 继续干：
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">eMode</span><span class="o">!=</span><span class="n">SQLITE_CHECKPOINT_PASSIVE</span><span class="w"> </span><span class="p">){</span>
+<span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">walBusyLock</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span><span class="w"> </span><span class="n">xBusy2</span><span class="p">,</span><span class="w"> </span><span class="n">pBusyArg</span><span class="p">,</span><span class="w"> </span><span class="n">WAL_WRITE_LOCK</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
+<span class="w">          </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">writeLock</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_BUSY</span><span class="w"> </span><span class="p">){</span>
+<span class="w">          </span><span class="n">eMode2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_CHECKPOINT_PASSIVE</span><span class="p">;</span>
+<span class="w">          </span><span class="n">xBusy2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">          </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_OK</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+
+checkpoint 本质上是后台维护，做一半总比完全不做强——<strong>「尽力而为 + 明确报告」比「要么全做要么不做」在实践里更有用</strong>。
+
+和上一节的 fsync 表格连起来看，完整的持久化分工是：<code>NORMAL</code> 下日志尾部可能丢，但 checkpoint 把已回填的部分 fsync 进数据文件；日志再从 checkpoint 点继续。<strong>数据文件的每一次变更都先于它自己的同步屏障</strong>，这个不变式就是「崩溃后打开永远一致」的全部内容。
+<h2>恢复模式：损坏发生时你要哪种世界线</h2>
+
+恢复程序读到坏字节之后该干什么？LevelDB 一路沿用「容忍尾巴损坏」；RocksDB 把这个决策做成了显式的四选一。<code>include/rocksdb/options.h</code> 的枚举与注释逐字如下：
+<div class="codehilite"><pre><span></span><code><span class="k">enum</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">WALRecoveryMode</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// Original levelDB recovery</span>
+<span class="w">  </span><span class="c1">//</span>
+<span class="w">  </span><span class="c1">// We tolerate the last record in any log to be incomplete due to a crash</span>
+<span class="w">  </span><span class="c1">// while writing it. Zeroed bytes from preallocation are also tolerated in the</span>
+<span class="w">  </span><span class="c1">// trailing data of any log.</span>
+<span class="w">  </span><span class="c1">//</span>
+<span class="w">  </span><span class="c1">// Use case: Applications for which updates, once applied, must not be rolled</span>
+<span class="w">  </span><span class="c1">// back even after a crash-recovery. In this recovery mode, RocksDB guarantees</span>
+<span class="w">  </span><span class="c1">// this as long as `WritableFile::Append()` writes are durable. In case the</span>
+<span class="w">  </span><span class="c1">// user needs the guarantee in more situations (e.g., when</span>
+<span class="w">  </span><span class="c1">// `WritableFile::Append()` writes to page cache, but the user desires this</span>
+<span class="w">  </span><span class="c1">// guarantee in face of power-loss crash-recovery), RocksDB offers various</span>
+<span class="w">  </span><span class="c1">// mechanisms to additionally invoke `WritableFile::Sync()` in order to</span>
+<span class="w">  </span><span class="c1">// strengthen the guarantee.</span>
+<span class="w">  </span><span class="c1">//</span>
+<span class="w">  </span><span class="c1">// This differs from `kPointInTimeRecovery` in that, in case a corruption is</span>
+<span class="w">  </span><span class="c1">// detected during recovery, this mode will refuse to open the DB. Whereas,</span>
+<span class="w">  </span><span class="c1">// `kPointInTimeRecovery` will stop recovery just before the corruption since</span>
+<span class="w">  </span><span class="c1">// that is a valid point-in-time to which to recover.</span>
+<span class="w">  </span><span class="n">kTolerateCorruptedTailRecords</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span>
+<span class="w">  </span><span class="c1">// Recover from clean shutdown</span>
+<span class="w">  </span><span class="c1">// We don&#39;t expect to find any corruption in the WAL</span>
+<span class="w">  </span><span class="c1">// Use case : This is ideal for unit tests and rare applications that</span>
+<span class="w">  </span><span class="c1">// can require high consistency guarantee</span>
+<span class="w">  </span><span class="n">kAbsoluteConsistency</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x01</span><span class="p">,</span>
+<span class="w">  </span><span class="c1">// Recover to point-in-time consistency (default)</span>
+<span class="w">  </span><span class="c1">// We stop the WAL playback on discovering WAL inconsistency</span>
+<span class="w">  </span><span class="c1">// Use case : Ideal for systems that have disk controller cache like</span>
+<span class="w">  </span><span class="c1">// hard disk, SSD without super capacitor that store related data</span>
+<span class="w">  </span><span class="n">kPointInTimeRecovery</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x02</span><span class="p">,</span>
+<span class="w">  </span><span class="c1">// Recovery after a disaster</span>
+<span class="w">  </span><span class="c1">// We ignore any corruption in the WAL and try to salvage as much data as</span>
+<span class="w">  </span><span class="c1">// possible</span>
+<span class="w">  </span><span class="c1">// Use case : Ideal for last ditch effort to recover data or systems that</span>
+<span class="w">  </span><span class="c1">// operate with low grade unrelated data</span>
+<span class="w">  </span><span class="n">kSkipAnyCorruptedRecords</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x03</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+四档从「宁可不启动」到「宁可丢数据也要开」排列，默认值是 <code>kPointInTimeRecovery</code>。注释里那句 <strong>"that is a valid point-in-time to which to recover"</strong> 是整个 WAL 恢复哲学的浓缩：<strong>坏点之前的日志是一个合法的时间断面，恢复到那里不算丢数据，算守住承诺</strong>。
+
+分叉的执行点在 <code>db_impl_open.cc</code> 的 <code>HandleNonOkStatusOrOldLogRecord</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">immutable_db_options_</span><span class="p">.</span><span class="n">wal_recovery_mode</span><span class="w"> </span><span class="o">==</span>
+<span class="w">      </span><span class="n">WALRecoveryMode</span><span class="o">::</span><span class="n">kSkipAnyCorruptedRecords</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// We should ignore all errors unconditionally</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="o">::</span><span class="n">OK</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">immutable_db_options_</span><span class="p">.</span><span class="n">wal_recovery_mode</span><span class="w"> </span><span class="o">==</span>
+<span class="w">             </span><span class="n">WALRecoveryMode</span><span class="o">::</span><span class="n">kPointInTimeRecovery</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="n">immutable_db_options_</span><span class="p">.</span><span class="n">wal_recovery_mode</span><span class="w"> </span><span class="o">==</span>
+<span class="w">               </span><span class="n">WALRecoveryMode</span><span class="o">::</span><span class="n">kTolerateCorruptedTailRecords</span><span class="w"> </span><span class="o">||</span>
+<span class="w">           </span><span class="n">immutable_db_options_</span><span class="p">.</span><span class="n">wal_recovery_mode</span><span class="w"> </span><span class="o">==</span>
+<span class="w">           </span><span class="n">WALRecoveryMode</span><span class="o">::</span><span class="n">kAbsoluteConsistency</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">status</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+而恢复主循环拿到损坏的方式是把模式直接传给读端：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">read_record</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">reader</span><span class="o">-&gt;</span><span class="n">ReadRecord</span><span class="p">(</span>
+<span class="w">        </span><span class="o">&amp;</span><span class="n">record</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">scratch</span><span class="p">,</span><span class="w"> </span><span class="n">immutable_db_options_</span><span class="p">.</span><span class="n">wal_recovery_mode</span><span class="p">,</span>
+<span class="w">        </span><span class="o">&amp;</span><span class="n">record_checksum</span><span class="p">);</span>
+
+<span class="w">    </span><span class="c1">// `reader-&gt;ReadRecord` will change `status` through reporter in `reader`</span>
+<span class="w">    </span><span class="c1">// when a corruption is encountered</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">read_record</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">status</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+
+<strong>「遇坏即停」是不变的底层事实，四个模式改变的只是停完之后的处置</strong>：拒绝启动（<code>kAbsoluteConsistency</code>）、停在坏点前（<code>kPointInTimeRecovery</code>）、把尾巴当正常结束（<code>kTolerateCorruptedTailRecords</code>）、跳过坏记录继续挖（<code>kSkipAnyCorruptedRecords</code>）。底层机制与策略被干净地分成了两层——这是 LevelDB 时代没有的工程成熟度。
+<h2>读端可见性：快照上界是怎么来的</h2>
+
+恢复回答「日志里有多少帧是合法的」，读端还要回答「我这个快照该看到哪一帧」。SQLite 把答案存成一个数：<code>mxFrame</code>。<code>walFindFrame</code> 的开头就是快照的两个边界：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">u32</span><span class="w"> </span><span class="n">iRead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">                  </span><span class="cm">/* If !=0, WAL frame to return data from */</span>
+<span class="w">  </span><span class="n">u32</span><span class="w"> </span><span class="n">iLast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">hdr</span><span class="p">.</span><span class="n">mxFrame</span><span class="p">;</span><span class="w">  </span><span class="cm">/* Last page in WAL for this reader */</span>
+<span class="w">  </span><span class="p">...</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">iLast</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">readLock</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">bShmUnreliable</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="o">*</span><span class="n">piRead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">SQLITE_OK</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>iLast</code> 是开读事务那一刻从 wal-index 头快照下来的合法帧上界；哈希查找时，候选帧必须同时落在上下界之内才被采纳：
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">iFrame</span><span class="o">&lt;=</span><span class="n">iLast</span>
+<span class="w">       </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">iFrame</span><span class="o">&gt;=</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">minFrame</span>
+<span class="w">       </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">sLoc</span><span class="p">.</span><span class="n">aPgno</span><span class="p">[(</span><span class="n">iH</span><span class="mi">-1</span><span class="p">)</span><span class="o">&amp;</span><span class="p">(</span><span class="n">HASHTABLE_NPAGE</span><span class="mi">-1</span><span class="p">)]</span><span class="o">==</span><span class="n">pgno</span>
+<span class="w">      </span><span class="p">){</span>
+<span class="w">        </span><span class="n">iRead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">iFrame</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+
+对同一页号取<strong>最大的合法帧号</strong>——同页多版本，快照边界决定取哪版。<code>iLast</code> 的来源正是恢复与校验那一整套机制（盐 + 链式校验和 + 提交帧推进），<strong>读端不需要自己再验一遍完整性，它消费的是恢复端已经证明过的结论</strong>。写端、恢复端、读端三层各司其职，中间只传递一个 <code>mxFrame</code>。
+<h2>WAL 是门通用手艺：MANIFEST 与 NanoDB 的 JSON Lines</h2>
+
+WAL 不属于「数据库」，它属于「任何不能承受就地改写事故的追加式系统」。两个旁证：
+
+<strong>LevelDB 的 MANIFEST 就是同一个 log 格式再就业。</strong> 元数据版本（哪些文件属于当前 SST 集合）的变更日志，用的正是 WAL 那套 <code>log::Writer</code>。<code>version_set.cc</code> 的 <code>LogAndApply</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="c1">// Write new record to MANIFEST log</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">record</span><span class="p">;</span>
+<span class="w">      </span><span class="n">edit</span><span class="o">-&gt;</span><span class="n">EncodeTo</span><span class="p">(</span><span class="o">&amp;</span><span class="n">record</span><span class="p">);</span>
+<span class="w">      </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">descriptor_log_</span><span class="o">-&gt;</span><span class="n">AddRecord</span><span class="p">(</span><span class="n">record</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">descriptor_file_</span><span class="o">-&gt;</span><span class="n">Sync</span><span class="p">();</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+
+恢复时对称地用 <code>log::Reader</code> 逐条解出来再应用：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">log</span><span class="o">::</span><span class="n">Reader</span><span class="w"> </span><span class="nf">reader</span><span class="p">(</span><span class="n">file</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">reporter</span><span class="p">,</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="cm">/*checksum*/</span><span class="p">,</span>
+<span class="w">                       </span><span class="mi">0</span><span class="w"> </span><span class="cm">/*initial_offset*/</span><span class="p">);</span>
+<span class="w">    </span><span class="n">Slice</span><span class="w"> </span><span class="n">record</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">scratch</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">reader</span><span class="p">.</span><span class="n">ReadRecord</span><span class="p">(</span><span class="o">&amp;</span><span class="n">record</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">scratch</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">ok</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">VersionEdit</span><span class="w"> </span><span class="n">edit</span><span class="p">;</span>
+<span class="w">      </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">edit</span><span class="p">.</span><span class="n">DecodeFrom</span><span class="p">(</span><span class="n">record</span><span class="p">);</span>
+</code></pre></div>
+
+
+<strong>「崩溃后元数据不许自相矛盾」和「崩溃后数据不许丢」是同一个问题</strong>，所以 LevelDB 直接复用了同一套格式、校验和恢复代码——一个 log 层服务两类文件，这是最省事也最不会出 bug 的做法。
+
+<strong>SQLite 的 WAL 记录页镜像，LevelDB 记录操作，NanoDB 记录 JSON Lines。</strong> 上一篇《<a href="/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a>》里，<code>wal.log</code> 每行是一条 JSON 记录，恢复时逐行解析、遇到解析不了的行就停。格式从二进制换成了文本，但从 <code>walDecodeFrame</code> 到 <code>ReadRecord</code> 的那条铁律一字未改：<strong>连续通过校验的前缀才作数</strong>。三套实现，同一条契约——这就是为什么读格式之前要先立契约。
+<h2>自研 WAL 设计清单</h2>
+
+把全文的源码证据折叠成一份可执行的清单。动手写之前逐项过一遍，每项后面是它对应的「事故」：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>设计决策</th>
+<th>事故</th>
+<th>源码里的榜样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>文件头带 magic + 版本 + 自校验</td>
+<td>拿错文件 / 头被写坏当有效</td>
+<td>SQLite 32 字节头，坏头 <code>goto finished</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>记录头带长度与校验和，覆盖 type</td>
+<td>撕裂、位翻转被当数据</td>
+<td>LevelDB 7 字节头，CRC 覆盖 type + payload</td>
+</tr>
+<tr>
+<td>3</td>
+<td>校验和链式（前一条作初值）</td>
+<td>中段被改而前后各自自洽</td>
+<td><code>walChecksumBytes(native, ..., aCksum, aCksum)</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>恢复遇坏即停，不重新同步找下一帧</td>
+<td>垃圾字节被回放</td>
+<td><code>if( !isValid ) break;</code> / <code>buffer_.clear()</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>半条逻辑记录整条丢弃</td>
+<td>半个事务进入内存</td>
+<td><code>kEof</code> 时 <code>scratch-&gt;clear()</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>专用提交标记（或批次完整性）</td>
+<td>中途崩溃留下半个事务</td>
+<td><code>nTruncate != 0</code> / <code>count</code> 校验</td>
+</tr>
+<tr>
+<td>7</td>
+<td>先写日志，同步成功才改内存与数据文件</td>
+<td>「已提交」断电蒸发</td>
+<td><code>AddRecord</code> → <code>Sync</code> → <code>InsertInto</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>日志回卷必须换代身份</td>
+<td>新旧帧混合冒充有效</td>
+<td><code>walRestartHdr</code>：salt1 自增 + salt2 随机</td>
+</tr>
+<tr>
+<td>9</td>
+<td>同步点显式化并可分档</td>
+<td>每笔提交都付全价，或从不付账</td>
+<td><code>WAL_SYNC_FLAGS</code> / <code>CKPT_SYNC_FLAGS</code> 分工</td>
+</tr>
+<tr>
+<td>10</td>
+<td>checkpoint 尽力而为 + 模式化收尾</td>
+<td>日志无限长，或收尾卡死业务</td>
+<td><code>PASSIVE</code> 抢不到锁就降级</td>
+</tr>
+<tr>
+<td>11</td>
+<td>损坏处置做成策略而非硬编码</td>
+<td>无法按业务风险调平衡</td>
+<td><code>WALRecoveryMode</code> 四模式</td>
+</tr>
+<tr>
+<td>12</td>
+<td>读端只消费恢复端的结论（单个上界值）</td>
+<td>读端各自验帧，口径漂移</td>
+<td><code>mxFrame</code> 快照 + <code>walFindFrame</code> 双边界</td>
+</tr>
+</tbody>
+</table></div>
+
+其中 1~5 是<strong>格式层</strong>（字节怎么摆），6~8 是<strong>语义层</strong>（事务与代际），9~12 是<strong>策略层</strong>（同步、收尾、损坏、读写协作）。常见错误是把 9~11 当成「高级功能」延后处理——恰恰相反，这三行策略决定了你的 WAL 在事故里是「丢几笔」还是「起不来」，必须在第一版就有明确答案，哪怕答案是硬编码的默认值。
+<h2>结语</h2>
+
+这篇文章从头到尾没有一行「我写的」代码，但你已经把两套工业级 WAL 的骨架拆开了：SQLite 的 32 + 24 字节页帧和链式滚动校验，LevelDB 的 7 字节头 + 32 KB 块 + CRC32C 分片重组——两套格式天差地别，四条约定却一条不差：
+<ol>
+<li><strong>只追加</strong>，回卷就换盐；</li>
+<li><strong>逐条校验</strong>，覆盖范围明确到字节；</li>
+<li><strong>遇坏即停</strong>，只承认连续合法的前缀；</li>
+<li><strong>先记账再动数据</strong>，同步点显式可查。</li>
+</ol>
+
+值得反复咀嚼的是这些设计共同的气质：<strong>不猜</strong>。恢复程序不猜坏字节后面还有什么，读端不猜帧是否有效（它只读 <code>mxFrame</code>），checkpoint 不猜锁能不能抢到（抢不到就降级）。所有需要「猜」的地方，都被一个可计算的谓词（校验和、盐、上界）替代了——而一个可计算的谓词，就是所谓「一致性」在源码里的全部形态。
+
+下次再听到「数据库崩溃后不丢数据」，你可以直接报出这些名字：<code>walIndexRecover</code>、<code>walDecodeFrame</code>、<code>walRestartHdr</code>、<code>WAL_SYNC_FLAGS</code>、<code>AddRecord → InsertInto</code>、<code>kPointInTimeRecovery</code>。承诺不神秘，它就是这些 if 语句的总和。</div></div></noscript>
+  </body>
+</html>
