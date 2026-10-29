@@ -175,7 +175,7 @@ const hiddenTagCount = computed(() =>
   font-weight: 700;
   color: #fffaf5;
   background: $neon-pink;
-  border-radius: 6px;
+  border-radius: $radius-sm;
   box-shadow: 0 4px 12px rgba($neon-pink, 0.2);
   letter-spacing: 0;
 }
@@ -185,12 +185,12 @@ const hiddenTagCount = computed(() =>
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 21px 22px 22px;
+  padding: 20px 22px 22px;
 }
 
 .card-title {
-  font-size: 1.16rem;
-  font-weight: 720;
+  font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1.45;
   margin-bottom: 12px;
   display: -webkit-box;
@@ -206,14 +206,23 @@ const hiddenTagCount = computed(() =>
 }
 
 // ---- Meta row ----
+// 元信息走等宽字 + 「·」分隔点，与首页 story-meta 同一门面；
+// 字号并入 0.68 元信息层
 .card-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.76rem;
+  font-family: $font-mono;
+  font-size: 0.68rem;
   color: $text-secondary;
   margin-bottom: 12px;
   flex-wrap: wrap;
+
+  > span + span::before {
+    content: '·';
+    margin-right: 10px;
+    opacity: 0.45;
+  }
 }
 
 .meta-date {
@@ -261,10 +270,12 @@ const hiddenTagCount = computed(() =>
 .tag-pill {
   display: inline-block;
   padding: 2px 8px;
-  font-size: 0.7rem;
-  color: #6e765f;
-  background: #f2f3ec;
-  border: 1px solid #e1e4d9;
+  font-family: $font-mono;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: $text-primary;
+  background: $bg-secondary;
+  border: 1px solid transparent;
   border-radius: 999px;
 }
 
@@ -278,7 +289,7 @@ const hiddenTagCount = computed(() =>
 // ---- Excerpt ----
 .card-excerpt {
   margin-top: auto;
-  font-size: 0.875rem;
+  font-size: 0.88rem;
   color: $text-secondary;
   line-height: 1.6;
   display: -webkit-box;

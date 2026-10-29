@@ -253,23 +253,23 @@ onMounted(() => {
   margin: 0 0 7px;
   color: $text-primary;
   font-size: 2.4rem;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.2;
 }
 
 .page-subtitle {
   color: $text-secondary;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
+// 缓存提示走首页门面：左侧色条 + 弱底，替代粉底圆角胶囊
 .cache-notice {
   margin: 0 0 16px;
   padding: 8px 14px;
   color: $text-secondary;
-  background: rgba($accent-pink, 0.07);
-  border: 1px solid rgba($accent-pink, 0.18);
-  border-radius: $radius-md;
-  font-size: 0.78rem;
+  background: var(--surface-muted);
+  border-left: 3px solid var(--accent-secondary);
+  font-size: 0.8rem;
 }
 
 .filter-bar {
@@ -284,7 +284,7 @@ onMounted(() => {
 }
 
 .filter-badge {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: $accent-pink;
   padding: 4px 12px;
@@ -330,7 +330,7 @@ onMounted(() => {
 .article-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 28px;
 
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
@@ -340,7 +340,7 @@ onMounted(() => {
 .skeleton-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 28px;
 
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
@@ -354,9 +354,11 @@ onMounted(() => {
   border: 1px solid $glass-border;
 }
 
+// 骨架占位与真实封面同为 16:9，加载完成时不再跳版
 .skeleton-image {
   width: 100%;
-  height: 180px;
+  height: auto;
+  aspect-ratio: 16 / 9;
   @include skeleton-shimmer;
 }
 
@@ -398,12 +400,12 @@ onMounted(() => {
 .retry-btn {
   margin-top: 16px;
   padding: 8px 24px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-family: inherit;
   color: #fff;
   background: $accent-pink;
   border: 1px solid $accent-pink;
-  border-radius: 8px;
+  border-radius: $radius-md;
   cursor: pointer;
   transition: background $transition-fast, border-color $transition-fast;
 
@@ -436,12 +438,12 @@ onMounted(() => {
   min-width: 36px;
   height: 36px;
   padding: 0 10px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-family: inherit;
   color: $text-secondary;
   background: $bg-card;
   border: 1px solid $glass-border;
-  border-radius: 8px;
+  border-radius: $radius-md;
   cursor: pointer;
   transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
 
@@ -466,7 +468,7 @@ onMounted(() => {
 
 .page-ellipsis {
   color: $text-secondary;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   padding: 0 4px;
   letter-spacing: 2px;
 }
