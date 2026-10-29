@@ -421,7 +421,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
     margin-bottom: 9px;
     color: var(--text-primary);
     font-family: $serif;
-    font-size: 1.06rem;
+    font-size: 1.05rem;
     font-weight: 700;
     line-height: 1.7;
     letter-spacing: 0.02em;
@@ -489,7 +489,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 
 // ── 版块标题 ──
 .front-section {
-  margin-top: 56px;
+  margin-top: 64px;
 }
 
 .section-head {
@@ -583,7 +583,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   margin: 8px 0 0;
   color: var(--text-primary);
   font-family: $serif;
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 900;
   line-height: 1.35;
   display: -webkit-box;
@@ -596,7 +596,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 .lead-story__excerpt {
   margin: 8px 0 0;
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   line-height: 1.7;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -621,7 +621,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   gap: 5px;
   margin-top: 12px;
   color: var(--accent);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 650;
   svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; transition: transform $transition-fast; }
 }
@@ -660,7 +660,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 .index-item__date {
   color: var(--text-secondary);
   font-family: $font-mono;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   letter-spacing: 0.02em;
 }
 
@@ -683,7 +683,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   padding: 0 6px;
   color: var(--accent-secondary);
   border: 1px solid var(--accent-secondary);
-  font-size: 0.6rem;
+  font-size: 0.62rem;
   font-weight: 700;
   vertical-align: 2px;
 }
@@ -714,10 +714,13 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 
 // ── 专栏：项目行 ──
 .column-section {
-  margin-top: 56px;
+  margin-top: 64px;
 }
 
+// 让 section 规则线与首行发丝线之间留一拍呼吸，避免两线零间距贴合显毛边
+// （与刊目 index-list 规则线后留 20px 同一语言）
 .column-rows {
+  margin-top: 20px;
   animation: reveal 0.45s ease both;
 }
 
@@ -736,11 +739,13 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   &:hover .column-row__no { color: var(--accent); }
 }
 
+// 编号是栏目标记，不是标题：退成次级灰 + 小字号，
+// hover 才提为强调色，让项目名主导层级
 .column-row__no {
-  color: var(--accent-secondary);
+  color: var(--text-secondary);
   font-family: $font-mono;
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 600;
   line-height: 1;
   transition: color $transition-fast;
 }
@@ -800,7 +805,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   margin-top: 8px;
   color: var(--text-secondary);
   font-family: $font-mono;
-  font-size: 0.64rem;
+  font-size: 0.68rem;
   letter-spacing: 0.03em;
   opacity: 0.9;
 }
@@ -832,11 +837,11 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 .colophon-link__index {
   color: var(--accent-secondary);
   font-family: $font-mono;
-  font-size: 0.64rem;
+  font-size: 0.68rem;
 }
 
 .colophon-link__text {
-  strong { display: block; font-size: 0.86rem; }
+  strong { display: block; font-size: 0.88rem; }
   small { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 0.68rem; }
 }
 
@@ -846,7 +851,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   padding: 8px 14px;
   color: var(--text-secondary);
   border-left: 3px solid var(--accent-secondary);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   background: var(--surface-muted);
 }
 
@@ -864,7 +869,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   color: var(--accent);
   background: none;
   border: 1px solid var(--accent);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: color $transition-fast, border-color $transition-fast;
@@ -945,7 +950,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   .index-item__link { grid-template-columns: 1fr auto; }
   .index-item__date { grid-column: 1 / -1; order: -1; }
   .column-row { grid-template-columns: 1fr; gap: 12px; padding: 18px 0; }
-  .column-row__no { font-size: 1.2rem; }
   .section-title { font-size: 1.25rem; }
   .lead-story__title { font-size: 1.2rem; }
 }
