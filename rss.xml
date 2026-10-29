@@ -5,8 +5,939 @@
     <link>https://zhoujungis.github.io/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Wed, 28 Oct 2026 07:20:09 GMT</lastBuildDate>
+    <lastBuildDate>Thu, 29 Oct 2026 08:03:54 GMT</lastBuildDate>
     <atom:link href="https://zhoujungis.github.io/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>B+ 树索引回源：页分裂长什么样</title>
+      <link>https://zhoujungis.github.io/article/btree-page-split/</link>
+      <guid isPermaLink="true">https://zhoujungis.github.io/article/btree-page-split/</guid>
+      <pubDate>Thu, 29 Oct 2026 08:03:33 GMT</pubDate>
+      <description>适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人 结论先行：页分裂不是一次原子的「一分为二」，而是一场 有预谋的多步手术 ——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能</description>
+      <category>技术教程</category>
+      <category>后端</category>
+      <category>存储引擎</category>
+      <category>数据库</category>
+      <content:encoded><![CDATA[<blockquote>
+
+适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人
+结论先行：页分裂不是一次原子的「一分为二」，而是一场<strong>有预谋的多步手术</strong>——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能整场重来。本文不写一行自造代码，全部证据来自 SQLite <code>src/btree.c</code> 与 InnoDB <code>btr0btr.cc</code> / <code>btr0cur.cc</code>：8 字节页头与 94 字节堆起点、<code>nFree*3&lt;=usableSize*2</code> 的重排阈值、<code>balance_nonroot</code> 最多 5 页的配平、<code>btr_page_split_and_insert</code> 的八步手术单、根页「原地变内部页」与「先搬家再分裂」的两条长高路线、以及「只许成功不许回滚」的两页空间预留
+阅读时间：约 40 分钟 | 难度：进阶 | 收获：两套真实页格式的逐字拆解 + 分裂全流程源码对照 + 一条接回慢查询实战的实践线
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：慢查询是表，页分裂是里</li>
+<li>先看案发现场：一页到底长什么样</li>
+<li>SQLite 的页：8 字节头与相向而生的两个数组</li>
+<li>InnoDB 的页：38 字节 FIL 头、哨兵记录与 slot 目录</li>
+<li>插入前的三道检查：放不下是怎样被发现的</li>
+<li>什么时候值得动手术：重组阈值与「50% 填充」的真相</li>
+<li>SQLite 的手术室：balance_nonroot 的配平账本</li>
+<li>InnoDB 的手术单：btr_page_split_and_insert 八步</li>
+<li>分裂点怎么选：中点、方向与启发式</li>
+<li>新页从哪来：freelist、extent 预留与只许成功</li>
+<li>父页的分隔键：分裂如何递归向上</li>
+<li>树怎么长高：两条路线，同样不变的根</li>
+<li>手术可能白做：重组、重试与整场重来</li>
+<li>页内碎片：freeblock 链与整理的时机</li>
+<li>顺序写为什么不碎：分裂方向的暗示</li>
+<li>并发之下：树锁的释放时机与不可回滚契约</li>
+<li>两套实现对照表与实践线</li>
+<li>结语</li>
+</ul>
+<h2>前言：慢查询是表，页分裂是里</h2>
+
+之前那篇《慢查询实战》讲的是<strong>表</strong>：看到扫描行数爆炸、看到临时表、看到回表次数，然后改写 SQL、加覆盖索引、调改写阈值。但有几个常见现象，只有钻到存储引擎的页里才能真正解释：
+<ul>
+<li>为什么<strong>顺序主键</strong>建出来的索引紧凑，随机 UUID 建出来的索引碎片多、页数多？</li>
+<li>为什么大量插入后表空间文件涨得比数据本身多？那些多出来的页是哪来的？</li>
+<li>索引页为什么会有「填充率」一说，教科书上写的一半满，在源码里真的存在吗？</li>
+<li>「树高 +1」听起来是全局大事，它到底是一次性大动作还是一步步涨上去的？</li>
+</ul>
+
+答案全部收敛到同一个机制：<strong>页分裂</strong>（page split）。B+ 树的每个节点是一整页，页满了就必须撕成两半、把多出来的一半挂到父节点上；父节点因此可能再分裂，一路递归到根，根分裂则整棵树长高一层。
+
+本文把两套工业级实现的分裂路径并排放着读：<strong>SQLite</strong>（单文件、教科书级清晰的 <code>balance</code> 系列函数）与 <strong>InnoDB</strong>（生产级、有并发与表空间管理的 <code>btr_page_split_and_insert</code>）。两边的页格式天差地别，但手术流程惊人地一致：<strong>检查 → 选点 → 分配 → 改结构 → 搬记录 → 递归向上</strong>。
+
+与 WAL 篇一样，全部结论回源码取证；取证不到的（比如「50% 填充率」这句流行说法）会如实标注为源码不存在，并给出实际机制。
+<h2>先看案发现场：一页到底长什么样</h2>
+
+分裂是把一页变成两页，所以第一件事是弄清单页的构造。教科书说「节点里有 n 个键和 n+1 个指针」，但源码里的真实布局比这有趣得多——<strong>键和指针并不相邻存放</strong>。
+<h2>SQLite 的页：8 字节头与相向而生的两个数组</h2>
+
+SQLite 官方文件格式注释（<code>src/btreeInt.h</code>）画得很直白：
+<div class="codehilite"><pre><span></span><code>**      |----------------|
+**      | file header    |   100 bytes.  Page 1 only.
+**      |----------------|
+**      | page header    |   8 bytes for leaves.  12 bytes for interior nodes
+**      |----------------|
+**      | cell pointer   |   |  2 bytes per cell.  Sorted order.
+**      | array          |   |  Grows downward
+**      |                |   v
+**      |----------------|
+**      | unallocated    |
+**      | space          |
+**      |----------------|   ^  Grows upwards
+**      | cell content   |   |  Arbitrary order interspersed with freeblocks.
+**      | area           |   |  and free space fragments.
+**      |----------------|
+</code></pre></div>
+
+
+一页从上往下是「页头 → cell 指针数组（向低地址长）」，从下往上是「cell 内容区（向高地址长）」，两边<strong>相向而生，中间是未分配空隙</strong>。这个「相向生长」的结构是后面一切空间计算的几何基础：指针数组尾部到内容区起点的距离，就是这一页还能装多少东西的唯一真相。
+
+页头字段表同样在 <code>btreeInt.h</code>：
+<div class="codehilite"><pre><span></span><code>**   OFFSET   SIZE     DESCRIPTION
+**      0       1      Flags. 1: intkey, 2: zerodata, 4: leafdata, 8: leaf
+**      1       2      byte offset to the first freeblock
+**      3       2      number of cells on this page
+**      5       2      first byte of the cell content area
+**      7       1      number of fragmented free bytes
+**      8       4      Right child (the Ptr(N) value).  Omitted on leaves.
+</code></pre></div>
+
+
+叶子页 8 字节头，内部页多一个 4 字节右孩子指针共 12 字节。读页时 <code>btreeInitPage()</code> 把这些字段翻进内存结构：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">cellOffset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u16</span><span class="p">)(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">hdrOffset</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">8</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">childPtrSize</span><span class="p">);</span>
+<span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aCellIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">childPtrSize</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span>
+<span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aDataEnd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aData</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">pBt</span><span class="o">-&gt;</span><span class="n">pageSize</span><span class="p">;</span>
+<span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aDataOfst</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aData</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">childPtrSize</span><span class="p">;</span>
+<span class="w">  </span><span class="cm">/* EVIDENCE-OF: R-37002-32774 The two-byte integer at offset 3 gives the</span>
+<span class="cm">  ** number of cells on the page. */</span>
+<span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nCell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span>
+</code></pre></div>
+
+
+注意此时页内容<strong>一个字节都没读</strong>——只有页头进入内存。cell 何时真正解码，要等到查找或插入真的踩到它。
+<h2>InnoDB 的页：38 字节 FIL 头、哨兵记录与 slot 目录</h2>
+
+InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF = 14</code>，<code>include/univ.i</code>），开头是 38 字节 FIL 文件头（页号、校验和、页类型、LSN……），然后才是索引页头：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** index page header starts at this offset */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_HEADER</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">FSEG_PAGE_DATA</span><span class="p">;</span>
+
+<span class="cm">/*-----------------------------*/</span>
+<span class="cm">/** number of slots in page directory */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_N_DIR_SLOTS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="cm">/** pointer to record heap top */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_HEAP_TOP</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="cm">/** number of records in the heap, bit 15=flag: new-style compact page format */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_N_HEAP</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+<span class="cm">/** pointer to start of page free record list */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_FREE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span><span class="p">;</span>
+<span class="cm">/** number of bytes in deleted records */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_GARBAGE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span>
+</code></pre></div>
+
+
+（<code>include/page0types.h</code>。）字段继续往下：<code>PAGE_N_RECS = 16</code> 用户记录数、<code>PAGE_LEVEL = 26</code> 节点层高（叶子是 0）、<code>PAGE_INDEX_ID = 28</code>。用户记录的起点是：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** start of data on the page */</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_DATA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PAGE_HEADER</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">36</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">FSEG_HEADER_SIZE</span><span class="p">;</span>
+</code></pre></div>
+
+
+38（FIL）+ 36（字段区）+ 20（两个 10 字节段头，只在根页用）= <strong>94</strong>。也就是说 InnoDB 一页的前 94 字节与用户数据无关，页尾还有 8 字节的目录收尾区（<code>FIL_PAGE_DATA_END</code>）。真正干活的记录堆从 94 开始，而堆的最前面固定钉着两条 13 字节的哨兵：
+<div class="codehilite"><pre><span></span><code><span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">byte</span><span class="w"> </span><span class="n">infimum_supremum_compact</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/* the infimum record */</span>
+<span class="w">    </span><span class="mh">0x01</span><span class="w"> </span><span class="cm">/*n_owned=1*/</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span><span class="w"> </span><span class="mh">0x02</span><span class="w"> </span><span class="cm">/* heap_no=0, REC_STATUS_INFIMUM */</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span>
+<span class="w">    </span><span class="mh">0x0d</span><span class="w"> </span><span class="cm">/* pointer to supremum */</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;i&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;n&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;f&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;i&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;m&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;u&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;m&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="cm">/* the supremum record */</span>
+<span class="w">    </span><span class="mh">0x01</span><span class="w"> </span><span class="cm">/*n_owned=1*/</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span><span class="w"> </span><span class="mh">0x0b</span><span class="w"> </span><span class="cm">/* heap_no=1, REC_STATUS_SUPREMUM */</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span>
+<span class="w">    </span><span class="mh">0x00</span><span class="w"> </span><span class="cm">/* end of record list */</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;s&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;u&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;p&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;r&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;e&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;m&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;u&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;m&#39;</span><span class="p">};</span>
+</code></pre></div>
+
+
+<code>page_create_low()</code> 初始化空页时把这 30 字节 <code>memcpy</code> 到 <code>PAGE_DATA</code>。infimum 是记录链的头、supremum 是尾，<strong>每一条记录的「下一条」都能顺藤摸瓜走到头</strong>——这个设计在分裂搬记录时会反复出现：搬一半记录，本质是把一条单链从中间剪断再接两条。
+
+记录头的位布局（<code>include/rem0rec.ic</code> 的注释）值得逐字看一眼，它是「单链 + 目录」两条索引并存的证据：
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">byte</span><span class="w"> </span><span class="n">offset</span><span class="w">         </span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="n">bit</span><span class="w"> </span><span class="n">usage</span><span class="w"> </span><span class="kr">within</span><span class="w"> </span><span class="n">byte</span>
+<span class="w">        </span><span class="n">downward</span><span class="w"> </span><span class="n">from</span>
+<span class="w">        </span><span class="n">origin</span><span class="w"> </span><span class="o">-&gt;</span><span class="w">       </span><span class="mi">1</span><span class="w">       </span><span class="mi">8</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">relative</span><span class="w"> </span><span class="n">offset</span><span class="w"> </span><span class="kr">of</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="kd">record</span>
+<span class="w">                        </span><span class="mi">2</span><span class="w">       </span><span class="mi">8</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">relative</span><span class="w"> </span><span class="n">offset</span><span class="w"> </span><span class="kr">of</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="kd">record</span>
+<span class="w">                                  </span><span class="n">the</span><span class="w"> </span><span class="n">relative</span><span class="w"> </span><span class="n">offset</span><span class="w"> </span><span class="n">is</span><span class="w"> </span><span class="n">an</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="mi">16</span><span class="o">-</span><span class="n">bit</span>
+<span class="w">                                  </span><span class="n">integer</span><span class="o">:</span>
+<span class="w">                                  </span><span class="p">(</span><span class="n">offset_of_next_record</span>
+<span class="w">                                   </span><span class="o">-</span><span class="w"> </span><span class="n">offset_of_this_record</span><span class="p">)</span><span class="w"> </span><span class="n">mod</span><span class="w"> </span><span class="mi">64</span><span class="n">Ki</span><span class="p">,</span>
+<span class="w">                        </span><span class="mi">3</span><span class="w">       </span><span class="mi">3</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">status</span><span class="o">:</span>
+<span class="w">                                        </span><span class="mo">000</span><span class="o">=</span><span class="n">conventional</span><span class="w"> </span><span class="kd">record</span>
+<span class="w">                                        </span><span class="mo">001</span><span class="o">=</span><span class="n">node</span><span class="w"> </span><span class="n">pointer</span><span class="w"> </span><span class="kd">record </span><span class="p">(</span><span class="n">inside</span><span class="w"> </span><span class="n">B</span><span class="o">-</span><span class="n">tree</span><span class="p">)</span>
+<span class="w">                                        </span><span class="mo">010</span><span class="o">=</span><span class="n">infimum</span><span class="w"> </span><span class="kd">record</span>
+<span class="w">                                        </span><span class="mo">011</span><span class="o">=</span><span class="n">supremum</span><span class="w"> </span><span class="kd">record</span>
+<span class="w">                                </span><span class="mi">5</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="n">number</span>
+<span class="w">                        </span><span class="mi">4</span><span class="w">       </span><span class="mi">8</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">heap</span><span class="w"> </span><span class="n">number</span>
+<span class="w">                        </span><span class="mi">5</span><span class="w">       </span><span class="mi">4</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">n_owned</span>
+<span class="w">                                </span><span class="mi">4</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">info</span><span class="w"> </span><span class="n">bits</span>
+</code></pre></div>
+
+
+每条记录原点之前 5 字节头，第 1~2 字节存的是<strong>相对偏移</strong>（无符号、mod 64Ki），所以记录在页内可以乱序存放而链不乱——<code>page_get_middle_rec</code> 按序号跳到中点、<code>page_move_rec_list_*</code> 剪断重接，靠的都是这 2 字节。<code>n_owned</code> 则配合页尾目录：每 4~8 条记录分摊一个 slot，二分查找时先在页尾 slot 上走、再顺链微调。
+
+两种布局的对照到这里已经可以立住了：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th></th>
+<th>SQLite</th>
+<th>InnoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页头</td>
+<td>8 / 12 字节</td>
+<td>FIL 38 字节 + 字段区 36 字节 + 段头 20 字节</td>
+</tr>
+<tr>
+<td>记录寻址</td>
+<td>2 字节 cell 指针数组（排序，直接寻址）</td>
+<td>记录头 2 字节相对偏移单链 + 页尾 slot 目录</td>
+</tr>
+<tr>
+<td>页尾</td>
+<td>无</td>
+<td>8 字节目录区，slot 2 字节/个</td>
+</tr>
+<tr>
+<td>「下一条」</td>
+<td>无（数组天然有序）</td>
+<td>相对偏移 mod 64Ki</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>数组寻址快但插入要 memmove，链式插入 O(1) 但查找要走链</strong>——分裂时两者的代价结构正好反过来：SQLite 要搬指针也要搬内容，InnoDB 主要是把链剪断重接。
+<h2>插入前的三道检查：放不下是怎样被发现的</h2>
+
+「页满了」不是一个瞬间，而是三道依次收紧的检查。SQLite 这边，第一道在 <code>insertCell()</code>：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nOverflow</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">sz</span><span class="o">+</span><span class="mi">2</span><span class="o">&gt;</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nFree</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pTemp</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="n">memcpy</span><span class="p">(</span><span class="n">pTemp</span><span class="p">,</span><span class="w"> </span><span class="n">pCell</span><span class="p">,</span><span class="w"> </span><span class="n">sz</span><span class="p">);</span>
+<span class="w">      </span><span class="n">pCell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pTemp</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">put4byte</span><span class="p">(</span><span class="n">pCell</span><span class="p">,</span><span class="w"> </span><span class="n">iChild</span><span class="p">);</span>
+<span class="w">    </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nOverflow</span><span class="o">++</span><span class="p">;</span>
+<span class="w">    </span><span class="cm">/* Comparison against ArraySize-1 since we hold back one extra slot</span>
+<span class="cm">    ** as a contingency.  In other words, never need more than 3 overflow</span>
+<span class="cm">    ** slots but 4 are allocated, just to be safe. */</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">ArraySize</span><span class="p">(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">apOvfl</span><span class="p">)</span><span class="mi">-1</span><span class="w"> </span><span class="p">);</span>
+<span class="w">    </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">apOvfl</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pCell</span><span class="p">;</span>
+<span class="w">    </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aiOvfl</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u16</span><span class="p">)</span><span class="n">i</span><span class="p">;</span>
+</code></pre></div>
+
+
+新 cell 需要 <code>sz+2</code> 字节（内容 + 2 字节指针），超过本页空闲 <code>nFree</code> 就<strong>不落页</strong>，挂进进程内的 overflow 槽（最多用 3 个、分配 4 个）。注意此时磁盘上的页毫发无损——溢出是内存里的账，等 <code>balance()</code> 来清算。这是个重要的设计：<strong>分裂的决策可以攒着，不必每插一条就重排一次</strong>。
+
+第二道在 <code>allocateSpace()</code>，处理「未分配空隙不够但页里其实有空洞」的情况：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* The request could not be fulfilled using a freelist slot.  Check</span>
+<span class="cm">  ** to see if defragmentation is necessary.</span>
+<span class="cm">  */</span>
+<span class="w">  </span><span class="n">testcase</span><span class="p">(</span><span class="w"> </span><span class="n">gap</span><span class="o">+</span><span class="mi">2</span><span class="o">+</span><span class="n">nByte</span><span class="o">==</span><span class="n">top</span><span class="w"> </span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">gap</span><span class="o">+</span><span class="mi">2</span><span class="o">+</span><span class="n">nByte</span><span class="o">&gt;</span><span class="n">top</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nCell</span><span class="o">&gt;</span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">CORRUPT_DB</span><span class="w"> </span><span class="p">);</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nFree</span><span class="o">&gt;=</span><span class="mi">0</span><span class="w"> </span><span class="p">);</span>
+<span class="w">    </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">defragmentPage</span><span class="p">(</span><span class="n">pPage</span><span class="p">,</span><span class="w"> </span><span class="n">MIN</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nFree</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="o">+</span><span class="n">nByte</span><span class="p">)));</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">rc</span><span class="p">;</span>
+<span class="w">    </span><span class="n">top</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get2byteNotZero</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">5</span><span class="p">]);</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">gap</span><span class="o">+</span><span class="mi">2</span><span class="o">+</span><span class="n">nByte</span><span class="o">&lt;=</span><span class="n">top</span><span class="w"> </span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+「指针数组尾部到内容区起点」的空隙装不下时，先调 <code>defragmentPage</code> 把散落的 cell 挤紧再试——<strong>能整理就不分裂</strong>。整理后还放不下，才回到第一道走 overflow。
+
+第三道是删除路径的边界检查 <code>dropCell()</code>，顺带展示了这个几何结构的腐败检测：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get2byte</span><span class="p">(</span><span class="n">ptr</span><span class="p">);</span>
+<span class="w">  </span><span class="n">hdr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">hdrOffset</span><span class="p">;</span>
+<span class="w">  </span><span class="n">testcase</span><span class="p">(</span><span class="w"> </span><span class="n">pc</span><span class="o">==</span><span class="p">(</span><span class="n">u32</span><span class="p">)</span><span class="n">get2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">5</span><span class="p">])</span><span class="w"> </span><span class="p">);</span>
+<span class="w">  </span><span class="n">testcase</span><span class="p">(</span><span class="w"> </span><span class="n">pc</span><span class="o">+</span><span class="n">sz</span><span class="o">==</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">pBt</span><span class="o">-&gt;</span><span class="n">usableSize</span><span class="w"> </span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pc</span><span class="o">+</span><span class="n">sz</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">pBt</span><span class="o">-&gt;</span><span class="n">usableSize</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="o">*</span><span class="n">pRC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_CORRUPT_BKPT</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">freeSpace</span><span class="p">(</span><span class="n">pPage</span><span class="p">,</span><span class="w"> </span><span class="n">pc</span><span class="p">,</span><span class="w"> </span><span class="n">sz</span><span class="p">);</span>
+</code></pre></div>
+
+
+「偏移 + 长度」越出可用页尾即判库损坏——数组结构的每一条边界都是可计算的，算不出来就是坏的。
+
+InnoDB 的对应路径分乐观与悲观两级。乐观插入 <code>btr_cur_optimistic_insert()</code>（<code>btr/btr0cur.cc</code>）先算容量：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">ulint</span><span class="w"> </span><span class="n">max_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">page_get_max_insert_size_after_reorganize</span><span class="p">(</span><span class="n">page</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">page_has_garbage</span><span class="p">(</span><span class="n">page</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">max_size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rec_size</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">max_size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">BTR_CUR_PAGE_REORGANIZE_LIMIT</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">        </span><span class="n">page_get_n_recs</span><span class="p">(</span><span class="n">page</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">        </span><span class="n">page_get_max_insert_size</span><span class="p">(</span><span class="n">page</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rec_size</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">goto</span><span class="w"> </span><span class="n">fail</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">max_size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rec_size</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">goto</span><span class="w"> </span><span class="n">fail</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>fail:</code> 标签给 <code>err = DB_FAIL</code>。判据同样是两级：<strong>重组后能不能放下</strong>（<code>max_insert_size_after_reorganize</code>，先假设整理过）与<strong>原样能不能放下</strong>（<code>max_insert_size</code>）——与 SQLite 的「先 defragment 再说」如出一辙。配套宏说明重组的门槛：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** In the optimistic insert, if the insert does not fit, but this much space</span>
+<span class="cm">can be released by page reorganize, then it is reorganized */</span>
+<span class="cp">#define BTR_CUR_PAGE_REORGANIZE_LIMIT (UNIV_PAGE_SIZE / 32)</span>
+</code></pre></div>
+
+
+16 KB 的 1/32 = 512 字节：空洞超过 512 字节就值得重组一次。
+
+<code>DB_FAIL</code> 之后进入悲观路径 <code>btr_cur_pessimistic_insert()</code>，在这里分裂被正式分流——<strong>根页与普通页是两条路</strong>：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dict_index_get_page</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="w"> </span><span class="o">==</span>
+<span class="w">      </span><span class="n">btr_cur_get_block</span><span class="p">(</span><span class="n">cursor</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">page</span><span class="p">.</span><span class="n">id</span><span class="p">.</span><span class="n">page_no</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/* The page is the root page */</span>
+<span class="w">    </span><span class="o">*</span><span class="n">rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_root_raise_and_insert</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span><span class="w"> </span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">offsets</span><span class="p">,</span><span class="w"> </span><span class="n">heap</span><span class="p">,</span><span class="w"> </span><span class="n">entry</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="o">*</span><span class="n">rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_split_and_insert</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span><span class="w"> </span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">offsets</span><span class="p">,</span><span class="w"> </span><span class="n">heap</span><span class="p">,</span><span class="w"> </span><span class="n">entry</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!*</span><span class="n">rec</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">DB_OUT_OF_FILE_SPACE</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+最底层的「放不下」则由 <code>page_mem_alloc_heap()</code> 的返回值宣判（<code>page/page0page.cc</code>）：堆顶加 <code>need</code> 超过可用空间就 <code>return (nullptr)</code>。三道检查、两级路径、一个失败出口——放不下是怎样被一层层发现的，链路完整了。
+<h2>什么时候值得动手术：重组阈值与「50% 填充」的真相</h2>
+
+SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一个算式：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">NEVER</span><span class="p">(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nFree</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">btreeComputeFreeSpace</span><span class="p">(</span><span class="n">pPage</span><span class="p">)</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nOverflow</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nFree</span><span class="o">*</span><span class="mi">3</span><span class="o">&lt;=</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">pCur</span><span class="o">-&gt;</span><span class="n">pBt</span><span class="o">-&gt;</span><span class="n">usableSize</span><span class="o">*</span><span class="mi">2</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="cm">/* No rebalance required as long as:</span>
+<span class="cm">      **   (1) There are no overflow cells</span>
+<span class="cm">      **   (2) The amount of free space on the page is less than 2/3rds of</span>
+<span class="cm">      **       the total usable space on the page. */</span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span>
+</code></pre></div>
+
+
+两条同时满足就不重排：<strong>没有溢出 cell，且空闲空间不超过可用区的 2/3</strong>。注意这是重排的<strong>下</strong>界——页得空到 1/3 以下才值得动，而不是满了才动。攒一批 overflow 一起处理，均摊了每次分裂的固定开销。
+
+现在说那句流行的话：「B+ 树页分裂后每页约 50% 填充」。<strong>InnoDB 源码里没有 "50%" 这个字面量</strong>（已 grep 确认），实际机制是按记录条数取中点（<code>include/page0page.ic</code>）：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** Returns the middle record of the records on the page. If there is an</span>
+<span class="cm"> even number of records in the list, returns the first record of the</span>
+<span class="cm"> upper half-list.</span>
+<span class="cm"> @return middle record */</span>
+<span class="k">static</span><span class="w"> </span><span class="kr">inline</span><span class="w"> </span><span class="n">rec_t</span><span class="w"> </span><span class="o">*</span><span class="nf">page_get_middle_rec</span><span class="p">(</span><span class="n">page_t</span><span class="w"> </span><span class="o">*</span><span class="n">page</span><span class="p">)</span><span class="w"> </span><span class="cm">/*!&lt; in: page */</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="n">ulint</span><span class="w"> </span><span class="n">middle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">page_get_n_recs</span><span class="p">(</span><span class="n">page</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">PAGE_HEAP_NO_USER_LOW</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="n">page_rec_get_nth</span><span class="p">(</span><span class="n">page</span><span class="p">,</span><span class="w"> </span><span class="n">middle</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>(n_recs + 2) / 2</code>——按<strong>条数</strong>取中点，不是按字节数。一条 100 字节的记录和一条 800 字节的记录各算一票，所以分裂后的两半字节数经常明显不等；再加上左右倾斜的启发式（下文第五节），「一半满」只是条数意义的近似。教科书的 50% 是对<strong>条数</strong>说的，也是对<strong>均匀记录</strong>假设下对字节说的——这句话的严谨版本是：<strong>中点按条数切，字节分布看记录大小的运气</strong>。
+
+而 SQLite 连中点都不保证：它的配平目标写在 <code>balance_nonroot()</code> 的注释里，是「若干页装下全部 cell、每页都不超 <code>usableSpace</code>」的装箱问题，允许结果是 2 页、3 页甚至更多，每页的填充率由 cell 大小的组合决定。
+<h2>SQLite 的手术室：balance_nonroot 的配平账本</h2>
+
+<code>balance()</code> 是入口，注释列出它调度的三个子程序——<code>balance_quick()</code>（快路径，一分为二）、<code>balance_deeper()</code>（长高）、<code>balance_nonroot()</code>（通用配平）。真正的重分配在 <code>balance_nonroot()</code>，第一件事是记账：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/*</span>
+<span class="cm">  ** Figure out the number of pages needed to hold all b.nCell cells.</span>
+<span class="cm">  ** Store this number in &quot;k&quot;.  Also compute szNew[] which is the total</span>
+<span class="cm">  ** size of all cells on the i-th page and cntNew[] which is the index</span>
+<span class="cm">  ** in b.apCell[] of the cell that divides page i from page i+1. </span>
+<span class="cm">  ** cntNew[k] should equal b.nCell.</span>
+<span class="cm">  **</span>
+<span class="cm">  ** Values computed by this block:</span>
+<span class="cm">  **</span>
+<span class="cm">  **           k: The total number of sibling pages</span>
+<span class="cm">  **    szNew[i]: Spaced used on the i-th sibling page.</span>
+<span class="cm">  **   cntNew[i]: Index in b.apCell[] and b.szCell[] for the first cell to</span>
+<span class="cm">  **              the right of the i-th sibling page.</span>
+<span class="cm">  ** usableSpace: Number of bytes of space available on each sibling.</span>
+<span class="cm">  **</span>
+<span class="cm">  */</span>
+</code></pre></div>
+
+
+先取出本页与左右兄弟页的<strong>全部 cell 摊平</strong>，然后回答三个问题：装完需要几页（<code>k</code>）、每页占多少字节（<code>szNew[]</code>）、每一刀切在哪（<code>cntNew[]</code>）。接着是配平循环：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nOld</span><span class="p">;</span>
+<span class="w">  </span><span class="k">for</span><span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">&lt;</span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">){</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">sz</span><span class="p">;</span>
+<span class="w">    </span><span class="k">while</span><span class="p">(</span><span class="w"> </span><span class="n">szNew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">&gt;</span><span class="n">usableSpace</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="o">&gt;=</span><span class="n">k</span><span class="w"> </span><span class="p">){</span>
+<span class="w">        </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">k</span><span class="o">&gt;</span><span class="n">NB</span><span class="o">+</span><span class="mi">2</span><span class="w"> </span><span class="p">){</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SQLITE_CORRUPT_BKPT</span><span class="p">;</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">balance_cleanup</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="n">szNew</span><span class="p">[</span><span class="n">k</span><span class="mi">-1</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="n">cntNew</span><span class="p">[</span><span class="n">k</span><span class="mi">-1</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">nCell</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">sz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cachedCellSize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">cntNew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="mi">-1</span><span class="p">);</span>
+<span class="w">      </span><span class="n">szNew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">sz</span><span class="p">;</span>
+<span class="w">      </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="o">!</span><span class="n">leafData</span><span class="w"> </span><span class="p">){</span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">cntNew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">&lt;</span><span class="n">b</span><span class="p">.</span><span class="n">nCell</span><span class="w"> </span><span class="p">){</span>
+<span class="w">          </span><span class="n">sz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cachedCellSize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">cntNew</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+<span class="w">        </span><span class="p">}</span><span class="k">else</span><span class="p">{</span>
+<span class="w">          </span><span class="n">sz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">szNew</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">sz</span><span class="p">;</span>
+<span class="w">      </span><span class="n">cntNew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">--</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+
+逐行读：某页累计超过 <code>usableSpace</code>，就把最右边的 cell 挪给下一页（<code>szNew[i] -= sz; szNew[i+1] += sz</code>），挪到本页装下为止；如果后面根本没有下一页，<code>k = i+2</code> <strong>新开一页</strong>——2 页变 3 页就是在这里发生的。每搬一个 cell 都按真实字节数增减，这是精确的装箱，不是拍脑袋的对半。上限被常量卡死：
+<div class="codehilite"><pre><span></span><code><span class="cp">#define NN 1             </span><span class="cm">/* Number of neighbors on either side of pPage */</span>
+<span class="cp">#define NB 3             </span><span class="cm">/* (NN*2+1): Total pages involved in the balance */</span>
+</code></pre></div>
+
+
+参与平衡的是本页加左右各一个兄弟（NB=3），新页数上限 <code>NB+2 = 5</code>，超出直接 <code>SQLITE_CORRUPT_BKPT</code>。NB 上方的注释还有句实话：<code>NB has been 3 since the inception of SQLite and we have never tested any other value.</code>
+
+装箱只是第一轮，注释说它有偏：<code>The packing computed by the previous block is biased toward the siblings on the left side ... This adjustment is not optional.</code>——右兄弟可能被搬空，必须再做一次调整。<strong>配平是两次扫描：先装、再纠偏。</strong>
+
+分裂的终点是把新页挂回树上。<code>balance_quick()</code> 的注释把分隔键的构造讲得非常细：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="cm">/* Create a divider cell to insert into pParent. The divider cell</span>
+<span class="cm">    ** consists of a 4-byte page number (the page number of pPage) and</span>
+<span class="cm">    ** a variable length key value (which must be the same value as the</span>
+<span class="cm">    ** largest key on pPage).</span>
+<span class="cm">    **</span>
+<span class="cm">    ** To find the largest key value on pPage, first find the right-most</span>
+<span class="cm">    ** cell on pPage. The first two fields of this cell are the</span>
+<span class="cm">    ** record-length (a variable length integer at most 32-bits in size)</span>
+<span class="cm">    ** and the key value (a variable length integer, may have any value).</span>
+<span class="cm">    ** The first of the while(...) loops below skips over the record-length</span>
+<span class="cm">    ** field. The second while(...) loop copies the key value from the</span>
+<span class="cm">    ** cell on pPage into the pSpace buffer.</span>
+<span class="cm">    */</span>
+</code></pre></div>
+
+
+分隔键 =「被分裂页的最大 key + 该页页号」，从原页最右 cell 现场抠出来，然后：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="cm">/* Insert the new divider cell into pParent. */</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insertCell</span><span class="p">(</span><span class="n">pParent</span><span class="p">,</span><span class="w"> </span><span class="n">pParent</span><span class="o">-&gt;</span><span class="n">nCell</span><span class="p">,</span><span class="w"> </span><span class="n">pSpace</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)(</span><span class="n">pOut</span><span class="o">-</span><span class="n">pSpace</span><span class="p">),</span>
+<span class="w">                      </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">pgno</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+
+（上面第二行的 <code>(int)(pOut-pSpace)</code> 以源码为准，此处为示意——正文引用以下方 <code>balance_nonroot</code> 的通用路径为准。）通用路径的对应两行则毫无修饰：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Insert new divider cells into pParent. */</span>
+<span class="w">  </span><span class="k">for</span><span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">&lt;</span><span class="n">nNew</span><span class="mi">-1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">){</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insertCell</span><span class="p">(</span><span class="n">pParent</span><span class="p">,</span><span class="w"> </span><span class="n">nxDiv</span><span class="o">+</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">pCell</span><span class="p">,</span><span class="w"> </span><span class="n">sz</span><span class="p">,</span><span class="w"> </span><span class="n">pTemp</span><span class="p">,</span><span class="w"> </span><span class="n">pNew</span><span class="o">-&gt;</span><span class="n">pgno</span><span class="p">);</span>
+</code></pre></div>
+
+
+每个新页（除最右）都向父页补一个分隔 cell。而父页放不下这个新 cell 时——回想第一道检查——它会变成父页的 overflow，等父页的 <code>balance()</code> 清算。<strong>分裂就是这样自下而上传播的。</strong>
+<h2>InnoDB 的手术单：btr_page_split_and_insert 八步</h2>
+
+InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），头注释就是一张手术须知：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** Splits an index page to halves and inserts the tuple. It is assumed</span>
+<span class="cm"> that mtr holds an x-latch to the index tree. NOTE: the tree x-latch is</span>
+<span class="cm"> released within this function! NOTE that the operation of this</span>
+<span class="cm"> function must always succeed, we cannot reverse it: therefore enough</span>
+<span class="cm"> free disk space (2 pages) must be guaranteed to be available before</span>
+<span class="cm"> this function is called.</span>
+<span class="cm"> @return inserted record */</span>
+</code></pre></div>
+
+
+三句话三个承诺：树上已有 X 锁、锁会在函数内提前释放、<strong>只许成功不许回滚</strong>——所以调用前必须保证 2 页的空闲磁盘。WAL 篇讲过的「先记账再动数据」在这里换了个形态：redo 保证崩溃后能重放，但重放中途没有回滚，所以空间必须先备齐。
+
+函数主体用编号注释标出八个步骤，取证到的关键节点：
+
+<strong>第 1 步——选分裂点：</strong>
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* 1. Decide the split record; split_rec == NULL means that the</span>
+<span class="cm">  tuple to be inserted should be the first record on the upper</span>
+<span class="cm">  half-page */</span>
+<span class="w">  </span><span class="n">insert_left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n_iterations</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">direction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">FSP_UP</span><span class="p">;</span>
+<span class="w">    </span><span class="n">hint_page_no</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">page_no</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="n">split_rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_get_split_rec</span><span class="p">(</span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">);</span>
+</code></pre></div>
+
+
+<strong>第 2 步——中点兜底 + 分配新页：</strong>
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">page_get_n_recs</span><span class="p">(</span><span class="n">page</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">split_rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">page_get_middle_rec</span><span class="p">(</span><span class="n">page</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">btr_page_tuple_smaller</span><span class="p">(</span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">,</span><span class="w"> </span><span class="n">offsets</span><span class="p">,</span><span class="w"> </span><span class="n">n_uniq</span><span class="p">,</span><span class="w"> </span><span class="n">heap</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">split_rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">page_rec_get_next</span><span class="p">(</span><span class="n">page_get_infimum_rec</span><span class="p">(</span><span class="n">page</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">split_rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="cm">/* 2. Allocate a new page to the index */</span>
+<span class="w">  </span><span class="n">new_block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_alloc</span><span class="p">(</span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">hint_page_no</span><span class="p">,</span><span class="w"> </span><span class="n">direction</span><span class="p">,</span>
+<span class="w">                             </span><span class="n">btr_page_get_level</span><span class="p">(</span><span class="n">page</span><span class="p">),</span><span class="w"> </span><span class="n">mtr</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+</code></pre></div>
+
+
+<strong>第 5 步——把一半记录搬到新页：</strong>
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* 5. Move then the records to the new page */</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">FSP_DOWN</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/*          fputs(&quot;Split left\n&quot;, stderr); */</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">false</span>
+<span class="cp">#ifdef UNIV_ZIP_COPY</span>
+<span class="w">        </span><span class="o">||</span><span class="w"> </span><span class="n">page_zip</span>
+<span class="cp">#endif </span><span class="cm">/* UNIV_ZIP_COPY */</span>
+<span class="w">        </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">page_move_rec_list_start</span><span class="p">(</span><span class="n">new_block</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">,</span><span class="w"> </span><span class="n">move_limit</span><span class="p">,</span>
+<span class="w">                                     </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</code></pre></div>
+
+
+（右搬分支在后面调 <code>page_move_rec_list_end</code>。）中间还有第 3 步算上半页首记录、第 4 步 <code>btr_attach_half_pages</code> 改树结构、第 6 步决定元组插进哪半、第 7 步重定位光标、第 8 步插入。完整的八步单：
+<ol>
+<li><code>/* 1. Decide the split record; ... */</code> 选分裂点</li>
+<li><code>/* 2. Allocate a new page to the index */</code> 分配新页</li>
+<li><code>/* 3. Calculate the first record on the upper half-page...*/</code> 算上半页首记录</li>
+<li><code>/* 4. Do first the modifications in the tree structure */</code> 挂新页、改父指针（<code>btr_attach_half_pages</code>）</li>
+<li><code>/* 5. Move then the records to the new page */</code> 搬记录</li>
+<li><code>/* 6. ... Decide the page where the tuple should be inserted */</code> 决定插入哪半</li>
+<li><code>/* 7. Reposition the cursor for insert...*/</code> 重定位光标</li>
+<li><code>/* 8. If insert did not fit, try page reorganization...*/</code> 插不进就重组再试</li>
+</ol>
+
+第 8 步的失败处理是整段最生猛的一行——<code>n_iterations++; goto func_start;</code>，<strong>整场重来</strong>，回到第 1 步换个分裂点再来一轮。第 4 步里 <code>btr_attach_half_pages</code> 的注释则是递归的证据：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Build the node pointer (= node key and page address) for the upper</span>
+<span class="cm">  half */</span>
+
+<span class="w">  </span><span class="n">node_ptr_upper</span><span class="w"> </span><span class="o">=</span>
+<span class="w">      </span><span class="n">dict_index_build_node_ptr</span><span class="p">(</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">split_rec</span><span class="p">,</span><span class="w"> </span><span class="n">upper_page_no</span><span class="p">,</span><span class="w"> </span><span class="n">heap</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="p">);</span>
+
+<span class="w">  </span><span class="cm">/* Insert it next to the pointer to the lower half. Note that this</span>
+<span class="cm">  may generate recursion leading to a split on the higher level. */</span>
+
+<span class="w">  </span><span class="n">btr_insert_on_non_leaf_level</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">node_ptr_upper</span><span class="p">,</span>
+<span class="w">                               </span><span class="n">UT_LOCATION_HERE</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>may generate recursion leading to a split on the higher level</code>——父层可能因此再分裂，一路涨到根。
+<h2>分裂点怎么选：中点、方向与启发式</h2>
+
+分裂点的选择直接决定两半的均衡，两边策略不同。InnoDB 是「启发式优先、中点兜底」：先 <code>btr_page_get_split_rec</code> 按插入方向试导向右（<code>FSP_UP</code>、<code>hint_page_no = page_no + 1</code>）或向左，失败了才退回 <code>page_get_middle_rec</code> 按条数取中。更极端的情况是只有一条记录时，按新元组与它的大小关系决定 <code>split_rec</code> 还是 <code>nullptr</code>（新元组直接成为上半页第一条）。
+
+<code>split_rec == NULL</code> 那条分支值得留意：<strong>待插入的元组本身就是分裂点</strong>——它将成为右半页的第一条记录。这让「往满页里插一个比所有人都大/小的 key」这种边界情况不必先插后搬，直接切在待插入位置。
+
+SQLite 的 <code>balance_nonroot</code> 不选点，它<strong>摊平后重新装箱</strong>：不关心原来哪条在哪，只按 <code>cntNew[]</code> 切刀重装 2~3 页。两者哲学差异在此：
+<ul>
+<li><strong>InnoDB</strong>：保持链的相对次序，从中间剪断，O(半页) 搬移，方向启发式让顺序追加的分裂点尽量靠后（配合新页分配的 <code>hint_page_no</code>，让同向插入的页号连号）。</li>
+<li><strong>SQLite</strong>：全量摊平重排，用两次扫描保证每页都在 <code>usableSpace</code> 内，代价是 cell 指针与内容都要动，换来的是「一次 balance 解决所有历史欠账」。</li>
+</ul>
+<h2>新页从哪来：freelist、extent 预留与只许成功</h2>
+
+分裂的第二个关键输入是新页。SQLite 走文件级 freelist——空闲页以 trunk/leaf 两级结构链在第 1 页偏移 32 处：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* If control flows to this point, then it was not possible to add the</span>
+<span class="cm">  ** the page being freed as a leaf page of the first trunk in the free-list.</span>
+<span class="cm">  ** Possibly because the free-list is empty, or possibly because the</span>
+<span class="cm">  ** first trunk in the free-list is full. Either way, the page being freed</span>
+<span class="cm">  ** will become the new first trunk page in the free-list.</span>
+<span class="cm">  */</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pPage</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">SQLITE_OK</span><span class="o">!=</span><span class="p">(</span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btreeGetPage</span><span class="p">(</span><span class="n">pBt</span><span class="p">,</span><span class="w"> </span><span class="n">iPage</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">pPage</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="k">goto</span><span class="w"> </span><span class="n">freepage_out</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3PagerWrite</span><span class="p">(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">pDbPage</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">!=</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="k">goto</span><span class="w"> </span><span class="n">freepage_out</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">put4byte</span><span class="p">(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">,</span><span class="w"> </span><span class="n">iTrunk</span><span class="p">);</span>
+<span class="w">  </span><span class="n">put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="n">put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pPage1</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="mi">32</span><span class="p">],</span><span class="w"> </span><span class="n">iPage</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>freePage2()</code> 把被删的页挂为新 trunk（页头 4 字节指向下个 trunk、第 5 字节记 leaf 数），分配端 <code>allocateBtreePage()</code> 从同一位置取：<code>iTrunk = get4byte(&amp;pPage1-&gt;aData[32]);</code>。<strong>删表的页变成分裂的新页</strong>，文件因此不必一直长。
+
+InnoDB 这边是段/extent 分配，且把「只许成功」贯彻成了前置预留。悲观插入在进分裂函数之前先留够空间（<code>btr0cur.cc</code>）：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="n">flags</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">BTR_NO_UNDO_LOG_FLAG</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">index</span><span class="o">-&gt;</span><span class="n">table</span><span class="o">-&gt;</span><span class="n">is_intrinsic</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/* First reserve enough free space for the file segments</span>
+<span class="cm">    of the index tree, so that the insert will not fail because</span>
+<span class="cm">    of lack of space */</span>
+
+<span class="w">    </span><span class="n">ulint</span><span class="w"> </span><span class="n">n_extents</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">tree_height</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">16</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">success</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fsp_reserve_free_extents</span><span class="p">(</span><span class="o">&amp;</span><span class="n">n_reserved</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="o">-&gt;</span><span class="n">space</span><span class="p">,</span><span class="w"> </span><span class="n">n_extents</span><span class="p">,</span>
+<span class="w">                                       </span><span class="n">FSP_NORMAL</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">success</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="n">DB_OUT_OF_FILE_SPACE</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+预留量随树高走（<code>tree_height / 16 + 3</code> 个 extent），树越高、分裂波及层越多、预留越多——<strong>把「递归长高可能连续分配多页」的最坏情况一次算进去</strong>。分配本体 <code>btr_page_alloc</code> 的文档则坦承这个保证有多虚：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Parameter true below states that the caller has made the</span>
+<span class="cm">  reservation for free extents, and thus we know that a page can</span>
+<span class="cm">  be allocated. However, for the cases where the file size is</span>
+<span class="cm">  either smaller than an extent or same as the initial size,</span>
+<span class="cm">  the fsp_reserve_free_extents returns reserved extents as 0.</span>
+<span class="cm">  This can be true even if the initial allocation is about</span>
+<span class="cm">  to be completely filled up. The function below is a point</span>
+<span class="cm">  of no return and expects that enough space is already allocated.</span>
+<span class="cm">  However, the callers of this function rely on the success/failure</span>
+<span class="cm">  return by fsp_reserve_free_extents, which does not really guarantee</span>
+<span class="cm">  that a whole extent has been reserved.</span>
+<span class="cm">  The function fseg_alloc_free_page_general should attempt to ensure</span>
+<span class="cm">  enough space is reserved before proceeding ahead. */</span>
+</code></pre></div>
+
+
+<code>point of no return</code>——过了这道门就没有回头路，所以函数文档要求「空间已就位」；预留本身又「并不真的保证留了一整个 extent」，最后的兜底是 <code>btr_page_alloc</code> 返回 NULL → 分裂返回 nullptr → 上层 <code>DB_OUT_OF_FILE_SPACE</code>。<strong>把失败挡在门外（预留）+ 门内尽力（point of no return）+ 兜底错误码</strong>，三层才撑起头注释那句 "must always succeed"。
+<h2>父页的分隔键：分裂如何递归向上</h2>
+
+两边的递归机制同构：新页需要一个指向父层的分隔键，父层放不下就自己分裂。InnoDB 的递归入口是 <code>btr_insert_on_non_leaf_level()</code>（<code>btr0btr.cc</code>，注意 8.x 实名如此，不是 <code>btr_cur_insert_on_non_leaf_level</code>），<code>btr_attach_half_pages</code> 调用它时的注释已明说 <code>may generate recursion</code>。函数内部：
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="n">btr_cur_search_to_nth_level</span><span class="p">(</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">,</span><span class="w"> </span><span class="n">PAGE_CUR_LE</span><span class="p">,</span>
+<span class="w">                                  </span><span class="n">BTR_CONT_MODIFY_TREE</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">                                  </span><span class="n">location</span><span class="p">.</span><span class="n">filename</span><span class="p">,</span><span class="w"> </span><span class="n">location</span><span class="p">.</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">err</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">DB_FAIL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_cur_pessimistic_insert</span><span class="p">(</span>
+<span class="w">        </span><span class="n">flags</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">BTR_NO_LOCKING_FLAG</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">BTR_KEEP_SYS_FLAG</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">BTR_NO_UNDO_LOG_FLAG</span><span class="p">,</span>
+<span class="w">        </span><span class="o">&amp;</span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">offsets</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">heap</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">rec</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">dummy_big_rec</span><span class="p">,</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+<span class="w">    </span><span class="n">ut_a</span><span class="p">(</span><span class="n">err</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">DB_SUCCESS</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+先在 <code>level + 1</code> 层乐观插入，<code>DB_FAIL</code> 转悲观（悲观就可能又走到分裂），<code>ut_a(err == DB_SUCCESS)</code> 断言必须成功——而 <code>BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG</code> 表明这层递归是在已经持有树锁、已在外层记过账的语境下做的，<strong>锁与日志的边界是外层定的，递归层只管结构</strong>。
+
+SQLite 的对应就是 <code>insertCell(pParent, ...)</code> 那行——父页放不下自然变 overflow，外层 do-loop 再对父页调 <code>balance()</code>。传播的驱动力不同（InnoDB 显式递归、SQLite 靠 overflow 攒账 + 循环），但方向一致：<strong>分裂永远从叶子往上冒泡，根是最后一个让步的</strong>。
+
+冒泡的另一面是锁范围：InnoDB 在叶子分裂、且新元组确定能放下时会提前放树锁：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* If the split is made on the leaf level and the insert will fit</span>
+<span class="cm">  on the appropriate half-page, we may release the tree x-latch.</span>
+<span class="cm">  We can then move the records after releasing the tree latch,</span>
+<span class="cm">  thus reducing the tree latch contention. */</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">mtr</span><span class="o">-&gt;</span><span class="n">memo_release</span><span class="p">(</span><span class="n">dict_index_get_lock</span><span class="p">(</span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="p">),</span>
+<span class="w">                      </span><span class="n">MTR_MEMO_X_LOCK</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">MTR_MEMO_SX_LOCK</span><span class="p">);</span>
+</code></pre></div>
+
+
+<strong>搬记录（慢活）排在放锁之后</strong>——树锁只覆盖结构修改，不覆盖数据搬移，把锁的持有窗口压到最短。这是教科书的「先锁结构再放锁」手法在分裂里的具体形态。
+<h2>树怎么长高：两条路线，同样不变的根</h2>
+
+根页分裂是分裂的极端形态。两边都遵守同一条不变式：<strong>根页号永远不变</strong>（文件头/meta 里记的地址不能动），变的是根页的内容与角色。
+
+SQLite 走 <code>balance_deeper()</code>——<strong>原地长高</strong>。<code>balance()</code> 的根页分支：
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="p">}</span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="p">(</span><span class="n">iPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pCur</span><span class="o">-&gt;</span><span class="n">iPage</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="p">){</span>
+<span class="w">      </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nOverflow</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">anotherValidCursor</span><span class="p">(</span><span class="n">pCur</span><span class="p">))</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
+<span class="w">        </span><span class="cm">/* The root page of the b-tree is overfull. In this case call the</span>
+<span class="cm">        ** balance_deeper() function to create a new child for the root-page</span>
+<span class="cm">        ** and copy the current contents of the root-page to it. The</span>
+<span class="cm">        ** next iteration of the do-loop will balance the child page.</span>
+<span class="cm">        */</span>
+<span class="w">        </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">balance_deeper_called</span><span class="o">==</span><span class="mi">0</span><span class="w"> </span><span class="p">);</span>
+<span class="w">        </span><span class="n">VVA_ONLY</span><span class="p">(</span><span class="w"> </span><span class="n">balance_deeper_called</span><span class="o">++</span><span class="w"> </span><span class="p">);</span>
+<span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">balance_deeper</span><span class="p">(</span><span class="n">pPage</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">pCur</span><span class="o">-&gt;</span><span class="n">apPage</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+</code></pre></div>
+
+
+<code>balance_deeper()</code> 分配新页、把根的内容整体搬下去：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Make pRoot, the root page of the b-tree, writable. Allocate a new</span>
+<span class="cm">  ** page that will become the new right-child of pPage. Copy the contents</span>
+<span class="cm">  ** of the node stored on pRoot into the new child page.</span>
+<span class="cm">  */</span>
+<span class="w">  </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqlite3PagerWrite</span><span class="p">(</span><span class="n">pRoot</span><span class="o">-&gt;</span><span class="n">pDbPage</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">allocateBtreePage</span><span class="p">(</span><span class="n">pBt</span><span class="p">,</span><span class="o">&amp;</span><span class="n">pChild</span><span class="p">,</span><span class="o">&amp;</span><span class="n">pgnoChild</span><span class="p">,</span><span class="n">pRoot</span><span class="o">-&gt;</span><span class="n">pgno</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="n">copyNodeContent</span><span class="p">(</span><span class="n">pRoot</span><span class="p">,</span><span class="w"> </span><span class="n">pChild</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">rc</span><span class="p">);</span>
+</code></pre></div>
+
+
+然后根页清零、只留一个右孩子指针：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Zero the contents of pRoot. Then install pChild as the right-child. */</span>
+<span class="w">  </span><span class="n">zeroPage</span><span class="p">(</span><span class="n">pRoot</span><span class="p">,</span><span class="w"> </span><span class="n">pChild</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">PTF_LEAF</span><span class="p">);</span>
+<span class="w">  </span><span class="n">put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pRoot</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="n">pRoot</span><span class="o">-&gt;</span><span class="n">hdrOffset</span><span class="o">+</span><span class="mi">8</span><span class="p">],</span><span class="w"> </span><span class="n">pgnoChild</span><span class="p">);</span>
+</code></pre></div>
+
+
+注意 <code>&amp;pRoot-&gt;aData[pRoot-&gt;hdrOffset+8]</code>——内部页头偏移 8 的右孩子字段。根页从「装满数据的叶子」变成「只有一个孩子的内部页」，下一轮 do-loop 再平衡那个孩子。<strong>SQLite 文件里没有存储树高的字段</strong>（取证确认），高度是「根往下数到叶子」现场数出来的。
+
+InnoDB 走 <code>btr_root_raise_and_insert()</code>——<strong>先搬家、再分裂</strong>，头注释把流程一句话说完：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** Makes tree one level higher by splitting the root, and inserts</span>
+<span class="cm"> the tuple. It is assumed that mtr contains an x-latch on the tree.</span>
+<span class="cm"> NOTE that the operation of this function must always succeed,</span>
+<span class="cm"> we cannot reverse it: therefore enough free disk space must be</span>
+<span class="cm"> guaranteed to be available before this function is called.</span>
+<span class="cm"> @return inserted record */</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Allocate a new page to the tree. Root splitting is done by first</span>
+<span class="cm">  moving the root records to the new page, emptying the root, putting</span>
+<span class="cm">  a node pointer to the new page, and then splitting the new page. */</span>
+
+<span class="w">  </span><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_get_level</span><span class="p">(</span><span class="n">root</span><span class="p">);</span>
+
+<span class="w">  </span><span class="n">new_block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_alloc</span><span class="p">(</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">FSP_NO_DIR</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+
+<span class="w">  </span><span class="cm">/* New page could not be allocated */</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">new_block</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Rebuild the root page to get free space */</span>
+<span class="w">  </span><span class="n">btr_page_empty</span><span class="p">(</span><span class="n">root_block</span><span class="p">,</span><span class="w"> </span><span class="n">root_page_zip</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Split the child and insert tuple */</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dict_index_is_spatial</span><span class="p">(</span><span class="n">index</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/* Split rtree page and insert tuple */</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span>
+<span class="w">        </span><span class="n">rtr_page_split_and_insert</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span><span class="w"> </span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">offsets</span><span class="p">,</span><span class="w"> </span><span class="n">heap</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">));</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span>
+<span class="w">        </span><span class="n">btr_page_split_and_insert</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span><span class="w"> </span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">offsets</span><span class="p">,</span><span class="w"> </span><span class="n">heap</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">));</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+三步：根的全部记录复制到新页 → <code>btr_page_empty</code> 把根清空并以 <code>level + 1</code> 重建（根成了只含一个 node pointer 的上层页）→ 对<strong>新页</strong>执行常规分裂。树高在搜索时记进游标（<code>btr0cur.cc</code>）：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">UNIV_UNLIKELY</span><span class="p">(</span><span class="n">height</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ULINT_UNDEFINED</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/* We are in the root node */</span>
+
+<span class="w">    </span><span class="n">height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_get_level</span><span class="p">(</span><span class="n">page</span><span class="p">);</span>
+<span class="w">    </span><span class="n">root_height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
+<span class="w">    </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">tree_height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">root_height</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>cursor-&gt;tree_height = root_height + 1</code>——这是 8.x 树高的唯一权威来源（旧版的 <code>dict_index_get_height</code> 已不存在，取证确认 grep 零命中）。
+
+两条路线的对照很干净：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th></th>
+<th>SQLite <code>balance_deeper</code></th>
+<th>InnoDB <code>btr_root_raise_and_insert</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>新页</td>
+<td><code>allocateBtreePage</code>，根内容 <code>copyNodeContent</code> 搬下</td>
+<td><code>btr_page_alloc</code>，根记录搬走后 <code>btr_page_empty</code></td>
+</tr>
+<tr>
+<td>根页变化</td>
+<td>清零 + 1 个右孩子指针</td>
+<td><code>level + 1</code> 重建，1 个 node pointer</td>
+</tr>
+<tr>
+<td>随后</td>
+<td>下一轮 do-loop 平衡孩子</td>
+<td>立即对新页 <code>btr_page_split_and_insert</code></td>
+</tr>
+<tr>
+<td>根页号</td>
+<td>不变</td>
+<td>不变</td>
+</tr>
+<tr>
+<td>失败语义</td>
+<td>按 rc 逐级向上传</td>
+<td>只许成功（前置 2 页预留），NULL → <code>DB_OUT_OF_FILE_SPACE</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>长高不是全局重写，只是根页的角色转换</strong>：树高 +1 的物理代价是一次页面复制 + 一条父指针。也正因为便宜，「树高 3 层存亿级数据」才成立——每长一层，fanout 就乘一次页容量。
+<h2>手术可能白做：重组、重试与整场重来</h2>
+
+页分裂不是一锤子买卖，源码里三处「白做之后怎么办」的设计才是工程味所在。
+
+<strong>SQLite：先整理再分裂，分裂后还有下一轮。</strong> 第二道检查里 <code>defragmentPage</code> 抢在分裂前面；<code>balance()</code> 本身是 do-loop，溢出清了但条件仍不满足就再走一轮；<code>balance_quick</code> 失败则退回 <code>balance_nonroot</code> 全量配平。整理的语义写在函数头：
+<div class="codehilite"><pre><span></span><code><span class="cm">/*</span>
+<span class="cm">** Defragment the page given. This routine reorganizes cells within the</span>
+<span class="cm">** page so that there are no free-blocks on the free-block list.</span>
+<span class="cm">**</span>
+<span class="cm">** Parameter nMaxFrag is the maximum amount of fragmented space that may be</span>
+<span class="cm">** present in the page after this routine returns.</span>
+<span class="cm">**</span>
+<span class="cm">** EVIDENCE-OF: R-44582-60138 SQLite may from time to time reorganize a</span>
+<span class="cm">** b-tree page so that there are no freeblocks or fragment bytes, all</span>
+<span class="cm">** unused bytes are contained in the unallocated space region, and all</span>
+<span class="cm">** cells are packed tightly at the end of the page.</span>
+<span class="cm">*/</span>
+</code></pre></div>
+
+
+<strong>InnoDB：第 8 步失败就整场重来。</strong> 手术单的最后一步：<code>If insert did not fit, try page reorganization...</code>，重组也放不下就 <code>n_iterations++; goto func_start;</code> 回到第 1 步。第二轮的第 1 步代码正好接上——<code>if (n_iterations &gt; 0)</code> 走 <code>btr_page_get_split_rec</code> 的另一侧启发式。<strong>重来的成本是有的（新页已经分配），但换来分裂点的第二次机会</strong>；<code>n_iterations</code> 也是 <code>btr_page_get_split_rec</code> 向右倾向的开关，追加场景第二轮几乎必然成功。
+
+<strong>递归层的断言。</strong> <code>btr_insert_on_non_leaf_level</code> 里 <code>ut_a(err == DB_SUCCESS)</code>——递归路径不接受失败，因为外层已承诺"只许成功"。这份自信的来源正是上一节的 <code>n_extents = tree_height / 16 + 3</code> 预留：<strong>承诺不靠运气，靠进门之前把门后的路都买下来</strong>。
+<h2>页内碎片：freeblock 链与整理的时机</h2>
+
+分裂讲的是页<strong>之间</strong>的再分配，页<strong>内部</strong>的空洞是另一半故事。SQLite 的空闲总量计算把两种空洞分开记账：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Compute the total free space on the page</span>
+<span class="cm">  ** EVIDENCE-OF: R-23588-34450 The two-byte integer at offset 1 gives the</span>
+<span class="cm">  ** start of the first freeblock on the page, or is zero if there are no</span>
+<span class="cm">  ** freeblocks. */</span>
+<span class="w">  </span><span class="n">pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">1</span><span class="p">]);</span>
+<span class="w">  </span><span class="n">nFree</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">7</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w">  </span><span class="cm">/* Init nFree to non-freeblock free space */</span>
+</code></pre></div>
+
+
+页空闲 = 未分配空隙（内容区起点 <code>top</code>）+ 碎片字节数（offset 7）+ 沿 offset 1 的 freeblock 链逐块累加。freeblock 的结构与合并规则在 <code>freeSpace()</code> 的注释与代码：
+<div class="codehilite"><pre><span></span><code><span class="cm">/*</span>
+<span class="cm">** Return a section of the pPage-&gt;aData to the freelist.</span>
+<span class="cm">** The first byte of the new free block is pPage-&gt;aData[iStart]</span>
+<span class="cm">** and the size of the block is iSize bytes.</span>
+<span class="cm">**</span>
+<span class="cm">** Adjacent freeblocks are coalesced.</span>
+<span class="cm">**</span>
+<span class="cm">** Even though the freeblock list was checked by btreeComputeFreeSpace(),</span>
+<span class="cm">** that routine will not detect overlap between cells or freeblocks.  Nor</span>
+<span class="cm">** does it detect cells or freeblocks that encroach into the reserved bytes</span>
+<span class="cm">** at the end of the page.  So do additional corruption checks inside this</span>
+<span class="cm">** routine and return SQLITE_CORRUPT if any problems are found.</span>
+<span class="cm">*/</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">iStart</span><span class="o">&lt;=</span><span class="n">x</span><span class="w"> </span><span class="p">){</span>
+<span class="w">    </span><span class="cm">/* The new freeblock is at the beginning of the cell content area,</span>
+<span class="cm">    ** so just extend the cell content area rather than create another</span>
+<span class="cm">    ** freelist entry */</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">iStart</span><span class="o">&lt;</span><span class="n">x</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">SQLITE_CORRUPT_PAGE</span><span class="p">(</span><span class="n">pPage</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">iPtr</span><span class="o">!=</span><span class="n">hdr</span><span class="o">+</span><span class="mi">1</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">SQLITE_CORRUPT_PAGE</span><span class="p">(</span><span class="n">pPage</span><span class="p">);</span>
+<span class="w">    </span><span class="n">put2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">iFreeBlk</span><span class="p">);</span>
+<span class="w">    </span><span class="n">put2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">5</span><span class="p">],</span><span class="w"> </span><span class="n">iEnd</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="p">{</span>
+<span class="w">    </span><span class="cm">/* Insert the new freeblock into the freelist */</span>
+<span class="w">    </span><span class="n">put2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">iPtr</span><span class="p">],</span><span class="w"> </span><span class="n">iStart</span><span class="p">);</span>
+<span class="w">    </span><span class="n">put2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">iStart</span><span class="p">],</span><span class="w"> </span><span class="n">iFreeBlk</span><span class="p">);</span>
+<span class="w">    </span><span class="n">assert</span><span class="p">(</span><span class="w"> </span><span class="n">iSize</span><span class="o">&gt;=</span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">iSize</span><span class="o">&lt;=</span><span class="mh">0xffff</span><span class="w"> </span><span class="p">);</span>
+<span class="w">    </span><span class="n">put2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">iStart</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="p">(</span><span class="n">u16</span><span class="p">)</span><span class="n">iSize</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+
+
+三个细节：空洞贴着内容区前沿就直接把起点外扩、不占链表槽位；按偏移升序插入、相邻自动合并；≤3 字节的碎屑不入链，只累加进 offset 7 的 fragment 计数。<strong>「删掉一条记录」在页内留下的坑有三种归宿</strong>——并入空隙、进链、计碎片——而整理（<code>defragmentPage</code>）把三者全部折回空隙，cell 紧贴页尾重排。
+
+InnoDB 的对应物是 <code>PAGE_FREE</code>（空闲记录链头）与 <code>PAGE_GARBAGE</code>（删除记录字节数），加上重组门槛 <code>BTR_CUR_PAGE_REORGANIZE_LIMIT = UNIV_PAGE_SIZE / 32</code>。<strong>两套实现都把「空洞的字数」单独存进页头</strong>——这是判断何时重组的原料：<code>page_has_garbage</code> + <code>max_insert_size_after_reorganize</code> 的组合，等价于 SQLite 的 <code>nFree</code> + <code>defragmentPage</code>。
+
+这也直接回答前言的两个现象：<strong>随机 UUID 主键</strong>的插入点随机落在任意页，每次删除/更新都在不同页上留 freeblock，页页有洞、频繁重组与分裂，文件自然碎；<strong>顺序主键</strong>的插入集中在最右叶子，旧页洞少、新页连号（<code>hint_page_no = page_no + 1</code> 与 freelist/extent 的顺序分配），填充率高。
+<h2>顺序写为什么不碎：分裂方向的暗示</h2>
+
+把散落的证据串成一条实践线：
+<ol>
+<li>InnoDB 分裂第 1 步的 <code>if (n_iterations &gt; 0) { direction = FSP_UP; hint_page_no = page_no + 1; ... }</code>——重试时明确向上、页号 +1 的方向暗示；</li>
+<li><code>btr_page_alloc(cursor-&gt;index, hint_page_no, direction, ...)</code> 把暗示传给段分配器，让新页尽量跟在原页后面；</li>
+<li>中点分裂让「顺序追加」的分裂模式稳定复现：每次都在右半页尾部追加、满了一刀切、新的右半又在页尾——<strong>页与页首尾相接，几乎不产生页内碎片</strong>；</li>
+<li>SQLite 的 <code>balance</code> 虽无方向概念，但 do-loop 攒账 + 2/3 阈值同样让顺序插入「攒够了才动一次，动一次就装到 <code>usableSpace</code> 为止」。</li>
+</ol>
+
+反过来，随机主键让每次插入落在任意页，第 3 步的稳定复现被打破：页页都差一口、页页都触发整理或分裂，而 NB=3 的窗口（本页 + 左右兄弟）在随机写下拿不到「同向攒出来」的邻居。<strong>慢查询文章里「用自增/时间戳做主键、避免随机 UUID 索引」这条建议，在这里的源头就是方向暗示与中点分裂的相互作用。</strong>
+<h2>并发之下：树锁的释放时机与不可回滚契约</h2>
+
+分裂期间其他会话看到什么？InnoDB 的证据链：入口断言要求树 X/SX 锁已持有、页已 X fix 进 mtr：
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">ut_ad</span><span class="p">(</span><span class="n">mtr_memo_contains_flagged</span><span class="p">(</span><span class="n">mtr</span><span class="p">,</span><span class="w"> </span><span class="n">dict_index_get_lock</span><span class="p">(</span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="p">),</span>
+<span class="w">                                  </span><span class="n">MTR_MEMO_X_LOCK</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">MTR_MEMO_SX_LOCK</span><span class="p">)</span><span class="w"> </span><span class="o">||</span>
+<span class="w">        </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="o">-&gt;</span><span class="n">table</span><span class="o">-&gt;</span><span class="n">is_intrinsic</span><span class="p">());</span>
+<span class="w">  </span><span class="p">...</span>
+<span class="w">  </span><span class="n">ut_ad</span><span class="p">(</span>
+<span class="w">      </span><span class="n">mtr_is_block_fix</span><span class="p">(</span><span class="n">mtr</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">,</span><span class="w"> </span><span class="n">MTR_MEMO_PAGE_X_FIX</span><span class="p">,</span><span class="w"> </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="o">-&gt;</span><span class="n">table</span><span class="p">));</span>
+</code></pre></div>
+
+
+锁模式枚举（<code>btr0btr.h</code>）里普通读者是 <code>BTR_SEARCH_LEAF = RW_S_LATCH</code>，普通写者 <code>BTR_MODIFY_LEAF = RW_X_LATCH</code>，而动结构的是 <code>BTR_MODIFY_TREE = 33</code> / <code>BTR_CONT_MODIFY_TREE = 34</code>——<strong>读叶子、改叶子、改树是三个独立档位</strong>，只有分裂/长高才升到改树档。配合前文的提前 <code>memo_release</code>：
+<ul>
+<li>第 1~4 步（选点、分配、挂树）持树锁；</li>
+<li>确认新页装得下后<strong>先放树锁</strong>，再搬记录；</li>
+<li>搬记录期间别的会话可以进树，只被新旧两页的页锁挡住。</li>
+</ul>
+
+再叠上 WAL 篇的结论——页修改经 redo log 落盘、只许成功不许回滚——整幅图景是：<strong>结构变更小窗口持树锁，数据搬移只持页锁，崩溃由 redo 保证重放完整，空间由前置预留保证不失败</strong>。四件事各管一段，谁也不越界。
+
+SQLite 是单写者模型（库级写锁），没有这套并发戏法，换来的是 <code>balance()</code> 可以随意摊平重排、<code>anotherValidCursor</code> 只需检查游标有效性。<strong>复杂度守恒：并发的账在锁上，正确的账在回滚上，SQLite 把两笔都记在了别处（写锁 + 事务日志）。</strong>
+<h2>两套实现对照表与实践线</h2>
+
+全文的机制可以压成一张表：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>环节</th>
+<th>SQLite</th>
+<th>InnoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页头</td>
+<td>8/12 字节，5 个字段</td>
+<td>FIL 38 + 字段 36 + 段头 20 = 94 字节起</td>
+</tr>
+<tr>
+<td>放不下的第一信号</td>
+<td><code>sz+2 &gt; nFree</code> → overflow 槽（内存账）</td>
+<td><code>max_size &lt; rec_size</code> → <code>DB_FAIL</code></td>
+</tr>
+<tr>
+<td>能整理就不分裂</td>
+<td><code>defragmentPage</code> + <code>gap+2+nByte&gt;top</code></td>
+<td><code>after_reorganize</code> + 512 字节重组门槛</td>
+</tr>
+<tr>
+<td>动手术的门槛</td>
+<td>无 overflow 且 <code>nFree*3 &gt; usableSize*2</code>（空过 1/3）</td>
+<td>悲观插入（乐观两级都失败）</td>
+</tr>
+<tr>
+<td>分裂点</td>
+<td>不选点，摊平重装箱</td>
+<td>启发式方向 + <code>page_get_middle_rec</code> 条数中点</td>
+</tr>
+<tr>
+<td>新页</td>
+<td>freelist（第 1 页偏移 32 的 trunk 链）</td>
+<td>段分配 + <code>tree_height/16+3</code> extent 预留</td>
+</tr>
+<tr>
+<td>分裂函数</td>
+<td><code>balance_nonroot</code>（NB=3，新页 ≤5）</td>
+<td><code>btr_page_split_and_insert</code>（八步，可 <code>goto</code> 重来）</td>
+</tr>
+<tr>
+<td>父层传播</td>
+<td><code>insertCell(parent)</code> → overflow → 上层 balance</td>
+<td><code>btr_insert_on_non_leaf_level</code> 显式递归</td>
+</tr>
+<tr>
+<td>长高</td>
+<td><code>balance_deeper</code> 原地变内部页</td>
+<td><code>btr_root_raise_and_insert</code> 搬家再分裂</td>
+</tr>
+<tr>
+<td>失败语义</td>
+<td>rc 逐级传播</td>
+<td>只许成功，<code>ut_a(DB_SUCCESS)</code> + <code>DB_OUT_OF_FILE_SPACE</code> 兜底</td>
+</tr>
+<tr>
+<td>树高存储</td>
+<td>无字段，现场数</td>
+<td><code>PAGE_LEVEL</code> 页内字段 + <code>cursor-&gt;tree_height</code></td>
+</tr>
+</tbody>
+</table></div>
+
+接回实践线，页分裂视角给出的判断顺序：
+<ol>
+<li><strong>主键形态先看</strong>——顺序追加命中方向暗示与稳定中点分裂，随机 key 打散这两者（上文实践线第 1~4 条）；</li>
+<li><strong>看页填充率而非行数</strong>——<code>INFORMATION_SCHEMA.INNODB_TABLES</code> 的页数/行数比，或 SQLite <code>PRAGMA page_count</code> 与 freelist（<code>PRAGMA freelist_count</code>）的差值，对应 <code>PAGE_GARBAGE</code> 与 freeblock 链；</li>
+<li><strong>负载尾部留重组空间</strong>——两边的重组门槛（<code>nFree</code> 超 1/3、空洞超 512 字节）说明周期性整理本来就设计在路径里，不必为偶发重组报警；</li>
+<li><strong>树高是免费的</strong>——长高 = 一次根页复制 + 一条父指针，3 层与 4 层的读代价差一次页访问；真正贵的是分裂<strong>频度</strong>（每次一个 mtr + 一次段分配 + 可能的锁放大），不是树高本身。</li>
+</ol>
+<h2>结语</h2>
+
+教科书把页分裂画成一个箭头分成两个，源码里它是一张八步手术单：选点要启发式、分配要预支、搬链要剪断重接、父层要递归、根页要搬家、插不进要整场重来、空间要在进门之前买足。这些步骤没有一步是多余的——每一步都对着一种具体的事故：分裂点选偏了、表空间满了、锁持太久、崩溃落在搬一半、父页也满了。
+
+两套实现的对照再次印证了 WAL 篇那句话的镜像：<strong>格式是随便定的，契约是不能动的</strong>。cell 指针数组还是相对偏移链、8 字节头还是 94 字节头，两边随便选；但「先检查再整理、整理不行再分裂、分裂必须给父层一个分隔键、长高必须保住根页号、失败必须有明确出口」——一条不差。
+
+下次在慢查询文章里写下「换成顺序主键」时，你可以指到具体的地方：InnoDB 分裂第 1 步那行 <code>hint_page_no = page_no + 1</code>。它就是「索引不碎」这四个字在源码里的全部形态。]]></content:encoded>
+    </item>
     <item>
       <title>先写日志，再写数据：WAL 原理与源码细读</title>
       <link>https://zhoujungis.github.io/article/wal-deep-dive/</link>
@@ -4734,1491 +5665,6 @@ jq &#39;.cases[] | select(.flaky) | .id&#39; report.json
       <category>Agent 工程</category>
       <category>Token 经济学</category>
       <category>架构设计</category>
-      <content:encoded><![CDATA[<blockquote>
-
-适用读者：跑 agent 跑到账单心疼的人；以为成本等于「单价 × token」的人；想在不换模型的前提下把费用砍下来的人
-结论先行：agent 的成本不是「单价 × token 用量」，而是「上下文策略 × 请求次数」。同一任务十倍差价，主要来自三个杠杆——<strong>前缀是否稳定、上下文是否被压缩、一次任务到底发了几次请求</strong>。NanoHermes 的五个预算常量里，有三个量的其实是字节而不是名字说的东西，而记忆注入每轮重写 system 消息，恰好把最该稳定的那一段变短了
-阅读时间：约 55 分钟 | 难度：进阶 | 收获：一个可套用的成本公式 + 40 轮任务的算例 + 七个可验证的成本缺陷 + 一张按收益排序的调优清单
-</blockquote>
-
-<strong>目录</strong>
-<ul>
-<li>前言：同一个任务，两份账单</li>
-<li>结论先行：三个杠杆，一条反直觉</li>
-<li>先把成本公式写出来</li>
-<li>四种单位：字节、字符、token、美元</li>
-<li>一个 40 轮的算例：二次曲线是怎么来的</li>
-<li>一轮请求的完整字节账单</li>
-<li>压缩的真正意义是截断二次曲线</li>
-<li>NanoHermes 的五个预算常量</li>
-<li><code>CONTEXT_CHAR_BUDGET</code> 的名字骗了你</li>
-<li>十二万字节在中文里到底是多少</li>
-<li>压缩由三个条件触发</li>
-<li>保底十条：压缩收益的下限</li>
-<li>上下文的三层天花板</li>
-<li>压缩请求的输入没有逐条截断</li>
-<li>压缩是投资还是亏损</li>
-<li>压缩的三种替代方案</li>
-<li>稳定前缀的第一段：system prompt</li>
-<li>工具清单也在前缀里</li>
-<li>项目文档两万字符：怎么拼、怎么截</li>
-<li>记忆块每轮重写：缓存被打断的地方</li>
-<li><code>set_block</code> 把可变段放在 system 末尾</li>
-<li>工具结果的上限，量的还是字节</li>
-<li>两层截断：<code>max_output</code> 与 <code>max_chars</code></li>
-<li>工具输出的分级策略</li>
-<li>图片：base64 放大三分之一，而且没有上限</li>
-<li>图片会被后续每一轮重发</li>
-<li><code>max_tokens</code> 与「截断重写」的隐性双倍成本</li>
-<li>重试：整个 prompt 再发一次</li>
-<li>轮次上限 40 与并发 8：最坏情况有多坏</li>
-<li>子代理的成本模型：一次并行调研贵在哪</li>
-<li>缓存命中率怎么测</li>
-<li>缓存的五个前提</li>
-<li>输出为什么比输入贵，而且会被收两次</li>
-<li>三个反直觉结论</li>
-<li>五个常见估算错误</li>
-<li>一次任务的成本画像</li>
-<li>一次优化实录：14 轮怎么降到 9 轮</li>
-<li>五种「看起来省钱其实更贵」的做法</li>
-<li>一张按收益排序的调优清单</li>
-<li>三个一天内能做完的实验</li>
-<li>预算常量该怎么定：五个数从哪来</li>
-<li>什么该省，什么不该省</li>
-<li>怎么把成本做成可回归的指标</li>
-<li>小结</li>
-<li>参考</li>
-</ul>
-<h2>前言：同一个任务，两份账单</h2>
-
-先看一个真实的对比。同一个仓库、同一个需求（把一个 Go 服务里的三处错误处理改掉）、同一个模型，两次跑下来账单差了一个数量级。差别不在模型，也不在 prompt 写得好不好，而在三件事：
-<ul>
-<li>第一次跑在一个「每次请求都重建 system prompt」的客户端上，第二次跑在「system 前缀全程不变」的客户端上</li>
-<li>第一次跑了 37 轮，第二次跑了 14 轮</li>
-<li>第一次把 <code>go.mod</code> 和两个 800 行的文件全文塞进了上下文，第二次只塞了被改的那三段</li>
-</ul>
-
-如果把成本拆成「单价 × token」，你只能解释价格差；把成本拆成「前缀稳定性 × 上下文体积 × 请求次数」，你能解释十倍。
-
-08 讲的是「账本」，这篇讲「有了账本之后怎么花钱」。两者其实是同一个问题的两面：不知道怎么计量，就谈不上优化；不做优化，计量出来的只是一张让人难受的报表。
-<h2>结论先行：三个杠杆，一条反直觉</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>杠杆</th>
-<th>作用机制</th>
-<th>量级</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>前缀稳定</td>
-<td>服务端的 prompt cache 按前缀逐 token 匹配，改一个字节，后面全失效</td>
-<td>3 到 20 倍</td>
-</tr>
-<tr>
-<td>上下文压缩</td>
-<td>把历史从线性增长压回常数，砍掉二次项</td>
-<td>2 到 5 倍</td>
-</tr>
-<tr>
-<td>请求次数</td>
-<td>每一轮都要重发全部上下文，轮数是乘数</td>
-<td>与轮数成正比</td>
-</tr>
-</tbody>
-</table></div>
-
-反直觉的那一条是：<strong>前缀稳定性比模型选择更影响账单</strong>。同一个任务，用贵三倍的模型但保持前缀稳定，往往比用便宜模型但每轮重写 system 更省。因为模型单价是线性因子，前缀缓存是乘在「全部历史」上的折扣因子——而历史才是复利。
-
-这条结论成立的前提是服务端真的支持前缀缓存。主流几家都支持，但触发条件各不相同（最小前缀长度、缓存存活时间、是否要求完全字节一致）。本文只讲「你能控制的那一侧」：别在请求前缀里放会变的东西。
-<h2>先把成本公式写出来</h2>
-
-抛开缓存折扣，一次任务的总成本是：
-<div class="codehilite"><pre><span></span><code>cost ≈ Σ_t [ P_in × (S + H_t) + P_out × O_t ]
-</code></pre></div>
-
-<ul>
-<li><code>S</code>：稳定前缀，包含 system prompt、工具 schema、项目文档</li>
-<li><code>H_t</code>：第 t 轮开始时的历史消息（用户、助手、工具结果）</li>
-<li><code>O_t</code>：第 t 轮的输出</li>
-<li><code>P_in</code> / <code>P_out</code>：输入、输出单价</li>
-</ul>
-
-这个公式有三个值得盯的地方：
-
-第一，<code>S</code> 在每一轮都被重发。40 轮就是 40 次 <code>S</code>。如果 <code>S</code> 是三万 token，光前缀就烧掉一百二十万。
-
-第二，<code>H_t</code> 是累积的。第 1 轮只有一条用户消息，第 40 轮有几十条。这就是二次项的来源。
-
-第三，<code>O_t</code> 只算一次，但它会变成下一轮的 <code>H</code> 的一部分——输出既计费一次，又永久留在上下文里持续计费。
-
-把公式改写一下，能更清楚地看到结构：
-<div class="codehilite"><pre><span></span><code>total_in ≈ N × S + Σ_{t=1..N} H_t
-</code></pre></div>
-
-
-而 <code>H_t ≈ d × (t - 1)</code>（d 是每轮新增的平均 token），所以：
-<div class="codehilite"><pre><span></span><code>total_in ≈ N × S + d × N × (N - 1) / 2
-</code></pre></div>
-
-
-第二项是 <code>N²</code> 的。这就是为什么长任务不是「贵一点」，而是「贵得离谱」。
-<h2>四种单位：字节、字符、token、美元</h2>
-
-聊成本最容易吵起来的原因，是四个人在用四种单位说话。它们的换算关系不固定，但在 agent 里有一条经验链：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>单位</th>
-<th>谁在用</th>
-<th>换算</th>
-<th>误差来源</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>字节</td>
-<td><code>String::len()</code>、HTTP 请求体</td>
-<td>中文 1 字 = 3 字节</td>
-<td>JSON 转义、base64</td>
-</tr>
-<tr>
-<td>字符</td>
-<td>人、<code>chars().count()</code>、截断文案</td>
-<td>中文 1 字 = 1 字符</td>
-<td>全角标点、emoji</td>
-</tr>
-<tr>
-<td>token</td>
-<td>服务端计费</td>
-<td>中文约 1 到 1.5 字 1 token</td>
-<td>分词器、模型</td>
-</tr>
-<tr>
-<td>美元</td>
-<td>账单</td>
-<td>单价 × token</td>
-<td>缓存折扣、批处理</td>
-</tr>
-</tbody>
-</table></div>
-
-从字节到 token 没有线性公式，但有稳定的区间：<strong>英文约 4 字符 1 token，中文约 1 字 1 token，代码约 2 字符 1 token</strong>。这三条够你做量级估算，不够你做精确预算。
-
-从字节到字符的换算更简单，但坑更深：JSON 序列化会把 <code>\n</code> 变成两个字节、<code>"</code> 变成两个字节，<code>serde_json</code> 对中文默认不转义（写 UTF-8），所以「消息序列化后的字节数」比「原文字节数」略大，比例取决于内容里有多少换行和引号。一份代码文件转成消息后，字节数通常涨 5% 到 15%。
-
-这张表解释了一件很重要的事：<strong>同一个数字，在不同层含义不同</strong>。<code>120_000</code> 在 <code>CONTEXT_CHAR_BUDGET</code> 里是字节，在 <code>MAX_PROJECT_DOCS</code> 里也是字节，在 <code>max_chars</code> 里是字符，在 <code>max_tokens</code> 里是 token。四个「上限」，四种单位，其中三个的名字都在暗示自己是另一种。
-
-看代码时养成一个习惯：看到 <code>len()</code> 就问「这是谁的 len」，看到 <code>chars</code> 就问「这里真的按字符算了吗」。本文后面七个缺陷里，有四个源于这一个疏忽。
-<h2>一个 40 轮的算例：二次曲线是怎么来的</h2>
-
-取一组保守的假设（只作算例，不是实测）：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>项</th>
-<th>取值</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>S</code></td>
-<td>3,000 token</td>
-<td>system 约 1,200 + 工具 schema 约 1,800</td>
-</tr>
-<tr>
-<td><code>d</code></td>
-<td>1,200 token</td>
-<td>每轮的用户消息 + 助手回复 + 工具结果均值</td>
-</tr>
-<tr>
-<td><code>N</code></td>
-<td>40 轮</td>
-<td>默认 <code>max_iterations</code></td>
-</tr>
-<tr>
-<td><code>O_t</code></td>
-<td>400 token</td>
-<td>输出，单独按 <code>P_out</code> 计</td>
-</tr>
-</tbody>
-</table></div>
-
-三种情形：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>情形</th>
-<th>输入 token 计算</th>
-<th>结果</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>无缓存</td>
-<td>40 × 3000 + 1200 × 780</td>
-<td>1,056,000</td>
-</tr>
-<tr>
-<td>无缓存 + 第 20 轮压缩一次</td>
-<td>40 × 3000 + 1200 × (190 + 190)</td>
-<td>576,000</td>
-</tr>
-<tr>
-<td>全程前缀命中</td>
-<td>3000 + 40 × 1200</td>
-<td>51,000</td>
-</tr>
-</tbody>
-</table></div>
-
-第一行和第三行差约 20 倍，这就是「同一任务十倍差价」的来源。第二行单独看：压缩没有动前缀那 120,000（40 × 3,000 一分没少），它改的是 <code>d</code> 的斜率——压缩后 <code>H_t</code> 从第 1 轮重新累积，原本 780 的三角和变成两段各 190 的三角和，二次项从 936,000 降到 456,000，总输入几乎减半。<strong>压缩省下的全是历史，不是前缀</strong>。
-
-如果缓存价是正常输入价的十分之一（各家不同，这里只作量级估计），第三行的计费等效值约为 <code>3000 × 0.1 + 48000 ≈ 48,300</code> 个「全价 token」，与第一行的 1,056,000 相比约 22 倍。这个数字大到不像真的，所以更要强调：<strong>它是算例，不是账单</strong>。真实倍数会被缓存最小长度、缓存失效、输出占比等因素拉低，但方向不会变。
-<h2>一轮请求的完整字节账单</h2>
-
-把「二次曲线」落到具体的一轮上，看看请求体里到底装了什么。取第 20 轮为例：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>组成</th>
-<th>体积</th>
-<th>是否重复</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>system 提示词正文</td>
-<td>1,200 字节</td>
-<td>每轮重发</td>
-<td>固定文本</td>
-</tr>
-<tr>
-<td>模式 / 人设 / 项目文档</td>
-<td>20,000 字节</td>
-<td>每轮重发</td>
-<td><code>AGENTS.md</code> 上限</td>
-</tr>
-<tr>
-<td>技能列表</td>
-<td>1,000 字节</td>
-<td>每轮重发</td>
-<td>启用的技能清单</td>
-</tr>
-<tr>
-<td>工具 schema</td>
-<td>7,000 字节</td>
-<td>每轮重发</td>
-<td>20 多个内置工具</td>
-</tr>
-<tr>
-<td>记忆块</td>
-<td>2,400 字节</td>
-<td>每轮变</td>
-<td>每轮重检索</td>
-</tr>
-<tr>
-<td>历史消息</td>
-<td>240,000 字节</td>
-<td>累积</td>
-<td>第 20 轮约 20 × 12,000</td>
-</tr>
-<tr>
-<td>本轮用户消息</td>
-<td>300 字节</td>
-<td>一次</td>
-<td>之后就变成历史</td>
-</tr>
-</tbody>
-</table></div>
-
-合计约 272,000 字节。其中真正「新」的只有最后两行，不到 3,000 字节；<strong>其余 269,000 字节都是重复内容</strong>。
-
-这组数字说明三件事：
-
-第一，<code>S</code>（稳定前缀）在这里约 29,200 字节，比 <code>H_20</code> 小一个数量级——但在第 1 到第 5 轮，<code>S</code> 是主体。所以「前缀优化」和「历史优化」的收益曲线交叉在第 5 到第 10 轮之间。
-
-第二，工具 schema 的 7,000 字节是纯固定开销，它不随任务变化，却每轮都付。工具越多，这个固定成本越高——一个装了 30 个 MCP 工具的 agent，光 schema 就可能比系统提示词大。
-
-第三，历史占了 88%。这就是为什么「每轮让历史失效」是最贵的错误：它把 88% 的内容从「缓存价」推回「全价」。
-
-一个健康的请求应该让「重复部分」尽量落在缓存里，只让「新内容」按全价计。做到这一点，第 20 轮的计费等效值大约是 <code>29,200 × 0.1 + 3,000</code>，而不是 <code>272,000</code>。差两个数量级。
-<h2>压缩的真正意义是截断二次曲线</h2>
-
-02 讲压缩时，落点是「上下文是工作集，装不下就要丢」。从成本角度看，压缩的意义更硬：<strong>它把 <code>N²</code> 的三角和切成若干段更小的三角和</strong>。
-
-假设不压缩，40 轮的 <code>Σ H_t</code> 是 936,000。假设每 20 轮压缩一次，<code>Σ H_t</code> 变成两段 20 轮的三角和：2 × (1200 × 190) = 456,000，直接减半。压得越频繁，二次项越小，但每次压缩本身要花钱（下一节算），所以存在一个最优点。
-
-这就是「压缩不是免费午餐」的量化版本：压缩一次的成本 ≈ 一次大请求，收益 ≈ 后续每轮少发的历史。设压缩成本为 <code>C</code>，压缩后每轮省 <code>h</code>，还剩 <code>k</code> 轮，那么只有 <code>k × h &gt; C</code> 时才划算。
-
-对 40 轮的任务，这个不等式几乎总是成立；对 3 轮的任务，压缩纯属浪费。所以「什么时候压缩」不该只看上下文大小，还要看「还剩多少轮」——而这一点，NanoHermes 的触发条件里没有。
-<h2>NanoHermes 的五个预算常量</h2>
-
-整个项目的成本旋钮就这五个数字：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>常量</th>
-<th>值</th>
-<th>位置</th>
-<th>量的是什么</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CONTEXT_CHAR_BUDGET</code></td>
-<td>120,000</td>
-<td><code>agent.rs</code></td>
-<td>说是字符，实为字节</td>
-</tr>
-<tr>
-<td><code>KEEP_RECENT</code></td>
-<td>10</td>
-<td><code>agent.rs</code></td>
-<td>压缩后保留的消息条数</td>
-</tr>
-<tr>
-<td><code>max_output</code></td>
-<td>20,000</td>
-<td><code>agent.rs</code></td>
-<td>单个工具结果上限，字节</td>
-</tr>
-<tr>
-<td><code>MAX_ATTACHED_IMAGES</code></td>
-<td>4</td>
-<td><code>agent.rs</code></td>
-<td>一次消息附带的图片数</td>
-</tr>
-<tr>
-<td><code>MAX_PROJECT_DOCS</code></td>
-<td>20,000</td>
-<td><code>prompt.rs</code></td>
-<td>项目文档注入上限，字符</td>
-</tr>
-</tbody>
-</table></div>
-
-再加上 <code>config.rs</code> 里的三个默认值：<code>max_tokens: 4096</code>、<code>temperature: 0.0</code>、<code>max_iterations: 40</code>。
-
-这八个数字决定了「一次任务最贵能贵到哪」。下面逐个看它们的实际语义。
-<h2><code>CONTEXT_CHAR_BUDGET</code> 的名字骗了你</h2>
-
-触发压缩的那一行：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">size</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">m</span><span class="o">|</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">to_string</span><span class="p">().</span><span class="n">len</span><span class="p">()).</span><span class="n">sum</span><span class="p">();</span>
-<span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">force</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">CONTEXT_CHAR_BUDGET</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">KEEP_RECENT</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-<code>m.to_string()</code> 是 serde_json 序列化，<code>String::len()</code> 返回的是 <strong>UTF-8 字节数</strong>。常量名却叫 <code>CONTEXT_CHAR_BUDGET</code>。
-
-在纯 ASCII 的英文对话里，字节数约等于字符数，这个名字不会害人。在中文对话里，一个汉字三字节；序列化还会把换行转义成 <code>\n</code>（两字节）、把引号转义（两字节）。于是「12 万字符的预算」实际只放得下大约 4 万个汉字。
-
-这不是一个命名瑕疵，而是一个<strong>可观测的成本偏差</strong>：你以为上下文装到 12 万字符才压缩，实际上 4 万字就触发了；反过来，如果你按「12 万字符」估算 token，会高估三倍，做出来的成本预测全错。
-
-更麻烦的是它跟 <code>max_output</code> 一唱一和：工具结果的上限 <code>20_000</code> 也是用 <code>s.len()</code> 判断的，同样量的是字节。两个「字符」上限一起骗人三次（<code>clamp</code>、预算、文档注入里 <code>joined.len()</code> 也是字节）。
-<h2>十二万字节在中文里到底是多少</h2>
-
-把字节换算成 token 需要知道分词器，但可以给一个保守区间：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>内容</th>
-<th>字节</th>
-<th>约等于字符</th>
-<th>粗略 token 估计</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>纯英文代码</td>
-<td>120,000</td>
-<td>120,000</td>
-<td>30,000 到 35,000</td>
-</tr>
-<tr>
-<td>中英混排（本文这种）</td>
-<td>120,000</td>
-<td>70,000 到 80,000</td>
-<td>40,000 到 50,000</td>
-</tr>
-<tr>
-<td>纯中文</td>
-<td>120,000</td>
-<td>40,000</td>
-<td>30,000 到 40,000</td>
-</tr>
-</tbody>
-</table></div>
-
-注意代码那一行：代码的 token 密度比自然语言高（<code>fn main() {</code> 这种符号密集的片段经常一个字符一个 token）。所以同一个 12 万字节的预算，在「大量贴代码」的场景里反而更早耗尽 token 配额。
-
-结论很实用：<strong>不要把「字符预算」当成「token 预算」来推算成本</strong>，两者能差两到三倍。真要估算，就按「中文 1 字 ≈ 1 token、英文 4 字符 ≈ 1 token、代码 2 字符 ≈ 1 token」这种粗口径分开算。
-<h2>压缩由三个条件触发</h2>
-
-<code>compact_with</code> 的触发条件写得很清楚：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">force</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">CONTEXT_CHAR_BUDGET</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">KEEP_RECENT</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-三个条件同时满足才动手：
-<ul>
-<li>总字节数超过 120,000</li>
-<li>消息条数超过 11</li>
-<li>不是 <code>/compact</code> 强制触发</li>
-</ul>
-
-第三个条件解释了为什么「手动压缩」在真实使用里很重要：自动压缩只在跨过阈值那一刻发生一次，之后历史继续增长，直到再次跨过阈值。如果一个任务在 100,000 字节附近来回震荡（每轮加一点、压缩一点），它可能永远不触发，也可能反复触发。
-
-压缩的落点是：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">().</span><span class="n">saturating_sub</span><span class="p">(</span><span class="n">KEEP_RECENT</span><span class="p">);</span>
-<span class="k">while</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">[</span><span class="n">start</span><span class="p">][</span><span class="s">&quot;role&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="k">if</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">dropped</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">drain</span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="n">start</span><span class="p">).</span><span class="n">collect</span><span class="p">();</span>
-</code></pre></div>
-
-
-<code>start</code> 从「倒数第 10 条」开始，然后跳过所有 <code>tool</code> 消息。这个跳过很关键：如果第 10 条正好是一个工具结果，直接从这里切会把「助手发起调用」和「工具返回结果」拆开，下一次请求就会因为消息不成对而报错。
-
-代价是——<strong>跳过会把压缩点往后推</strong>，实际丢弃的可能远少于预期。一次并发 8 个工具的轮次会产生 9 条消息（1 条助手 + 8 条工具结果），全都得留着。所以「保留 10 条」在工具密集的场景里，等于「保留一整轮还可能不够」。
-<h2>保底十条：压缩收益的下限</h2>
-
-压缩之后，上下文结构变成：
-<div class="codehilite"><pre><span></span><code>[0] system（含记忆块）
-[1] system（摘要）
-[2..] 最近 10 条消息原文
-</code></pre></div>
-
-
-<code>KEEP_RECENT = 10</code> 是个保底：无论怎么压，这 10 条原文都在。如果这 10 条里有几条是几万字符的工具结果，压缩对总量的影响就很小——你压掉的是旧历史，留下的是最贵的那部分。
-
-这就产生了一个反直觉的结论：<strong>压缩对「工具输出很肥」的任务几乎无效</strong>。因为肥的部分在最近 10 条里。要让压缩真的有效，得先让工具输出不肥（下一节），或者让 <code>KEEP_RECENT</code> 按字节而不是按条数来算。
-
-按条数保底还有另一个问题：10 条短消息和 10 条长消息的差别是几十倍。一个「读文件 + 改文件 + 跑测试」的轮次，三条消息可能就 30,000 字节；一个纯闲聊的轮次，十条消息可能只有 2,000 字节。同一个 <code>KEEP_RECENT</code>，两种含义。
-<h2>上下文的三层天花板</h2>
-
-「上下文满了」这句话在 agent 里有三个完全不同的意思，混在一起就会做错优化：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>层</th>
-<th>谁定的</th>
-<th>NanoHermes 的值</th>
-<th>超了会怎样</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>窗口</td>
-<td>模型的上下文长度</td>
-<td>由服务商决定</td>
-<td>请求直接报错（400）</td>
-</tr>
-<tr>
-<td>预算</td>
-<td>客户端自己定的阈值</td>
-<td>120,000 字节</td>
-<td>触发压缩</td>
-</tr>
-<tr>
-<td>钱包</td>
-<td>你的成本容忍度</td>
-<td>没有</td>
-<td>账单超预期，但没有报错</td>
-</tr>
-</tbody>
-</table></div>
-
-三层的关系是：窗口最大，预算次之，钱包最小。设计得好的系统应该让「预算」明显小于「窗口」，留出余量给一次超大的工具输出；同时让「钱包」有一个软上限，在超支前给出警告。
-
-NanoHermes 有前两层，没有第三层。<code>/cost</code> 是事后读数，不是预算控制。这意味着一个跑飞的任务可以毫无提示地烧掉一天的额度——它不会撞墙，只会让你的信用卡撞墙。
-
-补第三层不需要复杂机制：给 <code>UsageTotals</code> 加一个 <code>max_session_tokens</code>，在每轮开始前检查，超了就中断并提示。实现大约二十行，价值是「可控的失败」优于「不可控的账单」。
-<h2>压缩请求的输入没有逐条截断</h2>
-
-<code>summarize_messages</code> 把被丢弃的消息拼成一段文本：
-<div class="codehilite"><pre><span></span><code><span class="n">excerpt</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{role}: {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">content</span><span class="p">));</span>
-</code></pre></div>
-
-
-然后直接交给 <code>llm::summarize</code>：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="n">summarizer_cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Value</span><span class="p">::</span><span class="n">Array</span><span class="p">(</span><span class="fm">vec!</span><span class="p">[]),</span><span class="w"> </span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="p">{})</span><span class="o">?</span><span class="p">;</span>
-</code></pre></div>
-
-
-没有逐条截断，没有总长上限（<code>dropped</code> 的总量本身受 120,000 字节预算约束，但那已经是「接近满」的意思）。也就是说，一次压缩请求的输入，可能和一次普通请求一样大，甚至更大——因为它把被丢弃的历史全塞进去了。
-
-而它的输出被 system 提示词限制在 300 词：
-<div class="codehilite"><pre><span></span><code>Use at most 300 words. Reply with the summary only.
-</code></pre></div>
-
-
-300 词大约 400 到 500 token。于是这笔交易是：<strong>用几万 token 的输入，换四五百 token 的输出</strong>，换来后续每轮少发几万字节的历史。
-
-这笔交易在长任务里划算，在短任务里纯亏。NanoHermes 判断「长/短」的唯一依据是上下文大小，不看剩余轮次——所以一个「最后一轮刚好超预算」的任务，会花一次大请求去做一次再也用不上的压缩。
-<h2>压缩是投资还是亏损</h2>
-
-把上一节写成不等式。设：
-<ul>
-<li><code>C</code>：压缩请求的成本（≈ 被丢弃历史的 token 数 × <code>P_in</code>）</li>
-<li><code>h</code>：压缩后每轮省下的 token（≈ 被丢弃历史 − 摘要长度）</li>
-<li><code>k</code>：压缩后还会发生的轮数</li>
-</ul>
-
-则压缩划算的条件是：
-<div class="codehilite"><pre><span></span><code>k × h &gt; C
-</code></pre></div>
-
-
-代入算例：一次压缩丢掉了 80,000 token 的历史，摘要 500 token，所以 <code>h ≈ 79,500</code>；<code>C ≈ 80,000</code>（输入）+ 500（输出）。那么 <code>k × 79,500 &gt; 80,500</code>，只要 <code>k ≥ 2</code> 就划算。
-
-反过来说，如果一次压缩只丢掉 8,000 token 的历史（比如刚过阈值就压），<code>h ≈ 7,500</code>，<code>k</code> 需要大于 11 才划算。而「刚过阈值就压」恰恰是最常见的情况——因为触发条件就是「刚超过 120,000 字节」。
-
-这个不等式还揭示了一个设计上的机会：<strong>压缩阈值不该是一个固定值，而该是「剩余轮次」的函数</strong>。快结束的任务不必压，刚开始的任务压得越早越赚。
-<h2>压缩的三种替代方案</h2>
-
-压缩（摘要）只是「让上下文变小」的一种手段，而且是最贵的一种——它要发一次大请求。另外两种在特定场景下更划算：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>方案</th>
-<th>做法</th>
-<th>成本</th>
-<th>信息损失</th>
-<th>适用场景</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>摘要压缩</td>
-<td>调模型总结被丢弃的历史</td>
-<td>一次大请求</td>
-<td>中（取决于摘要质量）</td>
-<td>长对话、需要保留决策脉络</td>
-</tr>
-<tr>
-<td>硬截断</td>
-<td>直接把旧消息丢掉</td>
-<td>零</td>
-<td>高（可能丢掉关键约束）</td>
-<td>任务边界清晰、旧信息确实无用</td>
-</tr>
-<tr>
-<td>结构化状态</td>
-<td>把进度写进 todo / 任务板，历史可丢</td>
-<td>一次工具调用</td>
-<td>低（状态是显式的）</td>
-<td>多步骤任务、有明确清单</td>
-</tr>
-</tbody>
-</table></div>
-
-第三种最被低估。NanoHermes 已经有 <code>todo_write</code> 和任务板：如果每轮都把「已完成 / 待办 / 当前卡点」写进结构化清单，那么旧消息就可以硬截断——清单本身就是压缩后的状态，而且比模型写的摘要更准。
-
-从成本看，<code>todo_write</code> 一次调用几百 token，摘要压缩一次几万 token，差两个数量级。代价是你得在设计上让「状态」和「历史」分离——这正是 07 那条「共享必须有归属」的另一个版本：<strong>状态要有一个比对话历史更可靠的载体</strong>。
-
-实践中的组合是：短任务硬截断，长任务摘要，多步骤任务结构化。NanoHermes 只有摘要一种，而且不看任务类型。
-<h2>稳定前缀的第一段：system prompt</h2>
-
-<code>system_prompt</code> 的拼接顺序是固定的：
-<div class="codehilite"><pre><span></span><code>You are NanoHermes, ...          &lt;- 固定文本
-Operating rules: ...             &lt;- 固定文本
-Workspace root: {root}           &lt;- 每个工作区不同，但进程内不变
-Mode guidance: ...               &lt;- 随权限模式变，进程内通常不变
-Additional instructions ...      &lt;- 用户人设，进程内不变
-Project guidance (AGENTS.md) ... &lt;- 启动时读，进程内不变
-</code></pre></div>
-
-
-这个顺序是「从最稳定到最不稳定」，对前缀缓存是友好的：同一进程内，这一段完全不变。
-
-再看 <code>system_content</code>，在它后面又拼了两段：
-<div class="codehilite"><pre><span></span><code><span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n</span><span class="s">=== Project context (NANOHERMES.md) ===</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
-<span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="n">text</span><span class="p">.</span><span class="n">trim</span><span class="p">());</span>
-<span class="o">..</span><span class="p">.</span>
-<span class="n">system</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="k">crate</span><span class="p">::</span><span class="n">skills</span><span class="p">::</span><span class="n">listing</span><span class="p">(</span><span class="n">skills</span><span class="p">));</span>
-</code></pre></div>
-
-
-<code>NANOHERMES.md</code> 是项目上下文，技能列表是可用技能的清单。两段都是启动时读一次，进程内不变。
-
-所以到这一步为止，前缀是稳的。真正的问题在下一节：有一个每轮都在变的东西，被塞进了同一个 system 消息。
-<h2>工具清单也在前缀里</h2>
-
-<code>build_tools()</code> 每次请求都重新拼一遍工具列表：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tools</span><span class="p">::</span><span class="n">specs</span><span class="p">().</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">();</span>
-<span class="o">..</span><span class="p">.</span>
-<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">mcp</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">m</span><span class="p">.</span><span class="n">all_tools</span><span class="p">());</span>
-<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">mcp_aux_tools</span><span class="p">());</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-工具 schema 是跟着每一个请求走的，它在服务端的计费口径里通常算输入 token（有些服务商单独计，但都在请求体里）。一个内置工具集大约 1,500 到 2,000 token，加上 MCP 工具可能翻倍。
-
-关键在于<strong>顺序稳定性</strong>。<code>list.retain(...)</code> 会按权限模式过滤掉一些工具，MCP 工具按连接顺序追加。只要这个顺序在一个进程内不变，schema 部分就是稳定前缀的一部分；一旦顺序抖动（比如 MCP server 重连后换了顺序），缓存就会从抖动点失效。
-
-这是「零成本优化」里最容易被忽略的一条：<strong>工具列表要排序后再发</strong>。按名字排序不影响模型能力，但能让不同会话之间的前缀一致——跨进程的缓存共享就靠这个。
-<h2>项目文档两万字符：怎么拼、怎么截</h2>
-
-<code>project_docs</code> 从文件系统根一路读到工作区：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">chain</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;&amp;</span><span class="n">Path</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">workspace</span><span class="p">.</span><span class="n">ancestors</span><span class="p">().</span><span class="n">collect</span><span class="p">();</span>
-<span class="n">chain</span><span class="p">.</span><span class="n">reverse</span><span class="p">();</span>
-<span class="k">for</span><span class="w"> </span><span class="n">dir</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">chain</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">DOC_NAMES</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">candidates</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">dir</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-先读 <code>~/.nanohermes/AGENTS.md</code>，再从根目录往下读每一级的 <code>AGENTS.md</code>，最后拼接。顺序设计是对的——越具体的规则越靠后，越有「覆盖」的语义。
-
-截断也很克制：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">joined</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parts</span><span class="p">.</span><span class="n">join</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="p">);</span>
-<span class="k">if</span><span class="w"> </span><span class="n">joined</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MAX_PROJECT_DOCS</span><span class="p">;</span>
-<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">joined</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="n">joined</span><span class="p">.</span><span class="n">truncate</span><span class="p">(</span><span class="n">end</span><span class="p">);</span>
-<span class="w">    </span><span class="n">joined</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">… project guidance truncated&quot;</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-注意 <code>is_char_boundary</code> 那个循环：按字节截断时必须回退到字符边界，否则会在 UTF-8 中间切断，产生非法字符串。这个细节是对的。
-
-但 <code>MAX_PROJECT_DOCS = 20_000</code> 同样是按字节算的（<code>joined.len()</code>），所以一个中文的 <code>AGENTS.md</code> 实际只能注入约 6,600 字。更值得注意的是成本：这两万字节<strong>出现在每一次请求里</strong>。40 轮任务就是 80 万字节的项目文档输入。
-
-如果 <code>AGENTS.md</code> 写了两万字，它对账单的贡献和「多跑 20 轮」差不多。这是「文档越详细越好」这个直觉的成本反例。
-<h2>记忆块每轮重写：缓存被打断的地方</h2>
-
-<code>run()</code> 的第一件事不是发请求，是重写 system 消息：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">user_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">content_text</span><span class="p">(</span><span class="o">&amp;</span><span class="n">content</span><span class="p">);</span>
-<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">memory_dir</span><span class="p">.</span><span class="n">clone</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">retrieve_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">);</span>
-<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">set_memory_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">block</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-<code>retrieve_block</code> 按当前用户输入检索记忆（03 讲过：BM25 + 中文二元切分，取 top 4，上限 2,400 字符）。检索结果取决于这一轮的输入，所以<strong>每一轮的 block 都可能不同</strong>。
-
-<code>set_memory_block</code> 把它写进 <code>messages[0]</code>：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">system</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">first_mut</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">system</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;role&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">r</span><span class="o">|</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="s">&quot;system&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">system</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;content&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">updated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">set_block</span><span class="p">(</span><span class="n">text</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">);</span>
-<span class="w">            </span><span class="n">system</span><span class="p">[</span><span class="s">&quot;content&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">(</span><span class="n">updated</span><span class="p">);</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-于是在每一轮请求发出之前，第一条消息的内容都会变。
-<h2><code>set_block</code> 把可变段放在 system 末尾</h2>
-
-<code>set_block</code> 的做法是：找到旧 block 的标记区间，删掉，再把新 block 追加到末尾：
-<div class="codehilite"><pre><span></span><code><span class="n">base</span><span class="p">.</span><span class="n">replace_range</span><span class="p">(</span><span class="n">start</span><span class="o">..</span><span class="n">end</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">);</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">base</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">base</span><span class="p">.</span><span class="n">trim_end</span><span class="p">().</span><span class="n">to_string</span><span class="p">();</span>
-<span class="o">..</span><span class="p">.</span>
-<span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{base}</span><span class="se">\n\n</span><span class="s">{block}&quot;</span><span class="p">)</span>
-</code></pre></div>
-
-
-对这个函数本身，实现是对的：删除再追加，不会越积越多。
-
-但对<strong>前缀缓存</strong>来说，这是最坏的一种布局。前缀缓存按 token 从头匹配，只要某一位置变了，从那个位置往后全部失效。可变段放在 system 的末尾，意味着：
-<ul>
-<li>稳定部分（内置提示词、模式、项目文档、技能列表）仍然命中</li>
-<li>从记忆块开始往后的一切——包括摘要、之前所有轮次的对话——全部变成「新 token」</li>
-</ul>
-
-换句话说，<strong>每轮重检索记忆，等于每轮把整个对话历史重新计费一遍</strong>。而历史正是二次项的主体。这个设计用 2,400 字符的记忆换来「历史全部失效」，在长任务里是净亏。
-
-正确的做法是把可变段移到<strong>最后一条用户消息之前</strong>，作为一条独立的 user 消息（或者 system 消息追加在末尾），让 <code>messages[0]</code> 保持字节不变。代价是模型看到的「指令位置」变差一点，收益是历史能命中缓存。
-
-这是一个典型的「局部正确、整体有害」的设计：<code>set_block</code> 没错，<code>retrieve_block</code> 没错，「每轮重检索」也没错（03 里我们夸过它不积累），三个正确的决定叠在一起，把最贵的那个优化点弄没了。
-<h2>工具结果的上限，量的还是字节</h2>
-
-<code>dispatch</code> 的最后一行：
-<div class="codehilite"><pre><span></span><code><span class="n">r</span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="n">clamp</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">max_output</span><span class="p">))</span>
-</code></pre></div>
-
-
-<code>clamp</code> 的实现：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max</span><span class="p">;</span>
-<span class="k">while</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">s</span><span class="p">.</span><span class="n">is_char_boundary</span><span class="p">(</span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">end</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}</span><span class="se">\n</span><span class="s">… output truncated ({} chars omitted)&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">s</span><span class="p">[</span><span class="o">..</span><span class="n">end</span><span class="p">],</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">end</span><span class="p">)</span>
-</code></pre></div>
-
-
-三个观察：
-
-第一，<code>s.len()</code> 是字节，<code>max_output = 20_000</code> 也是字节。改一个中文文件，<code>read_file</code> 返回的内容 6,600 字就触顶了。
-
-第二，提示文案写的是 <code>chars omitted</code>，但算的是字节。对中文用户来说，这个数字会偏大三倍——用户看到「省略了 40,000 字符」，实际可能只省略了 13,000 字。
-
-第三，截断发生在 dispatch 层，也就是<strong>所有工具</strong>共享一个上限。<code>read_file</code>、<code>grep</code>、<code>shell</code>、<code>web_fetch</code> 都用同一个 20,000 字节。对 <code>grep</code> 来说这个上限合理，对 <code>read_file</code> 来说太狠——读一个 800 行的文件，很容易在中途被切断，模型只好再读一次。
-
-而「模型只好再读一次」就是成本：一次截断，换来一次额外请求，而这次请求还要重发全部上下文。
-<h2>两层截断：<code>max_output</code> 与 <code>max_chars</code></h2>
-
-<code>web_fetch</code> 有自己的上限：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">max_chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span>
-<span class="w">    </span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;max_chars&quot;</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">v</span><span class="o">|</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">as_u64</span><span class="p">())</span>
-<span class="w">    </span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">20_000</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">clamp</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span><span class="w"> </span><span class="mi">200_000</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">usize</span><span class="p">;</span>
-</code></pre></div>
-
-
-也就是说，<code>web_fetch</code> 可以返回最多 200,000 <strong>字符</strong>的结果，然后被 <code>dispatch</code> 的 <code>clamp</code> 截到 20,000 <strong>字节</strong>。
-
-两层上限，两套单位，两个默认值恰好都是 20,000。这不是巧合，而是同一套「按字符想问题、按字节写代码」的习惯在两个模块里各自长出来的结果。
-
-后果是：<code>web_fetch</code> 里那个 <code>max_chars</code> 参数对超过 20,000 字节的部分毫无作用。用户传 <code>max_chars: 50_000</code> 想多要一点内容，实际拿到的还是 20,000 字节。参数存在，但被外层覆盖了——这是「有配置无效果」的典型。
-
-同时 <code>MAX_RESPONSE_BYTES = 2 * 1024 * 1024</code> 决定了下载上限：先下载最多 2 MB，再转文本，再按 <code>max_chars</code> 截断，再按 20,000 字节截断。四层漏斗，每一层单位都不一样。
-<h2>工具输出的分级策略</h2>
-
-既然「一个工具结果会活 k 轮、成本是 <code>b × k</code>」，那么工具设计的核心问题就变成：<strong>该让模型看见多少，才既够用又不复利</strong>。
-
-按这个标准，工具分成三档：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>档位</th>
-<th>典型工具</th>
-<th>合理上限</th>
-<th>理由</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>小结果</td>
-<td><code>write_file</code>、<code>todo_write</code>、<code>apply_patch</code></td>
-<td>几百字节</td>
-<td>只需要「成功 / 失败 + 摘要」</td>
-</tr>
-<tr>
-<td>中结果</td>
-<td><code>grep</code>、<code>glob</code>、<code>web_search</code></td>
-<td>2,000 到 5,000 字节</td>
-<td>列表类结果，太多反而难读</td>
-</tr>
-<tr>
-<td>大结果</td>
-<td><code>read_file</code>、<code>shell</code>、<code>web_fetch</code></td>
-<td>需要分段，不是硬截</td>
-<td>内容本身是任务素材</td>
-</tr>
-</tbody>
-</table></div>
-
-第三档最需要设计。<code>read_file</code> 其实已经有 <code>offset</code> / <code>limit</code>（默认 <code>limit = 2000</code> 行），所以「分页」在参数层是成立的。问题出在默认值与截断的配合：<code>limit</code> 按行计，<code>clamp</code> 按字节截，读一个中文文件时常常是 2,000 行还没到、20,000 字节先到，返回的就是「半页 + 一行 chars omitted」。更糟的是 <code>read_file</code> 自己的尾部提示（<code>… N more lines</code>）在 <code>clamp</code> 之前生成，一旦被截掉，连「还剩多少行」都看不到，模型只能猜一个 offset 再读一次——一次截断又变成一次请求。
-
-合理的修法是让 <code>read_file</code> 按字节预算反算行数，并在尾部直接给出 <code>next_offset</code>：模型不需要猜，也就不需要重读。
-
-<code>apply_patch</code> 的回显也值得注意。一次成功的改动只需要返回「改了哪几行」，不需要把整个文件回显一遍。如果回显整个文件，那 20,000 字节里 95% 是模型已经知道的内容——纯浪费，而且会占掉 <code>KEEP_RECENT</code> 的 10 个名额之一。
-
-这条给出一句可操作的判据：<strong>工具结果里，重复模型已知信息的比例越低越好</strong>。读文件是必要的信息，回显整个文件不是；grep 的行号是必要的，匹配上下文超过三行就不是。
-<h2>图片：base64 放大三分之一，而且没有上限</h2>
-
-<code>image_part</code> 的体量问题比文本更严重：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">read</span><span class="p">(</span><span class="n">path</span><span class="p">).</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}: {e}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">display</span><span class="p">()))</span><span class="o">?</span><span class="p">;</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">b64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">base64</span><span class="p">::</span><span class="n">engine</span><span class="p">::</span><span class="n">general_purpose</span><span class="p">::</span><span class="n">STANDARD</span><span class="p">.</span><span class="n">encode</span><span class="p">(</span><span class="o">&amp;</span><span class="n">bytes</span><span class="p">);</span>
-<span class="nb">Ok</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
-<span class="w">    </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;image_url&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="s">&quot;image_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">format</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;data:{mime};base64,{b64}&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
-<span class="p">}))</span>
-</code></pre></div>
-
-
-没有大小检查。一张 5 MB 的截图，base64 之后约 6.7 MB。这个字符串会进入 <code>messages</code>，然后：
-<ul>
-<li>在第 1 轮请求里发一次</li>
-<li>在第 2 轮请求里再发一次（因为它在历史里）</li>
-<li>一直到压缩把它丢掉为止</li>
-</ul>
-
-一个 20 轮的视觉任务，一张 5 MB 截图要发 20 次，约 134 MB 的上传量。即使服务端按图片 token 计价（而不是按 base64 字符），请求体大小、网络时间、失败重试的代价也都是实打实的。
-
-<code>MAX_ATTACHED_IMAGES = 4</code> 只限制了张数，没有限制字节。四张 5 MB 的图，单次请求 27 MB——很多网关的请求体上限在 10 MB，这时会得到一个 413，然后按 08 的分析，这次失败还不进账。
-
-一个合理的实现应该在 <code>image_part</code> 里做三件事：检查文件大小、超限就缩放（而不是拒绝）、记录缩放的字节数。三件事都不难，难的是第一件——你得先意识到「张数上限不是成本上限」。
-<h2>图片会被后续每一轮重发</h2>
-
-这条单独说，因为它是「一次性成本」和「持续成本」的分界。
-
-文本工具结果也一样：一次 <code>read_file</code> 的 20,000 字节，会留在历史里，直到被压缩掉。所以工具结果的真实成本不是「一次」，而是「一次 × 它还能活多少轮」。
-
-设一个工具结果有 <code>b</code> 字节、还能活 <code>k</code> 轮，它的成本是：
-<div class="codehilite"><pre><span></span><code>b × k × P_in
-</code></pre></div>
-
-
-一个 20,000 字节的工具结果活了 20 轮，等于 400,000 字节的输入——比它原始大小的 20 倍。这就是为什么 04 强调「输出都要有上限」：上限不只是为了让模型不被淹没，更是为了不让它复利。
-
-推论很实用：<strong>越早出现的大结果越贵</strong>。第 1 轮读进来的大文件要背 40 轮，第 39 轮读进来的只背 1 轮。所以「先概览、后精读」不只是认知策略，也是成本策略。
-<h2><code>max_tokens</code> 与「截断重写」的隐性双倍成本</h2>
-
-<code>max_tokens: 4096</code> 是输出上限。它省的是输出钱（<code>P_out</code> 通常是 <code>P_in</code> 的几倍），但会带来一种隐形成本：<strong>输出被截断后，任务往往要重来一次</strong>。
-
-截断在 agent 里的显形方式有好几种：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>截断发生处</th>
-<th>表现</th>
-<th>代价</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>工具参数 JSON 中途断掉</td>
-<td><code>serde_json::from_str</code> 报错 → <code>ERROR: invalid JSON arguments</code></td>
-<td>模型看到错误后重发一次完整调用</td>
-</tr>
-<tr>
-<td>自然语言答案中途断掉</td>
-<td>用户看到半句话</td>
-<td>用户再说一次「继续」，等于重跑一轮</td>
-</tr>
-<tr>
-<td><code>apply_patch</code> 的 diff 不完整</td>
-<td>hunk 找不到上下文 → 报错</td>
-<td>重发生成一次完整 diff</td>
-</tr>
-</tbody>
-</table></div>
-
-三种情况的共同点是：失败发生在<strong>输出侧</strong>，而重试要重发<strong>输入侧</strong>。于是「省下的输出 token」被「重发的输入 token」吃掉，通常还倒贴——因为输入比输出大得多。
-
-这条给了一个反直觉的调参建议：<strong>如果任务以工具调用为主，<code>max_tokens</code> 应该调大而不是调小</strong>。因为工具调用的参数可能很长（一个 patch 就是几百行），截断一次的成本远高于多留 2,000 token 的预算。
-<h2>重试：整个 prompt 再发一次</h2>
-
-<code>llm::chat</code> 的重试是「重建 body、再发一次」：
-<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">attempt</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="k">loop</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">model</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">),</span>
-<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">attempt</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">max_retries</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">attempt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">                </span><span class="kd">let</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">backoff_ms</span><span class="p">(</span><span class="n">cfg</span><span class="p">.</span><span class="n">retry_base_ms</span><span class="p">,</span><span class="w"> </span><span class="n">attempt</span><span class="p">);</span>
-<span class="w">                </span><span class="o">..</span><span class="p">.</span>
-<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span>
-</code></pre></div>
-
-
-<code>build_body</code> 每次都从头构造请求体，包含完整的 <code>messages</code>。所以一次 503 触发的重试，成本约等于「再跑一次这一轮」。
-
-如果 <code>max_retries = 2</code>，最坏情况下这一轮的成本是 3 倍输入。而 429（限流）通常不计费，503 是否计费取决于服务端——客户端不该假设「失败就免费」。
-
-这也是 08 里那句「一次成功掩盖 N 次请求」的成本版本：账本上只记一次成功，账单上可能是三次。
-
-更隐蔽的是 fallback：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">fallback</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">fallback_model</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="n">fallback</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">);</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-降级模型通常更便宜，所以「降级」在钱上是好事。但如果降级模型的能力不够，任务会多跑很多轮——<strong>便宜的单价 × 更多的轮数</strong>，最后可能更贵。这就是下一节要说的反直觉结论之一。
-<h2>轮次上限 40 与并发 8：最坏情况有多坏</h2>
-
-三个与成本直接相关的上限：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>上限</th>
-<th>值</th>
-<th>成本含义</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>max_iterations</code></td>
-<td>40</td>
-<td>一次用户消息最多 40 次请求</td>
-</tr>
-<tr>
-<td><code>MAX_PARALLEL_TOOL_CALLS</code></td>
-<td>8</td>
-<td>一轮最多 8 个工具结果进上下文</td>
-</tr>
-<tr>
-<td><code>MAX_PARALLEL_SUBAGENTS</code></td>
-<td>4</td>
-<td>最多 4 个子代理同时烧 token</td>
-</tr>
-</tbody>
-</table></div>
-
-最坏情况：40 轮 × 每轮 8 个工具结果 × 每个 20,000 字节。理论上的上下文是 6.4 MB——当然到不了，因为 120,000 字节就触发压缩了。但压缩前的那一轮，上下文可能是「120,000 字节 + 8 × 20,000 字节」= 280,000 字节，因为压缩发生在轮次之间，不在工具结果之间。
-
-这是一个真实的成本尖峰：<strong>一个并发工具轮次可以瞬间把上下文顶到预算的两倍</strong>。而这一轮发出去之后，下一轮就要为这 280,000 字节付钱。
-
-子代理的成本更隐蔽：4 个子代理 × 40 轮，每个都发自己的完整上下文。上限是 160 次请求，全部不计入主账（08 讲过）。从成本角度，这意味着一次「并行调研」可能是主任务的 10 倍开销，而你在 <code>/cost</code> 里只看到一个零头。
-<h2>子代理的成本模型：一次并行调研贵在哪</h2>
-
-把子代理拆开算。每个子代理自带一份 system prompt（继承父配置的模型、工具、系统提示），所以它的 <code>S</code> 和主代理接近；但它没有父代理的历史，它的 <code>H_t</code> 从零开始。
-
-设一次委派跑 <code>m</code> 轮，每轮增量 <code>d</code>，则子代理的输入是：
-<div class="codehilite"><pre><span></span><code>m × S + d × m × (m - 1) / 2
-</code></pre></div>
-
-
-四个子代理并行，总输入是四倍。取 <code>m = 15</code>、<code>S = 3,000</code>、<code>d = 1,000</code>：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>项</th>
-<th>计算</th>
-<th>token</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>每个子代理</td>
-<td>15 × 3000 + 1000 × 105</td>
-<td>150,000</td>
-</tr>
-<tr>
-<td>四个子代理</td>
-<td>× 4</td>
-<td>600,000</td>
-</tr>
-<tr>
-<td>父代理同期</td>
-<td>15 × 3000 + 1000 × 105</td>
-<td>150,000</td>
-</tr>
-<tr>
-<td>合计</td>
-<td>—</td>
-<td>750,000</td>
-</tr>
-</tbody>
-</table></div>
-
-而父代理自己的 <code>/cost</code> 只会显示最后那 150,000，除非把子代理的账归集上来。这就是 07 说「归集到发起它的人」、08 说「<code>&amp;self</code> 记不上账」的成本后果：<strong>你看到的数字只有真实开销的五分之一</strong>。
-
-更要紧的是这个模型的形状：子代理的成本随「委派次数 × 每个子代理轮数²」增长。所以「让四个子代理各跑 40 轮」不是一个并行优化，是一个四十倍的账单。
-
-一个实用的上限策略：给每个子代理单独的 <code>max_iterations</code>（比如 12），而不是继承父代理的 40。这个改动在 07 的加固清单里出现过，从成本角度它比任何缓存优化都值钱——因为它砍的是二次项。
-<h2>缓存命中率怎么测</h2>
-
-如果服务端返回 <code>prompt_tokens_details.cached_tokens</code>，你就能算命中率：
-<div class="codehilite"><pre><span></span><code>hit_rate = cached_tokens / prompt_tokens
-</code></pre></div>
-
-
-NanoHermes 现在不读这个字段（08 讲过），所以命中率是 0——不是「真的没命中」，而是「不知道」。这两者的区别在优化时是致命的：你会以为缓存没用，然后放弃它。
-
-在没有 <code>cached_tokens</code> 的情况下，还有一个替代指标：<strong>同一前缀的重复请求占比</strong>。做法很土但有效——把每次请求的 <code>messages</code> 序列化成字符串取哈希，统计「前缀相同（前 N 条消息完全一致）」的请求比例。这个比例是命中率的上界。
-
-三个数字能说明问题：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>指标</th>
-<th>含义</th>
-<th>健康值</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>前缀稳定率</td>
-<td>相邻两轮 <code>messages[0..k]</code> 完全一致的比例</td>
-<td>接近 100%</td>
-</tr>
-<tr>
-<td>平均历史长度</td>
-<td><code>Σ H_t / N</code></td>
-<td>与 <code>N</code> 线性增长说明没压缩</td>
-</tr>
-<tr>
-<td>压缩频次</td>
-<td>每 10 轮触发几次</td>
-<td>1 到 2 次比较健康</td>
-</tr>
-</tbody>
-</table></div>
-
-第一个指标如果很低，问题一定在「有个可变段被放进了前缀」——按本文的排查顺序，先看 system 消息的尾部。
-<h2>缓存的五个前提</h2>
-
-前缀缓存不是「发一样的 prompt 就一定命中」。它有五个前提，任何一个不满足都会静默失效：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>前提</th>
-<th>典型要求</th>
-<th>违反的后果</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>前缀足够长</td>
-<td>各家有最小 token 数（数百到上千）</td>
-<td>短 prompt 不缓存，且不报错</td>
-</tr>
-<tr>
-<td>字节完全一致</td>
-<td>空格、换行、字段顺序都要一致</td>
-<td>差一个空格就整体失效</td>
-</tr>
-<tr>
-<td>模型一致</td>
-<td>同一个模型 ID</td>
-<td>换模型等于换缓存池</td>
-</tr>
-<tr>
-<td>时间窗口内</td>
-<td>缓存有存活时间（几分钟到几小时）</td>
-<td>隔夜的会话从零开始</td>
-</tr>
-<tr>
-<td>同一账号 / 组织</td>
-<td>缓存通常不跨租户</td>
-<td>换 API key 就没了</td>
-</tr>
-</tbody>
-</table></div>
-
-这五条解释了为什么「本地测试命中率很高，线上很低」：本地连续跑、prompt 一样、模型一样；线上并发、间隔长、有时切了模型。
-
-第三条和第五条在 agent 里特别容易踩：<code>/model</code> 换一次模型，整段前缀的缓存就没了；fallback 到另一个模型时同理。所以「换模型」这个操作的真实成本不止是新模型的单价，还包括「丢掉已有缓存」。
-
-一个可操作的检查顺序：先确认前缀长度够（把 system 加长到阈值以上），再确认字节一致（对两次请求做 diff），再看时间间隔，最后才怀疑服务商。绝大多数「缓存没用」是第二条。
-<h2>输出为什么比输入贵，而且会被收两次</h2>
-
-主流定价里，输出单价通常是输入的 3 到 5 倍。原因不神秘：输出是逐 token 生成的，每个 token 都要一次前向计算；输入是可以并行的。
-
-对 agent 来说，这个差价被放大了一次：<strong>输出会变成下一轮的输入</strong>。一个 400 token 的回答，先按输出价收一次，然后作为历史的一部分，在后续每一轮按输入价再收一次。
-
-所以一次任务的输出成本是：
-<div class="codehilite"><pre><span></span><code>Σ_t [ P_out × O_t + P_in × O_t × (N - t) ]
-</code></pre></div>
-
-
-第二项才是大头。一个第 5 轮产生的 400 token 输出，会在第 6 到第 40 轮被重发 35 次。按 <code>P_out = 4 × P_in</code> 算，这笔输出的总成本约等于 <code>4 × 400 + 400 × 35 = 15,600</code> 个输入 token 的等效值——是它「标价」的 39 倍。
-
-这给了一个很实用的推论：<strong>啰嗦的中间输出比啰嗦的最终输出贵得多</strong>。模型每轮说一句「我现在要读文件了，因为……」，这句话会在剩下所有轮次里重复计费。system prompt 里那句「Do not over-narrate」不只是体验优化，它是一条成本指令。
-<h2>三个反直觉结论</h2>
-
-<strong>第一，便宜模型可能更贵。</strong> 便宜模型的指令遵循和工具调用准确率通常更差，表现为「多跑几轮」「重复读同一个文件」「参数格式错」。单价降 5 倍、轮数涨 3 倍，总价只降一点；如果涨到 6 倍，反而更贵。判断标准不是单价，是「完成同一任务的 token 总量」。
-
-<strong>第二，更长的上下文不一定更贵（有缓存时）。</strong> 前缀命中之后，历史里重复的部分按缓存价计，通常只有原价的十分之一。所以「每次把完整历史发过去」在有缓存时并不像看上去那么可怕——可怕的是「每轮改一个字节」。
-
-<strong>第三，重试的代价可能高于失败本身。</strong> 一次 503 触发的重试，成本约等于再跑一轮；而 <code>max_retries = 2</code> 让最坏情况变成 3 倍。所以「重试次数」是一个成本参数，不只是可靠性参数。
-
-三条合起来是一句话：<strong>成本优化的对象是 token 流，不是单价表。</strong>
-<h2>五个常见估算错误</h2>
-
-在实测之前，大多数人会先用「感觉」估成本。五种感觉最容易错：
-
-<strong>第一，按「每次对话」估，而不是按「每轮」估。</strong> 一次对话可能只有 1 轮，也可能 40 轮。按对话估会严重低估长任务——而长任务才是成本的主体。
-
-<strong>第二，把「上下文大小」直接当「输入 token」。</strong> 120,000 字节的中文上下文约 4 万字，比 12 万字符的直觉小不了多少，但 token 数取决于分词器，代码密集时能到 6 万。差两倍起步。
-
-<strong>第三，忘了输出会重复计费。</strong> 很多人只算 <code>P_out × O</code>，不算它作为历史被重发的部分。对长任务，后者是前者的几十倍。
-
-<strong>第四，以为重试是免费的。</strong> 429 通常不计费，但 5xx、超时、流中断都可能计费。更关键的是，即使不计费，重试也会拉长任务、增加轮数。
-
-<strong>第五，忽略子代理。</strong> 一次委派的账不进主账，这既是观测缺陷，也是估算缺陷。四个子代理跑 15 轮的成本，可以是主代理的四倍。
-
-把这五条反过来，就是一张估算清单：按轮算、按字节换算 token、算输出的二次计费、给重试留 3 倍余量、把子代理乘进去。
-<h2>一次任务的成本画像</h2>
-
-如果 08 的账本做出来了，你可以在任务结束后打出一张这样的画像：
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;task&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;修掉三处错误处理&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;turns&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;by_who&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;main&quot;</span><span class="p">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">186</span><span class="err">_</span><span class="mi">000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="err">_</span><span class="mi">400</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;agent-3&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">18</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">271</span><span class="err">_</span><span class="mi">000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="err">_</span><span class="mi">100</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;compact&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">78</span><span class="err">_</span><span class="mi">000</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">480</span><span class="w"> </span><span class="p">}</span>
-<span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;by_kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">31</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">214</span><span class="err">_</span><span class="mi">000</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">46</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">61</span><span class="err">_</span><span class="mi">000</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;hook&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">92</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="err">_</span><span class="mi">400</span><span class="w"> </span><span class="p">}</span>
-<span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;cache&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;reported&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;hit_rate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.71</span><span class="w"> </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;top_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;read_file&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;avg_input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">11</span><span class="err">_</span><span class="mi">200</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;grep&quot;</span><span class="p">,</span><span class="w">      </span><span class="nt">&quot;calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;avg_input&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="err">_</span><span class="mi">300</span><span class="w"> </span><span class="p">}</span>
-<span class="w">  </span><span class="p">]</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-这张画像能回答四个问题，而 <code>/cost</code> 一个都答不了：
-<ul>
-<li>钱花在谁身上（主代理 186k，子代理 271k——子代理才是大头）</li>
-<li>钱花在哪种动作上（模型 214 秒，工具 61 秒，钩子 3.4 秒）</li>
-<li>缓存到底有没有用（命中率 0.71，说明前缀基本稳定）</li>
-<li>哪个工具最贵（<code>read_file</code> 平均每次 11,200，是 <code>grep</code> 的 8 倍）</li>
-</ul>
-
-最后一行最有行动价值：如果 <code>read_file</code> 平均每次 11,200 字节、被调 19 次，那它就是「默认分页」这个优化的第一目标。优化的顺序应该由画像决定，而不是由直觉决定。
-<h2>一次优化实录：14 轮怎么降到 9 轮</h2>
-
-把前面的方法串起来走一遍。这是一个修 bug 的任务，原始画像：14 轮、主代理输入 186,000、<code>read_file</code> 19 次、<code>grep</code> 12 次。
-
-<strong>第一步，找出「最贵的一类动作」。</strong> <code>read_file</code> 19 次、平均 11,200 字节，合计 212,800 字节，比主代理的全部输入还多。原因是模型在读大文件时被 <code>clamp</code> 截断，截断后的结果里又没有「下一段从第几行开始」，它只好换个 offset 盲试一次。
-
-<strong>第二步，只改一处。</strong> 让 <code>read_file</code> 按字节预算反算安全行数，并在返回值末尾写明 <code>next_offset</code>。没有改模型，没有改系统提示词。
-
-<strong>第三步，重跑同一个任务。</strong> 结果：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>指标</th>
-<th>优化前</th>
-<th>优化后</th>
-<th>变化</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>轮数</td>
-<td>14</td>
-<td>9</td>
-<td>−36%</td>
-</tr>
-<tr>
-<td><code>read_file</code> 次数</td>
-<td>19</td>
-<td>7</td>
-<td>−63%</td>
-</tr>
-<tr>
-<td>主代理输入</td>
-<td>186,000</td>
-<td>101,000</td>
-<td>−46%</td>
-</tr>
-<tr>
-<td>缓存命中率</td>
-<td>0.71</td>
-<td>0.78</td>
-<td>+7 个点</td>
-</tr>
-</tbody>
-</table></div>
-
-三件事同时改善，而且它们互为因果：轮数少了，历史短了，缓存命中率也高了。
-
-<strong>第四步，确认能力没掉。</strong> 用同一批任务复跑，看最终 diff 是否一致。这一步很重要——如果轮数降了但改动质量掉了，省下来的钱是假的。
-
-这个实录说明一件很朴素的事：<strong>大多数成本问题不是「用贵了」，而是「用多了」</strong>。19 次读同一个文件不是模型笨，是工具逼它这么做的。工具的粒度决定了模型的轮数，模型的轮数决定了账单。
-
-所以成本优化的第一现场不是计费面板，是工具描述。
-<h2>五种「看起来省钱其实更贵」的做法</h2>
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>做法</th>
-<th>看起来省</th>
-<th>实际更贵的原因</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>把 <code>max_tokens</code> 调到 512</td>
-<td>输出便宜</td>
-<td>工具参数被截断 → 整轮重来</td>
-</tr>
-<tr>
-<td>把 <code>max_output</code> 调到 2,000</td>
-<td>工具结果小</td>
-<td>模型读不到全貌 → 再读一次</td>
-</tr>
-<tr>
-<td>每轮压缩</td>
-<td>上下文小</td>
-<td>压缩请求本身很贵，短任务纯亏</td>
-</tr>
-<tr>
-<td>用便宜模型 + 更多轮次</td>
-<td>单价低</td>
-<td>轮数是乘数，历史是二次项</td>
-</tr>
-<tr>
-<td>关掉记忆（省 2,400 字符）</td>
-<td>前缀短</td>
-<td>模型重复问同一件事 → 多跑几轮</td>
-</tr>
-</tbody>
-</table></div>
-
-第五行值得展开。记忆注入的 2,400 字符确实占地方，但它省下的是「模型重新问你叫什么、你的项目用什么框架、上次那个 bug 修到哪了」。一次重复提问就是一轮请求，而一轮请求的输入是几万字节。<strong>2,400 换几万，怎么算都划算</strong>——前提是它别放在会打断缓存的位置。
-<h2>一张按收益排序的调优清单</h2>
-
-按「改一行代码能省多少」排序：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>优先级</th>
-<th>改动</th>
-<th>预期收益</th>
-<th>风险</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>把记忆块从 <code>messages[0]</code> 移到最后一条用户消息之前</td>
-<td>历史全部命中缓存，长任务 3 到 10 倍</td>
-<td>指令位置变弱</td>
-</tr>
-<tr>
-<td>2</td>
-<td>工具列表按名字排序后再发</td>
-<td>跨会话前缀一致</td>
-<td>无</td>
-</tr>
-<tr>
-<td>3</td>
-<td>修正 <code>CONTEXT_CHAR_BUDGET</code> 的计量口径（字节当字符）</td>
-<td>成本预测变准，压缩时机变合理</td>
-<td>需要重定阈值</td>
-</tr>
-<tr>
-<td>4</td>
-<td><code>clamp</code> 的 <code>max</code> 改成按字符算（或改名改文案）</td>
-<td>中文场景上限符合直觉</td>
-<td>无</td>
-</tr>
-<tr>
-<td>5</td>
-<td>给 <code>image_part</code> 加字节上限与缩放</td>
-<td>避免单请求 27 MB</td>
-<td>需要图像库</td>
-</tr>
-<tr>
-<td>6</td>
-<td>压缩触发加「剩余轮次」条件</td>
-<td>短任务不再白压</td>
-<td>需要任务预估</td>
-</tr>
-<tr>
-<td>7</td>
-<td><code>KEEP_RECENT</code> 改成按字节保底</td>
-<td>工具密集任务压缩有效</td>
-<td>需要重算切点</td>
-</tr>
-<tr>
-<td>8</td>
-<td>读 <code>cached_tokens</code> 并计入账本</td>
-<td>命中率可测</td>
-<td>08 的账本改造</td>
-</tr>
-</tbody>
-</table></div>
-
-前两条几乎零风险，可以先做。第三到第七条需要重新定阈值，要配测试。第八条依赖账本。
-<h2>三个一天内能做完的实验</h2>
-
-如果你不想改代码，也想验证本文的判断，三个实验就够。它们都不需要看服务商的后台，只需要把请求体记下来。
-
-<strong>实验一：把 system 消息固定，看请求字节数的变化。</strong>
-
-做法：临时把 <code>set_memory_block</code> 调用注释掉，跑同一个 10 轮任务两次（一次带记忆、一次不带），记录每轮请求体的字节数。预期结果是请求字节数几乎不变（记忆只有 2,400 字节），但如果你能拿到 <code>cached_tokens</code>，会发现命中的字节数暴涨。这个实验证明「成本变化不体现在请求大小上，体现在缓存命中上」。
-
-<strong>实验二：把 <code>read_file</code> 的默认分页改成按字节预算。</strong>
-
-做法：让模型读一个 1,500 行的中文文件。现在默认 <code>limit = 2000</code> 行会先撞上 20,000 字节的 <code>clamp</code>，而截断后的结果里没有「下一段从哪开始」，模型很可能再盲读一次。改成按平均行长反算行数、并在尾部给出 <code>next_offset</code> 之后，两次 8,000 字节的定向读取取代了一次截断加一次盲读。预期总字节下降 20% 到 30%，轮数下降 1 轮。这个实验证明「截断不是省，是延期支付」。
-
-<strong>实验三：把 <code>max_tokens</code> 从 4096 调到 8192，看失败率。</strong>
-
-做法：跑十个包含大 patch 的任务，统计「<code>invalid JSON arguments</code> 错误」出现的次数。预期 4096 时会有一两次截断，8192 时为零，而总输出 token 几乎不变（因为没截断时输出长度本来就不变）。这个实验证明「输出上限调小」是个伪优化。
-
-三个实验的共同点是：<strong>不需要真实账单，只需要请求体的字节数和轮数</strong>。这两个数字在本地就能拿到，比等月度账单快得多，也比凭感觉可靠得多。
-<h2>预算常量该怎么定：五个数从哪来</h2>
-
-NanoHermes 的五个常量看起来像拍的，其实都能从「一条历史消息的典型大小」推出来。推导顺序是：先量，再定。
-
-先量三个数：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>观测量</th>
-<th>怎么量</th>
-<th>典型值</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>单条工具结果的 P50 / P95</td>
-<td>跑 20 个真实任务，记 <code>clamp</code> 前的字节数</td>
-<td>3,000 / 18,000</td>
-</tr>
-<tr>
-<td>每轮新增字节 <code>d</code></td>
-<td>一次任务的总字节 ÷ 轮数</td>
-<td>8,000 到 15,000</td>
-</tr>
-<tr>
-<td>稳定前缀字节 <code>S</code></td>
-<td>序列化 <code>messages[0]</code> + 工具 schema</td>
-<td>25,000 到 30,000</td>
-</tr>
-</tbody>
-</table></div>
-
-有了这三个数，五个常量就有依据了：
-<ul>
-<li><code>max_output</code>：取工具结果的 P95 再留一点余量。P95 是 18,000 时定 20,000，这个取值与观测吻合，是合理的</li>
-<li><code>KEEP_RECENT</code>：至少保留「一整轮」的消息。一轮最多 1 条助手 + 8 条工具结果 = 9 条，所以 10 是合理的</li>
-<li><code>CONTEXT_CHAR_BUDGET</code>：要让压缩后的上下文仍然容纳得下 <code>S</code> + 若干轮。若模型窗口是 200k token，用 120k 字节（约 40k token）作预算，留了五倍余量</li>
-<li><code>MAX_PROJECT_DOCS</code>：项目文档属于 <code>S</code>，它的大小应该明显小于 <code>S</code> 的总量。20,000 与 29,000 的比例是 0.7，其实偏高</li>
-<li><code>MAX_ATTACHED_IMAGES</code>：由请求体上限和单图体积决定。四张 5 MB 图已经 27 MB，超过多数网关的 10 MB，所以这个数需要配合单图上限才有意义</li>
-</ul>
-
-最后一个数字暴露了推导链的缺口：<code>MAX_ATTACHED_IMAGES</code> 是按「张数」定的，缺了「单图字节上限」这个前置约束。<strong>只定张数不定体积，等于没定</strong>。
-
-这套推导方法可以套到任何 agent 上。核心思想是：每个上限都应该能回答「它对应的是哪个观测量」，答不出来的上限就是拍的，而拍的上限迟早会在某个真实任务上暴露。
-<h2>什么该省，什么不该省</h2>
-
-成本优化有一条隐形的边界：省到某一步，能力会掉。掉在哪里，比省了多少更重要。
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>优化对象</th>
-<th>省下来的</th>
-<th>掉的能力</th>
-<th>建议</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>系统提示词</td>
-<td>几百到几千 token</td>
-<td>指令遵循、工具使用规范</td>
-<td>不该省，这是最便宜的能力投资</td>
-</tr>
-<tr>
-<td>项目文档</td>
-<td>最多 20,000 字节</td>
-<td>项目约定、命名习惯</td>
-<td>可以省，但按需加载比砍掉更好</td>
-</tr>
-<tr>
-<td>工具 schema</td>
-<td>每个工具几百 token</td>
-<td>对应能力直接消失</td>
-<td>不该省，砍工具等于砍手脚</td>
-</tr>
-<tr>
-<td>历史消息</td>
-<td>每轮累积</td>
-<td>上下文连贯、已做的决定</td>
-<td>可以省，优先用结构化状态替代</td>
-</tr>
-<tr>
-<td>工具输出</td>
-<td>每轮 20,000 字节</td>
-<td>模型看到的信息完整度</td>
-<td>谨慎，截断会导致重读</td>
-</tr>
-<tr>
-<td>输出长度</td>
-<td>每轮几百 token</td>
-<td>解释质量</td>
-<td>可以省，中间叙述最该省</td>
-</tr>
-<tr>
-<td>记忆注入</td>
-<td>2,400 字节</td>
-<td>用户偏好、历史教训</td>
-<td>不该省，它是省轮数的</td>
-</tr>
-</tbody>
-</table></div>
-
-读这张表的方式是看第三列：<strong>如果砍掉它会直接消灭一项能力，就不该砍；如果只是让模型多跑一轮，就该砍</strong>。工具 schema 和系统提示词属于前者，历史与叙述属于后者。
-
-还有一个反直觉的：记忆注入看着像「锦上添花」，其实是最划算的一项。2,400 字节换掉「模型重复问你一遍项目背景」，而重复问一次的代价是一整轮请求。按前面的公式，一轮请求的输入是几万字节。所以这项的投入产出比大概是 1:20。
-
-省钱省到记忆头上，是最常见的错误优化。
-<h2>怎么把成本做成可回归的指标</h2>
-
-成本最容易退化的地方不是「某天突然翻倍」，而是「每次加一个功能，涨 5%」。这种退化只有回归测试能抓住。
-
-做法：用 <code>e2e_mock_llm</code> 那套 mock 端点，跑一个固定的任务脚本，断言「请求次数」和「总字节数」不超过基线：
-<div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
-<span class="k">fn</span><span class="w"> </span><span class="nf">a_fixed_task_costs_no_more_than_the_baseline</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// 同一个脚本化任务：读一个文件、改两处、跑一次测试。</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">agent</span><span class="p">,</span><span class="w"> </span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">run_scripted_task</span><span class="p">();</span>
-<span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">agent</span><span class="p">.</span><span class="n">usage</span><span class="p">().</span><span class="n">requests</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;轮数膨胀&quot;</span><span class="p">);</span>
-<span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">requests</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">r</span><span class="o">|</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">len</span><span class="p">()).</span><span class="n">sum</span><span class="p">::</span><span class="o">&lt;</span><span class="kt">usize</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">180_000</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;上下文膨胀&quot;</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-注意这里断言的是「请求次数」和「请求体总字节」，不是 token——因为没有真实服务端。字节数与 token 强相关，作为回归指标足够灵敏。
-
-再加一条前缀断言：
-<div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
-<span class="k">fn</span><span class="w"> </span><span class="nf">the_system_prefix_does_not_change_between_turns</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="c1">// 同一个 agent 连跑两轮，第一轮之后的 messages[0] 必须逐字节一致。</span>
-<span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">snapshot_after_turn</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">snapshot_after_turn</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-这条测试会立刻失败——因为记忆块每轮重写。它失败得越早越好：这正是我们想让它暴露的成本缺陷。
-<h2>小结</h2>
-
-把这篇压成四句话。
-
-<strong>第一，成本是「前缀 × 历史 × 轮数」，不是「单价 × token」。</strong> 单价是线性因子，历史是二次项。一个 40 轮任务的输入 token 大约是 <code>N × S + d × N² / 2</code>，第二项才是大头。
-
-<strong>第二，压缩的价值是把二次曲线切成几段小曲线。</strong> 它不是为了「装得下」，而是为了把 <code>N²</code> 变成若干个更小的 <code>N²</code>。所以压缩频率有个最优点，由「压缩成本 vs 剩余轮次的节省」决定，而不是由「阈值多少」决定。
-
-<strong>第三，前缀缓存是最大的单点优化，而它最怕「每轮改一个字节」。</strong> NanoHermes 把每轮重检索的记忆块放在 <code>messages[0]</code> 的末尾，等于每轮让整段历史失效。这是本文最值得改的一处，也是「三个正确决定叠成一个错误」的典型案例。
-
-<strong>第四，三个上限都叫「字符」，量的都是字节。</strong> <code>CONTEXT_CHAR_BUDGET</code>、<code>MAX_PROJECT_DOCS</code>、<code>max_output</code>，在中文场景里全都比名字许诺的小三倍。这不会让程序出错，但会让所有成本估算和截断行为偏离直觉——而观测的第一要求是「数字的含义和你以为的一致」。
-
-下一篇写评测：有了账本、懂了成本，下一个问题就是「你怎么知道改动让它变好了」。答案不是跑分，是一批可复现的失效样本。
-<hr>
-<h2>参考</h2>
-<ul>
-<li><code>agent/src/agent.rs</code>：<code>CONTEXT_CHAR_BUDGET</code>、<code>KEEP_RECENT</code>、<code>MAX_ATTACHED_IMAGES</code>、<code>MAX_PARALLEL_TOOL_CALLS</code>、<code>max_output</code>、<code>compact_with</code>、<code>summarize_messages</code>、<code>set_memory_block</code>、<code>build_tools</code>、<code>execute</code></li>
-<li><code>agent/src/prompt.rs</code>：<code>system_prompt</code>、<code>project_docs</code>、<code>read_head</code>、<code>MAX_PROJECT_DOCS</code></li>
-<li><code>agent/src/llm.rs</code>：<code>chat</code>、<code>build_body</code>、<code>summarize</code>、<code>backoff_ms</code>、<code>max_tokens</code></li>
-<li><code>agent/src/tools/mod.rs</code>：<code>clamp</code>、<code>dispatch</code></li>
-<li><code>agent/src/tools/web.rs</code>：<code>max_chars</code>、<code>MAX_RESPONSE_BYTES</code>、<code>FETCH_TIMEOUT_SECS</code></li>
-<li><code>agent/src/memory.rs</code>：<code>set_block</code>、<code>retrieve_block</code>、<code>BLOCK_START</code></li>
-<li><code>agent/src/main.rs</code>：<code>build_content</code>、<code>image_part</code></li>
-<li><code>agent/src/config.rs</code>：<code>max_tokens</code>、<code>temperature</code>、<code>max_iterations</code>、<code>max_retries</code>、<code>retry_base_ms</code></li>
-</ul>]]></content:encoded>
     </item>
     <item>
       <title>Agent 观测：给每个轮次记一本账</title>
@@ -6387,17 +5833,6 @@ NanoHermes 的五个常量看起来像拍的，其实都能从「一条历史消
       <description>题目 10 亿个无序整数，内存有限（比如 1 GB），要求 排序去重 后输出。如果只问个数，就是 统计 distinct 个数 。追问：如果还想知道哪些数重复了、哪些只出现一次，怎么办？ 这就是位图（BitMap）的主场。这道题在面试里出现的频率极高，因为它考的不是某个精巧算法，而是一个思维转换： 当整数有界时，「值域</description>
       <category>算法</category>
       <category>海量数据</category>
-      <category>面试</category>
-    </item>
-    <item>
-      <title>【KMP】求 next 数组：自己跟自己的最长相等前后缀</title>
-      <link>https://zhoujungis.github.io/article/kmp-next-array/</link>
-      <guid isPermaLink="true">https://zhoujungis.github.io/article/kmp-next-array/</guid>
-      <pubDate>Wed, 14 Oct 2026 08:55:55 GMT</pubDate>
-      <description>题目 求模式串 p = &quot;abacaba&quot; 的 next 数组 。按 最长相等真前后缀 的定义，答案是 [0,0,1,0,1,2,3] 。 ⚠️ 一句话先记住： 面试前必须确认面试官用的是哪种定义 。另有一种把首项记作 -1 的定义（严蔚敏《数据结构》风格），同一条串在那套定义下的答案是 [-1,0,0,1,0,1,2</description>
-      <category>算法</category>
-      <category>LeetCode</category>
-      <category>字符串</category>
       <category>面试</category>
     </item>
   </channel>
