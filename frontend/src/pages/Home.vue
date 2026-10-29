@@ -58,7 +58,7 @@
           <div class="sk sk-line w-70" />
         </div>
         <div class="front-skeleton__list">
-          <div v-for="i in 4" :key="i" class="sk-row">
+          <div v-for="i in 6" :key="i" class="sk-row">
             <div class="sk sk-line w-20" />
             <div class="sk sk-line w-80" />
           </div>
@@ -245,7 +245,7 @@ function formatDate(dateStr) {
 function applyLatest(list, count) {
   const sorted = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   totalCount.value = count
-  latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 5)
+  latestArticles.value = sorted.filter((a) => !a.is_top).slice(0, 7)
 }
 
 // Stale-while-revalidate: the build-time snapshot paints the first screen, the
