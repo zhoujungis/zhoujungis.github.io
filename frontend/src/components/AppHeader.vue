@@ -44,6 +44,57 @@
       </nav>
 
       <div class="header-actions">
+        <button
+          v-if="!auth.isLoggedIn"
+          class="login-btn"
+          type="button"
+          @click="openLogin()"
+        >
+          登录
+        </button>
+        <div v-else ref="userMenuRef" class="user-menu">
+          <button
+            class="user-trigger"
+            type="button"
+            aria-haspopup="true"
+            :aria-expanded="userOpen"
+            @click.stop="toggleUserMenu"
+          >
+            <span class="user-avatar">{{ initial }}</span>
+            <span class="user-name">{{ auth.displayName }}</span>
+          </button>
+          <transition name="menu">
+            <div v-if="userOpen" class="user-panel">
+              <div v-if="!editingNickname" class="user-panel__row">
+                <div class="user-panel__id">
+                  <strong>{{ auth.displayName }}</strong>
+                  <small>{{ auth.user?.email }}</small>
+                </div>
+                <button class="panel-link" type="button" @click="startEdit">修改昵称</button>
+              </div>
+              <form v-else class="nick-form" @submit.prevent="saveNickname">
+                <input
+                  v-model="nickInput"
+                  class="nick-input"
+                  maxlength="32"
+                  placeholder="新的昵称"
+                />
+                <p v-if="nickError" class="nick-error">{{ nickError }}</p>
+                <div class="nick-actions">
+                  <button class="panel-link" type="button" @click="editingNickname = false">取消</button>
+                  <button class="panel-primary" type="submit" :disabled="saving">
+                    {{ saving ? '保存中…' : '保存' }}
+                  </button>
+                </div>
+              </form>
+              <button class="panel-row" type="button" :disabled="subBusy" @click="onToggleSubscribe">
+                <span>订阅新文章</span>
+                <small>{{ subscribed ? '已订阅 · 点击退订' : '未订阅 · 点击订阅' }}</small>
+              </button>
+              <button class="panel-logout" type="button" @click="onLogout">退出登录</button>
+            </div>
+          </transition>
+        </div>
         <router-link to="/search" class="icon-button search-button" title="搜索" aria-label="搜索">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
@@ -81,6 +132,41 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
           </router-link>
         </nav>
+        <div class="drawer-account">
+          <div v-if="auth.isLoggedIn" class="drawer-account__id">
+            <span class="user-avatar">{{ initial }}</span>
+            <div>
+              <strong>{{ auth.displayName }}</strong>
+              <small>{{ auth.user?.email }}</small>
+            </div>
+          </div>
+          <button
+            v-if="auth.isLoggedIn"
+            class="drawer-account__btn"
+            type="button"
+            :disabled="subBusy"
+            @click="onToggleSubscribe"
+          >
+            {{ subscribed ? '取消订阅邮件通知' : '订阅新文章邮件通知' }}
+          </button>
+          <button
+            v-if="auth.isLoggedIn"
+            class="drawer-account__btn"
+            type="button"
+            @click="onLogout"
+          >
+            退出登录
+          </button>
+          <button
+            v-if="!auth.isLoggedIn"
+            class="drawer-account__btn drawer-account__btn--primary"
+            type="button"
+            @click="openLoginFromDrawer"
+          >
+            登录 / 注册
+          </button>
+        </div>
+
         <div class="drawer-foot">
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener">GitHub</a>
           <a href="mailto:no-reply@gmail.com">Email</a>
@@ -94,15 +180,30 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useLoginModal } from '@/composables/useLogin'
 import { useScrollLock } from '@/composables/useScrollLock'
+import { useSubscription } from '@/composables/useSubscription'
+import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from './ThemeToggle.vue'
 
 const route = useRoute()
+const auth = useAuthStore()
+const { openLogin } = useLoginModal()
+const { subscribed, busy: subBusy, refresh: refreshSub, toggle: toggleSub, reset: resetSub } =
+  useSubscription()
 const drawerOpen = ref(false)
 const moreOpen = ref(false)
+const userOpen = ref(false)
+const userMenuRef = ref(null)
+const editingNickname = ref(false)
+const nickInput = ref('')
+const nickError = ref('')
+const saving = ref(false)
 // 向下滚动后收束导航底色：顶部透一点让毛玻璃呼吸，滚起来更「实」更稳
 const scrolled = ref(false)
 const scrollLock = useScrollLock()
+
+const initial = computed(() => (auth.displayName || '读').charAt(0).toUpperCase())
 
 function onScroll() {
   scrolled.value = window.scrollY > 8
@@ -133,6 +234,68 @@ const isExploreRoute = computed(() => exploreLinks.some((link) => route.path.sta
 function closeMenus() {
   drawerOpen.value = false
   moreOpen.value = false
+  userOpen.value = false
+  editingNickname.value = false
+}
+
+function openLoginFromDrawer() {
+  closeMenus()
+  openLogin()
+}
+
+function toggleUserMenu() {
+  userOpen.value = !userOpen.value
+  editingNickname.value = false
+  nickError.value = ''
+  // 打开菜单时拉一次最新订阅状态，避免各页面状态过期
+  if (userOpen.value && auth.isLoggedIn) refreshSub()
+}
+
+async function onToggleSubscribe() {
+  try {
+    await toggleSub()
+  } catch {
+    // 失败时保持旧状态，不弹额外提示（菜单里能看到没变）
+  }
+}
+
+function startEdit() {
+  nickInput.value = auth.displayName
+  nickError.value = ''
+  editingNickname.value = true
+}
+
+async function saveNickname() {
+  const value = nickInput.value.trim()
+  if (!value) {
+    nickError.value = '昵称不能为空'
+    return
+  }
+  saving.value = true
+  nickError.value = ''
+  try {
+    await auth.updateNickname(value)
+    editingNickname.value = false
+    userOpen.value = false
+  } catch (e) {
+    nickError.value = e?.response?.data?.detail || '保存失败，请稍后重试'
+  } finally {
+    saving.value = false
+  }
+}
+
+function onLogout() {
+  auth.logout()
+  resetSub()
+  closeMenus()
+}
+
+function onDocumentClick(event) {
+  if (!userOpen.value) return
+  if (userMenuRef.value && !userMenuRef.value.contains(event.target)) {
+    userOpen.value = false
+    editingNickname.value = false
+  }
 }
 
 function onKeydown(event) {
@@ -148,11 +311,13 @@ watch(() => route.fullPath, closeMenus)
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('scroll', onScroll, { passive: true })
+  document.addEventListener('click', onDocumentClick)
   onScroll()
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('scroll', onScroll)
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
@@ -309,6 +474,266 @@ onUnmounted(() => {
   gap: 2px;
 }
 
+// 登录入口：未登录是一枚描边药丸，登录后收成「头像 + 昵称」触发器，
+// 与导航同一套圆角/hover 语言，不额外引入新的视觉元素。
+.login-btn {
+  height: 36px;
+  margin-right: 6px;
+  padding: 0 16px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color $transition-fast, background $transition-fast,
+    border-color $transition-fast, transform 0.12s ease;
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--surface-muted);
+  }
+  &:active { transform: scale(0.96); }
+}
+
+.user-menu {
+  position: relative;
+  margin-right: 4px;
+}
+
+.user-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px 0 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+  }
+}
+
+.user-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-name {
+  max-width: 96px;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 248px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  border-radius: $radius-md;
+  box-shadow: $card-shadow-hover;
+}
+
+.user-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.user-panel__id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    overflow: hidden;
+    margin-top: 3px;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.panel-link {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: color $transition-fast;
+
+  &:hover { color: var(--accent); }
+}
+
+.nick-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.nick-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text-primary);
+  background: var(--page-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: $radius-sm;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color $transition-fast;
+
+  &:focus { border-color: var(--accent); }
+}
+
+.nick-error {
+  color: #d64545;
+  font-size: 0.74rem;
+}
+
+.nick-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.panel-primary {
+  height: 32px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: $radius-sm;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 8px;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  border-radius: $radius-sm;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  small { color: var(--text-secondary); font-size: 0.72rem; }
+  &:hover:not(:disabled) { background: var(--surface-muted); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.panel-logout {
+  width: 100%;
+  margin-top: 2px;
+  padding: 9px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: $radius-sm;
+  font-size: 0.82rem;
+  text-align: center;
+  cursor: pointer;
+  transition: color $transition-fast, background $transition-fast;
+
+  &:hover {
+    color: #d64545;
+    background: var(--surface-muted);
+  }
+}
+
+.drawer-account {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.drawer-account__id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  div { display: flex; flex-direction: column; min-width: 0; }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 0.92rem;
+  }
+
+  small {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    text-overflow: ellipsis;
+  }
+}
+
+.drawer-account__btn {
+  height: 42px;
+  color: var(--text-secondary);
+  background: var(--page-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: $radius-md;
+  font-size: 0.88rem;
+  cursor: pointer;
+
+  &--primary {
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+}
+
 .icon-button,
 .hamburger {
   display: inline-flex;
@@ -448,6 +873,10 @@ onUnmounted(() => {
   // 之前在这里 display:none 掉了。收窄字距以便整行放得下。
   .logo-copy small { letter-spacing: 0.06em; }
   .search-button { display: none; }
+  // 窄屏只留头像，昵称收进下拉，避免和汉堡挤在一起
+  .user-name { display: none; }
+  .user-trigger { padding: 0 6px 0 4px; }
+  .login-btn { height: 34px; margin-right: 2px; padding: 0 13px; font-size: 0.8rem; }
 }
 
 @media (max-width: 420px) {

@@ -1,6 +1,6 @@
 from rest_framework import generics
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.throttling import ScopedRateThrottle
 from django.shortcuts import get_object_or_404
 
@@ -17,7 +17,7 @@ class CommentPageNumberPagination(PageNumberPagination):
 
 class ArticleCommentList(generics.ListCreateAPIView):
     serializer_class = CommentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     # C-S3: actually apply the 'comment' scope (3/min) defined in settings —
     # was previously falling back to the default anon throttle (30/min).
     throttle_classes = [ScopedRateThrottle]
@@ -54,4 +54,17 @@ class ArticleCommentList(generics.ListCreateAPIView):
             from rest_framework.exceptions import ValidationError
             raise ValidationError({"detail": "检测到垃圾评论"})
 
-        serializer.save(article=article, parent=parent, is_approved=False)  # requires admin review
+        # 登录用户直接发布：昵称取读者资料，不再收集邮箱，也不再进人工审核队列。
+        user = self.request.user
+        try:
+            author_name = user.profile.display_name
+        except Exception:  # noqa: BLE001 — 老账号可能没有 Profile
+            author_name = (user.email or "").split("@")[0] or user.username
+
+        serializer.save(
+            article=article,
+            parent=parent,
+            user=user,
+            author_name=author_name[:64],
+            is_approved=True,
+        )

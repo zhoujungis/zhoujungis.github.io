@@ -4,9 +4,15 @@ from html import unescape
 
 import bleach
 import markdown
+from django.conf import settings
+from django.core import signing
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+
+# 退订链接的签名盐。链接里只放订阅记录的 pk + 邮箱，不暴露其他信息；
+# 换盐会让历史邮件里的退订链接一次性全部失效。
+UNSUBSCRIBE_SALT = "articles.newsletter"
 
 
 def make_excerpt(html_content, fallback_text="", word_limit=50):
@@ -212,6 +218,16 @@ class Article(models.Model):
 class Subscriber(models.Model):
     """Email newsletter subscriber."""
     email = models.EmailField(unique=True, verbose_name="邮箱")
+    # 登录用户订阅时绑定账号，这样用户菜单里能开关订阅；
+    # 匿名订阅（只填邮箱）为 NULL，两者共用同一张表，按邮箱去重。
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subscriptions",
+        verbose_name="订阅用户",
+    )
     is_active = models.BooleanField(default=True, verbose_name="是否活跃")
     subscribed_at = models.DateTimeField(auto_now_add=True, verbose_name="订阅时间")
 
@@ -222,6 +238,15 @@ class Subscriber(models.Model):
 
     def __str__(self):
         return self.email
+
+    def unsubscribe_token(self):
+        return signing.dumps(
+            {"pk": self.pk, "email": self.email}, salt=UNSUBSCRIBE_SALT
+        )
+
+    def unsubscribe_url(self):
+        base = settings.API_PUBLIC_URL.rstrip("/")
+        return f"{base}/api/unsubscribe/{self.unsubscribe_token()}/"
 
 
 class ArticleLike(models.Model):

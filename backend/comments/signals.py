@@ -1,7 +1,6 @@
 """Signal handlers for the comments app.
 
-- ``notify_new_comment``: emails the site admin when a new comment
-  is submitted and needs review.
+- ``notify_new_comment``: emails the site admin when a reader posts a comment.
 """
 
 import logging
@@ -26,16 +25,14 @@ def notify_new_comment(sender, instance, created, **kwargs):
 
     body = (
         f"文章：{instance.article.title}\n"
-        f"作者：{instance.author_name}\n"
-        f"邮箱：{instance.author_email}\n"
+        f"读者：{instance.author_name}\n"
         f"内容：\n{instance.content[:500]}\n\n"
         f"查看：{article_url}\n"
-        f"审核：{blog_url}/admin/comments\n"
     )
 
     try:
         send_mail(
-            subject=f"\U0001F4AC 新评论待审核 — {instance.article.title}",
+            subject=f"\U0001F4AC 新评论 — {instance.article.title}",
             message=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[settings.DEFAULT_FROM_EMAIL],

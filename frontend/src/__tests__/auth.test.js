@@ -12,6 +12,22 @@ vi.mock('../api/admin', () => ({
   })),
 }))
 
+// 读者登录相关的请求在 store 里只用到 getMe / updateMe
+vi.mock('../api/auth', () => ({
+  getMe: vi.fn(() => Promise.resolve({
+    data: { id: 1, email: 'reader@example.com', nickname: '小周', avatar_url: '', is_staff: false },
+  })),
+  updateMe: vi.fn((payload) => Promise.resolve({
+    data: { id: 1, email: 'reader@example.com', nickname: payload.nickname, avatar_url: '', is_staff: false },
+  })),
+  requestEmailCode: vi.fn(),
+  verifyEmailCode: vi.fn(),
+  startOAuth: vi.fn(),
+  exchangeOAuthTicket: vi.fn(),
+}))
+
+const READER_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjk5OTk5OTk5OTl9.signature'
+
 describe('useAuthStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -63,5 +79,48 @@ describe('useAuthStore', () => {
     store.checkAuth()
     expect(store.isAuthenticated).toBe(true)
     expect(store.token).toBe('valid.jwt.token')
+  })
+
+  it('applyAuth 保存读者身份与昵称', () => {
+    const store = useAuthStore()
+    store.applyAuth({
+      access: READER_TOKEN,
+      refresh: 'reader-refresh',
+      user: { id: 7, email: 'reader@example.com', nickname: '小周', avatar_url: '' },
+    })
+    expect(store.isLoggedIn).toBe(true)
+    expect(store.displayName).toBe('小周')
+    expect(localStorage.getItem('refresh_token')).toBe('reader-refresh')
+    expect(JSON.parse(localStorage.getItem('user')).nickname).toBe('小周')
+  })
+
+  it('displayName 无昵称时回退到邮箱前缀', () => {
+    const store = useAuthStore()
+    store.applyAuth({
+      access: READER_TOKEN,
+      refresh: 'reader-refresh',
+      user: { id: 7, email: 'reader@example.com', nickname: '' },
+    })
+    expect(store.displayName).toBe('reader')
+  })
+
+  it('updateNickname 同步服务端返回值到本地', async () => {
+    const store = useAuthStore()
+    store.applyAuth({
+      access: READER_TOKEN,
+      refresh: 'reader-refresh',
+      user: { id: 7, email: 'reader@example.com', nickname: 'reader', avatar_url: '' },
+    })
+    await store.updateNickname('新的昵称')
+    expect(store.displayName).toBe('新的昵称')
+    expect(JSON.parse(localStorage.getItem('user')).nickname).toBe('新的昵称')
+  })
+
+  it('fetchMe 刷新昵称并落盘', async () => {
+    const store = useAuthStore()
+    store.applyAuth({ access: READER_TOKEN, refresh: 'reader-refresh', user: null })
+    await store.fetchMe()
+    expect(store.displayName).toBe('小周')
+    expect(JSON.parse(localStorage.getItem('user')).email).toBe('reader@example.com')
   })
 })

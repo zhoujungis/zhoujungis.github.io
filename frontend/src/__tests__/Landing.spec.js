@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia } from 'pinia'
 import Home from '../pages/Home.vue'
 
 vi.mock('@/api/articles', () => ({
@@ -27,14 +28,14 @@ describe('Landing (Home.vue)', () => {
   it('renders page-landing root container', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
+    const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     expect(wrapper.find('.page-landing').exists()).toBe(true)
   })
 
   it('renders masthead with name and subtitle', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
+    const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     // 刊头是「等宽英文 kicker + 衬线中文大题」的混排（本次刊头打磨方案），
     // 断言两者各自的文本，锁住这层结构不被误删或改词。
     expect(wrapper.find('.masthead__kicker').text()).toBe('CODE & LIFE · JOURNAL')
@@ -59,7 +60,7 @@ describe('Landing (Home.vue)', () => {
   it('renders latest-section with header and view-all link', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
+    const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
     const front = wrapper.find('.front-section')
     expect(front.exists()).toBe(true)
@@ -86,7 +87,7 @@ describe('Landing (Home.vue)', () => {
     })
     const router = makeRouter()
     await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
+    const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
     expect(wrapper.find('.lead-story').exists()).toBe(true)
     // sorted newest-first, so 2026-01-05 (Article Five) is featured
@@ -97,7 +98,7 @@ describe('Landing (Home.vue)', () => {
   it('primary CTA points to /articles', async () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
-    const wrapper = mount(Home, { global: { plugins: [router] } })
+    const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     const cta = wrapper.find('.mast-cta')
     expect(cta.exists()).toBe(true)
     expect(cta.attributes('href')).toBe('/articles')

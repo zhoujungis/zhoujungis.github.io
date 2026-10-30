@@ -154,6 +154,21 @@
       </div>
     </section>
 
+    <!-- ── 订阅 ── -->
+    <section class="subscribe-section" aria-label="订阅更新">
+      <header class="section-head">
+        <h2 class="section-title">订阅更新</h2>
+        <span class="section-meta">新文章发布时邮件通知你，随时可退订</span>
+      </header>
+      <div class="subscribe-body">
+        <p class="subscribe-copy">
+          不常来也没关系。留下邮箱，每当有新文章发布，我会把标题和摘要寄给你——
+          只在新文章上线时发信，不推送其他内容。
+        </p>
+        <NewsletterForm class="subscribe-form" />
+      </div>
+    </section>
+
     <!-- ── 封底导航 ── -->
     <nav class="colophon-nav" aria-label="快速浏览">
       <router-link to="/articles" class="colophon-link">
@@ -180,6 +195,7 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { getArticles } from '@/api/articles'
 import { resolveListFallback, saveListCache, cacheNoticeText } from '@/utils/articleCache'
 import { catLabel, tagLabel } from '@/utils/labels'
+import NewsletterForm from '@/components/NewsletterForm.vue'
 
 const latestArticles = ref([])
 const totalCount = ref(0)
@@ -873,6 +889,41 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   opacity: 0.9;
 }
 
+// ── 订阅 ──
+// 与刊头/栏目同一套排版语言：规则线标题 + 双栏（左说明、右订阅卡片）。
+// 不再藏在某篇文章末尾，所有访客在首页都能看到入口。
+.subscribe-section {
+  margin-top: 64px;
+}
+
+.section-meta {
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.subscribe-body {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 32px;
+  align-items: start;
+  margin-top: 20px;
+  animation: reveal 0.45s ease both;
+}
+
+.subscribe-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.85;
+}
+
+.subscribe-form {
+  // 组件自带的 margin-top 是为文章内嵌场景准备的，这里由栅格控制间距
+  :deep(.newsletter) { margin-top: 0; }
+}
+
 // ── 封底导航 ──
 .colophon-nav {
   display: grid;
@@ -995,6 +1046,8 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   .front-skeleton__list { margin-top: 10px; }
   .column-row { grid-template-columns: 40px 1fr; }
   .column-row__body { grid-column: 1 / -1; }
+  .subscribe-body { grid-template-columns: 1fr; gap: 16px; }
+  .subscribe-form { max-width: 420px; }
   .colophon-nav { grid-template-columns: 1fr; }
   .colophon-link { border-right: 0; }
   .colophon-link:last-child { border-bottom: 0; }

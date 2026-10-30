@@ -65,7 +65,8 @@ if not DEBUG and SECRET_KEY == _default_secret:
 # H-S1: security headers — defense in depth against XSS and downgrade.
 # These only apply when the request is HTTPS (Django's SECURE_* family).
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = True
+# 只在非 DEBUG 下强制 HTTPS：本地 runserver 是 http，无条件开启会把自己 301 到 https。
+SECURE_SSL_REDIRECT = not DEBUG
 SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -73,6 +74,10 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'same-origin'
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+# 测试环境里 Django 会把 DEBUG 强制成 False，上面的 SECURE_SSL_REDIRECT
+# 会把所有 http 测试请求变成 301。用自定义 runner 在测试期间关掉它。
+TEST_RUNNER = 'blog_api.test_runner.TestRunner'
 
 
 # Application definition
@@ -201,6 +206,8 @@ REST_FRAMEWORK = {
         'comment': '3/minute',   # 3 comments per minute per IP
         'subscribe': '5/hour',   # 5 subscriptions per hour per IP
         'upload': '100/hour',    # 100 image uploads per hour per user
+        'email_code': '3/hour',        # 邮箱验证码发送（按 IP）
+        'email_code_verify': '10/hour',  # 验证码校验（按 IP）
     },
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
@@ -241,6 +248,10 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # Site URL (used in email templates)
 SITE_URL = os.environ.get("SITE_URL", "https://blog.zhoujun.dev")
+
+# 后端自身的公网地址：订阅邮件的「一键退订」链接指向这里（前端站点是静态
+# 托管，没有这个接口）。本地调试时可在 .env 里覆盖成 http://127.0.0.1:8000。
+API_PUBLIC_URL = os.environ.get("API_PUBLIC_URL", "https://zhoujun123.pythonanywhere.com")
 
 # Internationalization
 LANGUAGE_CODE = 'zh-hans'

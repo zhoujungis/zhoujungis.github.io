@@ -18,6 +18,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "parent",
             "author_name",
             "author_email",
+            "user_id",
             "content",
             "is_approved",
             "created_at",
@@ -27,12 +28,15 @@ class CommentSerializer(serializers.ModelSerializer):
             "article",
             "article_slug",
             "article_title",
+            "user_id",
             "is_approved",
             "created_at",
         ]
         extra_kwargs = {
             # author_email only accepted on write, never exposed in responses
             "author_email": {"write_only": True},
+            # 昵称由服务端按读者资料写入，前端不再提交
+            "author_name": {"required": False},
         }
 
     def get_replies(self, obj):

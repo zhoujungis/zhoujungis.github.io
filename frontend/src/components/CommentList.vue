@@ -100,6 +100,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getComments } from '@/api/comments'
+import { useLoginModal } from '@/composables/useLogin'
+import { useAuthStore } from '@/stores/auth'
 import CommentForm from './CommentForm.vue'
 
 const props = defineProps({
@@ -108,6 +110,9 @@ const props = defineProps({
     required: true,
   },
 })
+
+const auth = useAuthStore()
+const { openLogin } = useLoginModal()
 
 const comments = ref([])
 const loading = ref(true)
@@ -121,6 +126,10 @@ const topLevelComments = computed(() =>
 // flat top-level array. The template renders them inline per-comment above.
 
 function toggleReply(commentId) {
+  if (!auth.isLoggedIn) {
+    openLogin('登录后即可回复评论')
+    return
+  }
   replyToId.value = replyToId.value === commentId ? null : commentId
 }
 

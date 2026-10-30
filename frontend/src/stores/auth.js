@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { login as apiLogin } from '../api/admin'
-import client from '../api/client'
+import { getMe, updateMe } from '../api/auth'
 
 const TOKEN_KEY = 'token'
 const EXPIRY_KEY = 'token_expiry'
 const USER_KEY = 'user'
+const REFRESH_KEY = 'refresh_token'
 
 function getStoredToken() {
   const token = localStorage.getItem(TOKEN_KEY)
@@ -54,26 +55,49 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isLoggedIn: (state) => state.isAuthenticated,
+    displayName: (state) => state.user?.nickname || state.user?.email?.split('@')[0] || '',
+    isStaff: (state) => !!state.user?.is_staff,
   },
 
   actions: {
-    async login(username, password) {
-      const response = await apiLogin(username, password)
-      const { access, refresh } = response.data
+    // 三种登录方式（邮箱验证码 / Google / GitHub）最终都落到这一处
+    applyAuth({ access, refresh, user } = {}) {
+      if (!access) throw new Error('No access token in auth response')
 
       this.token = access
-      this.user = null
+      this.user = user || null
       this.isAuthenticated = true
 
       localStorage.setItem(TOKEN_KEY, access)
-      if (refresh) localStorage.setItem('refresh_token', refresh)
+      if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+      if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+      else localStorage.removeItem(USER_KEY)
 
       // Extract expiry from JWT payload (exp claim is in seconds)
       const payload = parseJwtPayload(access)
       if (payload?.exp) {
         localStorage.setItem(EXPIRY_KEY, String(payload.exp * 1000))
       }
-      localStorage.removeItem(USER_KEY)
+    },
+
+    async login(username, password) {
+      const response = await apiLogin(username, password)
+      const { access, refresh } = response.data
+      this.applyAuth({ access, refresh, user: null })
+    },
+
+    async fetchMe() {
+      const response = await getMe()
+      this.user = response.data
+      localStorage.setItem(USER_KEY, JSON.stringify(response.data))
+      return response.data
+    },
+
+    async updateNickname(nickname) {
+      const response = await updateMe({ nickname })
+      this.user = response.data
+      localStorage.setItem(USER_KEY, JSON.stringify(response.data))
+      return response.data
     },
 
     logout() {
@@ -83,7 +107,7 @@ export const useAuthStore = defineStore('auth', {
 
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(EXPIRY_KEY)
-      localStorage.removeItem('refresh_token')
+      localStorage.removeItem(REFRESH_KEY)
       localStorage.removeItem(USER_KEY)
     },
 

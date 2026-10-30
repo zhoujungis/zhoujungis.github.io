@@ -1,85 +1,63 @@
 <template>
   <div class="comment-form" :class="{ 'reply-form': !!parentId }">
-    <h4 v-if="parentId" class="form-title">回复评论</h4>
-    <h4 v-else class="form-title">发表评论</h4>
+    <!-- 未登录：先登录再评论 -->
+    <div v-if="!auth.isLoggedIn" class="login-cta">
+      <h4 class="form-title">{{ parentId ? '回复评论' : '发表评论' }}</h4>
+      <p class="login-cta__hint">登录后即可参与讨论，支持邮箱验证码、Google 与 GitHub</p>
+      <button type="button" class="submit-btn" @click="openLogin()">登录 / 注册</button>
+    </div>
 
-    <form @submit.prevent="submitForm" class="form-body">
-      <!-- Name -->
-      <div class="form-field">
-        <input
-          v-model="form.author_name"
-          type="text"
-          placeholder="昵称 *"
-          class="form-input"
-          :class="{ 'input-error': errors.author_name }"
-          @input="clearError('author_name')"
-        />
-        <p v-if="errors.author_name" class="field-error">{{ errors.author_name }}</p>
+    <template v-else>
+      <div class="form-head">
+        <h4 class="form-title">{{ parentId ? '回复评论' : '发表评论' }}</h4>
+        <span class="form-identity">以 <strong>{{ auth.displayName }}</strong> 的身份</span>
       </div>
 
-      <!-- Email -->
-      <div class="form-field">
-        <input
-          v-model="form.author_email"
-          type="email"
-          placeholder="邮箱 *"
-          class="form-input"
-          :class="{ 'input-error': errors.author_email }"
-          @input="clearError('author_email')"
-        />
-        <p v-if="errors.author_email" class="field-error">{{ errors.author_email }}</p>
-      </div>
+      <form @submit.prevent="submitForm" class="form-body">
+        <!-- Honeypot (hidden from humans, filled by bots) -->
+        <div class="hp-field" aria-hidden="true">
+          <input v-model="form.website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
 
-      <!-- Honeypot (hidden from humans, filled by bots) -->
-      <div class="hp-field" aria-hidden="true">
-        <input v-model="form.website" type="text" tabindex="-1" autocomplete="off" />
-      </div>
+        <div class="form-field">
+          <textarea
+            v-model="form.content"
+            placeholder="说点什么..."
+            rows="4"
+            class="form-textarea"
+            :class="{ 'input-error': errors.content }"
+            @input="clearError"
+          />
+          <p v-if="errors.content" class="field-error">{{ errors.content }}</p>
+        </div>
 
-      <!-- Content -->
-      <div class="form-field">
-        <textarea
-          v-model="form.content"
-          placeholder="说点什么..."
-          rows="4"
-          class="form-textarea"
-          :class="{ 'input-error': errors.content }"
-          @input="clearError('content')"
-        />
-        <p v-if="errors.content" class="field-error">{{ errors.content }}</p>
-      </div>
+        <p v-if="submitError" class="submit-error">{{ submitError }}</p>
+        <p v-if="submitted" class="submit-success">评论已发布</p>
 
-      <!-- Submit error -->
-      <p v-if="submitError" class="submit-error">{{ submitError }}</p>
-
-      <!-- Submit success -->
-      <p v-if="submitted" class="submit-success">评论已提交！</p>
-
-      <!-- Actions -->
-      <div class="form-actions">
-        <button
-          v-if="parentId"
-          type="button"
-          class="cancel-btn"
-          @click="$emit('cancel')"
-        >
-          取消回复
-        </button>
-        <button
-          type="submit"
-          class="submit-btn"
-          :disabled="submitting"
-        >
-          <span v-if="submitting" class="spinner" />
-          <span v-else>提交</span>
-        </button>
-      </div>
-    </form>
+        <div class="form-actions">
+          <button
+            v-if="parentId"
+            type="button"
+            class="cancel-btn"
+            @click="$emit('cancel')"
+          >
+            取消回复
+          </button>
+          <button type="submit" class="submit-btn" :disabled="submitting">
+            <span v-if="submitting" class="spinner" />
+            <span v-else>提交</span>
+          </button>
+        </div>
+      </form>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { postComment } from '@/api/comments'
+import { useLoginModal } from '@/composables/useLogin'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
   articleSlug: {
@@ -94,16 +72,15 @@ const props = defineProps({
 
 const emit = defineEmits(['submitted', 'cancel'])
 
+const auth = useAuthStore()
+const { openLogin } = useLoginModal()
+
 const form = reactive({
-  author_name: '',
-  author_email: '',
   content: '',
   website: '',  // honeypot — must stay empty
 })
 
 const errors = reactive({
-  author_name: '',
-  author_email: '',
   content: '',
 })
 
@@ -112,37 +89,22 @@ const submitError = ref(null)
 const submitted = ref(false)
 
 function validate() {
-  let valid = true
-  errors.author_name = ''
-  errors.author_email = ''
   errors.content = ''
+  const content = form.content.trim()
 
-  if (!form.author_name.trim()) {
-    errors.author_name = '请输入昵称'
-    valid = false
-  }
-
-  if (!form.author_email.trim()) {
-    errors.author_email = '请输入邮箱'
-    valid = false
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.author_email)) {
-    errors.author_email = '邮箱格式不正确'
-    valid = false
-  }
-
-  if (!form.content.trim()) {
+  if (!content) {
     errors.content = '请输入评论内容'
-    valid = false
-  } else if (form.content.trim().length < 3) {
-    errors.content = '评论内容至少3个字符'
-    valid = false
+    return false
   }
-
-  return valid
+  if (content.length < 3) {
+    errors.content = '评论内容至少 3 个字符'
+    return false
+  }
+  return true
 }
 
-function clearError(field) {
-  if (errors[field]) errors[field] = ''
+function clearError() {
+  if (errors.content) errors.content = ''
   submitError.value = null
 }
 
@@ -153,8 +115,6 @@ async function submitForm() {
 
   try {
     const data = {
-      author_name: form.author_name.trim(),
-      author_email: form.author_email.trim(),
       content: form.content.trim(),
       website: form.website,  // honeypot
     }
@@ -165,37 +125,23 @@ async function submitForm() {
     submitted.value = true
     setTimeout(() => { submitted.value = false }, 3000)
     emit('submitted')
-    form.author_name = ''
-    form.author_email = ''
     form.content = ''
   } catch (e) {
+    if (e?.response?.status === 401) {
+      auth.logout()
+      openLogin('登录状态已失效，请重新登录')
+      return
+    }
     const detail = e?.response?.data
-    if (typeof detail === 'object' && detail !== null) {
-      // Map API field errors to form fields
-      const apiErrors = detail
-      if (apiErrors.author_name) {
-        errors.author_name = Array.isArray(apiErrors.author_name)
-          ? apiErrors.author_name[0]
-          : apiErrors.author_name
+    if (detail && typeof detail === 'object') {
+      const contentError = detail.content
+      if (contentError) {
+        errors.content = Array.isArray(contentError) ? contentError[0] : contentError
       }
-      if (apiErrors.author_email) {
-        errors.author_email = Array.isArray(apiErrors.author_email)
-          ? apiErrors.author_email[0]
-          : apiErrors.author_email
-      }
-      if (apiErrors.content) {
-        errors.content = Array.isArray(apiErrors.content)
-          ? apiErrors.content[0]
-          : apiErrors.content
-      }
-      if (apiErrors.detail) {
-        submitError.value = apiErrors.detail
-      }
-      if (apiErrors.non_field_errors) {
-        submitError.value = Array.isArray(apiErrors.non_field_errors)
-          ? apiErrors.non_field_errors[0]
-          : apiErrors.non_field_errors
-      }
+      submitError.value =
+        detail.detail ||
+        (Array.isArray(detail.non_field_errors) ? detail.non_field_errors[0] : detail.non_field_errors) ||
+        null
     } else if (typeof detail === 'string') {
       submitError.value = detail
     } else {
@@ -226,11 +172,43 @@ async function submitForm() {
   }
 }
 
+.form-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
 .form-title {
   font-size: 1rem;
   font-weight: 600;
   color: $neon-cyan;
-  margin-bottom: 16px;
+}
+
+.form-identity {
+  color: $text-secondary;
+  font-size: 0.8rem;
+
+  strong { color: $text-primary; font-weight: 600; }
+}
+
+.login-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+
+  .form-title { margin-bottom: 0; }
+
+  &__hint {
+    color: $text-secondary;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  .submit-btn { align-self: flex-end; }
 }
 
 .form-body {
@@ -245,7 +223,6 @@ async function submitForm() {
   gap: 4px;
 }
 
-.form-input,
 .form-textarea {
   width: 100%;
   padding: 10px 14px;
@@ -258,6 +235,7 @@ async function submitForm() {
   outline: none;
   transition: border-color $transition-fast, background $transition-fast;
   resize: vertical;
+  min-height: 80px;
 
   &::placeholder {
     color: rgba($text-secondary, 0.6);
@@ -273,10 +251,6 @@ async function submitForm() {
     border-color: $neon-pink;
     box-shadow: 0 0 8px rgba($neon-pink, 0.12);
   }
-}
-
-.form-textarea {
-  min-height: 80px;
 }
 
 .field-error {

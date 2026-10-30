@@ -1,7 +1,9 @@
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.models import Profile
 from articles.models import Article, Category, Tag
 from comments.models import Comment
 
@@ -179,3 +181,59 @@ class CommentAdminAPITestCase(APITestCase):
         self._auth_as(self.regular_user)
         resp = self.client.get("/api/admin/stats/")
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PublicCommentCreateTests(APITestCase):
+    """读者登录后评论：不再需要审核，提交即可见。"""
+
+    def setUp(self):
+        cache.clear()  # 评论限流按 IP 计数，逐用例清零
+        self.category = Category.objects.create(name="Tech", slug="tech")
+        self.article = Article.objects.create(
+            title="Test Article",
+            slug="test-article",
+            content="Some test content here.",
+            category=self.category,
+            status=Article.Status.PUBLISHED,
+        )
+        self.user = User.objects.create_user(
+            username="reader@example.com", email="reader@example.com"
+        )
+        Profile.objects.create(user=self.user, nickname="小周")
+        self.url = f"/api/articles/{self.article.slug}/comments/"
+
+    def test_anonymous_cannot_post(self):
+        resp = self.client.post(self.url, {"content": "匿名评论"})
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_authenticated_comment_is_visible_immediately(self):
+        self.client.force_authenticate(self.user)
+        resp = self.client.post(self.url, {"content": "写得好"})
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(resp.data["author_name"], "小周")
+        self.assertTrue(resp.data["is_approved"])
+        self.assertEqual(resp.data["user_id"], self.user.id)
+
+        comment = Comment.objects.get(id=resp.data["id"])
+        self.assertEqual(comment.user, self.user)
+        self.assertEqual(comment.author_email, "")
+        self.assertTrue(comment.is_approved)
+
+        listing = self.client.get(self.url)
+        ids = [item["id"] for item in listing.data["results"]]
+        self.assertIn(comment.id, ids)
+
+    def test_nickname_falls_back_to_email_prefix(self):
+        profile = Profile.objects.get(user=self.user)
+        profile.nickname = ""
+        profile.save(update_fields=["nickname"])
+        # 反向 OneToOne 会在 user 实例上缓存 profile，重新取一次避免读到旧对象
+        self.user = type(self.user).objects.get(pk=self.user.pk)
+        self.client.force_authenticate(self.user)
+        resp = self.client.post(self.url, {"content": "没有昵称"})
+        self.assertEqual(resp.data["author_name"], "reader")
+
+    def test_honeypot_rejects_bot(self):
+        self.client.force_authenticate(self.user)
+        resp = self.client.post(self.url, {"content": "spam", "website": "http://spam"})
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)

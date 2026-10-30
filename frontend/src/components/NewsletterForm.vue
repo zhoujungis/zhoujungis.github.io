@@ -5,9 +5,25 @@
       订阅更新
     </h4>
     <p class="newsletter-desc">新文章发布时，通过邮件通知你</p>
-    <form @submit.prevent="subscribe" class="newsletter-form">
+
+    <!-- 已登录：邮箱取自账号，直接开关订阅，不再让用户重复输入 -->
+    <template v-if="auth.isLoggedIn">
+      <p class="newsletter-account">{{ email || auth.user?.email }}</p>
+      <button
+        type="button"
+        class="newsletter-btn newsletter-btn--wide"
+        :disabled="busy"
+        @click="toggleSub"
+      >
+        <span v-if="busy">...</span>
+        <span v-else-if="subscribed">取消订阅</span>
+        <span v-else>订阅</span>
+      </button>
+    </template>
+
+    <form v-else @submit.prevent="subscribe" class="newsletter-form">
       <input
-        v-model="email"
+        v-model="emailInput"
         type="email"
         placeholder="your@email.com"
         class="newsletter-input"
@@ -25,21 +41,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import client from '@/api/client'
+import { onMounted, ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useSubscription } from '@/composables/useSubscription'
+import { subscribeEmail } from '@/api/newsletter'
 
-const email = ref('')
+const auth = useAuthStore()
+const { subscribed, email, busy, refresh, toggle } = useSubscription()
+
+const emailInput = ref('')
 const submitting = ref(false)
 const done = ref(false)
 const msg = ref('')
 const msgType = ref('')
 
+onMounted(() => {
+  if (auth.isLoggedIn) refresh()
+})
+
 async function subscribe() {
-  if (!email.value.trim()) return
+  if (!emailInput.value.trim()) return
   submitting.value = true
   msg.value = ''
   try {
-    const res = await client.post('/subscribe/', { email: email.value.trim() })
+    const res = await subscribeEmail(emailInput.value.trim())
     done.value = true
     msg.value = res.data.detail || '订阅成功！'
     msgType.value = 'msg-success'
@@ -49,6 +74,18 @@ async function subscribe() {
     msgType.value = 'msg-error'
   } finally {
     submitting.value = false
+  }
+}
+
+async function toggleSub() {
+  msg.value = ''
+  try {
+    await toggle()
+    msg.value = subscribed.value ? '已订阅，新文章发布时会邮件通知你' : '已取消订阅'
+    msgType.value = 'msg-success'
+  } catch (e) {
+    msg.value = e?.response?.data?.detail || '操作失败，请稍后重试'
+    msgType.value = 'msg-error'
   }
 }
 </script>
@@ -71,6 +108,12 @@ async function subscribe() {
   font-size: 0.8rem;
   color: $text-secondary;
   margin: 0 0 12px;
+}
+.newsletter-account {
+  margin: 0 0 10px;
+  font-family: $font-mono;
+  font-size: 0.78rem;
+  color: $text-secondary;
 }
 .newsletter-form {
   display: flex; gap: 8px;
@@ -102,6 +145,10 @@ async function subscribe() {
   white-space: nowrap;
   &:hover:not(:disabled) { background: rgba($neon-cyan, 0.25); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+.newsletter-btn--wide {
+  display: block;
+  width: 100%;
 }
 .msg-success { font-size: 0.8rem; color: #00e676; margin: 8px 0 0; }
 .msg-error { font-size: 0.8rem; color: $neon-pink; margin: 8px 0 0; }

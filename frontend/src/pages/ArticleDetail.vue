@@ -162,9 +162,6 @@
           <!-- Related Articles -->
           <RelatedArticles :articles="article.related_articles || []" />
 
-          <!-- Newsletter in-article -->
-          <NewsletterForm />
-
           <!-- Comment section -->
           <section class="comment-section">
             <CommentList :article-slug="article.slug" :key="commentKey" />
@@ -191,7 +188,6 @@ import CommentForm from '@/components/CommentForm.vue'
 import TocNav from '@/components/TocNav.vue'
 import ShareButtons from '@/components/ShareButtons.vue'
 import RelatedArticles from '@/components/RelatedArticles.vue'
-import NewsletterForm from '@/components/NewsletterForm.vue'
 import { useSEO, SITE_AUTHOR } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'

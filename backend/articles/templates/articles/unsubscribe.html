@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>{% if state == "done" %}已退订{% elif state == "confirm" %}确认退订{% else %}链接无效{% endif %} · Stack Frame</title>
+</head>
+<body style="margin:0;padding:0;min-height:100vh;background:#fff5f7;font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff5f7;padding:64px 16px;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(255,133,162,0.12);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#ff85a2,#c9b1ff);padding:28px 36px;text-align:center;">
+              <h1 style="margin:0;font-size:20px;color:#fff;font-weight:700;letter-spacing:2px;">Stack Frame</h1>
+              <p style="margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.85);">新文章订阅</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 36px;text-align:center;">
+              {% if state == "confirm" %}
+                <h2 style="margin:0 0 12px;font-size:19px;color:#4a3040;">确认退订？</h2>
+                <p style="margin:0 0 24px;font-size:14px;color:#9e7a8a;line-height:1.7;">
+                  {{ email }} 将不再收到新文章通知。<br>之后仍可在博客页面上重新订阅。
+                </p>
+                <form method="post">
+                  {% csrf_token %}
+                  <button type="submit" style="display:inline-block;padding:12px 32px;font-size:15px;font-weight:600;color:#fff;background:#ff85a2;border:0;border-radius:8px;cursor:pointer;">
+                    确认退订
+                  </button>
+                </form>
+              {% elif state == "done" %}
+                <h2 style="margin:0 0 12px;font-size:19px;color:#4a3040;">已退订</h2>
+                <p style="margin:0 0 8px;font-size:14px;color:#9e7a8a;line-height:1.7;">
+                  {{ email }} 不会再收到新文章通知了。<br>想重新订阅随时回博客操作即可。
+                </p>
+              {% else %}
+                <h2 style="margin:0 0 12px;font-size:19px;color:#4a3040;">链接无效或已失效</h2>
+                <p style="margin:0;font-size:14px;color:#9e7a8a;line-height:1.7;">
+                  这条退订链接无法识别。你可以回到博客重新订阅，或在下一封通知邮件里点击最新的退订链接。
+                </p>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 36px;background:#fafafa;text-align:center;">
+              <a href="{{ site_url }}" style="font-size:12px;color:#ff85a2;text-decoration:none;">返回 Stack Frame</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

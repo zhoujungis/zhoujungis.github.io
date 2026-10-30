@@ -6,6 +6,7 @@ import AppFooter from './components/AppFooter.vue'
 import BackToTop from './components/BackToTop.vue'
 import ReadingProgress from './components/ReadingProgress.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
+import LoginModal from './components/LoginModal.vue'
 
 // Split out of the main bundle. The widget is pure decoration that only mounts
 // on wide screens, and it drags a vendored Cubism engine behind it — no reason
@@ -32,6 +33,7 @@ const isAdmin = computed(() => route.path.startsWith('/admin'))
   <Live2DWidget v-if="!isAdmin" />
   <BackToTop v-if="!isAdmin" />
   <ThemeToggle v-if="isAdmin" floating />
+  <LoginModal />
 </template>
 
 <style lang="scss">

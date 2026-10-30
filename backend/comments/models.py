@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -17,7 +18,15 @@ class Comment(models.Model):
         verbose_name="父评论",
     )
     author_name = models.CharField(max_length=64, verbose_name="昵称")
-    author_email = models.EmailField(verbose_name="邮箱")
+    author_email = models.EmailField(blank=True, verbose_name="邮箱")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="comments",
+        verbose_name="评论用户",
+    )
     content = models.TextField(verbose_name="评论内容")
     is_approved = models.BooleanField(default=False, verbose_name="是否通过")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
