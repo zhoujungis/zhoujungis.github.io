@@ -7,7 +7,7 @@
 // - Only same-origin, HTTP-200 GET responses are stored; API/admin/opaque
 //   responses are never cached.
 // - Bump CACHE_VERSION on each release that changes cached shell files.
-const CACHE_VERSION = 'v9'
+const CACHE_VERSION = 'v10'
 const CACHE = `zhoujun-blog-${CACHE_VERSION}`
 const NAV_CACHE = `${CACHE}-nav`
 const STATIC_CACHE = `${CACHE}-static`
