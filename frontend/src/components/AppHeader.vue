@@ -474,15 +474,15 @@ onUnmounted(() => {
   gap: 2px;
 }
 
-// 登录入口：未登录是一枚描边药丸，登录后收成「头像 + 昵称」触发器，
-// 与导航同一套圆角/hover 语言，不额外引入新的视觉元素。
+// 登录入口：与搜索按钮同一套语言——平时只有文字，悬停才浮出淡底药丸；
+// 登录后收成「头像 + 昵称」触发器，不额外引入新的视觉元素。
 .login-btn {
-  height: 36px;
+  height: 40px;
   margin-right: 6px;
-  padding: 0 16px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
+  padding: 0 14px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -491,8 +491,9 @@ onUnmounted(() => {
     border-color $transition-fast, transform 0.12s ease;
 
   &:hover {
-    color: var(--text-primary);
-    background: var(--surface-muted);
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
   }
   &:active { transform: scale(0.96); }
 }
