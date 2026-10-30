@@ -8,7 +8,8 @@ from datetime import timedelta
 import requests
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -118,30 +119,29 @@ def issue_email_code(email, ip=None):
 
 
 def _deliver_code(email, code):
-    text = (
-        f"你的登录验证码是：{code}\n\n"
-        f"10 分钟内有效，请勿转发给他人。\n"
-        f"如果不是你本人操作，忽略这封邮件即可。\n\n"
-        f"— {settings.SITE_URL}"
-    )
+    context = {
+        "code": code,
+        "ttl_minutes": int(CODE_TTL.total_seconds() // 60),
+        "site_url": settings.SITE_URL,
+    }
+    text = render_to_string("accounts/email/login_code.txt", context)
+    html = render_to_string("accounts/email/login_code.html", context)
     subject = f"【尘世栈帧】登录验证码 {code}"
+    from_email = settings.DEFAULT_FROM_EMAIL or "no-reply@zhoujun.dev"
 
     api_key = os.environ.get("RESEND_API_KEY", "")
     if not api_key:
-        send_mail(
-            subject,
-            text,
-            settings.DEFAULT_FROM_EMAIL or "no-reply@zhoujun.dev",
-            [email],
-            fail_silently=False,
-        )
+        msg = EmailMultiAlternatives(subject, text, from_email, [email])
+        msg.attach_alternative(html, "text/html")
+        msg.send(fail_silently=False)
         return
 
     payload = {
-        "from": os.environ.get("RESEND_FROM", settings.DEFAULT_FROM_EMAIL or "no-reply@zhoujun.dev"),
+        "from": os.environ.get("RESEND_FROM", from_email),
         "to": [email],
         "subject": subject,
         "text": text,
+        "html": html,
     }
     resp = requests.post(
         RESEND_ENDPOINT,
