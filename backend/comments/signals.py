@@ -21,7 +21,7 @@ def notify_new_comment(sender, instance, created, **kwargs):
     if not created:
         return
 
-    blog_url = getattr(settings, "SITE_URL", "https://zhoujungis.github.io")
+    blog_url = getattr(settings, "SITE_URL", "https://blog.zhoujun.dev")
     article_url = f"{blog_url}/article/{instance.article.slug}/"
 
     body = (

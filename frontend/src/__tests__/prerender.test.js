@@ -28,15 +28,15 @@ const SHELL = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content="Site description" />
-    <link rel="canonical" href="https://zhoujungis.github.io/" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/" />
     <meta property="og:title" content="ZhouJun's Blog" />
     <meta property="og:description" content="Site description" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://zhoujungis.github.io/" />
-    <meta property="og:image" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
     <meta name="twitter:title" content="ZhouJun's Blog" />
     <meta name="twitter:description" content="Site description" />
-    <meta name="twitter:image" content="https://zhoujungis.github.io/og-image.jpg" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
     <title>Home</title>
   </head>
   <body>
@@ -62,7 +62,7 @@ describe('renderArticlePage SEO tags', () => {
   it('emits exactly one canonical pointing at the article URL', () => {
     const html = renderArticlePage(SHELL, ARTICLE)
     expect(count(html, '<link rel="canonical"')).toBe(1)
-    expect(html).toContain('href="https://zhoujungis.github.io/article/hello-world/"')
+    expect(html).toContain('href="https://blog.zhoujun.dev/article/hello-world/"')
   })
 
   it('emits exactly one description / og / twitter tag each', () => {

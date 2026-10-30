@@ -49,7 +49,9 @@ ALLOWED_HOSTS = os.environ.get(
     # PA hostname MUST be in the default — without it, every request to
     # the production backend returns 400 when ALLOWED_HOSTS env var
     # is unset (typo, missed manual deploy step).
-    'zhoujungis.github.io,zhoujun123.pythonanywhere.com,localhost,127.0.0.1',
+    # 旧域名 zhoujungis.github.io 暂留：迁移期间它仍会被访问（GitHub Pages 301
+    # 到新域名之前/之后都可能命中），也避免旧书签在 DNS 生效前的窗口期报 400。
+    'blog.zhoujun.dev,zhoujungis.github.io,zhoujun123.pythonanywhere.com,localhost,127.0.0.1',
 ).split(',')
 
 # Fail hard in production if SECRET_KEY is still the default
@@ -171,7 +173,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # CORS — explicit allowlist; never fall back to allow-all.
 # Override CORS_ALLOWED_ORIGINS in .env to add more origins (comma-separated).
-_DEFAULT_CORS = "https://zhoujungis.github.io"
+# 新域名优先；旧域名并列保留，迁移期两边都能正常调用 API（否则旧页面的
+# 评论/点赞会在跨域预检阶段直接失败）。
+_DEFAULT_CORS = "https://blog.zhoujun.dev,https://zhoujungis.github.io"
 _cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', _DEFAULT_CORS)
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
 CORS_ALLOW_ALL_ORIGINS = False
@@ -236,7 +240,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # Site URL (used in email templates)
-SITE_URL = os.environ.get("SITE_URL", "https://zhoujungis.github.io")
+SITE_URL = os.environ.get("SITE_URL", "https://blog.zhoujun.dev")
 
 # Internationalization
 LANGUAGE_CODE = 'zh-hans'

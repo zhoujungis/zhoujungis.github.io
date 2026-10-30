@@ -2,7 +2,7 @@ from django.contrib.sitemaps import Sitemap
 
 from .models import Article
 
-FRONTEND_DOMAIN = "zhoujungis.github.io"
+FRONTEND_DOMAIN = "blog.zhoujun.dev"
 
 
 class BaseSitemap(Sitemap):

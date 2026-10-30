@@ -35,7 +35,7 @@ def notify_subscribers_on_publish(sender, instance, created, **kwargs):
     if instance.notification_sent:
         return
 
-    blog_url = getattr(settings, "SITE_URL", "https://zhoujungis.github.io")
+    blog_url = getattr(settings, "SITE_URL", "https://blog.zhoujun.dev")
     article_url = f"{blog_url}/article/{instance.slug}"
     subject = f"\U0001F4DD 新文章: {instance.title}"
 

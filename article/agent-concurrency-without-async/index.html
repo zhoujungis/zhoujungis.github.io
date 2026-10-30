@@ -9,10 +9,10 @@
     <meta name="description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
     <!-- Google AdSense 站点验证 -->
     <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <link rel="canonical" href="https://zhoujungis.github.io/article/agent-concurrency-without-async/" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
     <meta property="og:title" content="Agent 并发：不用 async 运行时怎么并行" />
     <meta property="og:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
-    <meta property="og:url" content="https://zhoujungis.github.io/article/agent-concurrency-without-async/" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
     <meta property="og:site_name" content="尘世栈帧" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:image" content="https://zhoujungis.github.io/photos/agent-concurrency-cover.png" />
@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="Agent 并发：不用 async 运行时怎么并行" />
     <meta name="twitter:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
     <meta name="twitter:image" content="https://zhoujungis.github.io/photos/agent-concurrency-cover.png" />
-    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://zhoujungis.github.io/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
@@ -54,11 +54,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-LuKAlaQ2.js"></script>
+    <script type="module" crossorigin src="/assets/index-Dv83eQl6.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.rYiNrH1m.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CWKr4Ytk.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -93,7 +93,7 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-22T14:52:30.982373+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 并发：不用 async 运行时怎么并行","description":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","image":"https://zhoujungis.github.io/photos/agent-concurrency-cover.png","datePublished":"2026-10-22T14:52:30.982373+08:00","dateModified":"2026-10-22T14:52:30.982373+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://zhoujungis.github.io/article/agent-concurrency-without-async/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 并发：不用 async 运行时怎么并行","description":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","image":"https://zhoujungis.github.io/photos/agent-concurrency-cover.png","datePublished":"2026-10-22T14:52:30.982373+08:00","dateModified":"2026-10-22T14:52:30.982373+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/"}</script>
     <script type="application/json" id="prerender-article">{"slug":"agent-concurrency-without-async","title":"Agent 并发：不用 async 运行时怎么并行","created_at":"2026-10-22T14:52:30.982373+08:00","updated_at":"2026-10-22T14:52:30.982400+08:00","author":null,"category":{"id":5,"name":"AI编程","slug":"ai-coding"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":113,"name":"并发","slug":"concurrency"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"https://zhoujungis.github.io/photos/agent-concurrency-cover.png","excerpt":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","reading_time":62,"views_count":7,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>

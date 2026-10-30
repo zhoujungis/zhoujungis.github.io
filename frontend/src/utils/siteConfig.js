@@ -15,7 +15,10 @@
 export const SITE_NAME = '尘世栈帧'
 export const SITE_AUTHOR = 'Stack Frame'
 export const SITE_DESCRIPTION = '尘世栈帧 — 技术、编程、AI 与科学'
-export const SITE_ORIGIN = 'https://zhoujungis.github.io'
+// 自定义域名（Cloudflare 注册的 zhoujun.dev，博客挂在 blog 子域）。
+// 全站 canonical / og:url / sitemap / rss / 预渲染快照都以它为准；
+// 旧的 zhoujungis.github.io 由 GitHub Pages 自动 301 到此处。
+export const SITE_ORIGIN = 'https://blog.zhoujun.dev'
 
 /**
  * Pages that get a real static HTML file at exactly this path.

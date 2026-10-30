@@ -36,7 +36,7 @@
         <nav class="masthead__nav" aria-label="更多入口">
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener" class="mast-nav-link">GitHub</a>
           <a href="mailto:no-reply@gmail.com" class="mast-nav-link">Email</a>
-          <a href="https://zhoujungis.github.io/rss.xml" class="mast-nav-link">RSS</a>
+          <a href="https://blog.zhoujun.dev/rss.xml" class="mast-nav-link">RSS</a>
         </nav>
       </div>
     </header>
