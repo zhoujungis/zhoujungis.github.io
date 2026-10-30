@@ -1,42 +1,50 @@
 <template>
-  <div class="newsletter glass-card">
-    <h4 class="newsletter-title">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-      订阅更新
-    </h4>
-    <p class="newsletter-desc">新文章发布时，通过邮件通知你</p>
-
-    <!-- 已登录：邮箱取自账号，直接开关订阅，不再让用户重复输入 -->
+  <div class="newsletter">
+    <!-- 已登录：邮箱来自账号，只做订阅开关 -->
     <template v-if="auth.isLoggedIn">
-      <p class="newsletter-account">{{ email || auth.user?.email }}</p>
-      <button
-        type="button"
-        class="newsletter-btn newsletter-btn--wide"
-        :disabled="busy"
-        @click="toggleSub"
-      >
-        <span v-if="busy">...</span>
-        <span v-else-if="subscribed">取消订阅</span>
-        <span v-else>订阅</span>
-      </button>
+      <div class="newsletter-row">
+        <span class="newsletter-mail">{{ email || auth.user?.email }}</span>
+        <button
+          v-if="!subscribed"
+          type="button"
+          class="newsletter-btn"
+          :disabled="busy"
+          @click="toggleSub"
+        >
+          {{ busy ? '处理中…' : '订阅更新' }}
+        </button>
+        <button
+          v-else
+          type="button"
+          class="newsletter-unsub"
+          :disabled="busy"
+          @click="toggleSub"
+        >
+          取消订阅
+        </button>
+      </div>
+      <p v-if="subscribed" class="newsletter-hint">已订阅，新文章发布时会邮件通知你</p>
     </template>
 
+    <!-- 未登录：留邮箱订阅 -->
     <form v-else @submit.prevent="subscribe" class="newsletter-form">
       <input
         v-model="emailInput"
         type="email"
-        placeholder="your@email.com"
+        placeholder="留下你的邮箱"
         class="newsletter-input"
         :disabled="done"
         required
+        aria-label="订阅邮箱"
       />
       <button type="submit" class="newsletter-btn" :disabled="submitting || done">
-        <span v-if="submitting">...</span>
-        <span v-else-if="done">✓</span>
-        <span v-else>订阅</span>
+        <span v-if="submitting">提交中…</span>
+        <span v-else-if="done">已订阅</span>
+        <span v-else>订阅更新</span>
       </button>
     </form>
-    <p v-if="msg" :class="msgType">{{ msg }}</p>
+
+    <p v-if="msg" :class="['newsletter-msg', msgType]">{{ msg }}</p>
   </div>
 </template>
 
@@ -66,12 +74,12 @@ async function subscribe() {
   try {
     const res = await subscribeEmail(emailInput.value.trim())
     done.value = true
-    msg.value = res.data.detail || '订阅成功！'
-    msgType.value = 'msg-success'
+    msg.value = res.data.detail || '订阅成功，新文章发布时会邮件通知你'
+    msgType.value = 'is-success'
   } catch (e) {
-    const detail = e?.response?.data?.error || e?.response?.data?.detail || '订阅失败'
+    const detail = e?.response?.data?.error || e?.response?.data?.detail || '订阅失败，请稍后重试'
     msg.value = typeof detail === 'string' ? detail : '订阅失败，请稍后重试'
-    msgType.value = 'msg-error'
+    msgType.value = 'is-error'
   } finally {
     submitting.value = false
   }
@@ -81,11 +89,16 @@ async function toggleSub() {
   msg.value = ''
   try {
     await toggle()
-    msg.value = subscribed.value ? '已订阅，新文章发布时会邮件通知你' : '已取消订阅'
-    msgType.value = 'msg-success'
+    if (subscribed.value) {
+      msg.value = '已订阅，新文章发布时会邮件通知你'
+      msgType.value = 'is-success'
+    } else {
+      msg.value = '已取消订阅'
+      msgType.value = 'is-success'
+    }
   } catch (e) {
     msg.value = e?.response?.data?.detail || '操作失败，请稍后重试'
-    msgType.value = 'msg-error'
+    msgType.value = 'is-error'
   }
 }
 </script>
@@ -94,62 +107,104 @@ async function toggleSub() {
 @use '@/styles/variables' as *;
 
 .newsletter {
-  padding: 20px;
-  margin-top: 20px;
+  font-family: $font-mono;
 }
-.newsletter-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: $neon-cyan;
-  display: flex; align-items: center; gap: 6px;
-  margin-bottom: 4px;
+
+.newsletter-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid $glass-border;
 }
-.newsletter-desc {
+
+.newsletter-mail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.8rem;
   color: $text-secondary;
-  margin: 0 0 12px;
 }
-.newsletter-account {
-  margin: 0 0 10px;
-  font-family: $font-mono;
-  font-size: 0.78rem;
-  color: $text-secondary;
-}
+
 .newsletter-form {
-  display: flex; gap: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
 }
+
 .newsletter-input {
   flex: 1;
-  padding: 8px 12px;
-  font-size: 0.85rem;
+  min-width: 0;
+  padding: 8px 0 10px;
   font-family: $font-mono;
+  font-size: 0.82rem;
   color: $text-primary;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid $glass-border;
-  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid $glass-border;
   outline: none;
-  &::placeholder { color: rgba($text-secondary, 0.5); }
-  &:focus { border-color: rgba($neon-cyan, 0.4); }
-  &:disabled { opacity: 0.4; }
+  transition: border-color $transition-fast;
+
+  &::placeholder { color: rgba($text-secondary, 0.55); }
+  &:focus { border-bottom-color: $text-primary; }
+  &:disabled { opacity: 0.45; }
 }
+
 .newsletter-btn {
-  padding: 8px 16px;
-  font-size: 0.85rem; font-weight: 600;
+  padding: 8px 18px;
   font-family: $font-mono;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: #fff;
-  background: rgba($neon-cyan, 0.15);
-  border: 1px solid $neon-cyan;
-  border-radius: 6px;
+  background: $text-primary;
+  border: 1px solid $text-primary;
+  border-radius: $radius-sm;
   cursor: pointer;
-  transition: background $transition-fast;
   white-space: nowrap;
-  &:hover:not(:disabled) { background: rgba($neon-cyan, 0.25); }
+  transition: background $transition-fast, border-color $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: $neon-cyan;
+    border-color: $neon-cyan;
+  }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
-.newsletter-btn--wide {
-  display: block;
-  width: 100%;
+
+.newsletter-unsub {
+  padding: 0;
+  font-family: $font-mono;
+  font-size: 0.76rem;
+  color: $text-secondary;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color $transition-fast, border-color $transition-fast;
+
+  &:hover:not(:disabled) {
+    color: $neon-pink;
+    border-bottom-color: $neon-pink;
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
-.msg-success { font-size: 0.8rem; color: #00e676; margin: 8px 0 0; }
-.msg-error { font-size: 0.8rem; color: $neon-pink; margin: 8px 0 0; }
+
+.newsletter-hint,
+.newsletter-msg {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.newsletter-hint { color: $text-secondary; }
+.newsletter-msg.is-success { color: $neon-cyan; }
+.newsletter-msg.is-error { color: $neon-pink; }
+
+@media (max-width: 520px) {
+  .newsletter-form { flex-direction: column; align-items: stretch; gap: 10px; }
+  .newsletter-btn { width: 100%; }
+}
 </style>

@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-207-course-schedule/" />
+    <meta property="og:title" content="【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）" />
+    <meta property="og:description" content="题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/lc-207-course-schedule/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/lc-207-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/lc-207-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）" />
+    <meta name="twitter:description" content="题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/lc-207-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序） | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-T3YiwbwG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DR05FW-t.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-12T14:30:21.783985+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）","description":"题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II","image":"https://blog.zhoujun.dev/photos/lc-207-cover.png","datePublished":"2026-10-12T14:30:21.783985+08:00","dateModified":"2026-10-12T14:30:21.784014+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/lc-207-course-schedule/"}</script>
+    <script type="application/json" id="prerender-article">{"slug":"lc-207-course-schedule","title":"【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）","created_at":"2026-10-12T14:30:21.783985+08:00","updated_at":"2026-10-12T14:30:21.784014+08:00","author":null,"category":{"id":9,"name":"算法","slug":"algorithm"},"tags":[{"id":136,"name":"LeetCode","slug":"leetcode"},{"id":150,"name":"图","slug":"graph"},{"id":153,"name":"拓扑排序","slug":"topological-sort"},{"id":118,"name":"算法","slug":"algorithm"},{"id":137,"name":"面试","slug":"interview"}],"cover_image":"/photos/lc-207-cover.png","excerpt":"题目 LC 207 课程表 ：你一共需要修 numCourses 门课，课程编号为 0 到 numCourses - 1 。先修关系由 prerequisites 给出， prerequisites[i] = [a, b] 表示 修课程 a 之前必须先修课程 b 。判断是否可能修完所有课程。 LC 210 课程表 II","reading_time":14,"views_count":5,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+<strong>LC 207 课程表</strong>：你一共需要修 <code>numCourses</code> 门课，课程编号为 <code>0</code> 到 <code>numCourses - 1</code>。先修关系由 <code>prerequisites</code> 给出，<code>prerequisites[i] = [a, b]</code> 表示<strong>修课程 <code>a</code> 之前必须先修课程 <code>b</code></strong>。判断是否可能修完所有课程。
+
+<strong>LC 210 课程表 II</strong>：同一张图，如果能修完，返回<strong>任意一种</strong>合法的修课顺序；修不完返回空数组。
+<div class="codehilite"><pre><span></span><code>输入: numCourses = 4, prerequisites = [[1,0],[2,0],[3,1],[3,2]]
+输出: true（207）；[0,1,2,3] 或 [0,2,1,3] 都合法（1 和 2 互不依赖，可互换）
+      注意 [0,3,1,2] 不合法 —— 3 必须先修 1、2
+
+输入: numCourses = 2, prerequisites = [[1,0],[0,1]]
+输出: false（207）；[]（210）—— 1 等 0、0 等 1，互相等待
+</code></pre></div>
+
+
+先把方向钉死，这是本题第一大坑：<code>[a, b]</code> 是「修 a 前先修 b」，所以边是 <strong>b → a</strong>（先修课指向后修课）。画反了不是小事 —— 它决定你后面所有入度、所有顺序的对错。
+
+于是整道题的翻译只有一句话：
+<blockquote>
+
+<strong>修课顺序 = 有向图的拓扑序；能修完 ⇔ 这张图没有环。</strong>
+</blockquote>
+
+剩下的全部内容，就是「判环 + 生成拓扑序」的两台机器：<strong>Kahn（入度表 + 队列）</strong> 和 <strong>DFS 三色标记</strong>。
+<ul>
+<li><a href="#section-1">一、核心洞察：拓扑序与环</a></li>
+<li><a href="#section-2">二、Kahn 算法：入度表 + 队列</a></li>
+<li><a href="#section-3">三、DFS 三色标记：白、灰、黑，和灰色回边</a></li>
+<li><a href="#section-4">四、动画怎么看</a></li>
+<li><a href="#section-5">五、完整推演表</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、同族题：210 / 269 / 310 / 802 / 1203 / 444</a></li>
+<li><a href="#section-8">八、边界情况</a></li>
+<li><a href="#section-9">九、复杂度</a></li>
+<li><a href="#section-10">十、常见坑</a></li>
+<li><a href="#section-11">十一、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：拓扑序与环</h2>
+
+一个有向图里，如果能把所有节点排成一条线，使<strong>每条边都从排在前面的点指向排在后面的点</strong>，这条线就是<strong>拓扑序</strong>。它恰好就是「一种合法的修课顺序」：先修课全部排在依赖它的课之前。
+
+三条基本性质：
+<ul>
+<li><strong>有拓扑序 ⇔ 图是有向无环图（DAG）</strong>。有环 ⇒ 环上的课互相等 ⇒ 无解（返回 false / 空数组）。</li>
+<li><strong>拓扑序通常不唯一</strong>。本文的默认例子 <code>[[1,0],[2,0],[3,1],[3,2]]</code>，<code>[0,1,2,3]</code> 和 <code>[0,2,1,3]</code> 都合法（1 和 2 互不依赖，可以换位置）。</li>
+<li><strong>孤立课（没有先修也没有后继）永远可以最先修</strong>：入度为 0。</li>
+</ul>
+
+求解路线两条，互为镜像：
+<ul>
+<li><strong>Kahn</strong>：反复找「入度为 0」的课修掉，修完把它指向的课入度减 1 —— <strong>天然产出拓扑序</strong>；</li>
+<li><strong>DFS 三色</strong>：沿着边深搜，<strong>碰到指回递归栈的边 = 有环</strong>；节点完成时追加后序，<strong>后序反转 = 拓扑序</strong>。</li>
+</ul>
+<h2>二、Kahn 算法：入度表 + 队列</h2>
+
+入度 = 一门课「还有几门先修没修完」。入度 0 = 现在就能修。Kahn 的全部动作就是：<strong>修掉所有 0 入度的课，并松开它们的后继</strong>。
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="n">numCourses</span><span class="p">,</span> <span class="n">prerequisites</span><span class="p">):</span>
+    <span class="n">adj</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">)]</span>
+    <span class="n">indegree</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">numCourses</span>
+    <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">prerequisites</span><span class="p">:</span>
+        <span class="n">adj</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>          <span class="c1"># 先修 b → 后修 a</span>
+        <span class="n">indegree</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">)</span> <span class="k">if</span> <span class="n">indegree</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="n">order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span>         <span class="c1"># 出队顺序就是拓扑序</span>
+        <span class="k">for</span> <span class="n">nxt</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">]:</span>
+            <span class="n">indegree</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">indegree</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>    <span class="c1"># 入度减到 0 才能修</span>
+                <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nxt</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">order</span><span class="p">)</span> <span class="o">==</span> <span class="n">numCourses</span>   <span class="c1"># 207 的答案；210 直接返回 order（不足则 []）</span>
+</code></pre></div>
+
+
+判据一句话：<strong>出队数量 == numCourses ⇔ 没有环</strong>。如果只剩环（或等环）的课，它们的入度永远减不到 0，队列提前枯竭，<code>len(order) &lt; numCourses</code>。
+<h2>三、DFS 三色标记：白、灰、黑，和灰色回边</h2>
+
+换一台机器：给每个节点三种颜色 ——
+<ul>
+<li><strong>白</strong>（0）：还没访问过；</li>
+<li><strong>灰</strong>（1）：正在递归栈里（进了它、还没探完它的所有后继）；</li>
+<li><strong>黑</strong>（2）：已确认安全（后继全部处理完，且从它出发到不了环）。</li>
+</ul>
+
+沿边深搜：碰到<strong>白</strong>就推进去；碰到<strong>黑</strong>直接跳过（那条路已经验过安全）；碰到<strong>灰</strong> —— 说明这条边指回了当前递归栈里的祖先，<strong>环被抓住</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">canFinish_dfs</span><span class="p">(</span><span class="n">numCourses</span><span class="p">,</span> <span class="n">prerequisites</span><span class="p">):</span>
+    <span class="n">adj</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">prerequisites</span><span class="p">:</span>
+        <span class="n">adj</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">color</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">numCourses</span>        <span class="c1"># 0 白 / 1 灰 / 2 黑</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="p">[]</span>                      <span class="c1"># 后序</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+        <span class="n">color</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>                <span class="c1"># 白 → 灰</span>
+        <span class="k">for</span> <span class="n">nxt</span> <span class="ow">in</span> <span class="n">adj</span><span class="p">[</span><span class="n">v</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">color</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>     <span class="c1"># 灰色回边 = 环</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">color</span><span class="p">[</span><span class="n">nxt</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dfs</span><span class="p">(</span><span class="n">nxt</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">color</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>                <span class="c1"># 灰 → 黑</span>
+        <span class="n">order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>             <span class="c1"># 后序：把它追加在「所有后继之后」</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numCourses</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">color</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>                     <span class="c1"># 210 的答案 = order[::-1]</span>
+</code></pre></div>
+
+
+两个要点：
+<ol>
+<li><strong>必须区分灰和黑</strong>。只用一个 <code>visited</code> 布尔数组会把「黑邻居（安全汇合）」也当成环，误报；</li>
+<li><strong>后序反转才是拓扑序</strong>。后序的追加时机是「所有后继处理完之后」—— 所以先修课自然排在后面，反转后翻到前面。默认例题里后序是 <code>[3,1,2,0]</code>，反转 <code>[0,2,1,3]</code> 就是答案。</li>
+</ol>
+
+对照来看：<strong>Kahn 给 <code>[0,1,2,3]</code>，DFS 给 <code>[0,2,1,3]</code> —— 都对</strong>。拓扑序不唯一，两台机器只是「挑了不同的合法线」。
+<h2>四、动画怎么看</h2>
+<div class="algo-viz algo-viz--lc207"></div>
+
+<div class="algo-viz algo-viz--lc207dfs"></div>
+
+
+<strong>动画一</strong>（<code>algo-viz--lc207</code>）：<strong>Kahn</strong>。上方是课程图（圆点 = 课程，箭头 = 先修 → 后修，<strong>右上角小圆 = 当前入度</strong>）；下方两行分别是<strong>队列</strong>（0 入度的课）和<strong>顺序 order</strong>（已修完的课）。盯住三件事：0 入度的课怎么第一时间全部进队列、每修完一门课它的后继入度 −1（<strong>角标当场变小</strong>）、以及<strong>入度减到 0 的课才入队</strong>。最后 <code>order</code> 满员 = 能修完。
+
+<strong>动画二</strong>（<code>algo-viz--lc207dfs</code>）：<strong>DFS 三色</strong>。同一张图：白色 = 没访问、灰色 = 递归栈里、黑色 = 已确认安全；左下的<strong>递归栈</strong>就是当前的「灰色路径」，右下的<strong>后序 post</strong> 是节点变黑时追加的顺序。盯住两件事：<strong>灰 → 黑发生在「后继全处理完」时</strong>，以及（有环的图上）<strong>灰色回边会被描红</strong> —— 那就是环。跑完 <code>post</code> 反转就是拓扑序。
+<h2>五、完整推演表</h2>
+
+<strong>动画一（Kahn）</strong>：<code>numCourses = 4</code>，<code>prerequisites = [[1,0],[2,0],[3,1],[3,2]]</code>，即边 <code>0→1、0→2、1→3、2→3</code>，初始入度 <code>[0,1,1,2]</code>。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>帧</th>
+<th>动作</th>
+<th>松弛（入度变化）</th>
+<th>队列</th>
+<th>order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>init</td>
+<td>0 入度的 <code>0</code> 入队</td>
+<td>—</td>
+<td><code>[0]</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>pop</td>
+<td>修完 <code>0</code></td>
+<td><code>1: 1→0</code>、<code>2: 1→0</code></td>
+<td><code>[1, 2]</code></td>
+<td><code>[0]</code></td>
+</tr>
+<tr>
+<td>pop</td>
+<td>修完 <code>1</code></td>
+<td><code>3: 2→1</code>（还差一门）</td>
+<td><code>[2]</code></td>
+<td><code>[0,1]</code></td>
+</tr>
+<tr>
+<td>pop</td>
+<td>修完 <code>2</code></td>
+<td><code>3: 1→0</code></td>
+<td><code>[3]</code></td>
+<td><code>[0,1,2]</code></td>
+</tr>
+<tr>
+<td>pop</td>
+<td>修完 <code>3</code></td>
+<td>无后继</td>
+<td><code>[]</code></td>
+<td><code>[0,1,2,3]</code></td>
+</tr>
+<tr>
+<td>done</td>
+<td>出队 4 == 4 ⇒ <strong>true</strong></td>
+<td></td>
+<td></td>
+<td>答案 <code>[0,1,2,3]</code></td>
+</tr>
+</tbody>
+</table></div>
+
+关键细节：<code>3</code> 有两个先修（<code>1</code> 和 <code>2</code>），要<strong>等两个都修完</strong>入度才会减到 0 —— 这就是「入度 = 还有几门先修没修」的字面执行。
+
+<strong>动画二（DFS 三色）</strong>：同一张图，递归顺序 <code>0 → 1 → 3 → 2</code>：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>帧</th>
+<th>动作</th>
+<th>递归栈</th>
+<th>后序 post</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>init</td>
+<td>全白</td>
+<td><code>[]</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>enter</td>
+<td><code>0</code> 白 → 灰</td>
+<td><code>[0]</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>enter</td>
+<td><code>1</code> 白 → 灰</td>
+<td><code>[0,1]</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>enter</td>
+<td><code>3</code> 白 → 灰</td>
+<td><code>[0,1,3]</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td>finish</td>
+<td><code>3</code> 无后继，灰 → 黑</td>
+<td><code>[0,1]</code></td>
+<td><code>[3]</code></td>
+</tr>
+<tr>
+<td>finish</td>
+<td><code>1</code> 后继全部处理完，灰 → 黑</td>
+<td><code>[0]</code></td>
+<td><code>[3,1]</code></td>
+</tr>
+<tr>
+<td>enter</td>
+<td>回到 <code>0</code>，下一个后继 <code>2</code> 白 → 灰</td>
+<td><code>[0,2]</code></td>
+<td><code>[3,1]</code></td>
+</tr>
+<tr>
+<td>finish</td>
+<td><code>2</code> 的后继 <code>3</code> 已是<strong>黑</strong>（跳过，不算环），灰 → 黑</td>
+<td><code>[0]</code></td>
+<td><code>[3,1,2]</code></td>
+</tr>
+<tr>
+<td>finish</td>
+<td><code>0</code> 灰 → 黑</td>
+<td><code>[]</code></td>
+<td><code>[3,1,2,0]</code></td>
+</tr>
+<tr>
+<td>done</td>
+<td>无灰色回边 ⇒ <strong>true</strong>；后序反转 = <code>[0,2,1,3]</code></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+
+两个对照点：<code>2</code> 探到 <code>3</code> 时它是<strong>黑</strong>的 —— 跳过而不是报环；真正报环的情形是「探到的邻居是<strong>灰</strong>」（还在栈里）。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Kahn：入度表 + 队列</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numCourses</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">adj</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">());</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">indegree</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">numCourses</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">).</span><span class="na">add</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span><span class="w">      </span><span class="c1">// 先修 p[1] → 后修 p[0]</span>
+<span class="w">            </span><span class="n">indegree</span><span class="o">[</span><span class="n">p</span><span class="o">[</span><span class="mi">0</span><span class="o">]]++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">indegree</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">v</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">done</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">            </span><span class="n">done</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">cur</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">--</span><span class="n">indegree</span><span class="o">[</span><span class="n">nxt</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">nxt</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">done</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// DFS 三色：0 白 / 1 灰 / 2 黑</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">adj</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">color</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numCourses</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">adj</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">());</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">).</span><span class="na">add</span><span class="p">(</span><span class="n">p</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="n">color</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">numCourses</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">color</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">dfs</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">color</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">color</span><span class="o">[</span><span class="n">nxt</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">          </span><span class="c1">// 灰色回边 = 环</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">color</span><span class="o">[</span><span class="n">nxt</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">dfs</span><span class="p">(</span><span class="n">nxt</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">color</span><span class="o">[</span><span class="n">v</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一条链），<code>V = 2000</code> 级没事，更大就用<strong>显式栈的迭代版</strong>；<code>210</code> 要在 <code>dfs</code> 里再维护一个 <code>post</code> 列表，节点变黑时 <code>post.add(v)</code>，最后 <code>Collections.reverse(post)</code>。
+<h2>七、同族题：210 / 269 / 310 / 802 / 1203 / 444</h2>
+
+207 只是「拓扑排序」这一族的入口，换个包装就是一条完整题链：
+<ul>
+<li><strong>LC 210 课程表 II</strong>：本题的返序版 —— 把 Kahn 的出队顺序（或 DFS 的后序反转）直接返回；</li>
+<li><strong>LC 269 火星词典</strong>（会员）：从相邻单词的第一个不同字母建出字母间的偏序边，再做拓扑排序 —— <strong>难点在建图，不在排序</strong>；</li>
+<li><strong>LC 310 最小高度树</strong>：无向图里反复剥掉「度为 1」的叶子（和 Kahn 剥入度是同一种思想），最后剩下的 1~2 个点就是答案；</li>
+<li><strong>LC 802 找到最终安全状态</strong>：反向图上剥「出度为 0」的点，剥不掉的（在环上或等环）就是不安全 —— Kahn 的镜像；</li>
+<li><strong>LC 1203 项目管理</strong>：两次拓扑排序 —— 组内排序 + 组间排序；</li>
+<li><strong>LC 444 序列重建</strong>（会员）：判断拓扑序是否<strong>唯一</strong> —— 队列里同时有 2 个以上 0 入度点就说明有分支，顺序不唯一。</li>
+</ul>
+
+把它们排成一列看：<strong>拓扑排序的模板永远是「算入度/出度 + 反复剥 0 度点（或 DFS 三色）」</strong>；剩下的差别只在「边从哪来」（先修关系 / 字母序 / 反向图）和「剥到最后返回什么」。
+<h2>八、边界情况</h2>
+<ul>
+<li><strong>自环</strong>：<code>[[0,0]]</code> —— 课程等自己，入度永远 ≥ 1，返回 false；</li>
+<li><strong>重边</strong>：<code>[[1,0],[1,0]]</code> —— 入度被记成 2，被 0 松弛两次才到 0，结果仍正确（但要知道这个行为）；</li>
+<li><strong>孤立课</strong>：没有先修也没有后继，入度 0 直接修，不影响结果；</li>
+<li><strong><code>numCourses = 1</code>、无先修</strong>：返回 true，顺序 <code>[0]</code>；</li>
+<li><strong>空 <code>prerequisites</code></strong>：全部入度 0，顺序 <code>[0,1,...,n-1]</code> 本身就是一个合法拓扑序；</li>
+<li><strong>多个连通块</strong>：Kahn 天然处理（入队所有 0 入度点）；DFS 要在外层循环里对每个未访问点各起一次；</li>
+<li><strong>环上挂着树枝</strong>：树枝上的课也被环卡住（等环里的先修），Kahn 里它们的入度同样减不到 0 —— 判环看的是<strong>出队总数</strong>，不是「有没有节点在环里」的直接检测。</li>
+</ul>
+<h2>九、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>做法</th>
+<th>时间</th>
+<th>空间</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kahn（入度表 + 队列）</td>
+<td><code>O(V + E)</code></td>
+<td><code>O(V + E)</code></td>
+<td>直观、天然产出拓扑序</td>
+</tr>
+<tr>
+<td>DFS 三色</td>
+<td><code>O(V + E)</code></td>
+<td><code>O(V + E)</code></td>
+<td>判环顺手；后序反转得序</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>V = numCourses</code>、<code>E = prerequisites.length</code>。建图 <code>O(E)</code>，每个节点、每条边恰好被处理一次。剪枝提前退出（发现环立刻返回）不会改变最坏复杂度。
+<h2>十、常见坑</h2>
+<ol>
+<li><strong>方向画反</strong>：<code>[a, b]</code> 是 b → a（先修 → 后修）。画成 a → b 的话，拓扑序会整个反过来。</li>
+<li><strong>Kahn 简化过头</strong>：只 <code>cur</code> 出队却忘了<strong>给后继减入度</strong>，或者没判断「减到 0 才入队」—— 入度还是正数的课被塞进队列，顺序直接错。</li>
+<li><strong>判环用「队列空」</strong>：所有课修完队列也会空。判据是 <strong>出队数量 == numCourses</strong>。</li>
+<li><strong>DFS 只用一个 <code>visited</code> 布尔值</strong>：没有灰/黑之分，遇到「黑邻居（安全汇合）」也会误报环。必须三色。</li>
+<li><strong>后序忘了反转</strong>：<code>post.append(v)</code> 的顺序是「后继在前」，直接返回就是反的拓扑序。</li>
+<li><strong>递归深度</strong>：链形图最坏递归 <code>O(V)</code>，大图换<strong>显式栈迭代版</strong>（或者直接 Kahn，天然无递归）。</li>
+<li><strong>210 有环时返回了什么</strong>：Kahn 里 <code>order</code> 只装了一半 —— 必须检查「<code>len(order) == numCourses</code>」再返回，否则返回残缺顺序。</li>
+<li><strong>重复边让入度变多</strong>：<code>[[1,0],[1,0]]</code> 会把 1 的入度记成 2（不影响正确性，但要心里有数）；如果用 <code>set</code> 建图，行为会变，别混着写。</li>
+<li><strong>外层循环漏起点</strong>：DFS 版只从 <code>0</code> 开始，会漏掉其它连通块 —— 要对每个未访问节点各起一次 DFS。</li>
+<li><strong>以为拓扑序唯一</strong>：默认例子就有两个合法答案；要「唯一性判定」那是 LC 444 的追问。</li>
+</ol>
+<h2>十一、面试怎么答</h2>
+
+<strong>第一段 · 骨架</strong>：这题是把「能不能修完」翻译成「有向图有没有环」。先用 <code>[a, b]</code> ⇒ 边 <code>b → a</code> 建图，然后二选一：Kahn 反复剥 0 入度的课、数出队数量；或 DFS 三色，遇见灰色回边就是环。两者都是 <code>O(V + E)</code>。
+
+<strong>第二段 · 主动补 210</strong>（<strong>这段是区分度所在</strong>）：Kahn 的出队顺序天然是一个拓扑序；DFS 则要把<strong>后序反转</strong>。顺带指出<strong>拓扑序不唯一</strong>（默认例子 <code>[0,1,2,3]</code> 与 <code>[0,2,1,3]</code> 都对），说明你理解的是「一个」合法序而不是唯一解。
+
+<strong>第三段 · 追问连接</strong>：判唯一性 → LC 444（队列里同层多个 0 入度点 = 不唯一）；建图本身是难点 → LC 269 火星词典；无向图版「剥叶子」 → LC 310；反向图剥出度 → LC 802。
+
+<strong>追问连跳</strong>：
+- 要<strong>返序</strong> → LC 210，Kahn 直接返回 or DFS 后序反转；
+- 要<strong>判唯一</strong> → LC 444，看队列是否同时有多个候选；
+- 要<strong>从字母对建图再排序</strong> → LC 269，先处理「前一个词是后一个词前缀」的非法情形；
+- 要<strong>剥叶子求中心</strong> → LC 310；
+- 要<strong>安全节点</strong> → LC 802，反向图 + 剥出度。
+
+一句话收尾：「课程表只有一句话 —— <strong>修课顺序 = 拓扑序，能修完 = 无环</strong>；Kahn 剥入度、DFS 认灰边，是这句话的两台等价机器。」
+<h2>结语</h2>
+
+207 的全部难度浓缩在一个翻译里：<strong>先修关系是有向边，修课顺序是拓扑序，环 = 永远修不完</strong>。Kahn 用入度表把「现在能修的课」显式排成队列，DFS 用三种颜色把「还没探完的路径」显式画成栈 —— 两条路都通向同一句判据：剥完（或走完）所有节点就没有环。真正拉开差距的，是<strong>方向别画反、灰黑要分清、后序记得翻</strong>这三件小事。
+
+下一篇见。</div></div></noscript>
+  </body>
+</html>

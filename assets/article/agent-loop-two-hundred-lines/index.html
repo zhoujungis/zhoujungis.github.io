@@ -1,0 +1,2050 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/" />
+    <meta property="og:title" content="Agent 的本质：一个两百行的循环" />
+    <meta property="og:description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/agent-loop-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/agent-loop-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Agent 的本质：一个两百行的循环" />
+    <meta name="twitter:description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/agent-loop-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>Agent 的本质：一个两百行的循环 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-T3YiwbwG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DR05FW-t.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-22T11:51:20.353665+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 的本质：一个两百行的循环","description":"适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具","image":"https://blog.zhoujun.dev/photos/agent-loop-cover.png","datePublished":"2026-10-22T11:51:20.353665+08:00","dateModified":"2026-10-22T14:37:46.962155+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/"}</script>
+    <script type="application/json" id="prerender-article">{"slug":"agent-loop-two-hundred-lines","title":"Agent 的本质：一个两百行的循环","created_at":"2026-10-22T11:51:20.353665+08:00","updated_at":"2026-10-22T14:37:46.962155+08:00","author":null,"category":{"id":5,"name":"AI编程","slug":"ai-coding"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":163,"name":"Rust","slug":"rust"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-loop-cover.png","excerpt":"适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具","reading_time":60,"views_count":11,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>Agent 的本质：一个两百行的循环</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><div class="markdown-body"><blockquote>
+
+适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人
+结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具，把结果塞回消息列表，再发一次。NanoHermes 的 <code>Agent::run</code> 本体 109 行，加上 <code>complete</code>、<code>execute</code>、<code>assistant_message</code> 与 <code>compact</code>，去掉注释和空行，核心大约两百行。这两百行里有五个判定、四个变量和三道闸，本文逐行拆开
+阅读时间：约 32 分钟 | 难度：进阶 | 收获：一份可照抄的 Agent 主循环骨架 + 一份「哪些东西不该写进循环」的边界清单 + 一份流式工具调用、并发执行、步骤边界中断的实现细节
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：为什么第一篇写循环</li>
+<li>一句话：Agent = 模型 + 工具 + 循环</li>
+<li>拆掉名词之后，只剩五个要素</li>
+<li>一个用户轮次的完整时序</li>
+<li>主循环骨架：109 行的 <code>Agent::run</code></li>
+<li>循环里的四个变量</li>
+<li>第一步：先检索记忆，再把用户消息放进历史</li>
+<li>系统提示词：短是设计，不是偷懒</li>
+<li>第二步：组装工具清单</li>
+<li>第三步：发一次模型请求</li>
+<li>请求体里每个字段都在回答一个问题</li>
+<li>重试与降级：只认五种错误</li>
+<li>流式解析：一行一行读 SSE</li>
+<li>工具调用是拼出来的，不是读出来的</li>
+<li><code>assistant_message</code>：为什么空 content 要写 <code>null</code></li>
+<li>第四步：执行工具</li>
+<li>三道闸：权限、参数、钩子</li>
+<li>工具结果一律是字符串</li>
+<li>回灌历史：<code>tool_call_id</code> 是配对的锚</li>
+<li>第五步：循环从哪里出去</li>
+<li>并发工具调用：作用域线程与按序回收</li>
+<li>中断：Ctrl-C 只在步骤边界生效</li>
+<li>迭代上限：40 次到底在数什么</li>
+<li>上下文压缩：12 万字符与最近 10 条</li>
+<li>会话持久化：每轮结束落盘</li>
+<li>记忆沉淀：只从完整结束的轮次里提炼</li>
+<li>token 账本：为什么上报的是增量</li>
+<li>两百行的边界：什么故意不写进循环</li>
+<li>十个常见实现陷阱</li>
+<li>收尾：下一篇讲上下文</li>
+<li>参考</li>
+</ul>
+<hr>
+<h2>前言：为什么第一篇写循环</h2>
+
+Agent 这个领域最不缺名词。
+
+规划、反思、记忆、检索、工具使用、多智能体协作、任务分解、自我修正……每一个名词都能单独写一篇文章，每一个名词背后都有一堆论文和框架。第一次接触的人很容易产生一种错觉：Agent 是一个很复杂的系统，必须先选一个框架，再往里填配置。
+
+但如果你把一个 Agent 的进程暂停在任意一个时刻，看它正在做什么，答案通常朴素得过分：<strong>它在等一次 HTTP 响应，或者在跑一条 shell 命令。</strong>
+
+模型本身是无状态的。它不记得上一轮说过什么，也不知道自己刚才调用过哪个工具。所谓「多轮对话」，是客户端每一轮都把完整历史重新发一遍；所谓「工具调用」，是模型输出一段 JSON，客户端照着 JSON 去执行，再把执行结果作为下一条消息发回去。Agent 的全部魔法，就发生在这个「发出去、拿回来、执行、再发出去」的循环里。
+
+NanoHermes 把这件事做得非常直白。<code>agent/src/agent.rs</code> 里的 <code>Agent::run</code> 本体是 109 行，从 <code>pub fn run</code> 到右花括号，包含注释和空行。加上它直接调用的 <code>complete</code>、<code>execute</code>、<code>assistant_message</code> 和 <code>compact</code>，去掉注释与空行，核心大约两百行。
+
+这两百行里没有异步运行时，没有状态机生成器，没有中间件管线。只有五个判定、四个变量、三道闸，以及一个 <code>for</code> 循环。
+
+这个系列的第一篇就讲这两百行。原因很简单：<strong>后面的上下文、记忆、工具、并发、安全、多体、观测，全都是挂在这个循环上的。</strong> 循环看不懂，后面的每一篇都会变成背名词。
+<hr>
+<h2>一句话：Agent = 模型 + 工具 + 循环</h2>
+
+先把定义压到最短：
+<blockquote>
+
+<strong>Agent 是一个循环：把消息和工具清单发给模型；模型返回文本或工具调用；如果有工具调用，执行它们，把结果追加进消息列表，再发一次；直到模型不再调用工具。</strong>
+</blockquote>
+
+这句话里有三个组成部分，缺一不可。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>组成</th>
+<th>职责</th>
+<th>没有它会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型</td>
+<td>读消息、决定下一步、输出文本或工具调用</td>
+<td>没有决策来源，只能按固定规则跑脚本</td>
+</tr>
+<tr>
+<td>工具</td>
+<td>真正读文件、改代码、跑命令、查网页</td>
+<td>模型只能「说」，不能「做」，输出止于聊天框</td>
+</tr>
+<tr>
+<td>循环</td>
+<td>把模型输出变成动作，把动作结果变成模型输入</td>
+<td>一次问答就结束，无法完成多步任务</td>
+</tr>
+</tbody>
+</table></div>
+
+很多人把「工具」理解成插件市场里的东西，其实工具的最小定义只是一个<strong>有名字、有 JSON Schema、能被模型点名调用的函数</strong>。它可以是 <code>read_file</code>，也可以是一次 HTTP 请求，甚至可以是另一个 Agent。模型不需要理解工具内部怎么实现，它只需要知道工具叫什么、参数长什么样、返回什么。
+
+同样，循环也不需要理解模型怎么推理。它只做四件事：拼消息、发请求、执行调用、判断是否继续。把这四件事写清楚，一个 Agent 就成立了。
+<hr>
+<h2>拆掉名词之后，只剩五个要素</h2>
+
+把「规划」「记忆」「RAG」这些词先放到一边，一个能跑的最小 Agent 只需要五个要素。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>要素</th>
+<th>在 NanoHermes 里的对应物</th>
+<th>代码位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>消息列表</td>
+<td><code>Vec&lt;Value&gt;</code>，OpenAI 的 <code>messages</code> 格式</td>
+<td><code>Agent.messages</code></td>
+</tr>
+<tr>
+<td>工具声明</td>
+<td>19 个内置工具 + Skill + MCP + 子代理</td>
+<td><code>tools::specs()</code>、<code>Agent::build_tools</code></td>
+</tr>
+<tr>
+<td>一次模型调用</td>
+<td>阻塞 HTTP，可选 SSE 流式</td>
+<td><code>llm::chat</code></td>
+</tr>
+<tr>
+<td>一次工具执行</td>
+<td>权限检查、参数解析、钩子、分发</td>
+<td><code>Agent::execute</code></td>
+</tr>
+<tr>
+<td>终止条件</td>
+<td>不再调用工具 / 被中断 / 达到迭代上限</td>
+<td><code>Agent::run</code> 的三个出口</td>
+</tr>
+</tbody>
+</table></div>
+
+这五个要素里，真正容易写错的不是「怎么发 HTTP」，而是<strong>消息列表的状态管理</strong>。
+
+模型是无状态的，但它对消息格式有严格假设：一条带 <code>tool_calls</code> 的 assistant 消息，后面必须跟齐每个调用的 <code>tool</code> 消息，且 <code>tool_call_id</code> 一一对应。少一条、多一条、顺序错了，API 都会拒绝。所以 Agent 的循环本质上是一个状态机：它必须保证每一轮结束后，历史仍然是一个合法的消息序列。
+
+后面的「中断只在步骤边界生效」「工具错误也要变成结果」「并发执行但按序回填」，全部是为了守住这一条不变量。
+<hr>
+<h2>一个用户轮次的完整时序</h2>
+
+在贴代码之前，先看一次真实的用户轮次。假设用户说「把 README 里的安装命令改成 pnpm」。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>动作</th>
+<th>发生位置</th>
+<th>失败时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>按当前指令检索长期记忆，替换系统消息里的注入块</td>
+<td><code>memory::retrieve_block</code>、<code>set_memory_block</code></td>
+<td>静默跳过，不影响本轮</td>
+</tr>
+<tr>
+<td>2</td>
+<td>把用户消息追加到 <code>messages</code></td>
+<td><code>Agent::run</code></td>
+<td>不会失败</td>
+</tr>
+<tr>
+<td>3</td>
+<td>检查中断标志</td>
+<td><code>interrupt::take()</code></td>
+<td>直接退出循环</td>
+</tr>
+<tr>
+<td>4</td>
+<td>发一次模型请求</td>
+<td><code>complete</code> → <code>llm::chat</code></td>
+<td>返回 <code>Err</code>，整轮中止</td>
+</tr>
+<tr>
+<td>5</td>
+<td>累计 token 用量</td>
+<td><code>UsageTotals</code></td>
+<td>不会失败</td>
+</tr>
+<tr>
+<td>6</td>
+<td>把 assistant 消息追加到 <code>messages</code></td>
+<td><code>assistant_message</code></td>
+<td>不会失败</td>
+</tr>
+<tr>
+<td>7</td>
+<td>没有工具调用？结束</td>
+<td><code>turn.tool_calls.is_empty()</code></td>
+<td>正常返回</td>
+</tr>
+<tr>
+<td>8</td>
+<td>有工具调用？并发执行</td>
+<td><code>execute</code> + <code>thread::scope</code></td>
+<td>每个工具的错误变成字符串</td>
+</tr>
+<tr>
+<td>9</td>
+<td>把每个结果以 <code>role=tool</code> 追加</td>
+<td><code>tool_call_id</code> 配对</td>
+<td>不会失败</td>
+</tr>
+<tr>
+<td>10</td>
+<td>检查上下文是否超预算，必要时压缩</td>
+<td><code>compact</code></td>
+<td>摘要失败则退化为截断提示</td>
+</tr>
+<tr>
+<td>11</td>
+<td>回到步骤 3，继续下一轮</td>
+<td><code>for</code> 循环</td>
+<td>最多 <code>max_iterations</code> 次</td>
+</tr>
+</tbody>
+</table></div>
+
+这张表值得多看几眼，因为它暴露了几个设计选择：
+<ul>
+<li><strong>记忆检索在用户消息入历史之前</strong>。检索的 query 就是这一轮的用户输入，而不是上一轮的残留。</li>
+<li><strong>中断检查在循环顶部</strong>。它不会在工具执行到一半时打断，只在「上一轮已经完全收尾、下一轮还没开始」的位置生效。</li>
+<li><strong>工具执行和结果回填是分开的两步</strong>。先并发跑完所有工具，再按调用顺序逐个写回历史。这样模型看到的顺序永远和它请求的顺序一致。</li>
+<li><strong>压缩在工具结果回填之后</strong>。压缩的对象是「已经完整的一轮」，不会把一条 assistant 工具调用和它的结果拆开。</li>
+</ul>
+<hr>
+<h2>主循环骨架：109 行的 <code>Agent::run</code></h2>
+
+把 UI 输出、记忆沉淀、持久化这些旁路去掉，循环骨架大概是这样。
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">content</span><span class="p">:</span><span class="w"> </span><span class="nc">Value</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">_guard</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">InterruptGuard</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">user_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">content_text</span><span class="p">(</span><span class="o">&amp;</span><span class="n">content</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">memory_dir</span><span class="p">.</span><span class="n">clone</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">retrieve_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">);</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">set_memory_block</span><span class="p">(</span><span class="o">&amp;</span><span class="n">block</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;user&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">content</span><span class="w"> </span><span class="p">}));</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">completed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">interrupted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">had_tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">final_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="o">..</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">max_iterations</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">interrupted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">            </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">complete</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">requests</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="p">;</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">final_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">assistant_message</span><span class="p">(</span><span class="o">&amp;</span><span class="n">turn</span><span class="p">));</span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">completed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">            </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">had_tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_tool_calls</span><span class="p">(</span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">);</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">call</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">zip</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">                </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">call</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<span class="w">                </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">result</span><span class="p">,</span>
+<span class="w">            </span><span class="p">}));</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">compact</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">interrupted</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&quot;interrupted — the conversation was kept&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">completed</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">warn</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">            </span><span class="s">&quot;reached the {} iteration limit without finishing&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">max_iterations</span>
+<span class="w">        </span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">persist</span><span class="p">();</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">final_text</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码为了篇幅做了两处合并：把并发执行收进了 <code>run_tool_calls</code>，把 UI 输出删掉了。原版里并发执行是内联的 <code>std::thread::scope</code>，后面单独讲。
+
+即便如此，骨架已经完整了。你可以看到它没有任何「规划」阶段，也没有「反思」阶段。模型如果想规划，它会自己调用 <code>todo_write</code>；如果想反思，它会在下一轮看到工具结果后改变主意。<strong>规划不是循环的一个阶段，而是模型在循环里的行为。</strong>
+
+这是理解 Agent 的第一个坎：不要把人类的工作流硬编码成阶段。循环只提供「行动—观察」的节奏，具体怎么行动由模型决定。
+<hr>
+<h2>循环里的四个变量</h2>
+
+<code>run</code> 里声明了四个可变变量，它们分别回答四个问题。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>回答的问题</th>
+<th>谁会给它赋值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>completed</code></td>
+<td><code>bool</code></td>
+<td>模型是否主动停止了工具调用？</td>
+<td><code>turn.tool_calls.is_empty()</code></td>
+</tr>
+<tr>
+<td><code>interrupted</code></td>
+<td><code>bool</code></td>
+<td>用户是否按了 Ctrl-C？</td>
+<td>循环顶部的 <code>interrupt::take()</code></td>
+</tr>
+<tr>
+<td><code>had_tools</code></td>
+<td><code>bool</code></td>
+<td>这一轮是否真的执行过工具？</td>
+<td>第一次进入工具分支时置 <code>true</code></td>
+</tr>
+<tr>
+<td><code>final_text</code></td>
+<td><code>String</code></td>
+<td>最后一条 assistant 文本是什么？</td>
+<td>每次模型响应后覆盖</td>
+</tr>
+</tbody>
+</table></div>
+
+前三个变量决定循环结束后怎么收尾，第四个决定 <code>run</code> 返回什么。
+
+<code>final_text</code> 有一个容易忽略的细节：它每一轮都被覆盖，而不是只在结束时赋值。这意味着如果循环因为达到迭代上限而退出，返回的是<strong>最后一次模型响应里的文本</strong>，可能是一句「我准备继续修改」，也可能为空。调用方拿到空字符串是正常的，不代表出错。
+
+<code>had_tools</code> 只服务于一个旁路：对话结束后是否值得提炼长期记忆。纯寒暄的轮次没有工具调用，不值得让模型再花一次请求去总结；只有真正干了活的轮次才进入提炼流程。这个变量不参与循环控制，但它是「记忆沉淀」这个功能的门槛。
+
+<code>interrupted</code> 和 <code>completed</code> 的优先级也值得注意：中断优先。如果用户在最后一轮工具执行完之后按了 Ctrl-C，循环顶部会捕获到，<code>interrupted = true</code>，即使模型本来下一轮就会结束，也会走中断分支。这是符合直觉的：用户说停，就停。
+<hr>
+<h2>第一步：先检索记忆，再把用户消息放进历史</h2>
+
+循环开始之前，<code>run</code> 做了两件事：检索长期记忆，追加用户消息。
+
+顺序很重要。检索用的 query 是 <code>memory::content_text(&amp;content)</code>，也就是这一轮用户输入里提取出的纯文本。多模态消息（文本 + 图片）会被拆成文本部分，图片不会参与检索。然后 <code>retrieve_block</code> 返回一段已经排好版的记忆块，<code>set_memory_block</code> 把它写进系统消息。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">set_memory_block</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">system</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">first_mut</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">system</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;role&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">r</span><span class="o">|</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="s">&quot;system&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">system</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;content&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kd">let</span><span class="w"> </span><span class="n">updated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memory</span><span class="p">::</span><span class="n">set_block</span><span class="p">(</span><span class="n">text</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">);</span>
+<span class="w">                </span><span class="n">system</span><span class="p">[</span><span class="s">&quot;content&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">(</span><span class="n">updated</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码的关键不是「写进去」，而是「替换」。
+
+系统消息里有一个带标记的记忆区块。每次检索后，新块会替换旧块，而不是追加。原因很实际：如果不替换，第二轮注入一次，第三轮再注入一次，系统提示词会随着轮次线性增长，很快就吃掉整个上下文预算。按标记整体替换，保证记忆块的大小只和检索结果有关，和对话跑了多久无关。
+
+空块代表删除。如果这一轮没有检索到相关记忆，<code>set_block</code> 会把旧块清掉，而不是留着上一轮的残留。这也是「按当前指令检索」的题中之义：记忆应该跟着当前任务走，而不是跟着会话走。
+
+<code>memory_dir</code> 为 <code>None</code> 时，整个记忆功能关闭，连工具层都不会暴露可用的 <code>memory_save</code> / <code>memory_search</code>（虽然声明还在，调用会返回「long-term memory is disabled」）。这一段是系列第三篇的主题，这里只需要记住：<strong>记忆是循环的前置钩子，不是循环的一部分。</strong>
+<hr>
+<h2>系统提示词：短是设计，不是偷懒</h2>
+
+<code>run</code> 不负责拼系统提示词，那是 <code>prompt::system_prompt</code> 的事。但系统提示词的形状直接影响循环的成本，所以必须在这篇讲清楚。
+
+NanoHermes 的基础提示词很短，核心就是身份、工具使用规则、工作区路径三段。
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">system_prompt</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Config</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">        </span><span class="s">r#&quot;You are NanoHermes, a lightweight terminal coding agent working inside the user&#39;s workspace.</span>
+
+<span class="s">You help with software engineering tasks: reading and understanding code, editing files,</span>
+<span class="s">running commands, searching the codebase, and answering questions about the project.</span>
+
+<span class="s">Operating rules:</span>
+<span class="s">- You have tools. Use them to inspect the code instead of guessing about file contents or command output.</span>
+<span class="s">- Always read a file before editing it. Never rewrite a file you have not read.</span>
+<span class="s">- Prefer targeted edits (edit_file) over whole-file rewrites; keep changes minimal and focused.</span>
+<span class="s">- Do not add features, refactors, or &quot;improvements&quot; beyond what the user asked for.</span>
+<span class="s">- Prefer non-interactive commands (pass auto-confirm flags) since this terminal has no TTY.</span>
+<span class="s">- Briefly explain what you are doing, then act. Do not over-narrate.</span>
+<span class="s">- After each tool result, decide the next step. When the task is complete, reply with a</span>
+<span class="s">  concise summary and stop calling tools.</span>
+
+<span class="s">Workspace root: {root}</span>
+<span class="s">&quot;#</span><span class="p">,</span>
+<span class="w">        </span><span class="n">root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">workspace</span><span class="p">.</span><span class="n">display</span><span class="p">()</span>
+<span class="w">    </span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// 权限模式提示、用户人设、AGENTS.md 依次追加</span>
+<span class="w">    </span><span class="o">..</span><span class="p">.</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段提示词里没有「你是一个资深工程师」「你要先制定计划」这类话。不是漏了，是刻意不写。原因有三条。
+
+<strong>第一，提示词每轮都要重发。</strong> 系统消息不是只发一次，它在每一次模型请求里都排在最前面。如果基础提示词是 2,000 token，跑 20 轮就是 40,000 token 的输入成本，而且每一轮都要重新计费。提示词越长，循环的边际成本越高。
+
+<strong>第二，长提示词会稀释工具规则。</strong> 模型对上下文的注意力不是均匀的。把「先读再改」埋在三千字的人设后面，效果不如放在前十行。NanoHermes 把最重要的六条规则放在身份之后，就是为了让它们始终在显眼位置。
+
+<strong>第三，项目约定应该由项目自己提供。</strong> 「这个仓库用 pnpm」「提交前跑 cargo fmt」这类信息不该硬编码在 Agent 里，而应该放在 <code>AGENTS.md</code>。NanoHermes 会从文件系统根目录一路读到工作区，把每一层的 <code>AGENTS.md</code> 拼起来，最后读到的（最具体的）排在最后，自然形成优先级。
+
+系统消息的五个来源可以列成一张表。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>来源</th>
+<th>内容</th>
+<th>上限 / 条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内置提示词</td>
+<td>身份、六条工作规则、工作区路径</td>
+<td>固定，约 30 行</td>
+</tr>
+<tr>
+<td>权限模式提示</td>
+<td>Goal / Debug / Plan 各自的一行行为约束</td>
+<td>仅非 Default / AcceptEdits 时追加</td>
+</tr>
+<tr>
+<td>用户人设</td>
+<td><code>system_prompt</code> 配置里的额外指令</td>
+<td>非空才追加，不替换基础规则</td>
+</tr>
+<tr>
+<td><code>AGENTS.md</code></td>
+<td>全局 <code>~/.nanohermes/AGENTS.md</code> + 祖先目录逐层</td>
+<td>合计 20,000 字符封顶</td>
+</tr>
+<tr>
+<td><code>NANOHERMES.md</code></td>
+<td>工作区根目录的项目上下文</td>
+<td>非空才追加</td>
+</tr>
+<tr>
+<td>Skills 清单</td>
+<td>可用技能的名字与一句话描述</td>
+<td>发现到技能才追加</td>
+</tr>
+</tbody>
+</table></div>
+
+注意最后两行不在 <code>prompt.rs</code> 里：<code>NANOHERMES.md</code> 和 Skills 清单由 <code>agent.rs</code> 的 <code>system_content</code> 追加。分层的理由是「谁负责发现，谁负责注入」——项目文件属于工作区，技能属于运行时。
+
+还有一个细节：<code>AGENTS.md</code> 会被 <code>canonicalize</code> 去重。同一个文件通过符号链接或多路径到达时，只读一次。拼接过长时按字符边界截断，并追加一行 <code>project guidance truncated</code>。这些处理都不复杂，但它们决定了「提示词不会因为仓库里有巨型文档而失控」。
+<hr>
+<h2>第二步：组装工具清单</h2>
+
+模型不会凭空知道有哪些工具。每一轮请求都要带上工具声明，声明是 JSON Schema，模型据此决定调用谁、传什么参数。
+
+NanoHermes 的工具清单由四个来源拼成。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>来源</th>
+<th>内容</th>
+<th>加入条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内置工具</td>
+<td>读写文件、补丁、目录、grep、glob、shell、后台任务、网页、todo、git、记忆</td>
+<td>始终存在</td>
+</tr>
+<tr>
+<td><code>skill</code></td>
+<td>按名字加载某个技能的完整说明</td>
+<td>工作区里发现了技能</td>
+</tr>
+<tr>
+<td>MCP 工具</td>
+<td>每个 MCP 服务器暴露的工具</td>
+<td>配置了 MCP 服务器</td>
+</tr>
+<tr>
+<td>MCP 辅助工具</td>
+<td><code>mcp_list_resources</code>、<code>mcp_read_resource</code>、<code>mcp_list_prompts</code>、<code>mcp_get_prompt</code></td>
+<td>配置了 MCP 服务器</td>
+</tr>
+<tr>
+<td>子代理</td>
+<td><code>subagent</code>、<code>agent_list</code></td>
+<td>配置了子代理定义</td>
+</tr>
+</tbody>
+</table></div>
+
+拼完之后还有一道过滤：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">build_tools</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Value</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tools</span><span class="p">::</span><span class="n">specs</span><span class="p">().</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">skills</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">skill_tool_spec</span><span class="p">());</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">mcp</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">m</span><span class="p">.</span><span class="n">all_tools</span><span class="p">());</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">extend</span><span class="p">(</span><span class="n">mcp_aux_tools</span><span class="p">());</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="n">retain</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;function&quot;</span><span class="p">)</span>
+<span class="w">            </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">f</span><span class="o">|</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;name&quot;</span><span class="p">))</span>
+<span class="w">            </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">n</span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span>
+<span class="w">            </span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">check_tool</span><span class="p">(</span><span class="n">name</span><span class="p">).</span><span class="n">is_ok</span><span class="p">()</span>
+<span class="w">    </span><span class="p">});</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">subagents</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">subagent_tool_spec</span><span class="p">());</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">agent_list_tool_spec</span><span class="p">());</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">Value</span><span class="p">::</span><span class="n">Array</span><span class="p">(</span><span class="n">list</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>check_tool</code> 的规则是三道，按优先级从高到低：
+<ol>
+<li><strong>权限模式的硬封锁</strong>：Plan 模式封掉所有写操作和 <code>run_command</code>，Debug 模式封掉写操作但允许跑命令。</li>
+<li><strong>deny 列表</strong>：显式禁止的工具永远不能执行。</li>
+<li><strong>allow 列表</strong>：一旦配置了 allow 列表，只有列表里的工具能执行。</li>
+</ol>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>权限模式</th>
+<th>硬封锁的工具</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default</td>
+<td>无</td>
+<td>日常使用，按 <code>auto_approve</code> 决定是否确认 shell</td>
+</tr>
+<tr>
+<td>AcceptEdits</td>
+<td>无，但 shell 始终要确认</td>
+<td>想让文件编辑免确认、命令仍需把关</td>
+</tr>
+<tr>
+<td>Plan</td>
+<td><code>write_file</code>、<code>edit_file</code>、<code>apply_patch</code>、<code>run_command</code>、<code>git_commit</code></td>
+<td>只读分析，产出方案</td>
+</tr>
+<tr>
+<td>Goal</td>
+<td>无，且永不确认</td>
+<td>无人值守，跑到目标完成</td>
+</tr>
+<tr>
+<td>Debug</td>
+<td><code>write_file</code>、<code>edit_file</code>、<code>apply_patch</code>、<code>git_commit</code></td>
+<td>允许复现问题，但不许改坏现场</td>
+</tr>
+</tbody>
+</table></div>
+
+这里有一个实现上的小不对称：<code>subagent</code> 和 <code>agent_list</code> 是在 <code>retain</code> 之后追加的，所以构建清单时它们没经过 <code>check_tool</code>。但真正执行时，<code>execute</code> 会再过一次 <code>check_tool</code>，所以安全性不受影响。清单只是「广告」，执行才是「闸门」。这也解释了一个设计原则：<strong>工具声明可以宽，执行必须严。</strong>
+
+工具声明的顺序也有影响。模型在同等条件下倾向于先看到、先选择靠前的工具。NanoHermes 把最常用的读写、搜索、shell 放在前面，把记忆、git、后台任务放在后面。这不是玄学，是减少模型在长清单里的选择成本。
+<hr>
+<h2>第三步：发一次模型请求</h2>
+
+<code>complete</code> 是循环里最短的函数之一，它只做两件事：取工具清单，按输出格式选择回调。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">complete</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">AssistantTurn</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">style</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">build_tools</span><span class="p">();</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">output_format</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">OutputFormat</span><span class="p">::</span><span class="n">StreamJson</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">llm</span><span class="p">::</span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">tools</span><span class="p">,</span><span class="w"> </span><span class="o">|</span><span class="n">delta</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">delta</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;{}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;delta&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">delta</span><span class="w"> </span><span class="p">}));</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">})</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">llm</span><span class="p">::</span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">tools</span><span class="p">,</span><span class="w"> </span><span class="o">|</span><span class="n">delta</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">style</span><span class="p">.</span><span class="n">stream</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}),</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+输出格式在这里分叉：普通文本模式把增量交给终端渲染器；<code>stream-json</code> 模式把每个增量包成一个 JSON 对象打到 stdout，方便管道处理。两者的 HTTP 请求完全一样，区别只在「增量到达时怎么处理」。
+
+真正的请求在 <code>llm::chat</code> 里。它构造请求体、处理重试、选择流式或非流式读取，最后返回一个 <code>AssistantTurn</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">AssistantTurn</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">content</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">tool_calls</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">ToolCall</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">usage</span><span class="p">:</span><span class="w"> </span><span class="nc">Usage</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这个结构是循环的「输入」。<code>content</code> 是模型说的话，<code>tool_calls</code> 是模型想做的动作，<code>usage</code> 是这次请求的 token 消耗。循环只关心前两个，第三个进账本。
+<hr>
+<h2>请求体里每个字段都在回答一个问题</h2>
+
+<code>llm::chat</code> 的 <code>build_body</code> 很短，但每个字段都对应一个实际约束。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>值</th>
+<th>回答的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>model</code></td>
+<td>当前配置或 fallback</td>
+<td>用哪个模型</td>
+</tr>
+<tr>
+<td><code>messages</code></td>
+<td>完整历史</td>
+<td>模型需要看到什么</td>
+</tr>
+<tr>
+<td><code>temperature</code></td>
+<td>默认 <code>0.0</code></td>
+<td>要不要随机性</td>
+</tr>
+<tr>
+<td><code>max_tokens</code></td>
+<td>默认 <code>4096</code></td>
+<td>单次响应最多多长</td>
+</tr>
+<tr>
+<td><code>stream</code></td>
+<td>默认 <code>true</code></td>
+<td>要不要边生成边显示</td>
+</tr>
+<tr>
+<td><code>tools</code></td>
+<td>工具声明数组</td>
+<td>模型能调用什么</td>
+</tr>
+<tr>
+<td><code>tool_choice</code></td>
+<td><code>"auto"</code></td>
+<td>让模型自己决定是否调用</td>
+</tr>
+<tr>
+<td><code>reasoning_effort</code></td>
+<td><code>"high"</code></td>
+<td>是否开启扩展思考</td>
+</tr>
+<tr>
+<td><code>stream_options</code></td>
+<td><code>{"include_usage": true}</code></td>
+<td>流式响应里要不要带用量</td>
+</tr>
+</tbody>
+</table></div>
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">build_body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">|</span><span class="n">model</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">        </span><span class="s">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">model</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;messages&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">messages</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">cfg</span><span class="p">.</span><span class="n">temperature</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">cfg</span><span class="p">.</span><span class="n">max_tokens</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;stream&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">cfg</span><span class="p">.</span><span class="n">stream</span><span class="p">,</span>
+<span class="w">    </span><span class="p">});</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">has_tools</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">body</span><span class="p">[</span><span class="s">&quot;tools&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tools</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
+<span class="w">        </span><span class="n">body</span><span class="p">[</span><span class="s">&quot;tool_choice&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;auto&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">thinking</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">body</span><span class="p">[</span><span class="s">&quot;reasoning_effort&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;high&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">stream</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">body</span><span class="p">[</span><span class="s">&quot;stream_options&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;include_usage&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">true</span><span class="w"> </span><span class="p">});</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">body</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+几个选择值得解释。
+
+<strong><code>temperature</code> 默认 0.0。</strong> coding agent 不是创意写作，代码修改需要可复现。温度越高，同一份上下文产生的 diff 越随机，调试成本越高。NanoHermes 把默认值设成 0，需要发散时再通过配置调高。
+
+<strong><code>max_tokens</code> 默认 4096。</strong> 这不是模型的上限，是单次响应的预算。工具调用本身很短，4096 足够容纳一次「解释 + 多个工具调用」。太大的值会让模型倾向于写长回复，反而拖慢循环。
+
+<strong><code>tool_choice</code> 只在有工具时出现。</strong> 没有工具还传 <code>"auto"</code>，有些 API 会直接报错。<code>has_tools</code> 这个布尔值就是为了避免这种低级错误。
+
+<strong><code>stream_options.include_usage</code> 是流式用量的来源。</strong> 默认的 SSE 流不会在最后带 usage，必须显式要求。NanoHermes 需要这个字段才能在没有非流式响应的情况下记账。
+
+<strong>没有 <code>top_p</code>、<code>seed</code>、<code>presence_penalty</code>。</strong> 不是这些参数没用，而是它们对 coding agent 的收益太低，传了只会增加兼容性风险。不同厂商的 OpenAI 兼容层对这些字段的支持程度不一样，少传一个就少一个「某家 API 不认」的故障点。
+<hr>
+<h2>重试与降级：只认五种错误</h2>
+
+网络请求会失败。Agent 的循环不能因为一次 429 就整轮崩掉，所以 <code>llm::chat</code> 外面套了一个重试循环。
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">attempt</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="k">loop</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">model</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">),</span>
+<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">attempt</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">max_retries</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">attempt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="kd">let</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">backoff_ms</span><span class="p">(</span><span class="n">cfg</span><span class="p">.</span><span class="n">retry_base_ms</span><span class="p">,</span><span class="w"> </span><span class="n">attempt</span><span class="p">);</span>
+<span class="w">                </span><span class="fm">eprintln!</span><span class="p">(</span><span class="s">&quot;note: retrying in {delay}ms (attempt {attempt}/{})&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">cfg</span><span class="p">.</span><span class="n">max_retries</span><span class="p">);</span>
+<span class="w">                </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">sleep</span><span class="p">(</span><span class="n">Duration</span><span class="p">::</span><span class="n">from_millis</span><span class="p">(</span><span class="n">delay</span><span class="p">));</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">fallback</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">cfg</span><span class="p">.</span><span class="n">fallback_model</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="n">is_retryable_error</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="n">chat_with_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span><span class="w"> </span><span class="n">build_body</span><span class="p">(</span><span class="n">fallback</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">on_text</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>is_retryable_error</code> 的判断非常朴素：错误字符串里包含 <code>HTTP 429</code>、<code>HTTP 500</code>、<code>HTTP 502</code>、<code>HTTP 503</code> 或 <code>HTTP 504</code>。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>错误</th>
+<th>是否重试</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP 429</td>
+<td>是</td>
+<td>限流，等一会儿可能恢复</td>
+</tr>
+<tr>
+<td>HTTP 500</td>
+<td>是</td>
+<td>服务端内部错误，可能瞬时</td>
+</tr>
+<tr>
+<td>HTTP 502 / 503 / 504</td>
+<td>是</td>
+<td>网关或上游暂时不可用</td>
+</tr>
+<tr>
+<td>HTTP 400 / 401 / 403</td>
+<td>否</td>
+<td>请求格式、鉴权、权限问题，重试无用</td>
+</tr>
+<tr>
+<td>JSON 解析失败</td>
+<td>否</td>
+<td>响应结构不对，重试大概率一样</td>
+</tr>
+<tr>
+<td>连接超时</td>
+<td>否</td>
+<td>错误字符串不匹配，直接失败</td>
+</tr>
+</tbody>
+</table></div>
+
+退避公式是 <code>base * 2^(attempt-1)</code>，上限 30 秒。默认 <code>base = 500ms</code>、<code>max_retries = 2</code>，所以最多等 500ms、1000ms 两次，总共 1.5 秒。这个量级适合交互式 CLI：用户还在等，不能睡太久。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">backoff_ms</span><span class="p">(</span><span class="n">base_ms</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span><span class="w"> </span><span class="n">attempt</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u64</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">base_ms</span>
+<span class="w">        </span><span class="p">.</span><span class="n">saturating_mul</span><span class="p">(</span><span class="mi">2</span><span class="k">u64</span><span class="p">.</span><span class="n">saturating_pow</span><span class="p">(</span><span class="n">attempt</span><span class="p">.</span><span class="n">saturating_sub</span><span class="p">(</span><span class="mi">1</span><span class="p">)))</span>
+<span class="w">        </span><span class="p">.</span><span class="n">min</span><span class="p">(</span><span class="mi">30_000</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+重试耗尽后，如果配置了 <code>fallback_model</code>，会用备用模型再试一次。注意这次不再重试，只试一次。备用模型的意义是「主模型限流时还能干活」，不是「无限续命」。
+
+这里有一个诚实但容易被忽略的代价：<strong>流式请求如果在吐出部分文本后失败，重试会再次触发 <code>on_text</code>，界面上可能出现重复文本。</strong> NanoHermes 没有做增量去重，因为绝大多数可重试错误发生在建立连接或首帧阶段；真正的中途断流属于少数情况，去重逻辑的复杂度不值得。知道这个边界，比假装它不存在更好。
+<hr>
+<h2>流式解析：一行一行读 SSE</h2>
+
+流式响应是 <code>text/event-stream</code>，格式是一行一行的 <code>data: {...}</code>。NanoHermes 没有引入 SSE 库，而是直接用 <code>BufReader::lines()</code> 读。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">read_stream</span><span class="p">(</span><span class="n">resp</span><span class="p">:</span><span class="w"> </span><span class="nc">ureq</span><span class="p">::</span><span class="n">Response</span><span class="p">,</span><span class="w"> </span><span class="n">on_text</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="k">impl</span><span class="w"> </span><span class="nb">FnMut</span><span class="p">(</span><span class="o">&amp;</span><span class="kt">str</span><span class="p">))</span>
+<span class="w">    </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">AssistantTurn</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AssistantTurn</span><span class="p">::</span><span class="n">default</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BufReader</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">resp</span><span class="p">.</span><span class="n">into_reader</span><span class="p">());</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">reader</span><span class="p">.</span><span class="n">lines</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">l</span><span class="p">,</span>
+<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;stream read error: {e}&quot;</span><span class="p">)),</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">trim_end_matches</span><span class="p">([</span><span class="sc">&#39;\r&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;\n&#39;</span><span class="p">]);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">starts_with</span><span class="p">(</span><span class="sc">&#39;:&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">strip_prefix</span><span class="p">(</span><span class="s">&quot;data:&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Some</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">trim</span><span class="p">(),</span>
+<span class="w">            </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">continue</span><span class="p">,</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">data</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;[DONE]&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">v</span><span class="p">:</span><span class="w"> </span><span class="nc">Value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">serde_json</span><span class="p">::</span><span class="n">from_str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">v</span><span class="p">,</span>
+<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">continue</span><span class="p">,</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">err</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;error&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;API error: {err}&quot;</span><span class="p">));</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;usage&quot;</span><span class="p">).</span><span class="n">is_some</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">usage_from_value</span><span class="p">(</span><span class="o">&amp;</span><span class="n">v</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;choices&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+<span class="w">            </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;delta&quot;</span><span class="p">))</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">continue</span><span class="w"> </span><span class="p">};</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">delta</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;content&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">text</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">turn</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="n">text</span><span class="p">);</span>
+<span class="w">                </span><span class="n">on_text</span><span class="p">(</span><span class="n">text</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">accumulate_tool_calls</span><span class="p">(</span><span class="n">delta</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;tool_calls&quot;</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码处理了六种帧。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>帧类型</th>
+<th>处理方式</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>空行</td>
+<td>跳过</td>
+<td>SSE 用空行分隔事件</td>
+</tr>
+<tr>
+<td>以 <code>:</code> 开头</td>
+<td>跳过</td>
+<td>注释或 keep-alive</td>
+</tr>
+<tr>
+<td><code>data: [DONE]</code></td>
+<td>结束循环</td>
+<td>流的终止标记</td>
+</tr>
+<tr>
+<td><code>data: {...}</code> 带 <code>error</code></td>
+<td>返回 <code>Err</code></td>
+<td>服务端在流里报错</td>
+</tr>
+<tr>
+<td><code>data: {...}</code> 带 <code>usage</code></td>
+<td>更新用量</td>
+<td>流式用量在末尾单独一帧</td>
+</tr>
+<tr>
+<td><code>data: {...}</code> 带 <code>delta</code></td>
+<td>累积文本 / 工具调用</td>
+<td>正常增量</td>
+</tr>
+<tr>
+<td>无法解析的 JSON</td>
+<td>跳过</td>
+<td>容忍半帧或厂商扩展</td>
+</tr>
+</tbody>
+</table></div>
+
+「无法解析就跳过」看起来危险，其实是流式解析的必要妥协。网络分帧不保证每次 <code>read</code> 都拿到完整 JSON；<code>lines()</code> 已经按行切了，但某些厂商会在 <code>data:</code> 里放非标准字段。跳过坏帧，比整轮失败更划算。真正的错误会通过 <code>error</code> 字段或 HTTP 状态暴露，不会只藏在坏帧里。
+
+非流式路径的 <code>read_json</code> 更简单：解析整个响应体，取 <code>choices[0].message</code>，读 <code>content</code>、<code>tool_calls</code>、<code>usage</code>。如果响应里没有 <code>choices</code>，会返回一个带截断响应体的错误，方便排查兼容层返回了什么。
+<hr>
+<h2>工具调用是拼出来的，不是读出来的</h2>
+
+非流式响应里，<code>tool_calls</code> 是一个完整的数组。流式响应里不是。
+
+OpenAI 的流式工具调用是<strong>增量拼接</strong>的：每个 delta 带一个 <code>index</code>，表示这是第几个调用；<code>id</code> 和 <code>function.name</code> 通常只在第一帧出现；<code>function.arguments</code> 是一段一段的字符串片段，需要按顺序追加。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">accumulate_tool_calls</span><span class="p">(</span><span class="n">tcs</span><span class="p">:</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;&amp;</span><span class="n">Value</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">out</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">ToolCall</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tcs</span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">as_array</span><span class="p">())</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="p">};</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">tc</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tc</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;index&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">i</span><span class="o">|</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">as_u64</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">usize</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">out</span><span class="p">.</span><span class="n">resize</span><span class="p">(</span><span class="n">idx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">ToolCall</span><span class="p">::</span><span class="n">default</span><span class="p">());</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">slot</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="n">idx</span><span class="p">];</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tc</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;id&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">i</span><span class="o">|</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">id</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">slot</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">id</span><span class="p">.</span><span class="n">to_string</span><span class="p">();</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tc</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;function&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;name&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">n</span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">name</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">slot</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">name</span><span class="p">.</span><span class="n">to_string</span><span class="p">();</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;arguments&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">a</span><span class="o">|</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">as_str</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">slot</span><span class="p">.</span><span class="n">arguments</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="n">args</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+假设模型要同时读两个文件，流可能是这样的。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>帧</th>
+<th><code>index</code></th>
+<th>内容</th>
+<th>累积结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0</td>
+<td><code>id=call_a, name=read_file</code></td>
+<td>槽 0：名字就位，参数为空</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0</td>
+<td><code>arguments={"path":"a</code></td>
+<td>槽 0：参数字符串前半段</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0</td>
+<td><code>.rs"}</code></td>
+<td>槽 0：参数拼接完成</td>
+</tr>
+<tr>
+<td>4</td>
+<td>1</td>
+<td><code>id=call_b, name=read_file</code></td>
+<td>槽 1：第二个调用出现</td>
+</tr>
+<tr>
+<td>5</td>
+<td>1</td>
+<td><code>arguments={"path":"b.rs"}</code></td>
+<td>槽 1：参数拼接完成</td>
+</tr>
+</tbody>
+</table></div>
+
+这里有三个必须写对的点。
+
+<strong>第一，<code>arguments</code> 必须是 <code>push_str</code>，不能是赋值。</strong> 写成 <code>slot.arguments = args</code> 会只保留最后一段，模型收到的 JSON 永远是残缺的，工具会报「invalid JSON arguments」。
+
+<strong>第二，<code>id</code> 和 <code>name</code> 只在非空时覆盖。</strong> 后续帧里这两个字段通常是 <code>null</code> 或空字符串。如果无条件赋值，槽里的名字会被清空。
+
+<strong>第三，槽位要按 <code>index</code> 扩容。</strong> 模型可能先发 <code>index=1</code> 再发 <code>index=0</code>，也可能跳过某个 index。<code>resize(idx + 1, default)</code> 保证槽位存在，最后按顺序执行时不会越界。
+
+拼接完成后，<code>AssistantTurn.tool_calls</code> 是一个有序数组。循环按这个顺序执行，也按这个顺序回填结果。模型看到的 <code>tool_call_id</code> 顺序和它请求的顺序一致，这是后面配对的前提。
+<hr>
+<h2><code>assistant_message</code>：为什么空 content 要写 <code>null</code></h2>
+
+模型返回的 <code>AssistantTurn</code> 不能直接塞回 <code>messages</code>。OpenAI 的消息格式要求 assistant 消息里的工具调用是另一种结构：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">assistant_message</span><span class="p">(</span><span class="n">turn</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">AssistantTurn</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Value</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Value</span><span class="p">::</span><span class="n">Null</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Value</span><span class="p">::</span><span class="nb">String</span><span class="p">(</span><span class="n">turn</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">clone</span><span class="p">())</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;assistant&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">content</span><span class="w"> </span><span class="p">});</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">calls</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">args</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">arguments</span><span class="p">.</span><span class="n">trim</span><span class="p">().</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s">&quot;{}&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">&amp;</span><span class="n">c</span><span class="p">.</span><span class="n">arguments</span><span class="w"> </span><span class="p">};</span>
+<span class="w">        </span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">            </span><span class="s">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">c</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;function&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;function&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">c</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;arguments&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">args</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="p">})</span>
+<span class="w">    </span><span class="p">}).</span><span class="n">collect</span><span class="p">();</span>
+<span class="w">    </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;assistant&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">content</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tool_calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">calls</span><span class="w"> </span><span class="p">})</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个细节。
+
+<strong>空 content 写 <code>null</code>，不写空字符串。</strong> 有些兼容层对 <code>content: ""</code> 和 <code>content: null</code> 的处理不一样。当一条 assistant 消息只包含工具调用时，标准做法是 <code>content: null</code>。写空字符串在部分厂商那里会被当成「模型说了空话」，甚至触发校验错误。
+
+<strong>空参数写 <code>{}</code>。</strong> 模型有时会发出 <code>arguments: ""</code>，表示这个工具没有参数。直接原样回传，历史里会留下一个空字符串，下一轮 API 可能拒绝。统一补成 <code>{}</code>，让历史始终是合法 JSON。
+
+<strong><code>tool_calls</code> 只在非空时出现。</strong> 纯文本响应不需要这个字段。多写一个空数组，有些 API 会认为「模型声明了工具调用但没给内容」，行为不确定。
+
+这些都不是「洁癖」，而是跨厂商兼容的生存技巧。OpenAI 兼容层不是标准，每个厂商都有自己的宽容度。Agent 的历史会被反复重发，任何一处不合法都会在下一轮放大成 400。
+<hr>
+<h2>第四步：执行工具</h2>
+
+<code>execute</code> 是循环里最像「安全边界」的函数。它不直接分发，而是先过三道检查。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">call</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">llm</span><span class="p">::</span><span class="n">ToolCall</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Err</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">check_tool</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: {reason}&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">args</span><span class="p">:</span><span class="w"> </span><span class="nc">Value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">call</span><span class="p">.</span><span class="n">arguments</span><span class="p">.</span><span class="n">trim</span><span class="p">().</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">json</span><span class="o">!</span><span class="p">({})</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">serde_json</span><span class="p">::</span><span class="n">from_str</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">arguments</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">v</span><span class="p">,</span>
+<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: invalid JSON arguments for `{}`: {e}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">),</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">};</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">hook</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">hooks</span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">filter</span><span class="p">(</span><span class="o">|</span><span class="n">h</span><span class="o">|</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">event</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">HookEvent</span><span class="p">::</span><span class="n">PreToolUse</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">matches</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">))</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">hooks</span><span class="p">::</span><span class="n">run</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">workspace</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">ok</span><span class="p">()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;ERROR: `{}` blocked by PreToolUse hook (exit {}):</span><span class="se">\n</span><span class="s">{}&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">output</span>
+<span class="w">            </span><span class="p">),</span>
+<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: PreToolUse hook failed: {e}&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_tool</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">args</span><span class="p">);</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">hook</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">hooks</span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">filter</span><span class="p">(</span><span class="o">|</span><span class="n">h</span><span class="o">|</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">event</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">HookEvent</span><span class="p">::</span><span class="n">PostToolUse</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">matches</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">))</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">hooks</span><span class="p">::</span><span class="n">run</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">workspace</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">ok</span><span class="p">()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;</span><span class="se">\n</span><span class="s">[PostToolUse hook exited {}]</span><span class="se">\n</span><span class="s">{}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">output</span>
+<span class="w">            </span><span class="p">)),</span>
+<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">[PostToolUse hook failed: {e}]&quot;</span><span class="p">)),</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">result</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+把这个函数拆开看，它其实是一条流水线：
+<ol>
+<li><strong>权限检查</strong>：这个工具在当前模式、allow/deny 列表下能不能跑。</li>
+<li><strong>参数解析</strong>：模型给的 JSON 是不是合法。不合法就返回错误字符串，不 panic。</li>
+<li><strong>执行前钩子</strong>：用户可以挂自己的脚本，非零退出直接否决这次调用。</li>
+<li><strong>分发执行</strong>：交给 <code>run_tool</code>。</li>
+<li><strong>执行后钩子</strong>：不能否决，只能追加警告。</li>
+</ol>
+
+最值得注意的是第 2 步和第 3 步的失败处理：<strong>它们返回的是字符串，不是 <code>Err</code>，更不是 panic。</strong> 这意味着参数写错的工具调用不会中止整轮对话，模型会在下一条 <code>tool</code> 消息里看到「你的 JSON 不合法」，然后自己重试。
+
+这是 Agent 和普通程序的一个重要区别：<strong>错误是模型的输入，不是程序的终止信号。</strong> 普通函数遇到非法参数会抛异常，Agent 的工具层要把异常翻译成模型能读懂的一句话。
+<hr>
+<h2>三道闸：权限、参数、钩子</h2>
+
+把三道闸分开看，各自的职责和失败语义不一样。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>闸门</th>
+<th>检查内容</th>
+<th>失败时模型看到什么</th>
+<th>能否恢复</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>权限闸</td>
+<td>模式封锁、deny 列表、allow 列表</td>
+<td><code>ERROR: tool ... is not available in Plan mode</code></td>
+<td>换模式或换工具</td>
+</tr>
+<tr>
+<td>参数闸</td>
+<td><code>arguments</code> 是否为合法 JSON</td>
+<td><code>ERROR: invalid JSON arguments for ...</code></td>
+<td>重新生成参数</td>
+</tr>
+<tr>
+<td>前置钩子</td>
+<td>用户脚本的退出码</td>
+<td><code>ERROR: ... blocked by PreToolUse hook</code></td>
+<td>改命令或绕过</td>
+</tr>
+<tr>
+<td>后置钩子</td>
+<td>用户脚本的警告</td>
+<td>结果末尾追加 <code>[PostToolUse hook exited N]</code></td>
+<td>不影响结果</td>
+</tr>
+</tbody>
+</table></div>
+
+权限闸的语义最强：它在工具清单构建时已经过滤过一次，执行时又检查一次。为什么重复？因为清单是给模型看的，模型可能凭记忆调用一个已经被过滤掉的工具；执行时的检查才是真正的安全边界。
+
+参数闸的语义最弱：它只保证「是合法 JSON」，不保证「符合工具的 Schema」。<code>read_file</code> 要求 <code>path</code> 是字符串，模型传了数字，<code>fs::read_file</code> 里的 <code>req_str</code> 会返回错误，同样变成字符串结果。Schema 校验没有单独做，是因为每个工具自己最清楚参数该怎么解释，集中校验反而容易和实现脱节。
+
+钩子闸是唯一允许「一票否决」的外部扩展点。<code>PreToolUse</code> 非零退出，工具就不会执行；<code>PostToolUse</code> 非零退出，工具已经执行完了，只能追加警告。这个设计把「阻止」和「提醒」分开，避免后置钩子产生「已经改了文件但假装没改」的错觉。
+<hr>
+<h2>工具结果一律是字符串</h2>
+
+<code>run_tool</code> 负责真正的分发，它的返回类型是 <code>String</code>，不是 <code>Result&lt;String, String&gt;</code>。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">run_tool</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">args</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Value</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;subagent&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">sname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;name&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">n</span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">as_str</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">args</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;task&quot;</span><span class="p">).</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">as_str</span><span class="p">()).</span><span class="n">unwrap_or</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_subagent</span><span class="p">(</span><span class="n">sname</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">,</span>
+<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: {e}&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">};</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">tools</span><span class="p">::</span><span class="n">dispatch</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">,</span>
+<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">contains</span><span class="p">(</span><span class="s">&quot;unknown tool&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="bp">self</span><span class="p">.</span><span class="n">mcp</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">call</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="k">return</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">,</span>
+<span class="w">                            </span><span class="nb">Err</span><span class="p">(</span><span class="n">err</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: {err}&quot;</span><span class="p">),</span>
+<span class="w">                        </span><span class="p">};</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;ERROR: {e}&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>tools::dispatch</code> 自己返回 <code>Result&lt;String, String&gt;</code>，每个工具实现也返回同样的类型。到了 <code>run_tool</code> 这一层，错误被统一翻译成 <code>ERROR: ...</code> 字符串。成功的内置工具结果也不会原样回灌：<code>dispatch</code> 最后一行是 <code>r.map(|s| clamp(s, ctx.max_output))</code>，默认 <code>max_output = 20_000</code>；超过上限时按字符边界截断，并注明省略了多少。注意这个上限按字节长度算，不是 token 数。
+
+这个设计有一个直接后果：<strong>模型永远能看到工具失败的原因。</strong>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>失败类型</th>
+<th>工具层返回</th>
+<th>模型下一轮会做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件不存在</td>
+<td><code>ERROR: path: No such file or directory</code></td>
+<td>换路径或先 <code>list_dir</code></td>
+</tr>
+<tr>
+<td><code>old_string</code> 找不到</td>
+<td><code>ERROR: old_string not found ... read the file and match it exactly</code></td>
+<td>重新读文件</td>
+</tr>
+<tr>
+<td><code>old_string</code> 多处匹配</td>
+<td><code>ERROR: occurs N times ... pass replace_all=true</code></td>
+<td>补上下文或加 <code>replace_all</code></td>
+</tr>
+<tr>
+<td>文件超过 4 MB</td>
+<td><code>ERROR: ... read it in chunks with offset/limit</code></td>
+<td>带 <code>offset</code> / <code>limit</code> 重读</td>
+</tr>
+<tr>
+<td>命令被用户拒绝</td>
+<td><code>Command denied by the user. Do not retry it; ask what to do instead.</code></td>
+<td>停下来问用户</td>
+</tr>
+<tr>
+<td>shell 非零退出</td>
+<td>正常结果，包含 <code>exit code: N</code> 和 stderr</td>
+<td>分析错误并修正</td>
+</tr>
+<tr>
+<td>未知工具</td>
+<td><code>ERROR: unknown tool ...</code></td>
+<td>换工具</td>
+</tr>
+</tbody>
+</table></div>
+
+注意「命令被用户拒绝」这一行：它不是 <code>ERROR:</code> 开头，而是一句明确的指令 <code>Do not retry it; ask what to do instead.</code>。这是有意为之。模型对 <code>ERROR:</code> 的默认反应是「重试或换个参数」，但对用户拒绝，正确的反应是停下来。错误文案本身就是行为引导。
+
+还有一层：<code>tools::dispatch</code> 返回「unknown tool」时，<code>run_tool</code> 会再去 MCP 服务器里找同名工具。这是内置工具和 MCP 工具的统一入口。内置工具先匹配，匹配不到才走 MCP，避免 MCP 服务器覆盖内置工具的行为。
+<hr>
+<h2>回灌历史：<code>tool_call_id</code> 是配对的锚</h2>
+
+工具执行完之后，结果要回到 <code>messages</code>。这一步看起来只是三行 <code>json!</code>，其实是最容易破坏历史不变量的一步。
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">call</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">zip</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">tool_call</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">summarize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">arguments</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">result</span><span class="p">);</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">        </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">call</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">result</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+一条工具结果消息只包含三个字段：角色是 <code>tool</code>，<code>tool_call_id</code> 指向 assistant 消息里的某个调用，<code>content</code> 是结果字符串。没有 <code>name</code> 字段，没有时间戳，没有结构化 JSON。
+
+为什么这么简单？因为 API 只认这个形状。<code>tool_call_id</code> 是配对的唯一锚点，模型靠它把「我刚才请求的第三个调用」和「这条结果」对应起来。如果 id 写错、写空、或者顺序错乱，模型会收到一组对不上的结果，轻则答非所问，重则 API 直接 400。
+
+一次带两个工具调用的轮次，历史长这样。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>序号</th>
+<th>role</th>
+<th>关键字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>system</td>
+<td><code>content</code></td>
+<td>系统提示词 + 记忆块</td>
+</tr>
+<tr>
+<td>2</td>
+<td>user</td>
+<td><code>content</code></td>
+<td>用户指令</td>
+</tr>
+<tr>
+<td>3</td>
+<td>assistant</td>
+<td><code>content: null</code>, <code>tool_calls: [call_a, call_b]</code></td>
+<td>模型请求两个工具</td>
+</tr>
+<tr>
+<td>4</td>
+<td>tool</td>
+<td><code>tool_call_id: call_a</code></td>
+<td>第一个工具的结果</td>
+</tr>
+<tr>
+<td>5</td>
+<td>tool</td>
+<td><code>tool_call_id: call_b</code></td>
+<td>第二个工具的结果</td>
+</tr>
+<tr>
+<td>6</td>
+<td>assistant</td>
+<td><code>content: "已经改好了"</code></td>
+<td>模型看到结果后的总结</td>
+</tr>
+</tbody>
+</table></div>
+
+这个序列必须严格保持。尤其注意第 3 条：assistant 消息里的 <code>tool_calls</code> 顺序是 <code>[call_a, call_b]</code>，第 4、5 条的顺序也必须一致。NanoHermes 用 <code>zip</code> 保证这一点：<code>turn.tool_calls</code> 和 <code>results</code> 按同一顺序配对，即使 <code>call_b</code> 先执行完，<code>call_a</code> 的结果仍然排在前面。
+<hr>
+<h2>第五步：循环从哪里出去</h2>
+
+循环有三个出口，每个出口对应一种收尾方式。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>出口</th>
+<th>触发条件</th>
+<th><code>run</code> 返回</th>
+<th>历史状态</th>
+<th>提示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>正常完成</td>
+<td><code>turn.tool_calls.is_empty()</code></td>
+<td>最后一条 assistant 文本</td>
+<td>完整，最后一条是 assistant</td>
+<td>无</td>
+</tr>
+<tr>
+<td>用户中断</td>
+<td>循环顶部 <code>interrupt::take()</code> 为真</td>
+<td>最后一次 assistant 文本</td>
+<td>完整，最后一条是工具结果</td>
+<td>保留上下文，可 <code>/undo</code></td>
+</tr>
+<tr>
+<td>迭代上限</td>
+<td><code>for</code> 跑满 <code>max_iterations</code></td>
+<td>最后一次 assistant 文本</td>
+<td>完整，最后一条是工具结果</td>
+<td>警告「未完成」</td>
+</tr>
+</tbody>
+</table></div>
+
+三个出口都保证历史是合法的。这是循环设计里最重要的一条不变量。
+
+为什么中断和上限退出时，历史最后一条是工具结果而不是 assistant 工具调用？因为检查点放在循环顶部。上一轮的工具结果已经全部回填，<code>compact</code> 也跑完了，下一轮还没发请求。在这个位置退出，历史停在「工具调用 + 全部结果」的完整状态，模型下次接着跑不会缺配对。
+
+如果中断检查放在工具执行中间，就可能出现「assistant 请求了三个工具，只回填了一个结果」的状态。下一次请求会直接被 API 拒绝，而且用户看不出原因。这个坑很隐蔽，后面「十个陷阱」里会再提一次。
+
+正常完成时，最后一条 assistant 消息没有 <code>tool_calls</code>，只有文本。<code>final_text</code> 就是这条文本。如果模型在最后一轮既说了话又调用了工具，循环会继续，不会把「说话」当成结束。<strong>只有「不再调用工具」才是完成信号。</strong>
+<hr>
+<h2>并发工具调用：作用域线程与按序回收</h2>
+
+模型经常在一次响应里请求多个工具。比如「读三个文件」「同时跑测试和 lint」。串行执行会让总延迟等于各工具延迟之和，所以 NanoHermes 在工具调用多于一个时并发执行。
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">results</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="fm">vec!</span><span class="p">[</span><span class="bp">self</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
+<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">this</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Agent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">scope</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">handles</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">_</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">call</span><span class="o">|</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">this</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">)))</span>
+<span class="w">            </span><span class="p">.</span><span class="n">collect</span><span class="p">();</span>
+<span class="w">        </span><span class="n">handles</span><span class="p">.</span><span class="n">into_iter</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">h</span><span class="o">|</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">join</span><span class="p">().</span><span class="n">unwrap_or_else</span><span class="p">(</span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="s">&quot;ERROR: tool thread panicked&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">()</span>
+<span class="w">            </span><span class="p">}))</span>
+<span class="w">            </span><span class="p">.</span><span class="n">collect</span><span class="p">()</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+这里用的是 <code>std::thread::scope</code>，不是 <code>tokio::spawn</code>，也不是线程池。每个工具调用一个线程，跑完就回收。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>延迟</th>
+<th>复杂度</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>串行执行</td>
+<td>各工具之和</td>
+<td>最低</td>
+<td>工具之间强依赖、调用数少</td>
+</tr>
+<tr>
+<td>每次一个线程</td>
+<td>最慢的那个</td>
+<td>低</td>
+<td>调用数少、工具是阻塞 IO</td>
+</tr>
+<tr>
+<td>线程池</td>
+<td>受池大小限制</td>
+<td>中</td>
+<td>高频短任务</td>
+</tr>
+<tr>
+<td>async 运行时</td>
+<td>最慢的那个</td>
+<td>高</td>
+<td>大量并发、需要取消</td>
+</tr>
+</tbody>
+</table></div>
+
+NanoHermes 选第二个，理由和它的整体纲领一致：<strong>一次响应里的工具调用通常只有 1–5 个，为这个量级引入线程池或异步运行时，收益远小于复杂度。</strong>
+
+<code>thread::scope</code> 的好处是生命周期由编译器保证：线程借用的 <code>&amp;Agent</code> 一定活到 <code>join</code> 结束，不需要 <code>Arc</code>，也不需要 <code>'static</code>。代价是 <code>Agent</code> 必须实现 <code>Sync</code>——这反过来约束了 <code>Ctx</code> 里的共享状态（任务管理器、todo 列表、子代理任务板、并发门）必须用内部可变性 + 同步原语，而不是 <code>&amp;mut</code>。这是一个「类型系统逼着你把共享状态设计对」的例子。
+
+结果回收用 <code>zip</code> 保证顺序。<code>join</code> 按 <code>handles</code> 的顺序调用，所以即使第三个工具最先完成，<code>results[0]</code> 仍然是第一个调用的结果。线程 panic 不会让整个进程崩溃，<code>join</code> 返回 <code>Err</code>，被翻译成一条 <code>ERROR: tool thread panicked</code> 结果。模型会看到「这个工具挂了」，而不是进程退出。
+
+并发也带来一个新的问题：<strong>副作用可能交错。</strong> 两个 <code>write_file</code> 同时写同一个文件，结果取决于谁先落盘；一个 <code>git_commit</code> 和一个 <code>edit_file</code> 同时跑，提交的内容不确定。NanoHermes 没有做工具级的互斥，因为模型很少主动请求这种冲突组合，而且真实冲突应该由工具自己处理（比如 git 的锁）。这是一个「把复杂度留给必要的地方」的取舍。
+<hr>
+<h2>中断：Ctrl-C 只在步骤边界生效</h2>
+
+终端 Agent 必须能被中断。但「中断」不是简单地把进程杀掉，否则会话历史会停在半截，下次恢复直接坏掉。
+
+NanoHermes 的做法是：Ctrl-C 不杀进程，只置一个原子标志；循环在步骤边界检查这个标志。
+<div class="codehilite"><pre><span></span><code><span class="k">struct</span><span class="w"> </span><span class="nc">InterruptGuard</span><span class="p">;</span>
+
+<span class="k">impl</span><span class="w"> </span><span class="n">InterruptGuard</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">new</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Self</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">take</span><span class="p">();</span>
+<span class="w">        </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">install</span><span class="p">();</span>
+<span class="w">        </span><span class="n">InterruptGuard</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">impl</span><span class="w"> </span><span class="nb">Drop</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">InterruptGuard</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">drop</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">restore_default</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>run</code> 的第一行是 <code>let _guard = InterruptGuard::new();</code>。这个 guard 在 <code>run</code> 结束时自动 <code>Drop</code>，恢复默认的 SIGINT 行为。即使用户在工具执行期间按了 Ctrl-C，信号处理器也只是把标志置位，不会终止进程。
+
+循环顶部的检查是唯一的消费点：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="o">..</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">max_iterations</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">interrupted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这个位置保证了中断不会发生在「工具执行到一半」。用户按下 Ctrl-C 后，当前工具会继续跑完，结果照常回填，<code>compact</code> 照常执行，然后下一轮开始时才发现标志，退出循环。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>中断时机</th>
+<th>行为</th>
+<th>历史状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型请求过程中</td>
+<td>请求继续，响应到达后回填</td>
+<td>完整</td>
+</tr>
+<tr>
+<td>工具执行过程中</td>
+<td>当前工具跑完，结果回填</td>
+<td>完整</td>
+</tr>
+<tr>
+<td>工具结果回填后、下一轮前</td>
+<td>立即退出</td>
+<td>完整</td>
+</tr>
+<tr>
+<td>多工具并发执行中</td>
+<td>所有线程 join 完再退出</td>
+<td>完整</td>
+</tr>
+</tbody>
+</table></div>
+
+代价是「停止」不够即时。如果一个 <code>run_command</code> 要跑 120 秒，用户按下 Ctrl-C 后最多还要等 120 秒。这是有意的取舍：宁可慢一点，也不要把历史弄坏。真要立即杀，应该用后台任务 + <code>task_kill</code>，而不是中断整个轮次。
+
+<code>InterruptGuard</code> 的注释里还提到「引用计数」，让嵌套轮次（比如工具里又跑了一个子代理轮次）不会拆掉外层的处理器。这个细节保证了中断语义在嵌套场景下仍然一致。
+
+中断之后，<code>run</code> 会打印一句提示，告诉用户对话已保留，可以输入新指令或 <code>/undo</code> 回退。<code>/undo</code> 的实现是 <code>rewind</code>：从最后一条 user 消息往前找，删掉整个轮次。它和中断是两套机制，一个是「停」，一个是「退」。
+<hr>
+<h2>迭代上限：40 次到底在数什么</h2>
+
+<code>max_iterations</code> 的默认值是 40。这个数字经常被误解成「最多调用 40 次工具」，其实不是。
+
+它数的是<strong>模型往返回合数</strong>。一次合回 = 一次 <code>complete()</code> = 一次 HTTP 请求 + 该响应里的所有工具调用。如果模型一次响应请求了 5 个工具，那仍然只算 1 次迭代。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>典型迭代数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>回答一个概念问题</td>
+<td>1</td>
+<td>模型直接回复，不调用工具</td>
+</tr>
+<tr>
+<td>读一个文件并解释</td>
+<td>2–3</td>
+<td>读文件、可能再读一次、总结</td>
+</tr>
+<tr>
+<td>修一个明确的 bug</td>
+<td>4–8</td>
+<td>读、改、跑测试、再改</td>
+</tr>
+<tr>
+<td>实现一个小功能</td>
+<td>8–20</td>
+<td>探索、多文件修改、验证</td>
+</tr>
+<tr>
+<td>长任务 / 重构</td>
+<td>20–40</td>
+<td>容易触顶</td>
+</tr>
+<tr>
+<td>死循环</td>
+<td>40</td>
+<td>模型反复调用同一个失败工具</td>
+</tr>
+</tbody>
+</table></div>
+
+40 是一个很宽松的上限。它的作用不是「限制正常任务」，而是「兜住模型卡死」。没有这个上限，模型可能在一个永远失败的命令上无限重试，烧掉大量 token。
+
+循环跑满时会打印 <code>reached the 40 iteration limit without finishing</code>。注意措辞是「未完成」，不是「出错」。达到上限不是异常，是一个正常的资源边界。
+
+上限也和成本直接相关。假设每轮输入 8,000 token、输出 500 token，40 轮就是 320,000 输入 token 加 20,000 输出 token。对于按量计费的 API，这是一笔不能忽略的钱。<code>max_iterations</code> 是成本控制的第一道闸，第二道是上下文压缩，第三道是工具输出上限。
+<hr>
+<h2>上下文压缩：12 万字符与最近 10 条</h2>
+
+循环跑得越久，<code>messages</code> 越大。每一轮请求都要把完整历史发一遍，历史越大，输入 token 越多，延迟越高，最终会超过模型的上下文窗口。
+
+NanoHermes 的压缩策略是「超预算就把旧消息换成一段摘要」。
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">compact_with</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">force</span><span class="p">:</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">size</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">m</span><span class="o">|</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">to_string</span><span class="p">().</span><span class="n">len</span><span class="p">()).</span><span class="n">sum</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">force</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">CONTEXT_CHAR_BUDGET</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">KEEP_RECENT</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">().</span><span class="n">saturating_sub</span><span class="p">(</span><span class="n">KEEP_RECENT</span><span class="p">);</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">[</span><span class="n">start</span><span class="p">][</span><span class="s">&quot;role&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">dropped</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">drain</span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="n">start</span><span class="p">).</span><span class="n">collect</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">note</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">summarize_messages</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dropped</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Some</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;[Earlier conversation summary]</span><span class="se">\n</span><span class="s">{summary}&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="s">&quot;[Earlier conversation was omitted to keep the context small]&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;system&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">note</span><span class="w"> </span><span class="p">}));</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">note</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;compacted: {} messages&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">dropped</span><span class="p">.</span><span class="n">len</span><span class="p">()));</span>
+<span class="w">    </span><span class="n">dropped</span><span class="p">.</span><span class="n">len</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+参数和边界如下。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CONTEXT_CHAR_BUDGET</code></td>
+<td><code>120_000</code></td>
+<td>触发压缩的字符预算（序列化后的 JSON 长度）</td>
+</tr>
+<tr>
+<td><code>KEEP_RECENT</code></td>
+<td><code>10</code></td>
+<td>永远保留的最近消息条数</td>
+</tr>
+<tr>
+<td>摘要长度</td>
+<td>最多 300 词</td>
+<td><code>llm::summarize</code> 的提示词约束</td>
+</tr>
+<tr>
+<td>压缩位置</td>
+<td><code>messages[1]</code></td>
+<td>系统消息之后插入摘要</td>
+</tr>
+<tr>
+<td>失败回退</td>
+<td>一行占位说明</td>
+<td>摘要请求失败时不让历史缺口无声消失</td>
+</tr>
+</tbody>
+</table></div>
+
+几个细节值得展开。
+
+<strong>预算按字符算，不按 token 算。</strong> 精确 token 数需要 tokenizer，引入 tokenizer 会破坏「三个依赖 crate」的纲领。字符数是近似值，对中英文混排的误差在可接受范围内。120,000 字符大约对应 30,000–60,000 token，取决于语言比例。
+
+<strong>保留最近 10 条，而不是最近 10 轮。</strong> 一条工具结果也算一条。一次带 5 个工具调用的轮次会占 7 条（user、assistant、5 个 tool）。这样做的目的是保证「最近一次工具交互」一定还在上下文里，模型不会刚拿到结果就忘了。
+
+<strong>切点不能落在 tool 消息中间。</strong> <code>while start &lt; len &amp;&amp; messages[start]["role"] == "tool"</code> 把切点往后推，直到不是工具结果。否则会出现「assistant 的工具调用被摘要掉了，但 tool 结果还在」的非法序列。
+
+<strong>摘要失败要留痕。</strong> 如果摘要请求失败，插入一行 <code>[Earlier conversation was omitted ...]</code>，而不是什么都不插。模型需要知道「有一段历史被省略了」，否则它会以为自己一直只有这么点上下文。
+
+<strong>压缩是同步的。</strong> 它会在工具结果回填之后、下一轮请求之前阻塞执行。摘要本身就是一次模型请求，所以压缩那一轮的实际延迟会多一次模型往返。这是不可避免的成本，但只在超预算时发生。
+
+<code>/compact</code> 命令可以强制压缩，走的是 <code>compact_with(true)</code>，忽略预算检查。它返回被摘要掉的消息数，用户可以据此判断压缩有没有生效。
+<hr>
+<h2>会话持久化：每轮结束落盘</h2>
+
+<code>run</code> 的最后一步是 <code>self.persist()</code>，把 <code>messages</code> 写进会话文件（如果配置了 <code>--session</code>）。写盘用「临时文件 + rename」，避免写到一半崩溃留下截断的 JSON。
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">save_session_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Path</span><span class="p">,</span><span class="w"> </span><span class="n">messages</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="n">Value</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">serde_json</span><span class="p">::</span><span class="n">to_string_pretty</span><span class="p">(</span><span class="n">messages</span><span class="p">).</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">to_string</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">with_extension</span><span class="p">(</span><span class="s">&quot;tmp&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tmp</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">).</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">to_string</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">rename</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tmp</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">).</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">to_string</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+启动时，<code>load_session_file</code> 读取这个文件，然后 <code>refresh_system</code> 用当前配置重新生成系统消息，替换掉文件里的旧版本。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>时机</th>
+<th>动作</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>启动 + 有会话文件</td>
+<td>读 JSON，刷新系统消息</td>
+<td>恢复历史，但使用最新配置</td>
+</tr>
+<tr>
+<td>每轮结束</td>
+<td>写临时文件，rename 覆盖</td>
+<td>崩溃安全</td>
+</tr>
+<tr>
+<td>加载失败</td>
+<td>打印警告，使用全新会话</td>
+<td>不让坏文件阻塞启动</td>
+</tr>
+<tr>
+<td><code>reset</code></td>
+<td>清空历史，保留系统消息</td>
+<td>开新话题</td>
+</tr>
+<tr>
+<td><code>rewind</code></td>
+<td>删除最后 N 个用户轮次</td>
+<td>撤销最近的指令</td>
+</tr>
+</tbody>
+</table></div>
+
+为什么系统消息要刷新而不是原样恢复？因为系统消息是配置，不是对话。用户的工具列表、人设、权限模式、AGENTS.md 都可能变。如果原样恢复旧提示词，会话会带着过期的规则跑，出现「明明改了配置但不生效」的诡异现象。
+
+持久化也有边界：<code>self.complete()?</code> 失败时，<code>run</code> 提前返回，<code>persist()</code> 不会执行。此时内存里的 <code>messages</code> 已经多了一条 user 消息，但磁盘上还是上一轮的状态。下次启动会丢掉这条失败的指令。这个行为可以接受——失败的请求本来就没有产生有效回复——但它提醒我们，<code>?</code> 在循环里是一个「跳过收尾」的出口。
+<hr>
+<h2>记忆沉淀：只从完整结束的轮次里提炼</h2>
+
+循环结束后，如果这一轮正常完成、开启了记忆功能、并且真的用过工具，<code>distill_memories</code> 会让模型从对话里提炼几条长期记忆。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">completed</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">memory</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">distill_memories</span><span class="p">(</span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">,</span><span class="w"> </span><span class="n">had_tools</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+门槛有三层：
+<ol>
+<li><strong>必须 <code>completed</code></strong>。中断或超限的半截对话不提炼，因为结论还没形成。</li>
+<li><strong>必须 <code>cfg.memory</code></strong>。记忆功能关闭时直接跳过。</li>
+<li><strong>必须通过 <code>worth_distilling</code></strong>。寒暄、短指令、没用过工具的轮次不值得再花一次模型请求。</li>
+</ol>
+
+提炼时取最近 6000 字符的对话摘录，让模型输出若干条 <code>(kind, text)</code>，<code>kind</code> 是 lesson / preference / correction / fact 之一。每一条通过 <code>memory::remember</code> 写入，返回是否真的新增（去重）。最后如果写入了至少一条，打印一句 <code>已从本次对话沉淀 N 条长期记忆</code>。
+
+这个设计把「记忆」放在循环之外，而不是循环之内。循环不负责决定记什么，它只负责在正确的时间点触发一次提炼。这样循环保持简单，记忆策略可以独立演化。
+<hr>
+<h2>token 账本：为什么上报的是增量</h2>
+
+<code>UsageTotals</code> 只有三个字段：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>requests</code></td>
+<td>这个会话发过多少次模型请求</td>
+</tr>
+<tr>
+<td><code>prompt_tokens</code></td>
+<td>累计输入 token</td>
+</tr>
+<tr>
+<td><code>completion_tokens</code></td>
+<td>累计输出 token</td>
+</tr>
+</tbody>
+</table></div>
+
+每次 <code>complete()</code> 返回后，<code>run</code> 把这一轮的用量累加进去，然后调用 <code>style.usage(1, prompt, completion)</code>。注意第一个参数是 <code>1</code>，表示「本次请求数」，而不是累计请求数。
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">requests</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="p">;</span>
+<span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="p">;</span>
+<span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">usage</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="p">,</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="p">);</span>
+</code></pre></div>
+
+
+为什么上报增量而不是累计值？因为同一个 <code>Agent</code> 实例可能服务多个隔离的会话。daemon 模式下，云端任务通过 <code>replace_messages</code> 切换消息向量，复用同一个 Agent。如果 UI 收到的是累计值，它会把这些互不相关的任务加在一起，算出一个没有意义的总额。上报增量，客户端可以按任务自己累加，本地模式下增量相加也正好等于累计值。
+
+这是一个典型的「接口形状由部署形态决定」的例子。单机 CLI 用累计值更省事，但 daemon 必须用增量。NanoHermes 选择了对两种形态都正确的那个。
+<hr>
+<h2>两百行的边界：什么故意不写进循环</h2>
+
+「两百行」不是一个代码高尔夫的成绩，而是一条边界。它说明哪些东西属于循环，哪些不属于。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>在循环里吗</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP 请求、重试、代理</td>
+<td>否</td>
+<td><code>llm::chat</code> 的职责，循环只拿到 <code>AssistantTurn</code></td>
+</tr>
+<tr>
+<td>SSE 解析、工具调用拼接</td>
+<td>否</td>
+<td>传输层细节，循环不关心帧</td>
+</tr>
+<tr>
+<td>系统提示词构建</td>
+<td>否</td>
+<td>配置与项目文件的事，循环只消费结果</td>
+</tr>
+<tr>
+<td>工具实现</td>
+<td>否</td>
+<td>每个工具自己处理参数、边界、错误</td>
+</tr>
+<tr>
+<td>权限与钩子</td>
+<td>是（调用点）</td>
+<td>必须在执行前拦截，不能下放给工具</td>
+</tr>
+<tr>
+<td>上下文压缩</td>
+<td>是（调用点）</td>
+<td>必须知道完整历史，工具看不到</td>
+</tr>
+<tr>
+<td>记忆检索 / 沉淀</td>
+<td>是（调用点）</td>
+<td>需要当前用户文本与完整对话</td>
+</tr>
+<tr>
+<td>会话持久化</td>
+<td>是（调用点）</td>
+<td>只有循环知道一轮何时结束</td>
+</tr>
+<tr>
+<td>并发调度</td>
+<td>是（内联）</td>
+<td>需要知道本轮所有工具调用</td>
+</tr>
+<tr>
+<td>UI 渲染</td>
+<td>否</td>
+<td>通过 <code>Style</code> / <code>UiSink</code> 注入，循环只发事件</td>
+</tr>
+<tr>
+<td>MCP 协议</td>
+<td>否</td>
+<td><code>McpManager</code> 的职责，循环只看到工具名</td>
+</tr>
+<tr>
+<td>子代理编排</td>
+<td>部分</td>
+<td><code>subagent</code> 是一个工具，但任务板与门控在 <code>Ctx</code> 里</td>
+</tr>
+</tbody>
+</table></div>
+
+这张表解释了为什么循环能这么短：<strong>它只保留「必须知道完整一轮」的逻辑。</strong> 凡是单个工具自己能处理的，全部下放；凡是传输层能封装的，全部上移。循环退化成一个协调者，而不是一个什么都干的上帝对象。
+
+这也是判断一个 Agent 架构是否健康的标准：如果主循环里出现了「解析 SSE」「拼 URL」「判断文件类型」这类代码，说明分层漏了。
+<hr>
+<h2>十个常见实现陷阱</h2>
+
+下面这些坑，几乎每一个手写 Agent 的人都会踩至少三个。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>陷阱</th>
+<th>症状</th>
+<th>正确做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>工具结果不带 <code>tool_call_id</code></td>
+<td>下一轮 API 400，提示 tool 消息缺少 id</td>
+<td>每条 tool 消息都带对应调用的 id</td>
+</tr>
+<tr>
+<td>流式 <code>arguments</code> 用赋值</td>
+<td>工具收到残缺 JSON，报参数错误</td>
+<td>用 <code>push_str</code> 按 <code>index</code> 追加</td>
+</tr>
+<tr>
+<td>中断在工具执行中间生效</td>
+<td>历史里 assistant 有 3 个调用，只有 1 个结果</td>
+<td>只在循环顶部检查中断</td>
+</tr>
+<tr>
+<td>没有迭代上限</td>
+<td>模型卡在失败命令上无限重试，账单暴涨</td>
+<td>设 <code>max_iterations</code> 并明确提示</td>
+</tr>
+<tr>
+<td>工具输出无上限</td>
+<td>一次 <code>cat</code> 大文件把上下文撑爆</td>
+<td>工具层统一截断，读文件设硬上限</td>
+</tr>
+<tr>
+<td>工具错误直接 panic</td>
+<td>一个路径写错导致整个进程退出</td>
+<td>错误翻译成字符串结果</td>
+</tr>
+<tr>
+<td>空 content 写空字符串</td>
+<td>某些兼容层拒绝只有工具调用的 assistant 消息</td>
+<td>写 <code>null</code></td>
+</tr>
+<tr>
+<td>压缩切在 tool 消息中间</td>
+<td>历史出现孤立的工具结果</td>
+<td>切点后移到非 tool 消息</td>
+</tr>
+<tr>
+<td>每轮追加记忆块</td>
+<td>系统提示词随轮次线性增长</td>
+<td>按标记整体替换</td>
+</tr>
+<tr>
+<td>把规划写成循环阶段</td>
+<td>模型被迫走固定流程，简单任务也绕一圈</td>
+<td>规划交给模型，用工具表达</td>
+</tr>
+</tbody>
+</table></div>
+
+再补充三个更细的：
+<ul>
+<li><strong>并发结果按完成顺序回填</strong>。<code>join</code> 的顺序必须和 <code>tool_calls</code> 一致，不能按「谁先完成」排序，否则模型看到的结果和请求对不上。</li>
+<li><strong><code>tool_choice</code> 在没有工具时也传</strong>。部分 API 会直接报错，必须用 <code>has_tools</code> 包一层。</li>
+<li><strong>系统消息在恢复会话时原样保留</strong>。配置改了却不生效，排查半天以为是模型问题。</li>
+</ul>
+
+这些坑的共同点是：<strong>它们都不会在第一次运行时暴露。</strong> 单轮问答看起来一切正常，跑到第三轮、第五轮、第十轮才炸。Agent 的调试难度主要来自这种「状态累积型」故障。
+<hr>
+<h2>收尾：下一篇讲上下文</h2>
+
+回到开头那句话：Agent 的本质是一个循环。
+
+模型负责决策，工具负责行动，循环负责把两者接起来。规划、记忆、反思、多智能体，都是在这个循环上长出来的行为，不是循环之外的另一套系统。理解了两百行，后面的东西就有了挂载点。
+
+这一篇刻意只讲了「怎么转」。还有一半问题没回答：<strong>转起来之后，历史里该留什么、该丢什么？</strong>
+
+上下文是 Agent 最稀缺的资源。工具结果、文件内容、错误信息、历史对话都在争夺同一块窗口。留得太多，模型抓不住重点、成本飙升；丢得太多，模型忘了自己在干什么。NanoHermes 用「12 万字符预算 + 最近 10 条 + 摘要替换」处理这个问题，但真正的难点在于：<strong>摘要该保留什么。</strong>
+
+下一篇《Agent 上下文：留什么，丢什么》会拆开 <code>compact</code>、<code>summarize</code> 和工具输出上限，讨论一个更本质的问题：什么样的信息值得跨轮携带。
+
+系列其余篇目：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>篇号</th>
+<th>标题</th>
+<th>主题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01</td>
+<td>Agent 的本质：一个两百行的循环</td>
+<td>主循环、消息状态、并发、中断</td>
+</tr>
+<tr>
+<td>02</td>
+<td>Agent 上下文：留什么，丢什么</td>
+<td>压缩、摘要、输出上限</td>
+</tr>
+<tr>
+<td>03</td>
+<td>Agent 记忆：不接向量库也能长期记忆</td>
+<td>本地检索、注入、沉淀</td>
+</tr>
+<tr>
+<td>04</td>
+<td>Agent 工具设计：为什么输出都要有上限</td>
+<td>Schema、错误语义、截断</td>
+</tr>
+<tr>
+<td>05</td>
+<td>Agent 并发：不用 async 运行时怎么并行</td>
+<td>作用域线程、门控</td>
+</tr>
+<tr>
+<td>06</td>
+<td>Agent 安全：让它跑命令而不失控</td>
+<td>审批、沙箱、钩子</td>
+</tr>
+<tr>
+<td>07</td>
+<td>Agent 多体：子代理、任务板与限流</td>
+<td>委派、并发门、任务板</td>
+</tr>
+<tr>
+<td>08</td>
+<td>Agent 观测：给每个轮次记一本账</td>
+<td>用量、日志、可观测性</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2>参考</h2>
+<ul>
+<li><code>agent/src/agent.rs</code>：<code>Agent::run</code>、<code>complete</code>、<code>execute</code>、<code>assistant_message</code>、<code>compact_with</code></li>
+<li><code>agent/src/llm.rs</code>：<code>chat</code>、<code>read_stream</code>、<code>read_json</code>、<code>accumulate_tool_calls</code>、<code>backoff_ms</code></li>
+<li><code>agent/src/tools/mod.rs</code>：<code>specs</code>、<code>dispatch</code>、<code>Ctx</code></li>
+<li><code>agent/src/config.rs</code>：<code>Config</code>、<code>PermissionMode</code>、<code>ApprovalPolicy</code></li>
+<li><code>agent/src/prompt.rs</code>：<code>system_prompt</code>、<code>project_docs</code></li>
+<li><code>agent/src/tools/fs.rs</code>、<code>shell.rs</code>：文件与命令的输出上限</li>
+</ul>
+
+仓库：<code>D:\NanoHermes</code>（Rust 2021，<code>agent</code> crate 无 async 运行时）</div></div></noscript>
+  </body>
+</html>

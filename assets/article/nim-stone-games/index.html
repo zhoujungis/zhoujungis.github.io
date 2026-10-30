@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="题目 N 堆石子，两人轮流行动，每次可以从 任意一堆 里取走 任意正数个 石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。 同族还有两道更常考的变形： LC 877 石子游戏 ：一排 piles，每次只能从 头部或尾部 取一整堆，堆数为偶数，问先手（Alex）是否必胜； LC 292 Nim 游戏 ：只" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/nim-stone-games/" />
+    <meta property="og:title" content="【博弈论】石子游戏：一行异或判定先手必胜" />
+    <meta property="og:description" content="题目 N 堆石子，两人轮流行动，每次可以从 任意一堆 里取走 任意正数个 石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。 同族还有两道更常考的变形： LC 877 石子游戏 ：一排 piles，每次只能从 头部或尾部 取一整堆，堆数为偶数，问先手（Alex）是否必胜； LC 292 Nim 游戏 ：只" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/nim-stone-games/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/nim-stone-games-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/nim-stone-games-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="【博弈论】石子游戏：一行异或判定先手必胜" />
+    <meta name="twitter:description" content="题目 N 堆石子，两人轮流行动，每次可以从 任意一堆 里取走 任意正数个 石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。 同族还有两道更常考的变形： LC 877 石子游戏 ：一排 piles，每次只能从 头部或尾部 取一整堆，堆数为偶数，问先手（Alex）是否必胜； LC 292 Nim 游戏 ：只" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/nim-stone-games-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>【博弈论】石子游戏：一行异或判定先手必胜 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-T3YiwbwG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DR05FW-t.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-13T14:25:28.928207+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【博弈论】石子游戏：一行异或判定先手必胜","description":"题目 N 堆石子，两人轮流行动，每次可以从 任意一堆 里取走 任意正数个 石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。 同族还有两道更常考的变形： LC 877 石子游戏 ：一排 piles，每次只能从 头部或尾部 取一整堆，堆数为偶数，问先手（Alex）是否必胜； LC 292 Nim 游戏 ：只","image":"https://blog.zhoujun.dev/photos/nim-stone-games-cover.png","datePublished":"2026-10-13T14:25:28.928207+08:00","dateModified":"2026-10-13T14:28:51.230153+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/nim-stone-games/"}</script>
+    <script type="application/json" id="prerender-article">{"slug":"nim-stone-games","title":"【博弈论】石子游戏：一行异或判定先手必胜","created_at":"2026-10-13T14:25:28.928207+08:00","updated_at":"2026-10-13T14:28:51.230153+08:00","author":null,"category":{"id":9,"name":"算法","slug":"algorithm"},"tags":[{"id":136,"name":"LeetCode","slug":"leetcode"},{"id":144,"name":"动态规划","slug":"dp"},{"id":118,"name":"算法","slug":"algorithm"},{"id":137,"name":"面试","slug":"interview"}],"cover_image":"/photos/nim-stone-games-cover.png","excerpt":"题目 N 堆石子，两人轮流行动，每次可以从 任意一堆 里取走 任意正数个 石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。 同族还有两道更常考的变形： LC 877 石子游戏 ：一排 piles，每次只能从 头部或尾部 取一整堆，堆数为偶数，问先手（Alex）是否必胜； LC 292 Nim 游戏 ：只","reading_time":12,"views_count":12,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>【博弈论】石子游戏：一行异或判定先手必胜</h1><div class="ns-meta">2026/10/13 · Stack Frame</div><div class="markdown-body"><h2>题目</h2>
+
+N 堆石子，两人轮流行动，每次可以从<strong>任意一堆</strong>里取走<strong>任意正数个</strong>石子；取到最后一个石子的人获胜，无法操作者落败。问先手是否必胜。
+<div class="codehilite"><pre><span></span><code>输入: piles = [3, 4, 5]
+输出: true
+解释: 3 ^ 4 ^ 5 = 2 不为 0 —— 先手必胜。
+</code></pre></div>
+
+
+同族还有两道更常考的变形：
+<ul>
+<li><strong>LC 877 石子游戏</strong>：一排 piles，每次只能从<strong>头部或尾部</strong>取一整堆，堆数为偶数，问先手（Alex）是否必胜；</li>
+<li><strong>LC 292 Nim 游戏</strong>：只有一堆，每次最多取 <code>m</code> 个。</li>
+</ul>
+
+三道题看起来都是博弈，解法却分属三个层次：<strong>一行异或、一次奇偶站队、一个取模</strong>。本文按这个顺序走，并且把「为什么异或非 0 就一定赢」拆成两句能背下来的论证。
+<ul>
+<li><a href="#section-1">一、核心洞察：把 N 堆压成一个数</a></li>
+<li><a href="#section-2">二、拆解：制胜一手是构造出来的，不是搜出来的</a></li>
+<li><a href="#section-3">三、动画怎么看</a></li>
+<li><a href="#section-4">四、完整推演</a></li>
+<li><a href="#section-5">五、进阶：LC 877 两端取，偶数堆靠奇偶位站队</a></li>
+<li><a href="#section-6">六、Java 版</a></li>
+<li><a href="#section-7">七、边界情况</a></li>
+<li><a href="#section-8">八、复杂度</a></li>
+<li><a href="#section-9">九、常见坑</a></li>
+<li><a href="#section-10">十、面试怎么答</a></li>
+</ul>
+<h2>一、核心洞察：把 N 堆压成一个数</h2>
+
+博弈题的难点从来不是「算」，是<strong>找不到可以递推的状态</strong>。N 堆石子每堆可以取 1 到 <code>piles[i]</code> 个，状态空间大得没法搜。
+
+Bouton 定理的做法是换一个视角：不去描述局面，而是给每个局面算一个数 —— <strong>把所有堆的数量异或起来</strong>。
+<blockquote>
+
+先手必胜，当且仅当 <code>piles[0] ^ piles[1] ^ ... ^ piles[n-1] != 0</code>。
+</blockquote>
+
+这一行代码就是全部算法。但它为什么对，靠的是两句互相补足的论证：
+<ol>
+<li><strong>异或非 0 时，一定存在一步走到异或为 0。</strong>（构造性证明，见第二节）</li>
+<li><strong>异或为 0 时，任何一步都走到异或非 0。</strong> 假设动了第 <code>i</code> 堆、<code>p -&gt; p'</code>，新局面异或仍为 0，那么 <code>p ^ p' = 0</code>，即 <code>p = p'</code> —— 等于没动，矛盾。</li>
+</ol>
+
+两条合起来就是归纳：先手每次都能把「异或非 0」的局面交还给后手，而后手无论怎么动，交回来的必然是「异或非 0」。石子总数严格递减，游戏必然结束，而最后停在那一步的人是先手。<strong>这就是「必败态」的定义 —— 不是走不动，是你怎么走都把赢的机会送给对方。</strong>
+<h2>二、拆解：制胜一手是构造出来的，不是搜出来的</h2>
+
+第一句论证需要给出构造。设全场异或为 <code>x != 0</code>：
+<ol>
+<li>取 <code>x</code> 的<strong>最高置位</strong> <code>h</code>（<code>x</code> 在这一位上为 1）；</li>
+<li>找一堆 <code>p</code> 满足 <code>(p &gt;&gt; h) &amp; 1 == 1</code> —— 一定存在，否则所有堆在这一位上都是 0，异或出来不可能是 1；</li>
+<li>把这堆从 <code>p</code> 改成 <code>p ^ x</code>。</li>
+</ol>
+
+为什么新值一定合法（非负且严格变小）：<code>p</code> 和 <code>x</code> 在第 <code>h</code> 位上都是 1，异或后这一位变成 0，而比 <code>h</code> 高的位两者都是 0、异或后不变 —— 所以 <code>p ^ x</code> 在最高位上被清掉了一位，严格小于 <code>p</code>，且不会变负。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">first_player_wins</span><span class="p">(</span><span class="n">piles</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">piles</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">^=</span> <span class="n">p</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">!=</span> <span class="mi">0</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">winning_move</span><span class="p">(</span><span class="n">piles</span><span class="p">):</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">piles</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">^=</span> <span class="n">p</span>
+    <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>            <span class="c1"># 必败态，没有制胜一手</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">bit_length</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span>     <span class="c1"># 最高置位</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">piles</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">p</span> <span class="o">&gt;&gt;</span> <span class="n">h</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">piles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">^=</span> <span class="n">x</span>      <span class="c1"># 新值 = p ^ x，严格更小且非负</span>
+            <span class="k">return</span> <span class="n">piles</span>
+</code></pre></div>
+
+<div class="algo-viz algo-viz--nim"></div>
+
+<h2>三、动画怎么看</h2>
+
+动画用主例 <code>piles = (3, 4, 5)</code>，四步走完：
+<ul>
+<li><strong>石子堆行</strong>：每格是石子的二进制，黄框 = 本帧要动的那一堆，绿框 = 已经改好的那一堆；</li>
+<li><strong>累计异或行</strong>：逐堆异或累加（<code>3 -&gt; 7 -&gt; 2</code>），这是把 N 堆压成一个数的过程；</li>
+<li><strong>制胜一面板</strong>：<code>x = 2</code> 的最高置位是 bit 1，第 1 堆（3）在这一位上为 1，把它改成 <code>3 ^ 2 = 1</code>；</li>
+<li><strong>答案条</strong>：绿色 = 先手必胜，红色 = 先手必败。</li>
+</ul>
+
+<code>(1, 2, 3)</code> 那组值得手动跑一遍：异或恒为 0，动画会直接判<strong>先手必败</strong>，并给后手的镜像策略 —— 你动哪堆，我就把那堆改成让全场异或回到 0。
+<h2>四、完整推演</h2>
+
+<code>piles = (3, 4, 5)</code>：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>操作</th>
+<th>全场异或</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开局</td>
+<td>(3, 4, 5)</td>
+<td>3 ^ 4 ^ 5 = 2</td>
+</tr>
+<tr>
+<td>定最高位</td>
+<td>x = 2，最高置位 bit 1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>选堆</td>
+<td>第 1 堆（3 = 0011）在 bit 1 上为 1</td>
+<td>2</td>
+</tr>
+<tr>
+<td>改值</td>
+<td>3 改成 3 ^ 2 = 1，即取走 2 个</td>
+<td>1 ^ 4 ^ 5 = 0</td>
+</tr>
+<tr>
+<td>结论</td>
+<td>必败态交给后手</td>
+<td>先手必胜</td>
+</tr>
+</tbody>
+</table></div>
+
+验证一下第二步论证：新局面 <code>(1, 4, 5)</code> 异或为 0，后手无论怎么动都会破坏它。比如他从第 2 堆取 1 个变成 3，异或变成 <code>1 ^ 3 ^ 5 = 7</code> —— 先手再照着构造走一次即可。
+<h2>五、进阶：LC 877 两端取，偶数堆靠奇偶位站队</h2>
+
+LC 877 换了约束：<strong>只能从头部或尾部取一整堆</strong>，而且堆数保证是偶数。这时异或判定完全失效（取法受位置限制），但有个更漂亮的结论：<strong>先手必胜，而且必胜策略是开局站一次队</strong>。
+
+按原始下标把堆分成两队：偶数位一堆、奇数位一堆。先手第一次取左端，之后每一步的两端就都只剩<strong>奇数位</strong>；取右端则之后只剩偶数位。所以：
+<blockquote>
+
+<strong>第一次取哪一端，就等于选择自己整局站在偶数位还是奇数位。</strong>
+</blockquote>
+
+于是策略一句话：算两个奇偶位的和，取大的那队，用第一次取哪一端来锁定它。主例 <code>[5, 3, 4, 5]</code>：偶数位和 <code>5 + 4 = 9</code>，奇数位和 <code>3 + 5 = 8</code> —— Alex 取左端，锁定偶数位，终局 <code>9 : 8</code>。
+<div class="algo-viz algo-viz--lc877"></div>
+
+
+动画把这一点画成了对局：绿色 = 偶数位、橙色 = 奇数位，取走的堆退化成虚线壳并留下 <code>A 5</code> / <code>L 5</code> 的分值，两个「和」筹码并排，赢的那边点亮。<strong>注意 Lee 是贪心着打的（每次取两端较大的那堆），Alex 依然赢</strong> —— 因为这个策略不依赖对手怎么走。
+
+堆数是奇数时这个 trick 失效：两端奇偶不同，先手没法一次锁定一整条奇偶带，必须老老实实上区间 DP（<code>dp[i][j]</code> 表示区间 <code>[i,j]</code> 上先手能比后手多拿多少）。
+<h2>六、Java 版</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Nim</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 判定：一行异或</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">firstPlayerWins</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 制胜一手：返回新局面；必败态返回 null</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">winningMove</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">highestOneBit</span><span class="p">(</span><span class="n">x</span><span class="p">);</span><span class="w">      </span><span class="c1">// 最高置位</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">piles</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">piles</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">h</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">piles</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 新值 = p ^ x，严格更小且非负</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">piles</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">                           </span><span class="c1">// 到不了这里</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+LC 877 的 Java 版就是一行（堆数保证为偶数时）：
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">stoneGame</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">   </span><span class="c1">// 偶数堆，先手必胜</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+面试里当然不能只写 <code>return true</code> —— 要把奇偶位和那段讲出来（见第十节）。
+<h2>七、边界情况</h2>
+<ul>
+<li><strong>只有一堆</strong>：异或就是它本身，非 0 必胜（一次全拿）、为 0 必败（这堆本来就是空的）。</li>
+<li><strong>全场为空</strong>：异或为 0，先手无法操作，必败。</li>
+<li><strong>两堆相等</strong>：异或为 0，必败 —— 后手全程镜像（你从一堆取 <code>k</code>，我从另一堆取 <code>k</code>）。</li>
+<li><strong>一堆为 0</strong>：它就是死堆，异或判定天然忽略它，不影响结论。</li>
+<li><strong>LC 877 的奇数堆</strong>：结论不成立，必须 DP；<code>[1, 5, 2]</code> 这种三堆的样例正是用来打「无脑 return true」的。</li>
+</ul>
+<h2>八、复杂度</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>时间</th>
+<th>空间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nim 判定</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>Nim 制胜一手</td>
+<td><code>O(n)</code></td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>LC 877（偶数堆）</td>
+<td><code>O(n)</code>（算两个奇偶和）</td>
+<td><code>O(1)</code></td>
+</tr>
+<tr>
+<td>LC 877（奇数堆，区间 DP）</td>
+<td><code>O(n^2)</code></td>
+<td><code>O(n^2)</code></td>
+</tr>
+<tr>
+<td>巴什博弈 LC 292</td>
+<td><code>O(1)</code>（<code>n % (m+1)</code>）</td>
+<td><code>O(1)</code></td>
+</tr>
+</tbody>
+</table></div>
+
+真正花时间的是<strong>想清楚判定</strong>，不是算。所有 Nim 类博弈的判定都是 O(n) 甚至 O(1)，难的是把局面归约到「一个数」。
+<h2>九、常见坑</h2>
+<h3>9.1 约定搞反：最后取者胜 vs 最后取者败</h3>
+
+正常约定（Nim）是「取到最后一颗者胜」；<strong>反常博弈</strong>（misère Nim）是「取到最后一颗者败」，结论不一样：当所有堆都为 1 时胜负按堆数奇偶翻转，其余局面才回到正常约定。LeetCode 上 Nim 系列都是正常约定，但面试官会口头换约定来试你。
+<h3>9.2 制胜一手选错堆</h3>
+
+必须选「在 <code>x</code> 的最高置位上为 1」的那一堆。随便挑一堆改成 <code>p ^ x</code> 会让新值变大（变成送石子给对手），或者根本不能降到非负。构造的每一句都是在保证合法性。
+<h3>9.3 以为异或为 0 时可以「随便走」</h3>
+
+异或为 0 是先手必败态，不是平局。后手有明确策略（镜像应战），不是碰运气。把必败态当平局讲，整道题的论证就塌了。
+<h3>9.4 把 LC 877 的结论套到通用 Nim</h3>
+
+奇偶位站队只在「<strong>两端取 + 堆数偶数</strong>」下成立，因为它依赖的是「第一次取哪端就把自己钉死在一条奇偶带上」。换成「从任意一堆取任意个」，两端取的位置约束消失，奇偶带毫无意义 —— 那时仍然是异或判定。
+<h3>9.5 巴什博弈的取模写成除法</h3>
+
+LC 292 是 <code>n % (m + 1) != 0</code> 先手胜。<code>m</code> 是「每次<strong>最多</strong>取 <code>m</code> 个」，不是「必须取 <code>m</code> 个」。写成 <code>n % m</code> 或者 <code>n / (m + 1)</code> 的奇偶，都是把规则记错。
+<h3>9.6 用异或判定去做带约束的变体</h3>
+
+LC 1510（石子游戏 VII，两端取、求分数差最大）和 LC 1140（石子游戏 II，按倍数取）都带额外约束，异或判定一概失效，只能上 DP / 极小化极大。<strong>先判断约束是否破坏了「任意堆任意取」，再决定用哪套工具。</strong>
+<h2>十、面试怎么答</h2>
+<ol>
+<li><strong>先报判定</strong>："Nim 先手必胜当且仅当全场异或非 0，这是 Bouton 定理，判定 O(n)。"</li>
+<li><strong>再补两句论证</strong>："异或非 0 时，取最高置位、找一堆在这一位为 1、改成 <code>p ^ x</code>，一步走到异或 0；异或为 0 时任何一步都会走到非 0 —— 否则被改的那堆异或差为 0，等于没动。"</li>
+<li><strong>说出制胜一手的构造</strong>：不要说「存在」，要把三步讲出来；能顺手写 <code>Integer.highestOneBit</code> 是加分项。</li>
+<li><strong>接住 LC 877</strong>："两端取 + 偶数堆，先手必胜 —— 按原始下标奇偶分两队，第一次取哪端就锁定哪一队，取和大的那队。奇数堆必须区间 DP。"</li>
+<li><strong>报家族</strong>：巴什博弈 <code>n % (m+1)</code>、威佐夫博弈（两堆同取，必败态是黄金比例分割）、反常 Nim（全 1 时翻转）、SG 函数（一般博弈论，每堆可归约成一个 Nim 数）。</li>
+<li><strong>给复杂度对照</strong>：判定 O(n)、制胜一手 O(n)、LC 877 偶数堆 O(1) 结论 / 奇数堆 O(n^2) DP —— 强调「这类题的时间都花在归约上，不在计算上」。</li>
+</ol>
+<h2>结语</h2>
+
+石子游戏是博弈论进算法面试的入口，它的教学价值全在<strong>归约</strong>：把「N 堆、每堆任意取」的庞大状态空间，压成「一个异或数」—— 判定一行，构造三步。而 LC 877 提醒你，同一副石子换个约束（只能从两端取、堆数为偶数），归约的目标就换成「奇偶两条带」，解法从异或变成一次站队。<strong>博弈题的功夫从来不在搜索，在找到那个不变量</strong>：异或值、奇偶带、或者巴什博弈里的 <code>n % (m+1)</code>。</div></div></noscript>
+  </body>
+</html>

@@ -24,6 +24,13 @@ class ArticleCommentList(generics.ListCreateAPIView):
     throttle_scope = "comment"
     pagination_class = CommentPageNumberPagination
 
+    def get_throttles(self):
+        # 3/min 的 comment 限流只该管写入。原来 GET 也计入，读者发完评论一刷新
+        # 就撞 429，列表被清空，看起来像"评论没了"。
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [ScopedRateThrottle()]
+        return []
+
     def get_queryset(self):
         # Only allow reads on published articles — draft/archived/scheduled
         # content must not leak via comment endpoints.

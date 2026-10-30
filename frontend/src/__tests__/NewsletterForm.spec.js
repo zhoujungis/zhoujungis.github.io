@@ -53,18 +53,18 @@ describe('NewsletterForm', () => {
     await flushPromises()
 
     expect(loggedIn.find('.newsletter-input').exists()).toBe(false)
-    expect(loggedIn.find('.newsletter-account').text()).toBe('reader@test.com')
+    expect(loggedIn.find('.newsletter-mail').text()).toBe('reader@test.com')
     expect(fetchSubscription).toHaveBeenCalled()
 
-    // 已订阅 → 按钮显示取消订阅；点击后走 toggle 接口并翻转状态
-    const btn = loggedIn.find('.newsletter-btn')
-    expect(btn.text()).toBe('取消订阅')
-    await btn.trigger('click')
+    // 已订阅 → 显示「取消订阅」；点击后走 toggle 接口并翻转状态
+    const unsub = loggedIn.find('.newsletter-unsub')
+    expect(unsub.text()).toBe('取消订阅')
+    await unsub.trigger('click')
     await flushPromises()
 
     expect(toggleSubscription).toHaveBeenCalled()
     expect(useSubscription().subscribed.value).toBe(false)
-    expect(loggedIn.find('.newsletter-btn').text()).toBe('订阅')
+    expect(loggedIn.find('.newsletter-btn').text()).toBe('订阅更新')
     expect(wrapper.exists()).toBe(true)
   })
 })

@@ -46,7 +46,11 @@ if (ticket || loginError) {
   const cleanUrl = window.location.pathname + (query ? `?${query}` : '')
   window.history.replaceState({}, '', cleanUrl)
 
-  if (ticket) {
+  // 已登录时地址栏里残留的 OAuth 参数只是历史遗留（刷新、分享链接都会带上），
+  // 既不该重新兑换票据（票据一次性，必然 400），也不该打断阅读弹登录框。
+  if (auth.isAuthenticated) {
+    // 什么都不做，仅把参数抹掉
+  } else if (ticket) {
     exchangeOAuthTicket(ticket)
       .then((res) => auth.applyAuth(res.data))
       .catch((err) => {
@@ -56,7 +60,9 @@ if (ticket || loginError) {
   } else {
     useLoginModal().openLogin('登录未完成，请重试')
   }
-} else if (auth.isAuthenticated) {
+}
+
+if (auth.isAuthenticated) {
   auth.fetchMe().catch(() => {
     // 令牌失效交给 client.js 的刷新/清空逻辑处理，这里不弹错误。
   })

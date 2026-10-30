@@ -5,6 +5,12 @@
       <span v-if="comments.length" class="comments-count">({{ comments.length }})</span>
     </h3>
 
+    <!-- Load failure: keep whatever we already rendered, offer retry -->
+    <div v-if="loadError" class="comments-error">
+      <span>评论加载失败，请稍后重试</span>
+      <button type="button" @click="fetchComments">重试</button>
+    </div>
+
     <!-- Loading skeleton -->
     <div v-if="loading" class="skeleton-comments">
       <div v-for="i in 3" :key="i" class="skeleton-comment">
@@ -116,6 +122,7 @@ const { openLogin } = useLoginModal()
 
 const comments = ref([])
 const loading = ref(true)
+const loadError = ref(false)
 const replyToId = ref(null)
 
 const topLevelComments = computed(() =>
@@ -135,11 +142,13 @@ function toggleReply(commentId) {
 
 async function fetchComments() {
   loading.value = true
+  loadError.value = false
   try {
     const res = await getComments(props.articleSlug)
     comments.value = res.data.results || res.data || []
   } catch {
-    comments.value = []
+    // 保留已渲染的评论，别让一次限流/网络抖动把列表清空
+    loadError.value = true
   } finally {
     loading.value = false
   }
@@ -207,6 +216,33 @@ onMounted(fetchComments)
   font-size: 0.85rem;
   color: $text-secondary;
   font-weight: 400;
+}
+
+.comments-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  color: $neon-pink;
+  background: rgba($neon-pink, 0.07);
+  border: 1px solid rgba($neon-pink, 0.25);
+  border-radius: $radius-sm;
+
+  button {
+    margin-left: auto;
+    padding: 4px 10px;
+    font-family: $font-mono;
+    font-size: 0.72rem;
+    color: $neon-pink;
+    background: transparent;
+    border: 1px solid rgba($neon-pink, 0.4);
+    border-radius: $radius-sm;
+    cursor: pointer;
+
+    &:hover { background: rgba($neon-pink, 0.12); }
+  }
 }
 
 // ============ Skeleton ============

@@ -1,0 +1,1490 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
+    <meta property="og:title" content="Agent 并发：不用 async 运行时怎么并行" />
+    <meta property="og:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/agent-concurrency-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/agent-concurrency-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Agent 并发：不用 async 运行时怎么并行" />
+    <meta name="twitter:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/agent-concurrency-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>Agent 并发：不用 async 运行时怎么并行 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-T3YiwbwG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DR05FW-t.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-10-22T14:52:30.982373+08:00" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 并发：不用 async 运行时怎么并行","description":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","image":"https://blog.zhoujun.dev/photos/agent-concurrency-cover.png","datePublished":"2026-10-22T14:52:30.982373+08:00","dateModified":"2026-10-22T14:52:30.982373+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/"}</script>
+    <script type="application/json" id="prerender-article">{"slug":"agent-concurrency-without-async","title":"Agent 并发：不用 async 运行时怎么并行","created_at":"2026-10-22T14:52:30.982373+08:00","updated_at":"2026-10-22T14:52:30.982400+08:00","author":null,"category":{"id":5,"name":"AI编程","slug":"ai-coding"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":113,"name":"并发","slug":"concurrency"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-concurrency-cover.png","excerpt":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","reading_time":62,"views_count":8,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript><div class="ns-article"><h1>Agent 并发：不用 async 运行时怎么并行</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><div class="markdown-body"><blockquote>
+
+适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人
+结论先行：NanoHermes 的并发只有两个原语——作用域线程（<code>std::thread::scope</code>）和一把计数闸门（<code>Mutex</code> + <code>Condvar</code>）。它没有 async runtime，没有取消令牌，也没有消息队列，靠的是「每轮一个 join 屏障」把并发收进一个有界的盒子里
+阅读时间：约 52 分钟 | 难度：进阶 | 收获：线程并行的四个层次 + 六个并发约束的真实取值 + 七个可以修的缺陷 + 一套可复现的并发验证方法
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：并行不是为了快，是为了别让一轮卡死</li>
+<li>结论先行：并发的四个层次</li>
+<li>没有 async 的世界：线程就是原语</li>
+<li>为什么不是 async：四条理由与三项代价</li>
+<li>一轮的结构：join 屏障</li>
+<li>一张总表：并发的七个数字</li>
+<li>std::thread::scope 解决了什么</li>
+<li>为什么 Agent 必须是 Sync</li>
+<li>共享状态清单：Ctx 里的五把锁</li>
+<li>Mutex 粒度：为什么 Board 用两把锁</li>
+<li>Condvar 与 Gate：并发门的十二行实现</li>
+<li>门的位置错了：先登记后排队</li>
+<li>子代理：并行的第一类真实用户</li>
+<li>子代理内部为什么又是串行</li>
+<li>子代理的四处越界：中断、上限、模型、白名单</li>
+<li>工具线程没有上限</li>
+<li>结果顺序：为什么必须按调用顺序回填</li>
+<li>一个线程 panic 了会怎样</li>
+<li>不是所有工具都该并行</li>
+<li>并发下的审批：stdin 只有一份</li>
+<li>后台任务：另一种并发</li>
+<li>后台任务的第一个缺陷：stderr 从未被读走</li>
+<li>后台任务的第二个缺陷：在锁里读到 EOF</li>
+<li>管道背压：最容易误判成死锁的现象</li>
+<li>中断：抢占点只有一个</li>
+<li>中断与并发的交叉：Ctrl-C 打断的是哪一层</li>
+<li>守护进程：并发为零</li>
+<li>为什么单线程 daemon 仍然能用</li>
+<li>七个可以修的缺陷</li>
+<li>怎么验证并发真的正确</li>
+<li>并发设计的六条原则</li>
+<li>小结：并行是边界问题，不是性能问题</li>
+</ul>
+<h2>前言：并行不是为了快，是为了别让一轮卡死</h2>
+
+先纠正一个常见误解：Agent 做并发，首要目标不是「跑得更快」。
+
+一个 coding agent 的绝大多数时间花在两件事上：等模型返回，和等命令跑完。模型调用是串行的——你必须拿到这一轮的 <code>assistant</code> 消息，才知道要调哪些工具。所以真正能并行的窗口只有一个：<strong>同一次模型回复里给出的多个工具调用</strong>。
+
+这个窗口很小，但它决定了体验的下限。模型一次给出四个 <code>read_file</code> 和一个 <code>grep</code>，如果串行执行，一次探索要等五倍的时间；如果其中一个 <code>run_command</code> 卡住（等一个永远不返回的服务），串行实现会把后面四个结果一起拖死。并行在这里的作用是<strong>把最慢的那个变成整批的耗时，而不是总和</strong>，同时让「一个慢工具」不再阻塞其他工具的结果。
+
+但并行一旦引入，问题就从「快不快」变成「对不对」：结果顺序会不会错、共享状态会不会被踩、Ctrl-C 到底打在哪一层、一个线程挂了整轮会不会崩。NanoHermes 的答案很朴素：不用 async 运行时，就用 <code>std::thread::scope</code> 起线程，用一个 <code>join</code> 屏障收口，用一把计数门限制子代理数量。全文拆的就是这套朴素方案里每一处必须想清楚的地方。
+<h2>结论先行：并发的四个层次</h2>
+
+把「并行」这个词拆开，NanoHermes 里其实有四层不同的东西，混在一起谈就会得出错误结论。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层次</th>
+<th>实现</th>
+<th>并发度</th>
+<th>谁在等谁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>工具级</td>
+<td><code>std::thread::scope</code> 每个 <code>tool_call</code> 一个线程</td>
+<td>无上限</td>
+<td>主线程等全部线程 join</td>
+</tr>
+<tr>
+<td>子代理级</td>
+<td><code>Gate::new(4)</code> + <code>Condvar</code></td>
+<td>最多 4 个</td>
+<td>抢到许可的线程等许可</td>
+</tr>
+<tr>
+<td>命令级</td>
+<td><code>run_command</code> 两个排空线程 + 25ms 轮询</td>
+<td>2 个读线程</td>
+<td>主线程等子进程退出</td>
+</tr>
+<tr>
+<td>进程级</td>
+<td><code>listener.incoming()</code> 同步处理</td>
+<td>1</td>
+<td>下一个请求等上一个跑完</td>
+</tr>
+</tbody>
+</table></div>
+
+四层的数字完全不同：工具层没有上限，子代理层是 4，命令层是 2，进程层是 1。所以「NanoHermes 支持多少并发」这个问题没有单一答案——正确答案是「一个守护进程一次服务一个会话，一个会话一轮最多并发执行模型给出的所有工具调用，其中子代理最多 4 个同时跑」。
+
+这四层里最容易出事的是第一层，因为它是唯一没有上限的一层。后面会专门讲。
+<h2>没有 async 的世界：线程就是原语</h2>
+
+整个并发实现依赖的标准库能力只有五个：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>原语</th>
+<th>用在哪</th>
+<th>为什么用它</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>std::thread::scope</code></td>
+<td>一轮内的工具调用</td>
+<td>能借用 <code>&amp;Agent</code>，不需要 <code>Arc</code></td>
+</tr>
+<tr>
+<td><code>Mutex</code></td>
+<td><code>Board</code>、<code>TaskManager</code>、<code>TodoList</code>、MCP 管道</td>
+<td>保护可变状态</td>
+</tr>
+<tr>
+<td><code>Condvar</code></td>
+<td><code>Gate</code></td>
+<td>许可不足时阻塞等待</td>
+</tr>
+<tr>
+<td><code>AtomicBool</code></td>
+<td><code>interrupt::INTERRUPTED</code></td>
+<td>信号处理器里只能原子写</td>
+</tr>
+<tr>
+<td><code>mpsc::channel</code></td>
+<td>MCP 的请求/响应配对</td>
+<td>读线程把响应投递给等待方</td>
+</tr>
+</tbody>
+</table></div>
+
+没有 <code>tokio</code>，没有 <code>async-std</code>，没有 <code>futures</code>。整个 <code>agent</code> crate 的依赖里找不到一个异步运行时。这在 2026 年看起来有点逆潮流，但对这个项目是合理选择——原因下一节讲。
+
+代价也要说清楚：没有取消令牌，所以中断只能在「步骤边界」检查，一个跑着的工具没法被打断；没有 <code>select!</code>，所以「命令输出和超时哪个先到」要靠 25ms 轮询；没有结构化并发，所以一个线程 panic 只能靠 <code>join</code> 的返回值兜。
+<h2>为什么不是 async：四条理由与三项代价</h2>
+
+先讲理由，四条都是这个项目的具体约束，不是「线程更简单」这种泛泛之谈。
+
+<strong>第一，工具几乎全是阻塞调用。</strong> <code>read_file</code> 是 <code>std::fs</code>，<code>run_command</code> 是 <code>Command::spawn</code> 加管道读取，<code>git</code> 是子进程，<code>web_fetch</code> 是 <code>ureq</code> 的同步 HTTP。这些操作在 async 里要么用 <code>spawn_blocking</code> 包起来（等于还是线程），要么换成异步版的库（<code>tokio::fs</code>、<code>reqwest</code>），后者会把依赖树扩大一个数量级。对一个「单二进制、零运行时、能塞进 5 MB 里」的 CLI 来说，这个交换不划算。
+
+<strong>第二，并发窗口天然有界。</strong> 一次模型回复里的工具调用数量是有限的（实践中 1 到 8 个居多），而且每轮结束都要 join 全部线程才能拼消息。这意味着线程数量不会随时间累积——不存在「长连接持有线程」的问题。线程池要解决的正是「线程生命周期长于任务」的场景，这里不存在。
+
+<strong>第三，barrier 让状态管理变简单。</strong> 因为每轮有一个 join 屏障，<code>self.messages</code> 在整个并行期间都是只读的。主线程在 <code>join</code> 全部返回之后才写历史。这一点极其重要：它意味着对话历史不需要任何锁。如果换成 async 加 <code>select!</code>，某个工具的 future 可能和历史写入交错，你就必须给历史加锁，或者引入更复杂的所有权设计。
+
+<strong>第四，编译期就能验证。</strong> <code>Agent</code> 要能被作用域线程共享，Rust 会强制它 <code>Sync</code>。任何一个字段忘了加 <code>Mutex</code>，编译器直接报错，不会等到线上才发现数据竞争。async 方案的等价检查是 <code>Send</code>，但因为 <code>await</code> 点可以出现在任何地方，跨 <code>await</code> 持有 <code>MutexGuard</code> 这类问题编译器帮不了你。
+
+代价同样要认：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>代价</th>
+<th>具体表现</th>
+<th>缓解方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无法中途取消</td>
+<td>工具跑起来就只能等它返回</td>
+<td>给命令设超时（默认 120s，上限 3600s）</td>
+</tr>
+<tr>
+<td>线程栈开销</td>
+<td>每个线程默认 2 MiB 虚拟栈</td>
+<td>工具调用数量有界，实际 RSS 远小于峰值</td>
+</tr>
+<tr>
+<td>阻塞门浪费线程</td>
+<td>排队等许可的子代理占着一个 OS 线程</td>
+<td>子代理上限 4，排队数受工具调用数限制</td>
+</tr>
+</tbody>
+</table></div>
+
+第二项值得展开：2 MiB 是虚拟地址空间，不是物理内存。Linux 上线程栈是惰性分配的，真正提交的只有实际用到的几页。所以「20 个工具线程 = 40 MB」这个算法是错的，实际 RSS 增加通常在几百 KB 量级。真正贵的不是栈，是每个线程持有的缓冲区（比如 <code>read_capped</code> 里 16 KiB 的读缓冲）。
+<h2>一轮的结构：join 屏障</h2>
+
+把并发塞进一轮的代码只有十几行，但每一行都有原因：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">results</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="fm">vec!</span><span class="p">[</span><span class="bp">self</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
+<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 借用成 &amp;Agent，让作用域线程共享（execute 取 &amp;self，Agent 是 Sync）</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">this</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Agent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">scope</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">handles</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">_</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">turn</span>
+<span class="w">            </span><span class="p">.</span><span class="n">tool_calls</span>
+<span class="w">            </span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">call</span><span class="o">|</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">this</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">)))</span>
+<span class="w">            </span><span class="p">.</span><span class="n">collect</span><span class="p">();</span>
+<span class="w">        </span><span class="n">handles</span>
+<span class="w">            </span><span class="p">.</span><span class="n">into_iter</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">h</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">h</span><span class="p">.</span><span class="n">join</span><span class="p">()</span>
+<span class="w">                    </span><span class="p">.</span><span class="n">unwrap_or_else</span><span class="p">(</span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="s">&quot;ERROR: tool thread panicked&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">())</span>
+<span class="w">            </span><span class="p">})</span>
+<span class="w">            </span><span class="p">.</span><span class="n">collect</span><span class="p">()</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+四个设计点：
+
+<strong>单调用走快路径。</strong> <code>tool_calls.len() == 1</code> 时不起线程，直接在当前线程执行。这是最常见的情况（模型一次只调一个工具），省掉线程创建和 join 的开销，也省掉一次 <code>Sync</code> 检查带来的心智负担。
+
+<strong><code>this: &amp;Agent = self</code> 这行不是多余的。</strong> <code>std::thread::scope</code> 的闭包捕获的是 <code>&amp;mut self</code>（因为 <code>self</code> 是 <code>&amp;mut Agent</code>），而 <code>spawn</code> 里的闭包需要 <code>move</code>。显式重借用成 <code>&amp;Agent</code> 之后，编译器知道移动的是共享引用而不是可变引用，<code>Agent</code> 只需要满足 <code>Sync</code>。不写这行，编译器会报「cannot move out of <code>self</code>」。
+
+<strong><code>handles.into_iter().map(join)</code> 保证了顺序。</strong> 结果向量按下标对齐 <code>tool_calls</code>，和哪个线程先跑完无关。这是下一节「结果顺序」的基础。
+
+<strong><code>unwrap_or_else</code> 把 panic 变成字符串。</strong> <code>join</code> 返回 <code>Result</code>，线程 panic 时是 <code>Err</code>。这里不 <code>unwrap</code>，而是产出一条错误结果——理由在「一个线程 panic 了会怎样」一节。
+
+整个结构的本质是一个<strong>每轮重建的 fork-join</strong>：起 N 个线程，等 N 个全部结束，拿 N 个字符串，拼进历史。没有线程池，没有任务队列，没有长时间存活的 worker。这种「用完就扔」的模型牺牲了创建开销（Linux 上一个线程创建约几十微秒），换来了状态管理的极大简化。
+<h2>一张总表：并发的七个数字</h2>
+
+把所有和并发相关的常量集中起来，能看到一套有意为之的分层：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>约束</th>
+<th>值</th>
+<th>位置</th>
+<th>管什么</th>
+<th>超限后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MAX_PARALLEL_SUBAGENTS</code></td>
+<td>4</td>
+<td><code>agent.rs</code></td>
+<td>同时跑几个子代理</td>
+<td>阻塞排队</td>
+</tr>
+<tr>
+<td>工具线程数</td>
+<td>无上限</td>
+<td><code>run()</code> 的 scope</td>
+<td>一轮起几个线程</td>
+<td>无（由模型输出决定）</td>
+</tr>
+<tr>
+<td><code>max_iterations</code></td>
+<td>40</td>
+<td><code>Config</code> 默认</td>
+<td>一轮最多几次模型往返</td>
+<td>停止并告警</td>
+</tr>
+<tr>
+<td><code>RESULT_PREVIEW</code></td>
+<td>500</td>
+<td><code>board.rs</code></td>
+<td>结果在任务板的可见量</td>
+<td>截断加省略号</td>
+</tr>
+<tr>
+<td>命令超时</td>
+<td>120s（1–3600）</td>
+<td><code>run_command</code></td>
+<td>单条命令最长运行</td>
+<td>杀进程并标注</td>
+</tr>
+<tr>
+<td>MCP 请求超时</td>
+<td>60s</td>
+<td><code>mcp.rs</code></td>
+<td>一次 MCP 调用等待</td>
+<td>返回超时错误</td>
+</tr>
+<tr>
+<td>守护进程并发</td>
+<td>1</td>
+<td><code>main.rs</code></td>
+<td>同时在服务的请求</td>
+<td>排队（TCP backlog）</td>
+</tr>
+</tbody>
+</table></div>
+
+三个观察：
+
+<strong>只有子代理有并发上限。</strong> 工具线程和守护进程都没有。前者依赖「模型给出的调用数量有限」这个经验假设，后者是明确的单线程设计。两个地方都没有硬保护。
+
+<strong>4 这个数字的来历是资源而不是性能。</strong> 子代理每个都要独立发一次完整的模型请求，4 个并发意味着瞬时 4 份上下文在飞行。上下文预算是 120,000 字符（<code>CONTEXT_CHAR_BUDGET</code>），4 份就是 480,000 字符的内存峰值，加上每份都要序列化成 JSON 发出去。再高就开始和主对话抢内存与网络带宽。
+
+<strong>40 轮和 4 个并发叠起来是 160。</strong> 理论上一个子代理可以跑 40 轮、每轮再发多个工具调用，四个子代理同时跑。这不是设计目标，而是上界——一个失控的子代理最多消耗 40 次模型请求，四个最多 160 次。这个上界之所以重要，是因为它给出了「一次误触发的最坏成本」。
+<h2>std::thread::scope 解决了什么</h2>
+
+普通 <code>thread::spawn</code> 要求闭包 <code>'static</code>，也就是不能借用栈上的东西。要用 <code>&amp;Agent</code>，就得把 <code>Agent</code> 塞进 <code>Arc</code>，然后每个工具调用都要 <code>Arc::clone</code>。<code>scope</code> 的作用是引入一个词法作用域：作用域内的线程可以借用作用域外的栈变量，作用域结束时自动 join 所有线程。
+
+三个具体好处：
+
+<strong>没有 <code>Arc</code> 开销。</strong> <code>Agent</code> 里有一个 <code>Vec&lt;Value&gt;</code> 的对话历史、一个 <code>Ctx</code>、一个可选的 MCP 管理器。包进 <code>Arc</code> 本身不贵，但 <code>Arc&lt;Agent&gt;</code> 会让每个工具都想「能不能拿可变引用」，从而诱发 <code>Arc&lt;Mutex&lt;Agent&gt;&gt;</code> 这种把整个 agent 串行化的退化设计。<code>scope</code> 强制你保持 <code>&amp;Agent</code> 共享不可变，共享可变状态只能落在 <code>Ctx</code> 内部的锁上——这恰好是正确的粒度。
+
+<strong>作用域结束一定 join。</strong> 就算中间 <code>?</code> 提前返回，<code>scope</code> 也会在退出时等所有线程结束。这保证了「不可能有线程还在写状态而主线程已经继续」。普通 <code>spawn</code> 你需要自己维护 <code>JoinHandle</code> 列表，漏一个就是悬空的后台任务。
+
+<strong>panic 不会泄漏线程。</strong> 线程 panic 时 <code>scope</code> 依然会 join（拿到 <code>Err</code>），不会留下一个已崩溃但未回收的线程。
+
+需要注意 <code>scope</code> 不提供的是：<strong>线程数量限制</strong>。代码里是 <code>turn.tool_calls.iter().map(...)</code>，调用几个就起几个。模型一次返回 20 个工具调用，就起 20 个线程。这是后面「工具线程没有上限」要展开的缺陷。
+<h2>为什么 Agent 必须是 Sync</h2>
+
+<code>Agent</code> 能不能被多个线程共享，不是设计选择，是编译器的强制要求。<code>scope</code> 里 <code>this: &amp;Agent</code> 被 <code>move</code> 进闭包，闭包要 <code>Send</code>，因此 <code>&amp;Agent</code> 要 <code>Send</code>，等价于 <code>Agent: Sync</code>。
+
+<code>Agent</code> 的字段里，只有 <code>Ctx</code> 是共享可变状态的载体：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Ctx</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">root</span><span class="p">:</span><span class="w"> </span><span class="nc">PathBuf</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">auto_approve</span><span class="p">:</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">approval</span><span class="p">:</span><span class="w"> </span><span class="nc">crate</span><span class="p">::</span><span class="n">config</span><span class="p">::</span><span class="n">ApprovalPolicy</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">sandbox</span><span class="p">:</span><span class="w"> </span><span class="nc">crate</span><span class="p">::</span><span class="n">config</span><span class="p">::</span><span class="n">SandboxMode</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">max_output</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">,</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">tasks</span><span class="p">:</span><span class="w"> </span><span class="nc">TaskManager</span><span class="p">,</span><span class="w">       </span><span class="c1">// Mutex&lt;HashMap&lt;String, Task&gt;&gt;</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">todos</span><span class="p">:</span><span class="w"> </span><span class="nc">TodoList</span><span class="p">,</span><span class="w">          </span><span class="c1">// Mutex&lt;Vec&lt;Todo&gt;&gt;</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">skills</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Skill</span><span class="o">&gt;</span><span class="p">,</span><span class="w">       </span><span class="c1">// 只读</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">board</span><span class="p">:</span><span class="w"> </span><span class="nc">Board</span><span class="p">,</span><span class="w">             </span><span class="c1">// Mutex&lt;Vec&lt;Job&gt;&gt; + Mutex&lt;u64&gt;</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">gate</span><span class="p">:</span><span class="w"> </span><span class="nc">Gate</span><span class="p">,</span><span class="w">               </span><span class="c1">// Mutex&lt;usize&gt; + Condvar</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">memory_dir</span><span class="p">:</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="n">PathBuf</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+前四个字段是不可变的（<code>root</code>、<code>auto_approve</code>、<code>approval</code>、<code>sandbox</code>），后三个是锁，<code>skills</code> 是只读。<code>memory_dir</code> 只是路径，真正的记忆库读写发生在 <code>memory.rs</code> 里，走的是文件系统——同一时刻两个线程写同一个记忆文件会有丢失更新的风险，这一点后面「不是所有工具都该并行」里还会提。
+
+<code>Agent</code> 的其余字段——<code>messages</code>、<code>usage</code>、<code>style</code>、<code>session</code>、<code>mcp</code>——要么只在并行区之外被访问（<code>messages</code>、<code>usage</code>、<code>session</code>），要么内部自带锁（<code>mcp</code> 的 <code>Arc&lt;Mutex&lt;...&gt;&gt;</code>）。<code>style</code> 里包的 <code>UiSink</code> 是 <code>Arc&lt;dyn Fn + Send + Sync&gt;</code>，本身就是线程安全的。
+
+这个字段划分直接决定了并发的安全性：<strong>并行区里能改的东西，只有 <code>Ctx</code> 里那五把锁保护的部分</strong>。任何需要写 <code>messages</code> 的逻辑都必须回到主线程，而主线程在 join 屏障里等着。这是「用结构换正确性」的典型做法。
+<h2>共享状态清单：Ctx 里的五把锁</h2>
+
+逐个看这五把锁保护什么，会发现问题不是「有没有锁」，而是「锁的粒度对不对」。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>锁</th>
+<th>保护的数据</th>
+<th>典型操作</th>
+<th>争用程度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TaskManager.tasks</code></td>
+<td><code>HashMap&lt;String, Task&gt;</code></td>
+<td>起任务、读输出、杀任务</td>
+<td>中（每个后台工具调用）</td>
+</tr>
+<tr>
+<td><code>TodoList.items</code></td>
+<td><code>Vec&lt;Todo&gt;</code></td>
+<td>整体替换、读取</td>
+<td>低</td>
+</tr>
+<tr>
+<td><code>Board.jobs</code></td>
+<td><code>Vec&lt;Job&gt;</code></td>
+<td>登记、结算、快照</td>
+<td>中（每个子代理）</td>
+</tr>
+<tr>
+<td><code>Board.seq</code></td>
+<td><code>u64</code></td>
+<td>自增取号</td>
+<td>高（每个子代理，但极短）</td>
+</tr>
+<tr>
+<td><code>Gate.active</code></td>
+<td><code>usize</code></td>
+<td>取许可、还许可</td>
+<td>高（每个子代理）</td>
+</tr>
+</tbody>
+</table></div>
+
+争用程度最高的是后两把，但它们的临界区都只有几行——<code>Board::seq</code> 是 <code>*seq += 1</code> 加一次 <code>format!</code>，<code>Gate::active</code> 是一次比较加一次自增。真正可能长时间持有的是 <code>TaskManager.tasks</code>，因为它把「读管道」放在锁里，这一点后面专门讲。
+
+<code>Board</code> 用两把锁而不是一把，是个值得说的细节：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Board</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">jobs</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Job</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">seq</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="kt">u64</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+如果合并成一把锁，<code>start()</code> 里就要持锁做 <code>format!("agent-{seq}")</code>（一次堆分配）和 <code>task.to_string()</code>（可能很长）。分成两把之后，取号和登记各自临界区极短，而且 <code>start()</code> 里两次 <code>lock()</code> 的顺序是固定的（先 <code>seq</code> 后 <code>jobs</code>），不存在反向获取路径，所以不会死锁。
+
+代价是「取号和登记之间不是原子的」：并发 <code>start()</code> 时可能出现 <code>agent-3</code> 先被登记、<code>agent-2</code> 后被登记的顺序。<code>list()</code> 返回的是登记顺序，所以任务板上的 id 可能不是单调递增的。这是个无害的瑕疵——id 只用来标识，不用来排序。
+<h2>Mutex 粒度：为什么 Board 用两把锁</h2>
+
+延续上一节的思路，锁粒度设计有三个层次，<code>Ctx</code> 里三种都有：
+
+<strong>粗粒度：一把锁保护整个集合。</strong> <code>TodoList</code> 和 <code>TaskManager</code> 都是这种。<code>todo_write</code> 语义是「整体替换」，所以一把锁最自然——读和写都需要看到完整列表。
+
+<strong>中粒度：一个逻辑实体一把锁。</strong> <code>Board</code> 把「取号」和「作业表」分开。取号是高频极短操作，作业表是低频较长操作，混在一起会让 <code>start()</code> 的临界区被 <code>task</code> 字符串的复制拖长。
+
+<strong>细粒度：每个条目一把锁。</strong> NanoHermes 没有用这种。在 <code>TaskManager</code> 里，如果每个 <code>Task</code> 自带一把锁，<code>task_output(task1)</code> 就不会阻塞 <code>task_kill(task2)</code>。这正是 <code>TaskManager</code> 当前最大的问题——后面会展开。
+
+判断粒度是否合适的标准不是「锁够不够细」，而是「<strong>有没有一条路径会在持锁期间做阻塞 I/O</strong>」。<code>Board</code> 的临界区全是内存操作，粒度怎么分都对；<code>TaskManager</code> 的 <code>output()</code> 在锁里调 <code>read()</code>，这时候粒度就是错的，再细也没用，必须改结构。
+<h2>Condvar 与 Gate：并发门的十二行实现</h2>
+
+限制子代理并发的是一个手写的计数信号量，全部实现不到二十行：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">Gate</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">active</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="o">&lt;</span><span class="kt">usize</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">cv</span><span class="p">:</span><span class="w"> </span><span class="nc">Condvar</span><span class="p">,</span>
+<span class="w">    </span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="k">impl</span><span class="w"> </span><span class="n">Gate</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">new</span><span class="p">(</span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Self</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Gate</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">active</span><span class="p">:</span><span class="w"> </span><span class="nc">Mutex</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+<span class="w">            </span><span class="n">cv</span><span class="p">:</span><span class="w"> </span><span class="nc">Condvar</span><span class="p">::</span><span class="n">new</span><span class="p">(),</span>
+<span class="w">            </span><span class="n">max</span><span class="p">:</span><span class="w"> </span><span class="nc">max</span><span class="p">.</span><span class="n">max</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">GateGuard</span><span class="o">&lt;&#39;</span><span class="nb">_</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">max</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">active</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">GateGuard</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">gate</span><span class="p">:</span><span class="w"> </span><span class="nc">self</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个细节值得单独说。
+
+<strong><code>while</code> 而不是 <code>if</code>。</strong> <code>Condvar::wait</code> 可能被虚假唤醒（spurious wakeup），返回时条件不一定成立。用 <code>while</code> 循环重新检查是标准写法。很多教程用 <code>if</code>，在 Linux 上通常也能跑，但那是运气。
+
+<strong><code>max.max(1)</code>。</strong> 配置成 0 会被抬成 1，否则 <code>acquire()</code> 永远等不到许可，整轮死锁。这是一个「宁可多跑一个，也不要卡死」的降级选择。
+
+<strong><code>GateGuard</code> 用 <code>Drop</code> 还许可。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">impl</span><span class="w"> </span><span class="nb">Drop</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">GateGuard</span><span class="o">&lt;&#39;</span><span class="nb">_</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">drop</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="w">        </span><span class="o">*</span><span class="n">active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">active</span><span class="p">.</span><span class="n">saturating_sub</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">cv</span><span class="p">.</span><span class="n">notify_one</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>Drop</code> 保证四条路径都会还许可：正常返回、<code>?</code> 提前返回、<code>panic</code> 展开、以及 <code>run_subagent</code> 里 <code>match</code> 的任一个分支。这是 RAII 在并发里最重要的价值——不需要在每条返回路径上手写 <code>release()</code>。
+
+<code>notify_one</code> 而不是 <code>notify_all</code>：每次释放只多出一个空位，唤醒一个等待者正好。用 <code>notify_all</code> 会造成「惊群」——所有等待者醒来抢同一把锁，只有一个能拿到许可，其余重新睡回去。
+<h2>门的位置错了：先登记后排队</h2>
+
+<code>Gate</code> 的实现是对的，但它的<strong>调用位置</strong>有问题：
+<div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">run_subagent</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">start</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span><span class="w">   </span><span class="c1">// 先登记</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span><span class="w">       </span><span class="c1">// 再排队</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_subagent_inner</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="o">&amp;</span><span class="n">result</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">finish_ok</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">text</span><span class="p">),</span>
+<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">err</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">finish_err</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">err</span><span class="p">),</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">result</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>start()</code> 在前，<code>acquire()</code> 在后。后果有两个：
+
+<strong>第一，任务板上的状态是假的。</strong> <code>Board::start</code> 把新作业登记成 <code>JobStatus::Running</code>。但如果此刻已经跑着 4 个子代理，第 5 个会卡在 <code>acquire()</code> 上——它一行代码都没执行，任务板却显示 <code>[running]</code>。模型调 <code>agent_list</code> 看到的是一排 <code>running</code>，其中有一半在排队。它无从区分「真在跑」和「在等许可」。
+
+<strong>第二，<code>duration</code> 把排队时间算进去了。</strong> <code>Job</code> 里的 <code>started: Instant</code> 在 <code>start()</code> 时记录，<code>finish()</code> 里用 <code>job.started.elapsed()</code> 算时长。所以一个排队 30 秒、实际执行 2 秒的子代理，任务板会显示 32.0s。这个数字会误导任何基于任务板做的性能判断。
+
+修法很简单：加一个 <code>Queued</code> 状态，并让 <code>start()</code> 接受状态参数。
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">enqueue</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span><span class="w">   </span><span class="c1">// 登记为 Queued</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
+<span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">mark_running</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">);</span><span class="w">              </span><span class="c1">// 拿到许可再改状态</span>
+</code></pre></div>
+
+
+同时把 <code>started</code> 的赋值挪到 <code>mark_running</code> 里，<code>duration</code> 就只算执行时间。改动不超过 20 行，但让任务板从「大致对」变成「可以直接用来判断卡在哪」。
+
+为什么原实现会写成这样？因为最自然的顺序是「先登记再干活」——你要先有 id 才能结算。而门是后来加的，加的时候就在登记的下一行插了一句 <code>acquire()</code>，没有人回头看状态机的语义。这是并发改造中最常见的错误类型：<strong>在已有流程里插入一个阻塞点，但没有重新检查这个阻塞点上游已经做了什么</strong>。
+<h2>子代理：并行的第一类真实用户</h2>
+
+工具调用并行是「同一批里各干各的」，子代理是「同一个任务分给几个人」。两者的区别在于子代理内部还会再发起模型请求和工具调用。
+
+一个子代理的完整生命周期：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>代码</th>
+<th>共享状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>登记</td>
+<td><code>board.start(name, task)</code></td>
+<td><code>Board.jobs</code>、<code>Board.seq</code></td>
+</tr>
+<tr>
+<td>排队</td>
+<td><code>gate.acquire()</code></td>
+<td><code>Gate.active</code></td>
+</tr>
+<tr>
+<td>组配置</td>
+<td><code>self.cfg.clone()</code> + 模型覆盖 + 关流式</td>
+<td>无（纯本地）</td>
+</tr>
+<tr>
+<td>组工具</td>
+<td><code>build_tools()</code> 按 <code>allowed_tools</code> 过滤，去掉 <code>subagent</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>组消息</td>
+<td>一条 system（子代理 prompt）+ 一条 user（任务）</td>
+<td>无</td>
+</tr>
+<tr>
+<td>循环</td>
+<td><code>llm::chat</code> → 执行工具 → 追加结果，最多 40 轮</td>
+<td><code>Ctx</code> 的五把锁</td>
+</tr>
+<tr>
+<td>结算</td>
+<td><code>finish_ok</code> / <code>finish_err</code></td>
+<td><code>Board.jobs</code></td>
+</tr>
+</tbody>
+</table></div>
+
+关键点在于<strong>子代理不持有父代理的对话历史</strong>。它只拿到两样东西：自己的 system prompt（来自配置文件的 <code>prompt</code> 字段）和一句任务描述。这是子代理能真正并行的前提——如果它要继承父对话，四个子代理就要各自复制一份 120,000 字符的历史，内存和 token 成本会立刻爆炸。
+
+代价是信息不对称：子代理不知道父代理之前试过什么、失败了什么。所以 <code>subagent</code> 工具的描述里写着「用于评审、测试、调研，或者任何能从专注专家中获益的任务」——它适合「有明确输入输出的独立子任务」，不适合「接着上一步继续改」。
+
+<code>Board</code> 记录了每个子代理的任务原文和结果预览（500 字符），父代理通过 <code>agent_list</code> 能看到一张进度表：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">job</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">jobs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">job</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Some</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{:.1}s&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">as_secs_f64</span><span class="p">()),</span>
+<span class="w">        </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="s">&quot;…&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="fm">format!</span><span class="p">(</span>
+<span class="w">        </span><span class="s">&quot;- {} [{}] {} ({}) — {}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">status</span><span class="p">.</span><span class="n">as_str</span><span class="p">(),</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">name</span><span class="p">,</span>
+<span class="w">        </span><span class="n">duration</span><span class="p">,</span>
+<span class="w">        </span><span class="n">job</span><span class="p">.</span><span class="n">task</span>
+<span class="w">    </span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这张表的设计意图是「让模型自己判断要不要继续等」。如果两个子代理都 <code>done</code>，一个还 <code>running</code> 且已经 40 秒，模型可以选择先处理已完成的结果。这是把调度权交回模型，而不是在代码里写死「等全部完成」。
+<h2>子代理内部为什么又是串行</h2>
+
+<code>run_subagent_inner</code> 里的工具循环是串行的，代码里还专门写了一行注释：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 子代理的工具调用按顺序执行（子代理本身已经受限）。</span>
+<span class="k">for</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="o">&amp;</span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">);</span>
+<span class="w">    </span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">        </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">call</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">out</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+理由有三条，都成立：
+
+<strong>第一，嵌套并行会指数放大线程数。</strong> 父代理起 4 个子代理，每个子代理再起 5 个工具线程，就是 24 个线程。如果子代理还能再分子代理（代码里已经把 <code>subagent</code> 工具过滤掉了，所以不会），理论上是 4 的幂。串行是一种「在嵌套层主动降级」的策略。
+
+<strong>第二，子代理的工具调用数量通常很少。</strong> 子代理是「专注专家」，它的 prompt 会把任务收窄，所以一轮里往往只有一两个工具调用。并行的收益本来就小。
+
+<strong>第三，也是真正的原因：子代理本身已经并行了。</strong> 四个子代理同时跑，每个内部串行——总并发度是 4，已经吃满了这部分收益。再往内层并行，收益递减而复杂度和线程数线性增长。
+
+代价也要认：如果一个子代理内部串行跑了 5 个各 20 秒的命令，它就要 100 秒；这四个子代理里最慢的那个决定整轮耗时。所以「子代理内部串行」这个决定，把最坏情况从「最慢的单个工具」变成了「最慢的子代理内部工具之和」。
+
+这条注释里还藏着一个措辞问题：原文是英文 <code>(sub-agents are bounded)</code>，「bounded」指的是并发度受限，但读起来容易被理解成「子代理的工具调用数量有上限」——实际上没有。子代理的工具调用数量和父代理一样，完全由模型输出决定。注释应该写成「子代理的并发度已经由 Gate 限制，内部再并行会放大线程数」。
+<h2>子代理的四处越界：中断、上限、模型、白名单</h2>
+
+子代理虽然共享 <code>&amp;self</code>，但有四处「以为继承了，其实没有」的地方，每一处都是真实的行为差异。
+
+<strong>第一处：中断。</strong> 父代理的 <code>run()</code> 每轮开头检查 <code>crate::interrupt::take()</code>，但 <code>run_subagent_inner</code> 的循环里<strong>没有任何中断检查</strong>。这意味着 Ctrl-C 之后：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="o">..</span><span class="n">sub_cfg</span><span class="p">.</span><span class="n">max_iterations</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">llm</span><span class="p">::</span><span class="n">chat</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sub_cfg</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">messages</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">tools</span><span class="p">,</span><span class="w"> </span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="p">{})</span><span class="o">?</span><span class="p">;</span><span class="w">   </span><span class="c1">// 没有 take()</span>
+<span class="w">    </span><span class="c1">// …执行工具…</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+子代理会继续把剩下的轮次跑完，最多 40 次模型请求。父代理只能等 <code>execute()</code> 返回，才能在下一轮边界看到中断标志。用户按了 Ctrl-C，界面可能还要再等几十秒。
+
+修法：在子代理循环开头加一行 <code>if crate::interrupt::take() { break; }</code>。但要注意这会「消费」掉标志——父代理的下一轮检查就看不到了。正确做法是加一个 <code>peek()</code>（只读不清），或者让子代理在检测到中断时重新 <code>request()</code> 一次再 <code>break</code>。
+
+<strong>第二处：轮次上限。</strong> 子代理用的是 <code>sub_cfg.max_iterations</code>，而 <code>sub_cfg</code> 是 <code>self.cfg.clone()</code>，也就是<strong>父代理的 40 轮</strong>。子代理没有独立的上限配置。这意味着「一个子代理最多跑 40 轮」是硬编码出来的，不能调。合理的做法是给 <code>SubAgentDef</code> 加一个 <code>max_iterations</code> 字段，默认取一个小得多的值（比如 10），因为专注子任务本来就不该长跑。
+
+<strong>第三处：模型覆盖只作用于模型调用。</strong> <code>sub_cfg.model</code> 覆盖了模型名，但工具执行走的是 <code>self.execute(call)</code>，用的是<strong>父代理的 <code>Ctx</code></strong>：同一个 <code>max_output</code>、同一个 <code>auto_approve</code>、同一个 <code>sandbox</code>、同一个任务板。这是对的——工具行为应该一致——但会导致一个反直觉的结果：子代理配置了「便宜的小模型」，但它的工具输出仍然按父代理的 20,000 字节预算返回，小模型可能根本读不完。
+
+<strong>第四处，也是最严重的一处：<code>allowed_tools</code> 只是广告，不是闸门。</strong> 子代理的工具列表是这样过滤的：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">tool_list</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="o">!</span><span class="n">def</span><span class="p">.</span><span class="n">allowed_tools</span><span class="p">.</span><span class="n">is_empty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">all_tools</span>
+<span class="w">        </span><span class="p">.</span><span class="n">as_array</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">cloned</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">unwrap_or_default</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">into_iter</span><span class="p">()</span>
+<span class="w">        </span><span class="p">.</span><span class="n">filter</span><span class="p">(</span><span class="o">|</span><span class="n">t</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* tname 在 def.allowed_tools 里 */</span><span class="w"> </span><span class="p">})</span>
+<span class="w">        </span><span class="p">.</span><span class="n">collect</span><span class="p">()</span>
+<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">all_tools</span><span class="p">.</span><span class="n">as_array</span><span class="p">().</span><span class="n">cloned</span><span class="p">().</span><span class="n">unwrap_or_default</span><span class="p">()</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+它只影响<strong>发给模型看的工具列表</strong>。真正的执行前检查是 <code>self.cfg.check_tool(&amp;call.name)</code>，用的是<strong>父代理的</strong>允许/禁止列表，和 <code>def.allowed_tools</code> 毫无关系。所以只要模型输出了 <code>run_command</code> 这个工具名（哪怕它没被广告出去），并且父配置允许，命令就会真的执行。
+
+模型会不会输出没被广告的工具名？正常情况下不会，但它会——历史里出现过、别的子代理用过、或者纯粹幻觉。这是个「靠模型自律」的边界，而白名单的意义正是<strong>不靠模型自律</strong>。
+
+修法很直接：把 <code>allowed_tools</code> 传进执行路径。最小改动是在 <code>execute</code> 上加一个可选的白名单参数，或者给子代理包一层 <code>Ctx</code> 的子视图（把 <code>Ctx</code> 的字段变成可覆盖的）。后者更干净，但要改 <code>Ctx</code> 的结构，是几小时而不是几分钟的工作。
+<h2>工具线程没有上限</h2>
+
+回到第一层。这一层的并发度是 <code>turn.tool_calls.len()</code>，代码里没有任何上限：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">handles</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">_</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">turn</span>
+<span class="w">    </span><span class="p">.</span><span class="n">tool_calls</span>
+<span class="w">    </span><span class="p">.</span><span class="n">iter</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">call</span><span class="o">|</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">this</span><span class="p">.</span><span class="n">execute</span><span class="p">(</span><span class="n">call</span><span class="p">)))</span>
+<span class="w">    </span><span class="p">.</span><span class="n">collect</span><span class="p">();</span>
+</code></pre></div>
+
+
+模型一次返回几个，就起几个线程。这个数字完全由模型输出决定，而模型输出又受工具数量和上下文长度影响。理论上一个「读 30 个文件」的批量任务会让模型一次给出 30 个 <code>read_file</code> 调用。
+
+为什么没加上限？因为实践里几乎不会发生：模型的输出长度有限，而每个工具调用都要占几十个 token 的 JSON，30 个调用就要吃掉一两千 token。大多数模型在生成这么多调用之前就会先停下来观察结果。
+
+但这个「几乎不会发生」有个例外：<strong>模型被提示词要求批量操作时</strong>。比如你在 <code>AGENTS.md</code> 里写「一次性读完全部相关文件」，模型就可能真的生成 20 个调用。这时候：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>风险</th>
+<th>表现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>线程数暴涨</td>
+<td>20 个线程各自持有 16 KiB 读缓冲 + 文件内容</td>
+</tr>
+<tr>
+<td>文件描述符耗尽</td>
+<td>每个 <code>read_file</code> 开一个 fd，20 个并发没问题，200 个就可能触顶</td>
+</tr>
+<tr>
+<td>输出总量失控</td>
+<td>20 个结果各 20,000 字节，一次拼进历史就是 400,000 字节</td>
+</tr>
+</tbody>
+</table></div>
+
+第三项最危险，因为它和上下文预算的交互不直观：<code>clamp</code> 保证单个工具输出不超过 20,000 字节，但<strong>没有保证一次批次的输出总量</strong>。20 个结果拼起来可以让 <code>messages</code> 直接超过 <code>CONTEXT_CHAR_BUDGET (120,000)</code>，触发一次压缩——那次压缩又要多一次模型请求来生成摘要。
+
+修法不是简单地给线程数设个 8，而是<strong>给批次输出设总量预算</strong>：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">total_budget</span><span class="p">:</span><span class="w"> </span><span class="kt">usize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">40_000</span><span class="p">;</span><span class="w">   </span><span class="c1">// 一次批次的输出总和</span>
+<span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="k">usize</span><span class="p">;</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">call</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">zip</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">remain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">total_budget</span><span class="p">.</span><span class="n">saturating_sub</span><span class="p">(</span><span class="n">used</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">trimmed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">clamp</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">remain</span><span class="p">);</span>
+<span class="w">    </span><span class="n">used</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">trimmed</span><span class="p">.</span><span class="n">len</span><span class="p">();</span>
+<span class="w">    </span><span class="c1">// …</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+线程数上限仍然值得加（比如 16），但它防的是资源耗尽，输出预算防的是上下文爆炸。两个问题不能用一个数字解决。
+<h2>结果顺序：为什么必须按调用顺序回填</h2>
+
+<code>handles.into_iter().map(join)</code> 的顺序就是 <code>tool_calls</code> 的顺序，所以结果向量天然对齐。这个「天然」是设计出来的，不是巧合。
+
+为什么必须对齐？因为回填历史时是 <code>zip</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">call</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">tool_calls</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">zip</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">tool_call</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">summarize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">arguments</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">result</span><span class="p">);</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">messages</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span>
+<span class="w">        </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tool&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">call</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">result</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这里 <code>zip</code> 依赖两个向量<strong>长度相等且顺序一致</strong>。如果并发实现用了 <code>mpsc::channel</code> 收集结果（先完成的先投递），顺序就会变成完成顺序。后果不是「结果稍微乱一点」，而是 OpenAI 协议层面的硬错误：每条 <code>tool</code> 消息的 <code>tool_call_id</code> 必须对应上一条 <code>assistant</code> 消息里某个 <code>tool_calls[].id</code>，顺序错了模型会收到错配的结果——它以为自己在看 <code>read_file</code> 的输出，实际拿到的是 <code>grep</code> 的。
+
+更隐蔽的后果：如果实现用了 <code>join</code> 但把结果 <code>filter</code> 掉了空值，两个向量长度不等，<code>zip</code> 会静默截断——最后一条工具调用<strong>没有对应的 tool 消息</strong>。下一次请求发出去就是 400，错误信息是「tool_calls must be followed by tool messages」，而这时你已经在几百行之外了。
+
+所以这里有三条硬规则：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>规则</th>
+<th>原因</th>
+<th>违反后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每个 <code>tool_call</code> 恰好一条 <code>tool</code> 消息</td>
+<td>协议要求成对</td>
+<td>下次请求 400</td>
+</tr>
+<tr>
+<td>顺序与 <code>tool_calls</code> 一致</td>
+<td><code>zip</code> 按位置匹配</td>
+<td>结果错配，模型基于错误信息推理</td>
+</tr>
+<tr>
+<td>结果永远返回字符串，不返回空</td>
+<td><code>zip</code> 会截断</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table></div>
+
+第三条正是 <code>unwrap_or_else(|_| "ERROR: tool thread panicked")</code> 存在的原因——panic 也要产出一条字符串，保持成对。
+<h2>一个线程 panic 了会怎样</h2>
+
+<code>join()</code> 返回 <code>Result&lt;T, Box&lt;dyn Any&gt;&gt;</code>，线程 panic 时是 <code>Err</code>。代码选择把它变成一条错误字符串：
+<div class="codehilite"><pre><span></span><code><span class="n">h</span><span class="p">.</span><span class="n">join</span><span class="p">().</span><span class="n">unwrap_or_else</span><span class="p">(</span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="s">&quot;ERROR: tool thread panicked&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">())</span>
+</code></pre></div>
+
+
+这个选择意味着：<strong>一个工具的 panic 不会让整轮失败</strong>。其余工具的结果照常回填，模型会看到某一条结果是「ERROR: tool thread panicked」，然后自己决定要不要重试。
+
+这是对的设计，但有一个重要的前提：<strong>panic 时锁不能处于中毒状态</strong>。<code>std::sync::Mutex</code> 的语义是，持锁线程 panic 会让锁「中毒」，后续 <code>lock()</code> 返回 <code>Err(PoisonError)</code>。而代码里到处是 <code>.lock().unwrap()</code>：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">jobs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">jobs</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+</code></pre></div>
+
+
+一旦某个工具在持 <code>Board.jobs</code> 时 panic，之后所有 <code>agent_list</code> 调用都会 panic——从「一个工具失败」升级成「任务板永久不可用」。
+
+好消息是这些锁的临界区都很短，而且全是纯内存操作，panic 的概率极低（<code>format!</code> 分配失败、切片越界）。真正的风险在 <code>TaskManager</code>，因为它在锁里做 I/O——一次管道读取 panic 就能毒死整个任务表。
+
+修法有两种：把 <code>.unwrap()</code> 换成 <code>.unwrap_or_else(|e| e.into_inner())</code>（忽略中毒，继续用可能不一致的数据），或者改用 <code>parking_lot::Mutex</code>（不中毒）。前者零依赖，后者更干净。对一个「工具 panic 已经降级成字符串」的系统来说，忽略中毒是更合适的选择——数据不一致的风险远小于「整个功能永久失效」。
+<h2>不是所有工具都该并行</h2>
+
+并行是默认行为，但有些工具组合并行会出错。这不是实现缺陷，而是「工具语义里隐含了顺序」。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>组合</th>
+<th>问题</th>
+<th>后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两个 <code>edit_file</code> 改同一个文件</td>
+<td>各自读全文、改、写回</td>
+<td>后写覆盖先写，丢失一处修改</td>
+</tr>
+<tr>
+<td><code>write_file</code> + <code>read_file</code> 同一文件</td>
+<td>读到的可能是旧内容</td>
+<td>模型基于旧内容做判断</td>
+</tr>
+<tr>
+<td>两个 <code>todo_write</code></td>
+<td>语义是整体替换</td>
+<td>后到的列表完全覆盖先到的</td>
+</tr>
+<tr>
+<td>两个 <code>run_command</code> 同时要审批</td>
+<td>共用一份 stdin</td>
+<td>提示交错，答案错配</td>
+</tr>
+<tr>
+<td><code>git_commit</code> + <code>edit_file</code></td>
+<td>提交的内容不确定</td>
+<td>提交了半成品</td>
+</tr>
+</tbody>
+</table></div>
+
+第一项是最容易踩的。<code>edit_file</code> 的语义是「读全文 → 替换 → 写回」，两个并发调用必然产生丢失更新。而模型完全可能在一轮里给出「改 A 文件第 10 行」和「改 A 文件第 20 行」两个调用——它以为这是两个独立操作，实际上是一个读-改-写竞争。
+
+代码层面没有任何保护：<code>edit_file</code> 里既不锁文件，也不检查 mtime。所以这不是「理论风险」，而是「只要模型这么干就一定出错」。
+
+修法有三档：
+
+<strong>第一档（最省事）：在工具描述里写清约束。</strong> <code>edit_file</code> 的描述里加一句「同一个文件的多处修改请合并成一次调用」。这依赖模型遵守，但成本为零，能消掉大部分情况。
+
+<strong>第二档（中等）：在 <code>dispatch</code> 层做同文件串行化。</strong> 维护一个 <code>HashMap&lt;PathBuf, Mutex&lt;()&gt;&gt;</code>，<code>edit_file</code>/<code>write_file</code>/<code>apply_patch</code> 进入时先拿对应文件的锁。改动约 30 行，能彻底消除丢失更新。
+
+<strong>第三档（最彻底）：给每个 <code>tool_call</code> 标一个「资源」标签，同资源串行、异资源并行。</strong> 这是真正正确的方案，但需要给 24 个工具都标注资源，工作量大。对一个 20 多个工具的项目，第二档是性价比最高的。
+
+顺带说一句：<code>todo_write</code> 的「整体替换」语义在并行下还有个额外问题——两个并发的 <code>todo_write</code> 谁赢取决于调度，而模型看到的结果里两条都返回了「已写入」，它会以为自己成功更新了两次。这类「都成功但只有一个生效」的情况，是最难查的一类并发问题。
+<h2>并发下的审批：stdin 只有一份</h2>
+
+<code>run_command</code> 在执行前可能要求确认：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="k">crate</span><span class="p">::</span><span class="n">sandbox</span><span class="p">::</span><span class="n">needs_approval</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">auto_approve</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">approval</span><span class="p">,</span><span class="w"> </span><span class="n">command</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">confirm</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="s">&quot;Command denied by the user. Do not retry it; ask what to do instead.&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">());</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>confirm()</code> 的实现是读一行 stdin：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">confirm</span><span class="p">(</span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="fm">eprint!</span><span class="p">(</span><span class="s">&quot;Run this command? [y/N] {command}</span><span class="se">\n</span><span class="s">&gt; &quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">io</span><span class="p">::</span><span class="n">stderr</span><span class="p">().</span><span class="n">flush</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">io</span><span class="p">::</span><span class="n">stdin</span><span class="p">().</span><span class="n">read_line</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">line</span><span class="p">).</span><span class="n">is_err</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="fm">matches!</span><span class="p">(</span><span class="n">line</span><span class="p">.</span><span class="n">trim</span><span class="p">().</span><span class="n">to_ascii_lowercase</span><span class="p">().</span><span class="n">as_str</span><span class="p">(),</span><span class="w"> </span><span class="s">&quot;y&quot;</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;yes&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+如果一轮里有两个 <code>run_command</code> 都需要确认，两个线程会同时进 <code>confirm()</code>。后果：
+
+<strong>提示交错。</strong> 两个 <code>eprint!</code> 会混在一起，用户看到的是两行粘在一起的提示，分不清哪个是哪个命令。
+
+<strong>答案错配。</strong> 两个线程都在 <code>read_line</code>，用户输入一个 <code>y</code>，可能被任意一个线程读走。另一个线程继续等，用户以为已经确认过了，实际上第一条命令还没跑。
+
+<strong>在非交互环境直接失败。</strong> stdin 不是 TTY 时（CI、管道），<code>read_line</code> 会返回 EOF 或者读到无关数据，两条命令都被拒。
+
+这不是一个理论问题。默认配置下 <code>needs_approval</code> 对危险命令返回 true，而模型完全可能一次给出「跑测试」和「跑构建」两个命令。
+
+修法：把审批收到主线程。并行区里遇到需要审批的调用，先挂起（返回一个「待审批」标记），等所有线程 join 之后，主线程串行地一个个问，问完再补跑。这需要把 <code>execute</code> 拆成「可并行部分」和「需审批部分」两段，改动不小。
+
+低成本替代方案：加一把全局的 <code>Mutex&lt;()&gt;</code> 把 <code>confirm()</code> 包起来。这样提示不会交错，但「等用户输入时整轮卡住」的问题还在——只是从「互相踩」变成「排队踩」。对交互式 CLI 来说这已经够用了，因为用户输入本来就是串行的。
+<h2>后台任务：另一种并发</h2>
+
+前面的并发都是「同时做，然后一起收」。后台任务是另一种：<strong>先返回，稍后再收</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">spawn</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">command</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">cwd</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Path</span><span class="p">,</span><span class="w"> </span><span class="n">sandbox</span><span class="p">:</span><span class="w"> </span><span class="nc">SandboxMode</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Path</span><span class="p">)</span>
+<span class="w">    </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">super</span><span class="p">::</span><span class="n">shell</span><span class="p">::</span><span class="n">shell_command</span><span class="p">(</span><span class="n">command</span><span class="p">);</span>
+<span class="w">    </span><span class="n">cmd</span><span class="p">.</span><span class="n">current_dir</span><span class="p">(</span><span class="n">cwd</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="n">stdin</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">null</span><span class="p">())</span>
+<span class="w">        </span><span class="p">.</span><span class="n">stdout</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">piped</span><span class="p">())</span>
+<span class="w">        </span><span class="p">.</span><span class="n">stderr</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">piped</span><span class="p">());</span>
+<span class="w">    </span><span class="c1">// …</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">child</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cmd</span><span class="p">.</span><span class="n">spawn</span><span class="p">().</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;failed to start shell: {e}&quot;</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// …</span>
+<span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">tasks</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">insert</span><span class="p">(</span><span class="n">id</span><span class="p">.</span><span class="n">clone</span><span class="p">(),</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">id</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>spawn</code> 立即返回一个 task id，模型可以用 <code>task_output</code> 轮询、用 <code>task_kill</code> 终止。这解决了一类具体问题：跑测试、跑构建、起开发服务器——这些命令要几十秒到几分钟，阻塞在一轮里既浪费上下文（模型只能干等），又可能超时。
+
+但这个模块有两个真实缺陷，都是并发相关的，且都不是「理论风险」。
+<h2>后台任务的第一个缺陷：stderr 从未被读走</h2>
+
+<code>spawn</code> 里给 stderr 也接了管道：
+<div class="codehilite"><pre><span></span><code><span class="p">.</span><span class="n">stderr</span><span class="p">(</span><span class="n">Stdio</span><span class="p">::</span><span class="n">piped</span><span class="p">());</span>
+</code></pre></div>
+
+
+但 <code>output()</code> 只排空 stdout：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 排空 stdout。</span>
+<span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">child</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="p">.</span><span class="n">child</span><span class="p">.</span><span class="n">as_mut</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="p">.</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">kept</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">);</span>
+<span class="w">        </span><span class="n">task</span><span class="p">.</span><span class="n">out_buf</span><span class="p">.</span><span class="n">extend_from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">kept</span><span class="p">);</span>
+<span class="w">        </span><span class="n">task</span><span class="p">.</span><span class="n">out_total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
+<span class="w">        </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">out</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// 检查是否结束。</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">try_wait</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* … */</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+stderr 的管道从头到尾没有任何人读。后果分两步：
+
+<strong>第一步：stderr 写满 64 KiB 时子进程阻塞。</strong> 管道的内核缓冲区默认 64 KiB（Linux）。子进程往 stderr 写满 64 KiB 之后，<code>write</code> 系统调用就会阻塞，直到有人读走。而没有人读，所以它永远不会解除。
+
+<strong>第二步：任务永远不结束，<code>task_output</code> 永远显示 running。</strong> 而且此时 stdout 也没有新数据，<code>task_output</code> 返回 <code>(no output yet)</code>。模型会以为任务还在跑，继续等——直到轮次上限。
+
+哪些命令会踩到？任何 stderr 输出超过 64 KiB 的：<code>cargo build</code> 的编译警告、<code>npm install</code> 的进度条、<code>pytest -v</code> 的失败堆栈。这些恰好是后台任务最常用的场景。
+
+修法很直接：起一个线程排空 stderr，把内容追加到独立的缓冲区（或者合并到 <code>out_buf</code> 并标注来源）。
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">stderr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stderr</span><span class="p">.</span><span class="n">take</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">clone</span><span class="p">(</span><span class="o">&amp;</span><span class="n">shared_err_buf</span><span class="p">);</span>
+<span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">kept</span><span class="p">,</span><span class="w"> </span><span class="n">_total</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="n">stderr</span><span class="p">);</span>
+<span class="w">    </span><span class="n">buf</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">extend_from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">kept</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+这正好是 <code>shell.rs</code> 对前台命令做的事——同一个问题，两处实现，一处对一处错。后台任务这里大概是「先实现最小可用版本，后来忘了补」。
+<h2>后台任务的第二个缺陷：在锁里读到 EOF</h2>
+
+第二个缺陷更隐蔽，因为它藏在 <code>read_capped</code> 的循环条件里：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">output</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">task_id</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">tasks</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span><span class="w">          </span><span class="c1">// ← 持锁</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="n">get_mut</span><span class="p">(</span><span class="n">task_id</span><span class="p">).</span><span class="n">ok_or_else</span><span class="p">(</span><span class="err">…</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">child</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="p">.</span><span class="n">child</span><span class="p">.</span><span class="n">as_mut</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="p">.</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">kept</span><span class="p">,</span><span class="w"> </span><span class="n">total</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">out</span><span class="p">);</span><span class="w"> </span><span class="c1">// ← 在锁里阻塞读</span>
+<span class="w">            </span><span class="c1">// …</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// …</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>read_capped</code> 的循环是「一直读到 <code>Ok(0)</code>（EOF）或者出错」。对于一个<strong>还在运行且暂时没有输出</strong>的后台任务，stdout 是打开的、没有数据，<code>read()</code> 会<strong>阻塞</strong>——它既不返回 0，也不返回错误，就一直等下去。
+
+所以：<code>task_output(task-1)</code> 在一个安静运行的任务上会挂住（直到那个任务产生输出或退出）。而在挂住期间，<code>self.tasks</code> 的锁一直被持有，于是：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task_list</code></td>
+<td>阻塞（等锁）</td>
+</tr>
+<tr>
+<td><code>task_kill</code></td>
+<td>阻塞（等锁）</td>
+</tr>
+<tr>
+<td>新的 <code>run_command(background=true)</code></td>
+<td>阻塞（等锁）</td>
+</tr>
+<tr>
+<td>另一个 <code>task_output</code></td>
+<td>阻塞（等锁）</td>
+</tr>
+</tbody>
+</table></div>
+
+一次「看一眼有没有输出」的轮询，把整个后台任务子系统冻住了。这是个典型的<strong>在临界区里做阻塞 I/O</strong> 的错误——锁的粒度本身没错，错的是锁里放了不该放的东西。
+
+这也解释了为什么前台 <code>run_command</code> 没这个问题：它把读管道放在<strong>独立线程</strong>里（<code>let out_thread = std::thread::spawn(move || read_capped(out_pipe))</code>），主线程只做 25ms 轮询 <code>try_wait()</code>，从不阻塞在读上。同一份 <code>read_capped</code>，放在线程里就是对的，放在锁里就是错的。
+
+修法：把「读」移到线程里，锁里只做「取缓冲区快照」。
+<div class="codehilite"><pre><span></span><code><span class="c1">// spawn 时就起好两个读线程，持续把数据写进 Arc&lt;Mutex&lt;Vec&lt;u8&gt;&gt;&gt;</span>
+<span class="c1">// output() 只做：</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">tasks</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="n">task_id</span><span class="p">).</span><span class="n">ok_or_else</span><span class="p">(</span><span class="err">…</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="p">.</span><span class="n">buf</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">clone</span><span class="p">();</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">finished</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="p">.</span><span class="n">child</span><span class="p">.</span><span class="n">try_wait</span><span class="p">()</span><span class="err">…</span><span class="p">;</span>
+</code></pre></div>
+
+
+这样 <code>output()</code> 的临界区只有内存拷贝，不会再阻塞。
+<h2>管道背压：最容易误判成死锁的现象</h2>
+
+上面两个缺陷的共同根源是<strong>管道背压</strong>（backpressure）：管道的缓冲区有限，写满之后写方阻塞，直到读方取走数据。
+
+这个机制在并发代码里制造了一类特别难查的现象：<strong>程序看起来死锁了，其实是有一方在等另一方，而另一方在等一个永远不会到来的读</strong>。
+
+三种典型形态：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>形态</th>
+<th>表现</th>
+<th>根因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只读 stdout 不读 stderr</td>
+<td>命令卡住，stdout 无输出</td>
+<td>stderr 写满 64 KiB</td>
+</tr>
+<tr>
+<td>持锁读管道</td>
+<td>所有任务操作卡住</td>
+<td>锁被一个阻塞的 <code>read</code> 持有</td>
+</tr>
+<tr>
+<td>先 wait 再 read</td>
+<td>命令永不结束</td>
+<td>输出写满缓冲区，子进程无法退出</td>
+</tr>
+</tbody>
+</table></div>
+
+第三种是经典错误，也是 <code>shell.rs</code> 里那行注释存在的原因：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 两个管道各用一个线程排空，这样喋喋不休的子进程永远不会因为写满</span>
+<span class="c1">// OS 管道缓冲、而我们还在等它退出，造成死锁。</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">out_pipe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stdout</span><span class="p">.</span><span class="n">take</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;stdout piped&quot;</span><span class="p">);</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">err_pipe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">child</span><span class="p">.</span><span class="n">stderr</span><span class="p">.</span><span class="n">take</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;stderr piped&quot;</span><span class="p">);</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">out_thread</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="n">out_pipe</span><span class="p">));</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">err_thread</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">read_capped</span><span class="p">(</span><span class="n">err_pipe</span><span class="p">));</span>
+</code></pre></div>
+
+
+如果写成「先 <code>child.wait()</code> 拿到退出码，再读管道」，一个输出超过 64 KiB 的命令会：子进程写满缓冲区 → 阻塞在 write → 永远不退出 → <code>wait()</code> 永远返回不了 → 你永远走不到读管道那一行。循环等待，真正的死锁。
+
+正确顺序只有一种：<strong>先起读线程，再等退出</strong>。<code>shell.rs</code> 做对了，<code>tasks.rs</code> 做错了两处（stderr 没读、在锁里读）。加起来是「同一模块内的两处不一致」，这也是为什么本文要用一整节讲背压——它不是边缘知识，而是这类代码的基本功。
+
+还有一个细节值得注意：<code>read_capped</code> 在缓冲区满了之后<strong>继续读但丢弃</strong>：
+<div class="codehilite"><pre><span></span><code><span class="nb">Ok</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">kept</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">CAPTURE_BYTES</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">room</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CAPTURE_BYTES</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">kept</span><span class="p">.</span><span class="n">len</span><span class="p">();</span>
+<span class="w">        </span><span class="n">kept</span><span class="p">.</span><span class="n">extend_from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">buf</span><span class="p">[</span><span class="o">..</span><span class="n">n</span><span class="p">.</span><span class="n">min</span><span class="p">(</span><span class="n">room</span><span class="p">)]);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+不能「读到上限就 break」，因为那会让子进程再次阻塞。必须继续读到 EOF，只是不保留。这就是为什么它返回 <code>(kept, total)</code> 两个值——<code>total</code> 用来告诉模型「还有多少没显示」。
+<h2>中断：抢占点只有一个</h2>
+
+并发引入后，中断的语义变得更难定义：「按 Ctrl-C 到底应该停掉什么」。
+
+NanoHermes 的答案极其保守：<strong>只在一个地方检查中断</strong>。
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="o">..</span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">max_iterations</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 只在步骤边界中止，保证历史里不会留下「有 assistant tool_calls</span>
+<span class="w">    </span><span class="c1">// 但没有对应 tool 结果」的半截状态。</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">take</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">interrupted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">turn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">complete</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// …执行工具…</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+「步骤边界」的定义是：一次模型往返加它触发的全部工具执行，整体做完之后。所以在下面这些时刻按 Ctrl-C，都要等到当前步骤结束才生效：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>时刻</th>
+<th>生效延迟</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型正在流式输出</td>
+<td>等这次请求结束</td>
+</tr>
+<tr>
+<td>工具正在跑</td>
+<td>等所有工具 join</td>
+</tr>
+<tr>
+<td>子代理正在跑</td>
+<td>等子代理跑完（最多 40 轮）</td>
+</tr>
+<tr>
+<td>命令正在跑</td>
+<td>等命令返回或超时（默认 120s）</td>
+</tr>
+</tbody>
+</table></div>
+
+这个设计的正当理由写在注释里：如果在工具执行中途中断，历史里会出现「assistant 消息里有 3 个 tool_calls，但只有 1 个 tool 结果」的状态，下一次请求直接 400。所以宁可不响应，也不能破坏历史的一致性。
+
+代价是最坏情况下的等待时间可能是几分钟。缓解手段有两个：<code>run_command</code> 的超时（默认 120s，上限 3600s），以及子代理的 40 轮上限。两者都不是为中断设计的，但客观上限制了最坏延迟。
+
+更好的做法是<strong>两阶段中断</strong>：第一次 Ctrl-C 设置标志并打印「正在完成当前步骤，再按一次强制退出」，第二次直接 <code>exit</code>。这样既保留了历史一致性，又给用户一个逃生口。实现只需要再加一个 <code>AtomicUsize</code> 计数。
+
+顺便说一下中断机制本身：
+<div class="codehilite"><pre><span></span><code><span class="k">static</span><span class="w"> </span><span class="n">INTERRUPTED</span><span class="p">:</span><span class="w"> </span><span class="nc">AtomicBool</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AtomicBool</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span>
+<span class="k">static</span><span class="w"> </span><span class="n">DEPTH</span><span class="p">:</span><span class="w"> </span><span class="nc">AtomicUsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AtomicUsize</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+
+<span class="cp">#[cfg(all(target_os = </span><span class="s">&quot;linux&quot;</span><span class="cp">, any(target_arch = </span><span class="s">&quot;x86_64&quot;</span><span class="cp">, target_arch = </span><span class="s">&quot;aarch64&quot;</span><span class="cp">)))]</span>
+<span class="k">extern</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">on_sigint</span><span class="p">(</span><span class="n">_sig</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">INTERRUPTED</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+信号处理器里只能做异步信号安全的事，<code>AtomicBool::store</code> 是安全的。<code>sigsuspend</code>、<code>printf</code>、<code>malloc</code> 都不是。这行代码看起来简单，但它必须留在「只做一次原子写」的范围内。
+
+<code>DEPTH</code> 的引用计数解决的是嵌套问题：如果外层 <code>run()</code> 装了处理器，内层某个东西又调用 <code>install()</code>，退出时不能把外层的处理器卸掉。只在 <code>0 -&gt; 1</code> 装、<code>1 -&gt; 0</code> 卸。
+
+装和卸都由一个 RAII 守卫负责，它在 <code>run()</code> 的第一行创建：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">_guard</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">InterruptGuard</span><span class="p">::</span><span class="n">new</span><span class="p">();</span><span class="w">   </span><span class="c1">// 丢弃上一轮残留的标志，再装处理器</span>
+
+<span class="k">impl</span><span class="w"> </span><span class="nb">Drop</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">InterruptGuard</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">drop</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">crate</span><span class="p">::</span><span class="n">interrupt</span><span class="p">::</span><span class="n">restore_default</span><span class="p">();</span><span class="w">   </span><span class="c1">// 引用计数减一，最外层才真的恢复</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这样「提前 <code>?</code> 返回」「panic 展开」两条路径都能把处理器卸干净，不会出现「REPL 已经空闲、Ctrl-C 却仍然只是设标志而不退出」的状态。<code>restore_default()</code> 里还有一个 <code>if prev == 0 { return; }</code> 的保护，防止不配对的 <code>leave</code> 把计数减到负数。
+<h2>中断与并发的交叉：Ctrl-C 打断的是哪一层</h2>
+
+把上一节和前面的并发层次对上，中断的实际覆盖面是这样：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>中断是否生效</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主循环</td>
+<td>是（边界处）</td>
+<td><code>take()</code> 在每轮开头</td>
+</tr>
+<tr>
+<td>工具线程</td>
+<td>否</td>
+<td><code>execute</code> 里没有检查点</td>
+</tr>
+<tr>
+<td>子代理</td>
+<td>否（间接）</td>
+<td>内部无检查，父线程 join 时无法打断</td>
+</tr>
+<tr>
+<td>子进程</td>
+<td>部分</td>
+<td>只有超时能杀，Ctrl-C 不会传导</td>
+</tr>
+</tbody>
+</table></div>
+
+「子进程」这一项值得展开。Ctrl-C 对前台 <code>run_command</code> 的影响分平台：
+
+<strong>Linux 上</strong>，SIGINT 发给整个进程组（终端驱动），所以子进程也会收到——它自己会退出。但 <code>run_command</code> 的主线程正在 25ms 轮询 <code>try_wait()</code>，会看到子进程退出，然后正常返回。所以「命令被 Ctrl-C 打断」这件事，在 Linux 上是子进程自己响应 SIGINT，不是 Agent 杀它。
+
+<strong>Windows 上</strong>，<code>interrupt::install()</code> 直接返回 false（代码里非 Linux 分支就是 <code>false</code>），因为 Windows 没有 <code>sigaction</code> 那一套。Ctrl-C 会走默认处置——<strong>整个进程被杀死</strong>，包括 Agent 本身。所以 Windows 上按 Ctrl-C 不是「打断当前轮次」，而是「退出程序」。这是个平台差异，不是 bug，但必须在文档里写清楚，否则用户会以为对话能保住。
+
+<strong>桌面 GUI 上</strong>，没有终端可以送 SIGINT，所以提供了一条进程内路径：
+<div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">request</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">INTERRUPTED</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+GUI 的「停止」按钮调这个函数，主循环在下一个步骤边界看到标志。所以 GUI 的停止和终端的 Ctrl-C 语义一致，都是「当前步骤做完就停」。
+<h2>守护进程：并发为零</h2>
+
+<code>run_daemon</code> 的主循环是这样的：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">stream</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">listener</span><span class="p">.</span><span class="n">incoming</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">stream</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="n">stream</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">,</span>
+<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="fm">eprintln!</span><span class="p">(</span><span class="s">&quot;accept error: {e}&quot;</span><span class="p">);</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">peer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stream</span><span class="p">.</span><span class="n">peer_addr</span><span class="p">().</span><span class="n">ok</span><span class="p">();</span>
+<span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">handle_daemon_request</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">agent</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">store</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">stream</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">Ok</span><span class="p">(())</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 记日志 */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>listener.incoming()</code> 是一个阻塞迭代器，<code>handle_daemon_request</code> 在<strong>当前线程同步执行</strong>。所以：
+
+<strong>进程级并发是 1。</strong> 第二个请求要等第一个处理完，才能从 backlog 里被 <code>accept</code>。
+
+<strong><code>agent</code> 是 <code>&amp;mut</code>。</strong> 这从类型层面就禁止了并发处理——<code>handle_daemon_request</code> 需要可变借用，两个请求不可能同时持有。
+
+<strong><code>SessionStore</code> 是普通 <code>HashMap</code>。</strong> 它没有 <code>Mutex</code>，因为根本不需要。
+
+这个设计对单用户桌面场景是合理的：你一个人用，一次跑一个任务，不需要并发。但对「多客户端共用一个 daemon」的场景就是瓶颈——两个会话不能同时跑。
+
+为什么仍然能用？因为<strong>真正的并行发生在 Agent 内部</strong>。一个请求处理期间，它内部可能起 4 个子代理、8 个工具线程。所以「进程级并发 1」不等于「同时只有一件事在跑」——一个请求内部可以有很多事同时在跑，只是不能有两个请求同时在跑。
+
+对话隔离的做法是 <code>X-Session-Id</code> 头：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>id</th>
+<th>消息向量</th>
+<th>落盘位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default</code></td>
+<td><code>store.sessions["default"]</code></td>
+<td><code>--session</code> 指定的原路径</td>
+</tr>
+<tr>
+<td>任意其他 id</td>
+<td><code>store.sessions[id]</code></td>
+<td><code>--session</code> 同目录下的派生文件</td>
+</tr>
+</tbody>
+</table></div>
+
+不同 id 的对话互不可见。但因为处理是串行的，这个隔离是「时间上的隔离」而不是「并发上的隔离」——不需要锁，也不会有竞争。
+
+要支持真并发，最小的改动是把 <code>for stream in incoming()</code> 换成每个连接起一个线程，并把 <code>agent</code> 包进 <code>Arc&lt;Mutex&lt;Agent&gt;&gt;</code>。但那样一来「一个会话一轮跑几分钟」就会阻塞其他会话的模型请求——锁的粒度会变成整个 Agent。更正确的做法是每个会话一个 <code>Agent</code> 实例（<code>SessionStore</code> 里存 <code>Agent</code> 而不是 <code>Vec&lt;Value&gt;</code>），这已经是重构级别的改动。
+<h2>为什么单线程 daemon 仍然能用</h2>
+
+上一节的结论可能让人担心「这是不是设计缺陷」。分开看：
+
+<strong>它不是性能瓶颈。</strong> 一个 coding agent 的瓶颈是模型延迟（每次请求几秒到几十秒），不是 CPU。串行处理两个请求的代价是「第二个等第一个」，而如果并行处理，第二个也只是在等模型的 HTTP 响应——总时间几乎一样，只是响应顺序不同。
+
+<strong>它简化了状态。</strong> <code>Agent</code> 里有一个 <code>messages</code> 向量，<code>style</code> 里有一个 <code>UiSink</code>，<code>session</code> 是一个文件路径。这些东西如果并发访问，每一个都要加锁或复制。单线程意味着这些都可以保持「一个请求从头用到尾」的模型。
+
+<strong>它让流式输出变简单。</strong> <code>stream_turn</code> 把 <code>UiSink</code> 装到 Agent 上，这个 sink 会从工具线程里被调用：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">Mutex</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">out</span><span class="p">));</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">sink_out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">clone</span><span class="p">(</span><span class="o">&amp;</span><span class="n">out</span><span class="p">);</span>
+<span class="n">agent</span><span class="p">.</span><span class="n">set_ui_sink</span><span class="p">(</span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">|</span><span class="n">ev</span><span class="p">:</span><span class="w"> </span><span class="nc">UiEvent</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 序列化成一行 NDJSON 写进 socket</span>
+<span class="p">}));</span>
+</code></pre></div>
+
+
+<code>Arc&lt;Mutex&lt;TcpStream&gt;&gt;</code> 让多个工具线程能并发写同一个连接，每次写一行 JSON。如果同时有两个请求共用这个 Agent，sink 就会指向错误的客户端——这是单线程模型的又一个隐性收益。
+
+所以这个设计的真正边界是：<strong>单用户、单任务、可以串行</strong>。超出这个边界就要重构，但在边界内它是对的。
+<h2>七个可以修的缺陷</h2>
+
+把全文提到的缺陷集中起来，按「修起来值不值」排序：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>缺陷</th>
+<th>严重度</th>
+<th>修法</th>
+<th>工作量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>后台任务 stderr 从未读走</td>
+<td>高（任务永久卡住）</td>
+<td>起线程排空 stderr</td>
+<td>20 行</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>task_output</code> 在锁里阻塞读到 EOF</td>
+<td>高（冻结整个任务表）</td>
+<td>读移到线程，锁里只拷贝</td>
+<td>40 行</td>
+</tr>
+<tr>
+<td>3</td>
+<td>子代理的 <code>allowed_tools</code> 不参与执行检查</td>
+<td>高（安全边界失效）</td>
+<td>执行前按白名单校验</td>
+<td>30 行</td>
+</tr>
+<tr>
+<td>4</td>
+<td>子代理内部不检查中断</td>
+<td>中（Ctrl-C 延迟可达分钟级）</td>
+<td>循环开头加 <code>peek()</code></td>
+<td>10 行</td>
+</tr>
+<tr>
+<td>5</td>
+<td>门在登记之后，排队状态显示成 running</td>
+<td>中（任务板误导）</td>
+<td>加 <code>Queued</code> 状态 + <code>mark_running</code></td>
+<td>20 行</td>
+</tr>
+<tr>
+<td>6</td>
+<td>工具线程数无上限</td>
+<td>中（资源耗尽 + 上下文爆炸）</td>
+<td>线程上限 + 批次输出预算</td>
+<td>30 行</td>
+</tr>
+<tr>
+<td>7</td>
+<td>并发审批共用 stdin</td>
+<td>中（提示交错、答案错配）</td>
+<td>全局锁包住 <code>confirm()</code></td>
+<td>5 行</td>
+</tr>
+</tbody>
+</table></div>
+
+前三个是「会在真实使用中造成可见故障」的，后四个是「在特定条件下出问题」的。
+
+值得注意排序里第 7 项：修法只要 5 行（加一把 <code>Mutex&lt;()&gt;</code> 包住 <code>confirm</code>），是投入产出比最高的一项。而第 1、2 项虽然工作量也不大，但它们需要改数据结构（<code>Task</code> 里要加 <code>Arc&lt;Mutex&lt;Vec&lt;u8&gt;&gt;&gt;</code>），会影响 <code>output</code>、<code>list</code>、<code>kill</code> 三个方法。
+
+还有一个不在表里的隐性缺陷：<strong>Mutex 中毒</strong>。所有 <code>.lock().unwrap()</code> 在持锁线程 panic 后都会连锁失败。它不在表里，因为触发概率低，但如果触发，后果是「功能永久失效」而不是「一次失败」。改法是 <code>.unwrap_or_else(|e| e.into_inner())</code>，或者换 <code>parking_lot</code>。
+<h2>怎么验证并发真的正确</h2>
+
+并发代码的验证不能靠「跑一遍没崩」。NanoHermes 的做法是一个专门的测试模块：
+<div class="codehilite"><pre><span></span><code><span class="sd">/// 并发工具调用路径的线程安全测试。`run()` 为每个 `tool_call` 起一个</span>
+<span class="sd">/// 作用域线程，全部共享 `&amp;Agent` 并调用 `execute()`。这些测试直接走</span>
+<span class="sd">/// 那条路径，带 MCP 和不带 MCP 各一份。这样数据竞争会在这里暴露，</span>
+<span class="sd">/// 而不是在生产环境。</span>
+<span class="cp">#[cfg(test)]</span>
+<span class="k">mod</span><span class="w"> </span><span class="nn">concurrency_tests</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// …</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+两个测试，覆盖两类风险：
+
+<strong>第一类：内置工具的共享状态。</strong> 10 组线程，每组三个工具（<code>list_dir</code>、<code>glob</code>、<code>read_file</code>），共 30 个线程同时跑。验证的是「<code>Ctx</code> 里没有被锁保护的可变状态」。
+
+<strong>第二类：MCP 与内置工具混合。</strong> 8 个并发的 MCP <code>echo</code>、3 个 MCP 辅助工具（资源、prompt）、2 个内置工具。这一组专门验证 MCP 的 <code>Arc&lt;Mutex&lt;ChildStdin&gt;&gt;</code> 和 <code>Arc&lt;Mutex&lt;HashMap&lt;u64, Sender&gt;&gt;&gt;</code> 在并发下是否正确配对——8 个并发请求各自期待自己的响应，任何一个 id 错配都会让 <code>echo-3</code> 拿到 <code>echo-7</code> 的结果，断言立刻失败。
+
+第三个测试是 <code>Gate</code> 本身：
+<div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">gate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">Gate</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">concurrent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">AtomicUsize</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">));</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">peak</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">AtomicUsize</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">));</span>
+<span class="c1">// 6 个线程抢 2 个许可，记录历史峰值</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">peak</span><span class="p">.</span><span class="n">load</span><span class="p">(</span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;peak was {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">peak</span><span class="p">.</span><span class="n">load</span><span class="p">(</span><span class="n">Ordering</span><span class="p">::</span><span class="n">SeqCst</span><span class="p">));</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="o">*</span><span class="n">gate</span><span class="p">.</span><span class="n">active</span><span class="p">.</span><span class="n">lock</span><span class="p">().</span><span class="n">unwrap</span><span class="p">(),</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;all permits released&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+
+它验证两件事：峰值不超过上限（门有效），结束后计数归零（许可都还了）。第二条尤其重要——如果某个路径忘了还许可，测试会在最后一步失败，而不是等到线上「越跑越卡」。
+
+这套测试的局限要说清楚：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>局限</th>
+<th>后果</th>
+<th>补充手段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>靠运气撞竞争</td>
+<td>可能全部通过但仍有竞争</td>
+<td>加大线程数、循环多次</td>
+</tr>
+<tr>
+<td>不做内存序检测</td>
+<td>无法发现微弱的顺序问题</td>
+<td>用 <code>-Z sanitizer=thread</code> 或 Miri</td>
+</tr>
+<tr>
+<td>不模拟 panic</td>
+<td>锁中毒路径未覆盖</td>
+<td>专门的 panic 注入测试</td>
+</tr>
+</tbody>
+</table></div>
+
+更严格的手段是 <strong>Loom</strong>——它穷举所有线程交错，能在几秒钟内找到竞争。代价是要把标准库的 <code>Mutex</code>/<code>Condvar</code> 换成 Loom 的等价物（通过 <code>cfg</code> 切换），代码会变丑。对这个项目，Loom 的收益不足以抵消侵入性，但值得知道它的存在。
+
+实用建议：把并发测试放在单独的 <code>mod</code> 里，用 <code>--test-threads=1</code> 跑一遍（串行执行测试，减少相互干扰），再用默认并发跑一遍。两遍都过，比跑一遍更有信息量。
+<h2>并发设计的六条原则</h2>
+
+把这篇文章的观察压缩成六条，可以直接用在别的项目上。
+
+<strong>第一，先划分并行区，再谈并行度。</strong> NanoHermes 的并行区只有「一次工具批次执行」，边界清晰到可以用一个 <code>scope</code> 括起来。并行区之外的任何状态都天然安全。反过来，如果并行区边界模糊（比如「任何时候都可以并发」），你就必须给每一份状态都加锁，复杂度直接翻倍。
+
+<strong>第二，用 join 屏障消灭锁。</strong> 因为主线程在屏障上等，<code>messages</code> 在整个并行期间只读，所以不需要锁。这是「用等待换简单」的交易：牺牲一点延迟（等最慢的线程），换掉一整类同步问题。
+
+<strong>第三，任何持锁期间的 I/O 都是错的。</strong> <code>TaskManager</code> 的两个缺陷都是这一条的违例。锁的临界区只能有内存操作；I/O 要么放到线程里，要么改成非阻塞加轮询。
+
+<strong>第四，有界并发必须用 RAII 还许可。</strong> <code>GateGuard</code> 的 <code>Drop</code> 覆盖了所有返回路径，包括 panic。手写 <code>release()</code> 一定会漏一条路径，而且漏的那条通常是异常路径——也就是最难测的那条。
+
+<strong>第五，中断点越少，语义越清楚。</strong> 只在一个地方检查中断，换来的是「历史永远一致」。代价是最坏延迟，可以用超时和两阶段中断来缓解。反过来，「到处都能中断」的实现在 Agent 场景里几乎一定会在历史里留下半截状态。
+
+<strong>第六，上下限要分别设计。</strong> 子代理有上限（4），工具线程没有；单个工具输出有上限（20,000 字节），批次总量没有。有上限的地方防的是资源耗尽，没上限的地方靠的是「经验上不会太多」。后者迟早会被一个提示词改动打破，所以要显式检查。
+<h2>小结：并行是边界问题，不是性能问题</h2>
+
+回到开头那句话：Agent 做并发，首要目标不是快。
+
+这篇拆下来，真正有价值的不是「怎么起线程」——那只有十几行——而是<strong>边界在哪</strong>：
+<ul>
+<li>哪些状态可以在并行区被修改（<code>Ctx</code> 里的五把锁）</li>
+<li>哪些操作有界（子代理 4 个，命令 120 秒，MCP 请求 60 秒）</li>
+<li>哪些操作无界（工具线程数，批次输出总量，子代理轮次）</li>
+<li>哪些语义在并行下会坏掉（同文件的两个 <code>edit_file</code>，两个 <code>todo_write</code>，两条要审批的命令）</li>
+<li>哪些延迟是设计内的（中断只在步骤边界生效，最长等一个完整步骤）</li>
+</ul>
+
+NanoHermes 的实现不完美——本文列了七个可以修的缺陷，其中两个（后台任务的 stderr 和锁内阻塞读）会让功能真的卡死。但它的骨架是对的：一个清晰的并行区、一个 join 屏障、一个 RAII 计数的门、一个只检查一处的中断点。这四样东西加起来不到 60 行，却撑起了整个并发模型。
+
+不用 async 运行时不是一个宗教立场，而是一个成本核算：对这个项目，线程加屏障的总成本（几十微秒的创建开销、一个 2 MiB 的虚拟栈、无法中途取消）远小于引入一整套异步生态的成本（依赖树、跨 <code>await</code> 的状态、<code>Send</code> 检查的复杂度）。换一个场景——比如需要维持上万条长连接——这个核算就会反过来。
+
+下一篇进入安全：让它跑命令，而不失控。并发解决的是「几件事同时做」，安全解决的是「这几件事能做什么」——两者在 <code>needs_approval</code> 那一行代码上相交，而那正是本文第 7 个缺陷所在的位置。</div></div></noscript>
+  </body>
+</html>
