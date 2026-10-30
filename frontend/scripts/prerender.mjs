@@ -299,6 +299,29 @@ function wrapTables(html) {
   )
 }
 
+// 数据库里早期录入的封面写死了 https://zhoujungis.github.io/...，域名迁移后
+// 每张封面都要先撞一次旧域名的跨域 301。快照里统一降成站点根相对路径，
+// 由承载页面自己决定协议与域名（换域名也不用重跑数据）。
+const SITE_HOST = new URL(SITE_ORIGIN).hostname
+
+function normalizeCover(url) {
+  if (!url) return url
+  try {
+    const parsed = new URL(url, SITE_ORIGIN)
+    if (parsed.hostname === SITE_HOST || parsed.hostname === 'zhoujungis.github.io') {
+      return `${parsed.pathname}${parsed.search}`
+    }
+  } catch {
+    // 非法 URL 原样保留
+  }
+  return url
+}
+
+// og:image / JSON-LD 要求绝对地址，站内相对路径在这里补全。
+function absoluteUrl(url) {
+  return new URL(url, SITE_ORIGIN).href
+}
+
 function renderArticlePage(template, article, { lastmod } = {}) {
   const url = `${SITE_ORIGIN}/article/${article.slug}/`
   const title = `${article.title} | ${SITE_NAME}`
@@ -307,7 +330,7 @@ function renderArticlePage(template, article, { lastmod } = {}) {
   // Same value the sitemap publishes — see pickLastmod() for why updated_at
   // alone can't be trusted.
   const modifiedDate = lastmod || article.updated_at || isoDate
-  const cover = article.cover_image || `${SITE_ORIGIN}/og-image.jpg`
+  const cover = absoluteUrl(article.cover_image || '/og-image.jpg')
 
   let html = template
   html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
@@ -333,7 +356,7 @@ function renderArticlePage(template, article, { lastmod } = {}) {
     '@type': 'Article',
     headline: article.title,
     description,
-    image: article.cover_image || undefined,
+    image: article.cover_image ? absoluteUrl(article.cover_image) : undefined,
     datePublished: isoDate,
     dateModified: modifiedDate,
     author: { '@type': 'Person', name: SITE_AUTHOR },
@@ -850,7 +873,9 @@ async function main() {
 
   let articles
   try {
-    articles = await fetchAllArticles()
+    articles = (await fetchAllArticles()).map((a) =>
+      a && a.cover_image ? { ...a, cover_image: normalizeCover(a.cover_image) } : a,
+    )
   } catch (e) {
     console.warn(`[prerender] API unavailable (${e?.message || e}) — skipping pre-render. Build continues.`)
     return
