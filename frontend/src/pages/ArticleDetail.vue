@@ -1,5 +1,11 @@
-<template>
+﻿<template>
   <div class="page page-article-detail">
+    <!-- Top reading progress bar -->
+    <div
+      class="reading-progress-bar"
+      :style="{ width: scrollPercent + '%' }"
+      aria-hidden="true"
+    />
     <!-- Loading skeleton -->
     <div v-if="loading" class="detail-skeleton">
       <div class="skeleton-header">
@@ -375,9 +381,23 @@ watch(() => route.params.slug, () => {
 // router.afterEach() in main.js re-applies per-route SEO, so there is no
 // resetSEO() here: it ran AFTER afterEach and clobbered the incoming page's
 // title with the site name.
+const scrollPercent = ref(0)
+function handleScroll() {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop
+  const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight
+  if (scrollHeight > 0) {
+    scrollPercent.value = Math.min(100, Math.max(0, (scrollTop / scrollHeight) * 100))
+  } else {
+    scrollPercent.value = 0
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleScroll, { passive: true })
+})
+
 onUnmounted(() => {
-  // 结构化数据挂在 <head> 上，不跟着组件销毁，必须手动摘掉，
-  // 否则离开文章页后它还留在文档里，描述的是上一篇。
+  window.removeEventListener('scroll', handleScroll)
   jsonLdEl?.remove()
   jsonLdEl = null
 })
@@ -386,6 +406,17 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 @use '@/styles/variables' as *;
 @use '@/styles/skeleton' as *;
+
+.reading-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3f6b57, #8fb29c, #d18a6f);
+  z-index: 1001;
+  pointer-events: none;
+  transition: width 0.1s ease-out;
+}
 
 .page-article-detail {
   max-width: 1160px;
@@ -397,16 +428,6 @@ onUnmounted(() => {
 .detail-layout {
   display: flex;
   gap: 32px;
-  // Measured at 1440px: the page container is 1120 wide (max-width 1160 minus
-  // 20px padding each side) but the content only needs 800 + 32 + 240 = 1072.
-  // `.detail-main`'s max-width: 800px stops `flex: 1` from taking the remaining
-  // 848px, so 48px of slack sat INSIDE the layout: the sidebar ended at 1232
-  // while the header/footer container ends at 1300 — a 20px inset on the left
-  // but 68px on the right, i.e. visibly asymmetric.
-  // `space-between` spends that slack on the gutter instead, so both insets are
-  // 20px and the 800px reading measure (deliberate) stays intact.
-  // Gutter goes 32 → 80px; below 1023px the sidebar is display:none, leaving a
-  // single flex item, so this has no effect there.
   justify-content: space-between;
   align-items: flex-start;
 }
@@ -440,7 +461,7 @@ onUnmounted(() => {
 
 .article-title {
   font-size: 2rem;
-  font-weight: 750;
+  font-weight: 700;
   color: $text-primary;
   line-height: 1.3;
   margin-bottom: 16px;
@@ -450,14 +471,23 @@ onUnmounted(() => {
   }
 }
 
+// 元信息走等宽字 + 「·」分隔点，与卡片 card-meta 同一门面；
+// 字号并入 0.68 元信息层
 .article-meta {
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-size: 0.8rem;
+  gap: 12px;
+  font-family: $font-mono;
+  font-size: 0.68rem;
   color: $text-secondary;
   flex-wrap: wrap;
   margin-bottom: 12px;
+
+  > .meta-item + .meta-item::before {
+    content: '·';
+    margin-right: 12px;
+    opacity: 0.45;
+  }
 }
 
 .meta-item {
@@ -492,7 +522,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 20px;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-family: $font-mono;
   font-weight: 600;
   color: $accent-purple;
@@ -524,17 +554,21 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+// 与列表页卡片标签同一门面：等宽字 + 弱底胶囊
 .tag-pill {
   display: inline-block;
-  padding: 2px 10px;
-  font-size: 0.72rem;
-  color: $neon-purple;
-  border: 1px solid $neon-purple;
+  padding: 2px 8px;
+  font-family: $font-mono;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: $text-primary;
+  background: $bg-secondary;
+  border: 1px solid transparent;
   border-radius: 999px;
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($neon-purple, 0.12);
+    background: rgba($accent-pink, 0.12);
   }
 }
 
@@ -583,7 +617,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.78rem;
+  font-family: $font-mono;
+  font-size: 0.68rem;
   color: $text-secondary;
   margin-bottom: 6px;
 
@@ -598,7 +633,7 @@ onUnmounted(() => {
 
 .nav-title {
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: $text-primary;
   line-height: 1.4;
@@ -639,7 +674,7 @@ onUnmounted(() => {
   }
 
   p {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     margin-bottom: 24px;
   }
 }
@@ -647,12 +682,12 @@ onUnmounted(() => {
 .back-link {
   display: inline-block;
   padding: 10px 28px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-family: $font-mono;
   color: $neon-cyan;
   background: rgba($neon-cyan, 0.08);
   border: 1px solid rgba($neon-cyan, 0.3);
-  border-radius: 8px;
+  border-radius: $radius-md;
   text-decoration: none;
   transition: background $transition-fast, border-color $transition-fast;
 

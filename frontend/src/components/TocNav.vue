@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
 }
 
 .toc-title {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: $neon-cyan;
   text-transform: uppercase;
@@ -219,21 +219,23 @@ onBeforeUnmount(() => {
   margin: 2px 0;
 }
 
+// 目录条目同为 0.8rem：层级靠缩进区分，不再用 0.82/0.78/0.76
+// 这种肉眼分不出的字号假装有层级
 .toc-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 8px;
-  font-size: 0.82rem;
+  padding: 6px 8px;
+  font-size: 0.8rem;
   line-height: 1.4;
   color: $text-secondary;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: $radius-sm;
   transition: color $transition-fast, background $transition-fast, padding-left $transition-fast;
 
   &:hover {
     color: $text-primary;
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba($text-primary, 0.05);
   }
 }
 
@@ -253,26 +255,23 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-// ---- Depth indentation ----
+// ---- Depth indentation（缩进表达层级，字号保持一致）----
 .toc-depth-h3 .toc-link {
   padding-left: 20px;
-  font-size: 0.78rem;
 }
 
 .toc-depth-h4 .toc-link {
   padding-left: 32px;
-  font-size: 0.76rem;
 }
 
 // ---- Active state ----
 .toc-active {
   > .toc-link {
     color: $neon-cyan;
-    background: rgba(0, 229, 255, 0.06);
+    background: rgba($accent-pink, 0.07);
 
     .toc-dot {
       background: $neon-cyan;
-      box-shadow: 0 0 6px $neon-cyan;
     }
   }
 }

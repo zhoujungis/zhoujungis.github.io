@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <router-link :to="'/article/' + article.slug" class="article-card">
     <!-- Cover image -->
     <div v-if="article.cover_image && !coverBroken" class="card-cover">
@@ -160,7 +160,7 @@ const hiddenTagCount = computed(() =>
   }
 
   .article-card:hover & img {
-    transform: scale(1.025);
+    transform: scale(1.035);
   }
 }
 
