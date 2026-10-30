@@ -3,7 +3,10 @@
     <!-- ── 刊头 Masthead ── -->
     <header class="masthead">
       <div class="masthead__main">
-        <h1 class="masthead__name">代码与生活</h1>
+        <h1 class="masthead__name">
+          <span class="masthead__kicker" aria-hidden="true">CODE &amp; LIFE · JOURNAL</span>
+          <span class="masthead__name-text">代码与生活</span>
+        </h1>
         <p class="masthead__sub">写字、写码、写日常。</p>
         <div class="masthead__lede">
           <p class="lede__lead">代码的世界非黑即白，生活的画布斑驳陆离。</p>
@@ -324,16 +327,30 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   text-align: right;
 }
 
+// 每条统计包进毛玻璃浅底卡片：弱透明底 + blur + 发丝边框，
+// 取代原来的「横细线分隔」，让侧栏在明暗两套主题下都更立体。
 .aside-stat {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 3px;
   width: 100%;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--glass-border);
-  &:first-child { padding-top: 4px; }
-  &:last-child { border-bottom: 0; padding-bottom: 4px; }
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  background: var(--glass-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: $radius-lg;
+  box-shadow: 0 1px 2px rgba(31, 42, 36, 0.03);
+  transition: border-color $transition-fast, transform $transition-fast, box-shadow $transition-fast;
+
+  &:last-child { margin-bottom: 0; }
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-line);
+    box-shadow: 0 6px 16px rgba(31, 42, 36, 0.07);
+  }
 }
 
 .aside-stat__value {
@@ -366,14 +383,46 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   letter-spacing: 0.14em;
 }
 
+// 刊头大字：等宽英文 kicker 与衬线中文大题混排（经典刊物 masthead 语言），
+// 大题走「上实下虚」的渐变填色 + 轻微投影，避免纯黑大字在浅底上过于生硬。
 .masthead__name {
-  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  margin: 14px 0 0;
+  line-height: 1.08;
+}
+
+.masthead__kicker {
+  order: -1;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+}
+
+.masthead__name-text {
   color: var(--text-primary);
   font-family: $serif;
   font-size: clamp(1.9rem, 4vw, 2.9rem);
   font-weight: 900;
-  line-height: 1.08;
   letter-spacing: -0.01em;
+
+  // 渐变填色只在支持 background-clip:text 的浏览器上启用，
+  // 不支持时退回实色，标题绝不会因 color:transparent 变不可见。
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    background: linear-gradient(
+      180deg,
+      var(--text-primary) 0%,
+      var(--text-primary) 58%,
+      var(--text-secondary) 116%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 2px 5px rgba(31, 42, 36, 0.14));
+  }
 }
 
 .masthead__sub {
@@ -545,6 +594,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   margin-top: 20px;
   text-decoration: none;
   color: inherit;
+  transition: transform $transition-base;
 }
 
 .lead-story__media {
@@ -607,12 +657,15 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 .story-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
 .story-tag {
-  padding: 1px 8px;
-  color: var(--text-secondary);
-  border: 1px solid var(--glass-border);
+  padding: 3px 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
   font-family: $font-mono;
   font-size: 0.62rem;
   letter-spacing: 0.04em;
+  transition: color $transition-fast, border-color $transition-fast, transform $transition-fast;
 }
 
 .read-line {
@@ -626,8 +679,15 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; transition: transform $transition-fast; }
 }
 
+// 头版卡片微视差浮动：整块轻微上浮 + 图影加深，幅度克制不抢内容
 .lead-story:hover {
+  transform: translateY(-3px);
   .lead-story__title { color: var(--accent); }
+  .lead-story__media {
+    border-color: var(--accent-line);
+    box-shadow: 0 14px 30px rgba(31, 42, 36, 0.1);
+  }
+  .story-tag { transform: translateY(-1px); }
   .read-line svg { transform: translateX(3px); }
 }
 
@@ -651,8 +711,11 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   padding: 13px 4px;
   text-decoration: none;
   color: inherit;
-  transition: background $transition-fast;
-  &:hover { background: var(--surface-muted); }
+  transition: background $transition-fast, transform $transition-fast;
+  &:hover {
+    background: var(--surface-muted);
+    transform: translateX(4px);
+  }
   &:hover .index-item__title { color: var(--accent); }
   &:hover .index-item__arrow svg { transform: translateX(3px); }
 }
@@ -925,7 +988,8 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
     border-left: 0;
     text-align: left;
   }
-  .aside-stat { flex-direction: row; align-items: baseline; gap: 8px; width: auto; padding: 0; border-bottom: 0; }
+  // 移动端统计块改为横排玻璃小卡：保留毛玻璃底与边框，只把布局转横
+  .aside-stat { flex-direction: row; align-items: baseline; gap: 8px; width: auto; margin-bottom: 0; padding: 9px 14px; }
   .aside-stat__value { font-size: 1.5rem; }
   .front-grid, .front-skeleton { grid-template-columns: 1fr; gap: 0; }
   .front-skeleton__list { margin-top: 10px; }

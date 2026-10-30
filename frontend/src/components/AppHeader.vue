@@ -1,5 +1,5 @@
 <template>
-  <header class="app-header">
+  <header class="app-header" :class="{ 'is-scrolled': scrolled }">
     <div class="header-inner">
       <router-link to="/" class="logo" aria-label="尘世栈帧 · 返回首页" @click="closeMenus">
         <img
@@ -100,7 +100,13 @@ import ThemeToggle from './ThemeToggle.vue'
 const route = useRoute()
 const drawerOpen = ref(false)
 const moreOpen = ref(false)
+// 向下滚动后收束导航底色：顶部透一点让毛玻璃呼吸，滚起来更「实」更稳
+const scrolled = ref(false)
 const scrollLock = useScrollLock()
+
+function onScroll() {
+  scrolled.value = window.scrollY > 8
+}
 
 // Public asset (frontend/public/icons/icon-192.png). Kept in a binding on
 // purpose: a static `src="/..."` gets rewritten by the Vue asset transform
@@ -139,22 +145,39 @@ watch(drawerOpen, (open) => {
 })
 
 watch(() => route.fullPath, closeMenus)
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('scroll', onScroll)
+})
 </script>
 
 <style lang="scss" scoped>
 @use '@/styles/variables' as *;
 
+// 毛玻璃导航：blur(16px) + 半透明主题底 + 发丝分割线；
+// 滚动后底色收束到 --header-glass-strong 并压一层浅影，过渡是渐变的不硬切。
 .app-header {
   position: fixed;
   inset: 0 0 auto;
   z-index: 1000;
   height: 68px;
-  background: rgba(247, 247, 242, 0.92);
-  border-bottom: 1px solid rgba(63, 107, 87, 0.14);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--header-glass);
+  border-bottom: 1px solid var(--hairline);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  transition: background $transition-base, border-color $transition-base,
+    box-shadow $transition-base;
+
+  &.is-scrolled {
+    background: var(--header-glass-strong);
+    border-bottom-color: var(--hairline);
+    box-shadow: 0 10px 30px rgba(31, 42, 36, 0.07);
+  }
 }
 
 .header-inner {
@@ -172,7 +195,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   gap: 10px;
   min-width: max-content;
   margin-right: auto;
-  color: $text-primary;
+  color: var(--text-primary);
   text-decoration: none;
 }
 
@@ -193,7 +216,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   strong { color: inherit; font-size: 0.98rem; font-weight: 700; letter-spacing: 0.02em; }
   small {
     margin-top: 5px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-family: $font-mono;
     font-size: 0.56rem;
     letter-spacing: 0.12em;
@@ -207,38 +230,44 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   gap: 2px;
 }
 
+// 导航项反馈统一为三段式：hover 主色弱底 + 提亮、active 按下微缩、
+// 当前页主色字 + 下划线 —— 颜色全走主题 token，明暗两套自动一致。
 .nav-link {
   position: relative;
   display: inline-flex;
   align-items: center;
   height: 40px;
   padding: 0 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   background: transparent;
   border: 0;
-  border-radius: $radius-sm;
+  border-radius: 999px;
   font-size: 0.88rem;
   text-decoration: none;
   cursor: pointer;
-  transition: color $transition-fast, background $transition-fast;
+  transition: color $transition-fast, background $transition-fast,
+    transform 0.12s ease;
 
   &::after {
     content: '';
     position: absolute;
-    right: 12px;
+    right: 14px;
     bottom: 2px;
-    left: 12px;
+    left: 14px;
     height: 2px;
     background: transparent;
+    border-radius: 2px;
+    transition: background $transition-fast;
   }
 
-  &:hover { color: $text-primary; background: rgba($accent-pink, 0.06); }
+  &:hover { color: var(--text-primary); background: var(--accent-soft); }
+  &:active { transform: scale(0.96); }
   &.router-link-exact-active,
   &.is-active {
-    color: $accent-pink;
+    color: var(--accent);
     font-weight: 600;
   }
-  &.router-link-exact-active::after { background: $accent-pink; }
+  &.router-link-exact-active::after { background: var(--accent); }
 }
 
 .nav-more { position: relative; }
@@ -253,8 +282,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   right: 0;
   width: 230px;
   padding: 8px;
-  background: $bg-card;
-  border: 1px solid $glass-border;
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
   border-radius: $radius-md;
   box-shadow: $card-shadow-hover;
 }
@@ -265,12 +294,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   justify-content: space-between;
   gap: 16px;
   padding: 10px 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   border-radius: $radius-sm;
   font-size: 0.9rem;
+  transition: color $transition-fast, background $transition-fast;
 
-  small { color: $text-secondary; font-size: 0.72rem; }
-  &:hover { color: $accent-pink; background: $bg-secondary; }
+  small { color: var(--text-secondary); font-size: 0.72rem; }
+  &:hover { color: var(--accent); background: var(--surface-muted); }
 }
 
 .header-actions {
@@ -288,13 +318,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   height: 40px;
   flex: 0 0 40px;
   padding: 0;
-  color: $text-secondary;
+  color: var(--text-secondary);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 50%;
   cursor: pointer;
+  transition: color $transition-fast, background $transition-fast,
+    border-color $transition-fast, transform 0.12s ease;
 
-  &:hover { color: $accent-pink; background: $bg-secondary; border-color: $glass-border; }
+  &:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+  }
+  &:active { transform: scale(0.92); }
 }
 
 .icon-button svg { width: 18px; height: 18px; }
@@ -329,8 +366,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   height: 100svh;
   overflow-y: auto;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
-  background: $bg-card;
-  border-left: 1px solid $glass-border;
+  background: var(--surface);
+  border-left: 1px solid var(--glass-border);
   box-shadow: -16px 0 40px rgba(31, 42, 36, 0.16);
 }
 
@@ -341,10 +378,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   gap: 20px;
   min-height: 64px;
   padding-bottom: 18px;
-  border-bottom: 1px solid $glass-border;
+  border-bottom: 1px solid var(--glass-border);
 
-  strong { color: $text-primary; font-size: 1.05rem; }
-  p { margin-top: 3px; color: $text-secondary; font-size: 0.78rem; }
+  strong { color: var(--text-primary); font-size: 1.05rem; }
+  p { margin-top: 3px; color: var(--text-secondary); font-size: 0.78rem; }
 }
 
 .drawer-nav {
@@ -360,22 +397,30 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   justify-content: space-between;
   min-height: 48px;
   padding: 0 13px;
-  color: $text-primary;
-  background: $bg-primary;
+  color: var(--text-primary);
+  background: var(--page-bg);
   border: 1px solid transparent;
   border-radius: $radius-md;
   font-size: 0.92rem;
+  transition: color $transition-fast, background $transition-fast,
+    border-color $transition-fast, transform 0.12s ease;
 
-  svg { width: 15px; height: 15px; fill: none; stroke: $text-secondary; stroke-width: 2; }
+  svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; transition: stroke $transition-fast; }
+  &:active { transform: scale(0.97); }
   &:hover,
-  &.router-link-exact-active { color: $accent-pink; background: $bg-secondary; border-color: $glass-border; }
+  &.router-link-exact-active {
+    color: var(--accent);
+    background: var(--surface-muted);
+    border-color: var(--accent-line);
+    svg { stroke: var(--accent); }
+  }
 }
 
 .drawer-foot {
   display: flex;
   gap: 20px;
   padding-top: 18px;
-  border-top: 1px solid $glass-border;
+  border-top: 1px solid var(--glass-border);
   font-size: 0.82rem;
 }
 

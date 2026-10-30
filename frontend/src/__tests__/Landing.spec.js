@@ -35,11 +35,11 @@ describe('Landing (Home.vue)', () => {
     const router = makeRouter()
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router] } })
-    // 刊头不再有 kicker（「ZhouJun · 深圳」那行连同它上面那道 1px 短线一起删掉了）。
-    // 断言「不存在」而不是直接删掉这行，是为了让这次删除本身也被锁住 ——
-    // 否则以后谁把 kicker 加回来，测试不会响。
-    expect(wrapper.find('.masthead__kicker').exists()).toBe(false)
-    expect(wrapper.find('.masthead__name').text()).toBe('代码与生活')
+    // 刊头是「等宽英文 kicker + 衬线中文大题」的混排（本次刊头打磨方案），
+    // 断言两者各自的文本，锁住这层结构不被误删或改词。
+    expect(wrapper.find('.masthead__kicker').text()).toBe('CODE & LIFE · JOURNAL')
+    expect(wrapper.find('.masthead__name').text()).toContain('代码与生活')
+    expect(wrapper.find('.masthead__name-text').text()).toBe('代码与生活')
     expect(wrapper.find('.masthead__sub').text()).toBe('写字、写码、写日常。')
 
     // 自述三句，一句一行

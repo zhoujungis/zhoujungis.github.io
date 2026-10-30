@@ -27,12 +27,41 @@
           </div>
         </div>
 
-        <!-- Active filter bar -->
-        <div v-if="activeFilter" class="filter-bar">
-          <span class="filter-badge">
-            {{ filterType === 'category' ? '分类' : '标签' }}: {{ activeFilter }}
-          </span>
-          <router-link to="/articles" class="filter-clear" @click="clearFilter">✕ 清除筛选</router-link>
+        <!-- Filter switch: 维度切换 + 滑动药丸 chips -->
+        <div class="filter-switch" aria-label="筛选文章">
+          <div class="filter-dims" role="tablist" aria-label="筛选维度">
+            <span class="dim-pill" :style="dimPillStyle" aria-hidden="true" />
+            <button
+              class="filter-dim"
+              :class="{ active: dim === 'category' }"
+              role="tab"
+              :aria-selected="dim === 'category'"
+              @click="dim = 'category'"
+            >分类</button>
+            <button
+              class="filter-dim"
+              :class="{ active: dim === 'tag' }"
+              role="tab"
+              :aria-selected="dim === 'tag'"
+              @click="dim = 'tag'"
+            >标签</button>
+          </div>
+
+          <div class="filter-chips" ref="chipsEl">
+            <span class="chip-pill" :class="{ ready: chipPill.w > 0 }" :style="chipPillStyle" aria-hidden="true" />
+            <button
+              class="filter-chip"
+              :class="{ active: !activeFilter }"
+              @click="clearFilter"
+            >全部</button>
+            <button
+              v-for="item in dimItems"
+              :key="item.slug"
+              class="filter-chip"
+              :class="{ active: isChipActive(item) }"
+              @click="applyFilter(item)"
+            >{{ item.name }}<small v-if="item.count">{{ item.count }}</small></button>
+          </div>
         </div>
 
         <!-- Loading state -->
@@ -104,9 +133,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useArticleStore } from '@/stores/article'
+import { catLabel, catSlug, tagLabel, tagSlug } from '@/utils/labels'
 import ArticleCard from '@/components/ArticleCard.vue'
 
 const route = useRoute()
@@ -122,6 +152,70 @@ const currentPage = ref(parsePageFromQuery(route.query))
 const error = ref(null)
 const activeFilter = computed(() => route.query.category || route.query.tag || null)
 const filterType = computed(() => route.query.category ? 'category' : route.query.tag ? 'tag' : null)
+
+// ── 筛选切换栏：分类/标签两个维度 + 滑动药丸 chips ──
+const dim = ref(filterType.value === 'tag' ? 'tag' : 'category')
+const chipsEl = ref(null)
+const chipPill = ref({ x: 0, y: 0, w: 0, h: 0 })
+
+const dimItems = computed(() => {
+  const source = dim.value === 'category' ? articleStore.categories : articleStore.tags
+  return (source || [])
+    .map((entry) => ({
+      slug: dim.value === 'category' ? catSlug(entry) : tagSlug(entry),
+      name: dim.value === 'category' ? catLabel(entry) : tagLabel(entry),
+      count: entry?.article_count ?? entry?.count ?? 0,
+    }))
+    .filter((entry) => entry.slug)
+})
+
+function isChipActive(item) {
+  if (filterType.value !== dim.value) return false
+  const current = dim.value === 'category' ? route.query.category : route.query.tag
+  return current === item.slug
+}
+
+function applyFilter(item) {
+  if (!item?.slug) return
+  router.replace({
+    query: dim.value === 'category' ? { category: item.slug } : { tag: item.slug },
+  })
+}
+
+const activeChipIndex = computed(() => {
+  if (!activeFilter.value || filterType.value !== dim.value) return 0
+  const idx = dimItems.value.findIndex((item) => isChipActive(item))
+  return idx >= 0 ? idx + 1 : 0 // +1：0 号是「全部」
+})
+
+const chipPillStyle = computed(() => ({
+  width: `${chipPill.value.w}px`,
+  height: `${chipPill.value.h}px`,
+  transform: `translate(${chipPill.value.x}px, ${chipPill.value.y}px)`,
+}))
+
+const dimPillStyle = computed(() => ({
+  transform: `translateX(${dim.value === 'category' ? 0 : 100}%)`,
+}))
+
+// 量测激活 chip 的位置/尺寸，药丸用 transform 滑过去（等宽 0.28s 缓动）
+async function updateChipPill() {
+  await nextTick()
+  const el = chipsEl.value?.querySelectorAll('.filter-chip')[activeChipIndex.value]
+  if (!el) return
+  chipPill.value = { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }
+}
+
+// URL 上的筛选变化（深链 / 前进后退）同步维度页签；
+// 切到与当前筛选不同维度时清掉筛选，保证屏上必有激活 chip 与药丸对应。
+watch(filterType, (type) => {
+  if (type) dim.value = type
+})
+watch(dim, (next, prev) => {
+  if (activeFilter.value && filterType.value !== next) clearFilter()
+  if (next !== prev) updateChipPill()
+})
+watch([activeChipIndex, dimItems], updateChipPill)
 
 const pinnedArticles = computed(() =>
   articleStore.articles.filter((a) => a.is_top)
@@ -222,6 +316,14 @@ onMounted(() => {
   loadArticles()
   articleStore.fetchCategories()
   articleStore.fetchTags()
+  updateChipPill()
+  window.addEventListener('resize', updateChipPill)
+  // 字体晚到会让药丸量测偏移，字体就绪后补量一次
+  document.fonts?.ready?.then(() => updateChipPill())
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateChipPill)
 })
 </script>
 
@@ -272,31 +374,110 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
-.filter-bar {
+// 筛选切换栏：分段维度页签（分类/标签）+ 圆角 chips，
+// 激活态由共享药丸滑动到位，替代原「徽标 + 清除」静态条。
+.filter-switch {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding: 10px 16px;
-  background: $bg-card;
-  border: 1px solid $glass-border;
-  border-radius: $radius-md;
+  gap: 14px;
+  margin-bottom: 24px;
 }
 
-.filter-badge {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: $accent-pink;
-  padding: 4px 12px;
-  background: rgba($accent-pink, 0.09);
+.filter-dims {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  background: var(--surface-muted);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
 }
 
-.filter-clear {
+.dim-pill {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 2);
+  height: calc(100% - 6px);
+  background: var(--accent);
+  border-radius: 999px;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filter-dim {
+  position: relative;
+  z-index: 1;
+  padding: 5px 16px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font-family: inherit;
   font-size: 0.8rem;
-  color: $text-secondary;
-  text-decoration: none;
-  &:hover { color: $accent-pink; }
+  font-weight: 600;
+  cursor: pointer;
+  transition: color $transition-fast;
+
+  &.active { color: var(--page-bg); }
+}
+
+.filter-chips {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--accent);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+
+  &.ready { opacity: 1; }
+}
+
+.filter-chip {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
+
+  small {
+    font-family: $font-mono;
+    font-size: 0.62rem;
+    opacity: 0.75;
+  }
+
+  &:hover:not(.active) {
+    color: var(--accent);
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+  }
+
+  &.active {
+    color: var(--page-bg);
+    border-color: transparent;
+    font-weight: 600;
+    small { opacity: 0.9; }
+  }
 }
 
 .pinned-section {

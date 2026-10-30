@@ -61,12 +61,39 @@ describe('Articles page', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/articles', component: Articles }] })
     await router.push('/articles?category=vue&page=2'); await router.isReady()
     const wrapper = mount(Articles, { global: { plugins: [router] } })
-    const clearLink = wrapper.find('.filter-clear')
+    // 静态「清除筛选」链接已换成筛选切换栏里的「全部」chip
+    const allChip = wrapper.find('.filter-chip')
 
-    expect(clearLink.attributes('href')).toBe('/articles')
-    await clearLink.trigger('click')
+    expect(allChip.text()).toBe('全部')
+    await allChip.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/articles')
     expect(router.currentRoute.value.query).toEqual({})
+  })
+
+  it('renders the filter switch with both dimensions and chips from the store', async () => {
+    const store = useArticleStore()
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/articles', component: Articles }] })
+    await router.push('/articles'); await router.isReady()
+    const wrapper = mount(Articles, { global: { plugins: [router] } })
+    // 先让 onMounted 里的 fetchCategories/fetchTags 落定，再注入样本，
+    // 否则接口回落会把我们种的分类/标签覆盖掉
+    await flushPromises()
+    store.categories = [{ name: 'Vue', slug: 'vue', article_count: 3 }]
+    store.tags = [{ name: '测试', slug: 'testing', count: 2 }]
+    await flushPromises()
+
+    const dims = wrapper.findAll('.filter-dim').map((b) => b.text())
+    expect(dims).toEqual(['分类', '标签'])
+    // 默认维度是分类：chips = 全部 + 分类项
+    const chips = wrapper.findAll('.filter-chip').map((b) => b.text())
+    expect(chips[0]).toBe('全部')
+    expect(chips).toContain('Vue3')
+
+    // 切到标签维度，chips 换成标签集
+    await wrapper.findAll('.filter-dim')[1].trigger('click')
+    await flushPromises()
+    const tagChips = wrapper.findAll('.filter-chip').map((b) => b.text())
+    expect(tagChips).toContain('测试2')
   })
 })

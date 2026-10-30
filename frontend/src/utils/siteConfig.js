@@ -92,6 +92,33 @@ export const LIST_PAGES = [
     sections: 'search',
     noindex: true,
   },
+  // 合规与介绍页。AdSense 审核要求站点具备独立、可访问的隐私政策，
+  // 这三页因此是「必建」而不是可选装饰：正文放 data/sitePages.js，
+  // 预渲染用同一份数据写进 <noscript>，不存在两套措辞。
+  {
+    path: '/about/',
+    title: '关于本站',
+    description: `${SITE_NAME}是一个个人技术博客 — 站点定位、技术实现与联系方式。`,
+    sections: 'site-page',
+    sitePageKey: 'about',
+    priority: '0.4',
+  },
+  {
+    path: '/privacy/',
+    title: '隐私政策',
+    description: `${SITE_NAME}的隐私政策 — 信息收集范围、Cookie 与第三方服务（Google AdSense、Google Analytics）的使用方式。`,
+    sections: 'site-page',
+    sitePageKey: 'privacy',
+    priority: '0.3',
+  },
+  {
+    path: '/disclaimer/',
+    title: '免责声明',
+    description: `${SITE_NAME}的免责声明 — 内容准确性、示例代码使用风险、广告与版权说明。`,
+    sections: 'site-page',
+    sitePageKey: 'disclaimer',
+    priority: '0.3',
+  },
 ]
 
 /**
@@ -105,6 +132,8 @@ export function listPageMeta(path) {
     title: page.title,
     description: page.description,
     canonical: page.path,
+    // 有正文档的页面把 key 一并交给路由，页面组件据此选取正文
+    ...(page.sitePageKey ? { sitePage: page.sitePageKey } : {}),
     ...(page.noindex ? { robots: 'noindex, follow' } : {}),
   }
 }

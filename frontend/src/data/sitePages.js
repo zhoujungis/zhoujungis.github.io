@@ -1,0 +1,211 @@
+/**
+ * sitePages.js — 站点合规/介绍类页面的正文数据。
+ *
+ * 单一数据源：Vue 页面（pages/SitePage.vue）与构建期预渲染
+ * （scripts/prerender.mjs 写进 <noscript>）都从这里取，所以静态快照与
+ * 运行时页面不可能写出两份不同的措辞 —— 隐私政策的措辞一旦分叉，
+ * 对外宣称的 Cookie 用途就会与实际不一致。
+ *
+ * 结构约定：
+ *   path      —— 目录式路径（GitHub Pages 实际返回 200 的那个形式）
+ *   sections  —— [{ heading, paragraphs?: string[], items?: ({ text, href? })[] }]
+ */
+// 显式带 .js：这个文件同时被构建期的 node 脚本（prerender.mjs）直接 import，
+// Node 的 ESM 解析不补扩展名（Vite 里两种写法都能过）。
+import { SITE_AUTHOR, SITE_NAME, SITE_ORIGIN } from '../utils/siteConfig.js'
+
+const CONTACT_EMAIL = 'no-reply@gmail.com'
+const UPDATED = '2026-10-30'
+
+export const SITE_PAGES = [
+  {
+    key: 'about',
+    path: '/about/',
+    eyebrow: 'ABOUT',
+    title: '关于本站',
+    subtitle: '一个个人技术博客，以及它背后的取舍。',
+    description: `${SITE_NAME}是一个个人技术博客 — 写代码、AI 与工程实践，也写日常。这里介绍站点定位、技术实现与联系方式。`,
+    updated: UPDATED,
+    sections: [
+      {
+        heading: '这是什么',
+        paragraphs: [
+          `${SITE_NAME}是 ${SITE_AUTHOR} 的个人博客。内容主要围绕编程与工程实践：算法与数据结构、后端与前端工程、性能优化、AI 应用，以及偶尔出现的阅读与生活记录。这里没有转载聚合，也不追求更新频率，文章基本都来自实际做过的项目、踩过的坑和读过的源码。`,
+          '站点刻意保持轻量：没有登录系统，不追踪读者，文章正文可以在关闭 JavaScript 的情况下以静态快照的形式被读到。',
+        ],
+      },
+      {
+        heading: '技术实现',
+        paragraphs: [
+          '前端是一个 Vue 3 单页应用，构建产物托管在 GitHub Pages；文章数据、评论与邮件订阅由部署在 PythonAnywhere 上的 Django 后端提供。构建阶段会为每篇文章和主要栏目生成静态 HTML，让搜索引擎与不执行 JavaScript 的抓取器也能读到正文。',
+          '文章中的算法可视化动效按需加载：只有当前文章真正包含某个动效时，对应的那几 KB 代码才会被请求，不会拖慢其它文章的打开速度。',
+        ],
+      },
+      {
+        heading: '内容与版权',
+        paragraphs: [
+          '站内文章除特别注明外均为原创，版权归作者所有。欢迎注明出处并附上原文链接的转载，禁止未经授权的商业使用。详情见免责声明页。',
+        ],
+      },
+      {
+        heading: '联系方式',
+        paragraphs: ['对文章内容有疑问、发现错误，或希望交流合作，可以通过下面的方式联系：'],
+        items: [
+          { text: `邮件：${CONTACT_EMAIL}`, href: `mailto:${CONTACT_EMAIL}` },
+          { text: 'GitHub：github.com/zhoujungis', href: 'https://github.com/zhoujungis' },
+          { text: 'RSS 订阅：/rss.xml', href: `${SITE_ORIGIN}/rss.xml` },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'privacy',
+    path: '/privacy/',
+    eyebrow: 'PRIVACY',
+    title: '隐私政策',
+    subtitle: '本站收集哪些信息、为什么收集，以及你可以怎样控制它。',
+    description: `${SITE_NAME}的隐私政策 — 说明本站收集的信息、Cookie 与第三方服务（Google AdSense、Google Analytics）的使用方式，以及读者可以行使的权利。`,
+    updated: UPDATED,
+    sections: [
+      {
+        heading: '适用范围',
+        paragraphs: [
+          `本政策适用于 ${SITE_NAME}（${SITE_ORIGIN}）及其各栏目页面，说明本站如何收集、使用与保护访问者的信息。继续使用本站即表示你知悉本政策的内容。`,
+        ],
+      },
+      {
+        heading: '本站收集的信息',
+        paragraphs: [
+          '阅读文章本身不需要注册或登录，本站不会为此收集任何个人身份信息。只有在你主动使用互动功能时，才会有信息被提交：',
+        ],
+        items: [
+          { text: '发表评论：提交的昵称、邮箱、评论内容与提交时间。昵称会随评论公开显示，邮箱仅用于识别与回复，不会公开展示。' },
+          { text: '邮件订阅：你填写的邮箱地址，仅用于发送新文章通知，可随时通过邮件中的退订方式取消。' },
+          { text: '服务器日志：托管服务商（GitHub Pages、PythonAnywhere）会按惯例记录访问日志，其中可能包含 IP 地址、浏览器标识、请求时间等基础技术信息，用于故障排查与防范滥用。' },
+        ],
+      },
+      {
+        heading: 'Cookie 与本地存储',
+        paragraphs: [
+          '本站自身不设置用于追踪的 Cookie。为提升打开速度，浏览器本地存储（localStorage）会缓存文章列表与界面偏好（例如明暗主题），这些数据只留在你的设备上，不会上传到本站服务器，也不用于广告画像。',
+          '本站使用 Service Worker 缓存静态资源以便离线或弱网访问，它同样不涉及个人信息。',
+        ],
+      },
+      {
+        heading: '第三方服务与广告 Cookie',
+        paragraphs: [
+          '本站可能使用以下第三方服务，它们各自会在你的浏览器中设置 Cookie 或读取设备信息：',
+        ],
+        items: [
+          { text: 'Google AdSense：用于展示广告。Google 及其合作伙伴会使用 Cookie（包括 DoubleClick DART Cookie）根据你访问本站和其它网站的记录投放广告；你可以通过 Google 广告设置管理个性化广告，或通过 aboutads.info 了解并退出第三方广告 Cookie。', href: 'https://www.google.com/settings/ads' },
+          { text: 'Google Analytics：用于统计页面访问量（如浏览量、来源渠道、设备类型）。该服务会设置分析类 Cookie，统计结果为聚合数据，本站不会将其与任何个人身份关联。' },
+          { text: '内容分发与图片服务：页面会从 jsdelivr 加载公式渲染脚本、从 Unsplash 加载配图，这些请求会把你的 IP 地址与浏览器标识暴露给对应服务商。' },
+        ],
+      },
+      {
+        heading: '信息的使用目的',
+        paragraphs: [
+          '收集到的信息只用于：展示与回复评论、发送你主动订阅的更新、防范垃圾评论与滥用、统计站点访问情况、展示广告以覆盖运营成本。本站不会出售、出租你的个人信息，也不会将其用于与上述目的无关的用途。',
+        ],
+      },
+      {
+        heading: '共享与披露',
+        paragraphs: [
+          '除上述第三方服务商按其自身隐私政策处理数据外，只有在法律要求、司法或行政机关依法定程序要求时，本站才会披露相应信息。',
+        ],
+      },
+      {
+        heading: '数据保留与安全',
+        paragraphs: [
+          '评论与订阅邮箱会保留至你要求删除或相关功能停止运营为止。本站通过 HTTPS 传输、最小化字段收集与访问控制来保护数据，但请理解：没有任何互联网传输与存储方式能保证绝对安全。',
+        ],
+      },
+      {
+        heading: '你的权利',
+        paragraphs: [
+          '你可以随时要求查询、更正或删除你提交的评论与订阅信息，也可以要求停止处理相关数据。通过上面的联系方式提出即可，本站会在合理期限内响应。若你位于欧洲经济区、英国或加利福尼亚州，你依当地法律（如 GDPR、CCPA）享有的访问、删除、反对处理等权利同样适用。',
+        ],
+      },
+      {
+        heading: '儿童隐私',
+        paragraphs: [
+          '本站面向具备独立判断能力的读者，不针对儿童设计，也不会主动收集儿童的个人信息。若监护人发现儿童向本站提交了信息，请联系我们删除。',
+        ],
+      },
+      {
+        heading: '政策更新',
+        paragraphs: [
+          '本政策可能随功能变化（例如正式启用广告或数据分析）而更新，更新后的版本会发布在本页面并修改顶部的更新日期。',
+        ],
+      },
+      {
+        heading: '联系方式',
+        paragraphs: [`如对本政策有任何疑问，请发送邮件至 ${CONTACT_EMAIL}。`],
+        items: [{ text: `邮件：${CONTACT_EMAIL}`, href: `mailto:${CONTACT_EMAIL}` }],
+      },
+    ],
+  },
+  {
+    key: 'disclaimer',
+    path: '/disclaimer/',
+    eyebrow: 'DISCLAIMER',
+    title: '免责声明',
+    subtitle: '关于内容准确性、代码使用、广告与版权的说明。',
+    description: `${SITE_NAME}的免责声明 — 说明站内内容的准确性、示例代码的使用风险、广告与外部链接，以及版权与转载规则。`,
+    updated: UPDATED,
+    sections: [
+      {
+        heading: '内容仅供参考',
+        paragraphs: [
+          '站内所有文章均为作者个人在学习与工作中的记录，代表当时的理解与判断，可能随技术演进或实践深入而过时。本站不保证内容的完整性与绝对准确，也不构成任何专业建议（包括但不限于法律、财务、医疗与安全建议）。依据本站内容作出的任何决定与后果，由读者自行承担。',
+        ],
+      },
+      {
+        heading: '示例代码',
+        paragraphs: [
+          '文章中的代码片段以「现状」提供，仅用于说明思路，未经生产环境验证。将其用于实际项目前请自行评估、测试与加固；因直接或间接使用这些代码造成的任何损失，本站不承担责任。',
+        ],
+      },
+      {
+        heading: '外部链接',
+        paragraphs: [
+          '本站可能链接到第三方网站。这些网站的内容、可用性与隐私做法不受本站控制，链接不代表本站认可其观点，访问风险由访问者自行承担。',
+        ],
+      },
+      {
+        heading: '广告',
+        paragraphs: [
+          '本站可能通过 Google AdSense 展示广告，以覆盖服务器与域名成本。广告内容由广告平台依据其算法投放，不代表本站的推荐或立场；若你通过广告链接购买商品或服务，相关交易与售后由你与广告主之间直接成立，本站不参与也不承担任何责任。',
+        ],
+      },
+      {
+        heading: '评论',
+        paragraphs: [
+          '评论区内容由读者自行发布，仅代表发布者个人观点。本站保留在不事先通知的情况下删除垃圾信息、广告、违法或不当内容，以及限制相关账号的权利。',
+        ],
+      },
+      {
+        heading: '版权与转载',
+        paragraphs: [
+          '除特别注明外，站内原创文章的著作权归作者所有。欢迎在注明作者、出处并附上原文链接的前提下转载或引用；禁止未经授权的商业使用、整站镜像与洗稿。若你认为本站内容侵犯了你的权利，请通过下面的邮箱联系，我们会在核实后及时处理。',
+        ],
+      },
+      {
+        heading: '观点归属',
+        paragraphs: [
+          '本站所有观点均为作者个人观点，不代表作者现在或曾经任职的任何机构的立场。',
+        ],
+      },
+      {
+        heading: '联系方式',
+        paragraphs: [`如有版权、内容或合作相关事宜，请联系：`],
+        items: [{ text: `邮件：${CONTACT_EMAIL}`, href: `mailto:${CONTACT_EMAIL}` }],
+      },
+    ],
+  },
+]
+
+/** 按 key 取单页文档（页面组件与预渲染共用）。 */
+export function getSitePage(key) {
+  return SITE_PAGES.find((p) => p.key === key) || null
+}

@@ -22,6 +22,13 @@
   --accent-secondary: #{$accent-purple};
   --glass-border: #{$glass-border};
   --card-shadow: #{$card-shadow};
+  // 玻璃拟态与交互反馈 tokens（明暗两套各一份，组件只消费变量）
+  --glass-surface: rgba(255, 255, 255, 0.6);   // 毛玻璃浅底容器
+  --header-glass: rgba(247, 247, 242, 0.76);   // 导航栏滚动前的半透明底
+  --header-glass-strong: rgba(247, 247, 242, 0.92); // 向下滚动后的收束底
+  --hairline: rgba(31, 42, 36, 0.08);          // 精致边缘分割线
+  --accent-soft: rgba(63, 107, 87, 0.09);      // 主色弱底（hover / tag 胶囊）
+  --accent-line: rgba(63, 107, 87, 0.3);       // 主色描边
   // P0-3: skeleton shimmer tokens. The old hard-coded rgba(255,255,255,*)
   // shimmer was invisible on the light background — skeletons looked like
   // blank boxes. Both themes now get a visible, theme-appropriate shimmer.
@@ -155,6 +162,12 @@ html.theme-dark {
   --accent-secondary: #d18a6f;
   --glass-border: rgba(237, 241, 238, 0.08);
   --card-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  --glass-surface: rgba(237, 241, 238, 0.05);
+  --header-glass: rgba(24, 32, 28, 0.74);
+  --header-glass-strong: rgba(24, 32, 28, 0.9);
+  --hairline: rgba(237, 241, 238, 0.1);
+  --accent-soft: rgba(143, 178, 156, 0.14);
+  --accent-line: rgba(143, 178, 156, 0.34);
   --skeleton-base: rgba(237, 241, 238, 0.05);
   --skeleton-hi: rgba(237, 241, 238, 0.11);
   --skeleton-dot: rgba(237, 241, 238, 0.16);
@@ -182,8 +195,8 @@ html.theme-dark {
   // P4 fix: the hr gradient was nearly invisible in dark mode.
   .markdown-body hr { background: linear-gradient(to right, #8fb29c, #d18a6f); }
 
-  .app-header,
-  .drawer,
+  // AppHeader/drawer 不再进这张 !important 覆盖表：组件颜色已全部走
+  // 主题 token（--surface/--text-*/--accent*），变量本身在暗色下已换值。
   .article-card,
   .glass-card,
   .glass-panel,
@@ -199,9 +212,6 @@ html.theme-dark {
     border-color: #39483f !important;
   }
 
-  .app-header { background: rgba(24, 32, 28, 0.92) !important; }
-  .nav-link,
-  .drawer-link,
   .card-meta,
   .meta-item,
   .comment-time,
@@ -209,6 +219,9 @@ html.theme-dark {
   .landing__bio,
   .logo-copy small,
   .avatar-handle { color: #aeb9b1 !important; }
+
+  // 暗色下的滚动导航：底更深、浅影更重，滚动状态看得出来
+  .app-header.is-scrolled { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important; }
 
   .logo,
   .card-title,

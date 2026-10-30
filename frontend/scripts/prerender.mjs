@@ -58,6 +58,9 @@ import {
 // Same travel data the /footprints page renders, so its no-JS snapshot can't
 // drift from the live map.
 import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS } from '../src/data/footprints.js'
+// 关于/隐私政策/免责声明的正文：与 pages/SitePage.vue 共用同一份数据，
+// 静态快照与运行时页面因此不可能写出两套不同的措辞。
+import { getSitePage } from '../src/data/sitePages.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -644,6 +647,10 @@ function renderSections(sections) {
     const level = section.level || 2
     parts.push(`<h${level}>${escapeHtml(section.heading)}</h${level}>`)
     if (section.subsections?.length) parts.push(renderSections(section.subsections))
+    // 段落：合规页（隐私政策等）的正文主体，无 JS 读者也要读得到全文
+    if (section.paragraphs?.length) {
+      parts.push(section.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n'))
+    }
     if (section.items?.length) {
       const items = section.items
         .map((i) => {
@@ -688,6 +695,20 @@ function sectionsForPage(page, articles) {
           items: region.cities.map((city) => ({ text: city })),
         })),
       ]
+    }
+    // 合规页：正文完全来自 src/data/sitePages.js（与页面组件同源），
+    // 所以快照里有全文而不只是标题。
+    case 'site-page': {
+      const doc = getSitePage(page.sitePageKey)
+      if (!doc) return []
+      return doc.sections.map((section) => ({
+        heading: section.heading,
+        paragraphs: section.paragraphs || [],
+        items: (section.items || []).map((item) => ({
+          text: item.text,
+          href: item.href,
+        })),
+      }))
     }
     // /photos, /friends and /search draw their content from the backend API
     // (the photo wall and the friend list) or from a query at runtime, so the

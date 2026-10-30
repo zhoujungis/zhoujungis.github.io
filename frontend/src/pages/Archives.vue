@@ -287,8 +287,14 @@ onMounted(loadArchives)
     top: 0;
     bottom: 0;
     width: 2px;
-    // P4: stronger line so the timeline reads clearly in light mode.
-    background: rgba($neon-purple, 0.4);
+    // 从年份暖色渐落到条目主色再收细：轴线有「流动方向」，
+    // 年份与月份的层级在明暗两套主题下都读得出来。
+    background: linear-gradient(
+      to bottom,
+      rgba($neon-purple, 0.55) 0%,
+      rgba($neon-cyan, 0.45) 22%,
+      rgba($neon-cyan, 0.16) 100%
+    );
     border-radius: 2px;
   }
 }
@@ -297,7 +303,7 @@ onMounted(loadArchives)
 .month-heading {
   font-size: 0.9rem;
   font-weight: 700;
-  color: $neon-cyan;
+  color: var(--accent);
   margin-bottom: 12px;
   margin-top: 20px;
 
@@ -312,6 +318,8 @@ onMounted(loadArchives)
   margin-bottom: 16px;
 }
 
+// 时间轴圆点：主题主色实心点 + 贴轴微光环 + 外圈柔光，
+// hover 时光环加厚并轻微放大，让「年 → 月 → 条目」的流转有呼吸感。
 .timeline-dot {
   position: absolute;
   left: -27px;
@@ -319,10 +327,16 @@ onMounted(loadArchives)
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: $neon-cyan;
-  border: 2px solid $bg-primary;
-  box-shadow: 0 0 0 3px rgba($neon-cyan, 0.12);
+  background: var(--accent);
+  border: 2px solid var(--page-bg);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 10px var(--accent-line);
   z-index: 1;
+  transition: box-shadow $transition-base, transform $transition-base;
+}
+
+.timeline-entry:hover .timeline-dot {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 0 16px var(--accent);
 }
 
 .timeline-line-connector {
@@ -335,7 +349,7 @@ onMounted(loadArchives)
   transition: border-color $transition-fast, box-shadow $transition-fast;
 
   &:hover {
-    border-color: rgba($neon-cyan, 0.2);
+    border-color: var(--accent-line);
   }
 }
 
@@ -356,7 +370,7 @@ onMounted(loadArchives)
   transition: color $transition-fast;
 
   .entry-content:hover & {
-    color: $neon-cyan;
+    color: var(--accent);
   }
 }
 

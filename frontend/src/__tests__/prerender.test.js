@@ -426,6 +426,23 @@ describe('renderListPage', () => {
     }
   })
 
+  it('writes the full legal-page text into the no-JS snapshot', () => {
+    // AdSense 审核与搜索引擎都要求隐私政策有真实正文；只写标题的快照
+    // 等于把合规内容藏进必须执行 JS 才能看到的地方，这里锁住全文输出。
+    for (const path of ['/about/', '/privacy/', '/disclaimer/']) {
+      const page = pageFor(path)
+      const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+      expect(html, path).toContain(`<title>${page.title} | ${SITE_NAME}</title>`)
+      expect(html, path).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}" />`)
+      // 每节至少带一个段落，而不是只有 <h2> 空壳
+      expect(count(html, '<p>'), path).toBeGreaterThan(2)
+    }
+
+    const privacy = renderListPage(SHELL, pageFor('/privacy/'), sectionsForPage(pageFor('/privacy/'), articles))
+    expect(privacy).toContain('Google AdSense')
+    expect(privacy).toContain('Cookie')
+  })
+
   it('gives the API-driven pages a 200 with head, lead and cross-links', () => {
     for (const path of ['/photos/', '/friends/', '/search/']) {
       const page = pageFor(path)

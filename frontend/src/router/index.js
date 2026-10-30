@@ -25,6 +25,11 @@ const routes = [
   { path: '/friends', name: 'FriendLinks', meta: listPageMeta('/friends/'), component: () => import('../pages/FriendLinks.vue') },
   { path: '/footprints', name: 'Footprints', meta: listPageMeta('/footprints/'), component: () => import('../pages/Footprints.vue') },
   { path: '/archives', name: 'Archives', meta: listPageMeta('/archives/'), component: () => import('../pages/Archives.vue') },
+  // 合规与介绍页（AdSense 审核必查）：三条路由共用一个页面组件，正文来自
+  // data/sitePages.js，路由 meta 通过 listPageMeta 带上 sitePage key。
+  { path: '/about', name: 'About', meta: listPageMeta('/about/'), component: () => import('../pages/SitePage.vue') },
+  { path: '/privacy', name: 'Privacy', meta: listPageMeta('/privacy/'), component: () => import('../pages/SitePage.vue') },
+  { path: '/disclaimer', name: 'Disclaimer', meta: listPageMeta('/disclaimer/'), component: () => import('../pages/SitePage.vue') },
   { path: '/admin', name: 'AdminLogin', meta: { title: '管理后台', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/AdminLogin.vue') },
   { path: '/admin/dashboard', name: 'AdminDashboard', meta: { requiresAuth: true, title: '管理后台', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/AdminDashboard.vue') },
   { path: '/admin/editor/:id?', name: 'ArticleEditor', meta: { requiresAuth: true, title: '编辑文章', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/ArticleEditor.vue') },
