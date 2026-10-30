@@ -169,7 +169,7 @@
 
         <div class="drawer-foot">
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener">GitHub</a>
-          <a href="mailto:no-reply@gmail.com">Email</a>
+          <a href="mailto:no-reply@blog.zhoujun.dev">Email</a>
           <a href="https://blog.zhoujun.dev/rss.xml">RSS</a>
         </div>
       </aside>

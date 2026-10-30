@@ -14,7 +14,7 @@
 // Node 的 ESM 解析不补扩展名（Vite 里两种写法都能过）。
 import { SITE_AUTHOR, SITE_NAME, SITE_ORIGIN } from '../utils/siteConfig.js'
 
-const CONTACT_EMAIL = 'no-reply@gmail.com'
+const CONTACT_EMAIL = 'no-reply@blog.zhoujun.dev'
 const UPDATED = '2026-10-30'
 
 export const SITE_PAGES = [
