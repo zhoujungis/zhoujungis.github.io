@@ -320,6 +320,7 @@ function renderArticlePage(template, article, { lastmod } = {}) {
   html = upsertMeta(html, 'property', 'og:description', description)
   html = upsertMeta(html, 'property', 'og:url', url)
   html = upsertMeta(html, 'property', 'og:image', cover)
+  html = upsertMeta(html, 'property', 'og:image:secure_url', cover)
   html = upsertMeta(html, 'name', 'twitter:title', article.title)
   html = upsertMeta(html, 'name', 'twitter:description', description)
   html = upsertMeta(html, 'name', 'twitter:image', cover)

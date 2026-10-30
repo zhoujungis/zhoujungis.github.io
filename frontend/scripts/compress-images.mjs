@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * compress-images.mjs — 把源 PNG/JPG 转 WebP + AVIF,输出到 dist/ 同名位置。
  * 由 prebuild 钩子触发,也可独立运行 `npm run precompress`。
@@ -18,11 +18,23 @@ const MAX_DIMENSION = 2400
 
 // 源 PNG/JPG 列表(相对路径,以项目根为基准)
 // hero.png 已随无用素材一并删除(P5),不再参与压缩。
-const TARGETS = [
-  // Source photo lives in public/photos/ as JPG (PNG fallback removed —
-  // WebP/AVIF cover modern browsers; JPG is ~8x smaller than the old PNG).
-  { src: 'frontend/public/photos/tibet-2026.jpg', outDir: 'photos' },
-]
+async function getTargets() {
+  const photosDir = path.join(PUBLIC_DIR, 'photos')
+  const entries = await fs.readdir(photosDir, { withFileTypes: true })
+  const targets = []
+  for (const ent of entries) {
+    if (ent.isFile()) {
+      const ext = path.extname(ent.name).toLowerCase()
+      if (['.png', '.jpg', '.jpeg'].includes(ext)) {
+        targets.push({
+          src: path.join('frontend', 'public', 'photos', ent.name).replace(/\\/g, '/'),
+          outDir: 'photos',
+        })
+      }
+    }
+  }
+  return targets
+}
 
 async function ensureDir(p) {
   await fs.mkdir(p, { recursive: true })
@@ -71,8 +83,9 @@ async function compressOne({ src, outDir }) {
 
 async function main() {
   await ensureDir(DIST_DIR)
-  console.log('Compressing images...')
-  for (const t of TARGETS) {
+  console.log("Compressing images (WebP + AVIF)...")
+  const targets = await getTargets()
+  for (const t of targets) {
     try {
       await compressOne(t)
     } catch (e) {
@@ -80,7 +93,7 @@ async function main() {
       process.exit(1)
     }
   }
-  console.log('Done.')
+  console.log(`Done compressing ${targets.length} images.`)
 }
 
 main()

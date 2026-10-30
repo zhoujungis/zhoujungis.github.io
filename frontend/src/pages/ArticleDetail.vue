@@ -318,8 +318,12 @@ async function fetchArticle() {
   error.value = null
   httpStatus.value = null
   article.value = null
-  // M2: reset per-slug state so a quick A→B doesn't carry A's liked state
-  liked.value = false
+  // LocalStorage-backed optimistic liked state per slug
+  try {
+    liked.value = !!localStorage.getItem(zj_liked_)
+  } catch {
+    liked.value = false
+  }
 
   try {
     // Try the store's slug-keyed cache first
