@@ -5,12 +5,22 @@ import { SITE_ORIGIN } from '@/utils/siteConfig'
 // 域名迁移后这些地址会先撞一次 GitHub Pages 的跨域 301 才落到新域名，
 // 既慢又可能把 http/https 混在一起（HTTPS 页面里一旦出现 http 图片就会被
 // 浏览器直接拦成 Mixed Content）。这里在数据入口统一收敛到当前站点。
-const LEGACY_HOSTS = ['https://zhoujungis.github.io', 'http://zhoujungis.github.io']
+const SITE_HOST = new URL(SITE_ORIGIN).hostname
+const LEGACY_HOST = 'zhoujungis.github.io'
 
 function normalizeImageUrl(url) {
   if (typeof url !== 'string' || !url) return url
-  const hit = LEGACY_HOSTS.find((host) => url.startsWith(`${host}/`))
-  return hit ? `${SITE_ORIGIN}${url.slice(hit.length)}` : url
+  try {
+    const parsed = new URL(url, SITE_ORIGIN)
+    // 旧域名封面、以及本站的绝对地址，统一降成站点根相对路径：
+    // 最终协议由承载文档自己决定，HTTPS 页面里永远不会再冒出 http 子资源。
+    if (parsed.hostname === SITE_HOST || parsed.hostname === LEGACY_HOST) {
+      return `${parsed.pathname}${parsed.search}`
+    }
+  } catch {
+    // 非法 URL 原样返回，交给浏览器处理
+  }
+  return url
 }
 
 function normalizeArticle(article) {

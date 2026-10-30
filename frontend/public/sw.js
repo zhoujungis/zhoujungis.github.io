@@ -7,7 +7,7 @@
 // - Only same-origin, HTTP-200 GET responses are stored; API/admin/opaque
 //   responses are never cached.
 // - Bump CACHE_VERSION on each release that changes cached shell files.
-const CACHE_VERSION = 'v10'
+const CACHE_VERSION = 'v11'
 const CACHE = `zhoujun-blog-${CACHE_VERSION}`
 const NAV_CACHE = `${CACHE}-nav`
 const STATIC_CACHE = `${CACHE}-static`
@@ -108,6 +108,13 @@ async function putWithCap(cacheName, req, res, maxEntries) {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url)
+
+  // Cross-origin requests are none of our business: let the browser handle
+  // them directly. Intercepting them here meant a failed/opaque redirect (e.g.
+  // the legacy github.io image host 301-ing to the new domain) got converted
+  // into a synthetic "504 Offline and not cached" response, which surfaced as
+  // broken cover images even while online.
+  if (url.origin !== self.location.origin) return
 
   // Don't touch API / admin / non-GET requests
   if (url.pathname.startsWith('/api/')) return
