@@ -90,6 +90,33 @@ describe('renderArticlePage SEO tags', () => {
   })
 })
 
+describe('renderArticlePage zero-wait preview payload', () => {
+  const payloadOf = (html) =>
+    JSON.parse(html.match(/id="prerender-article">([\s\S]*?)<\/script>/)[1])
+
+  it('emits metadata for JS users while the body lives only in <noscript>', () => {
+    const html = renderArticlePage(SHELL, ARTICLE)
+    expect(count(html, 'id="prerender-article"')).toBe(1)
+    const meta = payloadOf(html)
+    expect(meta.slug).toBe('hello-world')
+    expect(meta.title).toBe('Hello <World>')
+    expect(meta.cover_image).toBe('https://example.com/cover.jpg')
+    // 正文不重复搬运：它已经在 <noscript> 里了
+    expect(meta.html_content).toBeUndefined()
+    expect(html).toContain('<p>Hello</p>')
+  })
+
+  it('escapes `<` so content containing </script> cannot cut the payload short', () => {
+    const html = renderArticlePage(SHELL, {
+      ...ARTICLE,
+      excerpt: 'watch out </script> inside',
+    })
+    const raw = html.match(/id="prerender-article">([\s\S]*?)<\/script>/)[1]
+    expect(raw).not.toContain('</script>')
+    expect(payloadOf(html).excerpt).toBe('watch out </script> inside')
+  })
+})
+
 describe('sanitizeHtml', () => {
   it('strips scripts, event handlers and javascript: URLs', () => {
     const out = sanitizeHtml(ARTICLE.html_content)

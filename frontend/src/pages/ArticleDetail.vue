@@ -195,6 +195,8 @@ import NewsletterForm from '@/components/NewsletterForm.vue'
 import { useSEO, SITE_AUTHOR } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
+import { readPrerenderedArticle } from '@/utils/prerenderPreview'
+import { loadDetailCache } from '@/utils/articleCache'
 import client from '@/api/client'
 
 const route = useRoute()
@@ -210,6 +212,32 @@ const commentKey = ref(0)
 // Monotonic request id — only commit if it's still the latest when the
 // response arrives. Prevents A→B fast-switch from binding A to B's URL.
 let fetchSeq = 0
+
+/**
+ * 首屏取内容的优先级：预渲染直出（本页 <noscript> 正文 + #prerender-article
+ * 元数据）→ localStorage 详情缓存 → 骨架屏。
+ *
+ * 拿到任一份就立刻渲染并撤掉 loading，网络回来后原地替换（stale-while-
+ * revalidate）。反过来「先抹掉正文再等 API」正是内容闪烁的来源。
+ */
+function showInstant(slug) {
+  const instant =
+    article.value?.slug === slug
+      ? article.value
+      : readPrerenderedArticle(slug) || loadDetailCache(slug)
+  if (instant) {
+    article.value = instant
+    loading.value = false
+    return true
+  }
+  loading.value = true
+  article.value = null
+  return false
+}
+
+// setup 阶段就取一次：首帧直接是正文。放到 onMounted 才取的话，
+// 组件已经按 loading=true 渲染过一帧骨架屏了。
+showInstant(route.params.slug)
 
 const formattedDate = computed(() => {
   if (!article.value?.created_at) return ''
@@ -314,10 +342,11 @@ async function fetchArticle() {
     return
   }
 
-  loading.value = true
+  // 首屏内容（预渲染直出 / 详情缓存）到位时不要抹掉再等网络 —— 那样只会
+  // 多一次骨架屏闪烁；没有任何副本时才回落到骨架屏。
+  showInstant(slug)
   error.value = null
   httpStatus.value = null
-  article.value = null
   // LocalStorage-backed optimistic liked state per slug
   try {
     liked.value = !!localStorage.getItem(zj_liked_)
@@ -349,7 +378,12 @@ async function fetchArticle() {
     if (seq !== fetchSeq) return
     httpStatus.value = e?.response?.status ?? null
     if (httpStatus.value === 404) {
+      // 文章确实没了：本地那份预渲染副本也不能冒充在线内容。
       error.value = '文章不存在'
+    } else if (article.value) {
+      // 首屏正文（预渲染 / 缓存）已经在屏上，只是这次刷新失败：
+      // 保留正文，别把读到一半的文章换成错误页。
+      console.warn('Article refresh failed, keeping instant copy:', slug, e?.message || e)
     } else {
       error.value = e?.response?.data?.detail || e.message || '加载文章失败'
     }

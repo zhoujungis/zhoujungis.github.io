@@ -338,11 +338,38 @@ function renderArticlePage(template, article, { lastmod } = {}) {
     mainEntityOfPage: url,
   }
 
+  // JS 用户的「零等待首屏」元数据。脚本开启时 <noscript> 里的正文是一段纯
+  // 文本（浏览器不渲染它），SPA 要自己把正文读回来渲染 —— 见
+  // src/utils/prerenderPreview.js。这里只带元数据、不重复搬运正文（正文已在
+  // <noscript> 里），页面体积只多约 1 KB。
+  // 正文/标题里出现 </script> 会提前终结这个标签，所以 `<` 一律写成 JSON 的
+  // 六位 Unicode 转义（小写 u + 4 位十六进制），JSON.parse 时会原样还原。
+  const previewMeta = {
+    slug: article.slug,
+    title: article.title || '',
+    created_at: isoDate,
+    updated_at: article.updated_at || '',
+    author: article.author ?? null,
+    category: article.category ?? null,
+    tags: article.tags ?? [],
+    cover_image: article.cover_image || '',
+    excerpt: (article.excerpt || '').slice(0, 160),
+    reading_time: article.reading_time ?? null,
+    views_count: article.views_count || 0,
+    likes_count: article.likes_count || 0,
+    prev_article: article.prev_article ?? null,
+    next_article: article.next_article ?? null,
+  }
+  const previewTag =
+    `<script type="application/json" id="prerender-article">` +
+    `${JSON.stringify(previewMeta).replaceAll('<', '\\u003c')}</script>`
+
   const headExtras =
     `${NOSCRIPT_STYLE}\n` +
     `    <meta property="og:type" content="article" />\n` +
     `    ${isoDate ? `<meta property="article:published_time" content="${isoDate}" />\n    ` : ''}` +
-    `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
+    `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n` +
+    `    ${previewTag}`
 
   // Replace the shell's generic og:type=website with the article one above.
   html = html.replace(/<meta property="og:type" content="website" \/>\s*\n?/, '')

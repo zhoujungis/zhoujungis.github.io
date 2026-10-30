@@ -6,88 +6,9 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import DOMPurify from 'dompurify'
 import { stripLeadingDuplicateTitle } from '@/utils/articleHtml'
-import { mountLinkedListReverse } from '@/viz/linkedListReverse'
-import { mountMergeTwoLists } from '@/viz/mergeTwoLists'
-import { mountMergeKLists } from '@/viz/mergeKLists'
-import { mountMergeKDCLists } from '@/viz/mergeKDCLists'
-import { mountCycleDetect } from '@/viz/cycleDetect'
-import { mountCycleEntry } from '@/viz/cycleEntry'
-import { mountRemoveNthFromEnd } from '@/viz/removeNthFromEnd'
-import { mountReorderList } from '@/viz/reorderList'
-import { mountPalindromeList } from '@/viz/palindromeList'
-import { mountIntersectLists } from '@/viz/intersectLists'
-import { mountRemoveDups2 } from '@/viz/removeDups2'
-import { mountLevelOrder } from '@/viz/levelOrder'
-import { mountLca } from '@/viz/lca'
-import { mountMaxPathSum } from '@/viz/maxPathSum'
-import { mountMaxDepth } from '@/viz/maxDepth'
-import { mountInvertTree } from '@/viz/invertTree'
-import { mountLongestSubstr } from '@/viz/longestSubstr'
-import { mountTwoSum } from '@/viz/twoSum'
-import { mountThreeSum } from '@/viz/threeSum'
-import { mountTrappingRainWater } from '@/viz/trappingRainWater'
-import { mountTrappingRainStack } from '@/viz/trappingRainStack'
-import { mountKadane } from '@/viz/kadane'
-import { mountQuickSelect } from '@/viz/quickSelect'
-import { mountBucketTopK } from '@/viz/bucketTopK'
-import { mountMergeIntervals } from '@/viz/mergeIntervals'
-import { mountRotatedSearch } from '@/viz/rotatedSearch'
-import { mountRotatedMin } from '@/viz/rotatedMin'
-import { mountRotate } from '@/viz/rotate'
-import { mountAddStrings } from '@/viz/addStrings'
-import { mountCompareVersion } from '@/viz/compareVersion'
-import { mountLongestPal } from '@/viz/longestPal'
-import { mountRestoreIp } from '@/viz/restoreIp'
-import { mountBrackets } from '@/viz/brackets'
-import { mountSlidingMax } from '@/viz/slidingMax'
-import { mountLisDp } from '@/viz/lisDp'
-import { mountLisBinary } from '@/viz/lisBinary'
-import { mountEditDistGrid, mountEditDistRoll } from '@/viz/editDistance'
-import { mountClimb, mountClimbOverflow } from '@/viz/climb'
-import { mountClimbRec } from '@/viz/climbRec'
-import { mountNim } from '@/viz/nim'
-import { mountLc877 } from '@/viz/lc877'
-import { mountVarPart } from '@/viz/varPart'
-import { mountSpiral, mountSpiralCcw } from '@/viz/spiral'
-import { mountKthLarge, mountKthLargeDup } from '@/viz/kthLarge'
-import { mountDigitOne } from '@/viz/digitOne'
-import { mountDigitOneBlock } from '@/viz/digitOneBlock'
-import { mountPokerStraight } from '@/viz/pokerStraight'
-import { mountPokerStraightBug } from '@/viz/pokerStraightBug'
-import { mountLcs1 } from '@/viz/lcs1'
-import { mountLcs1Walk } from '@/viz/lcs1Walk'
-import { mountBitmap } from '@/viz/bitmap'
-import { mountBitmapTwoBit } from '@/viz/bitmapTwoBit'
-import { mountMinStack } from '@/viz/minStack'
-import { mountQueueViaStacks } from '@/viz/queueViaStacks'
-import { mountBasicCalc } from '@/viz/basicCalc'
-import { mountCalcIII } from '@/viz/calcIII'
-import { mountBinarySearch } from '@/viz/binarySearch'
-import { mountSqrt } from '@/viz/sqrt'
-import { mountStockI } from '@/viz/stockI'
-import { mountStockII } from '@/viz/stockII'
-import { mountCoinChange } from '@/viz/coinChange'
-import { mountCoinChangeOrder } from '@/viz/coinChangeOrder'
-import { mountWordBreak } from '@/viz/wordBreak'
-import { mountWordBreakSeg } from '@/viz/wordBreakSeg'
-import { mountGreatestSumDiv3 } from '@/viz/greatestSumDiv3'
-import { mountGreatestSumDiv3Dp } from '@/viz/greatestSumDiv3Dp'
-import { mountIslands } from '@/viz/islands'
-import { mountIslandsUf } from '@/viz/islandsUf'
-import { mountRotOrange } from '@/viz/rotOrange'
-import { mountRotOrangeDist } from '@/viz/rotOrangeDist'
-import { mountCourseSchedule } from '@/viz/courseSchedule'
-import { mountCourseScheduleDfs } from '@/viz/courseScheduleDfs'
-import { mountLruCache } from '@/viz/lruCache'
-import { mountLfuCache } from '@/viz/lfuCache'
-import { mountRand10 } from '@/viz/rand10'
-import { mountRand10Uniform } from '@/viz/rand10Uniform'
-import { mountEliminateSum10 } from '@/viz/eliminateSum10'
-import { mountEliminateSum10Order } from '@/viz/eliminateSum10Order'
-import { mountLc1928 } from '@/viz/lc1928'
-import { mountLc1928Path } from '@/viz/lc1928Path'
-import { mountKmp } from '@/viz/kmp'
-import { mountKmpMatch } from '@/viz/kmpMatch'
+// 82 个算法动效模块一律用动态 import（见下方 VIZ_MOUNTERS）：静态引入会把
+// 全部几何/SVG 逻辑打进 ArticleDetail 主 chunk（实测 1.1 MB / gzip 293 KB），
+// 读者看一篇随笔也要下完整套动画。现在只有正文里真出现占位符才拉对应 chunk。
 import 'highlight.js/styles/github.css'
 
 const props = defineProps({
@@ -391,102 +312,108 @@ async function processEnhancements() {
 // → bleach → 前端 DOMPurify），而 bleach 的白名单里没有 svg / style / script，
 // div 也只保留 class。所以动画只能在客户端现场构建，文章里只留占位符。
 //
-// key 是占位符的第二个类名；值是挂载函数，返回 { destroy() }。
+// key 是占位符的第二个类名；值是 `() => Promise<mount>` —— 动态 import 工厂，
+// 返回挂载函数，挂载函数接收容器并返回 { destroy() }。
 // 加新动画时：实现一个同签名的模块，在这里注册一行。
 const VIZ_MOUNTERS = {
-  'algo-viz--lc206': mountLinkedListReverse,
-  'algo-viz--lc21': mountMergeTwoLists,
-  'algo-viz--lc23': mountMergeKLists,
-  'algo-viz--lc23dc': mountMergeKDCLists,
-  'algo-viz--lc141': mountCycleDetect,
-  'algo-viz--lc142': mountCycleEntry,
-  'algo-viz--lc19': mountRemoveNthFromEnd,
-  'algo-viz--lc143': mountReorderList,
-  'algo-viz--lc234': mountPalindromeList,
-  'algo-viz--lc160': mountIntersectLists,
-  'algo-viz--lc82': mountRemoveDups2,
-  'algo-viz--lc102': mountLevelOrder,
-  'algo-viz--lc236': mountLca,
-  'algo-viz--lc124': mountMaxPathSum,
-  'algo-viz--lc104': mountMaxDepth,
-  'algo-viz--lc226': mountInvertTree,
-  'algo-viz--lc3': mountLongestSubstr,
-  'algo-viz--lc1': mountTwoSum,
-  'algo-viz--lc15': mountThreeSum,
-  'algo-viz--lc42': mountTrappingRainWater,
-  'algo-viz--lc42stack': mountTrappingRainStack,
-  'algo-viz--lc53': mountKadane,
-  'algo-viz--lc215': mountQuickSelect,
-  'algo-viz--lc347': mountBucketTopK,
-  'algo-viz--lc56': mountMergeIntervals,
-  'algo-viz--lc33': mountRotatedSearch,
-  'algo-viz--lc153': mountRotatedMin,
-  'algo-viz--lc189': mountRotate,
-  'algo-viz--lc415': mountAddStrings,
-  'algo-viz--lc165': mountCompareVersion,
-  'algo-viz--lc5': mountLongestPal,
-  'algo-viz--lc93': mountRestoreIp,
-  'algo-viz--lc20': mountBrackets,
-  'algo-viz--lc239': mountSlidingMax,
-  'algo-viz--lc300dp': mountLisDp,
-  'algo-viz--lc300binary': mountLisBinary,
-  'algo-viz--lc72': mountEditDistGrid,
-  'algo-viz--lc72roll': mountEditDistRoll,
-  'algo-viz--lc70': mountClimb,
-  'algo-viz--lc70over': mountClimbOverflow,
-  'algo-viz--lc70rec': mountClimbRec,
-  'algo-viz--nim': mountNim,
-  'algo-viz--lc877': mountLc877,
-  'algo-viz--varpart': mountVarPart,
-  'algo-viz--spiral': mountSpiral,
-  'algo-viz--spiralccw': mountSpiralCcw,
-  'algo-viz--kthlarge': mountKthLarge,
-  'algo-viz--kthdup': mountKthLargeDup,
-  'algo-viz--lc233': mountDigitOne,
-  'algo-viz--lc233block': mountDigitOneBlock,
-  'algo-viz--poker61': mountPokerStraight,
-  'algo-viz--poker61bug': mountPokerStraightBug,
-  'algo-viz--lcs1': mountLcs1,
-  'algo-viz--lcs1walk': mountLcs1Walk,
-  'algo-viz--bitmap': mountBitmap,
-  'algo-viz--bitmap2bit': mountBitmapTwoBit,
-  'algo-viz--lc155': mountMinStack,
-  'algo-viz--lc232': mountQueueViaStacks,
-  'algo-viz--lc224': mountBasicCalc,
-  'algo-viz--lc772': mountCalcIII,
-  'algo-viz--lc704': mountBinarySearch,
-  'algo-viz--lc69': mountSqrt,
-  'algo-viz--lc121': mountStockI,
-  'algo-viz--lc122': mountStockII,
-  'algo-viz--lc322': mountCoinChange,
-  'algo-viz--lc322order': mountCoinChangeOrder,
-  'algo-viz--lc139': mountWordBreak,
-  'algo-viz--lc139seg': mountWordBreakSeg,
-  'algo-viz--lc1262': mountGreatestSumDiv3,
-  'algo-viz--lc1262dp': mountGreatestSumDiv3Dp,
-  'algo-viz--lc200': mountIslands,
-  'algo-viz--lc200uf': mountIslandsUf,
-  'algo-viz--lc994': mountRotOrange,
-  'algo-viz--lc994dist': mountRotOrangeDist,
-  'algo-viz--lc207': mountCourseSchedule,
-  'algo-viz--lc207dfs': mountCourseScheduleDfs,
-  'algo-viz--lc146': mountLruCache,
-  'algo-viz--lc146lfu': mountLfuCache,
-  'algo-viz--lc470': mountRand10,
-  'algo-viz--lc470uni': mountRand10Uniform,
-  'algo-viz--txelim': mountEliminateSum10,
-  'algo-viz--txorder': mountEliminateSum10Order,
-  'algo-viz--lc1928': mountLc1928,
-  'algo-viz--lc1928path': mountLc1928Path,
-  'algo-viz--kmp': mountKmp,
-  'algo-viz--kmpmatch': mountKmpMatch,
+  'algo-viz--lc206': () => import('@/viz/linkedListReverse').then((m) => m.mountLinkedListReverse),
+  'algo-viz--lc21': () => import('@/viz/mergeTwoLists').then((m) => m.mountMergeTwoLists),
+  'algo-viz--lc23': () => import('@/viz/mergeKLists').then((m) => m.mountMergeKLists),
+  'algo-viz--lc23dc': () => import('@/viz/mergeKDCLists').then((m) => m.mountMergeKDCLists),
+  'algo-viz--lc141': () => import('@/viz/cycleDetect').then((m) => m.mountCycleDetect),
+  'algo-viz--lc142': () => import('@/viz/cycleEntry').then((m) => m.mountCycleEntry),
+  'algo-viz--lc19': () => import('@/viz/removeNthFromEnd').then((m) => m.mountRemoveNthFromEnd),
+  'algo-viz--lc143': () => import('@/viz/reorderList').then((m) => m.mountReorderList),
+  'algo-viz--lc234': () => import('@/viz/palindromeList').then((m) => m.mountPalindromeList),
+  'algo-viz--lc160': () => import('@/viz/intersectLists').then((m) => m.mountIntersectLists),
+  'algo-viz--lc82': () => import('@/viz/removeDups2').then((m) => m.mountRemoveDups2),
+  'algo-viz--lc102': () => import('@/viz/levelOrder').then((m) => m.mountLevelOrder),
+  'algo-viz--lc236': () => import('@/viz/lca').then((m) => m.mountLca),
+  'algo-viz--lc124': () => import('@/viz/maxPathSum').then((m) => m.mountMaxPathSum),
+  'algo-viz--lc104': () => import('@/viz/maxDepth').then((m) => m.mountMaxDepth),
+  'algo-viz--lc226': () => import('@/viz/invertTree').then((m) => m.mountInvertTree),
+  'algo-viz--lc3': () => import('@/viz/longestSubstr').then((m) => m.mountLongestSubstr),
+  'algo-viz--lc1': () => import('@/viz/twoSum').then((m) => m.mountTwoSum),
+  'algo-viz--lc15': () => import('@/viz/threeSum').then((m) => m.mountThreeSum),
+  'algo-viz--lc42': () => import('@/viz/trappingRainWater').then((m) => m.mountTrappingRainWater),
+  'algo-viz--lc42stack': () => import('@/viz/trappingRainStack').then((m) => m.mountTrappingRainStack),
+  'algo-viz--lc53': () => import('@/viz/kadane').then((m) => m.mountKadane),
+  'algo-viz--lc215': () => import('@/viz/quickSelect').then((m) => m.mountQuickSelect),
+  'algo-viz--lc347': () => import('@/viz/bucketTopK').then((m) => m.mountBucketTopK),
+  'algo-viz--lc56': () => import('@/viz/mergeIntervals').then((m) => m.mountMergeIntervals),
+  'algo-viz--lc33': () => import('@/viz/rotatedSearch').then((m) => m.mountRotatedSearch),
+  'algo-viz--lc153': () => import('@/viz/rotatedMin').then((m) => m.mountRotatedMin),
+  'algo-viz--lc189': () => import('@/viz/rotate').then((m) => m.mountRotate),
+  'algo-viz--lc415': () => import('@/viz/addStrings').then((m) => m.mountAddStrings),
+  'algo-viz--lc165': () => import('@/viz/compareVersion').then((m) => m.mountCompareVersion),
+  'algo-viz--lc5': () => import('@/viz/longestPal').then((m) => m.mountLongestPal),
+  'algo-viz--lc93': () => import('@/viz/restoreIp').then((m) => m.mountRestoreIp),
+  'algo-viz--lc20': () => import('@/viz/brackets').then((m) => m.mountBrackets),
+  'algo-viz--lc239': () => import('@/viz/slidingMax').then((m) => m.mountSlidingMax),
+  'algo-viz--lc300dp': () => import('@/viz/lisDp').then((m) => m.mountLisDp),
+  'algo-viz--lc300binary': () => import('@/viz/lisBinary').then((m) => m.mountLisBinary),
+  'algo-viz--lc72': () => import('@/viz/editDistance').then((m) => m.mountEditDistGrid),
+  'algo-viz--lc72roll': () => import('@/viz/editDistance').then((m) => m.mountEditDistRoll),
+  'algo-viz--lc70': () => import('@/viz/climb').then((m) => m.mountClimb),
+  'algo-viz--lc70over': () => import('@/viz/climb').then((m) => m.mountClimbOverflow),
+  'algo-viz--lc70rec': () => import('@/viz/climbRec').then((m) => m.mountClimbRec),
+  'algo-viz--nim': () => import('@/viz/nim').then((m) => m.mountNim),
+  'algo-viz--lc877': () => import('@/viz/lc877').then((m) => m.mountLc877),
+  'algo-viz--varpart': () => import('@/viz/varPart').then((m) => m.mountVarPart),
+  'algo-viz--spiral': () => import('@/viz/spiral').then((m) => m.mountSpiral),
+  'algo-viz--spiralccw': () => import('@/viz/spiral').then((m) => m.mountSpiralCcw),
+  'algo-viz--kthlarge': () => import('@/viz/kthLarge').then((m) => m.mountKthLarge),
+  'algo-viz--kthdup': () => import('@/viz/kthLarge').then((m) => m.mountKthLargeDup),
+  'algo-viz--lc233': () => import('@/viz/digitOne').then((m) => m.mountDigitOne),
+  'algo-viz--lc233block': () => import('@/viz/digitOneBlock').then((m) => m.mountDigitOneBlock),
+  'algo-viz--poker61': () => import('@/viz/pokerStraight').then((m) => m.mountPokerStraight),
+  'algo-viz--poker61bug': () => import('@/viz/pokerStraightBug').then((m) => m.mountPokerStraightBug),
+  'algo-viz--lcs1': () => import('@/viz/lcs1').then((m) => m.mountLcs1),
+  'algo-viz--lcs1walk': () => import('@/viz/lcs1').then((m) => m.mountLcs1Walk),
+  'algo-viz--bitmap': () => import('@/viz/bitmap').then((m) => m.mountBitmap),
+  'algo-viz--bitmap2bit': () => import('@/viz/bitmap').then((m) => m.mountBitmapTwoBit),
+  'algo-viz--lc155': () => import('@/viz/minStack').then((m) => m.mountMinStack),
+  'algo-viz--lc232': () => import('@/viz/queueViaStacks').then((m) => m.mountQueueViaStacks),
+  'algo-viz--lc224': () => import('@/viz/basicCalc').then((m) => m.mountBasicCalc),
+  'algo-viz--lc772': () => import('@/viz/calcIII').then((m) => m.mountCalcIII),
+  'algo-viz--lc704': () => import('@/viz/binarySearch').then((m) => m.mountBinarySearch),
+  'algo-viz--lc69': () => import('@/viz/sqrt').then((m) => m.mountSqrt),
+  'algo-viz--lc121': () => import('@/viz/stockI').then((m) => m.mountStockI),
+  'algo-viz--lc122': () => import('@/viz/stockII').then((m) => m.mountStockII),
+  'algo-viz--lc322': () => import('@/viz/coinChange').then((m) => m.mountCoinChange),
+  'algo-viz--lc322order': () => import('@/viz/coinChangeOrder').then((m) => m.mountCoinChangeOrder),
+  'algo-viz--lc139': () => import('@/viz/wordBreak').then((m) => m.mountWordBreak),
+  'algo-viz--lc139seg': () => import('@/viz/wordBreakSeg').then((m) => m.mountWordBreakSeg),
+  'algo-viz--lc1262': () => import('@/viz/greatestSumDiv3').then((m) => m.mountGreatestSumDiv3),
+  'algo-viz--lc1262dp': () => import('@/viz/greatestSumDiv3Dp').then((m) => m.mountGreatestSumDiv3Dp),
+  'algo-viz--lc200': () => import('@/viz/islands').then((m) => m.mountIslands),
+  'algo-viz--lc200uf': () => import('@/viz/islandsUf').then((m) => m.mountIslandsUf),
+  'algo-viz--lc994': () => import('@/viz/rotOrange').then((m) => m.mountRotOrange),
+  'algo-viz--lc994dist': () => import('@/viz/rotOrangeDist').then((m) => m.mountRotOrangeDist),
+  'algo-viz--lc207': () => import('@/viz/courseSchedule').then((m) => m.mountCourseSchedule),
+  'algo-viz--lc207dfs': () => import('@/viz/courseScheduleDfs').then((m) => m.mountCourseScheduleDfs),
+  'algo-viz--lc146': () => import('@/viz/lruCache').then((m) => m.mountLruCache),
+  'algo-viz--lc146lfu': () => import('@/viz/lfuCache').then((m) => m.mountLfuCache),
+  'algo-viz--lc470': () => import('@/viz/rand10').then((m) => m.mountRand10),
+  'algo-viz--lc470uni': () => import('@/viz/rand10Uniform').then((m) => m.mountRand10Uniform),
+  'algo-viz--txelim': () => import('@/viz/eliminateSum10').then((m) => m.mountEliminateSum10),
+  'algo-viz--txorder': () => import('@/viz/eliminateSum10Order').then((m) => m.mountEliminateSum10Order),
+  'algo-viz--lc1928': () => import('@/viz/lc1928').then((m) => m.mountLc1928),
+  'algo-viz--lc1928path': () => import('@/viz/lc1928Path').then((m) => m.mountLc1928Path),
+  'algo-viz--kmp': () => import('@/viz/kmp').then((m) => m.mountKmp),
+  'algo-viz--kmpmatch': () => import('@/viz/kmpMatch').then((m) => m.mountKmpMatch),
 }
 
 let vizHandles = []
+// 动态 import 是异步的：正文在 import 途中被换掉（切文章 / 编辑器重渲染）时，
+// 迟到的挂载必须丢弃，否则上一篇的动画会被塞进这一篇的 DOM。
+// 每次 unmount/重新 mount 都推进一代，await 回来对不上代就作废。
+let vizEpoch = 0
 
 // v-html 会整块换掉 DOM，旧的动画实例必须显式销毁，否则定时器和
 // IntersectionObserver 会留在后台继续跑（切文章时最明显）。
 function unmountViz() {
+  vizEpoch += 1
   vizHandles.forEach((handle) => {
     try {
       handle?.destroy?.()
@@ -497,19 +424,27 @@ function unmountViz() {
   vizHandles = []
 }
 
-function mountViz() {
+async function mountViz() {
   if (!bodyRef.value) return
   unmountViz()
-  bodyRef.value.querySelectorAll('.algo-viz').forEach((host) => {
-    const key = Object.keys(VIZ_MOUNTERS).find((name) => host.classList.contains(name))
-    if (!key) return
-    try {
-      vizHandles.push(VIZ_MOUNTERS[key](host))
-    } catch (e) {
-      // 动画挂了不能连累正文渲染 —— 占位符留空即可。
-      console.warn('Algo viz failed to mount:', key, e?.message || e)
-    }
-  })
+  const epoch = vizEpoch
+  const hosts = [...bodyRef.value.querySelectorAll('.algo-viz')]
+
+  await Promise.all(
+    hosts.map(async (host) => {
+      const key = Object.keys(VIZ_MOUNTERS).find((name) => host.classList.contains(name))
+      if (!key) return
+      try {
+        const mount = await VIZ_MOUNTERS[key]()
+        // 同步临界区：校验 → 挂载 → 入列之间没有 await，不会被中途插队。
+        if (epoch !== vizEpoch || !host.isConnected) return
+        vizHandles.push(mount(host))
+      } catch (e) {
+        // 动画挂了不能连累正文渲染 —— 占位符留空即可。
+        console.warn('Algo viz failed to mount:', key, e?.message || e)
+      }
+    }),
+  )
 }
 
 onMounted(() => {
