@@ -483,3 +483,74 @@ class SeoHeadsCommandTests(TestCase):
         # 代码块里的 `## ` 不是标题，必须原样保留。
         self.assertIn("## 九、复杂度分析", article.content.split("```")[1])
         self.assertNotIn("## 九、时间复杂度是多少？", article.content)
+
+
+class InlinksCommandTests(TestCase):
+    """inlinks：修坏链 + 给零内链文章追加同族题/同链路链接。"""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="LeetCode", slug="leetcode")
+        Subscriber.objects.create(email="sub@test.com")
+
+    def _create_article(self, slug, content, category=None):
+        article = Article.objects.create(
+            title=f"标题 {slug}",
+            slug=slug,
+            content=content,
+            status=Article.Status.DRAFT,
+            category=self.category if category is None else category,
+        )
+        Article.objects.filter(pk=article.pk).update(
+            status=Article.Status.PUBLISHED, notification_sent=True
+        )
+        return Article.objects.get(pk=article.pk)
+
+    def test_apply_repairs_broken_internal_link(self):
+        article = self._create_article(
+            "kth-largest-with-duplicates",
+            "参见 /article/lc-215-quickselect/ 与 /article/lc-347-bucket-topk/。",
+        )
+        call_command("inlinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertIn("/article/lc-215-kth-largest-element/", article.content)
+        self.assertIn("/article/lc-347-top-k-frequent-elements/", article.content)
+        self.assertNotIn("lc-215-quickselect", article.content)
+        self.assertNotIn("lc-347-bucket-topk", article.content)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_apply_appends_note_and_renders_html(self):
+        self._create_article("lc-21-merge-two-sorted-lists", "正文。")
+        article = self._create_article("lc-206-reverse-linked-list", "正文。\n\n下一篇见。")
+        call_command("inlinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertIn("同族题延伸：", article.content)
+        self.assertIn("/article/lc-21-merge-two-sorted-lists/", article.content)
+        # 承接语插在「下一篇见」之前，结尾顺序不变。
+        self.assertLess(
+            article.content.index("同族题延伸："),
+            article.content.index("下一篇见。"),
+        )
+        self.assertIn("/article/lc-21-merge-two-sorted-lists/", article.html_content)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_dry_run_does_not_touch_content(self):
+        article = self._create_article(
+            "kth-largest-with-duplicates", "参见 /article/lc-215-quickselect/。"
+        )
+        call_command("inlinks", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertIn("/article/lc-215-quickselect/", article.content)
+
+    def test_apply_is_idempotent(self):
+        self._create_article("lc-21-merge-two-sorted-lists", "正文。")
+        article = self._create_article("lc-206-reverse-linked-list", "正文。\n\n下一篇见。")
+        call_command("inlinks", "--apply", stdout=StringIO())
+        call_command("inlinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertEqual(article.content.count("同族题延伸："), 1)
+
+    def test_missing_target_is_skipped(self):
+        article = self._create_article("lc-206-reverse-linked-list", "正文。\n\n下一篇见。")
+        call_command("inlinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertEqual(article.content, "正文。\n\n下一篇见。")
