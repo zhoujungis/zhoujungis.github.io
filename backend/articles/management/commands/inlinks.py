@@ -219,6 +219,72 @@ TARGETS = {
         "blog-tech-stack",
         "halo-music-square-architecture",
     ],
+    # ── AI Agent 资讯 / 项目文 ───────────────────────────────────
+    "2026-chinese-ai-models-comparison": [
+        "ai-token-coding-plan-comparison-2026",
+        "chinese-llm-august-2026-releases-preview",
+    ],
+    "agent-network-octo": [
+        "agent-multiagent-subagents-board-and-gate",
+        "agent-loop-two-hundred-lines",
+    ],
+    "ai-subscription-price-comparison-2026": [
+        "ai-token-coding-plan-comparison-2026",
+        "2026-chinese-ai-models-comparison",
+    ],
+    "ai-token-coding-plan-comparison-2026": [
+        "how-to-choose-ai-coding-tools",
+        "ai-subscription-price-comparison-2026",
+    ],
+    "aidevops-terminal-client": [
+        "nanohermes-rust-coding-agent",
+        "agent-network-octo",
+    ],
+    "chinese-llm-august-2026-releases-preview": [
+        "gpt-6-astra-release-2026",
+        "2026-chinese-ai-models-comparison",
+    ],
+    "gpt-6-astra-release-2026": [
+        "chinese-llm-august-2026-releases-preview",
+        "vllm-vs-sglang-llm-inference-framework-war",
+    ],
+    "happy-games-24-games-zero-framework-guide": [
+        "nanobrowser-tauri-webview2",
+        "halo-music-square-architecture",
+    ],
+    "how-to-choose-ai-coding-tools": [
+        "ai-token-coding-plan-comparison-2026",
+        "how-to-use-skills-to-improve-efficiency",
+    ],
+    "how-to-use-skills-to-improve-efficiency": [
+        "how-to-choose-ai-coding-tools",
+        "agent-tool-design-output-budgets",
+    ],
+    "ibgda-domestic-gpu-rdma-demo-waic2026": [
+        "vllm-vs-sglang-llm-inference-framework-war",
+        "queueing-theory-capacity-planning",
+    ],
+    "nanobrowser-tauri-webview2": [
+        "nanohermes-rust-coding-agent",
+        "aidevops-terminal-client",
+    ],
+    "nanohermes-rust-coding-agent": [
+        "nanobrowser-tauri-webview2",
+        "agent-loop-two-hundred-lines",
+    ],
+    "queueing-theory-capacity-planning": [
+        "vllm-vs-sglang-llm-inference-framework-war",
+        "rate-limit-algorithms-deep-dive",
+    ],
+    "vllm-vs-sglang-llm-inference-framework-war": [
+        "queueing-theory-capacity-planning",
+        "ibgda-domestic-gpu-rdma-demo-waic2026",
+    ],
+    # ── 站点随笔 ─────────────────────────────────────────────────
+    "welcome": [
+        "blog-tech-stack",
+        "how-to-choose-ai-coding-tools",
+    ],
 }
 
 ENDING = "下一篇见。"
