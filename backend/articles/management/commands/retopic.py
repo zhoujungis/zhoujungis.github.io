@@ -43,7 +43,8 @@ LEGACY_MAP = {
     "科技前沿": "aiagent",
     "AI评测": "aiagent",
     "效率工具": "aiagent",
-    "部署指南": "backend",
+    # 部署指南是「从零跑通一个项目」的实录，归项目实战而不是后端架构。
+    "部署指南": "projects",
     "技术教程": None,
     "项目实践": None,
     "个人随笔": None,
@@ -152,10 +153,12 @@ class Command(BaseCommand):
 
     def _retopics(self, categories, apply_changes, prefix):
         moves = 0
+        planned = defaultdict(int)
         old_categories = list(Category.objects.exclude(slug__in=KEEP_SLUGS))
         for article in Article.objects.select_related("category").prefetch_related("tags"):
             target_slug = decide_topic(article)
             target = categories.get(target_slug)
+            planned[target_slug] += 1
             current_slug = article.category.slug if article.category else None
             if current_slug == target_slug:
                 continue
@@ -167,16 +170,23 @@ class Command(BaseCommand):
             if apply_changes:
                 article.category = target
                 article.save(update_fields=["category"])
-        # 旧分类全部清空后删除；有文章残留的（理论上不会）保留并提示
-        for old in old_categories:
-            count = Article.objects.filter(category=old).count()
-            if count:
-                self.stdout.write(
-                    self.style.WARNING(f"保留 {old.name}：仍有 {count} 篇文章指向它")
-                )
-                continue
-            if apply_changes:
+        # 旧分类全部清空后删除。注意：预演时 article.save 没有真正执行，
+        # 旧分类里仍然挂着全部文章，此时统计残留毫无意义，只会在 --apply
+        # 之外误报「保留」，所以只在真正写入时检查。
+        if apply_changes:
+            for old in old_categories:
+                count = Article.objects.filter(category=old).count()
+                if count:
+                    self.stdout.write(
+                        self.style.WARNING(f"保留 {old.name}：仍有 {count} 篇文章指向它")
+                    )
+                    continue
                 old.delete()
+        tally = "，".join(
+            f"{categories[slug].name} {planned.get(slug, 0)}"
+            for slug in [s for _, s in TOPICS] + [NOTES_SLUG]
+        )
+        self.stdout.write(f"{prefix}落点：{tally}")
         return moves
 
     def _clean_tags(self, tags_min, apply_changes, prefix):
