@@ -112,6 +112,15 @@
             </div>
           </header>
 
+          <!-- 本系列目录：把同一专题的文章按推荐顺序串起来，给内链和读者
+               一条「下一篇读什么」的路径。 -->
+          <SeriesNav
+            v-if="topic && seriesItems.length >= 3"
+            :topic="topic"
+            :items="seriesItems"
+            :current-slug="article.slug"
+          />
+
           <!-- Cover image -->
           <div v-if="article.cover_image" class="article-cover">
             <img :src="article.cover_image" :alt="article.title" />
@@ -227,12 +236,14 @@ import CommentForm from '@/components/CommentForm.vue'
 import TocNav from '@/components/TocNav.vue'
 import ShareButtons from '@/components/ShareButtons.vue'
 import RelatedArticles from '@/components/RelatedArticles.vue'
+import SeriesNav from '@/components/SeriesNav.vue'
 import { useSEO, SITE_AUTHOR } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
 import { readPrerenderedArticle } from '@/utils/prerenderPreview'
 import { loadDetailCache } from '@/utils/articleCache'
-import { findTopic, topicPath, TOPICS } from '@/data/topics'
+import { findTopic, topicPath, seriesOrder, SERIES_MIN_MINUTES, TOPICS } from '@/data/topics'
+import { getArticlesByCategory } from '@/api/articles'
 import client from '@/api/client'
 
 const route = useRoute()
@@ -292,6 +303,40 @@ const categoryName = computed(() => catLabel(article.value?.category))
 // 只有归入五个编辑专题的分类才有聚合页；其余（如「随笔」）保持纯文本，
 // 避免链到不存在的 /topics/ 页面。
 const topic = computed(() => findTopic(article.value?.category?.slug))
+
+// 本系列目录：只列「有推荐顺序」的专题，并且跳过篇幅过短的条目。
+// 缓存按专题 slug 存，翻下一篇时不会重复打接口；失败就静默隐藏，
+// 不影响正文阅读（目录是增强，不是正文的一部分）。
+const seriesItems = ref([])
+let seriesSeq = 0
+const seriesCache = new Map()
+
+async function loadSeries() {
+  const t = topic.value
+  const slug = article.value?.slug
+  seriesItems.value = []
+  if (!t || !slug) return
+  const order = seriesOrder(t.slug)
+  if (!order.length) return
+
+  const seq = ++seriesSeq
+  if (!seriesCache.has(t.slug)) {
+    seriesCache.set(
+      t.slug,
+      getArticlesByCategory(t.slug).catch(() => []),
+    )
+  }
+  const list = await seriesCache.get(t.slug)
+  if (seq !== seriesSeq) return
+
+  const bySlug = new Map((list || []).map((a) => [a.slug, a]))
+  seriesItems.value = order
+    .map((s) => bySlug.get(s))
+    .filter(Boolean)
+    .filter((a) => a.slug === slug || (a.reading_time || 0) >= SERIES_MIN_MINUTES)
+}
+
+watch(() => article.value?.slug, loadSeries, { immediate: true })
 
 // 题解页末尾的「往深处读」只推荐这两个专题：它们是站点当前最想把权重
 // 集中过去的硬核内容。

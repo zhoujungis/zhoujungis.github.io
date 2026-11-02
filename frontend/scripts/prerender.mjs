@@ -63,7 +63,7 @@ import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS } from '../src/data/footprints.js'
 import { getSitePage } from '../src/data/sitePages.js'
 // 五个编辑专题：聚合页正文与运行时页面同源，sitemap 也只列这些真实存在
 // 的路径。
-import { TOPICS, topicPath } from '../src/data/topics.js'
+import { TOPICS, topicPath, seriesOrder, SERIES_MIN_MINUTES } from '../src/data/topics.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -325,7 +325,7 @@ function absoluteUrl(url) {
   return new URL(url, SITE_ORIGIN).href
 }
 
-function renderArticlePage(template, article, { lastmod } = {}) {
+function renderArticlePage(template, article, { lastmod, seriesTopic, seriesItems = [] } = {}) {
   const url = `${SITE_ORIGIN}/article/${article.slug}/`
   const title = `${article.title} | ${SITE_NAME}`
   const description = (article.excerpt || article.title).slice(0, 160)
@@ -416,10 +416,25 @@ function renderArticlePage(template, article, { lastmod } = {}) {
       article.title,
     ),
   )
+  // 系列目录也写进 no-JS 快照：这是爬虫能看到的站内互链，不依赖前端接口。
+  const seriesNav =
+    seriesTopic && seriesItems.length >= 3
+      ? `<nav class="ns-series"><p><strong>本系列 · ${escapeHtml(seriesTopic.name)}</strong>（${seriesItems.length} 篇）</p><ol>` +
+        seriesItems
+          .map((a) =>
+            a.slug === article.slug
+              ? `<li><strong>${escapeHtml(a.title)}</strong>（当前）</li>`
+              : `<li><a href="${SITE_ORIGIN}/article/${a.slug}/">${escapeHtml(a.title)}</a></li>`,
+          )
+          .join('') +
+        `</ol><p><a href="${SITE_ORIGIN}${topicPath(seriesTopic.slug)}">查看${escapeHtml(seriesTopic.name)}专题</a></p></nav>`
+      : ''
+
   const noscript =
     `<noscript><div class="ns-article">` +
     `<h1>${escapeHtml(article.title)}</h1>` +
     `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · ${escapeHtml(SITE_AUTHOR)}</div>` +
+    seriesNav +
     `<div class="markdown-body">${safeBody}</div>` +
     `</div></noscript>`
   html = html.replace('<div id="app"></div>', literal(`<div id="app"></div>\n    ${noscript}`))
@@ -983,6 +998,26 @@ async function main() {
       `（批量编辑批次: ${batchDays || '无'}）`,
   )
 
+  // 系列目录的静态版：按主题的推荐顺序取同簇文章，过滤掉篇幅过短的条目。
+  // 运行时 ArticleDetail 用的是同一份 seriesOrder + SERIES_MIN_MINUTES。
+  const articlesBySlug = new Map(articles.map((a) => [a.slug, a]))
+  function seriesFor(article) {
+    const categorySlug = article.category?.slug
+    const topic = TOPICS.find((t) => t.slug === categorySlug)
+    const order = seriesOrder(categorySlug)
+    if (!topic || !order.length) return {}
+    return {
+      seriesTopic: topic,
+      seriesItems: order
+        .map((slug) => articlesBySlug.get(slug))
+        .filter(Boolean)
+        .filter(
+          (a) =>
+            a.slug === article.slug || (a.reading_time || 0) >= SERIES_MIN_MINUTES,
+        ),
+    }
+  }
+
   let written = 0
   for (const article of articles) {
     if (!article?.slug) continue
@@ -990,7 +1025,10 @@ async function main() {
     mkdirSync(dir, { recursive: true })
     writeFileSync(
       join(dir, 'index.html'),
-      renderArticlePage(template, article, { lastmod: lastmods.get(article.slug) }),
+      renderArticlePage(template, article, {
+        lastmod: lastmods.get(article.slug),
+        ...seriesFor(article),
+      }),
       'utf8',
     )
     written += 1
