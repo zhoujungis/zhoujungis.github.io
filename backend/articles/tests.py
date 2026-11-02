@@ -387,3 +387,99 @@ class SeoLinksCommandTests(TestCase):
         call_command("seolinks", "--apply", stdout=StringIO())
         article.refresh_from_db()
         self.assertNotIn(f"/article/{self.target}/", article.content)
+
+
+class SeoHeadsCommandTests(TestCase):
+    """seoheads：每篇只把 2–3 个 H2 改成搜索问句，默认预演。"""
+
+    CONTENT = "\n\n".join(
+        [
+            "开头",
+            "## 一、思路",
+            "正文",
+            "## 九、复杂度分析",
+            "正文",
+            "## 十、常见坑",
+            "正文",
+            "## 十一、边界情况",
+            "正文",
+            "## 十二、Java 版",
+            "结尾",
+        ]
+    )
+
+    def setUp(self):
+        self.category = Category.objects.create(name="LeetCode", slug="leetcode")
+        Subscriber.objects.create(email="sub@test.com")
+
+    def _create_article(self, content, slug="two-sum", category=None):
+        article = Article.objects.create(
+            title="两数之和",
+            slug=slug,
+            content=content,
+            status=Article.Status.DRAFT,
+            category=self.category if category is None else category,
+        )
+        # 模拟一篇早已发布、通知已发过的老文章，避免 create 时触发群发。
+        Article.objects.filter(pk=article.pk).update(
+            status=Article.Status.PUBLISHED, notification_sent=True
+        )
+        return Article.objects.get(pk=article.pk)
+
+    def test_dry_run_does_not_touch_content(self):
+        article = self._create_article(self.CONTENT)
+        call_command("seoheads", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertEqual(article.content, self.CONTENT)
+
+    def test_apply_rewrites_headings_and_renders_html(self):
+        article = self._create_article(self.CONTENT)
+        call_command("seoheads", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertIn("## 九、时间复杂度是多少？", article.content)
+        self.assertIn("## 十、这道题有哪些常见坑？", article.content)
+        # 保存走的是 Article.save()，HTML 要跟着重新渲染。
+        self.assertIn("时间复杂度是多少？", article.html_content)
+        self.assertIn("<h2", article.html_content)
+        self.assertIn("开头", article.html_content)
+
+    def test_apply_respects_three_change_cap(self):
+        article = self._create_article(self.CONTENT)
+        call_command("seoheads", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        # 共有 4 个可改写标题，但每篇最多改 3 个，最后一个保持原样。
+        self.assertEqual(article.content.count("## "), 5)
+        question_headings = [
+            line for line in article.content.splitlines() if line.startswith("## ")
+            and line.endswith("？")
+        ]
+        self.assertEqual(len(question_headings), 3)
+        self.assertIn("## 十二、Java 版", article.content)
+
+    def test_apply_is_idempotent(self):
+        article = self._create_article(self.CONTENT)
+        call_command("seoheads", "--apply", stdout=StringIO())
+        call_command("seoheads", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        question_headings = [
+            line for line in article.content.splitlines() if line.startswith("## ")
+            and line.endswith("？")
+        ]
+        self.assertEqual(len(question_headings), 3)
+
+    def test_apply_does_not_notify_subscribers(self):
+        article = self._create_article(self.CONTENT)
+        call_command("seoheads", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertTrue(article.notification_sent)
+        # 内容修订不该给订阅者再发一次「新文章」邮件。
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_headings_inside_code_fence_are_ignored(self):
+        content = "```\n## 九、复杂度分析\n```\n\n## 十、常见坑\n"
+        article = self._create_article(content, slug="code-fence")
+        call_command("seoheads", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        # 代码块里的 `## ` 不是标题，必须原样保留。
+        self.assertIn("## 九、复杂度分析", article.content.split("```")[1])
+        self.assertNotIn("## 九、时间复杂度是多少？", article.content)
