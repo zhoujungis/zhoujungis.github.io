@@ -1,9 +1,12 @@
 import tempfile
+from io import StringIO
 from urllib.parse import urlparse
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -331,3 +334,56 @@ class NewsletterTests(TestCase):
             title="Draft", slug="draft-post", content="x", status=Article.Status.DRAFT
         )
         self.assertEqual(len(mail.outbox), 0)
+
+
+class SeoLinksCommandTests(TestCase):
+    """seolinks：只在原句后追加正文内链，不改原句，也不重复群发。"""
+
+    def setUp(self):
+        from articles.management.commands.seolinks import LINKS
+
+        self.source, self.anchor, self.target, self.note = LINKS[0]
+        Subscriber.objects.create(email="sub@test.com")
+
+    def _create_article(self, content):
+        article = Article.objects.create(
+            title="Agent 系列",
+            slug=self.source,
+            content=content,
+            status=Article.Status.DRAFT,
+        )
+        # 模拟一篇早已发布、通知已发过的老文章，避免 create 时触发群发。
+        Article.objects.filter(pk=article.pk).update(
+            status=Article.Status.PUBLISHED, notification_sent=True
+        )
+        return Article.objects.get(pk=article.pk)
+
+    def test_dry_run_does_not_touch_content(self):
+        article = self._create_article(f"前言\n\n{self.anchor}\n\n后文")
+        call_command("seolinks", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertIn(self.anchor, article.content)
+        self.assertNotIn(f"/article/{self.target}/", article.content)
+
+    def test_apply_inserts_markdown_link_and_renders_html(self):
+        article = self._create_article(f"前言\n\n{self.anchor}\n\n后文")
+        call_command("seolinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertIn(f"{self.anchor}{self.note}", article.content)
+        self.assertEqual(article.content.count(f"/article/{self.target}/"), 1)
+        self.assertIn(f'href="/article/{self.target}/"', article.html_content)
+        # 内容修订不该给订阅者再发一次「新文章」邮件。
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_apply_is_idempotent(self):
+        article = self._create_article(f"前言\n\n{self.anchor}\n\n后文")
+        call_command("seolinks", "--apply", stdout=StringIO())
+        call_command("seolinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertEqual(article.content.count(f"/article/{self.target}/"), 1)
+
+    def test_ambiguous_anchor_is_skipped(self):
+        article = self._create_article(f"{self.anchor}\n\n{self.anchor}")
+        call_command("seolinks", "--apply", stdout=StringIO())
+        article.refresh_from_db()
+        self.assertNotIn(f"/article/{self.target}/", article.content)
