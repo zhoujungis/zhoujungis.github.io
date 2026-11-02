@@ -9,7 +9,7 @@ description: 联合索引不是把两列拼在一起，而是按 (a,b) 的顺序
 
 > 结论先行：`INDEX(a, b)` 是按「先 a 后 b」排序的一棵 B+ 树，不是按 a 和 b 各建一棵。想让 b 起作用，必须先能定位 a——这就是最左前缀。它不是优化器的限制，是 B+ 树的物理结构决定的。
 
-## 联合索引长什么样
+## 联合索引在 B+ 树里是怎么排序的？
 
 ```sql
 CREATE TABLE events (
@@ -37,7 +37,7 @@ CREATE TABLE events (
 - 只给 `kind`，记录散落在所有 `uid` 段里 → 没法用这棵树定位；
 - 给 `uid` 和 `ts`、跳过 `kind` → `ts` 只在每个 `kind` 段内有序，全局无序 → 也不能用来定位。
 
-## 能用到索引的写法
+## 哪些 WHERE 写法能用上联合索引？
 
 ```sql
 -- 全都能用：等值等值等值
@@ -55,7 +55,7 @@ WHERE uid = 1 AND ts = '2026-01-01 10:00:00'
 
 最后一条常被误解：`WHERE uid = 1 AND ts = ...` 能用到 `uid`，但 `ts` 不行，因为 `kind` 断了。它可能显示 `Using index condition`，那是把 `ts` 条件下推到索引层做过滤，减少了回表次数，但**依然要扫 `uid=1` 的全部记录**。
 
-## 范围查询之后，后面的列就「降级」了
+## 为什么范围查询后面的列会失效？
 
 ```sql
 WHERE uid = 1 AND kind > 1 AND ts = '2026-01-01 10:00:00'
@@ -65,7 +65,7 @@ WHERE uid = 1 AND kind > 1 AND ts = '2026-01-01 10:00:00'
 
 如果业务里 `ts` 的等值查询很常见，可以考虑 `(uid, ts, kind)` 而不是 `(uid, kind, ts)`——列顺序应按「等值查询频率 + 区分度」排，不是按建表字段顺序。
 
-## 联合索引与排序
+## 联合索引能满足 ORDER BY 吗？
 
 `ORDER BY` 也想蹭索引：
 
@@ -82,7 +82,7 @@ SELECT * FROM events WHERE uid = 1 ORDER BY kind ASC, ts DESC;
 
 `ORDER BY` 的列必须和索引列顺序一致，且方向一致（MySQL 8 支持 `DESC` 索引，但建索引时要显式写 `kind DESC`）。另外，如果 `WHERE` 里对 `uid` 是范围查询，`ORDER BY kind` 也用不上——范围扫描后 `kind` 不再全局有序。
 
-## 列顺序怎么排
+## 联合索引的列顺序应该怎么排？
 
 一个实用的决策顺序：
 
@@ -93,7 +93,7 @@ SELECT * FROM events WHERE uid = 1 ORDER BY kind ASC, ts DESC;
 
 不要为每个查询建一条索引。索引不是免费的：每个二级索引都是一棵额外的 B+ 树，写入时要维护，页分裂时也要跟着搬。索引越多，写入越慢、buffer pool 越紧张。先用 `EXPLAIN` 找出真正的慢查询，再针对它建。
 
-## 三个常见误区
+## 联合索引最常见的三个误区是什么？
 
 **误区一：`(a, b)` 建了，查 `b` 也能用。**
 不能。要么建 `(b, a)`，要么单独建 `(b)`。MySQL 8.0 有 Index Skip Scan，但只在特定条件下生效，别把它当成常规方案。
@@ -104,7 +104,7 @@ SELECT * FROM events WHERE uid = 1 ORDER BY kind ASC, ts DESC;
 **误区三：在索引列上做运算或函数。**
 `WHERE DATE(ts) = '2026-01-01'`、`WHERE uid + 1 = 2` 都会让索引失效。改成范围查询：`ts >= '2026-01-01' AND ts < '2026-01-02'`。
 
-## 用 EXPLAIN 验证，而不是猜
+## 怎么用 EXPLAIN 验证联合索引？
 
 ```sql
 EXPLAIN SELECT id FROM events

@@ -25,7 +25,7 @@ CREATE TABLE users (
 
 以下例子都基于这张表。
 
-## type 从好到差
+## EXPLAIN 的 type 有哪些，哪个最好？
 
 ### const / system
 
@@ -96,7 +96,7 @@ SELECT * FROM users WHERE status = 1;
 - `index_merge`：优化器把多个索引的结果合并（`UNION` / `INTERSECT`），实践里不稳定，通常不如一条合适的联合索引；
 - `ref_or_null`：`WHERE col = ? OR col IS NULL` 时出现。
 
-## key_len：用了联合索引的哪几列
+## key_len 怎么看出用了几列索引？
 
 `key_len` 是「本次实际用到的索引字节数」，可以反推用到了几列。常见类型的字节数：
 
@@ -116,7 +116,7 @@ SELECT * FROM users WHERE status = 1;
 
 如果 `key_len` 比你预期的小，说明后面的列没被用上——通常是范围查询或列顺序不满足最左前缀。细节见 [MySQL 联合索引最左前缀](https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/)。
 
-## rows 与 filtered：估算的放大倍数
+## rows 和 filtered 分别代表什么？
 
 - `rows`：优化器估算要扫描多少行；
 - `filtered`：这些行里预计有多少比例能通过 `WHERE` 剩余条件。
@@ -125,7 +125,7 @@ SELECT * FROM users WHERE status = 1;
 
 MySQL 8.0.18+ 可以用 `EXPLAIN ANALYZE`，它会真正执行并给出每步的实际耗时和行数——排查「估算 10 行、实际 10 万行」这类问题非常有用。
 
-## Extra 里真正值得看的
+## Extra 里哪些信号需要处理？
 
 | Extra | 含义 | 要不要处理 |
 | --- | --- | --- |
@@ -138,7 +138,7 @@ MySQL 8.0.18+ 可以用 `EXPLAIN ANALYZE`，它会真正执行并给出每步的
 
 `Using filesort` 不代表一定有磁盘排序，小结果集在内存里排也很快；但 `rows` 很大时，它就是明显的 CPU 和内存开销。
 
-## 排查顺序
+## 拿到一条慢 SQL 应该按什么顺序排查？
 
 拿到一条慢 SQL，按这个顺序看：
 
@@ -148,7 +148,7 @@ MySQL 8.0.18+ 可以用 `EXPLAIN ANALYZE`，它会真正执行并给出每步的
 4. `Extra` 有没有 `Using filesort` / `Using temporary`；
 5. 最后才考虑加索引，加完用 `EXPLAIN` 对比 `key` 和 `rows`。
 
-## 几个容易误判的情况
+## 哪些情况会让 EXPLAIN 误判？
 
 - **隐式类型转换**：`WHERE tenant_id = '7'` 里字符串会转数字，通常还能用索引；反过来 `WHERE email = 123` 会把 `email` 转成数字，索引直接失效。
 - **统计信息过期**：刚导入大批数据、或频繁增删的表，`rows` 可能严重失真，先 `ANALYZE TABLE`。
