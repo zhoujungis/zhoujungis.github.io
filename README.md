@@ -6,7 +6,7 @@
 
 > 记录技术、旅行与生活的尘世栈帧，采用自然色响应式界面与前后端分离架构。
 
-🔗 **在线访问：** [zhoujungis.github.io](https://zhoujungis.github.io)
+🔗 **在线访问：** [blog.zhoujun.dev](https://blog.zhoujun.dev)
 
 ---
 
