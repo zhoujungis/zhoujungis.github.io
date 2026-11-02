@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T10:50:42.720034+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"上线那一刻，数据库在重建整张表——零停机迁移","description":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:50:42.720034+08:00","dateModified":"2026-09-14T10:50:42.720034+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/django-zero-downtime-migration/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"django-zero-downtime-migration","title":"上线那一刻，数据库在重建整张表——零停机迁移","created_at":"2026-09-14T10:50:42.720034+08:00","updated_at":"2026-11-02T12:11:40.635497+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","excerpt":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","reading_time":35,"views_count":21,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"django-zero-downtime-migration","title":"上线那一刻，数据库在重建整张表——零停机迁移","created_at":"2026-09-14T10:50:42.720034+08:00","updated_at":"2026-11-02T12:11:40.635497+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80&auto=format&fit=crop","excerpt":"上线那一刻，数据库在重建整张表——Django 零停机迁移实战（20 万行实测） 承接《索引建了，为什么排序还是没用上？》《事务回滚了，邮件照样发出去》两篇。上一篇我建议你\"给 (status, is_top DESC, created_at DESC) 补一条索引\"，这一篇讲的就是 那条索引怎么上线 ——以及为什么大","reading_time":35,"views_count":22,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -161,7 +161,7 @@
 <li>附录：本文实验脚本</li>
 </ul>
 <hr>
-<h2>一、先看清：<code>sqlmigrate</code> 把你的 migration 翻译成了什么</h2>
+<h2>一、先看清：<code>sqlmigrate</code> 把你的 migration 翻译成了什么？</h2>
 
 <code>sqlmigrate</code> 是 Django 里被严重低估的命令。它不连库、不改数据，只把 migration 渲染成 SQL 打印出来。<strong>任何要上线的 migration，都应该先跑一遍这个命令。</strong>
 
@@ -395,7 +395,7 @@ E3 CREATE INDEX（上一篇那条索引）
 
 WAL 的代价是会产生 <code>-wal</code> 和 <code>-shm</code> 两个附属文件，且网络文件系统（NFS）上不可靠——但在单机部署上是净收益。
 <hr>
-<h2>五、实验四：DDL 执行期间，写入被挡了多久</h2>
+<h2>五、实验四：DDL 执行期间，写入被挡了多久？</h2>
 
 上面说"被阻塞"，得给个数字。我开了一个后台线程，在 <code>CREATE INDEX</code> 进行的同时不停地 <code>INSERT</code>，测每次写入的耗时：
 <div class="codehilite"><pre><span></span><code>==========================================================================
@@ -973,7 +973,7 @@ PG 12+ 还有一个优化：如果存在一个已 <code>VALIDATE</code> 的 <cod
 
 <strong>能安全回滚的操作可以随时上线。不能的，必须走 Expand / Contract。</strong>
 <hr>
-<h2>十三、上线 Checklist</h2>
+<h2>十三、上线前要检查什么？</h2>
 
 我把这一节写成可以贴在显示器上的形式。<strong>任何一次 <code>migrate</code> 之前，逐条过一遍。</strong>
 

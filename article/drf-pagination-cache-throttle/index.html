@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-10T09:54:34.837210+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"列表接口从 800ms 到 80ms：分页、缓存与限流","description":"列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl","image":"https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T09:54:34.837210+08:00","dateModified":"2026-09-10T09:54:34.837210+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"drf-pagination-cache-throttle","title":"列表接口从 800ms 到 80ms：分页、缓存与限流","created_at":"2026-09-10T09:54:34.837210+08:00","updated_at":"2026-11-02T12:19:57.456617+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&q=80&auto=format&fit=crop","excerpt":"列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl","reading_time":27,"views_count":21,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"drf-pagination-cache-throttle","title":"列表接口从 800ms 到 80ms：分页、缓存与限流","created_at":"2026-09-10T09:54:34.837210+08:00","updated_at":"2026-11-02T12:19:57.456617+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&q=80&auto=format&fit=crop","excerpt":"列表接口从 800ms 到 80ms：DRF 分页、缓存、限流三件套实战详解 适用栈：Django 6.0 + DRF 3.17 + SQLite + PythonAnywhere（免费版无 Redis） 代码来源：真实博客后端 backend/blog_api/settings.py 、 backend/articl","reading_time":27,"views_count":22,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -220,7 +220,7 @@
 
 下面逐件拆开讲透。
 <hr>
-<h2>2. 分页篇：不只是“能翻页”</h2>
+<h2>DRF 分页要注意什么？</h2>
 <h3>2.1 为什么必须自定义 Pagination？全局 PAGE_SIZE 不够吗？</h3>
 
 DRF 全局 <code>PAGE_SIZE = 10</code> 只解决“默认切多少”，没解决三个真实问题：
@@ -504,7 +504,7 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
 <li><strong>排序不稳定导致跳页重复</strong>：按 <code>created_at</code> 排序但同一秒多篇，翻页会重复/漏。排序加 <code>,id</code> 兜底：<code>ordering = ["-created_at", "-id"]</code>。</li>
 </ol>
 <hr>
-<h2>3. 缓存篇：PA 无 Redis 也能快 10 倍</h2>
+<h2>没有 Redis 怎么做缓存？</h2>
 <h3>3.1 Django 缓存框架：业务代码不用关心后端是谁</h3>
 
 Django 的 <code>cache</code> API 是统一的，换 Redis 还是内存，只改 <code>settings.CACHES</code> 一处：
@@ -1138,7 +1138,7 @@ Django 日志里把 429 单独记（<code>settings.py</code>）：
 </tbody>
 </table></div>
 <hr>
-<h2>6. 上线 Checklist（15 项，直接抄）</h2>
+<h2>6. 上线前要检查什么？</h2>
 
 <strong>分页（5）</strong>
 <ul>
@@ -1201,6 +1201,8 @@ A：读多写少 + 三件套后，SQLite 撑几千日活没问题。写多（评
 
 完整代码：<code>backend/blog_api/settings.py</code>、<code>backend/articles/views.py</code>、<code>backend/articles/serializers.py</code>
 觉得有用欢迎点赞 + 订阅，评论区聊聊你的 <code>max_page_size</code> 和 throttle 阈值是多少～
-</blockquote></div></div></noscript>
+</blockquote>
+
+同一条链路上还可以接着读：<a href="/article/cursor-pagination-deep-dive/">《为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页》</a>、<a href="/article/cache-consistency-deep-dive/">《先删缓存还是先删库？——缓存一致性实战》</a>。</div></div></noscript>
   </body>
 </html>

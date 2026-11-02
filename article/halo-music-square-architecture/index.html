@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-08-31T10:32:31.485575+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Halo 音乐广场技术拆解：多音源在线音乐应用","description":"我一直想做一个打开浏览器就能用的音乐工具：输入歌名，多个平台同时返回结果；点一下歌曲就能播放，歌词跟着进度滚动；常听的歌曲可以收藏，也可以整理成自己的歌单。这个想法最后落成了 HALO Music ，也就是我自己的 Halo 音乐广场。 这个项目的重点并不是把某一个平台的页面重新做一遍，而是把多个音源、浏览器播放器、用","image":"https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1600&q=80&auto=format&fit=crop","datePublished":"2026-08-31T10:32:31.485575+08:00","dateModified":"2026-08-31T10:32:31.485575+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/halo-music-square-architecture/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"halo-music-square-architecture","title":"Halo 音乐广场技术拆解：多音源在线音乐应用","created_at":"2026-08-31T10:32:31.485575+08:00","updated_at":"2026-11-02T12:19:58.245324+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[],"cover_image":"https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1600&q=80&auto=format&fit=crop","excerpt":"我一直想做一个打开浏览器就能用的音乐工具：输入歌名，多个平台同时返回结果；点一下歌曲就能播放，歌词跟着进度滚动；常听的歌曲可以收藏，也可以整理成自己的歌单。这个想法最后落成了 HALO Music ，也就是我自己的 Halo 音乐广场。 这个项目的重点并不是把某一个平台的页面重新做一遍，而是把多个音源、浏览器播放器、用","reading_time":14,"views_count":37,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"halo-music-square-architecture","title":"Halo 音乐广场技术拆解：多音源在线音乐应用","created_at":"2026-08-31T10:32:31.485575+08:00","updated_at":"2026-11-02T12:19:58.245324+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[],"cover_image":"https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1600&q=80&auto=format&fit=crop","excerpt":"我一直想做一个打开浏览器就能用的音乐工具：输入歌名，多个平台同时返回结果；点一下歌曲就能播放，歌词跟着进度滚动；常听的歌曲可以收藏，也可以整理成自己的歌单。这个想法最后落成了 HALO Music ，也就是我自己的 Halo 音乐广场。 这个项目的重点并不是把某一个平台的页面重新做一遍，而是把多个音源、浏览器播放器、用","reading_time":14,"views_count":38,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -293,7 +293,7 @@ Cloudflare Pages 会把 <code>functions/api/</code> 下的文件映射成 <code>
 公开歌单导入放在 <code>import-playlist.js</code>，原因是分享链接解析、分页和上游请求更适合在服务端完成。Function 会识别网易云、汽水音乐和 QQ 音乐的公开链接，必要时先解析官方短链接，再读取页面或接口中的歌曲信息，最后统一转换成 HALO Track。
 
 导入过程设置了明确上限：QQ 歌单最多处理前 1,200 首，网易云最多 2,000 首，汽水音乐页面读取上限为 4 MB。限制请求规模既能保护上游，也能避免超过 Pages Functions 的执行时间。
-<h2>五、D1 数据模型与“本地优先”同步</h2>
+<h2>D1 数据库怎么做本地优先同步？</h2>
 
 D1 是 SQLite 数据库，当前核心表如下：
 <div class="table-scroll"><table>
@@ -328,7 +328,7 @@ D1 是 SQLite 数据库，当前核心表如下：
 </table></div>
 
 收藏和歌单采用“localStorage 先落地、D1 异步同步”：未登录时数据只属于当前浏览器；登录后页面再把库提交到 <code>/api/library</code>，弱网下仍能继续使用本地数据。云端库目前按 JSON 保存，优点是实现简单、适合个人项目；如果未来要做协作歌单、增量同步或操作审计，再拆成歌曲、歌单和关系表会更合适。
-<h2>六、账号安全和 Electron 安全边界</h2>
+<h2>Electron 应用怎么保证账号安全？</h2>
 
 账号密码不会以明文保存。服务端使用 Web Crypto 的 PBKDF2-SHA-256，100,000 次迭代和 16 字节随机 salt，只把哈希和 salt 写入 D1。登录后用随机 UUID 生成会话 token，放进 <code>HttpOnly; Secure; SameSite=Lax</code> Cookie，默认有效期 30 天。
 
@@ -390,6 +390,8 @@ Windows 安装包和便携版会输出到 <code>release/</code>，应用 ID 是 
 
 项目仍然有清晰的边界：上游接口和音频地址可能随时变化，Pages Functions 的执行时间会限制大批量导入，前端主入口也可以继续拆分成模块化组件。下一步更值得投入的方向，是更细粒度的歌单数据模型、增量同步、Playwright 视觉回归，以及对各音源适配器建立更稳定的契约测试。
 
-如果你想了解具体实现，欢迎直接阅读 <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">halo_music 源码</a>。这个项目从一个“能搜歌和播放”的小工具开始，逐渐长成了一个包含 Web、Serverless、SQLite 缓存和桌面壳的完整练习场。</div></div></noscript>
+如果你想了解具体实现，欢迎直接阅读 <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">halo_music 源码</a>。这个项目从一个“能搜歌和播放”的小工具开始，逐渐长成了一个包含 Web、Serverless、SQLite 缓存和桌面壳的完整练习场。
+
+同一条链路上还可以接着读：<a href="/article/test-manage-system-vue-django/">《从零搭建测试管理系统：Vue 3 + Django 全栈实战》</a>、<a href="/article/blog-tech-stack/">《博客搭建技术全解析：Vue 3 + Django 前后端分离实战》</a>。</div></div></noscript>
   </body>
 </html>

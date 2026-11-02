@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-09T10:09:35.405173+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"别让一个坏邮箱毒死整批群发：三次加固","description":"别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if \"@\" in e","image":"https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-09T10:09:35.405173+08:00","dateModified":"2026-09-09T10:09:35.405173+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/django-subscribe-mass-mail/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"django-subscribe-mass-mail","title":"别让一个坏邮箱毒死整批群发：三次加固","created_at":"2026-09-09T10:09:35.405173+08:00","updated_at":"2026-11-02T12:19:57.622299+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&q=80&auto=format&fit=crop","excerpt":"别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if \"@\" in e","reading_time":13,"views_count":19,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"django-subscribe-mass-mail","title":"别让一个坏邮箱毒死整批群发：三次加固","created_at":"2026-09-09T10:09:35.405173+08:00","updated_at":"2026-11-02T12:19:57.622299+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&q=80&auto=format&fit=crop","excerpt":"别让一个坏邮箱毒死整批群发：邮件订阅的三次加固 博客有个邮件订阅功能：读者留邮箱，新文章发布时群发通知。链路是 订阅接口 → Subscriber 表 → post_save 信号 → send_mass_mail 群发 。听起来简单，但这条链路上每个环节都埋过雷。 最刺激的一个：旧的订阅校验是 if \"@\" in e","reading_time":13,"views_count":20,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -110,7 +110,7 @@
 
 这篇文章把这条链路掰开揉碎：每段给完整代码、每个结论给实测结果、每次故障给具体推演。
 <hr>
-<h2>01 第一关：入口——坏邮箱是怎么混进库的</h2>
+<h2>01 第一关：入口——坏邮箱是怎么混进库的？</h2>
 
 先看案发现场。修之前的校验只有一行（<code>articles/views.py</code> 注释里留着案底）：
 <div class="codehilite"><pre><span></span><code><span class="c1"># 旧代码（已删除）</span>
@@ -242,7 +242,7 @@
 <strong>软删除 vs 硬删除的取舍</strong>：退订保留行而不是删掉，一是 L6 这种"复活"逻辑有地方翻旗，二是删掉后同一个坏地址可以无限重新进来——留着 inactive 行，至少系统记得它存在过。<strong>删除是最彻底的遗忘，而有些记录，系统需要记得。</strong>
 </blockquote>
 <hr>
-<h2>03 第三关：群发——230 个订阅者，5 批邮件是怎么发完的</h2>
+<h2>03 第三关：群发——230 个订阅者，5 批邮件是怎么发完的？</h2>
 
 新文章发布时，<code>post_save</code> 信号触发群发（<code>articles/signals.py</code>）。先看接线——信号要生效，必须被 import（<code>articles/apps.py</code>）：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -454,6 +454,8 @@
 <li>批量做到一半挂了，重跑会打扰已成功的人吗？（画出批次表再写代码）</li>
 <li>触发链路上有没有"看起来一样但信号不触发"的写法？（grep 所有 <code>.update()</code> 和接线处）</li>
 </ol>
-</blockquote></div></div></noscript>
+</blockquote>
+
+同一条链路上还可以接着读：<a href="/article/mq-reliable-delivery-deep-dive/">《消息凭空消失排查记：MQ 可靠投递实测》</a>、<a href="/article/django-transaction-atomic-on-commit/">《事务回滚了，邮件照样发出去——Django 事务深水区》</a>。</div></div></noscript>
   </body>
 </html>

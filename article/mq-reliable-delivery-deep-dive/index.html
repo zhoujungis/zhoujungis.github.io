@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-17T12:22:33.063729+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"消息凭空消失排查记：MQ 可靠投递实测","description":"消息凭空消失排查记：MQ 可靠投递实测——三种配置丢消息率 0.62%、0.49%、0 适用读者：用 MQ 做过异步解耦，但说不清\"消息到底会不会丢、丢在哪\"的后端工程师 技术栈：Python 纯标准库模拟链路 + 实测数据；原理与语言无关，RabbitMQ / RocketMQ / Kafka / Redis Str","image":"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-17T12:22:33.063729+08:00","dateModified":"2026-09-17T12:22:33.063729+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/mq-reliable-delivery-deep-dive/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"mq-reliable-delivery-deep-dive","title":"消息凭空消失排查记：MQ 可靠投递实测","created_at":"2026-09-17T12:22:33.063729+08:00","updated_at":"2026-11-02T12:19:55.207499+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":122,"name":"架构设计","slug":"architecture"},{"id":124,"name":"高可用","slug":"high-availability"}],"cover_image":"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80&auto=format&fit=crop","excerpt":"消息凭空消失排查记：MQ 可靠投递实测——三种配置丢消息率 0.62%、0.49%、0 适用读者：用 MQ 做过异步解耦，但说不清\"消息到底会不会丢、丢在哪\"的后端工程师 技术栈：Python 纯标准库模拟链路 + 实测数据；原理与语言无关，RabbitMQ / RocketMQ / Kafka / Redis Str","reading_time":19,"views_count":19,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"mq-reliable-delivery-deep-dive","title":"消息凭空消失排查记：MQ 可靠投递实测","created_at":"2026-09-17T12:22:33.063729+08:00","updated_at":"2026-11-02T12:19:55.207499+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":122,"name":"架构设计","slug":"architecture"},{"id":124,"name":"高可用","slug":"high-availability"}],"cover_image":"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80&auto=format&fit=crop","excerpt":"消息凭空消失排查记：MQ 可靠投递实测——三种配置丢消息率 0.62%、0.49%、0 适用读者：用 MQ 做过异步解耦，但说不清\"消息到底会不会丢、丢在哪\"的后端工程师 技术栈：Python 纯标准库模拟链路 + 实测数据；原理与语言无关，RabbitMQ / RocketMQ / Kafka / Redis Str","reading_time":19,"views_count":20,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -202,7 +202,7 @@
 </tbody>
 </table></div>
 <hr>
-<h2>2. 生产端：发送确认与本地消息表</h2>
+<h2>生产端怎么保证消息不丢？</h2>
 <h3>2.1 "发送成功"的两种含义</h3>
 
 大部分消息丢失事故的起点，是混淆了两种"发送成功"：
@@ -276,7 +276,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
 
 代价也明确：投递有轮询延迟（可加 <code>SELECT ... FOR UPDATE SKIP LOCKED</code> 或 CDC 如 Debezium 优化），且 outbox 表需要清理策略。但对比"订单存在、消息消失"，这点代价几乎总是值得的。
 <hr>
-<h2>3. Broker 端：持久化、刷盘与副本</h2>
+<h2>Broker 怎么保证消息持久化？</h2>
 
 消息到了 Broker 还没完——<strong>内存里的消息不是你的消息，落盘的才是</strong>。
 
@@ -521,7 +521,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
 
 注意 TTL + DLQ 方案的队头陷阱：队列是 FIFO 的，第一条消息 TTL 10 分钟，后面 TTL 30 秒的消息也得等它出队才检查——<strong>延迟值差异大的场景不要用</strong>。
 <hr>
-<h2>9. 上线 Checklist + 高频 FAQ</h2>
+<h2>9. 上线前要检查什么？</h2>
 
 <strong>上线 Checklist</strong>
 
@@ -571,6 +571,8 @@ Broker 端：
 
 MQ 可靠性这件事，知识本身不复杂，复杂的是<strong>三跳里任何一跳的默认配置都不面向可靠</strong>——默认 auto-ack、默认异步刷盘、默认 fire-and-forget。工程上的功课，就是知道每一跳的默认值是什么、哪些业务承受得起、承受不起的怎么换掉。
 
-如果这篇文章对你有帮助，欢迎在评论区聊聊你遇到过的"消息消失"事故。</div></div></noscript>
+如果这篇文章对你有帮助，欢迎在评论区聊聊你遇到过的"消息消失"事故。
+
+同一条链路上还可以接着读：<a href="/article/django-subscribe-mass-mail/">《别让一个坏邮箱毒死整批群发：三次加固》</a>、<a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">《下游只抖 3 秒，我的服务被拖死——超时与熔断实战》</a>。</div></div></noscript>
   </body>
 </html>

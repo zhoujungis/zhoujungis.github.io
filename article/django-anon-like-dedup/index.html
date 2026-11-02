@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-09T09:53:59.063732+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"为什么我敢让匿名用户点赞：五层防刷设计","description":"为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/<slug>/like/ ，不需要登录。上一篇讲的是\"敢渲染\"，这一篇讲的是\"敢被点\"—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得\"点赞不就是计数器加一吗","image":"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-09T09:53:59.063732+08:00","dateModified":"2026-09-09T09:53:59.063732+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/django-anon-like-dedup/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"django-anon-like-dedup","title":"为什么我敢让匿名用户点赞：五层防刷设计","created_at":"2026-09-09T09:53:59.063732+08:00","updated_at":"2026-11-02T12:19:57.891953+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":107,"name":"安全","slug":"security"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80&auto=format&fit=crop","excerpt":"为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/\u003cslug>/like/ ，不需要登录。上一篇讲的是\"敢渲染\"，这一篇讲的是\"敢被点\"—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得\"点赞不就是计数器加一吗","reading_time":13,"views_count":17,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"django-anon-like-dedup","title":"为什么我敢让匿名用户点赞：五层防刷设计","created_at":"2026-09-09T09:53:59.063732+08:00","updated_at":"2026-11-02T12:19:57.891953+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":107,"name":"安全","slug":"security"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80&auto=format&fit=crop","excerpt":"为什么我敢让匿名用户点赞：一个点赞按钮背后的五层防刷设计 这篇博客的点赞接口是匿名可调用的： POST /api/articles/\u003cslug>/like/ ，不需要登录。上一篇讲的是\"敢渲染\"，这一篇讲的是\"敢被点\"—— 把一个写操作开放给全互联网，需要的勇气不比渲染用户输入少 。 如果你觉得\"点赞不就是计数器加一吗","reading_time":13,"views_count":20,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -114,7 +114,7 @@
 
 这篇文章带你走一遍我的博客点赞从"能点"到"刷不动"的五层设计。代码全部来自后端真实实现（<code>articles/views.py</code>、<code>articles/models.py</code>），其中两个是踩过坑换来的。
 <hr>
-<h2>01 问题：一个点赞按钮，有多少种死法</h2>
+<h2>01 问题：一个点赞按钮，有多少种死法？</h2>
 
 先把攻击面列出来。一个匿名点赞接口，面临的威胁至少有四种：
 <ol>
@@ -130,7 +130,7 @@
 
 每一层都只解决一种死法，合起来才叫防线。
 <hr>
-<h2>02 第一层：为什么不用 cookie 去重</h2>
+<h2>02 第一层：为什么不用 cookie 去重？</h2>
 
 最直觉的方案是 cookie：点过赞就种个 cookie，下次带 cookie 来就拒绝。但我的博客前后端是分离部署的——前端在 <code>zhoujungis.github.io</code>，后端在 <code>zhoujun123.pythonanywhere.com</code>，<strong>跨域</strong>。
 
@@ -374,7 +374,7 @@
 
 和上一篇 XSS 的防线对照着看， Methodology 是同一套：<strong>不信任客户端、每一层只解决一件事、每一层都假设上一层已失守</strong>。
 <hr>
-<h2>延伸：什么时候该上 Redis</h2>
+<h2>延伸：什么时候该上 Redis？</h2>
 
 诚实地说，IP+UA 表方案有天花板：防不住代理池 + UA 随机化的专业刷量。如果有一天流量大到需要升级，标准答案是 Redis：
 <div class="table-scroll"><table>
@@ -431,6 +431,8 @@
 </ol>
 </blockquote>
 
-想清楚这三个问题，你就离"敢被点"不远了。</div></div></noscript>
+想清楚这三个问题，你就离"敢被点"不远了。
+
+同一条链路上还可以接着读：<a href="/article/api-idempotency-deep-dive/">《用户只是双击了一下，订单多了 7 条——接口幂等》</a>、<a href="/article/django-comment-system-guide/">《敢让匿名用户评论的底气：七层防线实战》</a>。</div></div></noscript>
   </body>
 </html>

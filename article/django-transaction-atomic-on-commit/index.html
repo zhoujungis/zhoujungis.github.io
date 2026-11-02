@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-14T10:39:13.728721+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"事务回滚了，邮件照样发出去——Django 事务深水区","description":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-14T10:39:13.728721+08:00","dateModified":"2026-09-14T10:39:13.728721+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"django-transaction-atomic-on-commit","title":"事务回滚了，邮件照样发出去——Django 事务深水区","created_at":"2026-09-14T10:39:13.728721+08:00","updated_at":"2026-11-02T12:19:56.081600+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","excerpt":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","reading_time":26,"views_count":22,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"django-transaction-atomic-on-commit","title":"事务回滚了，邮件照样发出去——Django 事务深水区","created_at":"2026-09-14T10:39:13.728721+08:00","updated_at":"2026-11-02T12:19:56.081600+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1200&q=80&auto=format&fit=crop","excerpt":"事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还是没用上》两篇，\"并发三件套\"的最后一篇。 技术栈：Django 6.0.6 + SQLite 3.50.4（与本站同栈），MySQL 8 /","reading_time":26,"views_count":23,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -151,7 +151,7 @@
 <li>结语</li>
 </ul>
 <hr>
-<h2>1. 先看清你站上的事务边界</h2>
+<h2>Django 的事务边界在哪里？</h2>
 
 跑一个小脚本（<a href="#附本文实验脚本">本文附录的 <code>tools/bench_transaction.py</code></a>）就能把"你这套 Django 的事务底层到底是按什么方式工作的"摸得一清二楚。在做本站（<code>backend/db.sqlite3</code> + Django 6.0.6 + Python 3.13）上的实测时，第一个输出是：
 <div class="codehilite"><pre><span></span><code>ENGINE                : django.db.backends.sqlite3
@@ -539,7 +539,7 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
 <strong>心法四：在 <code>atomic</code> 里做可能失败的操作，用嵌套 atomic 包成 savepoint，不要直接 try/except。</strong> 嵌套的层数多少无所谓——Django 实现 savepoint 就是嵌套 atomic。
 </blockquote>
 <hr>
-<h2>6. <code>transaction.on_commit</code> 的完整用法与三个坑</h2>
+<h2><code>transaction.on_commit</code> 怎么用？</h2>
 
 把 <code>on_commit</code> 拆开看：
 <div class="codehilite"><pre><span></span><code><span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">using</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">robust</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -683,7 +683,7 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
 
 迁移到 MySQL/PG 时，<strong>立刻把 <code>select_for_update</code> 用上</strong>——它不再是空操作；同时把 <code>OPTIONS.timeout</code> 删掉、加上 <code>CONN_MAX_AGE=60</code>。
 <hr>
-<h2>9. 上线 Checklist</h2>
+<h2>9. 上线前要检查什么？</h2>
 <h3>9.1 代码层</h3>
 <ul>
 <li>[ ] 任何"读出来改完写回去"的逻辑，要么换成 <code>.update(F()+k)</code>，要么显式开事务 + <code>select_for_update</code>（确认 <code>has_select_for_update=True</code>）</li>
@@ -735,6 +735,8 @@ python<span class="w"> </span>../tools/bench_transaction.py<span class="w"> </sp
 
 
 环境口径：Django 6.0.6 / SQLite 3.50.4 / Python 3.13；8 线程 × 50 次自增取中位数。
-脚本会<strong>自动复制 <code>db.sqlite3</code> 到系统临时目录</strong>，跑完自动删除，不会触碰你的真实数据库；订阅者通知信号也会自动断开，所以<strong>不会有任何邮件被发出去</strong>。</div></div></noscript>
+脚本会<strong>自动复制 <code>db.sqlite3</code> 到系统临时目录</strong>，跑完自动删除，不会触碰你的真实数据库；订阅者通知信号也会自动断开，所以<strong>不会有任何邮件被发出去</strong>。
+
+同一条链路上还可以接着读：<a href="/article/django-zero-downtime-migration/">《上线那一刻，数据库在重建整张表——零停机迁移》</a>、<a href="/article/api-idempotency-deep-dive/">《用户只是双击了一下，订单多了 7 条——接口幂等》</a>。</div></div></noscript>
   </body>
 </html>

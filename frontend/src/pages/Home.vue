@@ -41,6 +41,30 @@
       </div>
     </header>
 
+    <!-- ── 精选专题 ── -->
+    <section class="front-section topics-feature" aria-label="精选专题">
+      <header class="section-head">
+        <h2 class="section-title">精选专题</h2>
+        <router-link to="/topics" class="section-more">
+          全部专题
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </router-link>
+      </header>
+      <div class="topics-feature__grid">
+        <router-link
+          v-for="(topic, index) in featuredTopics"
+          :key="topic.slug"
+          :to="topicPath(topic.slug)"
+          class="feature-topic"
+        >
+          <span class="feature-topic__index">{{ String(index + 1).padStart(2, '0') }}</span>
+          <span class="feature-topic__en">{{ topic.en }}</span>
+          <strong class="feature-topic__name">{{ topic.name }}</strong>
+          <span class="feature-topic__tagline">{{ topic.tagline }}</span>
+        </router-link>
+      </div>
+    </section>
+
     <!-- ── 头版：最新文章 ── -->
     <section class="front-section" aria-label="最新文章">
       <header class="section-head">
@@ -195,9 +219,11 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { getArticles } from '@/api/articles'
 import { resolveListFallback, saveListCache, cacheNoticeText } from '@/utils/articleCache'
 import { catLabel, tagLabel } from '@/utils/labels'
+import { TOPICS, topicPath } from '@/data/topics'
 import NewsletterForm from '@/components/NewsletterForm.vue'
 
 const latestArticles = ref([])
+const featuredTopics = TOPICS.slice(0, 4)
 const totalCount = ref(0)
 const loading = ref(true)
 const loadError = ref(null)
@@ -555,6 +581,60 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 // ── 版块标题 ──
 .front-section {
   margin-top: 64px;
+}
+
+// ── 精选专题 ──
+.topics-feature__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.feature-topic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 16px;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--glass-border);
+  transition: background $transition-fast;
+
+  &:nth-child(odd) { border-right: 1px solid var(--glass-border); }
+
+  &:hover { background: var(--surface-muted); }
+  &:hover .feature-topic__name { color: var(--accent); }
+}
+
+.feature-topic__index {
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+}
+
+.feature-topic__en {
+  color: var(--accent-secondary);
+  font-family: $font-mono;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.feature-topic__name {
+  color: var(--text-primary);
+  font-family: $serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.4;
+  transition: color $transition-fast;
+}
+
+.feature-topic__tagline {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.6;
 }
 
 .section-head {
@@ -1043,6 +1123,8 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   .aside-stat { flex-direction: row; align-items: baseline; gap: 8px; width: auto; margin-bottom: 0; padding: 9px 14px; }
   .aside-stat__value { font-size: 1.5rem; }
   .front-grid, .front-skeleton { grid-template-columns: 1fr; gap: 0; }
+  .topics-feature__grid { grid-template-columns: 1fr; }
+  .feature-topic:nth-child(odd) { border-right: 0; }
   .front-skeleton__list { margin-top: 10px; }
   .column-row { grid-template-columns: 40px 1fr; }
   .column-row__body { grid-column: 1 / -1; }

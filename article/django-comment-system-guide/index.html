@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-10T10:13:33.701226+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"敢让匿名用户评论的底气：七层防线实战","description":"敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm","image":"https://images.unsplash.com/photo-1543269865-cbf427effbad?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T10:13:33.701226+08:00","dateModified":"2026-09-10T10:13:33.701226+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/django-comment-system-guide/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"django-comment-system-guide","title":"敢让匿名用户评论的底气：七层防线实战","created_at":"2026-09-10T10:13:33.701226+08:00","updated_at":"2026-11-02T12:19:56.745054+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":107,"name":"安全","slug":"security"}],"cover_image":"https://images.unsplash.com/photo-1543269865-cbf427effbad?w=1200&q=80&auto=format&fit=crop","excerpt":"敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm","reading_time":16,"views_count":20,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"django-comment-system-guide","title":"敢让匿名用户评论的底气：七层防线实战","created_at":"2026-09-10T10:13:33.701226+08:00","updated_at":"2026-11-02T12:19:56.745054+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":107,"name":"安全","slug":"security"}],"cover_image":"https://images.unsplash.com/photo-1543269865-cbf427effbad?w=1200&q=80&auto=format&fit=crop","excerpt":"敢让匿名用户评论的底气：Django 评论系统的七层防线实战 适用栈：Django 6.0 + DRF 3.17 + Vue 3 + SQLite + PythonAnywhere 代码来源：真实博客 backend/comments/ 全应用 + frontend/src/components/CommentForm","reading_time":16,"views_count":21,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -141,7 +141,7 @@
 
 七层每一层只干一件事，层层设卡。设计哲学：<strong>匿名可评（别登录），但默认不可见（先审后发）</strong>。个人博客流量小，先审后发零成本；日活上万再切“白名单免审 + 黑名单秒删”。
 <hr>
-<h2>2. 模型：自关联 + 审核开关</h2>
+<h2>评论模型为什么要自关联？</h2>
 <div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/models.py</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Comment</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
     <span class="n">article</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span>
@@ -172,7 +172,7 @@
 
 <code>article</code> 用字符串 <code>"articles.Article"</code> 避免循环 import，<code>on_delete=CASCADE</code> 删文章带走评论（个人博客合理；社区站改 <code>SET_NULL</code> 留档）。
 <hr>
-<h2>3. 读接口：只给已审核，草稿一篇不漏</h2>
+<h2>评论读接口怎么做到不漏草稿？</h2>
 <div class="codehilite"><pre><span></span><code><span class="c1"># backend/comments/views.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.throttling</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScopedRateThrottle</span>
 
@@ -378,7 +378,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>
 
 XSS 特别说明：现在安全是因为前端 <code>{{ }}</code> 转义 + 后台 Django admin 转义。<strong>哪天要上 Markdown 评论/楼中楼富文本，必须入库前 <code>bleach</code> 白名单</strong>（<code>b/i/code/a[href]</code> 极小集），抄我 XSS 那篇的 <code>ALLOWED_TAGS</code> 即可。
 <hr>
-<h2>9. 上线 Checklist（20 项）+ FAQ（12 问）</h2>
+<h2>9. 上线前要检查什么？</h2>
 
 <strong>后端（11）</strong>
 <ul>
@@ -433,6 +433,8 @@ XSS 特别说明：现在安全是因为前端 <code>{{ }}</code> 转义 + 后�
 
 完整代码：<code>backend/comments/models.py|views.py|serializers.py|signals.py|admin_views.py</code>、<code>frontend/src/components/CommentForm.vue|CommentList.vue</code>
 评论区聊聊：你的 honeypot 叫什么名？限流几档？误伤过真人吗？
-</blockquote></div></div></noscript>
+</blockquote>
+
+同一条链路上还可以接着读：<a href="/article/django-anon-like-dedup/">《为什么我敢让匿名用户点赞：五层防刷设计》</a>、<a href="/article/django-bleach-xss-defense/">《为什么我敢渲染用户的 Markdown：一条 XSS 防线》</a>。</div></div></noscript>
   </body>
 </html>

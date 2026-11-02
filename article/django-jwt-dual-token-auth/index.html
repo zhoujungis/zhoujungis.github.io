@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
+    <script type="module" crossorigin src="/assets/index-CPvCUlvl.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,7 +96,7 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-09-10T10:01:51.315654+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战","description":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings","image":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80&auto=format&fit=crop","datePublished":"2026-09-10T10:01:51.315654+08:00","dateModified":"2026-09-10T10:01:51.315654+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"django-jwt-dual-token-auth","title":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战","created_at":"2026-09-10T10:01:51.315654+08:00","updated_at":"2026-11-02T12:19:57.127253+08:00","author":null,"category":{"id":12,"name":"后端架构","slug":"backend"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":107,"name":"安全","slug":"security"}],"cover_image":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80&auto=format&fit=crop","excerpt":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings","reading_time":27,"views_count":24,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"django-jwt-dual-token-auth","title":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战","created_at":"2026-09-10T10:01:51.315654+08:00","updated_at":"2026-11-02T12:19:57.127253+08:00","author":null,"category":{"id":12,"name":"后端架构","slug":"backend"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":107,"name":"安全","slug":"security"}],"cover_image":"https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80&auto=format&fit=crop","excerpt":"登录态 1 小时就掉？Django + Vue 双 Token 认证实战：续期、防掉线、防 XSS 适用栈：Django 6.0 + djangorestframework-simplejwt 5.5 + Vue 3 + Pinia + Axios 代码来源：真实博客 backend/blog_api/settings","reading_time":27,"views_count":25,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
@@ -181,7 +181,7 @@ refresh 也过期（1 天没碰后台）
 
 这就是双 Token 的核心思想：<strong>常用钥匙短命（access），备用钥匙长命但少用（refresh）</strong>。单 Token 方案（一个 7 天 token）一旦泄露就是 7 天任意门，双 Token 把 Blast Radius 压到 1 小时。
 <hr>
-<h2>2. JWT 原理：三段式，5 分钟看懂</h2>
+<h2>JWT 的三段式结构是什么？</h2>
 
 JWT 长这样（用 <code>.</code> 分三段）：
 <div class="codehilite"><pre><span></span><code><span class="n">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9</span><span class="w">  </span><span class="o">.</span><span class="w">  </span><span class="n">eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzI1ODI4MDAwLCJ1c2VyX2lkIjoxfQ</span><span class="w">  </span><span class="o">.</span><span class="w">  </span><span class="n">SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c</span>
@@ -256,7 +256,7 @@ JWT 是<strong>无状态</strong>的：后端不存 session，靠验签认人。
 
 SimpleJWT 源码速览（知道三处就够）：<code>TokenObtainPairView.post()</code> 校密码 → <code>RefreshToken.for_user(user)</code> 同时签 access+refresh；<code>TokenRefreshView</code> 验 refresh 的 <code>token_type==refresh</code> + <code>exp</code> + 黑名单 → 吐新 access；<code>JWTAuthentication.authenticate()</code> 从 <code>Authorization: Bearer xxx</code> 取 token、<code>UntypedToken</code> 验签解出 <code>user_id</code>。验签失败/过期统一抛 <code>InvalidToken</code> → DRF 转 401。
 <hr>
-<h2>3. 后端：SimpleJWT 三处配置</h2>
+<h2>SimpleJWT 需要配置哪三处？</h2>
 <h3>3.1 settings：有效期 + 认证入口</h3>
 <div class="codehilite"><pre><span></span><code><span class="c1"># backend/blog_api/settings.py</span>
 <span class="n">REST_FRAMEWORK</span> <span class="o">=</span> <span class="p">{</span>
@@ -937,6 +937,8 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
 
 完整代码：<code>backend/blog_api/settings.py</code>、<code>backend/blog_api/urls.py</code>、<code>frontend/src/stores/auth.js</code>、<code>frontend/src/api/client.js</code>、<code>frontend/src/router/index.js</code>
 评论区聊聊：你的 access/refresh 设的多长？localStorage 还是 Cookie？为什么？
-</blockquote></div></div></noscript>
+</blockquote>
+
+同一条链路上还可以接着读：<a href="/article/django-comment-system-guide/">《敢让匿名用户评论的底气：七层防线实战》</a>、<a href="/article/django-anon-like-dedup/">《为什么我敢让匿名用户点赞：五层防刷设计》</a>。</div></div></noscript>
   </body>
 </html>

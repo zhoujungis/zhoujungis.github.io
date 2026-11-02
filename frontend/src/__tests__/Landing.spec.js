@@ -62,7 +62,7 @@ describe('Landing (Home.vue)', () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
-    const front = wrapper.find('.front-section')
+    const front = wrapper.find('.front-section[aria-label="最新文章"]')
     expect(front.exists()).toBe(true)
     // 断言限定在区块内：首页除了「最新文章」还有「最新项目」，都带 .section-title，
     // 不限定作用域的话取到的是 DOM 里第一个，加区块就会误伤。
