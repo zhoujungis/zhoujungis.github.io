@@ -335,6 +335,63 @@ class NewsletterTests(TestCase):
         )
         self.assertEqual(len(mail.outbox), 0)
 
+    # --- 补发命令 / 通道缺失 ---
+
+    def _published_without_signal(self, slug):
+        article = Article.objects.create(
+            title=slug, slug=slug, content="x", status=Article.Status.DRAFT
+        )
+        # 用 update() 绕过 post_save，模拟「早就发布、通知状态另行设置」
+        Article.objects.filter(pk=article.pk).update(status=Article.Status.PUBLISHED)
+        article.refresh_from_db()
+        return article
+
+    def test_notify_subscribers_dry_run_sends_nothing(self):
+        Subscriber.objects.create(email="s1@test.com")
+        article = self._published_without_signal("dry-run-post")
+        call_command(
+            "notify_subscribers", "--slug", article.slug, "--dry-run", stdout=StringIO()
+        )
+        self.assertEqual(len(mail.outbox), 0)
+        article.refresh_from_db()
+        self.assertFalse(article.notification_sent)
+
+    def test_notify_subscribers_force_resends_marked_article(self):
+        Subscriber.objects.create(email="s1@test.com")
+        article = self._published_without_signal("resend-post")
+        Article.objects.filter(pk=article.pk).update(notification_sent=True)
+
+        call_command(
+            "notify_subscribers",
+            "--slug",
+            article.slug,
+            "--force",
+            stdout=StringIO(),
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["s1@test.com"])
+
+    @override_settings(
+        DEBUG=False,
+        EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend",
+    )
+    def test_missing_delivery_channel_keeps_notification_unsent(self):
+        """生产环境退回 console backend 时必须报错，而不是静默标记已发送。"""
+        from unittest import mock
+
+        from .signals import NotificationDeliveryError, send_new_article_notification
+
+        Subscriber.objects.create(email="s1@test.com")
+        article = self._published_without_signal("console-post")
+
+        with mock.patch.dict("os.environ", {"RESEND_API_KEY": ""}):
+            with self.assertRaises(NotificationDeliveryError):
+                send_new_article_notification(article)
+
+        article.refresh_from_db()
+        self.assertFalse(article.notification_sent)
+        self.assertEqual(len(mail.outbox), 0)
+
 
 class SeoLinksCommandTests(TestCase):
     """seolinks：只在原句后追加正文内链，不改原句，也不重复群发。"""

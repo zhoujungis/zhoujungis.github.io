@@ -78,7 +78,12 @@ if (auth.isAuthenticated) {
       auth.checkAuth()
       return auth.fetchMe()
     })
-    .catch(() => auth.logout())
+    .catch((err) => {
+      // 网络超时 / 5xx 只是暂时失败：保留 refresh token，下次打开再续。
+      // 只有服务端明确拒绝（400/401/403）才彻底退出登录。
+      if (err?.definitive) auth.logout()
+      else console.warn('auth: refresh temporarily failed', err)
+    })
 }
 
 app.mount('#app')

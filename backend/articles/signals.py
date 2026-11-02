@@ -1,15 +1,23 @@
-"""
-Django signals for the articles app.
+"""Django signals for the articles app.
 
 - ``notify_subscribers_on_publish``: fires when an article is first
   published and sends a notification email to all active subscribers.
+
+投递通道：优先走 Resend HTTP API（与登录验证码同一通道），没有
+``RESEND_API_KEY`` 时退回 Django 邮件后端。生产环境若两者都没配，
+Django 默认的 console backend 会把邮件打印到服务器日志里、却让发送
+看起来「成功」——这里显式报错，让 notification_sent 保持 False，
+下一次保存可以重试，而不是静默丢信。
 """
 import logging
+import os
+
+import requests
+from django.conf import settings
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.template.loader import render_to_string
-from django.conf import settings
 
 from .models import Article, Subscriber
 
@@ -19,34 +27,68 @@ logger = logging.getLogger(__name__)
 # 发送前按订阅记录替换 —— 避免为 N 个订阅者重复渲染两份模板。
 UNSUBSCRIBE_PLACEHOLDER = "__UNSUBSCRIBE_URL__"
 
+RESEND_BATCH_ENDPOINT = "https://api.resend.com/emails/batch"
+RESEND_BATCH_LIMIT = 100
+SMTP_BATCH_SIZE = 50
+
+
+class NotificationDeliveryError(Exception):
+    """没有可用的邮件通道，或供应商拒绝了这一批邮件。"""
+
 
 @receiver(post_save, sender=Article)
 def notify_subscribers_on_publish(sender, instance, created, **kwargs):
-    """
-    When an article is first published, send a notification email to
-    all active subscribers.
+    """Article 首次发布时给所有活跃订阅者发通知。
 
-    Implementation notes:
-    - Stream subscribers via .iterator(chunk_size=200) — no full-list
-      materialization in memory at 10K+ subscribers.
-    - Send HTML + plain-text multipart, one message per subscriber (each
-      needs its own unsubscribe link), reusing a single SMTP connection.
-    - Flip the notification_sent flag after EACH successful batch. A
-      mid-flight SMTP failure on batch #3 won't trigger re-sending
-      batches 1+2 on the next save — they're already marked as notified.
+    force 重发走 ``manage.py notify_subscribers --force``，不经过信号。
     """
     if instance.status != Article.Status.PUBLISHED:
         return
     if instance.notification_sent:
         return
 
+    try:
+        sent_count = send_new_article_notification(instance)
+    except Exception as exc:  # noqa: BLE001 — 信号里不能把请求打挂
+        logger.error(
+            "Failed to send new-article notification for '%s': %s",
+            instance.title,
+            exc,
+        )
+        return
+
+    if sent_count:
+        logger.info(
+            "Sent new-article notification for '%s' to %d subscribers.",
+            instance.title,
+            sent_count,
+        )
+
+
+def send_new_article_notification(article, force=False):
+    """给活跃订阅者群发一篇文章的通知，返回成功发送的数量。
+
+    失败时抛出 ``NotificationDeliveryError``（或底层异常），并且不会把
+    ``notification_sent`` 置为 True —— 宁可下次重试，也不静默丢信。
+    """
+    if article.status != Article.Status.PUBLISHED:
+        return 0
+    if article.notification_sent and not force:
+        return 0
+
+    subscribers_qs = Subscriber.objects.filter(is_active=True).order_by("id")
+    if not subscribers_qs.exists():
+        # Nothing to send — still mark so we don't re-check on every save.
+        Article.objects.filter(pk=article.pk).update(notification_sent=True)
+        return 0
+
     blog_url = getattr(settings, "SITE_URL", "https://blog.zhoujun.dev")
-    article_url = f"{blog_url}/article/{instance.slug}"
-    subject = f"\U0001F4DD 新文章: {instance.title}"
+    article_url = f"{blog_url}/article/{article.slug}"
+    subject = f"\U0001F4DD 新文章: {article.title}"
 
     context = {
-        "title": instance.title,
-        "excerpt": instance.excerpt or "",
+        "title": article.title,
+        "excerpt": article.excerpt or "",
         "url": article_url,
         "site_url": blog_url,
         "unsubscribe_url": UNSUBSCRIBE_PLACEHOLDER,
@@ -54,61 +96,82 @@ def notify_subscribers_on_publish(sender, instance, created, **kwargs):
     plain_template = render_to_string("articles/email/new_article.txt", context)
     html_template = render_to_string("articles/email/new_article.html", context)
 
-    from_email = settings.DEFAULT_FROM_EMAIL_NAMED or settings.DEFAULT_FROM_EMAIL
-    batch_size = 50
-
-    # Stream subscribers instead of loading all rows at once.
-    subscribers_qs = Subscriber.objects.filter(is_active=True).order_by("id")
-    if not subscribers_qs.exists():
-        # Nothing to send — still mark so we don't re-check on every save.
-        Article.objects.filter(pk=instance.pk).update(notification_sent=True)
-        return
-
+    api_key = os.environ.get("RESEND_API_KEY", "")
     connection = get_connection()
+    from_email, resend_from = _sender_addresses()
+
+    is_console_backend = "console" in connection.__class__.__module__
+    if not api_key and is_console_backend and not settings.DEBUG:
+        raise NotificationDeliveryError(
+            "未配置邮件发送通道：请在 PythonAnywhere 的环境变量里设置 "
+            "RESEND_API_KEY（推荐），或 EMAIL_HOST_USER / EMAIL_HOST_PASSWORD。"
+            "当前 Django 用的是 console backend，邮件只会写进服务器日志。"
+        )
+
     sent_count = 0
     batch = []
-    failed = False
+    batch_limit = RESEND_BATCH_LIMIT if api_key else SMTP_BATCH_SIZE
+
+    # Stream subscribers instead of loading all rows at once.
     for sub in subscribers_qs.iterator(chunk_size=200):
         plain_body, html_body = _bodies_for(sub, plain_template, html_template)
-        msg = EmailMultiAlternatives(
-            subject, plain_body, from_email, [sub.email], connection=connection
-        )
-        msg.attach_alternative(html_body, "text/html")
-        batch.append(msg)
-        if len(batch) >= batch_size:
-            try:
-                connection.send_messages(batch)
-            except Exception as exc:
-                logger.error(
-                    "Failed to send notification batch for '%s': %s",
-                    instance.title, exc,
-                )
-                failed = True
-                # Don't flip the flag — next save retries from this batch
-                break
+        if api_key:
+            batch.append(
+                {
+                    "from": resend_from,
+                    "to": [sub.email],
+                    "subject": subject,
+                    "text": plain_body,
+                    "html": html_body,
+                }
+            )
+        else:
+            msg = EmailMultiAlternatives(
+                subject, plain_body, from_email, [sub.email], connection=connection
+            )
+            msg.attach_alternative(html_body, "text/html")
+            batch.append(msg)
+
+        if len(batch) >= batch_limit:
+            _flush_batch(article, batch, api_key, connection)
             sent_count += len(batch)
-            # Flip the flag after each successful batch so a partial
-            # failure doesn't re-send to subscribers who already received it.
-            # (Trade-off: those whose batch failed will retry next save.)
-            Article.objects.filter(pk=instance.pk).update(notification_sent=True)
             batch = []
 
-    if batch and not failed:
-        try:
-            connection.send_messages(batch)
-            sent_count += len(batch)
-            Article.objects.filter(pk=instance.pk).update(notification_sent=True)
-        except Exception as exc:
-            logger.error(
-                "Failed to send final notification batch for '%s': %s",
-                instance.title, exc,
-            )
+    if batch:
+        _flush_batch(article, batch, api_key, connection)
+        sent_count += len(batch)
 
-    if sent_count and not failed:
-        logger.info(
-            "Sent new-article notification for '%s' to %d subscribers.",
-            instance.title, sent_count,
+    return sent_count
+
+
+def _sender_addresses():
+    """返回 Django 后端的发件人、Resend 的发件人（带显示名）。"""
+    bare_from = settings.DEFAULT_FROM_EMAIL or "no-reply@zhoujun.dev"
+    django_from = settings.DEFAULT_FROM_EMAIL_NAMED or bare_from
+
+    resend_from = os.environ.get("RESEND_FROM") or bare_from
+    if "<" not in resend_from:
+        resend_from = f"{settings.EMAIL_SENDER_NAME} <{resend_from}>"
+    return django_from, resend_from
+
+
+def _flush_batch(article, batch, api_key, connection):
+    """发送一批；成功后立刻落 notification_sent，避免重复群发。"""
+    if api_key:
+        resp = requests.post(
+            RESEND_BATCH_ENDPOINT,
+            json=batch,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=20,
         )
+        if resp.status_code >= 400:
+            raise NotificationDeliveryError(
+                f"resend batch {resp.status_code}: {resp.text[:200]}"
+            )
+    else:
+        connection.send_messages(batch)
+
+    Article.objects.filter(pk=article.pk).update(notification_sent=True)
 
 
 def _bodies_for(subscriber, plain_template, html_template):

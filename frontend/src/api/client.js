@@ -61,7 +61,7 @@ async function refreshAccessToken() {
     .post(
       `${client.defaults.baseURL}token/refresh/`,
       { refresh },
-      { timeout: 15000, _skipRefresh: true },
+      { timeout: 30000, _skipRefresh: true },
     )
     .then((res) => {
       const { access, refresh: newRefresh } = res.data || {}
@@ -83,6 +83,16 @@ async function refreshAccessToken() {
         // ignore malformed JWT
       }
       return access
+    })
+    .catch((err) => {
+      // 只有服务端明确拒绝 refresh token（400/401/403）才算登录失效。
+      // 超时、断网、5xx 都是暂时性故障：不能因此清掉 30 天的 refresh token，
+      // 否则 PythonAnywhere 冷启动慢一次，用户就要重新登录。
+      const status = err.response?.status
+      if (status && [400, 401, 403].includes(status)) {
+        err.definitive = true
+      }
+      throw err
     })
     .finally(() => {
       // Allow next refresh after this one settles (success or failure)
@@ -143,10 +153,13 @@ client.interceptors.response.use(
         original.headers.Authorization = `Bearer ${newToken}`
         return client(original)
       } catch (refreshErr) {
-        // Refresh failed — only redirect if this was an admin request
-        clearAuth()
-        if (typeof window !== 'undefined' && (original.url || '').includes('/admin/')) {
-          window.location.href = '/admin'
+        // 暂时性故障（超时/断网/5xx）保留 refresh token，下次再续；
+        // 只有服务端明确拒绝才清空登录态并回登录页。
+        if (refreshErr?.definitive) {
+          clearAuth()
+          if (typeof window !== 'undefined' && (original.url || '').includes('/admin/')) {
+            window.location.href = '/admin'
+          }
         }
         return Promise.reject(refreshErr)
       }
