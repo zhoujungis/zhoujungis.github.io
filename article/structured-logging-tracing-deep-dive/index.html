@@ -56,10 +56,10 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
+    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
-    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
@@ -240,7 +240,7 @@
     <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">))</span>
 </code></pre></div>
 
-<h2>2. JSON 比文本贵 40%，不是数量级</h2>
+<h2>JSON 日志比文本贵多少？</h2>
 
 先看 E1a，纯 CPU，100,000 次，完全不落盘：
 <div class="codehilite"><pre><span></span><code><span class="gh">方式                               total    ns/rec     vs 文本      离散度</span>
@@ -266,7 +266,7 @@ JSON 序列化比 f-string 文本贵 +40%，绝对值差 1053 ns/条
 <h3>2.1 字段顺序几乎不影响，别在这上面纠结</h3>
 
 <code>json.dumps</code> 的编码器是 C 实现的，9 个字段的 dict 序列化本身很快。你把字段按长度排序、按访问频率排序，省下来的时间在噪声里根本看不出来。真想让 JSON 更快，<code>separators=(",", ":")</code> 去掉空格是有效的（我一直在用），<code>ensure_ascii=False</code> 避免中文转义也是有效的——但这都属于"顺手做对"，不是优化项。
-<h2>3. 真正贵的不是 JSON，是时间戳</h2>
+<h2>日志开销为什么主要来自时间戳？</h2>
 
 继续看 E1a 的最后一行：
 <div class="codehilite"><pre><span></span><code>其中 time.localtime + strftime 占 1514 ns/条（文本路径的 58%）
@@ -726,7 +726,7 @@ D C + 慢请求全留                  1,190     3.0%     0.2MB    100.0%
 <li>[ ] <strong>别用端到端压测去量一个 header 或一个日志字段的成本。</strong>噪声比信号大三个数量级。</li>
 <li>[ ] <strong>别在没有噪声底的情况下相信任何性能数字。</strong>包括这篇文章的——先跑一次 <code>tools/bench_observability.py</code>，看你的机器给什么数。</li>
 </ul>
-<h2>13. FAQ</h2>
+<h2>13. 常见问题有哪些？</h2>
 
 <strong>Q：为什么不直接上 OpenTelemetry / Jaeger / ELK？</strong>
 
@@ -781,6 +781,8 @@ python<span class="w"> </span>tools/bench_observability.py<span class="w"> </spa
 
 环境：Windows 11 (10.0.26200)，Python 3.13.14 (CPython)，AMD64，12 逻辑核。
 
-<strong>注意：这台机器的噪声底是 12%（跨会话最高 57%）。</strong>脚本里每个计时实验都带离散度，并且每个实验都会跑一个固定的校准任务。<strong>请先看这两个数，再决定要不要相信任何一行的绝对值。</strong>比值比绝对值稳得多——同样的实验跑两遍，绝对值漂 15%，比值稳在 10% 以内。</div></div></noscript>
+<strong>注意：这台机器的噪声底是 12%（跨会话最高 57%）。</strong>脚本里每个计时实验都带离散度，并且每个实验都会跑一个固定的校准任务。<strong>请先看这两个数，再决定要不要相信任何一行的绝对值。</strong>比值比绝对值稳得多——同样的实验跑两遍，绝对值漂 15%，比值稳在 10% 以内。
+
+同一条链路上还可以接着读：<a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">《下游只抖 3 秒，我的服务被拖死——超时与熔断实战》</a>、<a href="/article/django-slow-query-index-tuning/">《索引建了，为什么排序还是没用上？——慢查询实战》</a>。</div></div></noscript>
   </body>
 </html>

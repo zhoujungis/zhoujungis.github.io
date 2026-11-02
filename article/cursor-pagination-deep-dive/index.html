@@ -56,10 +56,10 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
+    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
-    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
@@ -550,7 +550,7 @@ GET /api/articles?cursor=gAAAAAB... → 下一页，cursor 原样传上一次响
 <li><strong>延迟关联是廉价的止血手段</strong>：改动只有一条 SQL，在页深不超过几千时收益明显，适合作为"暂时不能改接口"时的过渡方案；</li>
 <li>爬虫场景下，游标分页让"全量拉取"的成本从随数据量平方增长，变成线性增长——这次改造后，搜索引擎抓取对数据库的压力几乎降为零。</li>
 </ol>
-<h2>8. 什么时候不要用游标分页</h2>
+<h2>8. 什么时候不要用游标分页？</h2>
 
 游标分页不是万金油，出现这些情况时，OFFSET（或干脆不分页）可能更合适：
 <ul>
@@ -561,7 +561,7 @@ GET /api/articles?cursor=gAAAAAB... → 下一页，cursor 原样传上一次响
 </ul>
 
 一个务实的迁移路径：<strong>老接口不动，新接口直接游标分页；最深的那个流量入口（通常是信息流/列表 API）优先改造</strong>。深分页流量往往高度集中在一两个接口上，改造一两个接口就能消掉大部分慢查询。
-<h2>上线 Checklist</h2>
+<h2>上线前要检查什么？</h2>
 <ul>
 <li>[ ] 排序键是否唯一且稳定？复合键 <code>(created_at, id)</code>，tie-breaker 必须有</li>
 <li>[ ] <code>(created_at, id)</code> 上的索引建了吗？方向与 ORDER BY 一致</li>
@@ -579,6 +579,8 @@ GET /api/articles?cursor=gAAAAAB... → 下一页，cursor 原样传上一次响
 
 改造本身不难——一个复合排序键、一个签名游标、一个 <code>LIMIT n+1</code> 的探测，两三百行代码。真正的工作量在于说服产品和客户端接受"不能跳页"的交互变化，以及梳理清楚排序字段的快照语义。把这两件事想清楚，剩下的都是体力活。
 
-如果你的慢查询日志里也开始出现深分页 SQL，希望这篇能帮你一次改到位。</div></div></noscript>
+如果你的慢查询日志里也开始出现深分页 SQL，希望这篇能帮你一次改到位。
+
+同一条链路上还可以接着读：<a href="/article/drf-pagination-cache-throttle/">《列表接口从 800ms 到 80ms：分页、缓存与限流》</a>、<a href="/article/django-slow-query-index-tuning/">《索引建了，为什么排序还是没用上？——慢查询实战》</a>。</div></div></noscript>
   </body>
 </html>

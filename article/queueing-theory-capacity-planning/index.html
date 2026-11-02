@@ -56,10 +56,10 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
+    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
-    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
@@ -449,7 +449,7 @@ $$W_q = \frac{\rho}{1-\rho} \cdot \frac{1 + C_s^2}{2} \cdot \mathbb{E}[S]$$
 轮询追求每台机器拿到相同数量，但当服务时间方差很大时，某一台可能恰好连续拿到几个慢请求，而轮询不会自我纠正。随机路由下，慢请求的分布更均匀，$C_s$ 的放大效应被摊薄。
 
 这是"最少连接数"（least-connections）策略优于轮询的原因之一：它用的是<strong>当前状态</strong>（连接数）而不是<strong>历史计数</strong>。
-<h2>5. 为什么"多几台小的"胜过"一台大的"</h2>
+<h2>5. 为什么"多几台小的"胜过"一台大的"？</h2>
 
 用 Erlang C 算一个具体例子。目标：处理 $\lambda = 18$ req/s，每请求 $\mathbb{E}[S] = 0.5$s，所以总负载 $a = 9$ Erlang。
 
@@ -568,7 +568,7 @@ Erlang C 曲线还有一个更实用的推论。看同一套负载下，单台�
 <strong>池化把延迟曲线的那段悬崖推平了。</strong>这就是为什么高利用率系统必须做水平扩展：不是为了"更快"，而是为了让延迟在利用率上升时<strong>不要爆炸</strong>。单台在 95% 利用率下已经是 19 倍的排队时间，10 台只有 1.65 倍——<strong>同样的负载，一个能扛住，一个不能。</strong>
 
 反过来看那个扩容事故：如果 4 台加 8 台之后延迟反而变差，说明<strong>收益被别的东西吃掉了</strong>（第 2.1 节的三类原因），而不是排队模型本身出了问题。
-<h2>6. 尾部放大：p99 为什么不能求平均</h2>
+<h2>6. 尾部放大：p99 为什么不能求平均？</h2>
 <h3>6.1 百分位数不是线性算子</h3>
 
 先看一个具体例子。两分钟的监控数据：
@@ -1119,7 +1119,7 @@ $$N = \left\lceil \frac{500 \times 0.08}{0.7} \right\rceil = \left\lceil 57.1 \r
 <li>[ ] <strong>压测有协调遗漏吗？</strong>看吞吐曲线是否饱和（第 10 节）。</li>
 <li>[ ] <strong>p99 是怎么聚合的？</strong>如果是"各窗口 p99 求平均"，这个数字是错的（第 6.1 节）。</li>
 </ul>
-<h2>12. FAQ</h2>
+<h2>12. 常见问题有哪些？</h2>
 
 <strong>Q：这些公式假设泊松到达，真实流量不是泊松的，还能用吗？</strong>
 
@@ -1170,6 +1170,8 @@ A：这些是排队论的<strong>闭式解</strong>，不是估算。M/M/1、Erl
 <strong>不要靠加机器解决问题，要靠算清楚再决定加不加。</strong>
 <hr>
 
-本文为纯理论文章，所有数字均由排队论闭式解算出，不含任何实测。涉及的主要模型：Little's Law、M/M/1、M/M/c（Erlang C）、M/G/1（Pollaczek-Khinchine）、Kingman 近似、Amdahl 定律、Gunther 通用可扩展定律（USL）。</div></div></noscript>
+本文为纯理论文章，所有数字均由排队论闭式解算出，不含任何实测。涉及的主要模型：Little's Law、M/M/1、M/M/c（Erlang C）、M/G/1（Pollaczek-Khinchine）、Kingman 近似、Amdahl 定律、Gunther 通用可扩展定律（USL）。
+
+同一条链路上还可以接着读：<a href="/article/vllm-vs-sglang-llm-inference-framework-war/">《从 vLLM 到 SGLang：LLM 推理框架的终极内卷》</a>、<a href="/article/rate-limit-algorithms-deep-dive/">《限流算法实测：固定窗口 2 倍溢出、令牌桶突刺》</a>。</div></div></noscript>
   </body>
 </html>

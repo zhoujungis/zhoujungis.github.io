@@ -56,10 +56,10 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
+    <script type="module" crossorigin src="/assets/index-CoLp6bGe.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
-    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
@@ -108,7 +108,7 @@
 </blockquote>
 
 上一篇 <a href="/article/lc-215-kth-largest-element/">LC 215</a> 讲了 TopK 在<strong>值轴</strong>上的选择（快速选择）。这一篇换一根轴：键从"值"换成"<strong>频率</strong>" —— 就是这一换，出现了快速选择没有的结构性免费。
-<h2>一、题目与语义</h2>
+<h2>一、题目要求是什么？</h2>
 <h3>1.1 门槛：优于 O(n log n)</h3>
 
 先哈希计数一遍（O(n)），数出每个值出现的频率。这一步没有任何技巧。剩下的问题是：<strong>按频率挑出前 k 个值</strong> —— 又是一个 TopK。
@@ -283,7 +283,7 @@
 </table></div>
 
 <strong>桶排序赢在渐近和常数，堆赢在通用和内存</strong> —— k 远小于 distinct 数且键没有范围保证时，堆是唯一选择。
-<h2>四、复杂度对照</h2>
+<h2>四、两种解法的复杂度差多少？</h2>
 <div class="table-scroll"><table>
 <thead>
 <tr>
@@ -334,7 +334,7 @@
 单机多进程就能做，天然可扩到多机 —— 每台机器负责一批桶。这个套路是<strong>外部排序的分治框架</strong>，只不过把"排序"换成了"TopK"。
 
 对照上一篇：<strong>10 亿个数找前 100 大</strong>连分桶都不用 —— 数字本身可比较、单遍扫描 + 容量 100 的小根堆就够，因为"候选"只有 100 个；而这题多出的那层"去重表装不下"，才逼出了分桶。<strong>海量题目的分水岭永远是：单机内存里必须装下什么？</strong> 装得下 k 个候选 → 堆；连 distinct 集合都装不下 → 分桶分治。
-<h2>六、Java 版</h2>
+<h2>六、Java 代码怎么写？</h2>
 <div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">freq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
