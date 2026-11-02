@@ -586,22 +586,22 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 // ── 精选专题 ──
 .topics-feature__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
   border-top: 1px solid var(--glass-border);
 }
 
 .feature-topic {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 18px 16px;
+  gap: 2px;
+  padding: 12px;
   color: inherit;
   text-decoration: none;
   border-bottom: 1px solid var(--glass-border);
   transition: background $transition-fast;
 
-  &:nth-child(odd) { border-right: 1px solid var(--glass-border); }
+  &:not(:nth-child(4n)) { border-right: 1px solid var(--glass-border); }
 
   &:hover { background: var(--surface-muted); }
   &:hover .feature-topic__name { color: var(--accent); }
@@ -625,16 +625,16 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
 .feature-topic__name {
   color: var(--text-primary);
   font-family: $serif;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 800;
-  line-height: 1.4;
+  line-height: 1.35;
   transition: color $transition-fast;
 }
 
 .feature-topic__tagline {
   color: var(--text-secondary);
-  font-size: 0.82rem;
-  line-height: 1.6;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .section-head {
@@ -1009,7 +1009,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   margin-top: 64px;
-  border-top: 3px solid var(--text-primary);
 }
 
 .colophon-link {
@@ -1123,8 +1122,9 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   .aside-stat { flex-direction: row; align-items: baseline; gap: 8px; width: auto; margin-bottom: 0; padding: 9px 14px; }
   .aside-stat__value { font-size: 1.5rem; }
   .front-grid, .front-skeleton { grid-template-columns: 1fr; gap: 0; }
-  .topics-feature__grid { grid-template-columns: 1fr; }
-  .feature-topic:nth-child(odd) { border-right: 0; }
+  .topics-feature__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .feature-topic:not(:nth-child(4n)) { border-right: 0; }
+  .feature-topic:nth-child(odd) { border-right: 1px solid var(--glass-border); }
   .front-skeleton__list { margin-top: 10px; }
   .column-row { grid-template-columns: 40px 1fr; }
   .column-row__body { grid-column: 1 / -1; }
@@ -1133,6 +1133,11 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   .colophon-nav { grid-template-columns: 1fr; }
   .colophon-link { border-right: 0; }
   .colophon-link:last-child { border-bottom: 0; }
+}
+
+@media (max-width: 560px) {
+  .topics-feature__grid { grid-template-columns: 1fr; }
+  .feature-topic:nth-child(odd) { border-right: 0; }
 }
 
 @media (max-width: 520px) {
