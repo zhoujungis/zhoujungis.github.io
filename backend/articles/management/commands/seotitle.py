@@ -81,6 +81,74 @@ TITLE_MAP = {
     "agent-multiagent-subagents-board-and-gate": (
         "Multi-Agent 多智能体系统架构：子代理通信、任务板设计与 API 动态限流"
     ),
+    # ── AI Agent 系列（其余各篇）──────────────────────────────
+    "agent-prompt-injection-boundary": "AI Agent 提示注入防御：系统指令、用户输入与工具返回的边界",
+    "agent-evaluation-not-a-benchmark": "AI Agent 评测方法：为什么只跑一次的测试不算数",
+    "agent-token-economics": "AI Agent Token 成本优化：同一任务为什么差 10 倍",
+    "agent-observability-turn-ledger": "AI Agent 可观测性：按轮次记账的链路追踪设计",
+    "agent-security-run-commands-safely": "AI Agent 执行 Shell 命令的安全沙箱设计",
+    "agent-concurrency-without-async": "不用 async 运行时，AI Agent 如何实现底层高并发",
+    "agent-tool-design-output-budgets": "AI Agent 工具设计：为什么每个工具的输出都要设上限",
+    "agent-memory-without-vector-db": "AI Agent 长期记忆：不接向量数据库的实现方案",
+    "agent-context-keep-or-drop": "AI Agent 上下文管理：哪些该留、哪些该丢",
+    "agent-loop-two-hundred-lines": "AI Agent 核心原理：200 行代码实现一个 Agent 循环",
+    # ── 后端架构 / 中间件 ─────────────────────────────────────
+    "queueing-theory-capacity-planning": "排队论与容量规划：为什么加到 8 台机器反而更慢",
+    "structured-logging-tracing-deep-dive": "结构化日志与链路追踪：300 行日志里只有 6 行是你的",
+    "cache-trio-deep-dive": "缓存穿透、击穿与雪崩：300 个并发只该打 1 次数据库",
+    "cursor-pagination-deep-dive": "MySQL 深分页优化：为什么 LIMIT 100000, 20 越来越慢",
+    "api-versioning-deep-dive": "API 版本管理实战：/v1、/v2 之外的演进策略",
+    "api-gateway-deep-dive": "API 网关设计：认证、限流与路由的统一入口",
+    "resilience-timeout-retry-circuit-breaker-deep-dive": (
+        "超时、重试与熔断实战：下游抖 3 秒为什么拖死整个服务"
+    ),
+    "distributed-id-deep-dive": "分布式 ID 实测：页分裂、时钟回拨与号段模式 20 万 QPS",
+    "mq-reliable-delivery-deep-dive": "消息队列可靠投递：消息凭空消失的排查与实测",
+    "feature-flag-progressive-delivery": "特性开关与灰度发布：灰度到 20% 为什么一半用户功能消失",
+    "rate-limit-algorithms-deep-dive": "限流算法实测：固定窗口 2 倍溢出与令牌桶突刺",
+    "api-idempotency-deep-dive": "接口幂等设计：用户双击一下为什么多了 7 条订单",
+    "cache-consistency-deep-dive": "缓存一致性：先删缓存还是先删数据库",
+    "redis-distributed-lock-deep-dive": "Redis 分布式锁：正确实现与失效边界",
+    # ── Django / 前后端实战 ───────────────────────────────────
+    "blog-tech-stack": "Vue 3 + Django 前后端分离博客：完整技术栈拆解",
+    "django-zero-downtime-migration": "Django 零停机迁移：上线时数据库在重建整张表",
+    "django-transaction-atomic-on-commit": "Django 事务与 on_commit：为什么回滚了邮件还是发出去",
+    "django-slow-query-index-tuning": "MySQL 慢查询与索引优化：索引建了为什么排序还是没走",
+    "django-comment-system-guide": "Django 评论系统设计：匿名评论的七层防线",
+    "django-jwt-dual-token-auth": "Django + Vue 双 Token 认证：access 过期如何无感刷新",
+    "drf-pagination-cache-throttle": "Django REST Framework 列表接口优化：分页、缓存与限流",
+    "django-subscribe-mass-mail": "Django 邮件群发：如何避免一个坏邮箱毒死整批订阅",
+    "django-n1-query-kill": "Django N+1 查询优化：从 21 条 SQL 降到 2 条",
+    "django-anon-like-dedup": "Django 匿名点赞防刷：五层去重设计",
+    "django-bleach-xss-defense": "Django 渲染用户 Markdown 的 XSS 防御",
+    "test-manage-system-vue-django": "Vue 3 + Django 测试管理系统：从零搭建全栈项目",
+    "django-pythonanywhere-deploy": "Django 部署到 PythonAnywhere 完整教程",
+    "vue-github-pages-deploy": "Vue 项目部署到 GitHub Pages 完整教程",
+    # ── 项目实战 ───────────────────────────────────────────────
+    "nanohermes-rust-coding-agent": "NanoHermes：零运行时依赖的 Rust AI 编码 Agent 实现",
+    "nanobrowser-tauri-webview2": "NanoBrowser 架构拆解：Tauri + WebView2 手写进程内 CDP",
+    "aidevops-terminal-client": "aidevops 开源项目拆解：研发数据关联与可解释风险模型",
+    "happy-games-24-games-zero-framework-guide": "24 款零框架小游戏：纯前端全栈实践",
+    "halo-music-square-architecture": "Halo 音乐广场：多音源在线音乐应用架构拆解",
+    # ── AI 行业与选型 ─────────────────────────────────────────
+    "rea-reverse-engineer-anything": "REA 开源 MCP Server：让 AI Agent 逆向分析任意程序",
+    "gpt-6-astra-release-2026": "GPT-6 Astra 发布：开发者需要知道的 8 件事",
+    "ai-subscription-price-comparison-2026": "2026 国内大模型涨价对比：普通用户怎么选",
+    "chinese-llm-august-2026-releases-preview": "2026 年 8 月国产大模型发布前瞻",
+    "vllm-vs-sglang-llm-inference-framework-war": "vLLM vs SGLang：LLM 推理框架性能与选型对比",
+    "ai-token-coding-plan-comparison-2026": (
+        "2026 AI Token Plan / Coding Plan 对比：国内外 20+ 平台横评"
+    ),
+    "ibgda-domestic-gpu-rdma-demo-waic2026": "国产 GPU 直通 RDMA 实测：不依赖英伟达网卡的 IBGDA 方案",
+    "agent-network-octo": "Agent 互联网：AI Agent 之间的通信网络 Octo",
+    "iot-future-next-decade": "IoT 下一个十年：万物互联的行业趋势与机会",
+    "how-to-use-skills-to-improve-efficiency": "Claude Skills 使用指南：如何用 Skills 提高效率",
+    "2026-chinese-ai-models-comparison": "2026 国产大模型横评：GLM、DeepSeek 等八强对比",
+    "how-to-choose-ai-coding-tools": "AI 编程工具怎么选：主流工具对比与选型指南",
+    # ── 部署与随笔（保留原有语气，仅前置关键词）────────────────
+    "cloud-deployment-guide-cn-vs-global": "国内外云部署选型：国内云服务器与海外 VPS 怎么选",
+    "google-matter-smart-home-dev-guide": "Google Matter 智能家居开发指南：从入门到认证",
+    "welcome": "博客开篇：代码的世界非黑即白，生活的画布斑驳陆离",
 }
 
 
