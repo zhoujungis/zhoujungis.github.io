@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-DqOdjNmT.js"></script>
+    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.nVWvh_ho.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,11 +96,11 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-26T18:23:00.670661+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"NanoDB：Go 嵌入式文档数据库","description":"适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、","image":"https://blog.zhoujun.dev/photos/nanodb-cover.png","datePublished":"2026-10-26T18:23:00.670661+08:00","dateModified":"2026-10-26T18:23:00.670661+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/nanodb/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"nanodb","title":"NanoDB：Go 嵌入式文档数据库","created_at":"2026-10-26T18:23:00.670661+08:00","updated_at":"2026-10-26T18:23:00.670691+08:00","author":null,"category":{"id":8,"name":"项目实践","slug":"project-practice"},"tags":[{"id":173,"name":"Go","slug":"go"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":110,"name":"数据库","slug":"database"},{"id":175,"name":"项目实战","slug":"project-notes"}],"cover_image":"/photos/nanodb-cover.png","excerpt":"适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、","reading_time":38,"views_count":7,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"nanodb","title":"NanoDB：Go 嵌入式文档数据库","created_at":"2026-10-26T18:23:00.670661+08:00","updated_at":"2026-11-02T12:19:44.884562+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/nanodb-cover.png","excerpt":"适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人 结论先行：NanoDB 是一个 零第三方依赖 的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、","reading_time":38,"views_count":14,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>NanoDB：Go 嵌入式文档数据库</h1><div class="ns-meta">2026/10/26 · Stack Frame</div><div class="markdown-body"><blockquote>
+    <noscript><div class="ns-article"><h1>NanoDB：Go 嵌入式文档数据库</h1><div class="ns-meta">2026/10/26 · Stack Frame</div><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（3 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><strong>NanoDB：Go 嵌入式文档数据库</strong>（当前）</li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
 
 适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 / MongoDB 之间纠结选型的人
 结论先行：NanoDB 是一个<strong>零第三方依赖</strong>的 Go 嵌入式文档数据库——JSON 文档模型、快照 + WAL 持久化、二级/文本/地理索引、乐观事务、原子批量、SQL 只读子集，全部装进 34 个 Go 文件：源码 6,592 行、测试 3,199 行，合计 9,791 行。它把「数据库的每个部件都可以很朴素」这件事演示得非常清楚：WAL 就是 JSON Lines 文件，事务就是集合快照加版本号校验，查询规划就是「挑候选集最小的索引」。读完这篇文章，你会知道这些部件各自的取舍在哪、坑在哪、什么场景下够用
@@ -142,7 +142,7 @@ SQLite 有两百万行，LevelDB 是精巧的 LSM 教科书，MongoDB 是分布�
 答案是：约一万行 Go，零第三方依赖，<code>go build</code> 一次就能跑。更重要的是，它的每个部件都可以被单个读者在一小时内读完——这在真实数据库里几乎不可能。读完 SQLite 的 pager 层需要多久？读完 RocksDB 的 compaction 又需要多久？
 
 所以这篇文章的读法是双重的：<strong>既把它当一个可用的工具看，也把它当一份「数据库部件解剖标本」看</strong>。前者告诉你什么时候能用它，后者告诉你如果你自己要写，应该先写什么、后写什么、哪里必须一次做对。
-<h2>项目速览：它到底是什么</h2>
+<h2>项目速览：它到底是什么？</h2>
 
 NanoDB 是一个用 Go 编写的轻量级<strong>嵌入式文档数据库</strong>（NoSQL），当前版本 0.1.0。「嵌入式」意味着它没有独立的守护进程协议——它就是你进程里的一个库，同时附带 CLI、交互式 shell 和 REST 服务三种包装。
 <div class="table-scroll"><table>
@@ -766,7 +766,7 @@ go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./
 值得表扬的是把「WAL 重放」「压缩」「目录锁」「EOF 自动回滚」这类<strong>崩溃与边界场景</strong>写进了常规测试，而不是只测 happy path——持久化项目的事故几乎全部发生在这些地方。基准测试统一用 10 万条文档，<code>BenchmarkSortRandom*</code> 做随机序数据上的全量排序与 Top-N 的 A/B，对应上面性能表的第 7、8 行。
 
 另外从 git 历史能看到工程流程本身也在被维护：CI 每次提交自动生成语义版本 tag 与 Release、统一 LF 换行、显式处理 Go module cache——一个 0.1.0 项目把发布链路先铺好，说明它是打算长期维护的。
-<h2>横向对比：它在坐标系的哪个位置</h2>
+<h2>横向对比：它在坐标系的哪个位置？</h2>
 <div class="table-scroll"><table>
 <thead>
 <tr>
@@ -886,6 +886,8 @@ go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./
 
 NanoDB 不会取代 SQLite，也不打算取代 MongoDB。它的价值在于把数据库的黑箱拆开摆在桌面上：<strong>WAL 是带换行的 JSON，事务是比较版本号，查询规划是挑候选集最少的那个</strong>。这些机制朴素到几乎能背下来——而朴素正是它们可信的原因。
 
-如果你曾想「自己写个数据库试试」，这个项目给出的答案是：可以，而且不用太多行。下一步不是读更多论文，是 <code>git clone</code> 之后把 <code>replay</code>、<code>Commit</code> 和 <code>planCandidates</code> 这三个函数各改坏一次，看看测试是不是还亮着——那会是比任何文章都快的入门方式。</div></div></noscript>
+如果你曾想「自己写个数据库试试」，这个项目给出的答案是：可以，而且不用太多行。下一步不是读更多论文，是 <code>git clone</code> 之后把 <code>replay</code>、<code>Commit</code> 和 <code>planCandidates</code> 这三个函数各改坏一次，看看测试是不是还亮着——那会是比任何文章都快的入门方式。
+
+同一条链路上还可以接着读：<a href="/article/wal-deep-dive/">《先写日志，再写数据：WAL 原理与源码细读》</a>、<a href="/article/btree-page-split/">《B+ 树索引回源：页分裂长什么样》</a>。</div></div></noscript>
   </body>
 </html>

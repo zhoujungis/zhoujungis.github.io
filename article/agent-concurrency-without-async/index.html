@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-DqOdjNmT.js"></script>
+    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.nVWvh_ho.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,11 +96,11 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-22T14:52:30.982373+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 并发：不用 async 运行时怎么并行","description":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","image":"https://blog.zhoujun.dev/photos/agent-concurrency-cover.png","datePublished":"2026-10-22T14:52:30.982373+08:00","dateModified":"2026-10-22T14:52:30.982373+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"agent-concurrency-without-async","title":"Agent 并发：不用 async 运行时怎么并行","created_at":"2026-10-22T14:52:30.982373+08:00","updated_at":"2026-10-22T14:52:30.982400+08:00","author":null,"category":{"id":5,"name":"AI编程","slug":"ai-coding"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":113,"name":"并发","slug":"concurrency"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-concurrency-cover.png","excerpt":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","reading_time":62,"views_count":8,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"agent-concurrency-without-async","title":"Agent 并发：不用 async 运行时怎么并行","created_at":"2026-10-22T14:52:30.982373+08:00","updated_at":"2026-11-02T12:11:23.677212+08:00","author":null,"category":{"id":11,"name":"AI Agent","slug":"aiagent"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":113,"name":"并发","slug":"concurrency"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-concurrency-cover.png","excerpt":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","reading_time":62,"views_count":16,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>Agent 并发：不用 async 运行时怎么并行</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><div class="markdown-body"><blockquote>
+    <noscript><div class="ns-article"><h1>Agent 并发：不用 async 运行时怎么并行</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><nav class="ns-series"><p><strong>本系列 · AI Agent</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a></li><li><a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li><a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a></li><li><a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li><li><strong>Agent 并发：不用 async 运行时怎么并行</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/aiagent/">查看AI Agent专题</a></p></nav><div class="markdown-body"><blockquote>
 
 适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人
 结论先行：NanoHermes 的并发只有两个原语——作用域线程（<code>std::thread::scope</code>）和一把计数闸门（<code>Mutex</code> + <code>Condvar</code>）。它没有 async runtime，没有取消令牌，也没有消息队列，靠的是「每轮一个 join 屏障」把并发收进一个有界的盒子里
@@ -388,7 +388,7 @@
 <strong>4 这个数字的来历是资源而不是性能。</strong> 子代理每个都要独立发一次完整的模型请求，4 个并发意味着瞬时 4 份上下文在飞行。上下文预算是 120,000 字符（<code>CONTEXT_CHAR_BUDGET</code>），4 份就是 480,000 字符的内存峰值，加上每份都要序列化成 JSON 发出去。再高就开始和主对话抢内存与网络带宽。
 
 <strong>40 轮和 4 个并发叠起来是 160。</strong> 理论上一个子代理可以跑 40 轮、每轮再发多个工具调用，四个子代理同时跑。这不是设计目标，而是上界——一个失控的子代理最多消耗 40 次模型请求，四个最多 160 次。这个上界之所以重要，是因为它给出了「一次误触发的最坏成本」。
-<h2>std::thread::scope 解决了什么</h2>
+<h2>std::thread::scope 解决了什么？</h2>
 
 普通 <code>thread::spawn</code> 要求闭包 <code>'static</code>，也就是不能借用栈上的东西。要用 <code>&amp;Agent</code>，就得把 <code>Agent</code> 塞进 <code>Arc</code>，然后每个工具调用都要 <code>Arc::clone</code>。<code>scope</code> 的作用是引入一个词法作用域：作用域内的线程可以借用作用域外的栈变量，作用域结束时自动 join 所有线程。
 
@@ -401,7 +401,7 @@
 <strong>panic 不会泄漏线程。</strong> 线程 panic 时 <code>scope</code> 依然会 join（拿到 <code>Err</code>），不会留下一个已崩溃但未回收的线程。
 
 需要注意 <code>scope</code> 不提供的是：<strong>线程数量限制</strong>。代码里是 <code>turn.tool_calls.iter().map(...)</code>，调用几个就起几个。模型一次返回 20 个工具调用，就起 20 个线程。这是后面「工具线程没有上限」要展开的缺陷。
-<h2>为什么 Agent 必须是 Sync</h2>
+<h2>为什么 Agent 必须是 Sync？</h2>
 
 <code>Agent</code> 能不能被多个线程共享，不是设计选择，是编译器的强制要求。<code>scope</code> 里 <code>this: &amp;Agent</code> 被 <code>move</code> 进闭包，闭包要 <code>Send</code>，因此 <code>&amp;Agent</code> 要 <code>Send</code>，等价于 <code>Agent: Sync</code>。
 
@@ -486,7 +486,7 @@
 如果合并成一把锁，<code>start()</code> 里就要持锁做 <code>format!("agent-{seq}")</code>（一次堆分配）和 <code>task.to_string()</code>（可能很长）。分成两把之后，取号和登记各自临界区极短，而且 <code>start()</code> 里两次 <code>lock()</code> 的顺序是固定的（先 <code>seq</code> 后 <code>jobs</code>），不存在反向获取路径，所以不会死锁。
 
 代价是「取号和登记之间不是原子的」：并发 <code>start()</code> 时可能出现 <code>agent-3</code> 先被登记、<code>agent-2</code> 后被登记的顺序。<code>list()</code> 返回的是登记顺序，所以任务板上的 id 可能不是单调递增的。这是个无害的瑕疵——id 只用来标识，不用来排序。
-<h2>Mutex 粒度：为什么 Board 用两把锁</h2>
+<h2>Mutex 粒度：为什么 Board 用两把锁？</h2>
 
 延续上一节的思路，锁粒度设计有三个层次，<code>Ctx</code> 里三种都有：
 
@@ -567,7 +567,7 @@
 
 <strong>第一，任务板上的状态是假的。</strong> <code>Board::start</code> 把新作业登记成 <code>JobStatus::Running</code>。但如果此刻已经跑着 4 个子代理，第 5 个会卡在 <code>acquire()</code> 上——它一行代码都没执行，任务板却显示 <code>[running]</code>。模型调 <code>agent_list</code> 看到的是一排 <code>running</code>，其中有一半在排队。它无从区分「真在跑」和「在等许可」。
 
-<strong>第二，<code>duration</code> 把排队时间算进去了。</strong> <code>Job</code> 里的 <code>started: Instant</code> 在 <code>start()</code> 时记录，<code>finish()</code> 里用 <code>job.started.elapsed()</code> 算时长。所以一个排队 30 秒、实际执行 2 秒的子代理，任务板会显示 32.0s。这个数字会误导任何基于任务板做的性能判断。
+<strong>第二，<code>duration</code> 把排队时间算进去了。</strong> <code>Job</code> 里的 <code>started: Instant</code> 在 <code>start()</code> 时记录，<code>finish()</code> 里用 <code>job.started.elapsed()</code> 算时长。账本为什么要把排队和执行分开记，见<a href="/article/agent-observability-turn-ledger/">《Agent 观测：给每个轮次记一本账》</a>。所以一个排队 30 秒、实际执行 2 秒的子代理，任务板会显示 32.0s。这个数字会误导任何基于任务板做的性能判断。
 
 修法很简单：加一个 <code>Queued</code> 状态，并让 <code>start()</code> 接受状态参数。
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">enqueue</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span><span class="w">   </span><span class="c1">// 登记为 Queued</span>
@@ -581,7 +581,7 @@
 为什么原实现会写成这样？因为最自然的顺序是「先登记再干活」——你要先有 id 才能结算。而门是后来加的，加的时候就在登记的下一行插了一句 <code>acquire()</code>，没有人回头看状态机的语义。这是并发改造中最常见的错误类型：<strong>在已有流程里插入一个阻塞点，但没有重新检查这个阻塞点上游已经做了什么</strong>。
 <h2>子代理：并行的第一类真实用户</h2>
 
-工具调用并行是「同一批里各干各的」，子代理是「同一个任务分给几个人」。两者的区别在于子代理内部还会再发起模型请求和工具调用。
+工具调用并行是「同一批里各干各的」，子代理是「同一个任务分给几个人」。两者的区别在于子代理内部还会再发起模型请求和工具调用。子代理的配置、工具裁剪与限流门见<a href="/article/agent-multiagent-subagents-board-and-gate/">《Agent 多体：子代理、任务板与限流》</a>。
 
 一个子代理的完整生命周期：
 <div class="table-scroll"><table>

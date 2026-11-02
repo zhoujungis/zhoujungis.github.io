@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-DqOdjNmT.js"></script>
+    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.nVWvh_ho.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,11 +96,11 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-28T14:27:31.773070+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"先写日志，再写数据：WAL 原理与源码细读","description":"适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧","image":"https://blog.zhoujun.dev/photos/wal-cover.png","datePublished":"2026-10-28T14:27:31.773070+08:00","dateModified":"2026-10-28T14:27:31.773070+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/wal-deep-dive/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"wal-deep-dive","title":"先写日志，再写数据：WAL 原理与源码细读","created_at":"2026-10-28T14:27:31.773070+08:00","updated_at":"2026-10-28T14:27:31.773111+08:00","author":null,"category":{"id":1,"name":"技术教程","slug":"tech"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/wal-cover.png","excerpt":"适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧","reading_time":36,"views_count":7,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"wal-deep-dive","title":"先写日志，再写数据：WAL 原理与源码细读","created_at":"2026-10-28T14:27:31.773070+08:00","updated_at":"2026-11-02T12:11:20.458527+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/wal-cover.png","excerpt":"适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人 结论先行：WAL 不是一个功能，而是四条很小的约定—— 只追加、逐条校验、读到第一个坏帧","reading_time":36,"views_count":14,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>先写日志，再写数据：WAL 原理与源码细读</h1><div class="ns-meta">2026/10/28 · Stack Frame</div><div class="markdown-body"><blockquote>
+    <noscript><div class="ns-article"><h1>先写日志，再写数据：WAL 原理与源码细读</h1><div class="ns-meta">2026/10/28 · Stack Frame</div><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（3 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><strong>先写日志，再写数据：WAL 原理与源码细读</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
 
 适用读者：想知道「崩溃恢复」这四个字在源码里到底长什么形状的后端工程师；正在自己写存储引擎、消息队列或嵌入式数据库的人；被 WAL、fsync、checkpoint、group commit 这些词轮番轰炸过、但没读过任何实现的人
 结论先行：WAL 不是一个功能，而是四条很小的约定——<strong>只追加、逐条校验、读到第一个坏帧就停、先记账再动数据</strong>。本文不写一行自造代码，全部证据来自 SQLite <code>src/wal.c</code> 与 LevelDB / RocksDB 的 log 层源码：32 字节文件头 + 24 字节页帧头、7 字节物理记录头 + 32 KB 块、两种校验和算法、salt 防回卷、先 WAL 后 memtable 的写序铁律、组提交、<code>synchronous</code> 三档的真义、checkpoint 四模式、恢复四模式。读完你能对着这些常量和函数名，把一个最小但正确的 WAL 在纸上画出来
@@ -752,7 +752,7 @@ WAL 只追加，数据文件原地不动——总得有人把日志内容搬回�
 checkpoint 本质上是后台维护，做一半总比完全不做强——<strong>「尽力而为 + 明确报告」比「要么全做要么不做」在实践里更有用</strong>。
 
 和上一节的 fsync 表格连起来看，完整的持久化分工是：<code>NORMAL</code> 下日志尾部可能丢，但 checkpoint 把已回填的部分 fsync 进数据文件；日志再从 checkpoint 点继续。<strong>数据文件的每一次变更都先于它自己的同步屏障</strong>，这个不变式就是「崩溃后打开永远一致」的全部内容。
-<h2>恢复模式：损坏发生时你要哪种世界线</h2>
+<h2>恢复模式：损坏发生时你要哪种世界线？</h2>
 
 恢复程序读到坏字节之后该干什么？LevelDB 一路沿用「容忍尾巴损坏」；RocksDB 把这个决策做成了显式的四选一。<code>include/rocksdb/options.h</code> 的枚举与注释逐字如下：
 <div class="codehilite"><pre><span></span><code><span class="k">enum</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">WALRecoveryMode</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="p">{</span>
@@ -831,7 +831,7 @@ checkpoint 本质上是后台维护，做一半总比完全不做强——<stron
 
 
 <strong>「遇坏即停」是不变的底层事实，四个模式改变的只是停完之后的处置</strong>：拒绝启动（<code>kAbsoluteConsistency</code>）、停在坏点前（<code>kPointInTimeRecovery</code>）、把尾巴当正常结束（<code>kTolerateCorruptedTailRecords</code>）、跳过坏记录继续挖（<code>kSkipAnyCorruptedRecords</code>）。底层机制与策略被干净地分成了两层——这是 LevelDB 时代没有的工程成熟度。
-<h2>读端可见性：快照上界是怎么来的</h2>
+<h2>读端可见性：快照上界是怎么来的？</h2>
 
 恢复回答「日志里有多少帧是合法的」，读端还要回答「我这个快照该看到哪一帧」。SQLite 把答案存成一个数：<code>mxFrame</code>。<code>walFindFrame</code> 的开头就是快照的两个边界：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">u32</span><span class="w"> </span><span class="n">iRead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">                  </span><span class="cm">/* If !=0, WAL frame to return data from */</span>

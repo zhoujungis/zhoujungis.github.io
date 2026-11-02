@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AI Agent专题（Agent Engineering）：多智能体、提示注入防御、上下文工程与可观测性。AI Agent, 多智能体, Multi-Agent, 提示词注入, 上下文工程, MCP, LLM 推理, 模型评测" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/topics/aiagent/" />
+    <meta property="og:title" content="AI Agent专题：多智能体、提示注入防御、上下文工程与可观测性 | 尘世栈帧" />
+    <meta property="og:description" content="AI Agent专题（Agent Engineering）：多智能体、提示注入防御、上下文工程与可观测性。AI Agent, 多智能体, Multi-Agent, 提示词注入, 上下文工程, MCP, LLM 推理, 模型评测" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/topics/aiagent/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="尘世栈帧" />
+    <meta name="twitter:description" content="尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <title>AI Agent专题：多智能体、提示注入防御、上下文工程与可观测性 | 尘世栈帧</title>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <noscript><div class="ns-list"><h1>AI Agent专题</h1><p class="ns-lead">Agent Engineering · 多智能体、提示注入防御、上下文工程与可观测性</p>
+<p>这个专题讨论把大模型真正接进生产系统的工程问题：多智能体如何拆分职责、子代理之间怎么通信、任务板与限流如何避免级联失败，以及提示注入这类「谁说的话算指令」的信任边界。</p>
+<p>也包括上下文工程、工具调用（MCP / Skills）、推理框架与国产模型横评——目标不是复述概念，而是给出可落地的架构与踩坑记录。</p>
+<h2>共 28 篇</h2>
+<ul>
+<li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a> <span class="ns-date">2026/10/23</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a> <span class="ns-date">2026/10/23</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a> <span class="ns-date">2026/10/23</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/">Agent 并发：不用 async 运行时怎么并行</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a> <span class="ns-date">2026/10/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a> <span class="ns-date">2026/10/16</span></li>
+<li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a> <span class="ns-date">2026/10/16</span></li>
+<li><a href="https://blog.zhoujun.dev/article/rea-reverse-engineer-anything/">一周 15 万 Star 的 REA：让 Agent 逆向一切的开源 MCP Server</a> <span class="ns-date">2026/10/15</span></li>
+<li><a href="https://blog.zhoujun.dev/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a> <span class="ns-date">2026/9/21</span></li>
+<li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a> <span class="ns-date">2026/9/7</span></li>
+<li><a href="https://blog.zhoujun.dev/article/gpt-6-astra-release-2026/">GPT-6 Astra 发布：开发者需要知道的八件事</a> <span class="ns-date">2026/9/4</span></li>
+<li><a href="https://blog.zhoujun.dev/article/ai-subscription-price-comparison-2026/">国内大模型集体涨价？普通用户该何去何从</a> <span class="ns-date">2026/8/18</span></li>
+<li><a href="https://blog.zhoujun.dev/article/chinese-llm-august-2026-releases-preview/">八月攻势：2026 年 8 月国产大模型发布前瞻</a> <span class="ns-date">2026/8/3</span></li>
+<li><a href="https://blog.zhoujun.dev/article/vllm-vs-sglang-llm-inference-framework-war/">从 vLLM 到 SGLang：LLM 推理框架的终极内卷</a> <span class="ns-date">2026/7/27</span></li>
+<li><a href="https://blog.zhoujun.dev/article/ai-token-coding-plan-comparison-2026/">2026 全网最全 AI Token Plan / Coding Plan 对比：国内外 20+ 平台横评</a> <span class="ns-date">2026/7/22</span></li>
+<li><a href="https://blog.zhoujun.dev/article/ibgda-domestic-gpu-rdma-demo-waic2026/">不靠英伟达网卡：国产 GPU 直通方案实测</a> <span class="ns-date">2026/7/20</span></li>
+<li><a href="https://blog.zhoujun.dev/article/agent-network-octo/">Agent 之间，有互联网了！</a> <span class="ns-date">2026/7/16</span></li>
+<li><a href="https://blog.zhoujun.dev/article/iot-future-next-decade/">万物互联的下一个十年：IoT 行业的未来图景</a> <span class="ns-date">2026/7/14</span></li>
+<li><a href="https://blog.zhoujun.dev/article/how-to-use-skills-to-improve-efficiency/">如何利用Skills提高效率</a> <span class="ns-date">2026/7/7</span></li>
+<li><a href="https://blog.zhoujun.dev/article/2026-chinese-ai-models-comparison/">2026 国产大模型终极对决：GLM、DeepSeek 等八强横评</a> <span class="ns-date">2026/7/5</span></li>
+<li><a href="https://blog.zhoujun.dev/article/how-to-choose-ai-coding-tools/">AI 编程工具怎么选？主流工具全面对比与选型</a> <span class="ns-date">2026/7/5</span></li>
+</ul>
+<p class="ns-nav"><a href="https://blog.zhoujun.dev/topics/">全部专题</a>
+<a href="https://blog.zhoujun.dev/topics/leetcode/">算法题解</a>
+<a href="https://blog.zhoujun.dev/topics/backend/">后端架构</a>
+<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a>
+<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a>
+<a href="https://blog.zhoujun.dev/">首页</a></p></div></noscript>
+  </body>
+</html>

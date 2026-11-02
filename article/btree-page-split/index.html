@@ -56,11 +56,11 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-DqOdjNmT.js"></script>
+    <script type="module" crossorigin src="/assets/index-Dm3D_G7l.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DyaaoQco.js">
-    <link rel="stylesheet" crossorigin href="/assets/index.nVWvh_ho.css">
+    <link rel="stylesheet" crossorigin href="/assets/index.BYprAPOD.css">
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
@@ -96,11 +96,11 @@
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-29T16:03:33.770336+08:00" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"B+ 树索引回源：页分裂长什么样","description":"适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人 结论先行：页分裂不是一次原子的「一分为二」，而是一场 有预谋的多步手术 ——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能","image":"https://blog.zhoujun.dev/photos/btree-cover.png","datePublished":"2026-10-29T16:03:33.770336+08:00","dateModified":"2026-10-29T16:03:33.770336+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/btree-page-split/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"btree-page-split","title":"B+ 树索引回源：页分裂长什么样","created_at":"2026-10-29T16:03:33.770336+08:00","updated_at":"2026-10-29T16:03:33.770375+08:00","author":null,"category":{"id":1,"name":"技术教程","slug":"tech"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/btree-cover.png","excerpt":"适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人 结论先行：页分裂不是一次原子的「一分为二」，而是一场 有预谋的多步手术 ——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能","reading_time":40,"views_count":31,"likes_count":0,"prev_article":null,"next_article":null}</script>
+    <script type="application/json" id="prerender-article">{"slug":"btree-page-split","title":"B+ 树索引回源：页分裂长什么样","created_at":"2026-10-29T16:03:33.770336+08:00","updated_at":"2026-11-02T12:19:44.600583+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/btree-cover.png","excerpt":"适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人 结论先行：页分裂不是一次原子的「一分为二」，而是一场 有预谋的多步手术 ——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能","reading_time":40,"views_count":48,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
     <div id="app"></div>
-    <noscript><div class="ns-article"><h1>B+ 树索引回源：页分裂长什么样</h1><div class="ns-meta">2026/10/29 · Stack Frame</div><div class="markdown-body"><blockquote>
+    <noscript><div class="ns-article"><h1>B+ 树索引回源：页分裂长什么样</h1><div class="ns-meta">2026/10/29 · Stack Frame</div><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（3 篇）</p><ol><li><strong>B+ 树索引回源：页分裂长什么样</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
 
 适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人
 结论先行：页分裂不是一次原子的「一分为二」，而是一场<strong>有预谋的多步手术</strong>——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能整场重来。本文不写一行自造代码，全部证据来自 SQLite <code>src/btree.c</code> 与 InnoDB <code>btr0btr.cc</code> / <code>btr0cur.cc</code>：8 字节页头与 94 字节堆起点、<code>nFree*3&lt;=usableSize*2</code> 的重排阈值、<code>balance_nonroot</code> 最多 5 页的配平、<code>btr_page_split_and_insert</code> 的八步手术单、根页「原地变内部页」与「先搬家再分裂」的两条长高路线、以及「只许成功不许回滚」的两页空间预留
@@ -143,7 +143,7 @@
 本文把两套工业级实现的分裂路径并排放着读：<strong>SQLite</strong>（单文件、教科书级清晰的 <code>balance</code> 系列函数）与 <strong>InnoDB</strong>（生产级、有并发与表空间管理的 <code>btr_page_split_and_insert</code>）。两边的页格式天差地别，但手术流程惊人地一致：<strong>检查 → 选点 → 分配 → 改结构 → 搬记录 → 递归向上</strong>。
 
 与 WAL 篇一样，全部结论回源码取证；取证不到的（比如「50% 填充率」这句流行说法）会如实标注为源码不存在，并给出实际机制。
-<h2>先看案发现场：一页到底长什么样</h2>
+<h2>B+ 树的一页到底长什么样？</h2>
 
 分裂是把一页变成两页，所以第一件事是弄清单页的构造。教科书说「节点里有 n 个键和 n+1 个指针」，但源码里的真实布局比这有趣得多——<strong>键和指针并不相邻存放</strong>。
 <h2>SQLite 的页：8 字节头与相向而生的两个数组</h2>
@@ -382,7 +382,7 @@ InnoDB 的对应路径分乐观与悲观两级。乐观插入 <code>btr_cur_opti
 
 
 最底层的「放不下」则由 <code>page_mem_alloc_heap()</code> 的返回值宣判（<code>page/page0page.cc</code>）：堆顶加 <code>need</code> 超过可用空间就 <code>return (nullptr)</code>。三道检查、两级路径、一个失败出口——放不下是怎样被一层层发现的，链路完整了。
-<h2>什么时候值得动手术：重组阈值与「50% 填充」的真相</h2>
+<h2>什么时候该重组索引页？</h2>
 
 SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一个算式：
 <div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">NEVER</span><span class="p">(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nFree</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">btreeComputeFreeSpace</span><span class="p">(</span><span class="n">pPage</span><span class="p">)</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
@@ -596,7 +596,7 @@ InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），�
 
 
 <code>may generate recursion leading to a split on the higher level</code>——父层可能因此再分裂，一路涨到根。
-<h2>分裂点怎么选：中点、方向与启发式</h2>
+<h2>页分裂点怎么选？</h2>
 
 分裂点的选择直接决定两半的均衡，两边策略不同。InnoDB 是「启发式优先、中点兜底」：先 <code>btr_page_get_split_rec</code> 按插入方向试导向右（<code>FSP_UP</code>、<code>hint_page_no = page_no + 1</code>）或向左，失败了才退回 <code>page_get_middle_rec</code> 按条数取中。更极端的情况是只有一条记录时，按新元组与它的大小关系决定 <code>split_rec</code> 还是 <code>nullptr</code>（新元组直接成为上半页第一条）。
 
@@ -1019,6 +1019,8 @@ SQLite 是单写者模型（库级写锁），没有这套并发戏法，换来�
 
 两套实现的对照再次印证了 WAL 篇那句话的镜像：<strong>格式是随便定的，契约是不能动的</strong>。cell 指针数组还是相对偏移链、8 字节头还是 94 字节头，两边随便选；但「先检查再整理、整理不行再分裂、分裂必须给父层一个分隔键、长高必须保住根页号、失败必须有明确出口」——一条不差。
 
-下次在慢查询文章里写下「换成顺序主键」时，你可以指到具体的地方：InnoDB 分裂第 1 步那行 <code>hint_page_no = page_no + 1</code>。它就是「索引不碎」这四个字在源码里的全部形态。</div></div></noscript>
+下次在慢查询文章里写下「换成顺序主键」时，你可以指到具体的地方：InnoDB 分裂第 1 步那行 <code>hint_page_no = page_no + 1</code>。它就是「索引不碎」这四个字在源码里的全部形态。
+
+同一条链路上还可以接着读：<a href="/article/nanodb/">《NanoDB：Go 嵌入式文档数据库》</a>、<a href="/article/distributed-id-deep-dive/">《分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万》</a>。</div></div></noscript>
   </body>
 </html>
