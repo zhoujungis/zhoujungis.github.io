@@ -7,6 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from articles.feeds import LatestArticlesFeed
 from articles.sitemaps import BlogSitemap, StaticViewSitemap
+from blog_api.views import ping
 
 sitemaps = {
     "blog": BlogSitemap,
@@ -44,6 +45,7 @@ urlpatterns = [
     path("api/", include("friends.urls")),
     path("rss.xml", LatestArticlesFeed(), name="rss-feed"),
     path("sitemap.xml", sitemap_view, name="sitemap"),
+    path("ping/", ping, name="ping"),
 ]
 
 if settings.DEBUG:

@@ -34,7 +34,7 @@ def notify_new_comment(sender, instance, created, **kwargs):
         send_mail(
             subject=f"\U0001F4AC 新评论 — {instance.article.title}",
             message=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=settings.DEFAULT_FROM_EMAIL_NAMED or settings.DEFAULT_FROM_EMAIL,
             recipient_list=[settings.DEFAULT_FROM_EMAIL],
             fail_silently=True,
         )

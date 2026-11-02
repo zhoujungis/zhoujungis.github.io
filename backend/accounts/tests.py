@@ -3,11 +3,13 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from .models import EmailCode, LoginTicket, Profile
+from .services import _deliver_code
 
 
 class EmailCodeLoginTests(APITestCase):
@@ -175,3 +177,21 @@ class OAuthFlowTests(APITestCase):
         )
         resp = self.client.post("/api/auth/oauth/exchange/", {"ticket": "expired-ticket"})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    EMAIL_SENDER_NAME="Stack Frame",
+)
+class EmailFormatTests(SimpleTestCase):
+    def test_subject_has_no_code_and_sender_has_display_name(self):
+        from django.core import mail
+
+        with patch.dict(os.environ, {"RESEND_API_KEY": ""}):
+            _deliver_code("reader@example.com", "123456")
+        message = mail.outbox[0]
+        self.assertEqual(message.subject, "【尘世栈帧】登录验证码")
+        # 标题里出现验证码，等于把一次性密码写进通知栏预览
+        self.assertNotIn("123456", message.subject)
+        self.assertIn("Stack Frame <", message.from_email)
+        self.assertTrue(any(part[1] == "text/html" for part in message.alternatives))

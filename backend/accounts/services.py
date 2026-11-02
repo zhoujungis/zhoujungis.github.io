@@ -126,8 +126,9 @@ def _deliver_code(email, code):
     }
     text = render_to_string("accounts/email/login_code.txt", context)
     html = render_to_string("accounts/email/login_code.html", context)
-    subject = f"【尘世栈帧】登录验证码 {code}"
-    from_email = settings.DEFAULT_FROM_EMAIL or "no-reply@zhoujun.dev"
+    subject = "【尘世栈帧】登录验证码"
+    bare_from = settings.DEFAULT_FROM_EMAIL or "no-reply@zhoujun.dev"
+    from_email = f"{settings.EMAIL_SENDER_NAME} <{bare_from}>"
 
     api_key = os.environ.get("RESEND_API_KEY", "")
     if not api_key:
@@ -136,8 +137,13 @@ def _deliver_code(email, code):
         msg.send(fail_silently=False)
         return
 
+    resend_from = os.environ.get("RESEND_FROM") or bare_from
+    # RESEND_FROM 可能只配了地址；补上显示名，收件箱里才不会显示成 no reply。
+    if "<" not in resend_from:
+        resend_from = f"{settings.EMAIL_SENDER_NAME} <{resend_from}>"
+
     payload = {
-        "from": os.environ.get("RESEND_FROM", from_email),
+        "from": resend_from,
         "to": [email],
         "subject": subject,
         "text": text,

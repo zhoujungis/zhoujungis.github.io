@@ -54,7 +54,7 @@ def notify_subscribers_on_publish(sender, instance, created, **kwargs):
     plain_template = render_to_string("articles/email/new_article.txt", context)
     html_template = render_to_string("articles/email/new_article.html", context)
 
-    from_email = settings.DEFAULT_FROM_EMAIL
+    from_email = settings.DEFAULT_FROM_EMAIL_NAMED or settings.DEFAULT_FROM_EMAIL
     batch_size = 50
 
     # Stream subscribers instead of loading all rows at once.

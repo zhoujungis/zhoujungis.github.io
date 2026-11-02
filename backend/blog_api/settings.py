@@ -247,6 +247,12 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# 收件人看到的发件人名称。邮件地址仍是 no-reply@…，但收件箱里显示
+# 「Stack Frame <no-reply@blog.zhoujun.dev>」，而不是冷冰冰的 no reply。
+EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "Stack Frame")
+DEFAULT_FROM_EMAIL_NAMED = (
+    f"{EMAIL_SENDER_NAME} <{DEFAULT_FROM_EMAIL}>" if DEFAULT_FROM_EMAIL else ""
+)
 
 # Site URL (used in email templates)
 SITE_URL = os.environ.get("SITE_URL", "https://blog.zhoujun.dev")
