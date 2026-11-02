@@ -371,6 +371,21 @@ class NewsletterTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["s1@test.com"])
 
+    def test_reserved_domain_subscribers_are_skipped(self):
+        """example.com 这类保留域名会被 Resend 422 拒收，不能拖累真人收信。"""
+        Subscriber.objects.create(email="smoke-test@example.com")
+        Subscriber.objects.create(email="real@reader.dev")
+        article = self._published_without_signal("reserved-post")
+
+        call_command(
+            "notify_subscribers", "--slug", article.slug, stdout=StringIO()
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["real@reader.dev"])
+        article.refresh_from_db()
+        self.assertTrue(article.notification_sent)
+
     @override_settings(
         DEBUG=False,
         EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend",

@@ -27,9 +27,15 @@ logger = logging.getLogger(__name__)
 # 发送前按订阅记录替换 —— 避免为 N 个订阅者重复渲染两份模板。
 UNSUBSCRIBE_PLACEHOLDER = "__UNSUBSCRIBE_URL__"
 
+RESEND_ENDPOINT = "https://api.resend.com/emails"
 RESEND_BATCH_ENDPOINT = "https://api.resend.com/emails/batch"
 RESEND_BATCH_LIMIT = 100
 SMTP_BATCH_SIZE = 50
+
+# RFC 2606 保留域名：Resend 直接 422 拒收（还用 example.com 当收件人会让
+# 整批一起失败）。库里的冒烟测试订阅者就落在这里，直接跳过，别让它拖累真人。
+RESERVED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "test", "invalid", "localhost"}
+RESERVED_EMAIL_SUFFIXES = (".test", ".invalid", ".localhost", ".example")
 
 
 class NotificationDeliveryError(Exception):
@@ -109,11 +115,16 @@ def send_new_article_notification(article, force=False):
         )
 
     sent_count = 0
+    skipped = []
     batch = []
     batch_limit = RESEND_BATCH_LIMIT if api_key else SMTP_BATCH_SIZE
 
     # Stream subscribers instead of loading all rows at once.
     for sub in subscribers_qs.iterator(chunk_size=200):
+        if not _is_deliverable(sub.email):
+            skipped.append(sub.email)
+            continue
+
         plain_body, html_body = _bodies_for(sub, plain_template, html_template)
         if api_key:
             batch.append(
@@ -133,13 +144,23 @@ def send_new_article_notification(article, force=False):
             batch.append(msg)
 
         if len(batch) >= batch_limit:
-            _flush_batch(article, batch, api_key, connection)
-            sent_count += len(batch)
+            sent_count += _flush_batch(article, batch, api_key, connection)
             batch = []
 
     if batch:
-        _flush_batch(article, batch, api_key, connection)
-        sent_count += len(batch)
+        sent_count += _flush_batch(article, batch, api_key, connection)
+
+    if skipped:
+        logger.warning(
+            "Skipped %d reserved/test subscriber address(es): %s",
+            len(skipped),
+            ", ".join(skipped),
+        )
+
+    if not sent_count:
+        # 没有可投递的收件人（没有订阅者，或全是保留域名假地址）：
+        # 标记已处理，免得每次保存都重新检查一遍。
+        Article.objects.filter(pk=article.pk).update(notification_sent=True)
 
     return sent_count
 
@@ -155,8 +176,18 @@ def _sender_addresses():
     return django_from, resend_from
 
 
+def _is_deliverable(email):
+    """Resend 会 422 拒收 example.com 一类保留域名，提前跳过。"""
+    domain = (email or "").rsplit("@", 1)[-1].strip().lower().rstrip(".")
+    if not domain:
+        return False
+    if domain in RESERVED_EMAIL_DOMAINS:
+        return False
+    return not domain.endswith(RESERVED_EMAIL_SUFFIXES)
+
+
 def _flush_batch(article, batch, api_key, connection):
-    """发送一批；成功后立刻落 notification_sent，避免重复群发。"""
+    """发送一批，返回成功投递的封数；成功后立刻落 notification_sent。"""
     if api_key:
         resp = requests.post(
             RESEND_BATCH_ENDPOINT,
@@ -165,13 +196,50 @@ def _flush_batch(article, batch, api_key, connection):
             timeout=20,
         )
         if resp.status_code >= 400:
-            raise NotificationDeliveryError(
-                f"resend batch {resp.status_code}: {resp.text[:200]}"
-            )
+            if resp.status_code >= 500:
+                raise NotificationDeliveryError(
+                    f"resend batch {resp.status_code}: {resp.text[:200]}"
+                )
+            # 一批里只要有一个地址被供应商拒收，整批都会 4xx。拆开逐封发，
+            # 只丢掉被拒的那几封，别让真人跟着一起收不到。
+            sent = _send_one_by_one(article, batch, api_key, resp)
+        else:
+            sent = len(batch)
     else:
         connection.send_messages(batch)
+        sent = len(batch)
 
-    Article.objects.filter(pk=article.pk).update(notification_sent=True)
+    if sent:
+        Article.objects.filter(pk=article.pk).update(notification_sent=True)
+    return sent
+
+
+def _send_one_by_one(article, batch, api_key, batch_error):
+    sent = 0
+    last_error = batch_error
+    for message in batch:
+        resp = requests.post(
+            RESEND_ENDPOINT,
+            json=message,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=20,
+        )
+        if resp.status_code >= 400:
+            last_error = resp
+            logger.warning(
+                "Resend rejected %s: %s %s",
+                message.get("to"),
+                resp.status_code,
+                resp.text[:120],
+            )
+            continue
+        sent += 1
+
+    if not sent:
+        raise NotificationDeliveryError(
+            f"resend {last_error.status_code}: {last_error.text[:200]}"
+        )
+    return sent
 
 
 def _bodies_for(subscriber, plain_template, html_template):
