@@ -192,25 +192,6 @@
         <NewsletterForm class="subscribe-form" />
       </div>
     </section>
-
-    <!-- ── 封底导航 ── -->
-    <nav class="colophon-nav" aria-label="快速浏览">
-      <router-link to="/articles" class="colophon-link">
-        <span class="colophon-link__index">01</span>
-        <span class="colophon-link__text"><strong>技术文章</strong><small>AI、开发与工程实践</small></span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-      </router-link>
-      <router-link to="/footprints" class="colophon-link">
-        <span class="colophon-link__index">02</span>
-        <span class="colophon-link__text"><strong>旅行足迹</strong><small>在地图上收藏见闻</small></span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-      </router-link>
-      <router-link to="/photos" class="colophon-link">
-        <span class="colophon-link__index">03</span>
-        <span class="colophon-link__text"><strong>照片墙</strong><small>光影里的生活片段</small></span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-      </router-link>
-    </nav>
   </div>
 </template>
 
@@ -1004,40 +985,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   :deep(.newsletter) { margin-top: 0; }
 }
 
-// ── 封底导航 ──
-.colophon-nav {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin-top: 64px;
-}
-
-.colophon-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 14px;
-  color: var(--text-primary);
-  text-decoration: none;
-  border-bottom: 1px solid var(--glass-border);
-  border-right: 1px solid var(--glass-border);
-  transition: background $transition-fast;
-  &:last-child { border-right: 0; }
-  &:hover { background: var(--surface-muted); color: var(--accent); }
-  &:hover svg { transform: translateX(3px); }
-  svg { width: 15px; height: 15px; margin-left: auto; fill: none; stroke: currentColor; stroke-width: 1.8; transition: transform $transition-fast; flex-shrink: 0; }
-}
-
-.colophon-link__index {
-  color: var(--accent-secondary);
-  font-family: $font-mono;
-  font-size: 0.68rem;
-}
-
-.colophon-link__text {
-  strong { display: block; font-size: 0.88rem; }
-  small { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 0.68rem; }
-}
-
 // ── 提示 / 空态 / 错误 ──
 .cache-notice {
   margin-top: 16px;
@@ -1130,9 +1077,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun',
   .column-row__body { grid-column: 1 / -1; }
   .subscribe-body { grid-template-columns: 1fr; gap: 16px; }
   .subscribe-form { max-width: 420px; }
-  .colophon-nav { grid-template-columns: 1fr; }
-  .colophon-link { border-right: 0; }
-  .colophon-link:last-child { border-bottom: 0; }
 }
 
 @media (max-width: 560px) {
