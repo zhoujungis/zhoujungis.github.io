@@ -219,7 +219,9 @@ from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    # 30 天：读者一个月来一次也不会被踢下线；access token 仍是 1 小时，
+    # 由前端 api/client.js 的单飞刷新自动续期。
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 

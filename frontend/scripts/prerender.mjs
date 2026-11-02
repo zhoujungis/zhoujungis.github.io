@@ -61,6 +61,9 @@ import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS } from '../src/data/footprints.js'
 // 关于/隐私政策/免责声明的正文：与 pages/SitePage.vue 共用同一份数据，
 // 静态快照与运行时页面因此不可能写出两套不同的措辞。
 import { getSitePage } from '../src/data/sitePages.js'
+// 五个编辑专题：聚合页正文与运行时页面同源，sitemap 也只列这些真实存在
+// 的路径。
+import { TOPICS, topicPath } from '../src/data/topics.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -564,6 +567,15 @@ function renderSitemap(articles, { bulkEdits = new Set() } = {}) {
         priority: p.priority || '0.5',
       }),
     ),
+    // 专题聚合页：站点最想被收录的入口，优先级高于单篇文章。
+    ...TOPICS.map((topic) =>
+      entry({
+        loc: `${SITE_ORIGIN}${topicPath(topic.slug)}`,
+        lastmod: isoOrEmpty(newestIso),
+        changefreq: 'weekly',
+        priority: '0.9',
+      }),
+    ),
     ...[...published]
       .sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at))
       .map((a) =>
@@ -703,6 +715,17 @@ function sectionsForPage(page, articles) {
       return dateSections(articles, { byMonth: true })
     case 'categories':
       return groupSections(articles, (a) => [CATEGORY_NAME(a)], '未分类')
+    case 'topics':
+      // 专题总览：直接列出五个聚合页，no-JS 读者也能顺着点进去。
+      return [
+        {
+          heading: '五个专题',
+          items: TOPICS.map((topic) => ({
+            href: `${SITE_ORIGIN}${topicPath(topic.slug)}`,
+            text: `${topic.name} — ${topic.tagline}`,
+          })),
+        },
+      ]
     case 'tags':
       return groupSections(articles, tagNames, '未分类')
     case 'footprints': {
@@ -774,6 +797,64 @@ function renderListPage(template, page, sections) {
 
   // The shell is reused across builds — replace a previously injected block
   // instead of stacking a second one (same guard as renderHomePage).
+  const existing = /<noscript>[\s\S]*?ns-list[\s\S]*?<\/noscript>/
+  if (existing.test(html)) {
+    html = html.replace(existing, literal(noscript))
+  } else {
+    html = html.replace(
+      '<div id="app"></div>',
+      literal(`<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`),
+    )
+  }
+  return html
+}
+
+// ── 专题聚合页 ────────────────────────────────────────────────────────────
+// /topics/<slug>/ 在运行时是 TopicDetail.vue（按 category 拉文章）。这里写一份
+// 静态快照：专题简介 + 该专题下所有文章的链接。Google 把这种「一个主题页 +
+// 有序内链」的结构当作集群（Cluster Page），比零散单篇更容易建立主题权威度。
+function renderTopicPage(template, topic, articles) {
+  const url = `${SITE_ORIGIN}${topicPath(topic.slug)}`
+  const title = `${topic.name}专题：${topic.tagline} | ${SITE_NAME}`
+  const description = `${topic.name}专题（${topic.en}）：${topic.tagline}。${topic.keywords}`.slice(0, 160)
+  const posts = sortedByDate(
+    articles.filter((a) => a?.slug && (a.category?.slug || a.category) === topic.slug),
+  )
+
+  let html = template
+  html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
+  html = html.replace(
+    /<link rel="canonical" href="[^"]*" \/>/,
+    literal(`<link rel="canonical" href="${url}" />`),
+  )
+  html = upsertMeta(html, 'name', 'description', description)
+  html = upsertMeta(html, 'property', 'og:title', title)
+  html = upsertMeta(html, 'property', 'og:description', description)
+  html = upsertMeta(html, 'property', 'og:url', url)
+
+  const siblings = TOPICS.filter((t) => t.slug !== topic.slug)
+    .map((t) => `<a href="${SITE_ORIGIN}${topicPath(t.slug)}">${escapeHtml(t.name)}</a>`)
+    .join('\n')
+
+  const intro = topic.intro.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n')
+  const list = posts.length
+    ? renderSections([
+        {
+          heading: `共 ${posts.length} 篇`,
+          items: posts.map(articleListItem),
+        },
+      ])
+    : '<p>这个专题还在整理中。</p>'
+
+  const noscript =
+    `<noscript><div class="ns-list">` +
+    `<h1>${escapeHtml(topic.name)}专题</h1>` +
+    `<p class="ns-lead">${escapeHtml(topic.en)} · ${escapeHtml(topic.tagline)}</p>\n` +
+    `${intro}\n${list}\n` +
+    `<p class="ns-nav"><a href="${SITE_ORIGIN}/topics/">全部专题</a>\n${siblings}\n` +
+    `<a href="${SITE_ORIGIN}/">首页</a></p>` +
+    `</div></noscript>`
+
   const existing = /<noscript>[\s\S]*?ns-list[\s\S]*?<\/noscript>/
   if (existing.test(html)) {
     html = html.replace(existing, literal(noscript))
@@ -936,6 +1017,24 @@ async function main() {
   }
   console.log(`[prerender] wrote ${listWritten} static list page(s).`)
 
+  // 专题聚合页（/topics/<slug>/）：主题集群入口，同时进 sitemap。
+  let topicWritten = 0
+  for (const topic of TOPICS) {
+    try {
+      const dir = join(DIST, 'topics', topic.slug)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(
+        join(dir, 'index.html'),
+        renderTopicPage(template, topic, articles),
+        'utf8',
+      )
+      topicWritten += 1
+    } catch (e) {
+      console.warn(`[prerender] could not write /topics/${topic.slug}/: ${e?.message || e}`)
+    }
+  }
+  console.log(`[prerender] wrote ${topicWritten} static topic page(s).`)
+
   // sitemap.xml — same origin as the site, listing only what was just written.
   try {
     writeFileSync(
@@ -945,7 +1044,7 @@ async function main() {
     )
     console.log(
       `[prerender] wrote sitemap.xml (` +
-        `${lastmods.size + LIST_PAGES.filter((p) => !p.noindex).length + 1} URLs).`,
+        `${lastmods.size + LIST_PAGES.filter((p) => !p.noindex).length + TOPICS.length + 1} URLs).`,
     )
   } catch (e) {
     console.warn(`[prerender] could not write sitemap.xml: ${e?.message || e}`)
@@ -1010,6 +1109,7 @@ export {
   renderRssFeed,
   renderListPage,
   sectionsForPage,
+  renderTopicPage,
 }
 
 if (!process.env.VITEST_WORKER_ID) {

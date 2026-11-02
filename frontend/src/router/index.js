@@ -11,6 +11,10 @@ const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
   { path: '/article/:slug', name: 'ArticleDetail', component: () => import('../pages/ArticleDetail.vue') },
   { path: '/articles', name: 'Articles', meta: listPageMeta('/articles/'), component: () => import('../pages/Articles.vue') },
+  // 专题聚合页。文章 URL 保持不变（/article/:slug），专题页只做「按主题
+  // 聚类 + 正文介绍」的 SEO 入口，不迁移任何已收录的旧链接。
+  { path: '/topics', name: 'Topics', meta: listPageMeta('/topics/'), component: () => import('../pages/Topics.vue') },
+  { path: '/topics/:slug', name: 'TopicDetail', component: () => import('../pages/TopicDetail.vue') },
   { path: '/categories', name: 'Categories', meta: listPageMeta('/categories/'), component: () => import('../pages/Categories.vue') },
   { path: '/tags', name: 'Tags', meta: listPageMeta('/tags/'), component: () => import('../pages/Tags.vue') },
   {

@@ -20,7 +20,9 @@ import {
   renderRssFeed,
   renderListPage,
   sectionsForPage,
+  renderTopicPage,
 } from '../../scripts/prerender.mjs'
+import { TOPICS, topicPath } from '../data/topics'
 import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS, FOOTPRINT_PROVINCES } from '../data/footprints'
 
 const SHELL = `<!doctype html>
@@ -275,12 +277,15 @@ describe('renderSitemap', () => {
   ]
   const indexable = LIST_PAGES.filter((p) => !p.noindex)
 
-  it('lists the home page, every indexable list page and every article', () => {
+  it('lists the home page, every indexable list page, every topic and every article', () => {
     const xml = renderSitemap(articles)
-    expect(count(xml, '<loc>')).toBe(1 + indexable.length + 2)
+    expect(count(xml, '<loc>')).toBe(1 + indexable.length + TOPICS.length + 2)
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/</loc>`)
     for (const page of indexable) {
       expect(xml).toContain(`<loc>${SITE_ORIGIN}${page.path}</loc>`)
+    }
+    for (const topic of TOPICS) {
+      expect(xml).toContain(`<loc>${SITE_ORIGIN}${topicPath(topic.slug)}</loc>`)
     }
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/article/a/</loc>`)
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/article/b/</loc>`)
@@ -452,5 +457,58 @@ describe('renderListPage', () => {
       expect(html, path).toContain(`<h1>${page.title}</h1>`)
       expect(html, path).toContain('class="ns-nav"')
     }
+  })
+})
+
+describe('renderTopicPage', () => {
+  const topic = TOPICS.find((t) => t.slug === 'database')
+  const articles = [
+    {
+      slug: 'wal',
+      title: 'WAL',
+      created_at: '2026-08-02T00:00:00+08:00',
+      category: { name: '数据库内核', slug: 'database' },
+    },
+    {
+      slug: 'bplus',
+      title: 'B+ tree',
+      created_at: '2026-08-01T00:00:00+08:00',
+      category: { name: '数据库内核', slug: 'database' },
+    },
+    {
+      slug: 'lc994',
+      title: 'LC 994',
+      created_at: '2026-08-03T00:00:00+08:00',
+      category: { name: '算法题解', slug: 'leetcode' },
+    },
+  ]
+
+  it('keys the head on the topic and only lists its own articles', () => {
+    const html = renderTopicPage(SHELL, topic, articles)
+    expect(html).toContain(
+      `<link rel="canonical" href="${SITE_ORIGIN}${topicPath('database')}" />`,
+    )
+    expect(count(html, 'name="description"')).toBe(1)
+    expect(count(html, 'property="og:url"')).toBe(1)
+    // 只有 database 的两篇，且按时间倒序
+    expect(count(html, '/article/wal/')).toBe(1)
+    expect(count(html, '/article/bplus/')).toBe(1)
+    expect(html).not.toContain('/article/lc994/')
+    expect(html.indexOf('/article/wal/')).toBeLessThan(html.indexOf('/article/bplus/'))
+  })
+
+  it('carries the topic intro and links to the sibling topics', () => {
+    const html = renderTopicPage(SHELL, topic, articles)
+    for (const paragraph of topic.intro) {
+      expect(html).toContain(paragraph.slice(0, 20))
+    }
+    for (const sibling of TOPICS.filter((t) => t.slug !== topic.slug)) {
+      expect(html).toContain(`href="${SITE_ORIGIN}${topicPath(sibling.slug)}"`)
+    }
+  })
+
+  it('is idempotent (re-uses the previously injected block)', () => {
+    const once = renderTopicPage(SHELL, topic, articles)
+    expect(renderTopicPage(once, topic, articles)).toBe(once)
   })
 })

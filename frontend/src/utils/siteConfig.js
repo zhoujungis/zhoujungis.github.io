@@ -54,6 +54,13 @@ export const LIST_PAGES = [
     priority: '0.6',
   },
   {
+    path: '/topics/',
+    title: '专题',
+    description: `${SITE_NAME}的编辑专题 — 算法题解、AI Agent、后端架构、数据库内核与项目实战，按主题成体系阅读。`,
+    sections: 'topics',
+    priority: '0.8',
+  },
+  {
     path: '/categories/',
     title: '分类',
     description: `${SITE_NAME}的文章分类，按主题浏览技术文章。`,

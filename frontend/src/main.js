@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import { applyRouteSeo } from './utils/seo'
 import { exchangeOAuthTicket } from './api/auth'
+import { refreshAccessToken } from './api/client'
 import { useLoginModal } from './composables/useLogin'
 import { useAuthStore } from './stores/auth'
 
@@ -22,7 +23,9 @@ app.use(pinia)
 // triggers the initial navigation, so a hook added afterwards would miss it
 // and a direct hit on /articles would keep the site-name <title>.
 router.afterEach((to) => {
-  if (to.name !== 'ArticleDetail') applyRouteSeo(to)
+  // ArticleDetail 与 TopicDetail 会按自己拿到的数据写 SEO 标签（专题名和
+  // 简介在客户端是异步可变的），这里跳过，避免被通用标题覆盖。
+  if (to.name !== 'ArticleDetail' && to.name !== 'TopicDetail') applyRouteSeo(to)
 })
 
 app.use(router)
@@ -66,6 +69,16 @@ if (auth.isAuthenticated) {
   auth.fetchMe().catch(() => {
     // 令牌失效交给 client.js 的刷新/清空逻辑处理，这里不弹错误。
   })
+} else if (localStorage.getItem('refresh_token')) {
+  // access token 只有 1 小时，refresh token 有 30 天。超过 1 小时再打开页面时
+  // 上面的 checkAuth() 已经把过期的 access 清掉了，但 refresh 仍然有效——
+  // 主动续一次，否则「登录状态保持 30 天」形同虚设。
+  refreshAccessToken()
+    .then(() => {
+      auth.checkAuth()
+      return auth.fetchMe()
+    })
+    .catch(() => auth.logout())
 }
 
 app.mount('#app')

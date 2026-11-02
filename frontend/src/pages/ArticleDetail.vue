@@ -66,8 +66,18 @@
                 {{ formattedDate }}
               </span>
 
-              <!-- Category -->
-              <span v-if="article.category" class="meta-item meta-category neon-text-pink">
+              <!-- Category — 有对应专题时直接链到聚合页，给专题页导权重 -->
+              <router-link
+                v-if="article.category && topic"
+                :to="topicPath(topic.slug)"
+                class="meta-item meta-category"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                {{ categoryName }}
+              </router-link>
+              <span v-else-if="article.category" class="meta-item meta-category">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 </svg>
@@ -159,6 +169,14 @@
             </button>
           </div>
 
+          <!-- 专题入口：把单篇文章的权重导向对应的聚合页（Cluster Page） -->
+          <router-link v-if="topic" :to="topicPath(topic.slug)" class="topic-cta">
+            <span class="topic-cta-kicker">{{ topic.en }}</span>
+            <strong class="topic-cta-name">{{ topic.name }}</strong>
+            <span class="topic-cta-desc">{{ topic.tagline }}</span>
+            <span class="topic-cta-arrow">查看专题 →</span>
+          </router-link>
+
           <!-- Related Articles -->
           <RelatedArticles :articles="article.related_articles || []" />
 
@@ -193,6 +211,7 @@ import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
 import { readPrerenderedArticle } from '@/utils/prerenderPreview'
 import { loadDetailCache } from '@/utils/articleCache'
+import { findTopic, topicPath } from '@/data/topics'
 import client from '@/api/client'
 
 const route = useRoute()
@@ -248,6 +267,10 @@ const formattedDate = computed(() => {
 const authorName = computed(() => getAuthorName(article.value?.author))
 
 const categoryName = computed(() => catLabel(article.value?.category))
+
+// 只有归入五个编辑专题的分类才有聚合页；其余（如「随笔」）保持纯文本，
+// 避免链到不存在的 /topics/ 页面。
+const topic = computed(() => findTopic(article.value?.category?.slug))
 
 const tagList = computed(() => {
   const tags = article.value?.tags
@@ -579,6 +602,59 @@ onUnmounted(() => {
 
 .meta-category {
   font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover { color: var(--accent, #3f6b57); }
+}
+
+// ============ Topic CTA ============
+// 放在正文末尾、相关阅读之前：读者读完一篇后最自然的下一步是「这个专题
+// 还有哪些」，同时把内链权重集中到 5 个聚合页上。
+.topic-cta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 16px;
+  align-items: baseline;
+  margin: 30px 0 8px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-subtle, #dce2da);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: border-color $transition-fast, background $transition-fast;
+
+  &:hover {
+    border-color: var(--accent-line, #c9d6cc);
+    background: var(--surface-muted, #f2f4ee);
+  }
+}
+
+.topic-cta-kicker {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono, 'SFMono-Regular', Consolas, monospace);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.topic-cta-name {
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.topic-cta-arrow {
+  font-size: 0.82rem;
+  color: var(--accent, #3f6b57);
+  white-space: nowrap;
+}
+
+.topic-cta-desc {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
 }
 
 // ============ Tags ============

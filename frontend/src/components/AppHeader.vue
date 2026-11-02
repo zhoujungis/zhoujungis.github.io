@@ -222,7 +222,7 @@ const primaryLinks = [
 ]
 
 const exploreLinks = [
-  { path: '/categories', label: '分类', note: '按主题阅读' },
+  { path: '/topics', label: '专题', note: '按主题成体系阅读' },
   { path: '/tags', label: '标签', note: '快速筛选内容' },
   { path: '/photos', label: '照片墙', note: '旅行与光影' },
   { path: '/friends', label: '友链', note: '值得访问的站点' },

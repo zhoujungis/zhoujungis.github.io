@@ -55,6 +55,19 @@ export function getCategories() {
   return client.get('/categories/')
 }
 
+/**
+ * 专题聚合页用：按分类 slug 拉取文章。
+ *
+ * 用 `category__slug`（后端 filterset_fields 里的精确匹配）而不是分类 id，
+ * 这样链接、预渲染脚本和接口都只依赖可读的 slug。专题是单页展示，一次取满
+ * 100 篇（当前最大的专题 55 篇），不做分页。
+ */
+export async function getArticlesByCategory(slug, { pageSize = 100 } = {}) {
+  const res = await getArticles({ category__slug: slug, page_size: pageSize })
+  const data = res.data
+  return Array.isArray(data) ? data : data?.results || []
+}
+
 export function getTags() {
   return client.get('/tags/')
 }
