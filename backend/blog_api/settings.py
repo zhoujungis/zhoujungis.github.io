@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -43,6 +44,13 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', _default_secret)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+# 生产兜底：Debug 模式会常驻调试面板、记录每条 SQL、监控文件变化，
+# 明显拖慢响应。PythonAnywhere 的 WSGI 文件里若残留 DEBUG=True 就会
+# 让线上一直跑在调试模式。凡不是 `manage.py ...` 拉起的进程（即 WSGI
+# 服务器），一律强制关闭 DEBUG，不依赖 .env 或 WSGI 里写对。
+if DEBUG and not any(arg.endswith('manage.py') for arg in sys.argv):
+    DEBUG = False
 
 ALLOWED_HOSTS = os.environ.get(
     'ALLOWED_HOSTS',
