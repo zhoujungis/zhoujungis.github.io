@@ -180,6 +180,27 @@
           <!-- Related Articles -->
           <RelatedArticles :articles="article.related_articles || []" />
 
+          <!-- 算法题解 → 硬核专题：题解是站点目前唯一能被搜到的入口，把
+               这部分流量显式导向 AI Agent / 数据库内核的聚合页。 -->
+          <div v-if="topic?.slug === 'leetcode'" class="deep-dive">
+            <p class="deep-dive-kicker">读完题解，往生产环境走一步</p>
+            <p class="deep-dive-copy">
+              BFS / DFS / 动态规划只是起点。想看清并发、状态与持久化在真实系统里怎么落地，可以接着读：
+            </p>
+            <div class="deep-dive-links">
+              <router-link
+                v-for="t in deepDiveTopics"
+                :key="t.slug"
+                :to="topicPath(t.slug)"
+                class="deep-dive-link"
+              >
+                <span class="deep-dive-en">{{ t.en }}</span>
+                <strong class="deep-dive-name">{{ t.name }}</strong>
+                <span class="deep-dive-desc">{{ t.tagline }}</span>
+              </router-link>
+            </div>
+          </div>
+
           <!-- Comment section -->
           <section class="comment-section">
             <CommentList :article-slug="article.slug" :key="commentKey" />
@@ -211,7 +232,7 @@ import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
 import { readPrerenderedArticle } from '@/utils/prerenderPreview'
 import { loadDetailCache } from '@/utils/articleCache'
-import { findTopic, topicPath } from '@/data/topics'
+import { findTopic, topicPath, TOPICS } from '@/data/topics'
 import client from '@/api/client'
 
 const route = useRoute()
@@ -271,6 +292,12 @@ const categoryName = computed(() => catLabel(article.value?.category))
 // 只有归入五个编辑专题的分类才有聚合页；其余（如「随笔」）保持纯文本，
 // 避免链到不存在的 /topics/ 页面。
 const topic = computed(() => findTopic(article.value?.category?.slug))
+
+// 题解页末尾的「往深处读」只推荐这两个专题：它们是站点当前最想把权重
+// 集中过去的硬核内容。
+const deepDiveTopics = TOPICS.filter(
+  (t) => t.slug === 'aiagent' || t.slug === 'database',
+)
 
 const tagList = computed(() => {
   const tags = article.value?.tags
@@ -654,6 +681,69 @@ onUnmounted(() => {
   grid-column: 1 / -1;
   font-size: 0.85rem;
   line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+// ============ Deep dive ============
+// 只出现在算法题解页：用一句过渡文案 + 两个专题入口，把题解流量引向
+// AI Agent / 数据库内核。
+.deep-dive {
+  margin: 26px 0 8px;
+  padding: 20px 22px;
+  border: 1px solid var(--border-subtle, #dce2da);
+  border-radius: 10px;
+  background: var(--surface-muted, #f2f4ee);
+}
+
+.deep-dive-kicker {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deep-dive-copy {
+  margin: 0 0 14px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.deep-dive-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.deep-dive-link {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  text-decoration: none;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-subtle, #dce2da);
+  border-radius: 8px;
+  transition: border-color $transition-fast;
+
+  &:hover { border-color: var(--accent-line, #c9d6cc); }
+}
+
+.deep-dive-en {
+  font-family: var(--font-mono, 'SFMono-Regular', Consolas, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent, #3f6b57);
+}
+
+.deep-dive-name {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.deep-dive-desc {
+  font-size: 0.78rem;
+  line-height: 1.55;
   color: var(--text-secondary);
 }
 
