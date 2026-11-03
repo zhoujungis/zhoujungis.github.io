@@ -39,7 +39,7 @@
       <router-link
         v-for="(tag, idx) in tags"
         :key="tagLabel(tag)"
-        :to="{ path: '/articles', query: { tag: tagSlug(tag) || tagLabel(tag) } }"
+        :to="tagLink(tag)"
         class="tag-item"
         :class="`tag-item--${idx % 3}`"
       >
@@ -52,6 +52,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useArticleStore } from '@/stores/article'
+import { TAG_PAGE_MIN_ARTICLES, tagPath } from '@/utils/siteConfig'
 
 const articleStore = useArticleStore()
 
@@ -80,6 +81,18 @@ function tagLabel(tag) {
 function tagSlug(tag) {
   if (!tag) return ''
   return typeof tag === 'object' ? tag.slug || '' : ''
+}
+
+/**
+ * 标签点击去哪：达到薄内容阈值的标签有静态落地页（/tags/<slug>/），
+ * 其余退回 /articles 的标签筛选，避免链到构建期没有写出的页面。
+ */
+function tagLink(tag) {
+  const slug = tagSlug(tag) || tagLabel(tag)
+  const count = typeof tag === 'object' ? tag.article_count ?? tag.count ?? 0 : 0
+  return count >= TAG_PAGE_MIN_ARTICLES
+    ? tagPath(slug)
+    : { path: '/articles', query: { tag: slug } }
 }
 
 async function loadTags() {

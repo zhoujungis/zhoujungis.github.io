@@ -41,6 +41,15 @@
     <template v-else-if="article">
       <div class="detail-layout">
         <article class="detail-main">
+          <!-- Breadcrumb -->
+          <nav class="article-breadcrumb" aria-label="面包屑">
+            <router-link to="/">首页</router-link>
+            <span class="breadcrumb-sep" aria-hidden="true">/</span>
+            <router-link to="/articles">文章</router-link>
+            <span class="breadcrumb-sep" aria-hidden="true">/</span>
+            <span aria-current="page">{{ article.title }}</span>
+          </nav>
+
           <!-- Article header -->
           <header class="article-header">
             <h1 class="article-title">{{ article.title }}</h1>
@@ -66,10 +75,10 @@
                 {{ formattedDate }}
               </span>
 
-              <!-- Category — 有对应专题时直接链到聚合页，给专题页导权重 -->
+              <!-- Category — 有对应专题时链到专题聚合页，其余走分类落地页 -->
               <router-link
-                v-if="article.category && topic"
-                :to="topicPath(topic.slug)"
+                v-if="article.category && article.category.slug"
+                :to="categoryPath(article.category.slug)"
                 class="meta-item meta-category"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -103,12 +112,13 @@
             </div>
 
             <!-- Tags -->
-            <div v-if="tagList.length" class="article-tags">
-              <span
-                v-for="(tag, idx) in tagList"
-                :key="idx"
+            <div v-if="tagItems.length" class="article-tags">
+              <router-link
+                v-for="tag in tagItems"
+                :key="tag.slug || tag.name"
+                :to="tagPath(tag.slug || tag.name)"
                 class="tag-pill"
-              >{{ tag }}</span>
+              >{{ tag.name }}</router-link>
             </div>
           </header>
 
@@ -239,10 +249,11 @@ import RelatedArticles from '@/components/RelatedArticles.vue'
 import SeriesNav from '@/components/SeriesNav.vue'
 import { useSEO, SITE_AUTHOR } from '@/utils/seo'
 import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
-import { catLabel, tagLabel, authorName as getAuthorName } from '@/utils/labels'
+import { catLabel, tagLabel, tagSlug, authorName as getAuthorName } from '@/utils/labels'
 import { readPrerenderedArticle } from '@/utils/prerenderPreview'
 import { loadDetailCache } from '@/utils/articleCache'
-import { findTopic, topicPath, seriesOrder, SERIES_MIN_MINUTES, TOPICS } from '@/data/topics'
+import { SITE_ORIGIN, tagPath } from '@/utils/siteConfig'
+import { findTopic, topicPath, categoryPath, seriesOrder, SERIES_MIN_MINUTES, TOPICS } from '@/data/topics'
 import { getArticlesByCategory } from '@/api/articles'
 import client from '@/api/client'
 
@@ -261,7 +272,7 @@ const commentKey = ref(0)
 let fetchSeq = 0
 
 /**
- * 首屏取内容的优先级：预渲染直出（本页 <noscript> 正文 + #prerender-article
+ * 首屏取内容的优先级：预渲染直出（本页 #app 静态正文 + #prerender-article
  * 元数据）→ localStorage 详情缓存 → 骨架屏。
  *
  * 拿到任一份就立刻渲染并撤掉 loading，网络回来后原地替换（stale-while-
@@ -344,11 +355,14 @@ const deepDiveTopics = TOPICS.filter(
   (t) => t.slug === 'aiagent' || t.slug === 'database',
 )
 
-const tagList = computed(() => {
-  const tags = article.value?.tags
-  if (!tags || !Array.isArray(tags)) return []
-  return tags.map(tagLabel).filter(Boolean)
-})
+const tagItems = computed(() =>
+  (Array.isArray(article.value?.tags) ? article.value.tags : [])
+    .map((tag) => ({ name: tagLabel(tag), slug: tagSlug(tag) }))
+    .filter((tag) => tag.name),
+)
+
+// 纯文本版本给 SEO 的 keywords 用。
+const tagList = computed(() => tagItems.value.map((tag) => tag.name))
 
 const liked = ref(false)
 const liking = ref(false) // M2: like button double-click guard
@@ -366,18 +380,81 @@ const readingTime = computed(() => {
 })
 
 // JSON-LD structured data
-const jsonLd = computed(() => {
+const metaDescription = computed(() => {
   if (!article.value) return ''
+  const source = stripMarkdown(
+    article.value.excerpt || article.value.html_content || article.value.content || '',
+  )
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (source.length <= 90) return source
+  const window = source.slice(0, 90)
+  const cut = Math.max(
+    window.lastIndexOf('。'),
+    window.lastIndexOf('！'),
+    window.lastIndexOf('？'),
+    window.lastIndexOf('；'),
+  )
+  if (cut >= 60) return window.slice(0, cut + 1)
+  let hard = window.slice(0, 89)
+  if (/[A-Za-z0-9]$/.test(hard)) {
+    const space = hard.lastIndexOf(' ')
+    if (space >= 60) hard = hard.slice(0, space)
+  }
+  return `${hard.trim()}…`
+})
+
+const jsonLd = computed(() => {
+  const a = article.value
+  if (!a) return ''
+  const url = `${SITE_ORIGIN}/article/${a.slug}/`
+  const cover = new URL(a.cover_image || '/og-image.jpg', SITE_ORIGIN).href
+  const text = stripMarkdown(a.html_content || a.content || '')
+  const wordCount =
+    (text.match(/[\u4e00-\u9fff]/g) || []).length +
+    (text.match(/[A-Za-z0-9]+/g) || []).length
+
+  const articleLd = {
+    '@type': 'Article',
+    '@id': `${url}#article`,
+    url,
+    headline: a.title,
+    description: metaDescription.value,
+    image: cover,
+    datePublished: a.created_at || undefined,
+    dateModified: a.updated_at || a.created_at || undefined,
+    author: {
+      '@type': 'Person',
+      '@id': `${SITE_ORIGIN}/#person`,
+      name: authorName.value || SITE_AUTHOR,
+    },
+    publisher: { '@id': `${SITE_ORIGIN}/#publisher` },
+    isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    articleSection: categoryName.value || undefined,
+    keywords: tagList.value.join(', ') || undefined,
+    inLanguage: 'zh-CN',
+    wordCount: wordCount || undefined,
+  }
+
+  const breadcrumbLd = {
+    '@type': 'BreadcrumbList',
+    '@id': `${url}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首页', item: `${SITE_ORIGIN}/` },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: '文章',
+        item: `${SITE_ORIGIN}/articles/`,
+      },
+      { '@type': 'ListItem', position: 3, name: a.title, item: url },
+    ],
+  }
+
   return JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: article.value.title,
-    description: article.value.excerpt || '',
-    image: article.value.cover_image || undefined,
-    datePublished: article.value.created_at,
-    dateModified: article.value.updated_at,
-    author: { '@type': 'Person', name: SITE_AUTHOR },
-    publisher: { '@type': 'Person', name: SITE_AUTHOR },
+    '@graph': [articleLd, breadcrumbLd],
   })
 })
 
@@ -389,7 +466,10 @@ const jsonLd = computed(() => {
 // 所以线上一直没事；`vite dev` 会直接弹 HMR 错误遮罩，把整页盖住。
 // 改成手动建节点塞进 <head>，行为一致（爬虫读到的还是同一段 JSON-LD），
 // 也不再依赖模板能力。
-let jsonLdEl = null
+let jsonLdEl =
+  typeof document !== 'undefined'
+    ? document.querySelector('script[data-article-jsonld="1"]')
+    : null
 watch(
   jsonLd,
   (data) => {
@@ -584,6 +664,23 @@ onUnmounted(() => {
 }
 
 // ============ Article header ============
+.article-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.6;
+
+  a {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover { color: var(--accent, #3f6b57); }
+  }
+}
+
 .article-header {
   margin-bottom: 32px;
 }
@@ -810,6 +907,7 @@ onUnmounted(() => {
   background: $bg-secondary;
   border: 1px solid transparent;
   border-radius: 999px;
+  text-decoration: none;
   transition: background $transition-fast;
 
   &:hover {

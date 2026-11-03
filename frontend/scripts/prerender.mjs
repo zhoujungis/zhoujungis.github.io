@@ -54,6 +54,8 @@ import {
   SITE_DESCRIPTION,
   SITE_ORIGIN as SITE_ORIGIN_DEFAULT,
   LIST_PAGES,
+  TAG_PAGE_MIN_ARTICLES,
+  tagPath,
 } from '../src/utils/siteConfig.js'
 // Same travel data the /footprints page renders, so its no-JS snapshot can't
 // drift from the live map.
@@ -63,7 +65,14 @@ import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS } from '../src/data/footprints.js'
 import { getSitePage } from '../src/data/sitePages.js'
 // 五个编辑专题：聚合页正文与运行时页面同源，sitemap 也只列这些真实存在
 // 的路径。
-import { TOPICS, topicPath, seriesOrder, SERIES_MIN_MINUTES } from '../src/data/topics.js'
+import {
+  TOPICS,
+  topicPath,
+  categoryPath,
+  findTopic,
+  seriesOrder,
+  SERIES_MIN_MINUTES,
+} from '../src/data/topics.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -105,6 +114,44 @@ function escapeHtml(str) {
     .replaceAll("'", '&#39;')
 }
 
+// 结构化数据与 meta description 都要纯文本：去标签、解常见实体、压空白。
+function plainText(html) {
+  return String(html ?? '')
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style\s*>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// 中文 SERP 大约 70–90 个汉字最稳。优先在句末标点收尾，避免把句子截成
+// 半句；确实没有标点时才硬截并补省略号。
+function metaDescription(text, fallback = '', max = 90) {
+  const source = plainText(text) || String(fallback || '')
+  if (source.length <= max) return source
+  const window = source.slice(0, max)
+  const cut = Math.max(
+    window.lastIndexOf('。'),
+    window.lastIndexOf('！'),
+    window.lastIndexOf('？'),
+    window.lastIndexOf('；'),
+  )
+  if (cut >= 60) return window.slice(0, cut + 1)
+  // 没有句末标点时硬截；若正好切断英文单词，退回到最近的空格。
+  let hard = window.slice(0, max - 1)
+  if (/[A-Za-z0-9]$/.test(hard)) {
+    const space = hard.lastIndexOf(' ')
+    if (space >= 60) hard = hard.slice(0, space)
+  }
+  return `${hard.trim()}…`
+}
+
 /**
  * Build-time sanitizer for backend-provided HTML.
  *
@@ -139,11 +186,13 @@ function sanitizeHtml(html) {
   return out
 }
 
-// Minimal typography for the <noscript> copy — the markdown-body styles live
-// in a lazy-loaded chunk CSS that the shell doesn't include.
+// Minimal typography for the static #app fallback — the markdown-body styles
+// live in a lazy-loaded chunk CSS that the shell doesn't include.
 const NOSCRIPT_STYLE = `
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
 .ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
 .ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
 .ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
@@ -156,6 +205,15 @@ const NOSCRIPT_STYLE = `
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
 .ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
 .ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
 .ns-home-list ul{padding-left:1.2em}
@@ -325,15 +383,30 @@ function absoluteUrl(url) {
   return new URL(url, SITE_ORIGIN).href
 }
 
-function renderArticlePage(template, article, { lastmod, seriesTopic, seriesItems = [] } = {}) {
+function renderArticlePage(
+  template,
+  article,
+  { lastmod, seriesTopic, seriesItems = [], neighbors = {}, related = [], tagPageSlugs = new Set() } = {},
+) {
   const url = `${SITE_ORIGIN}/article/${article.slug}/`
   const title = `${article.title} | ${SITE_NAME}`
-  const description = (article.excerpt || article.title).slice(0, 160)
+  const categoryName = CATEGORY_NAME(article)
+  const keywords = tagNames(article)
+  const description = metaDescription(
+    article.excerpt || article.html_content,
+    `${article.title}${categoryName ? `，${categoryName}` : ''} · 尘世栈帧`,
+  )
   const isoDate = article.created_at || ''
   // Same value the sitemap publishes — see pickLastmod() for why updated_at
   // alone can't be trusted.
   const modifiedDate = lastmod || article.updated_at || isoDate
   const cover = absoluteUrl(article.cover_image || '/og-image.jpg')
+  const authorName =
+    (article.author && (article.author.name || article.author)) || SITE_AUTHOR
+  const bodyText = plainText(article.html_content || '')
+  const wordCount =
+    (bodyText.match(/[\u4e00-\u9fff]/g) || []).length +
+    (bodyText.match(/[A-Za-z0-9]+/g) || []).length
 
   let html = template
   html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
@@ -350,27 +423,68 @@ function renderArticlePage(template, article, { lastmod, seriesTopic, seriesItem
   html = upsertMeta(html, 'property', 'og:url', url)
   html = upsertMeta(html, 'property', 'og:image', cover)
   html = upsertMeta(html, 'property', 'og:image:secure_url', cover)
+  html = upsertMeta(html, 'property', 'og:image:alt', `${article.title} 封面`)
   html = upsertMeta(html, 'name', 'twitter:title', article.title)
   html = upsertMeta(html, 'name', 'twitter:description', description)
   html = upsertMeta(html, 'name', 'twitter:image', cover)
+  html = upsertMeta(html, 'name', 'author', authorName)
+  html = upsertMeta(html, 'property', 'article:section', categoryName)
+
+  const articleLd = {
+    '@type': 'Article',
+    '@id': `${url}#article`,
+    url,
+    headline: article.title,
+    description,
+    image: cover,
+    datePublished: isoDate || undefined,
+    dateModified: modifiedDate || undefined,
+    author: {
+      '@type': 'Person',
+      '@id': `${SITE_ORIGIN}/#person`,
+      name: authorName,
+    },
+    publisher: { '@id': `${SITE_ORIGIN}/#publisher` },
+    isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    articleSection: categoryName || undefined,
+    keywords: keywords.join(', ') || undefined,
+    inLanguage: 'zh-CN',
+    wordCount: wordCount || undefined,
+  }
+
+  const breadcrumbLd = {
+    '@type': 'BreadcrumbList',
+    '@id': `${url}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首页', item: `${SITE_ORIGIN}/` },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: '文章',
+        item: `${SITE_ORIGIN}/articles/`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: article.title,
+        item: url,
+      },
+    ],
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: article.title,
-    description,
-    image: article.cover_image ? absoluteUrl(article.cover_image) : undefined,
-    datePublished: isoDate,
-    dateModified: modifiedDate,
-    author: { '@type': 'Person', name: SITE_AUTHOR },
-    publisher: { '@type': 'Person', name: SITE_AUTHOR },
-    mainEntityOfPage: url,
+    '@graph': [articleLd, breadcrumbLd],
   }
 
-  // JS 用户的「零等待首屏」元数据。脚本开启时 <noscript> 里的正文是一段纯
-  // 文本（浏览器不渲染它），SPA 要自己把正文读回来渲染 —— 见
-  // src/utils/prerenderPreview.js。这里只带元数据、不重复搬运正文（正文已在
-  // <noscript> 里），页面体积只多约 1 KB。
+  const tagMeta = keywords
+    .map((tag) => `<meta property="article:tag" content="${escapeHtml(tag)}" />`)
+    .join('\n    ')
+
+  // JS 用户的「零等待首屏」元数据。#app 里的静态正文在 Vue mount 前会被
+  // src/utils/prerenderPreview.js 读回来渲染；这里只带元数据、不重复搬运
+  // 正文，页面体积只多约 1 KB。
   // 正文/标题里出现 </script> 会提前终结这个标签，所以 `<` 一律写成 JSON 的
   // 六位 Unicode 转义（小写 u + 4 位十六进制），JSON.parse 时会原样还原。
   const previewMeta = {
@@ -397,7 +511,9 @@ function renderArticlePage(template, article, { lastmod, seriesTopic, seriesItem
     `${NOSCRIPT_STYLE}\n` +
     `    <meta property="og:type" content="article" />\n` +
     `    ${isoDate ? `<meta property="article:published_time" content="${isoDate}" />\n    ` : ''}` +
-    `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n` +
+    `    ${modifiedDate ? `<meta property="article:modified_time" content="${modifiedDate}" />\n    ` : ''}` +
+    `    ${tagMeta ? `${tagMeta}\n    ` : ''}` +
+    `<script type="application/ld+json" data-article-jsonld="1">${JSON.stringify(jsonLd)}</script>\n` +
     `    ${previewTag}`
 
   // Replace the shell's generic og:type=website with the article one above.
@@ -430,14 +546,87 @@ function renderArticlePage(template, article, { lastmod, seriesTopic, seriesItem
         `</ol><p><a href="${SITE_ORIGIN}${topicPath(seriesTopic.slug)}">查看${escapeHtml(seriesTopic.name)}专题</a></p></nav>`
       : ''
 
-  const noscript =
-    `<noscript><div class="ns-article">` +
+  // 分类 / 标签是爬虫能看到的横向内链，直接写进静态正文。标签落地页只对
+  // 达到薄内容阈值的标签存在，所以低篇数标签保持纯文本，不产生死链。
+  const topic = findTopic(article.category?.slug)
+  const taxonomyParts = []
+  if (article.category) {
+    const catHref = article.category.slug
+      ? `${SITE_ORIGIN}${categoryPath(article.category.slug)}`
+      : ''
+    taxonomyParts.push(
+      `分类：${
+        catHref
+          ? `<a href="${catHref}">${escapeHtml(categoryName)}</a>`
+          : escapeHtml(categoryName)
+      }`,
+    )
+  }
+  const articleTags = tagEntries(article)
+  if (articleTags.length) {
+    taxonomyParts.push(
+      '标签：' +
+        articleTags
+          .map((t) =>
+            tagPageSlugs.has(t.slug)
+              ? `<a href="${SITE_ORIGIN}${tagPath(t.slug)}">${escapeHtml(t.name)}</a>`
+              : escapeHtml(t.name),
+          )
+          .join(' '),
+    )
+  }
+  const taxonomy = taxonomyParts.length
+    ? `<p class="ns-taxonomy">${taxonomyParts.join(' · ')}</p>`
+    : ''
+
+  const topicCta = topic
+    ? `<p class="ns-topic">专题：<a href="${SITE_ORIGIN}${topicPath(topic.slug)}"><strong>${escapeHtml(topic.name)}</strong></a> — ${escapeHtml(topic.tagline)}</p>`
+    : ''
+
+  const pagerItems = []
+  if (neighbors.prev) {
+    pagerItems.push(
+      `<li>上一篇：<a href="${SITE_ORIGIN}/article/${neighbors.prev.slug}/">${escapeHtml(neighbors.prev.title)}</a></li>`,
+    )
+  }
+  if (neighbors.next) {
+    pagerItems.push(
+      `<li>下一篇：<a href="${SITE_ORIGIN}/article/${neighbors.next.slug}/">${escapeHtml(neighbors.next.title)}</a></li>`,
+    )
+  }
+  const pager = pagerItems.length
+    ? `<nav class="ns-pager"><p><strong>继续阅读</strong></p><ul>${pagerItems.join('')}</ul></nav>`
+    : ''
+
+  const relatedNav = related.length
+    ? `<nav class="ns-related"><p><strong>相关文章</strong></p><ul>` +
+      related
+        .map(
+          (a) =>
+            `<li><a href="${SITE_ORIGIN}/article/${a.slug}/">${escapeHtml(a.title)}</a></li>`,
+        )
+        .join('') +
+      `</ul></nav>`
+    : ''
+
+  // 静态正文直接放进 #app，而不是 <noscript>：
+  // 百度、Bing 等不执行 JS 的爬虫也能读到完整段落与内链；Vue 在 #app 上
+  // mount 时会清空并替换这段 fallback，JS 用户不会看到两份内容。
+  const staticBody =
+    `<div class="ns-article">` +
+    `<nav class="ns-breadcrumb"><a href="${SITE_ORIGIN}/">首页</a> / ` +
+    `<a href="${SITE_ORIGIN}/articles/">文章</a> / ` +
+    `<span>${escapeHtml(article.title)}</span></nav>` +
     `<h1>${escapeHtml(article.title)}</h1>` +
     `<div class="ns-meta">${isoDate ? escapeHtml(new Date(isoDate).toLocaleDateString('zh-CN')) : ''} · ${escapeHtml(SITE_AUTHOR)}</div>` +
+    taxonomy +
     seriesNav +
     `<div class="markdown-body">${safeBody}</div>` +
-    `</div></noscript>`
-  html = html.replace('<div id="app"></div>', literal(`<div id="app"></div>\n    ${noscript}`))
+    topicCta +
+    pager +
+    relatedNav +
+    `</div>`
+  html = html.replace('<div id="app"></div>', literal(`<div id="app">${staticBody}</div>`))
 
   return html
 }
@@ -460,24 +649,14 @@ function renderHomePage(template, articles) {
         `</li>`,
     )
     .join('\n')
-  const noscript =
-    `<noscript><div class="ns-home-list"><h1>${escapeHtml(SITE_NAME)}</h1>` +
-    `<p>最新文章（静态快照，完整体验请启用 JavaScript）：</p><ul>\n${items}\n</ul></div></noscript>`
-  let html = template
-  // The shell is a build artifact reused across builds, so on every rebuild
-  // after the first one it ALREADY contains a previously injected block.
-  // Replace that block in place — otherwise the home page's static article
-  // list stays frozen at whatever the first build produced, forever.
-  const existing = /<noscript>[\s\S]*?ns-home-list[\s\S]*?<\/noscript>/
-  if (existing.test(html)) {
-    html = html.replace(existing, literal(noscript))
-  } else {
-    html = html.replace(
-      '<div id="app"></div>',
-      literal(`<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`),
-    )
-  }
-  return html
+  const staticBody =
+    `<div class="ns-home-list"><h1>${escapeHtml(SITE_NAME)}</h1>` +
+    `<p>最新文章（静态快照，完整体验请启用 JavaScript）：</p><ul>\n${items}\n</ul></div>`
+  // 与文章页一致：静态正文放进 #app，Vue mount 时替换。
+  return template.replace(
+    '<div id="app"></div>',
+    literal(`${NOSCRIPT_STYLE}\n    <div id="app">${staticBody}</div>`),
+  )
 }
 
 // ── Dates & lastmod ───────────────────────────────────────────────────────
@@ -542,8 +721,15 @@ const isoOrEmpty = (value) => {
 //      with the pages it points at.
 //   2. Every URL below is a file this script just wrote — so the sitemap can
 //      only ever list routes that actually answer 200.
-function renderSitemap(articles, { bulkEdits = new Set() } = {}) {
+function renderSitemap(articles, { bulkEdits = new Set(), collections } = {}) {
   const published = articles.filter((a) => a?.slug)
+  const pages = collections || collectionPages(articles)
+  // 聚合页的 lastmod 取该页最新一篇文章的时间——它就是这一页内容真正
+  // 发生变化的时间点。
+  const lastmodOfCollection = (c) =>
+    isoOrEmpty(
+      Math.max(0, ...c.posts.map((p) => timeOf(pickLastmod(p, bulkEdits)))),
+    )
   const lastmodOf = new Map(
     published.map((a) => [a.slug, pickLastmod(a, bulkEdits)]),
   )
@@ -591,6 +777,24 @@ function renderSitemap(articles, { bulkEdits = new Set() } = {}) {
         priority: '0.9',
       }),
     ),
+    // 标签 / 分类落地页：文章页的横向内链终点。标签数量多、单页权重低，
+    // 优先级压在 0.4；无专题的分类是真正的导航页，给 0.5。
+    ...pages.tags.map((c) =>
+      entry({
+        loc: `${SITE_ORIGIN}${collectionPath(c)}`,
+        lastmod: lastmodOfCollection(c),
+        changefreq: 'weekly',
+        priority: '0.4',
+      }),
+    ),
+    ...pages.categories.map((c) =>
+      entry({
+        loc: `${SITE_ORIGIN}${collectionPath(c)}`,
+        lastmod: lastmodOfCollection(c),
+        changefreq: 'weekly',
+        priority: '0.5',
+      }),
+    ),
     ...[...published]
       .sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at))
       .map((a) =>
@@ -633,10 +837,24 @@ function articleListItem(article) {
 const CATEGORY_NAME = (a) =>
   (a?.category && (a.category.name || a.category)) || '未分类'
 
+/** 分类的 slug；后端早期数据可能把 category 写成纯字符串。 */
+const CATEGORY_SLUG = (a) =>
+  (a?.category && (typeof a.category === 'object' ? a.category.slug : '')) || ''
+
 function tagNames(a) {
   return (Array.isArray(a?.tags) ? a.tags : [])
     .map((t) => (t && (t.name || t)) || '')
     .filter(Boolean)
+}
+
+/** 标签的 { name, slug } 列表；没有 slug 的条目无法生成落地页链接。 */
+function tagEntries(a) {
+  return (Array.isArray(a?.tags) ? a.tags : [])
+    .map((t) => ({
+      name: (t && (t.name || t)) || '',
+      slug: (t && typeof t === 'object' ? t.slug : '') || '',
+    }))
+    .filter((t) => t.name && t.slug)
 }
 
 // Group into `{ heading, items }` sections. `byMonth` adds a year → month
@@ -672,21 +890,31 @@ function dateSections(articles, { byMonth = false } = {}) {
   return sections
 }
 
-function groupSections(articles, keyOf, emptyLabel) {
+/**
+ * Group articles into `{ heading, href, items }` sections.
+ *
+ * `entriesOf(article)` returns `[{ key, label }]`; `hrefOf({ key, count })`
+ * decides whether the heading itself links to a landing page (tags below the
+ * thin-content threshold stay plain text).
+ */
+function groupSections(articles, entriesOf, emptyLabel, hrefOf = () => '') {
   const groups = new Map()
   for (const a of sortedByDate(articles)) {
-    const keys = keyOf(a)
-    const list = keys.length ? keys : [emptyLabel]
-    for (const key of list) {
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key).push(a)
+    const entries = entriesOf(a)
+    const list = entries.length ? entries : [{ key: emptyLabel, label: emptyLabel }]
+    for (const entry of list) {
+      if (!groups.has(entry.key)) {
+        groups.set(entry.key, { key: entry.key, label: entry.label, items: [] })
+      }
+      groups.get(entry.key).items.push(a)
     }
   }
-  return [...groups.entries()]
-    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-CN'))
-    .map(([name, items]) => ({
-      heading: `${name}（${items.length} 篇）`,
-      items: items.map(articleListItem),
+  return [...groups.values()]
+    .sort((a, b) => b.items.length - a.items.length || a.label.localeCompare(b.label, 'zh-CN'))
+    .map((g) => ({
+      heading: `${g.label}（${g.items.length} 篇）`,
+      href: hrefOf({ key: g.key, label: g.label, count: g.items.length }),
+      items: g.items.map(articleListItem),
     }))
 }
 
@@ -695,7 +923,12 @@ function renderSections(sections) {
   for (const section of sections) {
     if (!section) continue
     const level = section.level || 2
-    parts.push(`<h${level}>${escapeHtml(section.heading)}</h${level}>`)
+    const heading = escapeHtml(section.heading)
+    parts.push(
+      `<h${level}>` +
+        (section.href ? `<a href="${escapeHtml(section.href)}">${heading}</a>` : heading) +
+        `</h${level}>`,
+    )
     if (section.subsections?.length) parts.push(renderSections(section.subsections))
     // 段落：合规页（隐私政策等）的正文主体，无 JS 读者也要读得到全文
     if (section.paragraphs?.length) {
@@ -729,7 +962,17 @@ function sectionsForPage(page, articles) {
     case 'archives':
       return dateSections(articles, { byMonth: true })
     case 'categories':
-      return groupSections(articles, (a) => [CATEGORY_NAME(a)], '未分类')
+      // 标题本身就是分类落地页的入口：没有专题的分类走 /categories/<slug>/，
+      // 有专题的直接落到 /topics/<slug>/（见 data/topics.js categoryPath）。
+      return groupSections(
+        articles,
+        (a) => {
+          const slug = CATEGORY_SLUG(a)
+          return slug ? [{ key: slug, label: CATEGORY_NAME(a) }] : []
+        },
+        '未分类',
+        ({ key }) => `${SITE_ORIGIN}${categoryPath(key)}`,
+      )
     case 'topics':
       // 专题总览：直接列出五个聚合页，no-JS 读者也能顺着点进去。
       return [
@@ -742,7 +985,18 @@ function sectionsForPage(page, articles) {
         },
       ]
     case 'tags':
-      return groupSections(articles, tagNames, '未分类')
+      // 与运行时 /tags 页一致：隐藏含「测试」的标签；低于薄内容阈值的标签
+      // 没有落地页，标题保持纯文本，避免爬虫点到 404。
+      return groupSections(
+        articles,
+        (a) =>
+          tagEntries(a)
+            .filter((t) => !t.name.includes('测试'))
+            .map((t) => ({ key: t.slug, label: t.name })),
+        '未分类',
+        ({ key, count }) =>
+          count >= TAG_PAGE_MIN_ARTICLES ? `${SITE_ORIGIN}${tagPath(key)}` : '',
+      )
     case 'footprints': {
       // Fully static — the travel data lives in src/data/footprints.js, so the
       // snapshot carries every city instead of just a page title.
@@ -795,6 +1049,9 @@ function renderListPage(template, page, sections) {
   html = upsertMeta(html, 'property', 'og:title', title)
   html = upsertMeta(html, 'property', 'og:description', page.description)
   html = upsertMeta(html, 'property', 'og:url', url)
+  html = upsertMeta(html, 'name', 'twitter:title', title)
+  html = upsertMeta(html, 'name', 'twitter:description', page.description)
+  html = upsertMeta(html, 'property', 'og:image:alt', `${page.title} — ${SITE_NAME}`)
 
   // Cross-links so crawlers (and no-JS readers) can reach the sibling pages
   // without going back through the app shell.
@@ -802,25 +1059,18 @@ function renderListPage(template, page, sections) {
     .map((p) => `<a href="${SITE_ORIGIN}${p.path}">${escapeHtml(p.title)}</a>`)
     .join('\n')
 
-  const noscript =
-    `<noscript><div class="ns-list">` +
+  const staticBody =
+    `<div class="ns-list">` +
     `<h1>${escapeHtml(page.title)}</h1>` +
     `<p class="ns-lead">${escapeHtml(page.description)}</p>\n` +
     `${renderSections(sections)}\n` +
     `<p class="ns-nav"><a href="${SITE_ORIGIN}/">首页</a>\n${nav}</p>` +
-    `</div></noscript>`
+    `</div>`
 
-  // The shell is reused across builds — replace a previously injected block
-  // instead of stacking a second one (same guard as renderHomePage).
-  const existing = /<noscript>[\s\S]*?ns-list[\s\S]*?<\/noscript>/
-  if (existing.test(html)) {
-    html = html.replace(existing, literal(noscript))
-  } else {
-    html = html.replace(
-      '<div id="app"></div>',
-      literal(`<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`),
-    )
-  }
+  html = html.replace(
+    '<div id="app"></div>',
+    literal(`${NOSCRIPT_STYLE}\n    <div id="app">${staticBody}</div>`),
+  )
   return html
 }
 
@@ -832,9 +1082,18 @@ function renderTopicPage(template, topic, articles) {
   const url = `${SITE_ORIGIN}${topicPath(topic.slug)}`
   const title = `${topic.name}专题：${topic.tagline} | ${SITE_NAME}`
   const description = `${topic.name}专题（${topic.en}）：${topic.tagline}。${topic.keywords}`.slice(0, 160)
-  const posts = sortedByDate(
-    articles.filter((a) => a?.slug && (a.category?.slug || a.category) === topic.slug),
+  // 专题是学习路径，不是时间流：静态快照必须与运行时 TopicDetail.vue 一致，
+  // 先按 data/topics.js 的推荐顺序，未列入顺序的文章再按日期倒序补在后面。
+  const inTopic = articles.filter(
+    (a) => a?.slug && (a.category?.slug || a.category) === topic.slug,
   )
+  const order = seriesOrder(topic.slug)
+  const bySlug = new Map(inTopic.map((a) => [a.slug, a]))
+  const ordered = order.map((slug) => bySlug.get(slug)).filter(Boolean)
+  const rest = inTopic
+    .filter((a) => !order.includes(a.slug))
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+  const posts = [...ordered, ...rest]
 
   let html = template
   html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
@@ -846,6 +1105,57 @@ function renderTopicPage(template, topic, articles) {
   html = upsertMeta(html, 'property', 'og:title', title)
   html = upsertMeta(html, 'property', 'og:description', description)
   html = upsertMeta(html, 'property', 'og:url', url)
+  html = upsertMeta(html, 'property', 'og:type', 'website')
+  html = upsertMeta(html, 'name', 'twitter:title', title)
+  html = upsertMeta(html, 'name', 'twitter:description', description)
+  html = upsertMeta(html, 'property', 'og:image:alt', `${topic.name}专题 — ${SITE_NAME}`)
+
+  // 专题页是「主题集群」入口：CollectionPage 说明这是什么页面，ItemList
+  // 把该专题下的文章按推荐顺序交给搜索引擎。
+  const collectionLd = {
+    '@type': 'CollectionPage',
+    '@id': `${url}#collection`,
+    url,
+    name: `${topic.name}专题`,
+    description,
+    isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
+    inLanguage: 'zh-CN',
+    mainEntity: { '@id': `${url}#itemlist` },
+  }
+  const itemListLd = {
+    '@type': 'ItemList',
+    '@id': `${url}#itemlist`,
+    name: `${topic.name}专题文章`,
+    numberOfItems: posts.length,
+    itemListElement: posts.map((a, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${SITE_ORIGIN}/article/${a.slug}/`,
+      name: a.title,
+    })),
+  }
+  const breadcrumbLd = {
+    '@type': 'BreadcrumbList',
+    '@id': `${url}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首页', item: `${SITE_ORIGIN}/` },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: '专题',
+        item: `${SITE_ORIGIN}/topics/`,
+      },
+      { '@type': 'ListItem', position: 3, name: topic.name, item: url },
+    ],
+  }
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [collectionLd, itemListLd, breadcrumbLd],
+  }
+  html = html.replace(
+    '</head>',
+    literal(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n  </head>`),
+  )
 
   const siblings = TOPICS.filter((t) => t.slug !== topic.slug)
     .map((t) => `<a href="${SITE_ORIGIN}${topicPath(t.slug)}">${escapeHtml(t.name)}</a>`)
@@ -861,24 +1171,181 @@ function renderTopicPage(template, topic, articles) {
       ])
     : '<p>这个专题还在整理中。</p>'
 
-  const noscript =
-    `<noscript><div class="ns-list">` +
+  const staticBody =
+    `<div class="ns-list">` +
     `<h1>${escapeHtml(topic.name)}专题</h1>` +
     `<p class="ns-lead">${escapeHtml(topic.en)} · ${escapeHtml(topic.tagline)}</p>\n` +
     `${intro}\n${list}\n` +
     `<p class="ns-nav"><a href="${SITE_ORIGIN}/topics/">全部专题</a>\n${siblings}\n` +
     `<a href="${SITE_ORIGIN}/">首页</a></p>` +
-    `</div></noscript>`
+    `</div>`
 
-  const existing = /<noscript>[\s\S]*?ns-list[\s\S]*?<\/noscript>/
-  if (existing.test(html)) {
-    html = html.replace(existing, literal(noscript))
-  } else {
-    html = html.replace(
-      '<div id="app"></div>',
-      literal(`<div id="app"></div>\n    ${NOSCRIPT_STYLE}\n    ${noscript}`),
-    )
+  html = html.replace(
+    '<div id="app"></div>',
+    literal(`${NOSCRIPT_STYLE}\n    <div id="app">${staticBody}</div>`),
+  )
+  return html
+}
+
+// ── 标签 / 分类落地页 ─────────────────────────────────────────────────────
+// /tags/<slug>/ 与 /categories/<slug>/：把同一标签/分类下的文章聚成一个
+// 可被搜索引擎索引的入口，同时给文章页制造一条横向内链。
+//
+// 分类页只给「没有对应编辑专题」的分类建页——有专题的分类直接落到
+// /topics/<slug>/（见 data/topics.js categoryPath），避免重复内容。
+// 标签页只给达到 TAG_PAGE_MIN_ARTICLES 的标签建页，其余保持在 /tags/ 总览。
+
+function collectionPath({ kind, slug }) {
+  return kind === 'tag' ? tagPath(slug) : categoryPath(slug)
+}
+
+function collectionPages(articles) {
+  const tagMap = new Map()
+  const categoryMap = new Map()
+  for (const a of articles) {
+    if (!a?.slug) continue
+    const categorySlug = CATEGORY_SLUG(a)
+    if (categorySlug && !findTopic(categorySlug)) {
+      if (!categoryMap.has(categorySlug)) {
+        categoryMap.set(categorySlug, {
+          kind: 'category',
+          slug: categorySlug,
+          name: CATEGORY_NAME(a),
+          posts: [],
+        })
+      }
+      categoryMap.get(categorySlug).posts.push(a)
+    }
+    for (const tag of tagEntries(a)) {
+      if (tag.name.includes('测试')) continue
+      if (!tagMap.has(tag.slug)) {
+        tagMap.set(tag.slug, {
+          kind: 'tag',
+          slug: tag.slug,
+          name: tag.name,
+          posts: [],
+        })
+      }
+      tagMap.get(tag.slug).posts.push(a)
+    }
   }
+  const byCount = (a, b) =>
+    b.posts.length - a.posts.length || a.name.localeCompare(b.name, 'zh-CN')
+  return {
+    tags: [...tagMap.values()]
+      .filter((t) => t.posts.length >= TAG_PAGE_MIN_ARTICLES)
+      .sort(byCount),
+    categories: [...categoryMap.values()].sort(byCount),
+  }
+}
+
+function renderCollectionPage(template, collection, siblings = []) {
+  const { kind, slug, name } = collection
+  const kindName = kind === 'tag' ? '标签' : '分类'
+  const indexPath = kind === 'tag' ? '/tags/' : '/categories/'
+  const url = `${SITE_ORIGIN}${collectionPath(collection)}`
+  const posts = sortedByDate(collection.posts)
+  const title = `${name} ${kindName} | ${SITE_NAME}`
+  const headline = posts.slice(0, 3).map((a) => a.title)
+  // 与运行时 CollectionDetail.vue 的 description 同源：标签/分类名 + 篇数
+  // + 前三篇标题，让 SERP 上能看出这一页到底有什么。
+  const rawDescription =
+    `${SITE_NAME}「${name}」${kindName}下的 ${posts.length} 篇文章` +
+    (headline.length ? `：${headline.join('、')}。` : '。')
+  const description = metaDescription(rawDescription, `${SITE_NAME}${kindName}：${name}`, 160)
+
+  let html = template
+  html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
+  html = html.replace(
+    /<link rel="canonical" href="[^"]*" \/>/,
+    literal(`<link rel="canonical" href="${url}" />`),
+  )
+  html = upsertMeta(html, 'name', 'description', description)
+  html = upsertMeta(html, 'property', 'og:title', title)
+  html = upsertMeta(html, 'property', 'og:description', description)
+  html = upsertMeta(html, 'property', 'og:url', url)
+  html = upsertMeta(html, 'property', 'og:type', 'website')
+  html = upsertMeta(html, 'name', 'twitter:title', title)
+  html = upsertMeta(html, 'name', 'twitter:description', description)
+  html = upsertMeta(html, 'property', 'og:image:alt', `${name} ${kindName} — ${SITE_NAME}`)
+
+  const collectionLd = {
+    '@type': 'CollectionPage',
+    '@id': `${url}#collection`,
+    url,
+    name: `${name} ${kindName}`,
+    description,
+    isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
+    inLanguage: 'zh-CN',
+    mainEntity: { '@id': `${url}#itemlist` },
+  }
+  const itemListLd = {
+    '@type': 'ItemList',
+    '@id': `${url}#itemlist`,
+    name: `${name} ${kindName}下的文章`,
+    numberOfItems: posts.length,
+    itemListElement: posts.map((a, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${SITE_ORIGIN}/article/${a.slug}/`,
+      name: a.title,
+    })),
+  }
+  const breadcrumbLd = {
+    '@type': 'BreadcrumbList',
+    '@id': `${url}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首页', item: `${SITE_ORIGIN}/` },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: kindName,
+        item: `${SITE_ORIGIN}${indexPath}`,
+      },
+      { '@type': 'ListItem', position: 3, name, item: url },
+    ],
+  }
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [collectionLd, itemListLd, breadcrumbLd],
+  }
+  html = html.replace(
+    '</head>',
+    literal(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n  </head>`),
+  )
+
+  const siblingLinks = siblings
+    .filter((c) => !(c.kind === kind && c.slug === slug))
+    .map(
+      (c) =>
+        `<a href="${SITE_ORIGIN}${collectionPath(c)}">${escapeHtml(c.name)}</a>`,
+    )
+    .join('\n')
+
+  const list = posts.length
+    ? renderSections([
+        {
+          heading: `共 ${posts.length} 篇`,
+          items: posts.map(articleListItem),
+        },
+      ])
+    : '<p>这个' + kindName + '下还没有文章。</p>'
+
+  const staticBody =
+    `<div class="ns-list">` +
+    `<h1>${escapeHtml(name)}</h1>` +
+    `<p class="ns-lead">${escapeHtml(kindName)} · ${escapeHtml(description)}</p>\n` +
+    `${list}\n` +
+    `<p class="ns-nav"><a href="${SITE_ORIGIN}/">首页</a>\n` +
+    `<a href="${SITE_ORIGIN}${indexPath}">全部${kindName}</a>\n` +
+    `<a href="${SITE_ORIGIN}/articles/">全部文章</a>\n` +
+    `${siblingLinks}</p>` +
+    `</div>`
+
+  html = html.replace(
+    '<div id="app"></div>',
+    literal(`${NOSCRIPT_STYLE}\n    <div id="app">${staticBody}</div>`),
+  )
   return html
 }
 
@@ -1018,6 +1485,42 @@ async function main() {
     }
   }
 
+  // 标签 / 分类落地页的清单。文章页只给这些标签建链接，低篇数标签保持
+  // 纯文本，爬虫不会点到不存在的页面。
+  const collections = collectionPages(articles)
+  const tagPageSlugs = new Set(collections.tags.map((t) => t.slug))
+
+  // 上一篇/下一篇按发布时间推导（静态快照只给爬虫看，JS 用户仍用接口
+  // 返回的 prev_article / next_article）。
+  const byDate = sortedByDate(articles.filter((a) => a?.slug))
+  const dateIndex = new Map(byDate.map((a, i) => [a.slug, i]))
+  function neighborsFor(article) {
+    const i = dateIndex.get(article.slug)
+    if (i === undefined) return {}
+    return { prev: byDate[i + 1], next: byDate[i - 1] }
+  }
+
+  // 相关文章：同分类权重 2，每个共同标签权重 1，取分数最高的 5 篇。
+  function relatedFor(article) {
+    const tagSlugs = new Set(tagEntries(article).map((t) => t.slug))
+    const categorySlug = article.category?.slug
+    return articles
+      .filter((a) => a?.slug && a.slug !== article.slug)
+      .map((a) => ({
+        article: a,
+        score:
+          (categorySlug && a.category?.slug === categorySlug ? 2 : 0) +
+          tagEntries(a).filter((t) => tagSlugs.has(t.slug)).length,
+      }))
+      .filter((x) => x.score > 0)
+      .sort(
+        (x, y) =>
+          y.score - x.score || timeOf(y.article.created_at) - timeOf(x.article.created_at),
+      )
+      .slice(0, 5)
+      .map((x) => x.article)
+  }
+
   let written = 0
   for (const article of articles) {
     if (!article?.slug) continue
@@ -1028,6 +1531,9 @@ async function main() {
       renderArticlePage(template, article, {
         lastmod: lastmods.get(article.slug),
         ...seriesFor(article),
+        neighbors: neighborsFor(article),
+        related: relatedFor(article),
+        tagPageSlugs,
       }),
       'utf8',
     )
@@ -1073,16 +1579,54 @@ async function main() {
   }
   console.log(`[prerender] wrote ${topicWritten} static topic page(s).`)
 
+  // 标签 / 分类落地页。分类只包含「没有对应专题」的那几个，标签只包含
+  // 达到薄内容阈值的，和 sitemap、站内链接用的是同一份 collections。
+  let collectionWritten = 0
+  for (const collection of [...collections.tags, ...collections.categories]) {
+    try {
+      const dir = join(
+        DIST,
+        collectionPath(collection).replace(/^\/|\/$/g, ''),
+      )
+      mkdirSync(dir, { recursive: true })
+      const siblings =
+        collection.kind === 'tag'
+          ? collections.tags.slice(0, 12)
+          : collections.categories
+      writeFileSync(
+        join(dir, 'index.html'),
+        renderCollectionPage(template, collection, siblings),
+        'utf8',
+      )
+      collectionWritten += 1
+    } catch (e) {
+      console.warn(
+        `[prerender] could not write ${collectionPath(collection)}: ${e?.message || e}`,
+      )
+    }
+  }
+  console.log(
+    `[prerender] wrote ${collectionWritten} static tag/category page(s) ` +
+      `(${collections.tags.length} tags, ${collections.categories.length} categories).`,
+  )
+
   // sitemap.xml — same origin as the site, listing only what was just written.
   try {
     writeFileSync(
       join(DIST, 'sitemap.xml'),
-      renderSitemap(articles, { bulkEdits }),
+      renderSitemap(articles, { bulkEdits, collections }),
       'utf8',
     )
     console.log(
       `[prerender] wrote sitemap.xml (` +
-        `${lastmods.size + LIST_PAGES.filter((p) => !p.noindex).length + TOPICS.length + 1} URLs).`,
+        `${
+          lastmods.size +
+          LIST_PAGES.filter((p) => !p.noindex).length +
+          TOPICS.length +
+          collections.tags.length +
+          collections.categories.length +
+          1
+        } URLs).`,
     )
   } catch (e) {
     console.warn(`[prerender] could not write sitemap.xml: ${e?.message || e}`)
@@ -1148,6 +1692,10 @@ export {
   renderListPage,
   sectionsForPage,
   renderTopicPage,
+  collectionPath,
+  collectionPages,
+  renderCollectionPage,
+  tagEntries,
 }
 
 if (!process.env.VITEST_WORKER_ID) {

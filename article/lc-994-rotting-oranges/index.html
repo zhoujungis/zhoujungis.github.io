@@ -6,14 +6,14 @@
     <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面" />
+    <meta name="description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。" />
     <!-- Google AdSense 站点验证 -->
     <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
     <!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/" />
     <meta property="og:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
-    <meta property="og:description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面" />
+    <meta property="og:description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。" />
     <meta property="og:url" content="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/" />
     <meta property="og:site_name" content="尘世栈帧" />
     <meta property="og:locale" content="zh_CN" />
@@ -22,17 +22,54 @@
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta property="og:image:alt" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表 封面" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
-    <meta name="twitter:description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面" />
+    <meta name="twitter:description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。" />
     <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/lc-994-cover.png" />
     <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
     <title>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -56,14 +93,17 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Czwiffvm.js"></script>
+    <script type="module" crossorigin src="/assets/index-WlsUbDLT.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="算法题解" />
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
 .ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
 .ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
 .ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
@@ -76,6 +116,15 @@
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
 .ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
 .ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
 .ns-home-list ul{padding-left:1.2em}
@@ -95,12 +144,16 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-12T12:24:51.457830+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","description":"题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面","image":"https://blog.zhoujun.dev/photos/lc-994-cover.png","datePublished":"2026-10-12T12:24:51.457830+08:00","dateModified":"2026-10-12T12:24:51.457830+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/lc-994-rotting-oranges/"}</script>
+        <meta property="article:modified_time" content="2026-10-12T12:24:51.457830+08:00" />
+        <meta property="article:tag" content="LeetCode" />
+    <meta property="article:tag" content="图" />
+    <meta property="article:tag" content="算法" />
+    <meta property="article:tag" content="面试" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/lc-994-rotting-oranges/#article","url":"https://blog.zhoujun.dev/article/lc-994-rotting-oranges/","headline":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","description":"题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。","image":"https://blog.zhoujun.dev/photos/lc-994-cover.png","datePublished":"2026-10-12T12:24:51.457830+08:00","dateModified":"2026-10-12T12:24:51.457830+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/lc-994-rotting-oranges/"},"articleSection":"算法题解","keywords":"LeetCode, 图, 算法, 面试","inLanguage":"zh-CN","wordCount":4305},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/lc-994-rotting-oranges/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","item":"https://blog.zhoujun.dev/article/lc-994-rotting-oranges/"}]}]}</script>
     <script type="application/json" id="prerender-article">{"slug":"lc-994-rotting-oranges","title":"【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表","created_at":"2026-10-12T12:24:51.457830+08:00","updated_at":"2026-11-02T12:19:47.391570+08:00","author":null,"category":{"id":10,"name":"算法题解","slug":"leetcode"},"tags":[{"id":136,"name":"LeetCode","slug":"leetcode"},{"id":150,"name":"图","slug":"graph"},{"id":118,"name":"算法","slug":"algorithm"},{"id":137,"name":"面试","slug":"interview"}],"cover_image":"/photos/lc-994-cover.png","excerpt":"题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。 每分钟 ，所有腐烂橘子会把它 上下左右四个方向 相邻的新鲜橘子变腐烂。返回直到网格中 没有新鲜橘子 为止所必须经过的 最小分钟数 ；如果不可能，返回 -1 。 三个题面","reading_time":16,"views_count":12,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
-    <div id="app"></div>
-    <noscript><div class="ns-article"><h1>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><div class="markdown-body"><h2>题目要求是什么？</h2>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</span></nav><h1>【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</h1><div class="ns-meta">2026/10/12 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/leetcode/">算法题解</a> · 标签：<a href="https://blog.zhoujun.dev/tags/leetcode/">LeetCode</a> <a href="https://blog.zhoujun.dev/tags/graph/">图</a> <a href="https://blog.zhoujun.dev/tags/algorithm/">算法</a> <a href="https://blog.zhoujun.dev/tags/interview/">面试</a></p><div class="markdown-body"><h2>题目要求是什么？</h2>
 
 <strong>LC 994 腐烂的橘子</strong>：给你一个 <code>m × n</code> 的网格，每个格子是 <code>0</code>（空，不是橘子）、<code>1</code>（新鲜橘子）或 <code>2</code>（腐烂橘子）。<strong>每分钟</strong>，所有腐烂橘子会把它<strong>上下左右四个方向</strong>相邻的新鲜橘子变腐烂。返回直到网格中<strong>没有新鲜橘子</strong>为止所必须经过的<strong>最小分钟数</strong>；如果不可能，返回 <code>-1</code>。
 <div class="codehilite"><pre><span></span><code>输入: grid = [
@@ -585,6 +638,6 @@
 
 同族题延伸：<a href="/article/lc-200-number-of-islands/">《【LC 200】岛屿数量：一次染色与防爆栈替代》</a>、<a href="/article/lc-102-binary-tree-level-order-traversal/">《【LC 102】二叉树的层序遍历：为什么先存队列长度》</a>。
 
-下一篇见。</div></div></noscript>
+下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li><li><a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav></div></div>
   </body>
 </html>

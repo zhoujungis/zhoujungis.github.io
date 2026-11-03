@@ -4,6 +4,7 @@ import './styles/global.scss'
 import App from './App.vue'
 import router from './router'
 import { applyRouteSeo } from './utils/seo'
+import { captureStaticFallback } from './utils/prerenderPreview'
 import { exchangeOAuthTicket } from './api/auth'
 import { refreshAccessToken } from './api/client'
 import { useLoginModal } from './composables/useLogin'
@@ -23,9 +24,10 @@ app.use(pinia)
 // triggers the initial navigation, so a hook added afterwards would miss it
 // and a direct hit on /articles would keep the site-name <title>.
 router.afterEach((to) => {
-  // ArticleDetail 与 TopicDetail 会按自己拿到的数据写 SEO 标签（专题名和
-  // 简介在客户端是异步可变的），这里跳过，避免被通用标题覆盖。
-  if (to.name !== 'ArticleDetail' && to.name !== 'TopicDetail') applyRouteSeo(to)
+  // 这几个页面会按自己拿到的数据写 SEO 标签（文章/专题/标签名与数量在
+  // 客户端是异步可变的），这里跳过，避免被通用标题覆盖。
+  const selfSeo = ['ArticleDetail', 'TopicDetail', 'TagDetail', 'CategoryDetail']
+  if (!selfSeo.includes(to.name)) applyRouteSeo(to)
 })
 
 app.use(router)
@@ -85,5 +87,9 @@ if (auth.isAuthenticated) {
       else console.warn('auth: refresh temporarily failed', err)
     })
 }
+
+// 必须在 app.mount 之前保存静态正文：mount 会先清空 #app，再执行组件 setup，
+// 否则详情页的零等待首屏读不到预渲染内容。
+captureStaticFallback()
 
 app.mount('#app')

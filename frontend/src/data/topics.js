@@ -114,6 +114,17 @@ export function topicPath(slug) {
   return `/topics/${slug}/`
 }
 
+/**
+ * 分类的落地页路径。
+ *
+ * 有对应编辑专题的分类（leetcode / aiagent / backend / database / projects）
+ * 直接落到 /topics/<slug>/，避免同一批文章在两个 URL 上重复；没有专题的
+ * 分类（如「随笔」）才走 /categories/<slug>/ 的通用落地页。
+ */
+export function categoryPath(slug) {
+  return findTopic(slug) ? topicPath(slug) : `/categories/${encodeURIComponent(String(slug))}/`
+}
+
 /** 该专题的推荐阅读顺序；没有配置系列的专题返回空数组。 */
 export function seriesOrder(topicSlug) {
   return findTopic(topicSlug)?.series || []

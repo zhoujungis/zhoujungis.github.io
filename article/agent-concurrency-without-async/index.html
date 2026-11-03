@@ -6,14 +6,14 @@
     <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
+    <meta name="description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；" />
     <!-- Google AdSense 站点验证 -->
     <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
     <!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
     <meta property="og:title" content="Agent 并发：不用 async 运行时怎么并行" />
-    <meta property="og:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
+    <meta property="og:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；" />
     <meta property="og:url" content="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
     <meta property="og:site_name" content="尘世栈帧" />
     <meta property="og:locale" content="zh_CN" />
@@ -22,17 +22,54 @@
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta property="og:image:alt" content="Agent 并发：不用 async 运行时怎么并行 封面" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Agent 并发：不用 async 运行时怎么并行" />
-    <meta name="twitter:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv" />
+    <meta name="twitter:description" content="适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；" />
     <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/agent-concurrency-cover.png" />
     <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
     <title>Agent 并发：不用 async 运行时怎么并行 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -56,14 +93,17 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Czwiffvm.js"></script>
+    <script type="module" crossorigin src="/assets/index-WlsUbDLT.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="AI Agent" />
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
 .ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
 .ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
 .ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
@@ -76,6 +116,15 @@
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
 .ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
 .ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
 .ns-home-list ul{padding-left:1.2em}
@@ -95,12 +144,16 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-22T14:52:30.982373+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 并发：不用 async 运行时怎么并行","description":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","image":"https://blog.zhoujun.dev/photos/agent-concurrency-cover.png","datePublished":"2026-10-22T14:52:30.982373+08:00","dateModified":"2026-10-22T14:52:30.982373+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"agent-concurrency-without-async","title":"Agent 并发：不用 async 运行时怎么并行","created_at":"2026-10-22T14:52:30.982373+08:00","updated_at":"2026-11-02T12:11:23.677212+08:00","author":null,"category":{"id":11,"name":"AI Agent","slug":"aiagent"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":113,"name":"并发","slug":"concurrency"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-concurrency-cover.png","excerpt":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","reading_time":62,"views_count":16,"likes_count":0,"prev_article":null,"next_article":null}</script>
+        <meta property="article:modified_time" content="2026-10-22T14:52:30.982373+08:00" />
+        <meta property="article:tag" content="Agent" />
+    <meta property="article:tag" content="Agent 工程" />
+    <meta property="article:tag" content="并发" />
+    <meta property="article:tag" content="架构设计" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/#article","url":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/","headline":"Agent 并发：不用 async 运行时怎么并行","description":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；","image":"https://blog.zhoujun.dev/photos/agent-concurrency-cover.png","datePublished":"2026-10-22T14:52:30.982373+08:00","dateModified":"2026-10-22T14:52:30.982373+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/"},"articleSection":"AI Agent","keywords":"Agent, Agent 工程, 并发, 架构设计","inLanguage":"zh-CN","wordCount":15583},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"Agent 并发：不用 async 运行时怎么并行","item":"https://blog.zhoujun.dev/article/agent-concurrency-without-async/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"agent-concurrency-without-async","title":"Agent 并发：不用 async 运行时怎么并行","created_at":"2026-10-22T14:52:30.982373+08:00","updated_at":"2026-11-02T12:11:23.677212+08:00","author":null,"category":{"id":11,"name":"AI Agent","slug":"aiagent"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":113,"name":"并发","slug":"concurrency"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-concurrency-cover.png","excerpt":"适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人 结论先行：NanoHermes 的并发只有两个原语——作用域线程（ std::thread::scope ）和一把计数闸门（ Mutex + Condv","reading_time":62,"views_count":17,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
-    <div id="app"></div>
-    <noscript><div class="ns-article"><h1>Agent 并发：不用 async 运行时怎么并行</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><nav class="ns-series"><p><strong>本系列 · AI Agent</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a></li><li><a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li><a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a></li><li><a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li><li><strong>Agent 并发：不用 async 运行时怎么并行</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/aiagent/">查看AI Agent专题</a></p></nav><div class="markdown-body"><blockquote>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>Agent 并发：不用 async 运行时怎么并行</span></nav><h1>Agent 并发：不用 async 运行时怎么并行</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/aiagent/">AI Agent</a> · 标签：<a href="https://blog.zhoujun.dev/tags/agent/">Agent</a> <a href="https://blog.zhoujun.dev/tags/agent-engineering/">Agent 工程</a> <a href="https://blog.zhoujun.dev/tags/concurrency/">并发</a> <a href="https://blog.zhoujun.dev/tags/architecture/">架构设计</a></p><nav class="ns-series"><p><strong>本系列 · AI Agent</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a></li><li><a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li><a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a></li><li><a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li><li><strong>Agent 并发：不用 async 运行时怎么并行</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/aiagent/">查看AI Agent专题</a></p></nav><div class="markdown-body"><blockquote>
 
 适用读者：给 Agent 加过并行、被死锁或「结果对不上」坑过的人；不想为一个 CLI 工具拖进一整套 async 运行时的人；想知道「一轮里到底能同时跑几件事」的人
 结论先行：NanoHermes 的并发只有两个原语——作用域线程（<code>std::thread::scope</code>）和一把计数闸门（<code>Mutex</code> + <code>Condvar</code>）。它没有 async runtime，没有取消令牌，也没有消息队列，靠的是「每轮一个 join 屏障」把并发收进一个有界的盒子里
@@ -1485,6 +1538,6 @@ NanoHermes 的实现不完美——本文列了七个可以修的缺陷，其中
 
 不用 async 运行时不是一个宗教立场，而是一个成本核算：对这个项目，线程加屏障的总成本（几十微秒的创建开销、一个 2 MiB 的虚拟栈、无法中途取消）远小于引入一整套异步生态的成本（依赖树、跨 <code>await</code> 的状态、<code>Send</code> 检查的复杂度）。换一个场景——比如需要维持上万条长连接——这个核算就会反过来。
 
-下一篇进入安全：让它跑命令，而不失控。并发解决的是「几件事同时做」，安全解决的是「这几件事能做什么」——两者在 <code>needs_approval</code> 那一行代码上相交，而那正是本文第 7 个缺陷所在的位置。</div></div></noscript>
+下一篇进入安全：让它跑命令，而不失控。并发解决的是「几件事同时做」，安全解决的是「这几件事能做什么」——两者在 <code>needs_approval</code> 那一行代码上相交，而那正是本文第 7 个缺陷所在的位置。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li></ul></nav></div></div>
   </body>
 </html>

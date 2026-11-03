@@ -21,7 +21,11 @@ import {
   renderListPage,
   sectionsForPage,
   renderTopicPage,
+  collectionPath,
+  collectionPages,
+  renderCollectionPage,
 } from '../../scripts/prerender.mjs'
+import { TAG_PAGE_MIN_ARTICLES, tagPath } from '../utils/siteConfig'
 import { TOPICS, topicPath } from '../data/topics'
 import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS, FOOTPRINT_PROVINCES } from '../data/footprints'
 
@@ -96,16 +100,36 @@ describe('renderArticlePage zero-wait preview payload', () => {
   const payloadOf = (html) =>
     JSON.parse(html.match(/id="prerender-article">([\s\S]*?)<\/script>/)[1])
 
-  it('emits metadata for JS users while the body lives only in <noscript>', () => {
+  it('emits metadata for JS users while the body lives only in #app', () => {
     const html = renderArticlePage(SHELL, ARTICLE)
     expect(count(html, 'id="prerender-article"')).toBe(1)
     const meta = payloadOf(html)
     expect(meta.slug).toBe('hello-world')
     expect(meta.title).toBe('Hello <World>')
     expect(meta.cover_image).toBe('https://example.com/cover.jpg')
-    // 正文不重复搬运：它已经在 <noscript> 里了
+    // 正文不重复搬运：它已经在 #app 的静态 fallback 里了
     expect(meta.html_content).toBeUndefined()
+    expect(html).toContain('<div id="app"><div class="ns-article">')
     expect(html).toContain('<p>Hello</p>')
+    expect(html).not.toContain('<noscript>')
+  })
+
+  it('emits Article and Breadcrumb structured data', () => {
+    const html = renderArticlePage(SHELL, ARTICLE)
+    const ld = JSON.parse(html.match(/data-article-jsonld="1">([\s\S]*?)<\/script>/)[1])
+    const [article, breadcrumb] = ld['@graph']
+    expect(article).toMatchObject({
+      '@type': 'Article',
+      url: 'https://blog.zhoujun.dev/article/hello-world/',
+      inLanguage: 'zh-CN',
+    })
+    expect(article.publisher).toEqual({ '@id': `${SITE_ORIGIN}/#publisher` })
+    expect(article.mainEntityOfPage['@id']).toBe(article.url)
+    expect(breadcrumb.itemListElement).toHaveLength(3)
+    expect(breadcrumb.itemListElement[1]).toMatchObject({
+      name: '文章',
+      item: `${SITE_ORIGIN}/articles/`,
+    })
   })
 
   it('escapes `<` so content containing </script> cannot cut the payload short', () => {
@@ -116,6 +140,36 @@ describe('renderArticlePage zero-wait preview payload', () => {
     const raw = html.match(/id="prerender-article">([\s\S]*?)<\/script>/)[1]
     expect(raw).not.toContain('</script>')
     expect(payloadOf(html).excerpt).toBe('watch out </script> inside')
+  })
+})
+
+describe('renderArticlePage static internal links', () => {
+  const linked = {
+    ...ARTICLE,
+    category: { name: 'AI Agent', slug: 'aiagent' },
+    tags: [
+      { name: 'MCP', slug: 'mcp' },
+      { name: '测试标签', slug: 'test-tag' },
+    ],
+  }
+  const options = {
+    neighbors: {
+      prev: { slug: 'older', title: 'Older post' },
+      next: { slug: 'newer', title: 'Newer post' },
+    },
+    related: [{ slug: 'related', title: 'Related post' }],
+    tagPageSlugs: new Set(['mcp']),
+  }
+
+  it('links the category, indexable tags, prev/next and related articles', () => {
+    const html = renderArticlePage(SHELL, linked, options)
+    expect(html).toContain(`href="${SITE_ORIGIN}/topics/aiagent/"`)
+    expect(html).toContain(`href="${SITE_ORIGIN}/tags/mcp/"`)
+    // 低篇数标签没有落地页，只作为纯文本出现
+    expect(html).not.toContain('/tags/test-tag/')
+    expect(html).toContain('/article/older/')
+    expect(html).toContain('/article/newer/')
+    expect(html).toContain('/article/related/')
   })
 })
 
@@ -154,17 +208,11 @@ describe('renderHomePage', () => {
     { slug: 'a', title: 'A post', created_at: '2026-08-01T00:00:00+08:00' },
   ]
 
-  it('injects a noscript latest list, newest first', () => {
+  it('injects a static latest list into #app, newest first', () => {
     const html = renderHomePage(SHELL, articles)
-    expect(html).toContain('<noscript>')
+    expect(html).toContain('<div id="app"><div class="ns-home-list">')
+    expect(html).not.toContain('<noscript>')
     expect(html.indexOf('/article/b/')).toBeLessThan(html.indexOf('/article/a/'))
-  })
-
-  it('is idempotent (no double injection)', () => {
-    const once = renderHomePage(SHELL, articles)
-    const twice = renderHomePage(once, articles)
-    expect(count(once, '<noscript>')).toBe(1)
-    expect(twice).toBe(once)
   })
 })
 
@@ -386,12 +434,13 @@ describe('renderListPage', () => {
     expect(count(html, 'property="og:url"')).toBe(1)
   })
 
-  it('lists each article exactly once and is idempotent', () => {
+  it('lists each article exactly once and injects the static body into #app', () => {
     const page = pageFor('/articles/')
-    const once = renderListPage(SHELL, page, sectionsForPage(page, articles))
-    expect(count(once, '/article/b/')).toBe(1)
-    expect(count(once, '/article/a/')).toBe(1)
-    expect(renderListPage(once, page, sectionsForPage(page, articles))).toBe(once)
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(count(html, '/article/b/')).toBe(1)
+    expect(count(html, '/article/a/')).toBe(1)
+    expect(html).toContain('<div id="app"><div class="ns-list">')
+    expect(html).not.toContain('<noscript>')
   })
 
   it('cross-links the sibling list pages', () => {
@@ -460,6 +509,82 @@ describe('renderListPage', () => {
   })
 })
 
+describe('collectionPages / renderCollectionPage', () => {
+  const make = (i, { category = { name: '随笔', slug: 'notes' }, tags = [] } = {}) => ({
+    slug: `post-${i}`,
+    title: `Post ${i}`,
+    created_at: `2026-08-0${i}T00:00:00+08:00`,
+    category,
+    tags,
+  })
+  const djangoTags = [{ name: 'Django', slug: 'django' }]
+  const articles = [
+    make(1, { tags: djangoTags }),
+    make(2, { tags: djangoTags }),
+    make(3, { tags: djangoTags }),
+    make(4, { tags: djangoTags, category: { name: 'AI Agent', slug: 'aiagent' } }),
+    // 只有 2 篇的标签：低于阈值，不单独成页
+    make(5, { tags: [{ name: 'Rust', slug: 'rust' }] }),
+    make(6, { tags: [{ name: 'Rust', slug: 'rust' }] }),
+  ]
+
+  it('groups tags above the thin-content threshold and only non-topic categories', () => {
+    const pages = collectionPages(articles)
+    expect(pages.tags.map((t) => t.slug)).toEqual(['django'])
+    // aiagent 有对应专题，不需要重复的 /categories/aiagent/
+    expect(pages.categories.map((c) => c.slug)).toEqual(['notes'])
+    // post-1/2/3 与两篇 Rust 文章都在默认分类「随笔」下
+    expect(pages.categories[0].posts).toHaveLength(5)
+  })
+
+  it('emits CollectionPage + ItemList + BreadcrumbList and the slashed canonical', () => {
+    const tag = collectionPages(articles).tags[0]
+    const html = renderCollectionPage(SHELL, tag)
+    expect(html).toContain(`<title>Django 标签 | ${SITE_NAME}</title>`)
+    expect(html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${tagPath('django')}" />`)
+    expect(count(html, 'name="description"')).toBe(1)
+
+    const ld = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])
+    const [collection, itemList, breadcrumb] = ld['@graph']
+    expect(collection).toMatchObject({ '@type': 'CollectionPage', url: `${SITE_ORIGIN}${collectionPath(tag)}` })
+    expect(itemList['@type']).toBe('ItemList')
+    expect(itemList.numberOfItems).toBe(4)
+    expect(itemList.itemListElement[0]).toMatchObject({
+      position: 1,
+      url: `${SITE_ORIGIN}/article/post-4/`,
+    })
+    expect(breadcrumb.itemListElement[1]).toMatchObject({
+      name: '标签',
+      item: `${SITE_ORIGIN}/tags/`,
+    })
+    expect(html).toContain('<div id="app"><div class="ns-list">')
+  })
+
+  it('renders a category page under /categories/<slug>/', () => {
+    const category = collectionPages(articles).categories[0]
+    const html = renderCollectionPage(SHELL, category)
+    expect(html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}/categories/notes/" />`)
+    expect(html).toContain('<title>随笔 分类 | ' + SITE_NAME + '</title>')
+  })
+})
+
+describe('renderSitemap with tag/category landing pages', () => {
+  const articles = [
+    ...Array.from({ length: TAG_PAGE_MIN_ARTICLES }, (_, i) => ({
+      slug: `t${i}`,
+      created_at: `2026-08-0${i + 1}T00:00:00+08:00`,
+      category: { name: '随笔', slug: 'notes' },
+      tags: [{ name: 'Django', slug: 'django' }],
+    })),
+  ]
+
+  it('lists every landing page the build writes', () => {
+    const xml = renderSitemap(articles)
+    expect(xml).toContain(`<loc>${SITE_ORIGIN}/tags/django/</loc>`)
+    expect(xml).toContain(`<loc>${SITE_ORIGIN}/categories/notes/</loc>`)
+  })
+})
+
 describe('renderTopicPage', () => {
   const topic = TOPICS.find((t) => t.slug === 'database')
   const articles = [
@@ -490,9 +615,10 @@ describe('renderTopicPage', () => {
     )
     expect(count(html, 'name="description"')).toBe(1)
     expect(count(html, 'property="og:url"')).toBe(1)
-    // 只有 database 的两篇，且按时间倒序
-    expect(count(html, '/article/wal/')).toBe(1)
-    expect(count(html, '/article/bplus/')).toBe(1)
+    // 只有 database 的两篇，且按时间倒序；每篇各出现一次正文列表 + 一次
+    // ItemList 结构化数据。
+    expect(count(html, '/article/wal/')).toBe(2)
+    expect(count(html, '/article/bplus/')).toBe(2)
     expect(html).not.toContain('/article/lc994/')
     expect(html.indexOf('/article/wal/')).toBeLessThan(html.indexOf('/article/bplus/'))
   })
@@ -507,8 +633,10 @@ describe('renderTopicPage', () => {
     }
   })
 
-  it('is idempotent (re-uses the previously injected block)', () => {
-    const once = renderTopicPage(SHELL, topic, articles)
-    expect(renderTopicPage(once, topic, articles)).toBe(once)
+  it('emits a BreadcrumbList for the topic hierarchy', () => {
+    const html = renderTopicPage(SHELL, topic, articles)
+    expect(html).toContain('"@type":"BreadcrumbList"')
+    expect(html).toContain(`"item":"${SITE_ORIGIN}/topics/"`)
+    expect(html).toContain('<div id="app"><div class="ns-list">')
   })
 })

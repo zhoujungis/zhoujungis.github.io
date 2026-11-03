@@ -16,6 +16,10 @@ const routes = [
   { path: '/topics', name: 'Topics', meta: listPageMeta('/topics/'), component: () => import('../pages/Topics.vue') },
   { path: '/topics/:slug', name: 'TopicDetail', component: () => import('../pages/TopicDetail.vue') },
   { path: '/categories', name: 'Categories', meta: listPageMeta('/categories/'), component: () => import('../pages/Categories.vue') },
+  // 标签 / 分类落地页。抓取友好的静态版本由 prerender.mjs 写出；运行时
+  // 只有 slug 不在静态集合里（或 SPA 内部跳转）时才会走到这里。
+  { path: '/tags/:slug', name: 'TagDetail', props: { kind: 'tag' }, component: () => import('../pages/CollectionDetail.vue') },
+  { path: '/categories/:slug', name: 'CategoryDetail', props: { kind: 'category' }, component: () => import('../pages/CollectionDetail.vue') },
   { path: '/tags', name: 'Tags', meta: listPageMeta('/tags/'), component: () => import('../pages/Tags.vue') },
   {
     path: '/search',

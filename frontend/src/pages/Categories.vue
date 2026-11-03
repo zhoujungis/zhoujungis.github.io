@@ -37,7 +37,7 @@
       <router-link
         v-for="cat in categories"
         :key="catLabel(cat)"
-        :to="{ path: '/articles', query: { category: catSlug(cat) || catLabel(cat) } }"
+        :to="categoryPath(catSlug(cat) || catLabel(cat))"
         class="category-card"
       >
         <div class="card-icon">
@@ -55,6 +55,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useArticleStore } from '@/stores/article'
+import { categoryPath } from '@/data/topics'
 
 const articleStore = useArticleStore()
 

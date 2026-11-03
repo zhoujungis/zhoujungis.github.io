@@ -21,6 +21,18 @@ export const SITE_DESCRIPTION = '尘世栈帧 — 技术、编程、AI 与科学
 export const SITE_ORIGIN = 'https://blog.zhoujun.dev'
 
 /**
+ * 标签落地页的最小篇数。低于此值的标签只在 /tags/ 总览里出现，不单独成页
+ * —— 一两篇文章的标签页对搜索引擎是薄内容，反而会稀释站点质量信号。
+ * 构建期与运行时 /tags 的链接都读这个阈值，不会出现指向不存在页面的死链。
+ */
+export const TAG_PAGE_MIN_ARTICLES = 3
+
+/** 标签落地页路径（带尾斜杠，与 prerender 写出的真实静态文件一致）。 */
+export function tagPath(slug) {
+  return `/tags/${encodeURIComponent(String(slug))}/`
+}
+
+/**
  * Pages that get a real static HTML file at exactly this path.
  *
  * The trailing slash is deliberate: prerender.mjs writes

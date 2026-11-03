@@ -6,14 +6,14 @@
     <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具" />
+    <meta name="description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；" />
     <!-- Google AdSense 站点验证 -->
     <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
     <!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/" />
     <meta property="og:title" content="Agent 的本质：一个两百行的循环" />
-    <meta property="og:description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具" />
+    <meta property="og:description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；" />
     <meta property="og:url" content="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/" />
     <meta property="og:site_name" content="尘世栈帧" />
     <meta property="og:locale" content="zh_CN" />
@@ -22,17 +22,54 @@
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta property="og:image:alt" content="Agent 的本质：一个两百行的循环 封面" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Agent 的本质：一个两百行的循环" />
-    <meta name="twitter:description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具" />
+    <meta name="twitter:description" content="适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；" />
     <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/agent-loop-cover.png" />
     <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
     <title>Agent 的本质：一个两百行的循环 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
     <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
     <script>
       (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
@@ -56,14 +93,17 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Czwiffvm.js"></script>
+    <script type="module" crossorigin src="/assets/index-WlsUbDLT.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
     <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="AI Agent" />
   
 <style>
 .ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
 .ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
 .ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
 .ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
@@ -76,6 +116,15 @@
 .ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
 .ns-article a{color:#3f6b57}
 .ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
 .ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
 .ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
 .ns-home-list ul{padding-left:1.2em}
@@ -95,12 +144,16 @@
 </style>
     <meta property="og:type" content="article" />
     <meta property="article:published_time" content="2026-10-22T11:51:20.353665+08:00" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent 的本质：一个两百行的循环","description":"适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具","image":"https://blog.zhoujun.dev/photos/agent-loop-cover.png","datePublished":"2026-10-22T11:51:20.353665+08:00","dateModified":"2026-10-22T11:51:20.353665+08:00","author":{"@type":"Person","name":"Stack Frame"},"publisher":{"@type":"Person","name":"Stack Frame"},"mainEntityOfPage":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/"}</script>
-    <script type="application/json" id="prerender-article">{"slug":"agent-loop-two-hundred-lines","title":"Agent 的本质：一个两百行的循环","created_at":"2026-10-22T11:51:20.353665+08:00","updated_at":"2026-11-02T12:11:25.574548+08:00","author":null,"category":{"id":11,"name":"AI Agent","slug":"aiagent"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":163,"name":"Rust","slug":"rust"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-loop-cover.png","excerpt":"适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具","reading_time":61,"views_count":23,"likes_count":0,"prev_article":null,"next_article":null}</script>
+        <meta property="article:modified_time" content="2026-10-22T11:51:20.353665+08:00" />
+        <meta property="article:tag" content="Agent" />
+    <meta property="article:tag" content="Agent 工程" />
+    <meta property="article:tag" content="Rust" />
+    <meta property="article:tag" content="架构设计" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/#article","url":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/","headline":"Agent 的本质：一个两百行的循环","description":"适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；","image":"https://blog.zhoujun.dev/photos/agent-loop-cover.png","datePublished":"2026-10-22T11:51:20.353665+08:00","dateModified":"2026-10-22T11:51:20.353665+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/"},"articleSection":"AI Agent","keywords":"Agent, Agent 工程, Rust, 架构设计","inLanguage":"zh-CN","wordCount":15177},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"Agent 的本质：一个两百行的循环","item":"https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"agent-loop-two-hundred-lines","title":"Agent 的本质：一个两百行的循环","created_at":"2026-10-22T11:51:20.353665+08:00","updated_at":"2026-11-02T12:11:25.574548+08:00","author":null,"category":{"id":11,"name":"AI Agent","slug":"aiagent"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":167,"name":"Agent 工程","slug":"agent-engineering"},{"id":163,"name":"Rust","slug":"rust"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/agent-loop-cover.png","excerpt":"适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具","reading_time":61,"views_count":24,"likes_count":0,"prev_article":null,"next_article":null}</script>
   </head>
   <body>
-    <div id="app"></div>
-    <noscript><div class="ns-article"><h1>Agent 的本质：一个两百行的循环</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><nav class="ns-series"><p><strong>本系列 · AI Agent</strong>（11 篇）</p><ol><li><strong>Agent 的本质：一个两百行的循环</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li><a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a></li><li><a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li><li><a href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/">Agent 并发：不用 async 运行时怎么并行</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/aiagent/">查看AI Agent专题</a></p></nav><div class="markdown-body"><blockquote>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>Agent 的本质：一个两百行的循环</span></nav><h1>Agent 的本质：一个两百行的循环</h1><div class="ns-meta">2026/10/22 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/aiagent/">AI Agent</a> · 标签：<a href="https://blog.zhoujun.dev/tags/agent/">Agent</a> <a href="https://blog.zhoujun.dev/tags/agent-engineering/">Agent 工程</a> <a href="https://blog.zhoujun.dev/tags/rust/">Rust</a> <a href="https://blog.zhoujun.dev/tags/architecture/">架构设计</a></p><nav class="ns-series"><p><strong>本系列 · AI Agent</strong>（11 篇）</p><ol><li><strong>Agent 的本质：一个两百行的循环</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li><a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a></li><li><a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li><li><a href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/">Agent 并发：不用 async 运行时怎么并行</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/aiagent/">查看AI Agent专题</a></p></nav><div class="markdown-body"><blockquote>
 
 适用读者：写过业务代码、想自己实现一个 coding agent 的工程师；被各种「规划、记忆、多智能体」名词绕晕、想看清运行时骨架的人；准备读 NanoHermes 源码但不知道从哪个函数开始的人
 结论先行：把 Agent 的所有名词剥掉，剩下的就是一个循环——把消息发给模型，模型要么回文本，要么回工具调用；执行工具，把结果塞回消息列表，再发一次。NanoHermes 的 <code>Agent::run</code> 本体 109 行，加上 <code>complete</code>、<code>execute</code>、<code>assistant_message</code> 与 <code>compact</code>，去掉注释和空行，核心大约两百行。这两百行里有五个判定、四个变量和三道闸，本文逐行拆开
@@ -2045,6 +2098,6 @@ NanoHermes 的压缩策略是「超预算就把旧消息换成一段摘要」。
 <li><code>agent/src/tools/fs.rs</code>、<code>shell.rs</code>：文件与命令的输出上限</li>
 </ul>
 
-仓库：<code>D:\NanoHermes</code>（Rust 2021，<code>agent</code> crate 无 async 运行时）</div></div></noscript>
+仓库：<code>D:\NanoHermes</code>（Rust 2021，<code>agent</code> crate 无 async 运行时）</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li></ul></nav></div></div>
   </body>
 </html>
