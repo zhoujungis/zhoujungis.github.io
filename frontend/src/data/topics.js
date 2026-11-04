@@ -71,6 +71,8 @@ export const TOPICS = [
       'mysql-clustered-index-vs-secondary-index',
       'mysql-composite-index-leftmost-prefix',
       'mysql-explain-type-all-ref-range',
+      'mysql-mvcc-version-chain-read-view',
+      'btree-delete-merge-redistribute',
     ],
   },
   {

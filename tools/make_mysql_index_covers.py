@@ -329,7 +329,107 @@ COVER3 = {
 }
 
 
+COVER4 = {
+    "title": "MySQL MVCC",
+    "subtitle": [("MySQL", tiny_font, GREEN), (" · ", tiny_font, DIM),
+                 ("版本链与 Read View", tiny_font, MUTED)],
+    "left_title": [("隐藏列 + undo", card_title, GREEN), (" · ", tiny_font, DIM),
+                   ("版本链的骨架", tiny_font, MUTED)],
+    "right_title": [("判可见", card_title, ORANGE), (" · ", tiny_font, DIM),
+                    ("四个字段决定", tiny_font, MUTED)],
+    "left_rows": [
+        ("DB_TRX_ID", "谁改的", GREEN, GREEN_FILL),
+        ("DB_ROLL_PTR", "上一个版本", ORANGE, ORANGE_FILL),
+        ("DB_ROW_ID", "无主键行号", GOLD, GOLD_FILL),
+    ],
+    "left_notes": [
+        [("最新版本", tiny_font, INK), (" 在聚簇索引 · ", tiny_font, MUTED),
+         ("旧版本", tiny_font, INK), (" 在 undo", tiny_font, MUTED)],
+        [("沿 ROLL_PTR 往回走 · 找到可见版本", tiny_font, MUTED)],
+    ],
+    "right_card1_title": [("Read View", card_title, ORANGE), (" · ", tiny_font, DIM),
+                          ("活跃事务名单", tiny_font, MUTED)],
+    "right_card1_rows": [
+        [("m_ids", code_small, GREEN), (" 活跃事务", tiny_font, MUTED)],
+        [("m_up_limit_id", code_small, ORANGE), (" 下界", tiny_font, MUTED)],
+        [("m_low_limit_id", code_small, GOLD), (" 上界", tiny_font, MUTED)],
+    ],
+    "right_card2_title": [("判可见", card_title, GREEN), (" · ", tiny_font, DIM),
+                          ("按顺序判断", tiny_font, MUTED)],
+    "right_card2_rows": [
+        [("自己改的", tiny_font, INK), (" 可见", tiny_font, MUTED)],
+        [("已提交", tiny_font, INK), (" 可见", tiny_font, MUTED)],
+        [("活跃 / 之后开始", tiny_font, ORANGE), (" 不可见", tiny_font, MUTED)],
+    ],
+    "bottom1_badge": "RC vs RR",
+    "bottom1_lines": [
+        [("RC", code_small, GREEN), (" 每条语句一个视图", tiny_font, MUTED)],
+        [("RR", code_small, ORANGE), (" 每个事务一个视图", tiny_font, MUTED)],
+        [("RR 首次快照读", tiny_font, INK), (" 才创建视图", tiny_font, MUTED)],
+        [("WITH CONSISTENT SNAPSHOT", code_tiny, GOLD), (" 提前创建", tiny_font, MUTED)],
+    ],
+    "bottom2_badge": "快照读 vs 当前读",
+    "bottom2_lines": [
+        [("SELECT", code_small, GREEN), (" 快照读", tiny_font, MUTED)],
+        [("FOR UPDATE", code_small, ORANGE), (" 当前读 · 加锁", tiny_font, MUTED)],
+        [("UPDATE / DELETE", code_small, GOLD), (" 当前读", tiny_font, MUTED)],
+        [("长事务", tiny_font, INK), (" 拖住 purge 与 undo", tiny_font, MUTED)],
+    ],
+    "footer": "MySQL MVCC · 隐藏列 + undo 版本链 · Read View 四字段 · RC 与 RR 只差视图频率",
+}
+
+COVER5 = {
+    "title": "B+ 树删除",
+    "subtitle": [("数据库", tiny_font, GREEN), (" · ", tiny_font, DIM),
+                 ("页合并、借位与根收缩", tiny_font, MUTED)],
+    "left_title": [("一条删除路径", card_title, GREEN), (" · ", tiny_font, DIM),
+                   ("从叶子到根", tiny_font, MUTED)],
+    "right_title": [("两种重平衡", card_title, ORANGE), (" · ", tiny_font, DIM),
+                    ("借位或合并", tiny_font, MUTED)],
+    "left_rows": [
+        ("find leaf", "定位目标叶子页", GREEN, GREEN_FILL),
+        ("remove key", "移除键与记录", ORANGE, ORANGE_FILL),
+        ("underflow?", "检查最小填充", GOLD, GOLD_FILL),
+    ],
+    "left_notes": [
+        [("父页分隔键", tiny_font, INK), (" 可能跟着改", tiny_font, MUTED)],
+        [("根只剩一个孩子 · 树高减一", tiny_font, MUTED)],
+    ],
+    "right_card1_title": [("借位", card_title, ORANGE), (" · ", tiny_font, DIM),
+                          ("兄弟页有余粮", tiny_font, MUTED)],
+    "right_card1_rows": [
+        [("borrow", code_small, GREEN), (" 搬一个或几个键", tiny_font, MUTED)],
+        [("parent", code_small, ORANGE), (" 只改分隔键", tiny_font, MUTED)],
+        [("结构不变", tiny_font, INK), (" 代价最小", tiny_font, MUTED)],
+    ],
+    "right_card2_title": [("合并", card_title, GREEN), (" · ", tiny_font, DIM),
+                          ("两页能装进一页", tiny_font, MUTED)],
+    "right_card2_rows": [
+        [("merge", code_small, GREEN), (" 父页少一项", tiny_font, MUTED)],
+        [("递归", tiny_font, INK), (" 父页也可能下溢", tiny_font, MUTED)],
+        [("freelist", code_small, ORANGE), (" 回收空页", tiny_font, MUTED)],
+    ],
+    "bottom1_badge": "InnoDB",
+    "bottom1_lines": [
+        [("delete mark", code_small, GREEN), (" 先标记", tiny_font, MUTED)],
+        [("purge", code_small, ORANGE), (" 再物理移除", tiny_font, MUTED)],
+        [("OPTIMIZE TABLE", code_tiny, GOLD), (" 重建回收", tiny_font, MUTED)],
+        [("History list length", code_tiny, INK), (" 看 purge 是否落后", tiny_font, MUTED)],
+    ],
+    "bottom2_badge": "SQLite",
+    "bottom2_lines": [
+        [("balance_nonroot", code_tiny, GREEN), (" 三页重排", tiny_font, MUTED)],
+        [("nCell / nFree", code_tiny, ORANGE), (" 页头计数", tiny_font, MUTED)],
+        [("nFrag", code_small, GOLD), (" 页内碎片", tiny_font, MUTED)],
+        [("VACUUM", code_small, INK), (" 回收空间", tiny_font, MUTED)],
+    ],
+    "footer": "B+ 树删除 · 移除键只是开始 · 借位与合并维持树形 · 根收缩降低树高",
+}
+
+
 if __name__ == "__main__":
     draw(COVER1, "mysql-clustered-index-cover.png")
     draw(COVER2, "mysql-composite-index-cover.png")
     draw(COVER3, "mysql-explain-cover.png")
+    draw(COVER4, "mysql-mvcc-cover.png")
+    draw(COVER5, "btree-delete-cover.png")

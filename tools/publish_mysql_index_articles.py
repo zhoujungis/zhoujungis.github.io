@@ -95,6 +95,43 @@ ARTICLES = [
             "filtered", "Using filesort", "Using temporary",
         ],
     },
+    {
+        "slug": "mysql-mvcc-version-chain-read-view",
+        "title": "MySQL MVCC：版本链与 Read View 是怎么判可见性的",
+        "excerpt": (
+            "InnoDB 一行只有一份最新记录，旧值挂在 undo log 里，用 DB_ROLL_PTR 串成版本链。"
+            "本文讲清隐藏列、undo 记录、Read View 的四个字段与完整可见性规则，"
+            "并解释 RC 与 RR 的真实差别、快照读与当前读的边界。"
+        ),
+        "cover": "https://zhoujungis.github.io/photos/mysql-mvcc-cover.png",
+        "figures": [
+            "DB_TRX_ID", "DB_ROLL_PTR", "DB_ROW_ID", "m_ids",
+            "m_up_limit_id", "m_low_limit_id", "m_creator_trx_id",
+            "ReadView", "read0types.h", "History list length", "INNODB_TRX",
+            "transaction_isolation", "WITH CONSISTENT SNAPSHOT", "FOR SHARE",
+            "innodb_lock_wait_timeout", "data_locks",
+            "events_transactions_current", "PAGE_GARBAGE",
+            "版本链", "快照读", "当前读", "长事务",
+        ],
+    },
+    {
+        "slug": "btree-delete-merge-redistribute",
+        "title": "B+ 树删除：页合并、借位与根收缩",
+        "excerpt": (
+            "B+ 树删除的第一动作永远是在叶子页里移除一个键，真正麻烦的是页快空了怎么办。"
+            "本文讲清借位与合并的判定、父页分隔键与根收缩，"
+            "并对照 InnoDB 的标记删除与 SQLite 的 balance_nonroot 重排。"
+        ),
+        "cover": "https://zhoujungis.github.io/photos/btree-delete-cover.png",
+        "figures": [
+            "balance_nonroot", "balance_deeper", "balance_shallower",
+            "btreeDeleteRow", "sqlite3BtreeDelete", "nCell", "nFree",
+            "nFrag", "PAGE_N_RECS", "PAGE_GARBAGE", "PAGE_FREE",
+            "innodb_fill_factor", "innodb_page_size", "OPTIMIZE TABLE",
+            "data_free", "VACUUM", "freelist", "delete mark", "purge",
+            "History list length", "下溢", "借位", "合并", "根收缩",
+        ],
+    },
 ]
 
 MARKDOWN_EXTENSIONS = ["fenced_code", "codehilite", "tables", "extra", "toc"]
