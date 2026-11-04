@@ -53,6 +53,16 @@ export const TOPICS = [
       '后端专题覆盖从接口设计到线上运维的完整链路：Django / DRF 的工程实践、限流与熔断、幂等设计、缓存与消息队列，以及把服务真正部署上线时绕不开的域名、HTTPS、CDN 与云主机选型。',
       '文章大多来自这个博客自己的运行经验——包括 PythonAnywhere、GitHub Pages 这类小规模部署里真实踩到的坑。',
     ],
+    series: [
+      'distributed-transaction-outbox-saga-tcc',
+      'database-connection-pool-deep-dive',
+      'metrics-and-distributed-tracing',
+      'graceful-shutdown-in-practice',
+      'load-balancing-algorithms-in-practice',
+      'websocket-production-deep-dive',
+      'file-upload-production-deep-dive',
+      'search-inverted-index-to-engine',
+    ],
   },
   {
     slug: 'database',

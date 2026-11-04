@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师 结论先行：负载均衡算法的差别不在于「谁更公平」，而在于 它假设的「负载」是什么…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/" />
+    <meta property="og:title" content="负载均衡：轮询、最少连接与一致性哈希的代价" />
+    <meta property="og:description" content="适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师 结论先行：负载均衡算法的差别不在于「谁更公平」，而在于 它假设的「负载」是什么…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/load-balancing-algorithms-in-practice-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/load-balancing-algorithms-in-practice-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="负载均衡：轮询、最少连接与一致性哈希的代价 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="负载均衡：轮询、最少连接与一致性哈希的代价" />
+    <meta name="twitter:description" content="适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师 结论先行：负载均衡算法的差别不在于「谁更公平」，而在于 它假设的「负载」是什么…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/load-balancing-algorithms-in-practice-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>负载均衡：轮询、最少连接与一致性哈希的代价 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-eRjNLvuZ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="后端架构" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T12:19:27.162449+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T12:19:27.162449+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="网络" />
+    <meta property="article:tag" content="负载均衡" />
+    <meta property="article:tag" content="高可用" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/#article","url":"https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/","headline":"负载均衡：轮询、最少连接与一致性哈希的代价","description":"适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师 结论先行：负载均衡算法的差别不在于「谁更公平」，而在于 它假设的「负载」是什么…","image":"https://blog.zhoujun.dev/photos/load-balancing-algorithms-in-practice-cover.png","datePublished":"2026-11-04T12:19:27.162449+08:00","dateModified":"2026-11-04T12:19:27.162449+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/"},"articleSection":"后端架构","keywords":"后端, 网络, 负载均衡, 高可用","inLanguage":"zh-CN","wordCount":9606},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"负载均衡：轮询、最少连接与一致性哈希的代价","item":"https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"load-balancing-algorithms-in-practice","title":"负载均衡：轮询、最少连接与一致性哈希的代价","created_at":"2026-11-04T12:19:27.162449+08:00","updated_at":"2026-11-04T12:19:27.162486+08:00","author":null,"category":{"id":12,"name":"后端架构","slug":"backend"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":182,"name":"网络","slug":"networking"},{"id":183,"name":"负载均衡","slug":"load-balancing"},{"id":124,"name":"高可用","slug":"high-availability"}],"cover_image":"/photos/load-balancing-algorithms-in-practice-cover.png","excerpt":"适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师 结论先行：负载均衡算法的差别不在于「谁更公平」，而在于 它假设的「负载」是什么，以及它看不见什么 。轮询假设每台机器一样快，最少连接假设连接数能代表压力，一致性哈希假设你要的是「同一个 key 落同一台」。选错假设，扩容","reading_time":38,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>负载均衡：轮询、最少连接与一致性哈希的代价</span></nav><h1>负载均衡：轮询、最少连接与一致性哈希的代价</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/backend/">后端架构</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> 网络 负载均衡 <a href="https://blog.zhoujun.dev/tags/high-availability/">高可用</a></p><nav class="ns-series"><p><strong>本系列 · 后端架构</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li><li><strong>负载均衡：轮询、最少连接与一致性哈希的代价</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/backend/">查看后端架构专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师
+结论先行：负载均衡算法的差别不在于「谁更公平」，而在于<strong>它假设的「负载」是什么，以及它看不见什么</strong>。轮询假设每台机器一样快，最少连接假设连接数能代表压力，一致性哈希假设你要的是「同一个 key 落同一台」。选错假设，扩容就会变成把同一份压力换个位置堆放。
+阅读时间：约 28 分钟 | 难度：进阶 | 收获：七种策略的适用边界、一致性哈希的搬迁比例推导、健康检查与重试的联动陷阱，以及一套区分「分配不均」和「后端退化」的观测方法
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：八台加到十二台，吞吐没涨</li>
+<li>L4 与 L7：能看见什么，才能改什么</li>
+<li>轮询与加权轮询：默认策略的隐含假设</li>
+<li>最少连接、最少响应时间与随机：三种看负载的方式</li>
+<li>IP Hash 与粘性会话：扩容失效的隐形原因</li>
+<li>一致性哈希与 Rendezvous：搬迁比例才是关键</li>
+<li>健康检查：健康不等于能扛流量</li>
+<li>重试与负载均衡：重试预算与重试风暴</li>
+<li>长连接与优雅摘除：连接不是请求</li>
+<li>Nginx 配置：一份能上线的 upstream</li>
+<li>观测：是分配不均，还是后端退化</li>
+<li>容量与排队：为什么加机器会更慢</li>
+<li>小结</li>
+<li>相关阅读</li>
+</ul>
+<hr>
+<h2>前言：八台加到十二台，吞吐没涨</h2>
+
+一个内部订单查询服务，原本八台实例，前面是 Kubernetes Service 加一组 gRPC 客户端。压测时八台机器的 CPU 都到了七成，P99 开始抖，于是按最直觉的办法扩到十二台。
+
+结果很难看：总吞吐停在原来的水平，P99 比扩容前更差，错误率还上去了。新起的四台 CPU 明显低于老机器，像是不存在一样。运维的第一反应是「负载均衡没配好」，但把策略从轮询换成最少连接，只好了半天，随后又回到原样。
+
+真正的答案由三件事叠在一起：
+
+第一，客户端用的是长连接 gRPC，连接建立时解析了一次 DNS，之后一直复用。新实例上线后，老连接不会自动迁移，新机器只能等连接自然重建才有流量。<strong>这不是轮询算错了，而是它根本没机会参与决策。</strong>
+
+第二，十二台实例每台开着几十个数据库连接，加起来把 MySQL 的连接数顶到了上限附近。应用层的 CPU 是降了，可共享的数据库成了真正的瓶颈，多出来的机器只是在门口排队。
+
+第三，P99 变差之后，客户端超时重试，网关的 <code>proxy_next_upstream</code> 又重试一次，实际打到后端的请求比用户请求多出一截。重试把「慢」放大成了「更慢」。
+
+这三件事对应三个不同层次的问题：<strong>谁来做选择、选择依据什么、选择错了之后系统怎么反应</strong>。大部分负载均衡的讨论只讲第一层，把算法当成一个可以互换的开关，于是扩容失败时只能反复换策略碰运气。
+
+这篇文章按这三个层次往下拆。先把结论摆出来：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>轮询适合什么</td>
+<td>请求成本相近、后端同构、连接短、流量均匀</td>
+</tr>
+<tr>
+<td>最少连接适合什么</td>
+<td>请求耗时差异大、连接能反映并发压力</td>
+</tr>
+<tr>
+<td>一致性哈希解决什么</td>
+<td>同一个 key 要落到同一台，且扩缩容时搬迁要少</td>
+</tr>
+<tr>
+<td>健康检查能证明什么</td>
+<td>只能证明「探针那一秒它还能应答」，证明不了「它能扛住全部流量」</td>
+</tr>
+<tr>
+<td>扩容为什么失效</td>
+<td>共享瓶颈、长连接钉死、粘性会话、重试放大，四个原因各自独立</td>
+</tr>
+</tbody>
+</table></div>
+<h2>L4 与 L7：能看见什么，才能改什么</h2>
+
+负载均衡的第一道分界线不是算法，而是<strong>它在哪一层做决定</strong>。
+
+L4 负载均衡工作在 TCP/UDP 层，它看到的是一个四元组：源 IP、源端口、目的 IP、目的端口。它能做的决定是「这条连接交给哪台后端」，然后把这之后的所有字节原样转发。它不知道第一个字节是 HTTP 还是 MySQL 协议，也不知道请求里写了什么路径、带了什么 Header。
+
+L4 的好处是便宜且通用：转发几乎不消耗额外 CPU；协议无关，HTTP、gRPC、WebSocket、MySQL、Redis 都能过；不终止 TLS，可以做透传。代价是决策粒度只有「连接」——<strong>一条连接里塞进一万个请求，在 L4 眼里仍然只是一条连接</strong>。所以 L4 上的轮询，分配的是连接数，不是请求数。
+
+L7 负载均衡要终止 TCP、解析 HTTP，才能看见方法、路径、Header、Cookie、状态码。看见之后它能做的事情多得多：按路径路由到不同服务，按 Header 做灰度，按状态码判断后端是否健康，请求失败后换一台重试，甚至改写请求和响应。
+
+代价也随之而来：TLS 终止的计算、每个连接的内存、HTTP/2 多路复用带来的连接语义变化，以及「必须解析」意味着它没法转发任意协议。一个 L7 代理放在 MySQL 端口前面是没有意义的。
+
+中间形态是服务网格的 Sidecar。Envoy 这类代理以 L7 能力运行在每个 Pod 旁边，看得见服务级指标，也能熔断和重试，但它不自动解决「跨机器的后端选择」——Sidecar 只管本 Pod 的出站流量，真正决定去哪台的是控制面配置，以及调用方是否愿意重建连接。
+
+还有一类更粗糙的做法：DNS 轮询。它返回多条 A 记录，让客户端自己挑一条。问题是 TTL 缓存让变更变慢，客户端和递归解析器还可能不遵守；它没有健康感知（除非服务商自带检查并配合极短 TTL），也表达不了权重和会话。它适合多机房粗粒度分流和静态端点，不适合作为在线服务的唯一调度。
+
+理解了这一层，后面的算法才有意义：<strong>每一种算法都只能使用它所在层能看见的信号</strong>。L4 能看见连接，L7 能看见请求，应用层能看见业务语义。看不见的信号，算法再精巧也用不上。
+<h2>轮询与加权轮询：默认策略的隐含假设</h2>
+
+轮询（Round Robin）是最容易解释的策略：请求一、请求二、请求三，依次发给后端一、后端二、后端三，发完一圈再来一圈。
+
+它成立需要三个假设同时为真：
+<ol>
+<li>每台后端的处理能力相近；</li>
+<li>每个请求的成本相近；</li>
+<li>调度器能看见「请求」这个粒度。</li>
+</ol>
+
+第三个假设最容易被破坏。前面说过，L4 上的轮询分发的是连接，一条长连接会把后续所有请求都带向同一台机器。即使是 L7，如果上游用了 HTTP/1.1 的 keepalive 连接池，分配仍然按请求进行，但连接建立的开销被摊薄之后，某台机器上积累的长请求会越来越多——轮询对此完全无感。
+
+第一个假设在异构环境里经常不成立。新老机器型号不同、JVM 预热程度不同、本地缓存命中率不同，处理同一类请求的耗时可能差出一截。轮询仍然平均分配，慢的那台排队越来越长。
+
+第二个假设最隐蔽。一个服务里往往同时有「读一个缓存就返回」的接口和「扫一次大表」的接口。轮询把两者按次数均分，等于假设它们的成本相同。真实负载应该按「工作量」分，而不是按「次数」分。
+
+加权轮询是对第一个假设的补丁：按权重分配。Nginx 实现的是平滑加权轮询，不会出现「前 7 个全给权重 7 的机器、后 1 个给权重 1」的突发，而是把权重摊平到每一次选择里，短时间内的比例也比较均匀。
+
+但权重是<strong>静态的</strong>。它表达的是「我预期这台机器能扛多少」，不是「这台机器现在还能扛多少」。一台机器因为磁盘老化、Full GC、网卡降速而变慢时，权重不会自动下降。你只能手动调，而手动调的响应时间以小时计，故障的传播时间以秒计。
+
+所以加权轮询的正确用法是两类：
+<ul>
+<li><strong>长期容量差异</strong>：新老机器混部、不同规格的实例，用权重表达固定比例；</li>
+<li><strong>灰度发布</strong>：90/10 这种比例切换，权重就是流量开关。</li>
+</ul>
+
+错误用法是拿它当「慢机器的解药」：把退化机器的权重从 10 调到 2，P99 看起来好了，实际是把问题藏起来，等它彻底挂掉再集中爆发。
+<h2>最少连接、最少响应时间与随机：三种看负载的方式</h2>
+
+最少连接换了信号：不看请求序号，看每台后端当前的活跃连接数，把新请求交给最闲的那台。Nginx 的 <code>least_conn</code> 比较时会考虑权重，同时表达「容量比例」和「当前压力」。
+
+它的假设是「连接数约等于压力」。这在请求耗时差异大的场景里比轮询好得多：一个慢查询占着连接不放，最少连接会自然地把新请求引向空闲机器，形成一种负反馈。反过来，如果所有请求都在毫秒级完成，连接数变化很小，最少连接退化成带抖动的轮询。
+
+这个假设在两种情况下会失效。
+
+第一种是连接复用。L7 代理与后端之间用 keepalive 池，活跃连接数只反映「正在处理的请求数」，这还算合理；但在 L4 或长连接场景下，一条 WebSocket 连接可能空闲几分钟，也可能每秒推送一千条消息，连接数完全不能代表流量。于是一台承载了三个「话痨」客户端的机器和一个承载三十个沉默客户端的机器，在最少连接眼里压力相同。
+
+第二种是「慢的根源不在本机」。如果所有后端都在等同一个数据库，那么每台机器的连接数都会同步上涨，最少连接只能把请求从一台排队机器挪到另一台排队机器，整体没有任何改善。这时候需要的是降载或熔断，而不是换算法。
+
+最少响应时间（Least Response Time）更进一步，直接用延迟做信号。开源 Nginx 没有这个策略，Nginx Plus 提供 <code>least_time</code>（可按首字节或完整响应计时），Envoy 提供 <code>least_request</code>，HAProxy 的 <code>leastconn</code> 仍然只看连接。
+
+实现上有一个关键细节：<strong>大多数「最少响应时间」并不遍历所有后端取最小值</strong>。Envoy 的 <code>least_request</code> 默认随机选两个，挑活跃请求更少的那个，即 P2C（power of two choices）；Nginx 的 <code>random two least_conn</code> 是同一思路。全量扫描是 O(N)，而且所有调度器会同时选中同一个「当前最优」，造成羊群效应；采样两个的代价是常数级，效果接近最优。
+
+随机（Random）简单、无状态，不会因为调度器共享同一份计数而共振；缺点是短期方差大，N 台机器上容易出现明显偏斜。它只适合「后端很多、请求很轻」的场景，或作为兜底。
+
+这四种策略的适用边界可以压成一张表：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>使用的信号</th>
+<th>成立前提</th>
+<th>主要失效场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>轮询</td>
+<td>请求序号</td>
+<td>同构、请求成本相近、短连接</td>
+<td>长连接、异构机器、慢请求堆积</td>
+</tr>
+<tr>
+<td>加权轮询</td>
+<td>静态权重</td>
+<td>容量差异长期稳定</td>
+<td>运行时退化、权重无人维护</td>
+</tr>
+<tr>
+<td>最少连接</td>
+<td>活跃连接数</td>
+<td>连接数能代表压力</td>
+<td>长连接、共享下游瓶颈</td>
+</tr>
+<tr>
+<td>最少响应时间</td>
+<td>近期延迟</td>
+<td>延迟差异由本机造成</td>
+<td>延迟噪声、下游共同变慢</td>
+</tr>
+<tr>
+<td>随机</td>
+<td>无</td>
+<td>后端多、请求轻</td>
+<td>规模小、需要严格比例</td>
+</tr>
+</tbody>
+</table></div>
+<h2>IP Hash 与粘性会话：扩容失效的隐形原因</h2>
+
+IP Hash 的思路是：对客户端 IP 做哈希，映射到一台固定后端。同一个 IP 的请求永远落在同一台，这样后端就可以在本地内存里保存会话，不需要共享存储。
+
+它解决了「会话粘性」，但引入了两个新问题。
+
+第一，<strong>NAT 与移动网络会把大量客户端压缩到少数几个出口 IP</strong>。一个公司出口、一个运营商网关、一个酒店 Wi-Fi，背后可能是几千个用户。IP Hash 把他们全部映射到同一台机器，权重再高也扛不住。IPv4 下 Nginx 默认只取 IP 的前三段做哈希，同一 /24 网段的客户端会共享一个桶，进一步放大聚集。
+
+第二，<strong>扩容时的重映射几乎是全量的</strong>。IP Hash 本质上是「哈希值对 N 取模」的变体，N 从 8 变成 9，绝大多数 key 的落点都会改变。对会话来说这意味着大面积失效；对缓存来说这意味着大面积穿透。这正是下一节一致性哈希要解决的问题。
+
+基于 Cookie 的粘性会话比 IP Hash 精确：负载均衡器在响应里种一个 Cookie，写明后端标识，后续请求带着它回来就落到同一台。它不受 NAT 影响，代价却更直接：
+<ul>
+<li><strong>新扩容的机器只能接新会话</strong>。已有用户的 Cookie 里写的是老机器，除非会话过期或机器故障，否则永远不会迁到新机器。用户越活跃、会话越长，扩容越无效。</li>
+<li><strong>故障时粘性变成负担</strong>。一台机器挂了，它持有的会话全部失效；如果会话只存在本地内存，用户直接被登出。</li>
+<li><strong>容量规划失去弹性</strong>。你不知道下一分钟有多少老会话回到哪台机器，负载分布由历史决定，而不是由当前容量决定。</li>
+</ul>
+
+于是很多团队做了第二步：把会话外置到 Redis 或数据库，应用变成无状态。这一步之后，<strong>应用层的粘性通常就不需要了</strong>——任何一台机器都能读到同一份会话。
+
+但还有一处残留需求：本地缓存。有些应用把用户维度的数据缓存在进程内，粘性会话能提高命中率；一旦去掉粘性，命中率下降，数据库压力上升。这时候要做的不是恢复粘性，而是把这份缓存也外置，或者接受命中率下降并重新评估数据库容量。用粘性来「省一次 Redis 查询」，代价是扩容失效，不划算。
+
+一句话总结：<strong>粘性会话是「状态没有外置」的补丁。状态外置之后还保留粘性，通常是在用扩容能力换一点点缓存命中率。</strong>
+<h2>一致性哈希与 Rendezvous：搬迁比例才是关键</h2>
+
+一致性哈希要解决的问题很具体：当后端数量变化时，尽量少地改变 key 的归属。
+
+它的构造是：把哈希空间想象成一个首尾相接的环，比如 0 到 2 的 32 次方减一。每台后端用自己的标识做哈希，落在环上的某个点；每个 key 也做哈希，落在环上，然后顺时针找到第一台后端。
+
+这样做的直接结果是：增加一台后端，只会影响它顺时针方向到下一台后端之间那一段弧上的 key，其他 key 的归属不变。<strong>当后端从 N 台增加到 N+1 台时，平均搬迁比例是 1/(N+1)</strong>；减少一台时，平均搬迁比例是 1/N。
+
+对比取模哈希：N 从 8 变成 9 时，key 的落点从 <code>h mod 8</code> 变成 <code>h mod 9</code>，只有满足 <code>h mod 8 == h mod 9</code> 的才不变，比例约 1/9——接近九成的 key 都要搬。这个差距就是一致性哈希的全部价值。
+
+但只有环不够。每台后端只落一个点时，弧长分布很不均匀：有的分到半圈，有的只分到一小段。解法是虚拟节点：每台物理后端在环上放 V 个副本点，通常 100 到 200 个（Ketama 用 MD5 生成）。V 越大，总弧长越接近平均值，标准差按 1/√(N·V) 下降。
+
+虚拟节点还顺带解决了权重：权重高的机器放更多虚拟节点，分到的弧长按比例增加。这让一致性哈希可以同时表达「容量比例」和「最小搬迁」。
+
+它也有明确的边界。
+
+第一，<strong>一致性哈希均衡的是 key，不是负载</strong>。一个热点 key（比如某个明星的主页、某个大租户的配置）永远落在一台机器上，加机器不能把它拆开。要解决热点，只能换维度：给 key 加后缀打散成多个子 key、在客户端做本地缓存、或者对读请求做复制。算法本身无能为力。
+
+第二，<strong>它不处理「同一台机器变慢」</strong>。环只关心归属，不关心健康。一台机器退化，它负责的那段 key 全部变慢，除非健康检查把它摘掉，而摘掉又意味着这段 key 要整体搬迁。
+
+Rendezvous Hashing（也叫 Highest Random Weight，HRW）是另一条路，不建环。对每个 key，把它和每台后端的标识组合起来做哈希，得到 N 个分数，选分数最高的那台。它的性质和一致性哈希几乎一样：增加一台后端，只有那些「新后端分数超过原冠军」的 key 会迁移，期望比例同样是 1/(N+1)；删除一台，只迁移它负责的 1/N。
+
+差别在于代价结构：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>一致性哈希（带虚拟节点）</th>
+<th>Rendezvous Hashing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每次查找</td>
+<td>O(log(N·V))，二分找环上的点</td>
+<td>O(N)，每个后端算一次哈希</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>需要维护环和虚拟节点表</td>
+<td>不需要额外结构</td>
+</tr>
+<tr>
+<td>均衡性</td>
+<td>依赖虚拟节点数量，需要调参</td>
+<td>天然较均匀，无需调参</td>
+</tr>
+<tr>
+<td>权重</td>
+<td>通过虚拟节点数量表达</td>
+<td>通过加权公式表达</td>
+</tr>
+<tr>
+<td>节点数很大时</td>
+<td>仍然很快</td>
+<td>哈希次数随 N 线性增长</td>
+</tr>
+</tbody>
+</table></div>
+
+节点数在几十到几百时，两者都能用；节点数上千、QPS 又很高时，环的查找优势明显，Google 的 Maglev 哈希就是在这个方向上做的进一步优化（用查找表换取稳定性和速度）。反过来，如果节点少、又不想维护虚拟节点表，HRW 的代码量和心智负担都更低。
+
+选哪一种，取决于你更怕「查找开销」还是更怕「调参和实现细节」。两者都不是「更先进」的关系。
+<h2>健康检查：健康不等于能扛流量</h2>
+
+健康检查常被当成一个开关：配一个 <code>/health</code>，返回 200 就算健康，不返回就摘掉。这个模型能挡住进程崩溃，但挡不住大多数真实故障。
+
+先分两类检查方式。
+
+<strong>被动检查</strong>不额外发请求，而是从真实流量的结果里学习。Nginx 开源版的 <code>max_fails</code> 和 <code>fail_timeout</code> 就是被动检查：在 <code>fail_timeout</code> 这个时间窗内，如果对某台后端的失败次数达到 <code>max_fails</code>，就把它标记为不可用，持续 <code>fail_timeout</code> 这么久，之后再放一个请求试探。注意这两个参数同名但含义不同：一个窗口，一个惩罚时长。
+
+被动检查的问题是「先有故障，才有摘除」。第一批打到坏机器的用户一定会受影响。它的优点是零额外流量，而且能捕捉到真实请求的失败，不会漏掉「探针能过、业务不能过」的情况。
+
+<strong>主动检查</strong>由负载均衡器周期性发起，Nginx Plus 的 <code>health_check</code>、HAProxy 的 <code>check</code>、Envoy 的 active health checking 都属于这类。配置里通常有四个参数：间隔、超时、连续失败多少次判定不健康、连续成功多少次判定恢复。HAProxy 写作 <code>inter</code>、<code>fall</code>、<code>rise</code>。
+
+主动检查的问题是它可能「撒谎」。一个只检查进程存活的 <code>/health</code> 接口，在数据库连接池耗尽、磁盘写满、GC 停顿十秒的时候，依然会返回 200。它证明的是「HTTP 服务器还在跑」，不是「这个实例还能处理业务」。
+
+这就引出那句结论：<strong>健康不等于能扛流量</strong>。健康检查是二值信号，容量是连续量。一台机器只剩三成容量，仍然是「健康」的，于是继续按权重接收十成流量，排队到超时。
+
+工程上有几种补法。
+
+第一种是分层探针。存活探针只判断进程是否卡死，失败就重启；就绪探针判断依赖是否可用，失败就从流量里摘除；业务探针检查关键路径。但就绪探针不能把「依赖变慢」直接翻译成「全部实例不健康」，否则一次数据库抖动会把整个集群同时摘空。
+
+第二种是慢启动（slow start）。机器刚恢复或刚上线时，缓存是冷的、连接池是空的、JIT 还没编译，此时直接给它满额流量，很容易再次被打挂，形成「恢复—过载—再失败」的抖动。Nginx Plus 的 <code>slow_start</code>、HAProxy 的 <code>slowstart</code> 会在恢复后的一段时间内让流量线性爬升。开源 Nginx 没有这个参数，只能用较小的初始权重配合人工放量。
+
+第三种是异常点摘除（outlier ejection）。Envoy 的 outlier detection 不是探针，而是统计真实流量：连续 5xx 次数、一段时间内的成功率、连续网关错误，都可以触发摘除。它还有两个很重要的保护参数：<code>max_ejection_percent</code> 限制一次最多摘掉多少比例的后端，避免把整个集群误摘；摘除时长按指数退避增长，避免反复进出。它和主动健康检查是互补关系：一个看「能不能应答」，一个看「应答得好不好」。
+
+阈值设置有一个通用原则：<strong>要有迟滞</strong>。判定不健康需要连续 N 次失败，判定恢复需要连续 M 次成功，N 和 M 都不能是 1。单次失败就摘除，会让网络抖动放大成容量抖动；单次成功就恢复，会让半死的机器反复接收流量。
+<h2>重试与负载均衡：重试预算与重试风暴</h2>
+
+重试看起来是容错，实际上是一次<strong>由客户端或代理发起的二次负载均衡决策</strong>：这次失败了，换一台再试。
+
+它和负载均衡的耦合点在三个地方。
+
+第一，<strong>重试会改变流量分布</strong>。正常时 12 台各接 1/12；一台变慢后超时，重试把份额分给其余 11 台。重试没有上限，份额会继续转移，直到剩下的机器也排队。局部的慢被扩散成全局的慢。
+
+第二，<strong>重试要求幂等</strong>。GET、PUT、DELETE 可以重放，POST 不行。下单请求如果在数据库已写入、响应在网络上丢失时被重试，就会产生两笔订单。正确做法是客户端生成幂等键，服务端按幂等键去重；没有幂等键的 POST 不该自动重试。
+
+Nginx 对这一点有明确约束：<code>proxy_next_upstream</code> 默认只对 <code>error</code> 和 <code>timeout</code> 生效；非幂等请求（POST、PATCH 等）默认不会被转发到下一台，必须显式加上 <code>non_idempotent</code> 参数才会。这个默认值是保护，不是缺陷。很多人为了「提高成功率」加上 <code>non_idempotent</code>，同时又没做幂等，等于用重复写入换低错误率。
+
+第三，<strong>重试会放大请求量</strong>。一次用户请求最多尝试 a 次，系统总请求量就是原来的 a 倍。如果故障的根因是过载，重试就是往火上浇油。这就是重试风暴，也是「亚稳态故障」的典型成因：系统进入一个高负载、高重试、低成功率的平衡态，靠自身恢复不了。
+
+控制手段有四条。
+
+<strong>重试预算（retry budget）</strong>：把重试量限制成总请求量的一定比例，而不是每个请求都可以重试。Envoy 的 retry budget 就是按比例配置的，还带一个最小并发重试数，避免低流量时预算过小。gRPC 的 retry policy 则用 <code>maxAttempts</code>、<code>initialBackoff</code>、<code>maxBackoff</code> 限制单个调用的尝试次数和退避。
+
+<strong>只重试该重试的</strong>：连接失败、连接超时、明确的 502/503/504 可以重试；业务错误 500、参数错误 400、限流 429 不应该盲目重试。Nginx 的 <code>proxy_next_upstream</code> 默认不包含 502/503/504，需要显式加；但不要顺手把 500 和 429 也加进去，那会把应用层错误变成流量放大。
+
+<strong>退避加抖动</strong>：重试必须带指数退避和随机抖动，否则所有失败客户端会在同一时刻发起第二轮，形成同步脉冲。这一点和限流里的「整点突刺」是同一类问题。
+
+<strong>尊重 Retry-After</strong>：服务端返回 429 或 503 时，可以带 <code>Retry-After</code> 头（RFC 7231 定义了它在 503 上的语义，RFC 6585 把它扩展到 429），告诉客户端多少秒后再来。客户端和代理都应该遵守，而不是立刻换一台重试。忽略 <code>Retry-After</code> 的重试，本质上是把服务端的限流意图作废。
+<h2>长连接与优雅摘除：连接不是请求</h2>
+
+长连接把负载均衡的计量单位从「请求」换成了「连接」，所有基于请求的策略都会失真。
+
+一条 HTTP/1.1 keepalive 连接能承载成百上千个请求。L4 轮询按连接分配，等于按「客户端何时建连」分配，而不是按「谁产生了多少请求」分配。一个高频客户端若只建了一条连接，会打满一台机器，其他机器闲着。
+
+HTTP/2 和 gRPC 更极端：一条连接上可以并发几十上百个流，长期不重建。扩缩容时，新实例要等老连接断开才能接到流量，这个时间可能是几小时甚至几天。Kubernetes 的 Service 只负责 DNS 和 VIP，不会迁移已建立的连接；Sidecar 也只在连接建立时做选择。
+
+应对办法有三类。
+
+一是<strong>限制连接寿命</strong>。配置最大连接时长或最大请求数，到期主动关闭，让客户端重建连接并重新解析 DNS。代价是周期性重建开销，收益是扩缩容能在可预期的时间内生效。
+
+二是<strong>让客户端感知端点变化</strong>。gRPC 客户端如果使用官方解析器和服务配置，可以在 DNS 变化后重建连接，但这依赖客户端实现，不是所有语言栈都一致。
+
+三是<strong>在连接层做主动摘除（draining）</strong>。发布时先把某台实例标记为「不再接受新连接」，等现有连接处理完，再关进程。对 WebSocket 来说，这意味着发一个表示「服务端即将关闭」的关闭帧，让客户端主动重连到别处，而不是等 TCP 被重置。
+
+优雅摘除的关键是<strong>顺序</strong>：先停新流量，再等在途请求，最后停进程。反过来做，先 <code>kill</code> 再改配置，中间那段请求必然失败。L4 通常只能停止转发新连接，在途的管不了；L7 能做到请求级排空，但 WebSocket 仍要靠「通知客户端重连」。
+<h2>Nginx 配置：一份能上线的 upstream</h2>
+
+把前面的结论落到配置上。下面这份是开源 Nginx 的写法，覆盖最少连接、被动健康检查、keepalive 和重试边界。
+<div class="codehilite"><pre><span></span><code><span class="k">upstream</span><span class="w"> </span><span class="s">order_api</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kn">zone</span><span class="w"> </span><span class="s">order_api</span><span class="w"> </span><span class="mi">64k</span><span class="p">;</span><span class="w">          </span><span class="c1"># 多 worker 共享失败计数</span>
+<span class="w">    </span><span class="kn">least_conn</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">keepalive</span><span class="w"> </span><span class="mi">64</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">keepalive_requests</span><span class="w"> </span><span class="mi">1000</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">keepalive_timeout</span><span class="w"> </span><span class="s">60s</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.0.11</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="s">weight=3</span><span class="w"> </span><span class="s">max_fails=3</span><span class="w"> </span><span class="s">fail_timeout=15s</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.0.12</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="s">weight=3</span><span class="w"> </span><span class="s">max_fails=3</span><span class="w"> </span><span class="s">fail_timeout=15s</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.0.13</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="s">weight=2</span><span class="w"> </span><span class="s">max_fails=3</span><span class="w"> </span><span class="s">fail_timeout=15s</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.0.14</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="s">weight=1</span><span class="w"> </span><span class="s">max_fails=3</span><span class="w"> </span><span class="s">fail_timeout=15s</span><span class="w"> </span><span class="s">backup</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+几个参数的含义需要说清楚。<code>zone</code> 让多个 worker 共享 upstream 的状态，没有它，<code>max_fails</code> 的计数是每个 worker 各算各的，八个 worker 就意味着实际阈值被放大了八倍。<code>least_conn</code> 在比较时会考虑 <code>weight</code>。<code>keepalive</code> 缓存的是空闲连接，配合 <code>proxy_http_version 1.1</code> 和清空 <code>Connection</code> 头才能生效，否则每条请求都会新建 TCP 连接。
+
+<code>backup</code> 机器平时不接流量，只在其他机器全部不可用时启用。它适合放一台降配的兜底实例，不适合当成正常容量。
+
+如果业务是按租户分片的缓存或队列，需要一致性哈希：
+<div class="codehilite"><pre><span></span><code><span class="k">upstream</span><span class="w"> </span><span class="s">tenant_shard</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kn">hash</span><span class="w"> </span><span class="nv">$arg_tenant_id</span><span class="w"> </span><span class="s">consistent</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">hash_method</span><span class="w"> </span><span class="s">crc32</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.1.21</span><span class="p">:</span><span class="mi">6379</span><span class="w"> </span><span class="s">weight=2</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.1.22</span><span class="p">:</span><span class="mi">6379</span><span class="w"> </span><span class="s">weight=2</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.1.23</span><span class="p">:</span><span class="mi">6379</span><span class="w"> </span><span class="s">weight=1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>hash $arg_tenant_id consistent</code> 表示按查询参数里的租户 ID 做一致性哈希；<code>hash_method</code> 默认是 CRC32，可以换成更均匀的算法，但换了之后所有 key 都会重排，等于一次全量搬迁，必须当成一次发布来对待。
+
+如果确实需要 IP 粘性，用 <code>ip_hash</code>，并且要理解它的扩容代价：
+<div class="codehilite"><pre><span></span><code><span class="k">upstream</span><span class="w"> </span><span class="s">legacy_portal</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kn">ip_hash</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.2.31</span><span class="p">:</span><span class="mi">8080</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.2.32</span><span class="p">:</span><span class="mi">8080</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.2.33</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="s">down</span><span class="p">;</span><span class="w">   </span><span class="c1"># 摘机器用 down，不要直接删</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Nginx 文档明确建议：使用 <code>ip_hash</code> 时，临时下线的机器要标 <code>down</code> 而不是从配置里删除，否则剩下机器的映射关系会整体改变。这也侧面说明它的重映射代价很高。
+
+最后是请求转发和重试边界：
+<div class="codehilite"><pre><span></span><code><span class="k">location</span><span class="w"> </span><span class="s">/api/</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kn">proxy_pass</span><span class="w"> </span><span class="s">http://order_api</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_http_version</span><span class="w"> </span><span class="mi">1</span><span class="s">.1</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_set_header</span><span class="w"> </span><span class="s">Connection</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_set_header</span><span class="w"> </span><span class="s">Host</span><span class="w"> </span><span class="nv">$host</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_set_header</span><span class="w"> </span><span class="s">X-Request-Id</span><span class="w"> </span><span class="nv">$request_id</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kn">proxy_connect_timeout</span><span class="w"> </span><span class="s">1s</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_read_timeout</span><span class="w"> </span><span class="s">10s</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_send_timeout</span><span class="w"> </span><span class="s">10s</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kn">proxy_next_upstream</span><span class="w"> </span><span class="s">error</span><span class="w"> </span><span class="s">timeout</span><span class="w"> </span><span class="s">http_502</span><span class="w"> </span><span class="s">http_503</span><span class="w"> </span><span class="s">http_504</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_next_upstream_tries</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_next_upstream_timeout</span><span class="w"> </span><span class="s">3s</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这里每个值都有理由。连接超时设得比读超时短，因为「连不上」通常是机器挂了或网络断了，没必要等十秒；读超时要覆盖正常的慢请求，但必须小于客户端的超时，否则客户端先放弃，代理还在等。<code>proxy_next_upstream_tries 2</code> 表示最多试两台（含第一台），<code>proxy_next_upstream_timeout 3s</code> 是整个过程的总预算。非幂等请求默认不重试，<code>non_idempotent</code> 参数不要随便加。
+
+另外两处配置同样重要：给每台 <code>server</code> 加 <code>max_conns</code>，防止单机被连接打爆；在入口限制请求体和 Header 大小。它们不属于负载均衡策略，却直接影响「分配是否有效」。
+<h2>观测：是分配不均，还是后端退化</h2>
+
+扩容失败后，最常见的错误是继续调策略。第一步应该判断问题属于哪一类：<strong>流量没分匀、每台都变差、还是某几台单独变差</strong>。三类解法完全不同。
+
+先看分配本身。Nginx 的访问日志里可以记录这些变量：
+<div class="codehilite"><pre><span></span><code><span class="k">log_format</span><span class="w"> </span><span class="s">upstream_log</span><span class="w"> </span><span class="s">&#39;</span><span class="nv">$remote_addr</span><span class="w"> </span><span class="s">&quot;</span><span class="nv">$request&quot;</span><span class="w"> </span><span class="nv">$status</span><span class="w"> </span><span class="s">&#39;</span>
+<span class="w">                        </span><span class="s">&#39;upstream=</span><span class="nv">$upstream_addr</span><span class="w"> </span><span class="s">&#39;</span>
+<span class="w">                        </span><span class="s">&#39;ustatus=</span><span class="nv">$upstream_status</span><span class="w"> </span><span class="s">&#39;</span>
+<span class="w">                        </span><span class="s">&#39;urt=</span><span class="nv">$upstream_response_time</span><span class="w"> </span><span class="s">&#39;</span>
+<span class="w">                        </span><span class="s">&#39;uct=</span><span class="nv">$upstream_connect_time</span><span class="w"> </span><span class="s">&#39;</span>
+<span class="w">                        </span><span class="s">&#39;urtotal=</span><span class="nv">$request_time&#39;</span><span class="p">;</span>
+
+<span class="k">access_log</span><span class="w"> </span><span class="s">/var/log/nginx/upstream.log</span><span class="w"> </span><span class="s">upstream_log</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>$upstream_addr</code> 记录实际选中的后端，<code>$upstream_response_time</code> 记录该后端的耗时，<code>$upstream_status</code> 记录后端返回的状态码。按后端聚合这三个值，就能得到每台的请求占比、延迟分布和错误率。如果某台的请求占比和它的权重明显不符，优先怀疑三件事：健康检查把它摘了、<code>max_fails</code> 计数没有共享、连接被粘住了。
+
+再看延迟的分布结构。这里有一个很实用的判别方法：比较<strong>后端之间的差异</strong>和<strong>后端内部的差异</strong>。
+<ul>
+<li>如果所有后端的 P99 都在同一水平线上上升，说明问题不在分配，而在共享依赖（数据库、缓存、下游服务）或客户端。换策略不会有用。</li>
+<li>如果只有少数几台的 P99 明显更高，且这些机器的延迟分布在各个请求类型上都整体右移，说明是机器退化：GC、磁盘、网卡、CPU 降频。这时候要做的是摘除和修复，不是调权重。</li>
+<li>如果少数几台只在「重请求」上慢，说明策略看不见请求成本，轮询把大请求平均撒开了。解法是按请求类型拆分 upstream，或者改用能感知并发的策略。</li>
+<li>如果新扩容的机器请求占比接近零，说明连接没有重建、DNS 被缓存、或者粘性会话把流量锁在老机器上。</li>
+</ul>
+
+如果是服务网格，指标名字不同但语义一致：<code>upstream_cx_active</code> 是活跃连接，<code>upstream_rq_time</code> 是请求耗时，<code>upstream_rq_5xx</code> 是后端错误。
+
+一个常见的观测盲区是「平均值」。把十二台机器的 P99 求平均，会把一台严重退化的机器稀释掉，也会掩盖「大部分请求落在两台机器上」的事实。<strong>负载均衡的监控必须按后端维度看分布，不能只看全局平均。</strong>
+<h2>容量与排队：为什么加机器会更慢</h2>
+
+最后一个问题回到开头：为什么从八台加到十二台，吞吐没涨，P99 还变差了。
+
+从排队论的角度看，一个由 N 台同构机器组成的服务，单台处理能力是 μ，总到达率是 λ，则系统利用率是：
+<div class="codehilite"><pre><span></span><code><span class="nv">ρ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>λ<span class="w"> </span>/<span class="w"> </span><span class="o">(</span>N<span class="w"> </span>·<span class="w"> </span>μ<span class="o">)</span>
+</code></pre></div>
+
+
+在 M/M/1 这类模型里，排队时间随利用率非线性上升：ρ 从 0.7 升到 0.9，等待时间大约从服务时间的 2.3 倍涨到 9 倍。加机器本应降低 ρ，但前提是 μ 能随机器数量线性扩展。
+
+真实系统里，μ 往往不能。三类共享资源会把总容量卡在一个上限：
+
+第一，<strong>共享存储</strong>。所有应用实例连同一个数据库，数据库的连接数、锁、IOPS 是固定的。应用机器从 8 台加到 12 台，数据库看到的并发连接多了五成，锁竞争和上下文切换上升，单请求耗时变长。此时应用层的 ρ 看起来降了，但 μ 也降了，甚至降得更多。
+
+第二，<strong>共享缓存的分片效应</strong>。如果每个实例都有本地缓存，缓存总量随实例数增加，但每份缓存的命中率下降，因为同一个 key 被不同实例重复加载。命中率下降意味着更多请求穿透到数据库，这就是「加机器反而增加下游负载」的机制。
+
+再叠加长连接和重试，就是开头那个现场：新机器没流量（连接没重建），老机器过载（数据库顶到上限），超时触发重试（请求量放大）。四件事叠在一起才是完整的因果链。
+
+排队论的推导、方差对 P99 的影响和「最优节点数」的闭式解，站内容量规划文章已经展开。这里只保留结论：<strong>扩容前先确认瓶颈是否可水平扩展</strong>。瓶颈在数据库、单个 Redis 或某个下游 API 时，加应用机器只是把队列挪到数据库层。
+
+一个实用的自检顺序：
+<ol>
+<li>扩容前后，共享依赖的 QPS、连接数、P99 有没有同步变化？有，瓶颈就不在应用层。</li>
+<li>新实例是否真的接到了流量？按后端看请求占比，而不是看总 QPS。</li>
+<li>重试率有没有上升？用户请求数没变、后端请求数涨了，重试已经在放大。</li>
+<li>单请求的 CPU 成本有没有变化？缓存命中率下降会让同样的 QPS 消耗更多 CPU。</li>
+</ol>
+
+四个问题里只要有一个答案是「是」，换负载均衡策略都不会解决问题。
+<h2>小结</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>负载均衡在选什么</td>
+<td>选的是「哪台机器承担这一次工作」，而算法只能看见它所在层的信号</td>
+</tr>
+<tr>
+<td>轮询的代价</td>
+<td>假设同构、请求等成本；长连接和异构机器下会失真</td>
+</tr>
+<tr>
+<td>最少连接的代价</td>
+<td>假设连接数代表压力；长连接和共享瓶颈下失效</td>
+</tr>
+<tr>
+<td>一致性哈希的代价</td>
+<td>只均衡 key，不均衡热点；扩容搬迁约 1/(N+1)，但虚拟节点要调参</td>
+</tr>
+<tr>
+<td>Rendezvous 的代价</td>
+<td>分布均匀、无需调参，但每次查找是 O(N)</td>
+</tr>
+<tr>
+<td>健康检查的边界</td>
+<td>二值信号，证明不了剩余容量；要配慢启动和异常点摘除</td>
+</tr>
+<tr>
+<td>重试的边界</td>
+<td>必须幂等、有预算、有退避、尊重 Retry-After</td>
+</tr>
+<tr>
+<td>扩容失效的四个原因</td>
+<td>共享瓶颈、长连接钉死、粘性会话、重试放大</td>
+</tr>
+<tr>
+<td>观测的关键</td>
+<td>按后端看分布，比较后端间差异与后端内差异</td>
+</tr>
+</tbody>
+</table></div>
+
+如果只能记住一句话：<strong>负载均衡不是「把请求分出去」，而是「把有限容量分配给不同成本的工作」。</strong> 先搞清楚工作的成本和容量的边界，再谈用哪种算法。
+<h2>相关阅读</h2>
+<ul>
+<li><a href="/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a></li>
+<li><a href="/article/rate-limit-algorithms-deep-dive/">限流算法实测：固定窗口 2 倍溢出、令牌桶突刺</a></li>
+<li><a href="/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a></li>
+<li><a href="/article/resilience-timeout-retry-circuit-breaker/">超时、重试与熔断：把失败控制在边界内</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li></ul></nav></div></div>
+  </body>
+</html>

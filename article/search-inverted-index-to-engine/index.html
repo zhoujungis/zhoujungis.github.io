@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：正在用 LIKE &#39;%关键词%&#39; 做站内搜索、发现数据一多就慢得没法用的人；在 PostgreSQL 全文检索和 Elasticsearch 之间摇摆的人；" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/" />
+    <meta property="og:title" content="搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型" />
+    <meta property="og:description" content="适用读者：正在用 LIKE &#39;%关键词%&#39; 做站内搜索、发现数据一多就慢得没法用的人；在 PostgreSQL 全文检索和 Elasticsearch 之间摇摆的人；" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/search-inverted-index-to-engine-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/search-inverted-index-to-engine-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型" />
+    <meta name="twitter:description" content="适用读者：正在用 LIKE &#39;%关键词%&#39; 做站内搜索、发现数据一多就慢得没法用的人；在 PostgreSQL 全文检索和 Elasticsearch 之间摇摆的人；" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/search-inverted-index-to-engine-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-eRjNLvuZ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="后端架构" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T12:20:53.112738+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T12:20:53.112738+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="搜索" />
+    <meta property="article:tag" content="数据库" />
+    <meta property="article:tag" content="架构设计" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/search-inverted-index-to-engine/#article","url":"https://blog.zhoujun.dev/article/search-inverted-index-to-engine/","headline":"搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型","description":"适用读者：正在用 LIKE '%关键词%' 做站内搜索、发现数据一多就慢得没法用的人；在 PostgreSQL 全文检索和 Elasticsearch 之间摇摆的人；","image":"https://blog.zhoujun.dev/photos/search-inverted-index-to-engine-cover.png","datePublished":"2026-11-04T12:20:53.112738+08:00","dateModified":"2026-11-04T12:20:53.112738+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/search-inverted-index-to-engine/"},"articleSection":"后端架构","keywords":"后端, 搜索, 数据库, 架构设计","inLanguage":"zh-CN","wordCount":9228},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/search-inverted-index-to-engine/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型","item":"https://blog.zhoujun.dev/article/search-inverted-index-to-engine/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"search-inverted-index-to-engine","title":"搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型","created_at":"2026-11-04T12:20:53.112738+08:00","updated_at":"2026-11-04T12:20:53.112758+08:00","author":null,"category":{"id":12,"name":"后端架构","slug":"backend"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":186,"name":"搜索","slug":"search"},{"id":110,"name":"数据库","slug":"database"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/search-inverted-index-to-engine-cover.png","excerpt":"适用读者：正在用 LIKE '%关键词%' 做站内搜索、发现数据一多就慢得没法用的人；在 PostgreSQL 全文检索和 Elasticsearch 之间摇摆的人；已经上了搜索引擎，但搜索结果不相关、索引还经常不同步的人 结论先行：模糊匹配慢，不是索引没加对，而是 B+ 树按完整字符串排序，天生回答不了「中间包含什么","reading_time":37,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</span></nav><h1>搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/backend/">后端架构</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> 搜索 <a href="https://blog.zhoujun.dev/tags/database/">数据库</a> <a href="https://blog.zhoujun.dev/tags/architecture/">架构设计</a></p><nav class="ns-series"><p><strong>本系列 · 后端架构</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li><li><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><strong>搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</strong>（当前）</li></ol><p><a href="https://blog.zhoujun.dev/topics/backend/">查看后端架构专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：正在用 <code>LIKE '%关键词%'</code> 做站内搜索、发现数据一多就慢得没法用的人；在 PostgreSQL 全文检索和 Elasticsearch 之间摇摆的人；已经上了搜索引擎，但搜索结果不相关、索引还经常不同步的人
+结论先行：模糊匹配慢，不是索引没加对，而是 B+ 树按完整字符串排序，天生回答不了「中间包含什么」。搜索需要的是倒排索引：从词出发，直接找到包含它的文档。选型的分界线也不是「数据量大小」，而是你要不要分词控制、相关性调权、聚合和横向扩展；要，就上搜索引擎，不要，PostgreSQL 的全文检索往往够用。
+阅读时间：约 34 分钟 | 难度：进阶 | 收获：倒排索引的物理结构、分词与 BM25 的因果、PostgreSQL 与 Elasticsearch 的能力边界、索引同步的三种方案，以及一套可观测的搜索指标
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>事故：LIKE '%关键词%' 为什么越跑越慢</li>
+<li>为什么 B+ 树救不了中缀匹配</li>
+<li>倒排索引：词典、posting、位置与跳表</li>
+<li>从文本到 posting：分词与归一化决定上限</li>
+<li>相关性：从 TF-IDF 到 BM25</li>
+<li>PostgreSQL 全文检索：tsvector、tsquery、GIN</li>
+<li>Elasticsearch：mapping、analyzer 与查询 DSL</li>
+<li>NRT、副本与深分页</li>
+<li>Meilisearch 与 Typesense：容错换可控</li>
+<li>索引同步：双写、Outbox 与全量重建</li>
+<li>查询设计与安全：filter/query、零结果、多租户</li>
+<li>观测：延迟、零结果率、点击率、索引延迟</li>
+<li>小结</li>
+<li>相关阅读</li>
+</ul>
+<h2>事故：LIKE '%关键词%' 为什么越跑越慢</h2>
+
+站内搜索最早只有一行代码：<code>Article.objects.filter(title__icontains=q)</code>。数据量几万条时，它快得让人忘记它的存在；到几十万条，接口开始偶尔超过一秒；到一百多万条，搜索框每敲一个字都要等三四秒，用户索性不搜了。
+
+我一开始的反应很典型：加索引。给 <code>title</code> 建了一个普通的 B+ 树索引，重新发布，结果没有任何变化。<code>EXPLAIN</code> 显示优化器仍然选择顺序扫描，索引安静地躺在那里，一点忙都帮不上。
+
+第二个问题是结果不相关。搜「Django 部署」，标题里同时出现这两个词但隔得很远的文章，和标题就是「Django 部署到 PythonAnywhere」的文章，排在差不多的位置；搜「缓存」，正文里提了一百次「缓存」的长文压过了真正讲缓存架构的短文。数据库的 <code>icontains</code> 只能回答「包含或不包含」，它没有「这个词有多重要」的概念，更没有「标题比正文重要」的概念。
+
+这两个问题看起来是性能和相关性的两件事，根因却是同一个：<strong>用有序数组的查找方式，去回答集合成员的查找问题</strong>。B+ 树适合「等于」和「从某个前缀开始的范围」，不适合「任意位置包含」；<code>LIKE</code> 也没有能力表达相关性。要同时解决，需要换一种索引结构。
+<h2>为什么 B+ 树救不了中缀匹配</h2>
+
+B+ 树的键是按字典序排列的。给定一个键 <code>K</code>，它能快速定位到 <code>K</code> 所在的位置，也能沿着叶子节点顺序扫描 <code>K</code> 之后的所有键。这决定了它支持两类查询：精确匹配，以及「以某段固定前缀开头」的范围扫描。
+
+<code>LIKE 'Django%'</code> 之所以可能用上索引，是因为所有以 <code>Django</code> 开头的字符串在 B+ 树里是连续的一段，优化器可以把 <code>Django</code> 当成下界，把 <code>Django</code> 后面追加一个最大字符当成上界，只扫这一小段。
+
+<code>LIKE '%Django%'</code> 不行。以 <code>Django</code> 结尾、或者在中间包含 <code>Django</code> 的字符串，在字典序里散落在整棵树中：<code>A Django book</code>、<code>My Django</code>、<code>Using Django</code> 彼此不相邻。没有一个连续区间能覆盖它们，优化器只能退化成全表扫描，对每一行做一次子串查找。
+
+全表扫描的成本是 <code>O(N·L)</code>：N 是行数，L 是参与匹配的字符串平均长度。一百多万行、标题平均三十个字符，就是几千万次字符比较；如果还带 <code>icontains</code> 的大小写折叠，每次比较还要做 Unicode 归一化，成本再往上抬。数据量线性增长，延迟也线性增长，这就是「越来越慢」的来源。
+
+排序规则（collation）会在这个问题上再插一脚。MySQL 的 <code>utf8mb4_0900_ai_ci</code> 是大小写不敏感、重音不敏感的排序规则，<code>LIKE</code> 的语义跟着它走；PostgreSQL 的 <code>LC_COLLATE</code> 决定比较行为，不同 locale 下同一段文本的排序可能不同。索引是按某一种排序规则建的，查询如果用了另一种语义，优化器更不敢用索引。很多「加了索引还是不生效」的案例，最后都落到排序规则不匹配上。
+
+PostgreSQL 有一个例外：<code>pg_trgm</code> 扩展把字符串切成三元组，建 GIN 或 GiST 索引后，<code>LIKE '%x%'</code>、<code>ILIKE</code>、正则匹配都能被索引加速。但这不是 B+ 树的功劳，而是另建了一套倒排式的结构；它索引体积大、写入变慢，对短查询词和常见词的效果也会打折。MySQL 没有等价的内置三元组索引，<code>LIKE '%x%'</code> 基本只能扫。知道这个例外很重要，它说明「中缀匹配」并非无解，只是解法不是普通 B+ 树。
+<h2>倒排索引：词典、posting、位置与跳表</h2>
+
+倒排索引把关系反过来存。正排是「文档 → 它包含哪些词」，倒排是「词 → 哪些文档包含它」。搜索时从查询词出发，直接拿到文档列表，不需要逐篇扫描。
+
+一个倒排索引至少有三层结构。
+
+第一层是词典（term dictionary）。它保存所有出现过的词项，按字典序排列，支持按词快速定位。词典的实现可以是排序数组加二分，也可以是 FST（有限状态转换器）或前缀树。Lucene 用 FST 把词项前缀共享，既省内存又能做前缀遍历；词典本身不存 posting，只存指向 posting 的偏移。
+
+第二层是倒排表（postings list）。每个词项对应一条文档列表，列表项至少包含文档 ID 和词频。文档 ID 通常递增，所以可以用差值编码压缩：存 <code>1, 3, 7, 12</code> 变成 <code>1, 2, 4, 5</code>，每个数占的位数大幅下降。词频用来算相关性分数。
+
+第三层是位置（positions）。如果只做「包含这个词」的布尔检索，有文档 ID 就够了；一旦要支持短语查询、邻近查询和高亮，就必须记录每个词在文档中的位置。位置列表同样用差值编码。代价是索引变大，所以有些字段会关掉 positions，只保留文档级信息。
+
+多个词项的 posting 求交集时，如果逐项线性推进，成本是各列表长度之和。跳表（skip list）在 posting 里每隔一段建一个跳跃指针，让「推进到下一个大于等于 X 的文档」可以跳过整段，而不是一个一个走。Lucene 的 posting 里还有更细的跳表层级，查询计划的顺序也会按词项稀有度排序：先处理文档频率最低的词，候选集缩得最快。
+
+文档频率（df）在这里是一个贯穿始终的量。一个词出现在越少的文档里，它的 posting 越短，查询越快，信息量也越大；出现在几乎所有文档里的词，posting 很长，查询慢，区分度也低。这既是性能问题，也是后面 BM25 里 idf 的来源。
+
+用一次查询走一遍流程：查询被分词成若干词项；每个词项在词典里定位，拿到 posting 的偏移；按稀有度排序后求交集，求交过程中用跳表跳过不可能命中的文档；对命中的文档，用 posting 里的词频、字段长度和 idf 算分；最后用一个大小为 K 的最小堆维护 top-K，而不是把所有命中文档全排序。整套流程的成本大致与「参与求交的 posting 总长度」成正比，而不是与文档总数成正比。这就是为什么倒排索引在百万、千万文档上仍然能保持可接受的延迟。
+
+Lucene 还把索引切成不可变的段（segment）。新写入先进入内存缓冲，攒够一定量后 flush 成一个新段；段一旦写出就不再修改，删除通过墓碑标记；后台的 merge 把多个小段合并成大段，减少查询时要打开的段数。这个「不可变段 + 合并」的设计，是后面近实时搜索和副本同步的基础。
+<h2>从文本到 posting：分词与归一化决定上限</h2>
+
+倒排索引的第一句话是「文档包含哪些词」，而「哪些词」由分词器决定。分词错了，后面的索引、查询、打分全部跟着错，而且这种错很难在查询层补救。
+
+中文没有天然空格，这是第一道坎。常见的三种切法各有代价。
+
+第一种是词典分词，代表是 jieba 和 zhparser（后者基于 SCWS，用作 PostgreSQL 的解析器）。它按词典和统计模型切出「倒排索引」「断点续传」这样的词，索引体积小，语义单位完整，相关性容易做好。代价是依赖词典：新词、专有名词、网络用语容易切错；「研究生命起源」可能被切成「研究/生命/起源」，也可能切成「研究生/命/起源」，具体取决于词典和模型。业务词必须通过自定义词典补进去，否则核心词会被切碎。
+
+第二种是二元组（bigram），把连续两个汉字作为一个词项。它不依赖词典，召回稳定，任何查询词都能切出可匹配的二元组；代价是索引膨胀，且会产生大量伪匹配，比如「北京大学」和「北京大家」共享「北京」「京大」等二元组。Lucene 的 <code>CJKBigramFilter</code>、Elasticsearch 的 <code>cjk</code> analyzer 都走这条路。它适合词典覆盖不足、且能接受一定噪声的场景。
+
+第三种是混合：用词典分词做主索引，同时保留 bigram 或单字作为兜底字段，查询时两路合并。实现复杂，但对中文站内搜索往往最稳。选择哪一种，取决于你的语料和查询词分布，不存在「中文分词器排行榜第一」这种答案。
+
+英文的分词看起来简单，其实也有坑。标准分词器按空白和标点切，随后要决定是否小写、是否去停用词、是否做词干提取。词干提取（stemming）把 <code>running</code>、<code>runs</code>、<code>ran</code> 归到 <code>run</code>，能提高召回；但它也会把不该合并的词合并，比如 <code>universe</code> 和 <code>university</code> 在某些算法下会被截到同一个前缀。Porter 和 Snowball 是常见算法，Lucene 提供 <code>EnglishAnalyzer</code>，Elasticsearch 的 <code>english</code> analyzer 内置了停用词和 Snowball 词干。
+
+归一化是分词之外的另一半。大小写折叠、全角转半角、Unicode NFKC、重音折叠（<code>café</code> 与 <code>cafe</code>）、空白压缩，这些操作要让索引时和查询时走同一套。最常见的错误是索引用了 <code>ik_smart</code>，查询用了 <code>standard</code>，两边切出来的词项对不上，结果自然为零。排查时不要猜，直接用分析接口看两边分别切成了什么：
+<div class="codehilite"><pre><span></span><code><span class="err">POST /articles/_analyze</span>
+<span class="err">{</span>
+<span class="err">  &quot;field&quot;: &quot;title&quot;,</span>
+<span class="err">  &quot;text&quot;: &quot;Django 部署与断点续传&quot;</span>
+<span class="err">}</span>
+</code></pre></div>
+
+
+响应里的 <code>tokens</code> 会告诉你每个词项、位置和偏移。索引和查询的分析结果必须一致，这是一条硬约束。
+
+同义词要决定放在索引时还是查询时。索引时扩展同义词，会让 posting 变大，而且同义词表一改就得重建索引；查询时扩展更灵活，改完立即生效，代价是查询词项变多、延迟略增。绝大多数场景应该选查询时扩展，索引只保留原文的词项。
+<h2>相关性：从 TF-IDF 到 BM25</h2>
+
+倒排索引解决了「找得到」，相关性解决「排得对」。最经典的打分是 TF-IDF：
+<div class="codehilite"><pre><span></span><code>score(q, d) = Σ tf(t, d) × idf(t)
+idf(t) = log(N / df(t))
+</code></pre></div>
+
+
+<code>tf</code> 是词在文档里出现的次数，<code>df</code> 是包含这个词的文档数，<code>N</code> 是文档总数。直觉很合理：词出现得越多越相关，越稀有越有区分度。但直接用它会有两个明显问题。
+
+第一，<code>tf</code> 无上界。一个词从出现 1 次到 2 次，分数翻倍；从 10 次到 20 次，分数再翻倍。这等于鼓励堆词，长文只要反复提同一个词就能压过短文，哪怕短文才是主题。
+
+第二，文档长度没有归一化。长文档天然包含更多词、每个词的次数也更多，<code>tf</code> 的总和更大，于是长文系统性占优。这不是因为长文更相关，只是因为它更长。
+
+BM25 针对这两点做了修正。它的常见形式是：
+<div class="codehilite"><pre><span></span><code>score(q, d) = Σ idf(t) × [ tf × (k1 + 1) ] / [ tf + k1 × (1 - b + b × dl / avgdl) ]
+idf(t) = ln(1 + (N - df + 0.5) / (df + 0.5))
+</code></pre></div>
+
+
+<code>dl</code> 是文档长度，<code>avgdl</code> 是平均文档长度，<code>k1</code> 控制词频饱和的速度，<code>b</code> 控制长度归一化的强度。Lucene 的 <code>BM25Similarity</code> 默认 <code>k1 = 1.2</code>、<code>b = 0.75</code>，Elasticsearch 默认就用这套。
+
+<code>k1</code> 的饱和效应可以这样理解：当 <code>tf</code> 很小时，分母里的 <code>tf</code> 占主导，分数随出现次数快速上升；当 <code>tf</code> 已经很大，分母被 <code>k1 × (...)</code> 托住，再增加次数带来的增益越来越小。于是「出现 1 次到 2 次」有意义，「出现 10 次到 20 次」几乎不改变排序。这就是它比 TF-IDF 稳的地方：不奖励堆词。
+
+<code>b</code> 的取值决定长度惩罚。<code>b = 0</code> 完全不归一化，长文占优；<code>b = 1</code> 完全按长度比例惩罚，短文可能被过度抬高。<code>0.75</code> 是一个折中。对于标题这种长度差异不大的字段，长度归一化的影响小；对于正文，它非常关键。
+
+idf 的形式也变了。BM25 用的是 <code>ln(1 + (N - df + 0.5)/(df + 0.5))</code>，即使某个词出现在所有文档里，idf 仍然是一个小的正数，不会变成零或负数。TF-IDF 的 <code>log(N/df)</code> 在 <code>df = N</code> 时直接归零，在极端情况下还会出负值，导致「包含这个词反而扣分」。BM25 的写法避免了这种不稳定性。
+
+字段权重是第二层排序信号。标题命中的权重通常高于正文，正文高于评论；实现上可以给不同字段不同的 boost，或者用多字段查询的合并策略。以 Elasticsearch 的 <code>multi_match</code> 为例，<code>best_fields</code> 取所有字段里得分最高的一个，适合「命中一个字段就够」；<code>most_fields</code> 把各字段分数相加，适合「多处提及更相关」；<code>cross_fields</code> 把多个字段当成一个大字段，适合「一个词在标题、另一个词在正文」的查询。
+
+短语和邻近度是第三层。倒排索引存了位置，才能回答「这两个词是否相邻」。短语查询要求词项位置连续；邻近查询允许中间隔几个词，<code>slop</code> 就是允许的间隔。没有 positions 的字段做不了这件事，只能退化成布尔「都包含」。高亮同样依赖位置或偏移，否则无法知道该给哪一段加标记。
+
+相关性没有一劳永逸的公式。BM25 是一个好的起点，但业务上的「相关」往往还包含时效性、作者权重、点击率、内容质量。把这些信号叠加进去，通常用 <code>function_score</code> 这类机制，而不是修改 BM25 本身。
+<h2>PostgreSQL 全文检索：tsvector、tsquery、GIN</h2>
+
+如果站点已经在用 PostgreSQL，第一站应该是它自带的全文检索，而不是直接上集群。
+
+PostgreSQL 的做法是把文本转成 <code>tsvector</code>：一串按位置排序的词位（lexeme），每个词位可以带位置和权重。<code>to_tsvector</code> 负责分词、归一化和去停用词：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;english&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;The quick brown foxes are jumping&#39;</span><span class="p">);</span>
+<span class="c1">-- &#39;brown&#39;:3 &#39;fox&#39;:4 &#39;jump&#39;:6 &#39;quick&#39;:2</span>
+</code></pre></div>
+
+
+<code>foxes</code> 被词干化成 <code>fox</code>，<code>jumping</code> 变成 <code>jump</code>，<code>the</code> 和 <code>are</code> 作为停用词被去掉，数字是词在原文中的位置。权重可以用 <code>setweight</code> 标成 A、B、C、D，分别对应标题、摘要、正文等不同重要程度。
+
+查询侧用 <code>tsquery</code>，支持与、或、非、短语和距离。下面的中文例子统一用 <code>chinese</code> 配置，这个配置的创建命令在本节后半段；没装中文解析器时，可以先用 <code>simple</code> 在英文语料上验证整条链路。
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">)</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="n">to_tsquery</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;django &amp; 部署&#39;</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="n">to_tsquery</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;缓存 &lt;-&gt; 穿透&#39;</span><span class="p">);</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="n">to_tsquery</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;缓存 &lt;3&gt; 雪崩&#39;</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>&lt;-&gt;</code> 要求相邻，<code>&lt;N&gt;</code> 允许中间隔 N 个词。<code>websearch_to_tsquery</code> 更适合直接接用户输入：按 PostgreSQL docs 的说明，它把引号里的内容当短语，把 <code>OR</code> 当或，把 <code>-</code> 当前面词的排除，并且不会因为用户输入里的特殊字符报错。这是面向搜索框最实用的入口。
+
+索引用 GIN：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">articles_title_fts</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">articles</span>
+<span class="k">USING</span><span class="w"> </span><span class="n">GIN</span><span class="w"> </span><span class="p">(</span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="k">coalesce</span><span class="p">(</span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)));</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span>
+<span class="w">       </span><span class="n">ts_rank</span><span class="p">(</span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">),</span><span class="w"> </span><span class="n">query</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rank</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">articles</span><span class="p">,</span><span class="w"> </span><span class="n">websearch_to_tsquery</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;django 部署&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">query</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">)</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="n">query</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="w"> </span><span class="k">DESC</span>
+<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+
+
+GIN 是倒排式的索引，适合 <code>@@</code> 这种包含查询；GiST 也能用，但更新更贵，通常只在需要动态重排或有特殊数据类型时才考虑。PostgreSQL docs 对 GIN 的适用场景和更新代价有明确说明。表达式索引要求查询里的表达式和索引定义逐字一致，<code>coalesce</code> 和配置名都不能差，否则规划器不会用它。
+
+中文需要额外的解析器。PostgreSQL 内置的分词器面向空格分隔的语言，直接对中文用 <code>simple</code> 配置，往往把整句当成一个词位，或者按标点切得乱七八糟。常见方案是 <code>zhparser</code>（基于 SCWS）或 <code>pg_jieba</code>。以 zhparser 为例，安装扩展后创建配置，把词性映射到 <code>simple</code> 字典：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="n">EXTENSION</span><span class="w"> </span><span class="n">zhparser</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">SEARCH</span><span class="w"> </span><span class="n">CONFIGURATION</span><span class="w"> </span><span class="n">chinese</span><span class="w"> </span><span class="p">(</span><span class="n">PARSER</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">zhparser</span><span class="p">);</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">SEARCH</span><span class="w"> </span><span class="n">CONFIGURATION</span><span class="w"> </span><span class="n">chinese</span>
+<span class="w">  </span><span class="k">ADD</span><span class="w"> </span><span class="n">MAPPING</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="k">WITH</span><span class="w"> </span><span class="k">simple</span><span class="p">;</span>
+
+<span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Django 部署与断点续传&#39;</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>zhparser</code> 的边界要提前知道：词典覆盖有限，专业术语和新词需要 <code>zhparser.zhprs_custom_word</code> 补词；词性映射配错会导致某些词直接被丢掉；它没有 Elasticsearch 那种同义词图和丰富的分析器链。它够用，但不万能。
+
+排序用 <code>ts_rank</code> 或 <code>ts_rank_cd</code>。前者基于词频，后者基于覆盖密度（cover density），对短语和邻近更敏感。它们都不是 BM25，排序质量与 Lucene 有差距，调权手段也有限。如果相关性是核心竞争力，这里会成为瓶颈。
+
+规模上，GIN 索引的大小与词位和 posting 数量相关，通常是原文本的几个到十几个百分点；写入时每个文档都要更新索引，更新频繁的大表会把写放大。查询性能则高度依赖词项的文档频率：搜一个常见词，posting 很长，延迟会明显上升。百万级行、读多写少、查询不复杂的站内搜索，PostgreSQL 完全能扛；到了需要多字段复杂调权、聚合、拼写容错、横向扩展的阶段，就该考虑搜索引擎了。
+<h2>Elasticsearch：mapping、analyzer 与查询 DSL</h2>
+
+Elasticsearch 建立在 Lucene 之上，把「一个索引」拆成多个分片，每个分片是一个 Lucene 索引，再在外面套上分布式协调、副本、REST 接口和聚合能力。
+
+第一件必须做的事是显式 mapping。动态 mapping 会把字符串猜成 <code>text</code> 加 <code>keyword</code> 子字段，把日期猜成日期，把数字猜成 <code>long</code>；猜错之后再改字段类型，通常要重建索引。生产索引应该关掉动态猜测，至少对核心字段写死类型：
+<div class="codehilite"><pre><span></span><code><span class="err">PUT /articles</span>
+<span class="err">{</span>
+<span class="err">  &quot;mappings&quot;: {</span>
+<span class="err">    &quot;properties&quot;: {</span>
+<span class="err">      &quot;title&quot;:   { &quot;type&quot;: &quot;text&quot;, &quot;analyzer&quot;: &quot;ik_max_word&quot;, &quot;search_analyzer&quot;: &quot;ik_smart&quot; },</span>
+<span class="err">      &quot;summary&quot;: { &quot;type&quot;: &quot;text&quot;, &quot;analyzer&quot;: &quot;ik_max_word&quot; },</span>
+<span class="err">      &quot;author&quot;:  { &quot;type&quot;: &quot;keyword&quot; },</span>
+<span class="err">      &quot;tags&quot;:    { &quot;type&quot;: &quot;keyword&quot; },</span>
+<span class="err">      &quot;published_at&quot;: { &quot;type&quot;: &quot;date&quot; },</span>
+<span class="err">      &quot;view_count&quot;:   { &quot;type&quot;: &quot;integer&quot; }</span>
+<span class="err">    }</span>
+<span class="err">  }</span>
+<span class="err">}</span>
+</code></pre></div>
+
+
+<code>text</code> 用于全文检索，会被分词、建 posting、参与打分；<code>keyword</code> 用于精确过滤、排序和聚合，不分词，走 doc values 的列式存储。把该用 <code>keyword</code> 的字段建成 <code>text</code>，过滤会变慢且语义不对；把该用 <code>text</code> 的字段建成 <code>keyword</code>，全文检索直接失效。
+
+<code>analyzer</code> 和 <code>search_analyzer</code> 可以分开。索引时用细粒度分词（<code>ik_max_word</code>）提高召回，查询时用粗粒度（<code>ik_smart</code>）减少噪声，这是中文场景常见的组合。前提是两者的词项能对上；如果对不上，就会出现「索引里有、查询切不出」的零结果。
+
+查询 DSL 的基本结构是 <code>bool</code>：
+<div class="codehilite"><pre><span></span><code><span class="err">GET /articles/_search</span>
+<span class="err">{</span>
+<span class="err">  &quot;query&quot;: {</span>
+<span class="err">    &quot;bool&quot;: {</span>
+<span class="err">      &quot;must&quot;: [</span>
+<span class="err">        { &quot;multi_match&quot;: {</span>
+<span class="err">            &quot;query&quot;: &quot;Django 部署&quot;,</span>
+<span class="err">            &quot;fields&quot;: [&quot;title^3&quot;, &quot;summary^2&quot;, &quot;body&quot;],</span>
+<span class="err">            &quot;type&quot;: &quot;best_fields&quot;,</span>
+<span class="err">            &quot;tie_breaker&quot;: 0.3</span>
+<span class="err">        }}</span>
+<span class="err">      ],</span>
+<span class="err">      &quot;filter&quot;: [</span>
+<span class="err">        { &quot;term&quot;: { &quot;status&quot;: &quot;published&quot; } },</span>
+<span class="err">        { &quot;range&quot;: { &quot;published_at&quot;: { &quot;gte&quot;: &quot;now-2y&quot; } } }</span>
+<span class="err">      ],</span>
+<span class="err">      &quot;must_not&quot;: [</span>
+<span class="err">        { &quot;term&quot;: { &quot;tags&quot;: &quot;spam&quot; } }</span>
+<span class="err">      ]</span>
+<span class="err">    }</span>
+<span class="err">  },</span>
+<span class="err">  &quot;sort&quot;: [</span>
+<span class="err">    { &quot;_score&quot;: &quot;desc&quot; },</span>
+<span class="err">    { &quot;published_at&quot;: &quot;desc&quot; }</span>
+<span class="err">  ],</span>
+<span class="err">  &quot;size&quot;: 10</span>
+<span class="err">}</span>
+</code></pre></div>
+
+
+<code>must</code> 参与打分，<code>filter</code> 不参与打分且可以被缓存，<code>must_not</code> 排除。把状态、租户、时间范围这类「硬条件」放进 <code>filter</code>，是性能优化的第一步，也是权限过滤的正确位置。
+
+排序信号可以用 <code>function_score</code> 叠加。比如给新文章一个时间衰减，给高阅读量一个加权：
+<div class="codehilite"><pre><span></span><code><span class="err">GET /articles/_search</span>
+<span class="err">{</span>
+<span class="err">  &quot;query&quot;: {</span>
+<span class="err">    &quot;function_score&quot;: {</span>
+<span class="err">      &quot;query&quot;: { &quot;multi_match&quot;: { &quot;query&quot;: &quot;缓存&quot;, &quot;fields&quot;: [&quot;title^3&quot;, &quot;body&quot;] } },</span>
+<span class="err">      &quot;functions&quot;: [</span>
+<span class="err">        { &quot;gauss&quot;: { &quot;published_at&quot;: { &quot;origin&quot;: &quot;now&quot;, &quot;scale&quot;: &quot;30d&quot;, &quot;decay&quot;: 0.5 } } },</span>
+<span class="err">        { &quot;field_value_factor&quot;: { &quot;field&quot;: &quot;view_count&quot;, &quot;factor&quot;: 0.1, &quot;modifier&quot;: &quot;log1p&quot; } }</span>
+<span class="err">      ],</span>
+<span class="err">      &quot;score_mode&quot;: &quot;sum&quot;,</span>
+<span class="err">      &quot;boost_mode&quot;: &quot;multiply&quot;</span>
+<span class="err">    }</span>
+<span class="err">  }</span>
+<span class="err">}</span>
+</code></pre></div>
+
+
+聚合用于筛选面板和统计：<code>terms</code> 聚合按标签分桶，<code>date_histogram</code> 按时间分桶，<code>cardinality</code> 估算去重数。聚合走 doc values，和全文检索的 posting 是两套结构，所以「搜索 + 聚合」在 Elasticsearch 里是一次请求能完成的事，在纯 PostgreSQL 里往往要额外写 SQL。
+<h2>NRT、副本与深分页</h2>
+
+Elasticsearch 常被称为「近实时」，这个词容易被误解成「写入后立刻能搜到」。准确地说，写入先进入内存缓冲和 translog，只有执行 refresh 之后，数据才进入新的 Lucene 段，对搜索可见。按 Elasticsearch docs 的默认值，<code>refresh_interval</code> 是 1 秒，所以最坏情况下有接近一秒的可见性延迟。需要更强可见性时可以显式 refresh，但频繁 refresh 会产生大量小段，加重 merge。
+
+持久性和可见性是两件事。translog 负责前者：默认 <code>index.translog.durability</code> 是 <code>request</code>，每个写请求都会 fsync；即使进程崩溃，重启后也能从 translog 恢复。refresh 负责后者，它不保证数据落盘。把两者混为一谈，就会在「为什么明明返回 200 却搜不到」和「refresh 了是不是就安全了」之间反复困惑。
+
+副本解决可用性和读吞吐。每个分片有一个主分片和若干副本，写入先到主分片，再复制到副本；搜索可以打到主分片或副本。副本数增加会提高读能力，但也增加写入放大和存储成本。副本的 refresh 跟随主分片，所以可见性延迟不会因为副本而消失。
+
+深分页是另一个常见陷阱。<code>from + size</code> 的查询，每个分片都要取出前 <code>from + size</code> 条，协调节点再归并排序。翻到第 100 页、每页 20 条，意味着每个分片都要计算并丢弃前 2000 条；分片越多，浪费越大。Elasticsearch docs 里 <code>index.max_result_window</code> 默认 10000，就是给这种成本设的上限。
+
+正确的翻页方式是 <code>search_after</code>：用上一页最后一个文档的排序值作为游标，下一页从它之后开始。它要求排序字段组合唯一，通常用 <code>published_at</code> 加 <code>_id</code>。为了避免翻页过程中数据变化导致重复或漏项，配合 PIT（point in time）固定索引视图：
+<div class="codehilite"><pre><span></span><code><span class="err">POST /articles/_search</span>
+<span class="err">{</span>
+<span class="err">  &quot;size&quot;: 20,</span>
+<span class="err">  &quot;sort&quot;: [ { &quot;published_at&quot;: &quot;desc&quot; }, { &quot;_id&quot;: &quot;asc&quot; } ],</span>
+<span class="err">  &quot;search_after&quot;: [ &quot;2026-10-01T00:00:00Z&quot;, &quot;article-123&quot; ],</span>
+<span class="err">  &quot;pit&quot;: { &quot;id&quot;: &quot;pit_id&quot;, &quot;keep_alive&quot;: &quot;5m&quot; }</span>
+<span class="err">}</span>
+</code></pre></div>
+
+
+<code>search_after</code> 不适合「跳到第 N 页」的交互，它只适合「下一页」。需要随机跳页的产品，要么限制页数，要么换一种呈现方式。导出全量数据用 scroll 或 PIT 加切片，不要用 <code>from + size</code> 硬翻。
+
+分片数量也要克制。每个分片都是一个 Lucene 索引，有固定的段、文件句柄和堆开销；分片过多会导致 cluster state 变大、查询要合并更多结果。常见经验是单分片几十 GB 量级，按数据增长预留，不要一开始就按「未来十倍」切出几百个分片。
+<h2>Meilisearch 与 Typesense：容错换可控</h2>
+
+不是所有搜索都需要 Elasticsearch 的复杂度。Meilisearch 和 Typesense 走的是另一条路：把拼写容错、前缀搜索、即时搜索做成默认能力，用更少的配置换更快的上手。
+
+Meilisearch 的默认行为很「懂用户」：查询词有拼写错误时，它会按编辑距离做容错，词越长允许的错误越多；输入前缀就能匹配，适合搜索框的「边打边搜」；排序规则内置了词频、位置、精确度等维度，还支持字段权重和同义词。它的索引和查询都围绕「低延迟的即时搜索」设计，部署是单个二进制，运维成本低。
+
+Typesense 类似，强调 schema 明确、拼写容错、前缀搜索和地理搜索，另外提供向量检索和 curated results（人工置顶）。它的查询参数更显式，控制感比 Meilisearch 强一些，但同样不追求 Elasticsearch 那种任意 DSL 和复杂聚合。
+
+代价也很明确。这类引擎的查询表达能力有限：复杂的布尔组合、脚本打分、嵌套聚合、跨索引关联，通常做不了或做得别扭；水平扩展能力不如 Elasticsearch 成熟；数据量和分片策略的选择空间小。它们适合中小规模、搜索是「产品体验的一部分但不是分析平台」的场景，比如文档站、电商站内搜索、SaaS 的帮助中心。
+
+选型时可以问三个问题。第一，相关性需要人工精细调权吗？需要，倾向 Elasticsearch。第二，需要复杂的筛选聚合和报表吗？需要，倾向 Elasticsearch 或 PostgreSQL。第三，团队有多少运维预算？很少，且查询以即时搜索为主，Meilisearch 或 Typesense 更合适。
+<h2>索引同步：双写、Outbox 与全量重建</h2>
+
+搜索索引是数据库的派生数据，不是真相来源。真相在数据库，索引只是为了让查询更快。这个定位决定了同步策略的目标：最终一致、可重放、可重建，而不是「写入时必须原子」。
+
+最直接的是双写：业务代码在数据库提交成功后，调用搜索引擎的写入接口。它简单，但有一个无法消除的窗口：数据库提交成功、搜索写入失败，两边就不一致；如果先写搜索再写数据库，搜索里会出现数据库没有的脏数据。加 try/catch 和重试能降低概率，但不能把两个系统变成一个事务。
+
+更稳的是 Outbox。业务事务里同时写一条 outbox 记录，记录文档 ID、操作类型和版本号；事务提交后，由轮询任务或 CDC（变更数据捕获）把 outbox 投递给搜索引擎。因为 outbox 和业务数据在同一个数据库事务里，所以「业务成功但事件丢失」不会发生；投递是至少一次，失败可重试。
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">search_outbox</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w">          </span><span class="n">BIGSERIAL</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">doc_id</span><span class="w">      </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">op</span><span class="w">          </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="k">version</span><span class="w">     </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">payload</span><span class="w">     </span><span class="n">JSONB</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w">  </span><span class="n">TIMESTAMPTZ</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">now</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">processed_at</span><span class="w"> </span><span class="n">TIMESTAMPTZ</span>
+<span class="p">);</span>
+</code></pre></div>
+
+
+投递端要保证幂等。搜索引擎的写入用外部版本号（<code>version_type=external</code>）或应用层版本比较：只有更大的版本才能覆盖当前文档。这样即使同一事件被投递两次，或者旧事件晚到，也不会把新数据覆盖回旧值。删除也要带版本，否则「删除事件晚于更新事件」会让已删除的文档复活。
+
+版本号从哪里来，是这套机制的关键。可以用数据库的自增序列、行的 <code>updated_at</code> 加版本列，或者 CDC 里的 binlog 位点。无论哪种，必须单调递增且能比较；只靠时间戳在并发写入下不可靠，因为同一毫秒内的顺序不确定。
+
+全量重建是最后的保险。新建一个索引（例如 <code>articles_v2</code>），从数据库或快照全量导入，校验文档数和抽样内容，然后通过别名原子切换：
+<div class="codehilite"><pre><span></span><code><span class="err">POST /_aliases</span>
+<span class="err">{</span>
+<span class="err">  &quot;actions&quot;: [</span>
+<span class="err">    { &quot;remove&quot;: { &quot;index&quot;: &quot;articles_v1&quot;, &quot;alias&quot;: &quot;articles&quot; } },</span>
+<span class="err">    { &quot;add&quot;:    { &quot;index&quot;: &quot;articles_v2&quot;, &quot;alias&quot;: &quot;articles&quot; } }</span>
+<span class="err">  ]</span>
+<span class="err">}</span>
+</code></pre></div>
+
+
+切换期间旧索引仍然可读，新索引写好后一次别名操作完成切换，用户无感。重建要能重复执行，导入脚本按主键分页、可断点续跑，不要用一个长时间的事务把数据库拖住。
+
+延迟可见性是必然的。数据库提交到搜索可见，至少经过 outbox 投递、索引写入、refresh 三段。产品上要接受这个窗口：发完文章立刻搜索，可能搜不到。解决办法不是把 refresh 调到毫秒级，而是前端在发布成功后本地插入一条「刚发布」的结果，或者跳转到详情页，避免让用户直面索引延迟。
+<h2>查询设计与安全：filter/query、零结果、多租户</h2>
+
+查询设计的第一条原则是把「硬条件」和「相关性条件」分开。状态、租户、权限、时间范围、是否删除，这些是硬条件，放进 <code>filter</code> 上下文：不参与打分，可以被缓存，也不会因为 boost 被意外抬高。查询词、同义词、模糊匹配，这些是相关性条件，放进 <code>query</code> 上下文。混在一起写，既慢又容易出权限漏洞。
+
+第二条原则是缓存要按「归一化后的查询」做键。同一个搜索，大小写不同、空格不同、参数顺序不同，应该命中同一个缓存。缓存键里必须包含租户、权限范围、分页游标和排序方式；只按查询词缓存，会把 A 租户的结果发给 B 租户。
+
+第三条原则是认真对待零结果。零结果率高，通常不是索引没建好，而是分词不一致、同义词缺失、用户输入里有错别字、或者过滤条件太窄。做法是记录零结果查询词，按频次排序，人工看 Top 20；补同义词、加拼音或拼写容错、放宽时间范围、给出「你是不是想搜……」的提示。不要用一个空页面结束这次交互。
+
+高亮要付出代价。它需要知道词在原文中的位置和偏移，<code>text</code> 字段要保留 positions 或 term vectors；字段很大时，高亮会成为查询里最慢的一段。只对需要展示的字段开高亮，限制片段长度和数量，不要对整个正文做全量高亮。
+
+多租户过滤必须在服务端完成。客户端传来的 <code>tenant_id</code> 只能作为「请求的租户」，服务端要根据登录身份解析出真正允许的租户集合，再拼进 <code>filter</code>。直接把客户端参数塞进查询，等于把租户隔离交给用户。字段级权限同理：敏感字段在 mapping 里单独存放，返回时用 <code>_source</code> 过滤，或者用文档级安全在查询层拦截；不要指望前端「不展示」就是安全。
+
+查询注入是另一个容易忽视的点。<code>query_string</code> 语法支持通配符、正则、字段引用和布尔表达式，用户输入 <code>title:*</code> 或一段超长的嵌套表达式，可能拖垮集群。面向用户的搜索框应该用结构化的 <code>multi_match</code>，把用户输入当纯文本处理，而不是把原始字符串拼进 <code>query_string</code>。必须用 <code>query_string</code> 时，要转义保留字符、限制长度、禁用前导通配符和正则。脚本查询（<code>script_score</code>）如果开放给不可信输入，风险更高，生产里应当关闭动态脚本或使用沙箱。
+<h2>观测：延迟、零结果率、点击率、索引延迟</h2>
+
+搜索的观测要同时看「系统」和「质量」两条线，只看延迟会得到一个「很快但没人用」的假象。
+
+系统侧的核心指标：
+<ul>
+<li>查询延迟的 P50、P95、P99，按查询类型和租户分桶；平均值会被大量简单查询稀释。</li>
+<li>慢查询日志。Elasticsearch 有 search slowlog，PostgreSQL 有 <code>pg_stat_statements</code> 和 <code>log_min_duration_statement</code>；把超过阈值的查询原文、耗时、命中数记录下来。</li>
+<li>错误率与拒绝率。Elasticsearch 的搜索线程池满了会拒绝请求，<code>rejected</code> 指标上升说明容量不够或慢查询过多。</li>
+<li>索引延迟。从数据库提交到文档可搜索的时间，拆成 outbox 积压、写入耗时、refresh 三段；任何一段持续上涨都要告警。</li>
+<li>段与合并。段数量过多、merge 频繁，会拖慢查询并增加 I/O。</li>
+</ul>
+
+质量侧的核心指标：
+<ul>
+<li>零结果率：零结果查询数除以总查询数。按查询词、租户、设备分桶，才能看出是普遍问题还是局部问题。</li>
+<li>点击率与转化率：搜索结果里被点击的比例、点击后排在第几位。它不是完美的相关性指标，但比「看起来合理」可靠。</li>
+<li>首条点击率、平均点击位置：衡量排序质量的变化。</li>
+<li>查询改写率：用户搜了一次没点，换词再搜，说明第一次没满足。</li>
+<li>人工评估集：固定一批查询和期望结果，每次调整分词、同义词、boost 都跑一遍，防止「改一个词，坏一片」。</li>
+</ul>
+
+排查顺序也要固定。先看索引是否有数据（文档数、抽样文档），再看索引和查询的分析器是否一致，然后看过滤条件是否把所有结果滤掉，最后才看打分。相关性投诉里，很大一部分根本不是打分问题，而是分词、同义词或过滤条件的问题。
+<h2>小结</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LIKE '%x%'</code> 为什么慢</td>
+<td>B+ 树按完整字符串排序，中缀匹配没有连续区间，只能全表扫描</td>
+</tr>
+<tr>
+<td>加普通索引为什么没用</td>
+<td>索引结构回答不了「任意位置包含」，排序规则不匹配时更不会生效</td>
+</tr>
+<tr>
+<td>倒排索引是什么</td>
+<td>词项到文档列表的映射，含词典、posting、位置和跳表</td>
+</tr>
+<tr>
+<td>中文分词怎么选</td>
+<td>词典分词精度高但依赖词典，bigram 召回稳但索引大，混合方案最稳</td>
+</tr>
+<tr>
+<td>TF-IDF 的问题</td>
+<td>词频无上界、长文占优，容易奖励堆词</td>
+</tr>
+<tr>
+<td>BM25 为什么更稳</td>
+<td>词频饱和（k1）加长度归一化（b），idf 不会归零</td>
+</tr>
+<tr>
+<td>PostgreSQL 全文检索适合谁</td>
+<td>已有 PG、百万级数据、查询不复杂、能接受弱于 BM25 的排序</td>
+</tr>
+<tr>
+<td>Elasticsearch 强在哪</td>
+<td>分析器链、查询 DSL、聚合、横向扩展、近实时</td>
+</tr>
+<tr>
+<td>深分页怎么做</td>
+<td><code>search_after</code> 加 PIT，不要 <code>from + size</code> 硬翻</td>
+</tr>
+<tr>
+<td>索引怎么同步</td>
+<td>Outbox/CDC 至少一次投递，版本号幂等，别名切换做全量重建</td>
+</tr>
+<tr>
+<td>多租户怎么隔离</td>
+<td>服务端解析租户并放进 filter，永不信任客户端参数</td>
+</tr>
+</tbody>
+</table></div>
+
+搜索选型经常被简化成「数据大用 ES，数据小用数据库」，这个说法漏掉了真正的分界：<strong>你要不要控制分词和相关性</strong>。如果只需要「包含这个词」，PostgreSQL 的 <code>tsvector</code> 加 GIN 足够，运维也简单；如果要处理中文新词、同义词、拼写容错、字段调权、聚合面板、横向扩展，那就不是在数据库里加一个索引能解决的事，搜索引擎的复杂度是必须要付的成本。
+
+而无论选哪个，索引都只是数据库的影子。把同步做成可重放、可幂等、可重建，比一开始就追求「实时」更重要。影子偶尔落后不可怕，可怕的是它和真相分叉之后再也没人对账。
+<h2>相关阅读</h2>
+<ul>
+<li><a href="/article/cursor-pagination-deep-dive/">游标分页：为什么 offset 越翻越慢</a></li>
+<li><a href="/article/mq-reliable-delivery-deep-dive/">消息可靠投递：至少一次、幂等与去重</a></li>
+<li><a href="/article/django-slow-query-index-tuning/">Django 慢查询与索引调优</a></li>
+<li><a href="/article/cache-consistency-deep-dive/">缓存一致性：先删缓存还是先更新数据库</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li></ul></nav></div></div>
+  </body>
+</html>

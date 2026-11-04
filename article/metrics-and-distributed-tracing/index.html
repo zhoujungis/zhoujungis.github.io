@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人 结论先行：日志记录事件，…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/" />
+    <meta property="og:title" content="指标与链路追踪：从 RED 到 OpenTelemetry" />
+    <meta property="og:description" content="适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人 结论先行：日志记录事件，…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/metrics-and-distributed-tracing-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/metrics-and-distributed-tracing-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="指标与链路追踪：从 RED 到 OpenTelemetry 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="指标与链路追踪：从 RED 到 OpenTelemetry" />
+    <meta name="twitter:description" content="适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人 结论先行：日志记录事件，…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/metrics-and-distributed-tracing-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>指标与链路追踪：从 RED 到 OpenTelemetry | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-eRjNLvuZ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="后端架构" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T12:17:53.318338+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T12:17:53.318338+08:00" />
+        <meta property="article:tag" content="可观测性" />
+    <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="架构设计" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/#article","url":"https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/","headline":"指标与链路追踪：从 RED 到 OpenTelemetry","description":"适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人 结论先行：日志记录事件，…","image":"https://blog.zhoujun.dev/photos/metrics-and-distributed-tracing-cover.png","datePublished":"2026-11-04T12:17:53.318338+08:00","dateModified":"2026-11-04T12:17:53.318338+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/"},"articleSection":"后端架构","keywords":"可观测性, 后端, 性能优化, 架构设计","inLanguage":"zh-CN","wordCount":10774},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"指标与链路追踪：从 RED 到 OpenTelemetry","item":"https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"metrics-and-distributed-tracing","title":"指标与链路追踪：从 RED 到 OpenTelemetry","created_at":"2026-11-04T12:17:53.318338+08:00","updated_at":"2026-11-04T12:17:53.318367+08:00","author":null,"category":{"id":12,"name":"后端架构","slug":"backend"},"tags":[{"id":178,"name":"可观测性","slug":"observability"},{"id":40,"name":"后端","slug":"backend-dev"},{"id":114,"name":"性能优化","slug":"performance"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/metrics-and-distributed-tracing-cover.png","excerpt":"适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人 结论先行：日志记录事件，指标记录趋势，追踪记录单次请求的路径。三者不是替代关系。指标告诉你「有多糟、多常见」，追踪告诉你「糟在哪一段」，日志告诉你「那一段里发生了什么","reading_time":42,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>指标与链路追踪：从 RED 到 OpenTelemetry</span></nav><h1>指标与链路追踪：从 RED 到 OpenTelemetry</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/backend/">后端架构</a> · 标签：可观测性 <a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/architecture/">架构设计</a></p><nav class="ns-series"><p><strong>本系列 · 后端架构</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><strong>指标与链路追踪：从 RED 到 OpenTelemetry</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li><li><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/backend/">查看后端架构专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人
+结论先行：日志记录事件，指标记录趋势，追踪记录单次请求的路径。三者不是替代关系。指标告诉你「有多糟、多常见」，追踪告诉你「糟在哪一段」，日志告诉你「那一段里发生了什么」。只有平均值没有分位数，你会低估长尾；只有分位数没有 exemplar，你知道 P99 高却不知道是哪一条请求；只有 trace 没有日志，你知道哪一段慢却不知道它带了什么参数。
+阅读时间：约 30 分钟 | 难度：中级到高级 | 收获：四种指标类型的取舍、P95/P99 的算法含义与样本量下限、label 基数的估算公式、W3C traceparent 的字节结构、head/tail 采样的盲区算法，以及一套能落地的 Python 埋点方式
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：P99 涨了三倍，日志里每行都是 200</li>
+<li>三种信号的分工：事件、趋势、路径</li>
+<li>四种指标类型，与延迟为什么必须用 Histogram</li>
+<li>平均值、分位数与 P99 的真实含义</li>
+<li>Prometheus 的拉模型、命名与 label 基数</li>
+<li>exemplar：把指标钉到一条具体的 trace 上</li>
+<li>RED、USE、四个黄金信号与 SLO</li>
+<li>追踪模型：trace、span 与 W3C traceparent</li>
+<li>采样：head、tail 与固定比例的盲区</li>
+<li>OpenTelemetry：从 API 到 OTLP 再到 Python 落地</li>
+<li>一次真实排查：从 P99 到那条 SQL</li>
+<li>存储与成本：基数、采样率与保留期</li>
+<li>小结</li>
+<li>相关阅读</li>
+</ul>
+<h2>前言：P99 涨了三倍，日志里每行都是 200</h2>
+
+先把一个足够典型的场景摆在桌上。数字是示意，形状来自很多次值班里反复出现的那一类事故。
+
+某个内容站点的信息流接口 <code>/api/articles/feed</code>，平时 P50 大约 60 毫秒，P99 大约 120 毫秒。某天下午开始，P99 爬到 400 毫秒以上，P50 只从 60 涨到 68。错误率没有变化，5xx 仍然是零。用户投诉开始出现，说"有时候要等一下才出来"。
+
+值班的人打开日志。每条请求一行：方法、路径、状态码 200、总耗时 68 毫秒、用户 ID。翻了几百行，全是 200，耗时都在 70 毫秒上下。于是有人说"日志看着挺正常，可能是客户端网络问题"。
+
+第二个人去看指标，指标里只有一个 <code>http_request_duration_seconds</code> 的平均值，画出来是一条几乎平的线，从 60 毫秒微涨到 68 毫秒。他得出"服务没变慢"。
+
+第三个人怀疑数据库，去翻慢查询日志，阈值设的是 200 毫秒，一条都没有。
+
+三个人都看了数据，三个人都得出了错的结论。因为三个人手上的工具都只能回答它们各自能回答的那一个问题，而这个问题不是"慢在哪一段"。
+<ul>
+<li>日志回答的是"发生了什么事件"。它记下了"这个请求返回了 200，总共 68 毫秒"。它没有记"这 68 毫秒花在哪"。你要它回答分段耗时，它答不了，除非你在每一段都打一行日志——那是另一个成本问题。</li>
+<li>平均值回答的是"整体水平"。它把 99 个 60 毫秒和 1 个 400 毫秒混在一起，算出来 63.4 毫秒。这个数字在数学上没错，在判断上是有害的。</li>
+<li>慢查询日志回答的是"超过阈值的那条 SQL"。但它只覆盖数据库这一段，而且阈值是 200 毫秒——一条 180 毫秒的 SQL 会安静地溜过去，四条串行就凑出 720 毫秒。</li>
+</ul>
+
+真正的问题出在一次批量取作者信息：信息流一页 20 条，代码对每条单独查一次作者，20 次串行的小查询，每次 15 到 20 毫秒，加起来 300 多毫秒。每一次单独看都不算慢，日志里也不会有一条"慢查询"，指标里也只表现为"总耗时变长了一点"。这个形状——<strong>多个小段串行叠加，单段都不触发任何阈值</strong>——恰好是平均值、慢查询日志、单行请求日志三种工具共同盲区的交集。
+
+这篇文章要做的，就是把三种信号的边界划清楚，然后给出每一层该用什么数据结构、什么标签、什么采样策略。顺序是：先指标（发现趋势），再追踪（定位到段），再日志（确认细节）。
+<h2>三种信号的分工：事件、趋势、路径</h2>
+
+先给一张不会过时的对照表。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>日志</th>
+<th>指标</th>
+<th>追踪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>记录单位</td>
+<td>一条离散事件</td>
+<td>一个预聚合的数值时间序列</td>
+<td>一次请求的一棵 span 树</td>
+</tr>
+<tr>
+<td>回答的问题</td>
+<td>发生了什么，带了什么参数</td>
+<td>多慢、多常见、趋势如何</td>
+<td>慢在哪一段，调用了谁</td>
+</tr>
+<tr>
+<td>数据结构</td>
+<td>追加写的文本或 JSON</td>
+<td>带标签的数值 + 时间戳</td>
+<td>trace_id 聚合的 span 列表</td>
+</tr>
+<tr>
+<td>成本随什么增长</td>
+<td>请求数 × 每请求日志条数</td>
+<td>时间序列数（label 基数）</td>
+<td>span 数 × 采样率 × 保留期</td>
+</tr>
+<tr>
+<td>典型失效模式</td>
+<td>量大、缺关联、schema 漂移</td>
+<td>高基数、平均值骗人、丢桶</td>
+<td>采样丢错误、上下文断链、span 过细</td>
+</tr>
+<tr>
+<td>查询方式</td>
+<td>全文检索 + 字段过滤</td>
+<td>PromQL 聚合</td>
+<td>按 trace_id 拉取整棵树</td>
+</tr>
+</tbody>
+</table></div>
+
+最后一行最容易被忽略：日志查询是扫描加过滤，能回答任意问题，代价随数据量线性增长；指标查询是找序列加窗口聚合，极快，但只能回答预先定义过维度的问题；追踪查询按 trace_id 取整棵树，精确，但你得先知道那个 id。
+
+所以正确的排查顺序是固定的，而且顺序不能颠倒：
+<ol>
+<li><strong>指标先回答"是不是真的变慢了，影响多大"</strong>。没有这一步，你连"这是个问题"都无法确认。P99 从 120 涨到 400，影响的是 1% 的请求，在 100 QPS 下就是每秒 1 个用户，一小时 3600 次。</li>
+<li><strong>追踪回答"在哪一段"</strong>。指标告诉你 400 毫秒，追踪告诉你其中 300 毫秒在 20 次串行的作者查询上，而不是在 Redis，也不是在模板渲染。</li>
+<li><strong>日志回答"为什么是这 20 次"</strong>。trace 的 span 上写着 <code>db.statement</code> 是 <code>SELECT ... FROM author WHERE id = ?</code>，重复了 20 次；日志里那行 <code>feed.build</code> 的 <code>author_ids</code> 字段确认这一页里确实有 20 个不同作者——于是"批量查询"这个改法就有了依据，而不是拍脑袋。</li>
+</ol>
+
+反过来做会怎样？先看日志，你会被海量的 200 淹没；先看 trace，你不知道该抓哪一条请求——一天几百万条 trace，随机抽到的多半是正常的那 99%。
+
+这里必须和站内那篇讲结构化日志的文章划清分工。那篇讲的是"日志怎么写得便宜、怎么用 request-id 把一次请求的几行串起来"，解决的是"事件层"的问题。这一篇讲的是"事件之上还有两层"：一层是把事件压成数值趋势，一层是把一次请求展开成树。<strong>request-id 是 trace_id 的穷人版</strong>——它能做到"把同一个请求的行聚在一起"，但做不到"自动记录每一段的开始结束时间和父子关系"。所以这两篇是阶梯，不是替代。
+<h2>四种指标类型，与延迟为什么必须用 Histogram</h2>
+
+Prometheus 的指标模型只有四种类型，选错了类型，后面所有的查询都会别扭。
+
+<strong>Counter（计数器）</strong>：单调递增的累积值。它只回答"从进程启动到现在一共发生了多少次"。注意"单调"这个词——进程重启会归零，所以你不能直接对它求差值，必须用 <code>rate()</code> 或 <code>increase()</code>，这两个函数会处理归零（counter reset）。命名惯例是加 <code>_total</code> 后缀，比如 <code>http_requests_total</code>。
+
+<strong>Gauge（瞬时值）</strong>：可增可减的当前值。正在处理的请求数、队列长度、连接池占用、内存使用量。它没有"累积"语义，所以不能对它求 rate，只能看当前值或 <code>avg_over_time</code>。
+
+<strong>Histogram（直方图）</strong>：客户端按预设的桶边界把观测值累加进一组累积计数器。它输出三样东西：每个桶的累积计数 <code>_bucket{le="0.1"}</code>、总和 <code>_sum</code>、总次数 <code>_count</code>。
+
+<strong>Summary（摘要）</strong>：客户端自己计算分位数，输出一组带 <code>quantile</code> 标签的 gauge，比如 <code>{quantile="0.99"}</code>。
+
+现在说关键结论：<strong>延迟这类指标，必须用 Histogram，不能用 Summary，更不能用平均值。</strong>
+
+理由不是"Histogram 更准"，而是"Histogram 可聚合"。这是两种类型在数学结构上的差别：
+<ul>
+<li>Summary 在<strong>客户端</strong>算分位数。一个进程算出自己的 P99，另一个进程也算出自己的 P99，你把两个 P99 平均，得到的不是整体的 P99。因为分位数不是可加量——它依赖整个分布的排序，而排序不能跨集合合并。</li>
+<li>Histogram 在<strong>客户端</strong>只做分桶计数。桶计数是可加的：两个实例的 <code>le="0.1"</code> 桶加起来，就是两实例合并后小于 100 毫秒的请求数。所以你可以先把所有实例、所有时间片聚合，再在聚合结果上用 <code>histogram_quantile()</code> 算分位数。</li>
+</ul>
+
+所以在有多个 Pod 的服务里，Summary 基本没有用——你真正想知道的是整个集群的 P99，而不是"某个 Pod 的 P99"。
+
+Python 客户端里长这样：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">prometheus_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span><span class="p">,</span> <span class="n">Gauge</span><span class="p">,</span> <span class="n">Histogram</span>
+
+<span class="n">HTTP_REQUESTS</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span>
+    <span class="s2">&quot;http_requests_total&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;HTTP 请求总数&quot;</span><span class="p">,</span>
+    <span class="p">[</span><span class="s2">&quot;method&quot;</span><span class="p">,</span> <span class="s2">&quot;route&quot;</span><span class="p">,</span> <span class="s2">&quot;status_class&quot;</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="n">INFLIGHT</span> <span class="o">=</span> <span class="n">Gauge</span><span class="p">(</span>
+    <span class="s2">&quot;http_inflight_requests&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;正在处理的请求数&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">HTTP_DURATION</span> <span class="o">=</span> <span class="n">Histogram</span><span class="p">(</span>
+    <span class="s2">&quot;http_request_duration_seconds&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;HTTP 请求耗时&quot;</span><span class="p">,</span>
+    <span class="p">[</span><span class="s2">&quot;method&quot;</span><span class="p">,</span> <span class="s2">&quot;route&quot;</span><span class="p">],</span>
+    <span class="n">buckets</span><span class="o">=</span><span class="p">(</span><span class="mf">0.005</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.025</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="k">with</span> <span class="n">HTTP_DURATION</span><span class="o">.</span><span class="n">labels</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="n">route</span><span class="o">=</span><span class="s2">&quot;/api/articles/feed&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">time</span><span class="p">():</span>
+    <span class="n">render_feed</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>Histogram.time()</code> 是一个上下文管理器，进出各打一次时间戳，把差值塞进对应的桶。
+<h2>平均值、分位数与 P99 的真实含义</h2>
+
+先把平均值的欺骗性算清楚。假设 100 个请求：99 个用 10 毫秒，1 个用 10 秒。
+<div class="codehilite"><pre><span></span><code>算术平均 = (99 × 10ms + 1 × 10000ms) / 100 = (990 + 10000) / 100 = 109.9ms
+</code></pre></div>
+
+
+平均值 109.9 毫秒——看起来"还好"，比 120 毫秒的 SLO 还低一点。但那个用户等了 10 秒。更糟的是，如果这个接口一天被调用一百万次，就有 1 万个用户等了 10 秒。
+
+平均值的问题不是"算错了"，而是它<strong>把两个完全不同的群体混成了一个数</strong>。它假设分布是对称的单峰，而延迟分布几乎从来不是：它长尾、常常双峰（缓存命中一峰、缓存未命中一峰）、还会随流量呈现周期性。
+
+分位数解决的是"尾部有多重"。P99 = 第 99 百分位 = 把样本从小到大排序后，第 99% 位置的那个值。它的准确表述是：<strong>99% 的请求耗时不超过这个值，1% 的请求比它更慢。</strong>它<strong>不是</strong>"最慢的 1% 的平均耗时"——这两者差得很远，最慢的 1% 里可能有一个 30 秒的请求把平均值拉得很高。
+
+三个常被混用的分位数：
+<ul>
+<li>P50（中位数）：一半请求比它快。它对长尾不敏感，适合看"典型用户体验"。</li>
+<li>P95：5% 的请求比它慢。常用于内部性能目标。</li>
+<li>P99：1% 的请求比它慢。常用于面向用户的 SLO，因为"1% 的用户"在百万级日活下就是一万个人。</li>
+</ul>
+
+这里有个必须说清楚的统计问题：<strong>分位数的可信度取决于样本量</strong>。P99 意味着你要把它上面的 1% 数出来，如果一分钟只有 100 个样本，那 1% 就是 1 个请求——这一个请求的耗时稍微抖一下，P99 就跟着跳。工程上的经验下限是：<strong>估计 P99 至少需要几百个样本，想让它在分钟级窗口稳定，需要上千个</strong>。这就是为什么低 QPS 的接口不适合看分钟级 P99——不是指标坏了，是样本不够。
+
+用 PromQL 查询时，Histogram 的分位数是这样算的：
+<div class="codehilite"><pre><span></span><code>histogram_quantile(0.99,
+  sum by (le) (rate(http_request_duration_seconds_bucket{route=&quot;/api/articles/feed&quot;}[5m])
+))
+</code></pre></div>
+
+
+注意两个细节。第一，必须先 <code>sum by (le)</code> 把各实例的桶加起来，再算分位——顺序反了就退化成"平均各实例的 P99"。第二，<code>histogram_quantile</code> 在桶内做<strong>线性插值</strong>：它假设落在 <code>(0.25, 0.5]</code> 这个桶里的样本在 0.25 到 0.5 之间均匀分布，然后按比例估一个值出来。这意味着：
+<ul>
+<li>桶越宽，插值误差越大。你的 P99 可能落在 0.25 到 0.5 秒这个桶里，桶宽 250 毫秒，那么报出来的 P99 有几百毫秒的不确定度。</li>
+<li>如果 P99 落在 <code>+Inf</code> 桶里（所有桶都装不下），<code>histogram_quantile</code> 会返回该桶的上界之外的估计值，实际上等于"不知道"。这就是为什么桶的上界必须高于你的 SLO。</li>
+</ul>
+
+所以桶的设计规则是：<strong>在你关心的阈值附近加密，在远离阈值的地方放粗。</strong>比如 SLO 是"P99 小于 300 毫秒"，那就在 0.1、0.2、0.3、0.4、0.5 附近设桶，而不是均匀地每 0.5 秒一个。
+<h2>Prometheus 的拉模型、命名与 label 基数</h2>
+
+Prometheus 采用<strong>拉模型</strong>（pull）：它按 <code>scrape_interval</code> 周期性地向每个目标的 <code>/metrics</code> 发 HTTP GET，把返回的文本解析成时间序列。配置长这样：
+<div class="codehilite"><pre><span></span><code><span class="nt">scrape_configs</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">job_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">article-api</span>
+<span class="w">    </span><span class="nt">scrape_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15s</span>
+<span class="w">    </span><span class="nt">scrape_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">    </span><span class="nt">metrics_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/metrics</span>
+<span class="w">    </span><span class="nt">static_configs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">targets</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;10.0.1.11:8000&quot;</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;10.0.1.12:8000&quot;</span>
+<span class="w">    </span><span class="nt">metric_relabel_configs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source_labels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">__name__</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">regex</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;go_.*&quot;</span>
+<span class="w">        </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">drop</span>
+</code></pre></div>
+
+
+拉模型与推模型（StatsD、Graphite 那种客户端上报）的差别不只是方向，它带来三个结构性好处：
+<ol>
+<li><strong>目标的存活本身就是信号。</strong>抓取失败会生成 <code>up == 0</code>，你不需要额外的心跳指标就知道这个实例挂了。</li>
+<li><strong>采集节奏由服务端控制。</strong>客户端不需要知道"多久上报一次"，也不会在流量高峰时把上报请求堆在自己身上。</li>
+<li><strong>成本可预算。</strong>时间序列数乘以抓取频率，就是服务端的写入负载，可以提前算。</li>
+</ol>
+
+代价是：<strong>生命周期短于一个抓取周期的任务抓不到。</strong>一个跑 3 秒的批处理，可能一次都没被 scrape 到。这类任务的官方答案是 Pushgateway，但它有个众所周知的坑——保留最后一次推送的值，任务结束后指标不会自动消失，会一直挂着，直到你主动删除或配置过期。
+
+命名规范相对简单：<code>&lt;namespace&gt;_&lt;subsystem&gt;_&lt;name&gt;_&lt;unit&gt;</code>，单位用基本单位后缀（秒用 <code>_seconds</code>，字节用 <code>_bytes</code>，不要用 <code>_ms</code>、<code>_mb</code>），Counter 加 <code>_total</code>。
+
+接下来是<strong>label 基数</strong>。指标系统的成本几乎全部由时间序列数决定，而时间序列数由标签的取值组合决定。上界公式是：
+<div class="codehilite"><pre><span></span><code>序列数 ≤ 指标数 × Π(每个标签的取值个数)
+</code></pre></div>
+
+
+举个具体的例子。一个信息流接口，标签是 <code>method</code>（5 个取值）、<code>route</code>（200 个路由）、<code>status_class</code>（8 个）、<code>instance</code>（20 个实例）：
+<div class="codehilite"><pre><span></span><code><span class="mf">5</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">200</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">20</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">160</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">条序列</span>
+</code></pre></div>
+
+
+如果这个 Histogram 有 12 个桶，每个桶都是一条序列，那还要乘以桶数：
+<div class="codehilite"><pre><span></span><code><span class="mf">160</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">12</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="mf">920</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">条序列</span>
+</code></pre></div>
+
+
+接近两百万条。每条序列在内存里要占 head chunk、series 索引、label 集合，量级是几 KB。两百万条就是几个 GB 的内存，而且每次抓取要序列化这么多行文本。这就是为什么"加一个标签"看起来很便宜，实际上是乘以一个系数。
+
+三类绝对不能做标签的东西：
+<ul>
+<li><strong>user_id</strong>。一百万用户就是一百万倍。哪怕你只对 1% 的用户启用，也是 10,000 倍。</li>
+<li><strong>原始 URL</strong>。<code>/api/articles/12345</code> 和 <code>/api/articles/12346</code> 是两个不同的标签值。一个带 ID 的路径，基数等于资源总数。</li>
+<li><strong>request_id / trace_id</strong>。这是<strong>每一行日志、每一个 span</strong> 的字段，不是指标的维度。指标的语义是"聚合"，而 request_id 的语义是"唯一"——把唯一值放进标签，等于把指标系统当成日志系统用，它的成本结构会立刻崩掉。</li>
+</ul>
+
+治理手段有四个，按代价从低到高：
+<ol>
+<li><strong>路由模板化。</strong>把 <code>/api/articles/12345</code> 归一成 <code>/api/articles/:id</code>。Django 里可以直接用 URL resolver 匹配出来的 <code>route</code>，而不是 <code>request.path</code>。</li>
+<li><strong>状态码归并。</strong>用 <code>status_class</code>（2xx/3xx/4xx/5xx）而不是精确状态码，除非你确实要区分 401 和 403。</li>
+<li><strong>在采集端丢弃。</strong><code>metric_relabel_configs</code> 里 drop 掉不需要的指标，或者用 <code>labeldrop</code> 去掉高基数标签。</li>
+<li><strong>recording rules 降维。</strong>把高基数的原始指标预聚合成低基数的结果，长期只保留聚合后的。</li>
+</ol>
+
+观测手段：Prometheus 自己暴露 <code>prometheus_tsdb_head_series</code>，这个数字就是你当前的时间序列总数。它持续上涨而流量没涨，基本就是某个标签的取值在膨胀——最常见的是路由模板漏了，把 ID 带进去了。
+<h2>exemplar：把指标钉到一条具体的 trace 上</h2>
+
+到这里有个断层。指标告诉你 P99 是 400 毫秒，但指标是聚合的，它不知道那 400 毫秒属于哪一条请求。你打开追踪系统，一天几百万条 trace，随机抽一条，多半是 60 毫秒的正常请求。<strong>指标和追踪之间缺一根针。</strong>
+
+exemplar 就是这根针。它是 OpenMetrics 文本格式里的一个扩展：在直方图的桶那一行后面，附一个样本值和时间戳，再附一组标签，通常就是 <code>trace_id</code>。
+<div class="codehilite"><pre><span></span><code>http_request_duration_seconds_bucket{le=&quot;0.5&quot;,route=&quot;/api/articles/feed&quot;} 8421
+# {trace_id=&quot;4bf92f3577b34da6a3ce929d0e0e4736&quot;} 0.481 1756000000.123
+http_request_duration_seconds_bucket{le=&quot;1.0&quot;,route=&quot;/api/articles/feed&quot;} 8426
+</code></pre></div>
+
+
+注意 <code>#</code> 开头那行是注释语法——这是 OpenMetrics 的兼容设计，老版本的解析器会把它当注释跳过，新版本会把它读成 exemplar。Prometheus 需要显式开启 exemplar 存储（启动参数 <code>--enable-feature=exemplar-storage</code>），存储量有上限，不是全量保留。
+
+它的价值在于：Grafana 里那条 P99 曲线上，会散落着一些小圆点，每个点就是一条具体的 trace。你点一下，直接跳到追踪系统的那棵 span 树。<strong>从"P99 是 400 毫秒"到"这条请求的 400 毫秒花在哪"，中间不需要任何手工猜测。</strong>
+
+三个限制必须知道：
+<ul>
+<li>exemplar 是<strong>抽样</strong>的，不是每条请求都记。存储有限，通常每个桶每次抓取只保留少数几个。所以它能给你"一个样本"，不能给你"这个桶里所有请求的列表"。</li>
+<li>它只对 Histogram 和 Counter 有意义。Gauge 上挂 exemplar 没有语义。</li>
+<li><code>trace_id</code> 作为 exemplar 标签是可以的（它只在该样本上存在，不进时间序列的标签维度），但长度要控制——32 个 hex 字符，别把整个 traceparent 塞进去。</li>
+</ul>
+
+它和"不要把 trace_id 放 label"不矛盾：label 会创造长期存在的时间序列，exemplar 只是样本上的附注，跟着样本过期就消失。
+<h2>RED、USE、四个黄金信号与 SLO</h2>
+
+有了工具还要有方法，防止"指标很多但不知道看哪个"。
+
+<strong>RED</strong> 面向服务（请求驱动的东西）：
+<ul>
+<li><strong>Rate</strong>：每秒请求数。<code>sum(rate(http_requests_total[5m]))</code>。</li>
+<li><strong>Errors</strong>：失败请求的比例。注意要区分"返回 5xx"和"业务失败但返回 200"——前者指标能看见，后者必须自己埋点。</li>
+<li><strong>Duration</strong>：请求耗时的分布。用 Histogram 的分位数，不要用平均值。</li>
+</ul>
+
+<strong>USE</strong> 面向资源（CPU、内存、磁盘、连接池、队列）：
+<ul>
+<li><strong>Utilization</strong>：资源被占用的时间比例。CPU 利用率、连接池占用率。</li>
+<li><strong>Saturation</strong>：排队程度。运行队列长度、等待连接的请求数、消息积压量。</li>
+<li><strong>Errors</strong>：资源层面的错误计数。丢包、磁盘写失败、连接超时。</li>
+</ul>
+
+USE 的关键在于 Saturation——它是唯一能在"还没变慢"时提前报警的信号。CPU 利用率 70% 时延迟通常还正常，但运行队列开始变长；连接池占用 90% 时 P99 已经开始翘尾。<strong>Utilization 告诉你"还剩多少"，Saturation 告诉你"已经在排队了"。</strong>
+
+<strong>四个黄金信号</strong>（Google SRE 书里的提法）是上面两套的上位概括：Latency、Traffic、Errors、Saturation。它有个重要细节常被漏掉：<strong>延迟要区分成功请求和失败请求</strong>。失败请求往往很快（直接返回 500），把它们混进延迟统计里，会让错误率上升时的平均延迟"变好看"——这是一个真实的观测陷阱。
+
+<strong>SLO</strong> 是把这些信号变成可计算的承诺。三个概念要分清：
+<ul>
+<li><strong>SLI</strong>（指标）：<code>成功请求数 / 有效请求数</code>，按什么算成功由你定义（状态码 200 且耗时小于 300 毫秒？还是只要不是 5xx？）。</li>
+<li><strong>SLO</strong>（目标）：比如"99.9% 的请求在 300 毫秒内成功"。</li>
+<li><strong>SLA</strong>（合同）：带赔偿条款的外部承诺，通常比内部 SLO 松。</li>
+</ul>
+
+99.9% 换算成时间是：
+<div class="codehilite"><pre><span></span><code><span class="mf">30</span><span class="w"> </span><span class="n">天</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="mf">592</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">秒</span>
+<span class="n">不可用预算</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="mf">592</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">0.001</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="mf">592</span><span class="w"> </span><span class="n">秒</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">43</span><span class="w"> </span><span class="n">分</span><span class="w"> </span><span class="mf">12</span><span class="w"> </span><span class="n">秒</span>
+<span class="mf">99.95</span><span class="err">%</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="mf">296</span><span class="w"> </span><span class="n">秒</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">21</span><span class="w"> </span><span class="n">分</span><span class="w"> </span><span class="mf">36</span><span class="w"> </span><span class="n">秒</span>
+<span class="mf">99.99</span><span class="err">%</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">259.2</span><span class="w"> </span><span class="n">秒</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="n">分</span><span class="w"> </span><span class="mf">19</span><span class="w"> </span><span class="n">秒</span>
+</code></pre></div>
+
+
+这个数字的用处是错误预算：没用完可以继续发版，用完了就该停下来修稳定性。比"P99 超过 300 毫秒就报警"更成熟的做法是燃尽率告警：一小时的错误率是允许值的十几倍时，这个月的预算会在几天内烧光，那才值得叫醒人。单点越线的告警只会淹没在噪声里。
+
+最后是业务指标。HTTP 200 只说明"服务器没有崩"，不说明"用户得到了他想要的东西"。信息流的"首屏渲染成功率"、下单链路的"支付转化率"、搜索的"零结果率"，这些指标必须自己埋，而且要和方法层指标放在同一块看板上。<strong>技术指标解释"为什么"，业务指标解释"值不值得修"</strong>——两者缺一，你要么在修一个没人用的功能，要么在为一个没人发现的故障加班。
+<h2>追踪模型：trace、span 与 W3C traceparent</h2>
+
+追踪的数据模型只有三个概念，但每一个的概念边界都很重要。
+
+<strong>trace（追踪）</strong>：一次完整请求的逻辑链路，用 <code>trace_id</code> 标识。一个 trace 是一棵 span 树。
+
+<strong>span（跨度）</strong>：树上的一个节点，代表一个有开始和结束的操作。它包含：
+<ul>
+<li><code>trace_id</code>：属于哪条链路。</li>
+<li><code>span_id</code>：自己的 ID，16 个 hex 字符。</li>
+<li><code>parent_span_id</code>：父节点的 ID。根 span 没有父节点。</li>
+<li><code>name</code>：操作名，比如 <code>GET /api/articles/feed</code>、<code>SELECT author</code>。</li>
+<li><code>kind</code>：<code>server</code>、<code>client</code>、<code>producer</code>、<code>consumer</code>、<code>internal</code>。这个字段决定了它在瀑布图里怎么画，也决定了语义——一个 <code>client</code> span 应该有一个对应的远端 <code>server</code> span。</li>
+<li>开始与结束时间戳。</li>
+<li>attributes：键值对。<code>http.method</code>、<code>db.system</code>、<code>db.statement</code>、<code>messaging.destination</code>。</li>
+<li>events：span 生命周期内的瞬时事件，比如 <code>exception</code>、<code>cache.miss</code>。</li>
+<li>status：<code>Unset</code>、<code>Ok</code>、<code>Error</code>。注意 <code>Unset</code> 不等于成功，它只是"没有显式设置"。</li>
+</ul>
+
+四个 ID 的关系可以用一个例子说透：网关收到请求，生成 trace_id <code>T</code>，创建 span <code>S1</code>（网关自己的 server span）；网关调内容服务，创建 client span <code>S2</code>，<code>parent=S1</code>；内容服务收到请求，从 header 里读到 <code>T</code> 和 <code>S2</code>，创建自己的 server span <code>S3</code>，<code>parent=S2</code>；内容服务查数据库，创建 client span <code>S4</code>，<code>parent=S3</code>。整棵树以 <code>T</code> 聚合。
+
+这里有一个常见误解：<strong><code>parent_span_id</code> 指的是"调用我的那个 span"，不是"我上一个 span"</strong>。所以跨服务时，下游的根 span 的 parent 是上游的 client span，不是上游的 server span。这保证了瀑布图能把网络传输时间也画出来——上游 client span 的结束时间减去下游 server span 的开始时间，就是网络加排队的耗时。
+
+<strong>baggage</strong> 是第四个概念，容易和 trace 混。它是随请求传播的一组键值对，W3C Baggage 规范定义，走独立的 <code>baggage</code> header，格式是 <code>key1=value1,key2=value2</code>（值需要百分号编码）。它的用途是业务上下文：租户 ID、灰度分组、实验桶。它<strong>不是</strong> trace 的一部分，不会出现在 span 的 attributes 里，除非你手动读出来。
+
+关于 baggage 有一条安全铁律：<strong>它是客户端可控的，不能用于鉴权或权限判断。</strong>任何从 baggage 里读出来的"用户角色"都可能是伪造的，因为它的源头是一个 HTTP header。它的正确用法是"传递提示信息"，比如让下游知道该查哪个分库。
+
+然后是 W3C Trace Context 的 <code>traceparent</code>，格式固定为四段，用 <code>-</code> 分隔：
+<div class="codehilite"><pre><span></span><code>00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+ │  └────────── 32 hex ──────────┘ └── 16 hex ──┘ └flags┘
+version          trace-id                  parent-id     trace-flags
+</code></pre></div>
+
+<ul>
+<li><code>version</code>：两位。<code>00</code> 是当前规范版本。未来版本可能加字段，解析时要"遇到不认识的版本就丢弃整条 header"，而不是猜。</li>
+<li><code>trace-id</code>：32 个 hex 字符，128 bit。全零是非法值。</li>
+<li><code>parent-id</code>：16 个 hex 字符，64 bit。它就是"调用方那个 span 的 span_id"。全零也是非法值。</li>
+<li><code>trace-flags</code>：8 bit，目前只用最低位表示"是否采样"。<code>01</code> 表示采样，<code>00</code> 表示不采样。</li>
+</ul>
+
+解析时要做的校验和容错：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">parse_traceparent</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">version</span><span class="p">,</span> <span class="n">trace_id</span><span class="p">,</span> <span class="n">parent_id</span><span class="p">,</span> <span class="n">flags</span> <span class="o">=</span> <span class="n">parts</span>
+    <span class="k">if</span> <span class="n">version</span> <span class="o">!=</span> <span class="s2">&quot;00&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">trace_id</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">32</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">parent_id</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">16</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">trace_id</span> <span class="o">==</span> <span class="s2">&quot;0&quot;</span> <span class="o">*</span> <span class="mi">32</span> <span class="ow">or</span> <span class="n">parent_id</span> <span class="o">==</span> <span class="s2">&quot;0&quot;</span> <span class="o">*</span> <span class="mi">16</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">trace_id</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">parent_id</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>
+        <span class="n">flag_bits</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">trace_id</span><span class="p">,</span> <span class="n">parent_id</span><span class="p">,</span> <span class="n">flag_bits</span> <span class="o">&amp;</span> <span class="mh">0x01</span>
+</code></pre></div>
+
+
+关键的一条：<strong>header 非法时，生成一个新的 trace，但不要拒绝这个请求。</strong>追踪是观测设施，不是业务校验；因为一个格式错误的 header 返回 400，是把可观测性问题升级成了可用性问题。规范明确要求"invalid traceparent 应当被忽略"。
+
+还有 <code>tracestate</code>，用于厂商扩展（比如某个 APM 厂商的采样标记），格式是逗号分隔的 <code>key=value</code>，长度有上限。它和 baggage 的区别是：tracestate 是给追踪系统自己用的，baggage 是给业务代码用的。
+
+跨服务传播的载体不止 HTTP header：消息队列要写进消息属性（Kafka headers、RabbitMQ headers、SQS message attributes），gRPC 走 metadata。<strong>只要有一个环节没传，链路就在那里断成两棵树。</strong>
+<h2>采样：head、tail 与固定比例的盲区</h2>
+
+全量追踪的成本是很多人低估的。一个请求 20 个 span，10 QPS 看着不多，一天就是：
+<div class="codehilite"><pre><span></span><code><span class="mf">20</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">86</span><span class="p">,</span><span class="mf">400</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">17</span><span class="p">,</span><span class="mf">280</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">个</span><span class="w"> </span><span class="n">span</span><span class="o">/</span><span class="n">天</span>
+</code></pre></div>
+
+
+每个 span 含 name、时间戳、若干 attributes，序列化后量级是几百字节到几 KB。按 1 KB 算，一天就是 17 GB，一个月 500 GB。所以采样不是"优化"，是"能不能上线"的前提。
+
+<strong>head sampling（头部采样）</strong> 在链路入口做一次决定，把结果写进 <code>trace-flags</code> 的最低位，全链路复用。优点是成本几乎为零——决定一次，后续所有服务读 header 就知道采不采，不需要缓冲。缺点是<strong>决定得太早</strong>：请求刚进来时，你还不知道它会不会失败、会不会慢。
+
+<strong>tail sampling（尾部采样）</strong> 在收集端做。所有 span 先上报到 collector，collector 按 trace_id 缓冲整棵树，等 trace 结束后再根据完整信息决定"留还是丢"。策略通常是"错误全留、慢请求全留、其余按比例"。这恰好补上了 head sampling 的盲区。
+
+固定比例采样的盲区可以算出来。设错误率 <code>p</code>，采样率 <code>r</code>，请求数 <code>N</code>，那么被采到的错误 trace 期望数量是：
+<div class="codehilite"><pre><span></span><code>E[错误样本] = N × p × r
+</code></pre></div>
+
+
+要让这个期望值达到 1，需要的请求数是：
+<div class="codehilite"><pre><span></span><code>N = 1 / (p × r)
+</code></pre></div>
+
+
+代进去看：
+<ul>
+<li>错误率 1%，采样率 1% → 需要 10,000 个请求才能看到 1 条错误 trace。</li>
+<li>错误率 0.1%，采样率 1% → 需要 100,000 个请求。</li>
+<li>错误率 0.01%（也就是 99.99% 可用性），采样率 1% → 需要 1,000,000 个请求。</li>
+</ul>
+
+最后一行是关键。<strong>你的 SLO 越严，固定比例采样越看不见违反 SLO 的那些请求。</strong>因为违反 SLO 的本来就是极少数，你再按比例削一刀，样本就没了。这就是"随机丢 1%，你丢了 98% 的错误"在追踪领域的同一个形状。
+
+tail sampling 的代价是结构性的：
+<ol>
+<li><strong>collector 要缓冲整棵树</strong>，内存随"每秒 trace 数 × 平均 trace 存活时间"增长。</li>
+<li><strong>同一个 trace 的所有 span 必须到同一个 collector 实例</strong>。否则每个实例只看到一部分 span，判断不准，而且存下来的树是残缺的。做法是在网关或负载均衡层按 <code>trace_id</code> 做一致性哈希路由。</li>
+<li><strong>决定被推迟到 trace 结束</strong>，所以从请求结束到 trace 可查之间有一个延迟。</li>
+</ol>
+
+实际生产里通常是两者组合：head sampling 做粗筛（比如先采 10% 把量降下来），tail sampling 做兜底（在这 10% 里把错误和慢请求全部留下）。错误保留率接近 100%，总成本是原来的 10% 加上一点缓冲开销。
+<h2>OpenTelemetry：从 API 到 OTLP 再到 Python 落地</h2>
+
+OpenTelemetry（下称 OTel）解决的问题是"接口标准"。在它之前，每个 APM 厂商有自己的 SDK，换厂商要重埋一遍；OTel 把这件事拆成三层：
+<ul>
+<li><strong>API</strong>：定义 <code>Tracer</code>、<code>Span</code>、<code>Meter</code> 这些抽象，业务代码只依赖这一层。没有实现时是空操作（no-op），不会报错也不会拖慢。</li>
+<li><strong>SDK</strong>：API 的实现，负责采样、上下文传播、批量导出。</li>
+<li><strong>Exporter</strong>：把数据送出去。OTLP 是标准协议，gRPC 端口 4317，HTTP 端口 4318。</li>
+</ul>
+
+好处很实际：业务代码只 import API，将来换后端只改 SDK 初始化与 exporter 配置。
+
+几个核心对象的关系：
+<ul>
+<li><code>TracerProvider</code> 是全局单例，进程启动时创建一次，配置 sampler、exporter、resource（服务名、版本、实例 ID）。</li>
+<li><code>Tracer</code> 从 provider 拿，通常按模块命名（<code>get_tracer("article.feed")</code>）。</li>
+<li><code>Span</code> 从 tracer 创建，可以是 <code>start_as_current_span</code>（自动设为当前 span，退出时结束）或 <code>start_span</code>（手动管理）。</li>
+<li><code>Attribute</code> 是 span 上的键值对，要遵守语义约定（<code>http.request.method</code>、<code>db.system</code>、<code>db.namespace</code>）。自己发明 <code>my_sql_time</code> 这种名字，数据就没法和别人的看板对齐。</li>
+<li><code>Event</code> 是 span 内的瞬时事件，带时间戳。</li>
+<li><code>Status</code> 是 <code>Ok</code> / <code>Error</code>，设置 <code>Error</code> 时应该同时 <code>record_exception()</code>。</li>
+</ul>
+
+<strong>自动埋点与手动 span 的边界</strong>，是落地时最容易做错的地方。原则是：
+<ul>
+<li><strong>自动埋点负责框架边界</strong>：HTTP server 收请求、HTTP client 发请求、数据库驱动执行语句、消息队列收发。这些是"任何业务都一样"的边界，用 <code>opentelemetry-instrumentation-django</code>、<code>-httpx</code>、<code>-psycopg</code> 这类库，一个 <code>instrument()</code> 调用就全覆盖，而且它们自动处理上下文注入和提取。</li>
+<li><strong>手动 span 负责业务语义</strong>：<code>feed.rank</code>（排序）、<code>feed.hydrate</code>（补作者信息）、<code>risk.check</code>（风控校验）。这些是"你的系统独有"的阶段，自动埋点看不见。</li>
+</ul>
+
+反面做法是"给每个函数加一个 span"。后果有三：span 数量爆炸（成本）、瀑布图上几十层嵌套（噪声）、以及大部分 span 的耗时都是微秒级（无信息）。<strong>一个有用的经验法则：只有当一个阶段可能占据总耗时 5% 以上，或者它可能独立失败时，才值得一个 span。</strong>
+
+Python 落地的四个位置，逐个说。
+
+第一，Django/DRF 中间件。自动埋点已经会给每个请求创建 server span，但如果你想加业务属性，用中间件补充：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">trace</span>
+
+<span class="n">tracer</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">get_tracer</span><span class="p">(</span><span class="s2">&quot;article.api&quot;</span><span class="p">)</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FeedSpanMiddleware</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">get_response</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_response</span> <span class="o">=</span> <span class="n">get_response</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="n">span</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">get_current_span</span><span class="p">()</span>
+        <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;feed.page&quot;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">GET</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;page&quot;</span><span class="p">,</span> <span class="s2">&quot;1&quot;</span><span class="p">))</span>
+        <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;feed.user_tier&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s2">&quot;tier&quot;</span><span class="p">,</span> <span class="s2">&quot;anon&quot;</span><span class="p">))</span>
+        <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;feed.hydrate&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">child</span><span class="p">:</span>
+            <span class="n">child</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;hydrate.strategy&quot;</span><span class="p">,</span> <span class="s2">&quot;batch&quot;</span><span class="p">)</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_response</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+            <span class="n">child</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;hydrate.authors&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s2">&quot;author_count&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">response</span>
+</code></pre></div>
+
+
+注意 <code>trace.get_current_span()</code> 拿到的是自动埋点创建的那个 span，<code>start_as_current_span</code> 创建的是它的子 span。<strong>不要在这里重新创建根 span</strong>——那会把链路切断成两棵树。
+
+第二，给 <code>httpx</code> / <code>requests</code> 注入上下文。如果用了 <code>opentelemetry-instrumentation-httpx</code>，注入是自动的。手动注入的做法是：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.propagate</span><span class="w"> </span><span class="kn">import</span> <span class="n">inject</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+
+<span class="n">headers</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">inject</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>          <span class="c1"># 把当前 span 的 traceparent 写进 dict</span>
+<span class="n">resp</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;http://author-svc/internal/authors&quot;</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>inject</code> 读的是当前的 context（<code>contextvars</code>），写的是 W3C 格式的 header。接收端用 <code>extract</code> 还原。<strong>这两个函数是跨服务不丢链路的唯一正确做法</strong>——手写 <code>headers["traceparent"] = ...</code> 很容易漏掉 tracestate，或者在异步上下文里拿错 span。
+
+第三，给数据库查询加 span。自动埋点会给每次 execute 创建 span，但 SQL 里的参数默认不会记录（有隐私和体积问题）。如果你需要定位"哪条 SQL 慢"，可以手动包一层，只记录语句模板和表名：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">trace</span>
+
+<span class="n">tracer</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">get_tracer</span><span class="p">(</span><span class="s2">&quot;article.db&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch_authors</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">author_ids</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;db.author.batch&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+        <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;db.system&quot;</span><span class="p">,</span> <span class="s2">&quot;postgresql&quot;</span><span class="p">)</span>
+        <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;db.operation&quot;</span><span class="p">,</span> <span class="s2">&quot;SELECT&quot;</span><span class="p">)</span>
+        <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;db.collection.name&quot;</span><span class="p">,</span> <span class="s2">&quot;author&quot;</span><span class="p">)</span>
+        <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;db.query.ids_count&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">author_ids</span><span class="p">))</span>
+        <span class="k">with</span> <span class="n">conn</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cur</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+                <span class="s2">&quot;SELECT id, name FROM author WHERE id = ANY(</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">author_ids</span><span class="p">,),</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+</code></pre></div>
+
+
+<code>db.query.ids_count</code> 这个属性是排查的关键——它让你在瀑布图上直接看到"这次批量查了 20 个 ID"，而不是"一次查询"。
+
+第四，异步上下文。这是最容易出问题的地方。OTel 的 Python SDK 用 <code>contextvars</code> 存当前 span，所以在 <code>async def</code> 里是对的；但如果你用 <code>run_in_executor</code> 把工作丢进线程池，<code>contextvars</code> 不会自动传过去，必须显式复制：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span><span class="o">,</span><span class="w"> </span><span class="nn">contextvars</span>
+
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">contextvars</span><span class="o">.</span><span class="n">copy_context</span><span class="p">()</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">handle</span><span class="p">():</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">run</span><span class="p">,</span> <span class="n">blocking_work</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+
+
+不这么做，线程里的 span 会是"没有父节点"的新根——链路在那里断掉，而且断得很安静，你只会觉得"这个下游服务的 trace 怎么总是单独的"。
+
+最后是 exporter 配置。生产上必须用 <code>BatchSpanProcessor</code>，不要用 <code>SimpleSpanProcessor</code>：
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">trace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.trace</span><span class="w"> </span><span class="kn">import</span> <span class="n">TracerProvider</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.trace.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchSpanProcessor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.exporter.otlp.proto.grpc.trace_exporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">OTLPSpanExporter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.resources</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resource</span>
+
+<span class="n">provider</span> <span class="o">=</span> <span class="n">TracerProvider</span><span class="p">(</span>
+    <span class="n">resource</span><span class="o">=</span><span class="n">Resource</span><span class="o">.</span><span class="n">create</span><span class="p">({</span>
+        <span class="s2">&quot;service.name&quot;</span><span class="p">:</span> <span class="s2">&quot;article-api&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;service.version&quot;</span><span class="p">:</span> <span class="s2">&quot;2026.11.04&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;deployment.environment&quot;</span><span class="p">:</span> <span class="s2">&quot;prod&quot;</span><span class="p">,</span>
+    <span class="p">})</span>
+<span class="p">)</span>
+<span class="n">provider</span><span class="o">.</span><span class="n">add_span_processor</span><span class="p">(</span>
+    <span class="n">BatchSpanProcessor</span><span class="p">(</span>
+        <span class="n">OTLPSpanExporter</span><span class="p">(</span><span class="n">endpoint</span><span class="o">=</span><span class="s2">&quot;http://otel-collector:4317&quot;</span><span class="p">,</span> <span class="n">insecure</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="n">max_queue_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span>
+        <span class="n">schedule_delay_millis</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="n">trace</span><span class="o">.</span><span class="n">set_tracer_provider</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>BatchSpanProcessor</code> 会攒一批再发，队列满了丢 span 并计数，但不阻塞业务线程。这个取舍是对的：观测不能拖垮业务。前提是你知道它在丢，否则会把"丢 span"误读成"这段时间没流量"。
+<h2>一次真实排查：从 P99 到那条 SQL</h2>
+
+回到开头那个场景，假设你已经有了 Histogram、exemplar、OTel 和带 trace_id 的日志。
+
+<strong>第一步，指标确认形状。</strong>查询 P50 和 P99 的对比：
+<div class="codehilite"><pre><span></span><code>histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{route=&quot;/api/articles/feed&quot;}[5m]))
+histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{route=&quot;/api/articles/feed&quot;}[5m]))
+</code></pre></div>
+
+
+结果是 P50 从 60 涨到 68，P99 从 120 涨到 410。<strong>这两个数字一起看，结论立刻不同</strong>：如果是"整体变慢"，P50 会跟着涨；P50 基本不动而 P99 涨了三倍，说明是<strong>一部分请求</strong>变慢了，而且这部分占比不大（小于 5%，否则 P95 也会动）。这一步就把"服务整体退化"和"长尾问题"分开了。
+
+<strong>第二步，看 P99 桶的分布有没有移动。</strong>如果 P99 落在的桶从 <code>(0.1, 0.25]</code> 移到了 <code>(0.25, 0.5]</code>，说明慢的这部分是"多花了两三百毫秒"，而不是"卡住几十秒"。这个量级和"多查了十几次数据库"是吻合的，和"下游超时"不吻合（超时通常是秒级）。
+
+<strong>第三步，从 exemplar 拿一条 trace_id。</strong>Grafana 上点那个落在高桶里的 exemplar 点，跳到追踪系统。瀑布图长这样：
+<div class="codehilite"><pre><span></span><code>GET /api/articles/feed                 410ms  server
+├── feed.query_articles                 22ms  internal
+├── feed.rank                           18ms  internal
+├── feed.hydrate                       355ms  internal
+│   ├── SELECT author (id=1)            17ms  client
+│   ├── SELECT author (id=2)            16ms  client
+│   ├── ... 共 20 次 ...
+│   └── SELECT author (id=20)           18ms  client
+└── render.template                     14ms  internal
+</code></pre></div>
+
+
+一眼就能看出 355 毫秒里有 20 次串行的 <code>SELECT author</code>，每次 16 到 18 毫秒。<strong>"单次不慢，串行很多次"</strong>——这正是开头说的那个形状。
+
+<strong>第四步，属性定位。</strong>点开任意一个 <code>SELECT author</code> span，属性里有 <code>db.system=postgresql</code>、<code>db.operation=SELECT</code>、<code>db.collection.name=author</code>、<code>db.query.ids_count=1</code>。注意最后这个属性：<strong>如果它显示 1，说明代码是逐条查询；如果显示 20，说明已经是批量查询但批量本身慢</strong>。这一个属性就把"要不要改成批量"这个决策变成了事实判断。
+
+<strong>第五步，日志确认参数。</strong>用 trace_id 去日志系统里捞：
+<div class="codehilite"><pre><span></span><code>trace_id=4bf92f3577b34da6a3ce929d0e0e4736
+</code></pre></div>
+
+
+捞到的几行里，<code>feed.build</code> 那行有 <code>author_ids=[1,2,...,20]</code> 和 <code>page_size=20</code>。到这里，"这一页有 20 个不同作者，代码给每个作者单独查了一次"这个事实链就完整了。修复方案是 <code>WHERE id = ANY(%s)</code> 一次查完，20 次往返变成 1 次。
+
+这个链路里，每一步都不可或缺：
+<ul>
+<li>没有指标，你不会知道"是长尾还是整体"，也不知道该抓哪类请求。</li>
+<li>没有 exemplar，你只能随机抽 trace，抽到的概率是 99% 的正常请求。</li>
+<li>没有 trace，你知道 410 毫秒，但不知道 355 在 hydrate。</li>
+<li>没有 span 属性，你知道 hydrate 慢，但不知道是"20 次单查"还是"1 次批量查得慢"。</li>
+<li>没有日志，你知道查了 20 次，但不知道这 20 个 ID 是从哪来的、是不是分页参数被人改大了。</li>
+</ul>
+
+<strong>日志和 trace 的缝合</strong>，就在最后一步。做法很简单，在 logging 的 filter 里把当前 span 的上下文写进 record：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">trace</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TraceContextFilter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Filter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="n">ctx</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">get_current_span</span><span class="p">()</span><span class="o">.</span><span class="n">get_span_context</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">trace_id</span> <span class="o">=</span> <span class="nb">format</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">trace_id</span><span class="p">,</span> <span class="s2">&quot;032x&quot;</span><span class="p">)</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">span_id</span> <span class="o">=</span> <span class="nb">format</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">span_id</span><span class="p">,</span> <span class="s2">&quot;016x&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">trace_id</span> <span class="o">=</span> <span class="s2">&quot;-&quot;</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">span_id</span> <span class="o">=</span> <span class="s2">&quot;-&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">TraceContextFilter</span><span class="p">())</span>
+</code></pre></div>
+
+
+然后 formatter 里加 <code>%(trace_id)s</code>。日志系统（Loki、ELK、CloudWatch）都能按这个字段建索引或过滤。<strong>这里的顺序很重要：先有 trace_id，日志才有聚合维度；如果只有 request_id，你在追踪系统里搜不到它。</strong>
+
+一个容易被忽略的点：<strong>日志里写的 trace_id 必须是"当前 span"的，不是"根 span"的。</strong>如果你在 hydrate 的子 span 里打日志，写根 trace_id 是对的（聚合用），但写根 span_id 就丢了"这行日志属于哪个阶段"。两个都写：<code>trace_id</code> 用于聚合，<code>span_id</code> 用于在瀑布图上对齐。
+<h2>存储与成本：基数、采样率与保留期</h2>
+
+最后一节算账。因为可观测性系统的账单，通常不是"买不起"，而是"不知道怎么涨上去的"。
+
+<strong>指标的存储成本由时间序列数决定，不由样本数决定。</strong>Prometheus 的本地 TSDB 每 2 小时切一个 block，每个 block 里按 2 小时的时间窗存样本。一条序列只要存在，就至少占一份索引和 chunk 的开销；抓取间隔从 15 秒改成 5 秒，样本数变 3 倍，但序列数不变。所以：
+<div class="codehilite"><pre><span></span><code>总成本 ≈ 序列数 × 单序列开销 + 样本数 × 单样本开销
+</code></pre></div>
+
+
+序列数由上一节那个乘积公式决定。所以降基数是唯一有效的手段：删掉一个高基数标签可能省掉九成成本，而把抓取间隔翻倍只省一半样本存储。
+
+保留期的配置是 <code>--storage.tsdb.retention.time</code>（比如 15 天）和 <code>--storage.tsdb.retention.size</code>（比如 100 GB），两个都设，谁先到谁生效。本地 TSDB 不适合长期保留——它不是为多年归档设计的。长期方案是 <code>remote_write</code> 到 Thanos、Mimir、VictoriaMetrics 这类系统，本地只留几天做快速查询。
+
+<strong>追踪的存储成本由三个因子相乘决定：</strong>
+<div class="codehilite"><pre><span></span><code>span 数/天 × 采样率 × 平均 span 体积 × 保留天数
+</code></pre></div>
+
+
+三个因子分别对应三种治理手段：
+<ol>
+<li><strong>span 数</strong>：控制 span 粒度。别给每个函数加 span，别把每个 SQL 参数塞进 attribute。一个 span 的 attributes 从 5 个涨到 50 个，体积可能涨 10 倍。</li>
+<li><strong>采样率</strong>：head 粗筛 + tail 兜底。错误和慢请求保留 100%，正常请求保留 1% 到 10%。</li>
+<li><strong>保留期</strong>：错误 trace 留 30 天，正常 trace 留 3 天。按"错误/正常"分不同的存储后端，是很常见的做法。</li>
+</ol>
+
+隐形成本还有 attribute 的基数：<code>db.statement</code> 带完整 SQL、<code>http.url</code> 带 query string，都会让压缩率崩掉。记语句模板和参数个数，参数值走日志。
+
+治理清单，按投入产出排序：
+<ul>
+<li>先量基数。<code>prometheus_tsdb_head_series</code> 和每个指标的序列数，是判断"要不要治理"的唯一依据。</li>
+<li>把 <code>request.path</code> 换成路由模板。这一条通常能砍掉一个数量级。</li>
+<li>检查所有 Histogram 的桶数。20 个桶 × 160,000 条序列 = 320 万条，桶边界不是越密越好。</li>
+<li>给 attribute 设白名单。自动埋点默认收集的东西往往比你需要的多。</li>
+<li>采样策略写成配置，不要写死在代码里，事故期间要能临时调高采样率。</li>
+</ul>
+<h2>小结</h2>
+
+把这篇的结论压成一张表：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>工具</th>
+<th>关键约束</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>有多慢、多常见</td>
+<td>Histogram + P95/P99</td>
+<td>桶要覆盖 SLO；样本量要够；先 sum by (le) 再算分位</td>
+</tr>
+<tr>
+<td>慢在哪一段</td>
+<td>trace 的 span 树</td>
+<td>上下文必须跨服务传播；span 粒度要克制</td>
+</tr>
+<tr>
+<td>那一段里发生了什么</td>
+<td>日志 + trace_id</td>
+<td>trace_id 要写进日志；参数才在日志里</td>
+</tr>
+<tr>
+<td>是哪一条请求</td>
+<td>exemplar</td>
+<td>只对 Histogram 有意义；是抽样不是全量</td>
+</tr>
+<tr>
+<td>成本为什么涨</td>
+<td>label 基数 / span 数 / 保留期</td>
+<td>基数是一切成本的乘数</td>
+</tr>
+</tbody>
+</table></div>
+
+三句话收尾：
+<ol>
+<li><strong>平均值不是延迟指标，是延迟的谎言。</strong>延迟分布长尾且多峰，任何把分布压成一个数的做法都会隐藏你要找的东西。</li>
+<li><strong>指标、追踪、日志是三个不同的答案，不是一个答案的三种存法。</strong>先指标确认规模，再追踪定位段落，最后日志确认参数——顺序反了，成本会翻几倍。</li>
+<li><strong>采样必须对错误和慢请求例外。</strong>固定比例采样的盲区可以用 <code>1/(p×r)</code> 算出来：你的 SLO 越严，这个盲区越大，而它恰好盖住了你最需要看的那部分请求。</li>
+</ol>
+<h2>相关阅读</h2>
+<ul>
+<li><a href="/article/structured-logging-tracing-deep-dive/">300 行日志里，只有 6 行是你的</a></li>
+<li><a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">超时、重试与熔断：三个参数之间的相互陷害</a></li>
+<li><a href="/article/queueing-theory-capacity-planning/">排队论与容量规划：QPS 涨一倍，延迟涨几倍</a></li>
+<li><a href="/article/rate-limit-algorithms-deep-dive/">限流算法：令牌桶、漏桶与滑动窗口的边界</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li></ul></nav></div></div>
+  </body>
+</html>
