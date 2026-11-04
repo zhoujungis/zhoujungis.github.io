@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：删掉一半数据后发现表文件没变小的人；想知道 B+ 树删除为什么比插入复杂的人；在 InnoDB 与 SQLite 之间做选型、需要理解两者空间回收差异的人…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/" />
+    <meta property="og:title" content="B+ 树删除：页合并、借位与根收缩" />
+    <meta property="og:description" content="适用读者：删掉一半数据后发现表文件没变小的人；想知道 B+ 树删除为什么比插入复杂的人；在 InnoDB 与 SQLite 之间做选型、需要理解两者空间回收差异的人…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/btree-delete-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/btree-delete-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="B+ 树删除：页合并、借位与根收缩 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="B+ 树删除：页合并、借位与根收缩" />
+    <meta name="twitter:description" content="适用读者：删掉一半数据后发现表文件没变小的人；想知道 B+ 树删除为什么比插入复杂的人；在 InnoDB 与 SQLite 之间做选型、需要理解两者空间回收差异的人…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/btree-delete-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>B+ 树删除：页合并、借位与根收缩 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Cym1EcYn.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T10:49:20.333315+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T10:49:20.333315+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/#article","url":"https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/","headline":"B+ 树删除：页合并、借位与根收缩","description":"适用读者：删掉一半数据后发现表文件没变小的人；想知道 B+ 树删除为什么比插入复杂的人；在 InnoDB 与 SQLite 之间做选型、需要理解两者空间回收差异的人…","image":"https://blog.zhoujun.dev/photos/btree-delete-cover.png","datePublished":"2026-11-04T10:49:20.333315+08:00","dateModified":"2026-11-04T10:49:20.333315+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/"},"articleSection":"数据库内核","keywords":"后端, 存储引擎, 性能优化, 数据库","inLanguage":"zh-CN","wordCount":3360},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"B+ 树删除：页合并、借位与根收缩","item":"https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"btree-delete-merge-redistribute","title":"B+ 树删除：页合并、借位与根收缩","created_at":"2026-11-04T10:49:20.333315+08:00","updated_at":"2026-11-04T10:49:20.333346+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/btree-delete-cover.png","excerpt":"适用读者：删掉一半数据后发现表文件没变小的人；想知道 B+ 树删除为什么比插入复杂的人；在 InnoDB 与 SQLite 之间做选型、需要理解两者空间回收差异的人 结论先行：B+ 树删除的第一动作永远是「在叶子页里移除一个键」，真正麻烦的是 移除之后页快空了怎么办 。标准做法只有两种：向兄弟页借几个键（redistr","reading_time":14,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>B+ 树删除：页合并、借位与根收缩</span></nav><h1>B+ 树删除：页合并、借位与根收缩</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><strong>B+ 树删除：页合并、借位与根收缩</strong>（当前）</li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：删掉一半数据后发现表文件没变小的人；想知道 B+ 树删除为什么比插入复杂的人；在 InnoDB 与 SQLite 之间做选型、需要理解两者空间回收差异的人
+结论先行：B+ 树删除的第一动作永远是「在叶子页里移除一个键」，真正麻烦的是<strong>移除之后页快空了怎么办</strong>。标准做法只有两种：向兄弟页借几个键（redistribute），或者把两个页合并成一个（merge）。合并会让父页少一个孩子，父页也可能因此下溢，于是这个过程可能一路递归到根。InnoDB 还把「标记删除」和「物理移除」拆成了两步，所以 <code>DELETE</code> 之后空间往往不会立刻回收。
+阅读时间：约 16 分钟 | 难度：进阶 | 收获：删除的完整路径、借位与合并的判定、父页分隔键与根收缩、InnoDB 与 SQLite 的两套实现对照、以及碎片观测与回收办法
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：删了一半数据，表为什么没变小</li>
+<li>删除的第一动作：在叶子里移除一个键</li>
+<li>InnoDB：先标记，后 purge</li>
+<li>什么情况下页算「下溢」</li>
+<li>借位：从兄弟页搬几个键</li>
+<li>合并：把两个页压成一个</li>
+<li>父页的分隔键怎么改</li>
+<li>根页怎么收缩</li>
+<li>SQLite 的 balance_nonroot：一次重排多个兄弟页</li>
+<li>两套实现对照</li>
+<li>为什么 InnoDB 不急着合并</li>
+<li>OPTIMIZE TABLE、fill factor 与碎片</li>
+<li>怎么观测页利用率</li>
+<li>五个常见误区</li>
+<li>小结</li>
+</ul>
+<h2>前言：删了一半数据，表为什么没变小</h2>
+
+一张 10 GB 的表，<code>DELETE</code> 掉一半行，文件大小可能几乎不变。很多人第一反应是「删除没生效」，查一遍 <code>COUNT(*)</code> 又确实少了。
+
+原因有两层：
+<ul>
+<li>第一层是 MVCC：<code>DELETE</code> 只是给记录打删除标记，旧版本还要留给可能存在的快照读；</li>
+<li>第二层是 B+ 树：即使记录被物理移除，页也不一定会合并，空的页也不一定会立刻还给操作系统。</li>
+</ul>
+
+第一层见 <a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/" rel="noopener noreferrer" target="_blank">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a>。本文讲第二层：B+ 树的删除到底做了什么。
+<h2>删除的第一动作：在叶子里移除一个键</h2>
+
+不管哪套实现，删除的入口都一样：
+<ol>
+<li>从根页开始，按 key 比较，一路向下找到目标叶子页；</li>
+<li>在叶子页里定位到目标键；</li>
+<li>移除这个键和它对应的记录；</li>
+<li>检查这个页是否还满足 B+ 树的最小填充约束；</li>
+<li>如果不满足，进入重平衡流程；</li>
+<li>重平衡可能影响父页，于是向上递归；</li>
+<li>如果根页只剩一个孩子，树高减一。</li>
+</ol>
+
+第 1 到第 3 步是「局部删除」，第 4 到第 7 步才是「重平衡」。B+ 树删除的复杂度里，大部分工程细节都在第 4 到第 7 步。
+<h2>InnoDB：先标记，后 purge</h2>
+
+InnoDB 的 <code>DELETE</code> 不是立刻从页里抹掉记录，而是分两步：
+<ul>
+<li><strong>标记删除</strong>：在记录头里置上删除标记（delete mark），记录还在页里，版本链也还在；</li>
+<li><strong>purge</strong>：后台线程扫描 undo log，确认没有更早的 Read View 需要这个版本后，才真正把记录从页里移除。</li>
+</ul>
+
+第二步才会调用 B+ 树的删除逻辑，可能触发页合并。也就是说：
+<blockquote>
+
+<code>DELETE</code> 语句的耗时，和「页合并」的耗时不一定是同一时刻发生的。
+</blockquote>
+
+这带来两个直接后果：
+<ul>
+<li><code>DELETE</code> 之后立刻看表大小，往往没变化；</li>
+<li>如果 purge 被长事务挡住，删除的空间会一直挂着。</li>
+</ul>
+
+<code>SHOW ENGINE INNODB STATUS</code> 的 <code>History list length</code> 持续上涨，通常意味着 purge 落后，删除的物理回收也被拖住了。
+<h2>什么情况下页算「下溢」</h2>
+
+B+ 树对每个非根节点都有最小填充要求。常见的定义是：
+<ul>
+<li>内部节点至少有 <code>ceil(m/2)</code> 个孩子；</li>
+<li>叶子节点至少有 <code>ceil(m/2) - 1</code> 个键。</li>
+</ul>
+
+其中 <code>m</code> 是 B+ 树的阶。换成更直观的说法：<strong>非根页大约要保持半满</strong>。
+
+删除一个键后，如果页里的键数低于这个下限，就叫「下溢」（underflow）。下溢本身不是错误，页里仍然能读，只是空间利用率变差；但 B+ 树必须通过重平衡来维持「树高不会因为删除而虚高」的性质。
+
+这里要区分两个概念：
+<ul>
+<li><strong>页内碎片</strong>：页里已经删除但还没整理的空间；</li>
+<li><strong>页间碎片</strong>：相邻页都没满，却没有合并。</li>
+</ul>
+
+前者靠页内整理（compact）解决，后者靠借位或合并解决。
+<h2>借位：从兄弟页搬几个键</h2>
+
+借位（redistribute / borrow）的前提是「隔壁页比较富余」。做法是：
+<ol>
+<li>找到下溢页的左兄弟或右兄弟；</li>
+<li>如果兄弟页的键数高于下限，就从兄弟页搬一个或几个键过来；</li>
+<li>同时更新父页里对应的分隔键；</li>
+<li>下溢页恢复到达标，父页的孩子数量不变。</li>
+</ol>
+
+借位的好处是不改变树的结构，父页只需要改一个分隔键，代价很小。坏处是它要求兄弟页「有余粮」。如果左右兄弟都刚好半满，就借不到，只能合并。
+<h2>合并：把两个页压成一个</h2>
+
+合并（merge）的前提是「两个页的键能装进一个页」。做法是：
+<ol>
+<li>把下溢页和左兄弟或右兄弟合并；</li>
+<li>从父页里删掉指向被合并页的那一项；</li>
+<li>被合并页回收进 freelist；</li>
+<li>父页少了一个孩子，可能因此下溢；</li>
+<li>对父页重复上述流程，直到某一层不再下溢，或者到达根。</li>
+</ol>
+
+合并的代价比借位大：它要移动记录、改父页、可能递归、还可能释放页。但它能真正减少页数，提高空间利用率。
+
+一个容易忽略的点：<strong>合并的触发条件不是「页低于半满」，而是「两个页能装进一个页」</strong>。如果两个页都接近半满，合起来超过一页容量，即使某一页略低于下限，也只能借位，不能合并。这个条件比「半满」更严格，也是 InnoDB 删除后页数下降不明显的原因之一。
+<h2>父页的分隔键怎么改</h2>
+
+B+ 树的内部页存的是「子页的最小键 + 页号」。删除会动摇这个分隔键：
+<ul>
+<li>如果删掉的不是子页的第一个键，分隔键不变；</li>
+<li>如果删掉的正好是子页的第一个键，父页的分隔键要改成子页新的第一个键；</li>
+<li>如果发生借位，父页的分隔键要跟着兄弟页搬走的键更新；</li>
+<li>如果发生合并，父页要删掉一个「键 + 页号」项。</li>
+</ul>
+
+这一步最容易被实现细节坑住：分隔键不是「随便存一个键」，它必须是子页下界的一个合法代表。改错了，后续查找会走错分支。
+<h2>根页怎么收缩</h2>
+
+根页是唯一允许低于半满的节点。删除一路递归到根时，会出现两种情况：
+<ul>
+<li>根页还有至少两个孩子：树高不变；</li>
+<li>根页只剩一个孩子：把这个孩子提升为新的根，树高减一。</li>
+</ul>
+
+树高减一是删除操作对查询性能的唯一正面影响：原来三层树，现在两层，每次查找少一次页访问。
+
+但树高不会无限下降。只要还有足够多的键，根页就会保持至少两个孩子。
+<h2>SQLite 的 balance_nonroot：一次重排多个兄弟页</h2>
+
+SQLite 的 B+ 树删除走的是另一条路线。<code>sqlite3BtreeDelete</code> 最终会调用 <code>btreeDeleteRow</code>，删掉单元格后再调用 <code>balance()</code>。
+
+<code>balance()</code> 的核心是 <code>balance_nonroot</code>：
+<ol>
+<li>把下溢页和它左右最多两个兄弟页一起拿出来；</li>
+<li>把这些页里的所有单元格重新排序；</li>
+<li>按新的分布重新装页，尽量让每页填充均匀；</li>
+<li>需要时新建页或释放页；</li>
+<li>更新父页的分隔键。</li>
+</ol>
+
+它的特点是一次处理「最多三个兄弟页」，而不是只借一个、只合一个。这样能同时解决多个页的碎片问题，重排后的填充率更均匀。
+
+如果根页溢出，SQLite 用 <code>balance_deeper</code> 创建一个新的根；如果根页只剩一个孩子，用 <code>balance_shallower</code> 把子页内容搬回根页并降低树高。
+
+SQLite 的页头里有三个关键计数：
+<ul>
+<li><code>nCell</code>：当前单元格数量；</li>
+<li><code>nFree</code>：空闲字节数；</li>
+<li><code>nFrag</code>：碎片字节数。</li>
+</ul>
+
+<code>nFrag</code> 就是「页内碎片」的直接度量，<code>balance_nonroot</code> 会把它一起整理掉。
+<h2>两套实现对照</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>InnoDB</th>
+<th>SQLite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>删除时机</td>
+<td>先标记删除，purge 时物理移除</td>
+<td>删除语句内直接移除单元格</td>
+</tr>
+<tr>
+<td>重平衡范围</td>
+<td>通常与一个兄弟页借位或合并</td>
+<td>最多三个兄弟页一起重排</td>
+</tr>
+<tr>
+<td>合并条件</td>
+<td>两个页的记录能装进一个页</td>
+<td>重排后按容量重新分布</td>
+</tr>
+<tr>
+<td>父页更新</td>
+<td>改分隔键或删一项</td>
+<td>改分隔键或删一项</td>
+</tr>
+<tr>
+<td>根收缩</td>
+<td>根只剩一个孩子时提升孩子</td>
+<td><code>balance_shallower</code></td>
+</tr>
+<tr>
+<td>空间回收</td>
+<td>依赖 purge + <code>OPTIMIZE TABLE</code></td>
+<td>依赖 <code>VACUUM</code></td>
+</tr>
+<tr>
+<td>页内碎片</td>
+<td><code>PAGE_GARBAGE</code> 等计数</td>
+<td><code>nFrag</code> 计数</td>
+</tr>
+</tbody>
+</table></div>
+
+两套实现的共同点是：删除的局部操作很简单，重平衡才是复杂度所在；不同点是「一次处理几个页」和「什么时候真正回收空间」。
+<h2>为什么 InnoDB 不急着合并</h2>
+
+InnoDB 的删除合并相对保守，原因有几层：
+<ul>
+<li><strong>合并本身有成本</strong>：要移动记录、改父页、可能递归，还要考虑并发锁；</li>
+<li><strong>合并可能立刻被拆开</strong>：如果业务是「删了又插」，刚合并的页可能马上又分裂，白做一次；</li>
+<li><strong>MVCC 还在用旧版本</strong>：purge 没清完之前，记录不能真正移除；</li>
+<li><strong>顺序插入的局部性好</strong>：保留一些半满页，反而给后续插入留了空间，减少分裂。</li>
+</ul>
+
+所以 InnoDB 的策略更像「延迟整理」：删除时尽量少动结构，把空间回收交给 purge 和重建。这个策略在写多读少的 OLTP 里通常划算，但在「大批量删除后表再也不会增长」的场景里，就需要手动重建。
+<h2>OPTIMIZE TABLE、fill factor 与碎片</h2>
+
+<code>OPTIMIZE TABLE</code> 对 InnoDB 来说，本质是重建表：
+<div class="codehilite"><pre><span></span><code><span class="n">OPTIMIZE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="p">;</span>
+</code></pre></div>
+
+
+它会创建一个新表、按主键顺序把数据插进去、重建所有索引、再替换旧表。效果是：
+<ul>
+<li>消除页内碎片；</li>
+<li>重新分配页，提高填充率；</li>
+<li>可能降低树高；</li>
+<li>回收未使用的空间。</li>
+</ul>
+
+代价是：
+<ul>
+<li>需要额外的磁盘空间；</li>
+<li>期间可能锁表或影响写入（取决于算法与版本）；</li>
+<li>大表耗时长。</li>
+</ul>
+
+<code>innodb_fill_factor</code> 控制「建索引时每页填多满」，默认 100。它作用于索引构建（<code>CREATE INDEX</code>、<code>OPTIMIZE TABLE</code> 重建），不作用于运行时的页分裂。把它调低会留下更多空间给后续插入，但索引会变大。
+
+<code>innodb_page_size</code> 决定页大小，默认 16 KB。页越大，单页能装的键越多，树越矮；但页内碎片和单页 IO 的代价也更大。
+<h2>怎么观测页利用率</h2>
+
+几个可用入口：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 表的空闲空间（不是页内碎片）</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">table_name</span><span class="p">,</span><span class="w"> </span><span class="n">data_length</span><span class="p">,</span><span class="w"> </span><span class="n">index_length</span><span class="p">,</span><span class="w"> </span><span class="n">data_free</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">information_schema</span><span class="p">.</span><span class="n">TABLES</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">table_schema</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;your_db&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>data_free</code> 是「已分配但未使用的空间」，它不等于「页内碎片」。要区分：
+<ul>
+<li><code>data_free</code> 大：可能有整页空闲，或者表空间没回收；</li>
+<li>表大小没降但 <code>data_free</code> 不大：更可能是页内碎片或页间未合并。</li>
+</ul>
+
+想看页级细节，可以用 <code>innodb_ruby</code> 导出索引页，观察：
+<ul>
+<li><code>PAGE_N_RECS</code>：页内记录数；</li>
+<li><code>PAGE_GARBAGE</code>：已删除记录占用的字节；</li>
+<li><code>PAGE_FREE</code>：空闲链表；</li>
+<li>每页的填充率。</li>
+</ul>
+
+SQLite 则可以直接读页头的 <code>nCell</code>、<code>nFree</code>、<code>nFrag</code>，或者用 <code>PRAGMA page_count</code>、<code>PRAGMA freelist_count</code> 看页数与空闲页数。
+<h2>五个常见误区</h2>
+
+误区一：「<code>DELETE</code> 之后空间会立刻回收」。InnoDB 不会，要等 purge，页合并也不保证发生。
+
+误区二：「页低于半满就一定会合并」。不一定，合并要求两个页能装进一个页；装不下就只能借位。
+
+误区三：「<code>OPTIMIZE TABLE</code> 只是整理碎片，不影响业务」。它要重建表，会占额外磁盘、可能锁表，大表要安排窗口。
+
+误区四：「树高只会在插入时增加」。删除也会改变树高，只是方向相反：根收缩时树高减一。
+
+误区五：「<code>data_free</code> 就是页内碎片」。不是。<code>data_free</code> 是表空间层面的空闲，页内碎片要看 <code>PAGE_GARBAGE</code> 或 SQLite 的 <code>nFrag</code>。
+<h2>小结</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>答案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>删除第一步做什么</td>
+<td>在叶子页里移除键</td>
+</tr>
+<tr>
+<td>页快空了怎么办</td>
+<td>借位或合并；合并可能递归到根</td>
+</tr>
+<tr>
+<td>父页要改什么</td>
+<td>分隔键或孩子项</td>
+</tr>
+<tr>
+<td>树高什么时候降</td>
+<td>根只剩一个孩子时</td>
+</tr>
+<tr>
+<td>InnoDB 为什么空间不立刻回收</td>
+<td>先标记删除，purge 才物理移除；合并也保守</td>
+</tr>
+<tr>
+<td>怎么真正回收</td>
+<td><code>OPTIMIZE TABLE</code> 重建；SQLite 用 <code>VACUUM</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+
+<strong>相关阅读</strong>
+<ul>
+<li><a href="https://blog.zhoujun.dev/article/btree-page-split/" rel="noopener noreferrer" target="_blank">B+ 树索引回源：页分裂长什么样</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/" rel="noopener noreferrer" target="_blank">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" rel="noopener noreferrer" target="_blank">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li>
+<li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/" rel="noopener noreferrer" target="_blank">InnoDB 锁的边界：Next-Key 与间隙锁</a></li>
+<li><a href="https://blog.zhoujun.dev/topics/database/" rel="noopener noreferrer" target="_blank">数据库专题</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li></ul></nav></div></div>
+  </body>
+</html>

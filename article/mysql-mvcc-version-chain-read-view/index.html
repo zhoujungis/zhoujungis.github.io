@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：能背出「RC 读最新、RR 读快照」但说不清快照存在哪里的人；被长事务拖慢 purge、导致磁盘暴涨的人；想知道 SELECT ... FOR UPDATE 为什么看到…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/" />
+    <meta property="og:title" content="MySQL MVCC：版本链与 Read View 是怎么判可见性的" />
+    <meta property="og:description" content="适用读者：能背出「RC 读最新、RR 读快照」但说不清快照存在哪里的人；被长事务拖慢 purge、导致磁盘暴涨的人；想知道 SELECT ... FOR UPDATE 为什么看到…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/mysql-mvcc-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/mysql-mvcc-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MySQL MVCC：版本链与 Read View 是怎么判可见性的 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MySQL MVCC：版本链与 Read View 是怎么判可见性的" />
+    <meta name="twitter:description" content="适用读者：能背出「RC 读最新、RR 读快照」但说不清快照存在哪里的人；被长事务拖慢 purge、导致磁盘暴涨的人；想知道 SELECT ... FOR UPDATE 为什么看到…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/mysql-mvcc-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>MySQL MVCC：版本链与 Read View 是怎么判可见性的 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Cym1EcYn.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T10:48:54.582811+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T10:48:54.582811+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/#article","url":"https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/","headline":"MySQL MVCC：版本链与 Read View 是怎么判可见性的","description":"适用读者：能背出「RC 读最新、RR 读快照」但说不清快照存在哪里的人；被长事务拖慢 purge、导致磁盘暴涨的人；想知道 SELECT ... FOR UPDATE 为什么看到…","image":"https://blog.zhoujun.dev/photos/mysql-mvcc-cover.png","datePublished":"2026-11-04T10:48:54.582811+08:00","dateModified":"2026-11-04T10:48:54.582811+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/"},"articleSection":"数据库内核","keywords":"后端, 存储引擎, 性能优化, 数据库","inLanguage":"zh-CN","wordCount":3059},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"MySQL MVCC：版本链与 Read View 是怎么判可见性的","item":"https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"mysql-mvcc-version-chain-read-view","title":"MySQL MVCC：版本链与 Read View 是怎么判可见性的","created_at":"2026-11-04T10:48:54.582811+08:00","updated_at":"2026-11-04T10:48:54.582872+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/mysql-mvcc-cover.png","excerpt":"适用读者：能背出「RC 读最新、RR 读快照」但说不清快照存在哪里的人；被长事务拖慢 purge、导致磁盘暴涨的人；想知道 SELECT ... FOR UPDATE 为什么看到的值和普通 SELECT 不一样的人 结论先行：InnoDB 的 MVCC 不是「给每行存多个副本」，而是 一行只有一份最新记录，旧值挂在 u","reading_time":13,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>MySQL MVCC：版本链与 Read View 是怎么判可见性的</span></nav><h1>MySQL MVCC：版本链与 Read View 是怎么判可见性的</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><strong>MySQL MVCC：版本链与 Read View 是怎么判可见性的</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：能背出「RC 读最新、RR 读快照」但说不清快照存在哪里的人；被长事务拖慢 purge、导致磁盘暴涨的人；想知道 <code>SELECT ... FOR UPDATE</code> 为什么看到的值和普通 <code>SELECT</code> 不一样的人
+结论先行：InnoDB 的 MVCC 不是「给每行存多个副本」，而是<strong>一行只有一份最新记录，旧值挂在 undo log 里，用 <code>DB_ROLL_PTR</code> 串成一条版本链</strong>。读的时候拿一个 Read View，沿着链往回走，找到第一个对当前事务可见的版本。RC 和 RR 的唯一差别，是 Read View 的创建频率：每条语句一个，还是每个事务一个。
+阅读时间：约 18 分钟 | 难度：进阶 | 收获：隐藏列与 undo log 的物理结构、Read View 的四个字段与完整可见性规则、RC/RR 的真实差异、快照读与当前读的边界、以及长事务为什么危险
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：同一行，两个事务看到不同的值</li>
+<li>隐藏列：版本链的骨架</li>
+<li>undo log：旧版本到底存在哪里</li>
+<li>版本链怎么串起来</li>
+<li>Read View 的四个字段</li>
+<li>可见性判断的完整规则</li>
+<li>RC 与 RR 的唯一差别</li>
+<li>快照读与当前读</li>
+<li>一条 UPDATE 之后发生了什么</li>
+<li>DELETE 的标记与 purge</li>
+<li>长事务为什么危险</li>
+<li>怎么观测版本链与历史链表</li>
+<li>五个常见误区</li>
+<li>小结</li>
+</ul>
+<h2>前言：同一行，两个事务看到不同的值</h2>
+
+先摆一张只有两列的表：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">account</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w">      </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">balance</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">)</span><span class="w"> </span><span class="n">ENGINE</span><span class="o">=</span><span class="n">InnoDB</span><span class="p">;</span>
+
+<span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">account</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">);</span>
+</code></pre></div>
+
+
+会话 A 和会话 B 同时开事务，隔离级别是 RR：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 会话 A</span>
+<span class="k">BEGIN</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">account</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">-- 100</span>
+
+<span class="c1">-- 会话 B</span>
+<span class="k">BEGIN</span><span class="p">;</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">account</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">200</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="k">COMMIT</span><span class="p">;</span>
+
+<span class="c1">-- 会话 A 再读一次</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">account</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">-- 还是 100</span>
+</code></pre></div>
+
+
+A 明明在 B 提交之后才读，看到的却还是 100。很多人把这件事解释成「A 读的是快照」，但快照到底是什么、存在哪里、什么时候生成，往往说不清楚。
+
+答案由三部分组成：隐藏列、undo log、Read View。
+<h2>隐藏列：版本链的骨架</h2>
+
+InnoDB 的聚簇索引叶子记录里，除了业务列，还有几个隐藏字段：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>隐藏列</th>
+<th>字节</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DB_TRX_ID</code></td>
+<td>6</td>
+<td>最后修改这一行的事务 ID</td>
+</tr>
+<tr>
+<td><code>DB_ROLL_PTR</code></td>
+<td>7</td>
+<td>指向 undo log 里这条记录的上一个版本</td>
+</tr>
+<tr>
+<td><code>DB_ROW_ID</code></td>
+<td>6</td>
+<td>没有主键时自动生成的行 ID</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>DB_TRX_ID</code> 是「谁改的」，<code>DB_ROLL_PTR</code> 是「上一个版本在哪」。这两个字段合起来，就是版本链的全部元数据。
+
+注意 <code>DB_TRX_ID</code> 只记录<strong>最后一次修改</strong>的事务，不记录历史。历史版本不在聚簇索引里，而在 undo log 里。
+<h2>undo log：旧版本到底存在哪里</h2>
+
+每次 <code>UPDATE</code> 或 <code>DELETE</code>，InnoDB 都会写一条 undo 记录。undo 记录里保存的是「被修改前的旧值」，以及指向上一个 undo 记录的指针。
+
+undo 记录分两类：
+<ul>
+<li><strong>insert undo</strong>：<code>INSERT</code> 产生，只用于回滚，提交后可以很快丢弃；</li>
+<li><strong>update undo</strong>：<code>UPDATE</code> / <code>DELETE</code> 产生，既用于回滚，也用于 MVCC 读旧版本，必须保留到没有事务再需要它为止。</li>
+</ul>
+
+一条 update undo 记录大致包含：
+<ul>
+<li>旧记录的主键；</li>
+<li>被更新列的旧值；</li>
+<li>指向上一条 undo 记录的 <code>DB_ROLL_PTR</code>；</li>
+<li>事务 ID、undo 类型等头部信息。</li>
+</ul>
+
+于是同一个主键的所有历史版本，通过 <code>DB_ROLL_PTR</code> 串成一条单向链表，最新的在聚簇索引里，最老的在 undo log 链尾。
+<h2>版本链怎么串起来</h2>
+
+假设 <code>id = 1</code> 这行被三个事务依次修改：
+<div class="codehilite"><pre><span></span><code>trx 10: balance = 100   （初始插入）
+trx 20: balance = 150
+trx 30: balance = 200
+</code></pre></div>
+
+
+聚簇索引里的当前记录是 <code>(id=1, balance=200, DB_TRX_ID=30, DB_ROLL_PTR=ptr30)</code>。沿着 <code>ptr30</code> 找到 undo 记录：
+<div class="codehilite"><pre><span></span><code>undo 30: 旧值 balance=150, 上一个版本 ptr20
+undo 20: 旧值 balance=100, 上一个版本 ptr10
+undo 10: 插入 undo，没有更早版本
+</code></pre></div>
+
+
+读的时候，如果当前事务的 Read View 认为 <code>trx 30</code> 不可见，就沿链走到 <code>trx 20</code> 的版本；如果还不可见，再走到 <code>trx 10</code>。直到找到一个可见版本，或者链走到头（说明这行在视图创建时还不存在）。
+
+这条链就是「版本链」。它不在数据页上，而是在数据页 + undo 页之间来回跳。
+<h2>Read View 的四个字段</h2>
+
+Read View 是事务在某个时刻拍下的一张「活跃事务名单」。InnoDB 的 <code>ReadView</code> 类（<code>read0types.h</code>）核心字段有四个：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>m_ids</code></td>
+<td>创建视图时仍活跃（未提交）的事务 ID 列表</td>
+</tr>
+<tr>
+<td><code>m_up_limit_id</code></td>
+<td>活跃事务里最小的 ID</td>
+</tr>
+<tr>
+<td><code>m_low_limit_id</code></td>
+<td>创建视图时系统尚未分配的下一个事务 ID</td>
+</tr>
+<tr>
+<td><code>m_creator_trx_id</code></td>
+<td>创建这个视图的事务自己的 ID</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>m_ids</code> 是判断「这行是不是被一个还没提交的事务改过」的关键。<code>m_up_limit_id</code> 和 <code>m_low_limit_id</code> 则给出两个边界：小于 <code>m_up_limit_id</code> 的事务一定已经结束，大于等于 <code>m_low_limit_id</code> 的事务一定是在视图之后才开始的。
+<h2>可见性判断的完整规则</h2>
+
+对一条记录的 <code>DB_TRX_ID</code>，判断顺序如下：
+<ol>
+<li>如果 <code>DB_TRX_ID == m_creator_trx_id</code>，可见：自己改的行，自己当然看得到；</li>
+<li>如果 <code>DB_TRX_ID &lt; m_up_limit_id</code>，可见：这个事务比所有活跃事务都早，说明它已经提交；</li>
+<li>如果 <code>DB_TRX_ID &gt;= m_low_limit_id</code>，不可见：这个事务在视图创建之后才开始；</li>
+<li>如果 <code>DB_TRX_ID</code> 在 <code>m_ids</code> 里，不可见：它创建视图时还活着；</li>
+<li>其余情况可见。</li>
+</ol>
+
+这套规则的直觉版本是：<strong>视图创建时已经提交的，看得见；视图创建时还没提交的，看不见；视图创建之后才开始的，也看不见。</strong>
+
+如果当前版本不可见，就沿 <code>DB_ROLL_PTR</code> 找上一个版本，重复判断，直到找到可见版本或链结束。
+<h2>RC 与 RR 的唯一差别</h2>
+
+很多人以为 RC 和 RR 是两套不同的 MVCC 实现，其实它们共用同一套版本链和可见性规则，差别只在 Read View 什么时候创建：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>隔离级别</th>
+<th>Read View 创建时机</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>READ COMMITTED</code></td>
+<td>每条快照读语句开始时</td>
+<td>每次都能看到最新已提交数据</td>
+</tr>
+<tr>
+<td><code>REPEATABLE READ</code></td>
+<td>事务内第一次快照读时</td>
+<td>整个事务复用同一个视图</td>
+</tr>
+</tbody>
+</table></div>
+
+这里有一个高频误区：RR 的视图不是 <code>BEGIN</code> 时创建的，而是<strong>第一次真正读数据时</strong>创建的。如果 <code>BEGIN</code> 之后先做了一堆写操作，再读，视图是在读的那一刻才拍下的。
+
+如果想让视图在事务开始时就创建，用：
+<div class="codehilite"><pre><span></span><code><span class="k">START</span><span class="w"> </span><span class="k">TRANSACTION</span><span class="w"> </span><span class="k">WITH</span><span class="w"> </span><span class="n">CONSISTENT</span><span class="w"> </span><span class="n">SNAPSHOT</span><span class="p">;</span>
+</code></pre></div>
+
+
+这个语法对 RR 有意义；在 RC 下，视图仍然是每条语句一个。
+
+查看当前隔离级别：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">@@</span><span class="n">transaction_isolation</span><span class="p">;</span>
+</code></pre></div>
+
+
+MySQL 8.0 用 <code>transaction_isolation</code>，5.7 用 <code>tx_isolation</code>。
+<h2>快照读与当前读</h2>
+
+MVCC 只作用于「快照读」。下面这些是快照读：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="p">...;</span><span class="w">                 </span><span class="c1">-- 普通查询</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="p">...;</span><span class="w"> </span><span class="c1">-- 普通查询</span>
+</code></pre></div>
+
+
+下面这些是「当前读」，会读最新版本，并且加锁：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">UPDATE</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">SHARE</span><span class="p">;</span><span class="w">       </span><span class="c1">-- 8.0；5.7 写作 LOCK IN SHARE MODE</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="p">...;</span>
+<span class="k">DELETE</span><span class="w"> </span><span class="p">...;</span>
+<span class="k">INSERT</span><span class="w"> </span><span class="p">...;</span>
+</code></pre></div>
+
+
+当前读不走 Read View，它直接读聚簇索引里的最新记录。如果最新记录被别的事务锁住，就等待；等待超时由 <code>innodb_lock_wait_timeout</code> 控制。
+
+这解释了一个常见现象：同一个事务里，普通 <code>SELECT</code> 看到的是旧值，<code>SELECT ... FOR UPDATE</code> 看到的是新值。不是数据不一致，是两种读的语义不同。
+<h2>一条 UPDATE 之后发生了什么</h2>
+
+以 <code>UPDATE account SET balance = 200 WHERE id = 1</code> 为例：
+<ol>
+<li>当前读定位到 <code>id = 1</code> 的最新记录，加排他锁；</li>
+<li>把旧值写进 update undo，形成一条新的 undo 记录；</li>
+<li>修改聚簇索引里的记录：<code>balance = 200</code>，<code>DB_TRX_ID</code> 改成当前事务 ID，<code>DB_ROLL_PTR</code> 指向新 undo；</li>
+<li>如果 <code>balance</code> 上有二级索引，还要同步维护二级索引；</li>
+<li>事务提交后，undo 记录不会立刻删除，要等 purge 判断「没有更早的视图还需要它」。</li>
+</ol>
+
+第 5 步是长事务问题的根源。一个跑了十分钟的事务，会让它开始之后产生的所有 undo 都不能被清理。
+<h2>DELETE 的标记与 purge</h2>
+
+<code>DELETE</code> 在 InnoDB 里通常不是立刻把记录从页里抹掉，而是给记录打一个「删除标记」（delete mark）。记录还在，版本链还在，只是对新的视图不可见。
+
+真正的物理删除由 purge 线程完成：
+<ul>
+<li>purge 扫描 undo log，找到已经没用的 update undo；</li>
+<li>如果对应记录已被删除标记，且没有更早的视图需要它，就把记录从页里移除；</li>
+<li>页里的记录被移除后，可能触发页合并；</li>
+<li>页变空后，可能被回收进 freelist。</li>
+</ul>
+
+所以「删了数据表却没变小」是正常的：<code>DELETE</code> 只是标记，空间要等 purge 真正清完才可能回收；而页内碎片、未合并的页，还需要 <code>OPTIMIZE TABLE</code> 这类重建操作才能整理。
+<h2>长事务为什么危险</h2>
+
+长事务的危害不止「锁住行」，还有三笔更隐蔽的账：
+<ul>
+<li><strong>undo 无法清理</strong>：历史链表（history list）持续增长，undo 表空间膨胀；</li>
+<li><strong>purge 跟不上</strong>：<code>innodb_max_purge_lag</code> 触发后，新事务可能被延迟，写入吞吐下降；</li>
+<li><strong>版本链变长</strong>：每次读都要沿链走更多节点，CPU 成本上升；</li>
+<li><strong>复制延迟</strong>：大事务在主库产生大量 binlog，从库回放压力集中。</li>
+</ul>
+
+观测长事务：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">trx_id</span><span class="p">,</span><span class="w"> </span><span class="n">trx_state</span><span class="p">,</span><span class="w"> </span><span class="n">trx_started</span><span class="p">,</span><span class="w"> </span><span class="n">trx_isolation_level</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">information_schema</span><span class="p">.</span><span class="n">INNODB_TRX</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">trx_started</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>trx_started</code> 距离现在越久，越可疑。再看历史链表长度：
+<div class="codehilite"><pre><span></span><code><span class="k">SHOW</span><span class="w"> </span><span class="n">ENGINE</span><span class="w"> </span><span class="n">INNODB</span><span class="w"> </span><span class="n">STATUS</span><span class="err">\</span><span class="k">G</span>
+</code></pre></div>
+
+
+在 <code>TRANSACTIONS</code> 段里找 <code>History list length</code>。这个值持续上涨，基本就是有长事务或 purge 跟不上。
+<h2>怎么观测版本链与历史链表</h2>
+
+除了 <code>INNODB_TRX</code> 和 <code>SHOW ENGINE INNODB STATUS</code>，还有几个入口：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 当前事务与锁</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">performance_schema</span><span class="p">.</span><span class="n">data_locks</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">performance_schema</span><span class="p">.</span><span class="n">data_lock_waits</span><span class="p">;</span>
+
+<span class="c1">-- 事务事件</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">performance_schema</span><span class="p">.</span><span class="n">events_transactions_current</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>performance_schema.data_locks</code> 能看出当前读加了哪些锁；<code>events_transactions_current</code> 能看出事务状态与隔离级别。
+
+想看页级细节，可以用 <code>innodb_ruby</code> 这类工具导出页结构，观察 <code>DB_TRX_ID</code>、<code>DB_ROLL_PTR</code> 和 <code>PAGE_GARBAGE</code>。生产环境不要随便跑，测试库或副本上做更安全。
+<h2>五个常见误区</h2>
+
+误区一：「MVCC 会给每行存多个副本」。不存。只有一份最新记录，旧版本在 undo log 里。
+
+误区二：「RR 的视图在 <code>BEGIN</code> 时创建」。不是，在第一次快照读时创建；要提前创建得用 <code>WITH CONSISTENT SNAPSHOT</code>。
+
+误区三：「RR 完全不会幻读」。快照读确实看不到新插入的行，但当前读（<code>FOR UPDATE</code>、<code>UPDATE</code>）会看到，并且依靠间隙锁阻止插入。快照读和当前读混用时，仍然可能出现意料之外的结果。
+
+误区四：「<code>SELECT ... FOR UPDATE</code> 也是快照读」。不是，它是当前读，读最新版本并加锁。
+
+误区五：「事务提交后 undo 立刻释放」。不会，要等 purge 确认没有更早的视图还需要它。长事务会把这段时间拉得很长。
+<h2>小结</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>答案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>版本链存在哪</td>
+<td>最新版本在聚簇索引，旧版本在 undo log，用 <code>DB_ROLL_PTR</code> 串起来</td>
+</tr>
+<tr>
+<td>可见性靠什么</td>
+<td><code>DB_TRX_ID</code> + Read View 的四个字段</td>
+</tr>
+<tr>
+<td>RC 与 RR 差在哪</td>
+<td>Read View 每条语句一个，还是每个事务一个</td>
+</tr>
+<tr>
+<td>快照读与当前读</td>
+<td>普通 <code>SELECT</code> 是快照读；<code>FOR UPDATE</code> / <code>UPDATE</code> / <code>DELETE</code> 是当前读</td>
+</tr>
+<tr>
+<td>长事务为什么危险</td>
+<td>undo 不能清理、purge 跟不上、版本链变长</td>
+</tr>
+<tr>
+<td>空间为什么不回收</td>
+<td><code>DELETE</code> 只打标记，物理清除在 purge，页整理还要 <code>OPTIMIZE TABLE</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+
+<strong>相关阅读</strong>
+<ul>
+<li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" rel="noopener noreferrer" target="_blank">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li>
+<li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/" rel="noopener noreferrer" target="_blank">InnoDB 锁的边界：Next-Key 与间隙锁</a></li>
+<li><a href="https://blog.zhoujun.dev/article/btree-page-split/" rel="noopener noreferrer" target="_blank">B+ 树索引回源：页分裂长什么样</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" rel="noopener noreferrer" target="_blank">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li>
+<li><a href="https://blog.zhoujun.dev/topics/database/" rel="noopener noreferrer" target="_blank">数据库专题</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li></ul></nav></div></div>
+  </body>
+</html>
