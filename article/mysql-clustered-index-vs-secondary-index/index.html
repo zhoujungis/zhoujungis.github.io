@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：写过 EXPLAIN 、看到过 Using index 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" />
+    <meta property="og:title" content="MySQL 聚簇索引与二级索引：回表到底贵在哪" />
+    <meta property="og:description" content="适用读者：写过 EXPLAIN 、看到过 Using index 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/mysql-clustered-index-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/mysql-clustered-index-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MySQL 聚簇索引与二级索引：回表到底贵在哪 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MySQL 聚簇索引与二级索引：回表到底贵在哪" />
+    <meta name="twitter:description" content="适用读者：写过 EXPLAIN 、看到过 Using index 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/mysql-clustered-index-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>MySQL 聚簇索引与二级索引：回表到底贵在哪 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-WlsUbDLT.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T10:20:39.770312+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T10:20:39.770312+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/#article","url":"https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/","headline":"MySQL 聚簇索引与二级索引：回表到底贵在哪","description":"适用读者：写过 EXPLAIN 、看到过 Using index 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；","image":"https://blog.zhoujun.dev/photos/mysql-clustered-index-cover.png","datePublished":"2026-11-04T10:20:39.770312+08:00","dateModified":"2026-11-04T10:20:39.770312+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/"},"articleSection":"数据库内核","keywords":"后端, 存储引擎, 性能优化, 数据库","inLanguage":"zh-CN","wordCount":4392},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"MySQL 聚簇索引与二级索引：回表到底贵在哪","item":"https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"mysql-clustered-index-vs-secondary-index","title":"MySQL 聚簇索引与二级索引：回表到底贵在哪","created_at":"2026-11-04T10:20:39.770312+08:00","updated_at":"2026-11-04T10:20:39.770357+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/mysql-clustered-index-cover.png","excerpt":"适用读者：写过 EXPLAIN 、看到过 Using index 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；正在决定主键用自增 BIGINT 还是 UUID 的人 结论先行：InnoDB 的表本身就是一棵聚簇索引，叶子节点存整行；二级索引的叶子只存「索引列 + 主键」。所谓回表，就是先在二级索引里拿","reading_time":18,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>MySQL 聚簇索引与二级索引：回表到底贵在哪</span></nav><h1>MySQL 聚簇索引与二级索引：回表到底贵在哪</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（6 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><strong>MySQL 聚簇索引与二级索引：回表到底贵在哪</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：写过 <code>EXPLAIN</code>、看到过 <code>Using index</code> 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；正在决定主键用自增 <code>BIGINT</code> 还是 UUID 的人
+结论先行：InnoDB 的表本身就是一棵聚簇索引，叶子节点存整行；二级索引的叶子只存「索引列 + 主键」。所谓回表，就是先在二级索引里拿到主键，再拿主键去聚簇索引里查整行——<strong>多一次 B+ 树查找，而且大概率是一次随机页访问</strong>。覆盖索引之所以快，不是玄学，是它把这次查找整个删掉了。
+阅读时间：约 18 分钟 | 难度：进阶 | 收获：一张表为什么有两棵树、回表的三笔成本账、主键长度如何放大所有二级索引、以及一套用 <code>EXPLAIN</code> 与 <code>performance_schema</code> 验证回表的办法
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：两条 SELECT，差在哪</li>
+<li>一张表到底有几棵 B+ 树</li>
+<li>聚簇索引的叶子里到底存了什么</li>
+<li>二级索引的叶子里为什么一定有主键</li>
+<li>InnoDB 为什么不学 MyISAM 存行地址</li>
+<li>回表的一次完整旅程</li>
+<li>回表贵在哪：三笔账</li>
+<li>主键长度如何放大所有二级索引</li>
+<li>覆盖索引：把第二次查找删掉</li>
+<li><code>Using index condition</code> 不是覆盖索引</li>
+<li>覆盖索引的代价</li>
+<li>什么时候该主动保留回表</li>
+<li>怎么观测回表：四条证据</li>
+<li>一张决策表与三个常见误区</li>
+<li>小结</li>
+</ul>
+<h2>前言：两条 SELECT，差在哪</h2>
+
+先看两条几乎一样的 SQL：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+</code></pre></div>
+
+
+两条都走 <code>idx_user</code>，都只命中几十行，区别只在于多取了一个 <code>amount</code>。但第二条在 <code>EXPLAIN</code> 的 <code>Extra</code> 里会多出一次隐式的「回表」，在高并发下可能比第一条慢一个数量级。
+
+很多人把这件事归因为「MySQL 优化器不行」，其实不是。第二条 SQL 要求一个不在索引里的列，存储引擎只能拿着主键回到聚簇索引再取一次。这个动作有非常明确的物理成本，也有非常明确的消除办法。本文就把这条路径拆开，讲清楚回表到底贵在哪、什么时候值得消除、什么时候不该消除。
+<h2>一张表到底有几棵 B+ 树</h2>
+
+建一张最普通的订单表：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w">          </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTO_INCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w">     </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">status</span><span class="w">      </span><span class="n">TINYINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">amount</span><span class="w">      </span><span class="nb">INT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w">  </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_user</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">),</span>
+<span class="w">    </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_status</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="p">)</span>
+<span class="p">)</span><span class="w"> </span><span class="n">ENGINE</span><span class="o">=</span><span class="n">InnoDB</span><span class="p">;</span>
+</code></pre></div>
+
+
+在 InnoDB 里，这张表实际对应三棵 B+ 树：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>索引</th>
+<th>叶子节点存什么</th>
+<th>主要服务于</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>聚簇索引 <code>PRIMARY</code></td>
+<td>整行记录（<code>id, user_id, status, amount, created_at</code>）</td>
+<td>按主键定位、回表</td>
+</tr>
+<tr>
+<td>二级索引 <code>idx_user</code></td>
+<td><code>user_id</code> + 主键 <code>id</code></td>
+<td><code>WHERE user_id = ?</code></td>
+</tr>
+<tr>
+<td>二级索引 <code>idx_status</code></td>
+<td><code>status</code> + 主键 <code>id</code></td>
+<td><code>WHERE status = ?</code></td>
+</tr>
+</tbody>
+</table></div>
+
+三棵树共享同一套页结构：16 KB 一页，内部页存「子页的最小键 + 页号」，叶子页存真正的记录，叶子之间用双向链表串起来。区别只在叶子节点装的内容。
+
+这也解释了一个常见疑问：为什么「表的大小」和「索引的大小」不能相加成「总数据量」。聚簇索引的叶子就是数据本身，二级索引是额外的副本，只带索引列和主键。
+<h2>聚簇索引的叶子里到底存了什么</h2>
+
+「叶子存整行」这句话太粗。InnoDB 的行记录（<code>RECORD</code>）在页里是分成几段的：
+<ul>
+<li>5 字节的记录头：包含 <code>info_bits</code>、<code>n_owned</code>、<code>heap_no</code>、记录类型和指向下一条记录的偏移；</li>
+<li>6 字节的 <code>DB_TRX_ID</code>：最后修改这一行的事务 ID，MVCC 靠它判断可见性；</li>
+<li>7 字节的 <code>DB_ROLL_PTR</code>：指向 undo log 里这条记录的旧版本；</li>
+<li>列数据：先放主键列，再放其余列，中间按表的列定义顺序排列；</li>
+<li>可空列的 NULL 标志位图；</li>
+<li>变长列的长度数组。</li>
+</ul>
+
+所以聚簇索引的叶子不只是「业务数据」，还背着事务与回滚信息。这也是为什么聚簇索引的页通常比二级索引的页「重」：同样 16 KB，装的记录条数更少。
+
+如果建表时没有显式主键，InnoDB 会按以下顺序选聚簇索引：
+<ol>
+<li>有 <code>PRIMARY KEY</code>，用它；</li>
+<li>没有主键，选第一个所有列都 <code>NOT NULL</code> 的 <code>UNIQUE</code> 索引；</li>
+<li>都没有，生成一个 6 字节的隐藏列 <code>DB_ROW_ID</code>，用它建聚簇索引。</li>
+</ol>
+
+第三条很关键：没有主键的表不是「没有聚簇索引」，而是「用一个你看不见的列做聚簇索引」。这个隐藏列会同时出现在所有二级索引的叶子里，你既不能查它，也不能控制它的生成顺序。
+<h2>二级索引的叶子里为什么一定有主键</h2>
+
+从上面的表可以看出，二级索引叶子存的是「索引列 + 主键」，而不是「索引列 + 行地址」。这不是实现细节，而是 InnoDB 的硬约束。
+
+在 <code>dict_index_t</code> 里，有一个字段叫 <code>n_uniq</code>，表示「能让一条索引记录唯一的字段数」。对二级索引来说，<code>n_uniq</code> 等于索引列数加上主键列数。原因是索引列本身可能重复：<code>user_id = 42</code> 可能对应几百行，B+ 树必须再补上主键，才能把每条记录排成严格的全序。
+
+于是二级索引的排序规则变成：
+<div class="codehilite"><pre><span></span><code>先比 user_id，user_id 相同再比 id
+</code></pre></div>
+
+
+这条规则带来两个直接后果：
+<ul>
+<li>二级索引里天然包含主键，所以 <code>SELECT id FROM orders WHERE user_id = 42</code> 是覆盖索引，不需要回表；</li>
+<li>主键列越长，每个二级索引项就越大，一棵二级索引能装的项数就越少。</li>
+</ul>
+
+这两个后果在后面的「主键长度」一节会展开。
+<h2>InnoDB 为什么不学 MyISAM 存行地址</h2>
+
+MyISAM 的二级索引叶子存的是行地址（文件偏移），回表就是一次指针跳转，看起来更省。InnoDB 不这么做，是因为<strong>行会移动</strong>：
+<ul>
+<li>页分裂时，记录要从满页搬到新页，物理位置变了；</li>
+<li><code>OPTIMIZE TABLE</code>、<code>ALTER TABLE</code> 重建表，整张表的页序可能重排；</li>
+<li>在线 DDL 重建、表空间回收，也会改变记录所在的页；</li>
+<li>行本身被更新得更长时，可能触发「记录溢出」或页内重排。</li>
+</ul>
+
+如果二级索引存的是物理地址，上面每一次移动都要同步改所有二级索引，写入成本会被放大成「改一行、改全部索引」。而主键是逻辑标识：行搬到哪一页，主键都不变，二级索引不需要跟着改。
+
+代价也很明确：回表不能靠一次指针跳转完成，必须重新走一次 B+ 树。InnoDB 选择用「读放大」换「写放大」，这是 OLTP 场景下的合理取舍。页分裂的具体过程见 <a href="https://blog.zhoujun.dev/article/btree-page-split/" rel="noopener noreferrer" target="_blank">B+ 树索引回源：页分裂长什么样</a>。
+<h2>回表的一次完整旅程</h2>
+
+还是这条 SQL：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+</code></pre></div>
+
+
+执行路径可以拆成七步：
+<ol>
+<li>在 <code>idx_user</code> 的根页开始，按 <code>user_id = 42</code> 做分支判断，一路向下；</li>
+<li>到达叶子页后，沿叶子链表横向扫描，收集所有 <code>user_id = 42</code> 的记录；</li>
+<li>每条记录里带着主键 <code>id</code>；</li>
+<li>用这个 <code>id</code> 回到聚簇索引的根页；</li>
+<li>在聚簇索引里再做一次分支判断，走到对应的叶子页；</li>
+<li>在叶子页里定位到这条记录，读出 <code>amount</code>；</li>
+<li>对下一个主键重复第 4 到第 6 步。</li>
+</ol>
+
+如果命中了 100 行，第 4 到第 6 步就要做 100 次。<strong>每一轮都是一次独立的 B+ 树查找</strong>，而不是「顺着链表继续读」。
+
+更糟的是，这 100 个主键在聚簇索引里通常不连续。<code>idx_user</code> 是按 <code>user_id</code> 排的，聚簇索引是按 <code>id</code> 排的，两种顺序没有关系。于是第 4 步的落点会在聚簇索引里来回跳：这页读一下、那页读一下，每次没命中 buffer pool 就是一次磁盘随机读。
+<h2>回表贵在哪：三笔账</h2>
+<h3>第一笔：随机页访问</h3>
+
+B+ 树的一次查找，成本约等于「树高次页访问」。三层树、命中 buffer pool 时是三次内存访问；没命中就是三次磁盘 IO 里的若干次。回表把「一次查找」变成「一次查找 + N 次查找」，N 是命中行数。
+
+顺序扫描的成本是「页数 × 每页代价」，随机回表的成本是「行数 × 每次查找代价」。当命中行数占表比例很高时，后者的页访问次数会超过前者，优化器就会放弃索引改选 <code>ALL</code>——这不是优化器抽风，是它算过账。
+<h3>第二笔：buffer pool 污染</h3>
+
+buffer pool 是有限的热点缓存。回表会把聚簇索引的页读进来，这些页可能只被用一次就再也不用了，却把真正热点的页挤了出去。命中率一旦下降，后续所有查询都会变慢，影响面远超过这一条 SQL。
+
+这也是为什么「偶尔跑一次的导出 SQL」能把线上拖垮：它不一定是慢在 CPU，而是慢在把 buffer pool 洗了一遍。
+<h3>第三笔：CPU 与锁</h3>
+
+每次回表都要重新走一遍分支判断、比较键值、解记录头。单次很便宜，乘以几十万行就不可忽略。
+
+如果是 <code>SELECT ... FOR UPDATE</code> 或 <code>UPDATE</code>，回表还意味着要在聚簇索引的记录上加锁。锁的粒度和加锁顺序都会因此变化，死锁概率也跟着上升。锁的坐标系统见 <a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/" rel="noopener noreferrer" target="_blank">InnoDB 锁的边界：Next-Key 与间隙锁</a>。
+<h2>主键长度如何放大所有二级索引</h2>
+
+二级索引的每个叶子项都带主键。主键从 8 字节的 <code>BIGINT</code> 换成 36 字节的 <code>CHAR(36)</code> UUID，每个二级索引项就多出 28 字节。这个数字要乘以：
+<ul>
+<li>每张表的二级索引数量；</li>
+<li>每个索引的记录条数；</li>
+<li>每次写入要维护的索引页数。</li>
+</ul>
+
+结果不是「多 28 字节」，而是「所有二级索引整体膨胀一截」。同样 16 KB 的页，能装的索引项变少，树可能从三层变四层，每次查找多一次页访问。
+
+还有一个更隐蔽的问题：随机 UUID 作为聚簇索引键，插入位置随机落在树的各个位置，会持续触发页分裂，页的填充率下降，表空间膨胀。自增主键则总是插在最右侧，页分裂少得多。
+
+如果业务确实需要 UUID，有两个折中：
+<ul>
+<li>用 <code>UUID_TO_BIN(uuid, 1)</code> 把时间高位调到前面，让生成的二进制值近似有序；</li>
+<li>用「自增主键 + 业务唯一键」的组合，把 UUID 降级成普通唯一索引，而不是聚簇索引。</li>
+</ul>
+<h2>覆盖索引：把第二次查找删掉</h2>
+
+如果查询需要的列全部在二级索引里，就不需要回表：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>id</code> 和 <code>user_id</code> 都在 <code>idx_user</code> 的叶子里，存储引擎读完索引就能返回结果。<code>EXPLAIN</code> 的 <code>Extra</code> 会显示 <code>Using index</code>。
+
+判断「是不是覆盖索引」有一条简单规则：<strong>把 <code>SELECT</code>、<code>WHERE</code>、<code>ORDER BY</code>、<code>GROUP BY</code> 里出现的列全部列出来，看它们是否都在同一条索引里</strong>。注意 InnoDB 的二级索引自动带主键，所以主键不用额外加。
+
+几个容易误判的例子：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 覆盖：只用到索引列和主键</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="c1">-- 不覆盖：amount 不在 idx_user 里</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+
+<span class="c1">-- 覆盖：COUNT(*) 不需要读任何业务列</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+</code></pre></div>
+
+
+第三条常被误解。<code>COUNT(*)</code> 不要求读整行，只要数索引项，优化器通常会挑一棵较小的二级索引来扫，<code>Extra</code> 里能看到 <code>Using index</code>。
+<h2><code>Using index condition</code> 不是覆盖索引</h2>
+
+这两个词长得很像，含义完全不同：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Extra</th>
+<th>含义</th>
+<th>还要回表吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Using index</code></td>
+<td>覆盖索引，所需列都在索引里</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td><code>Using index condition</code></td>
+<td>索引条件下推（ICP），部分条件下沉到引擎层过滤</td>
+<td>需要</td>
+</tr>
+</tbody>
+</table></div>
+
+ICP 的作用是「少回表」，不是「不回表」。举例：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</code></pre></div>
+
+
+索引是 <code>idx_user (user_id)</code>，<code>status</code> 不在索引里。没有 ICP 时，引擎会先把 <code>user_id = 42</code> 的行全部回表，再在服务器层过滤 <code>status</code>。有 ICP 时，引擎在索引上先判断 <code>status</code>，只把通过的行回表。
+
+优化器开关是 <code>optimizer_switch</code> 里的 <code>index_condition_pushdown</code>，默认开启。可以用下面的语句确认：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">@@</span><span class="n">optimizer_switch</span><span class="err">\</span><span class="k">G</span>
+</code></pre></div>
+
+
+如果某条 SQL 的 <code>Extra</code> 只有 <code>Using index condition</code> 而没有 <code>Using index</code>，说明它仍然回表，只是回表次数被压低了。
+<h2>覆盖索引的代价</h2>
+
+覆盖索引不是免费的，代价写在写入路径上：
+<ul>
+<li><strong>索引变大</strong>：把 <code>amount</code>、<code>created_at</code> 这类列塞进联合索引，索引页数上升，buffer pool 占用上升；</li>
+<li><strong>写入变慢</strong>：每次 <code>INSERT</code> / <code>UPDATE</code> 都要多维护一列，页分裂和日志量都增加；</li>
+<li><strong>DDL 更重</strong>：加列、改列类型要重建整棵索引；</li>
+<li><strong>优化器选择变复杂</strong>：索引太多，优化器可能选错，<code>possible_keys</code> 列出一堆候选。</li>
+</ul>
+
+所以正确顺序是：先用 <code>EXPLAIN</code> 确认回表确实是瓶颈，再考虑把列加进索引；不要为了「看起来覆盖」把所有列都塞进去。一个宽覆盖索引的维护成本，可能比它省下的回表更贵。
+<h2>什么时候该主动保留回表</h2>
+
+有些场景回表反而是对的：
+<ul>
+<li><strong>命中行数占比很高</strong>：比如 <code>status = 1</code> 覆盖了 80% 的行，全表扫描比「扫索引 + 逐行回表」更省；</li>
+<li><strong>查询只跑一次</strong>：报表、后台导出、离线任务，回表成本可以接受，不值得为它加一个宽索引；</li>
+<li><strong>列很少被查</strong>：为了一个低频查询维护一个常驻索引，性价比是负的；</li>
+<li><strong>写入远多于读取</strong>：索引的维护成本会压过读取收益。</li>
+</ul>
+
+优化的目标不是「消灭回表」，而是「让贵的回表变少，让便宜的全表扫描被允许发生」。这也是为什么 <code>EXPLAIN</code> 里出现 <code>ALL</code> 不一定是坏事，见 <a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" rel="noopener noreferrer" target="_blank">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a>。
+<h2>怎么观测回表：四条证据</h2>
+<h3>证据一：<code>EXPLAIN</code> 的 <code>Extra</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+</code></pre></div>
+
+
+看三处：
+<ul>
+<li><code>key</code>：用了哪条索引；</li>
+<li><code>rows</code>：预计扫多少行；</li>
+<li><code>Extra</code>：有没有 <code>Using index</code>。</li>
+</ul>
+
+有 <code>Using index</code> 就是覆盖；只有 <code>Using index condition</code> 或 <code>Using where</code>，说明还要回表。
+<h3>证据二：<code>Handler_read_*</code> 计数器</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">FLUSH</span><span class="w"> </span><span class="n">STATUS</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+<span class="k">SHOW</span><span class="w"> </span><span class="k">SESSION</span><span class="w"> </span><span class="n">STATUS</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;Handler_read%&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+<ul>
+<li><code>Handler_read_key</code>：按索引键定位的次数；</li>
+<li><code>Handler_read_next</code>：沿索引顺序读下一条的次数；</li>
+<li><code>Handler_read_rnd_next</code>：全表或无序读的次数。</li>
+</ul>
+
+回表会表现为 <code>Handler_read_key</code> 明显大于返回行数。这个计数器是会话级的，适合对比「改索引前后」。
+<h3>证据三：buffer pool 命中率</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SHOW</span><span class="w"> </span><span class="k">GLOBAL</span><span class="w"> </span><span class="n">STATUS</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;Innodb_buffer_pool_read%&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+<ul>
+<li><code>Innodb_buffer_pool_read_requests</code>：逻辑读请求数；</li>
+<li><code>Innodb_buffer_pool_reads</code>：真正落到磁盘的读次数。</li>
+</ul>
+
+两个值的比值就是命中率。回表把命中率拉低时，<code>reads</code> 会明显上升。注意这是全局累计值，要取两次采样的差值，不要直接看绝对值。
+<h3>证据四：索引使用统计</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">object_name</span><span class="p">,</span><span class="w"> </span><span class="n">index_name</span><span class="p">,</span><span class="w"> </span><span class="n">count_star</span><span class="p">,</span><span class="w"> </span><span class="n">count_read</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">performance_schema</span><span class="p">.</span><span class="n">table_io_waits_summary_by_index_usage</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">object_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;orders&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>count_read</code> 能看出每条索引到底被读了多少次。长期为 0 的索引就是纯维护成本，可以考虑下线；MySQL 8.0 还支持 <code>ALTER TABLE ... ALTER INDEX ... INVISIBLE</code>，先隐藏观察，再决定删除。
+<h2>一张决策表与三个常见误区</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>建议</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>高频查询只取少列</td>
+<td>做联合覆盖索引</td>
+<td>直接省掉回表</td>
+</tr>
+<tr>
+<td>低频报表查询</td>
+<td>允许回表甚至全表扫</td>
+<td>加索引的维护成本更高</td>
+</tr>
+<tr>
+<td>命中行数占比高</td>
+<td>让优化器选 <code>ALL</code></td>
+<td>顺序扫通常优于大量随机回表</td>
+</tr>
+<tr>
+<td>主键是长 UUID</td>
+<td>换有序主键或 <code>UUID_TO_BIN</code></td>
+<td>主键会放大所有二级索引</td>
+</tr>
+<tr>
+<td>宽表 <code>SELECT *</code></td>
+<td>改成显式列清单</td>
+<td>减少不必要的回表与传输</td>
+</tr>
+</tbody>
+</table></div>
+
+误区一：「加了索引就一定快」。索引把「扫全表」换成了「扫索引 + N 次回表」，N 很大时会更慢。
+
+误区二：「二级索引里没有 id，所以要手动把 id 加进联合索引」。不需要，InnoDB 二级索引叶子天然带主键。
+
+误区三：「<code>Using index condition</code> 就是覆盖索引」。不是，它只是把过滤下推，仍然要回表。
+<h2>小结</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>答案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>回表是什么</td>
+<td>二级索引拿到主键后，再去聚簇索引取整行</td>
+</tr>
+<tr>
+<td>为什么贵</td>
+<td>多一次 B+ 树查找，通常是随机页访问</td>
+</tr>
+<tr>
+<td>怎么避免</td>
+<td>覆盖索引、合理联合索引、避免 <code>SELECT *</code>、短主键</td>
+</tr>
+<tr>
+<td>怎么确认</td>
+<td><code>EXPLAIN</code> 看 <code>Extra</code> 是否有 <code>Using index</code></td>
+</tr>
+<tr>
+<td>什么时候别避免</td>
+<td>命中行数占比高、低频查询、写入密集</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+
+<strong>相关阅读</strong>
+<ul>
+<li><a href="https://blog.zhoujun.dev/article/btree-page-split/" rel="noopener noreferrer" target="_blank">B+ 树索引回源：页分裂长什么样</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" rel="noopener noreferrer" target="_blank">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" rel="noopener noreferrer" target="_blank">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li>
+<li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/" rel="noopener noreferrer" target="_blank">InnoDB 锁的边界：Next-Key 与间隙锁</a></li>
+<li><a href="https://blog.zhoujun.dev/topics/database/" rel="noopener noreferrer" target="_blank">数据库专题</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li></ul></nav></div></div>
+  </body>
+</html>

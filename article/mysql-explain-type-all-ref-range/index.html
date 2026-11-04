@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：每天都在 EXPLAIN 但只看 type 的人；被 rows 估算和实际差十倍坑过的人；想搞清楚 key_len 、 filtered 、 Extra 到底该信哪个人…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" />
+    <meta property="og:title" content="MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看" />
+    <meta property="og:description" content="适用读者：每天都在 EXPLAIN 但只看 type 的人；被 rows 估算和实际差十倍坑过的人；想搞清楚 key_len 、 filtered 、 Extra 到底该信哪个人…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/mysql-explain-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/mysql-explain-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看" />
+    <meta name="twitter:description" content="适用读者：每天都在 EXPLAIN 但只看 type 的人；被 rows 估算和实际差十倍坑过的人；想搞清楚 key_len 、 filtered 、 Extra 到底该信哪个人…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/mysql-explain-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-WlsUbDLT.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T10:22:17.089954+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T10:22:17.090210+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/#article","url":"https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/","headline":"MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看","description":"适用读者：每天都在 EXPLAIN 但只看 type 的人；被 rows 估算和实际差十倍坑过的人；想搞清楚 key_len 、 filtered 、 Extra 到底该信哪个人…","image":"https://blog.zhoujun.dev/photos/mysql-explain-cover.png","datePublished":"2026-11-04T10:22:17.089954+08:00","dateModified":"2026-11-04T10:22:17.090210+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/"},"articleSection":"数据库内核","keywords":"后端, 存储引擎, 性能优化, 数据库","inLanguage":"zh-CN","wordCount":4017},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看","item":"https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"mysql-explain-type-all-ref-range","title":"MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看","created_at":"2026-11-04T10:22:17.089954+08:00","updated_at":"2026-11-04T10:22:17.090210+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/mysql-explain-cover.png","excerpt":"适用读者：每天都在 EXPLAIN 但只看 type 的人；被 rows 估算和实际差十倍坑过的人；想搞清楚 key_len 、 filtered 、 Extra 到底该信哪个人 结论先行： EXPLAIN 的 type 描述的是「这张表怎么被访问」，不是「快不快」。 ALL 不一定是坏消息（小表全扫本来就该全扫）， ","reading_time":17,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</span></nav><h1>MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（6 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><strong>MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</strong>（当前）</li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：每天都在 <code>EXPLAIN</code> 但只看 <code>type</code> 的人；被 <code>rows</code> 估算和实际差十倍坑过的人；想搞清楚 <code>key_len</code>、<code>filtered</code>、<code>Extra</code> 到底该信哪个人
+结论先行：<code>EXPLAIN</code> 的 <code>type</code> 描述的是「这张表怎么被访问」，不是「快不快」。<code>ALL</code> 不一定是坏消息（小表全扫本来就该全扫），<code>ref</code> 也不一定快（回表几十万行照样慢）。真正要盯的是：<strong><code>key</code> 是否为 NULL、<code>rows</code> 乘起来有多大、<code>Extra</code> 有没有 <code>Using filesort</code> / <code>Using temporary</code></strong>。
+阅读时间：约 18 分钟 | 难度：进阶 | 收获：一张列速查表、type 的完整阶梯、<code>key_len</code> 的逐字节算法、<code>Extra</code> 信号字典、以及一套拿到慢 SQL 后的排查顺序
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：EXPLAIN 不是性能评分</li>
+<li>先把列名认全</li>
+<li>type 的完整阶梯</li>
+<li>const 与 system：最好的一档</li>
+<li>eq_ref：JOIN 里的唯一匹配</li>
+<li>ref 与 ref_or_null：最常见的「好」</li>
+<li>range：索引上的范围扫描</li>
+<li>index 与 ALL：全扫的两种形态</li>
+<li>index_merge：三个索引凑一个答案</li>
+<li>子查询里的 unique_subquery 与 index_subquery</li>
+<li><code>key_len</code> 的逐字节算法</li>
+<li><code>rows</code> 与 <code>filtered</code>：估算的估算</li>
+<li><code>Extra</code> 信号字典</li>
+<li><code>EXPLAIN FORMAT=JSON</code> 能多看什么</li>
+<li><code>EXPLAIN ANALYZE</code>：让估算和实际对账</li>
+<li>五种常见误判</li>
+<li>拿到一条慢 SQL 的排查顺序</li>
+<li>小结</li>
+</ul>
+<h2>前言：EXPLAIN 不是性能评分</h2>
+
+很多人把 <code>type</code> 当成性能评分：<code>const</code> 是 100 分，<code>ref</code> 是 80 分，<code>ALL</code> 是 0 分。这个理解会导致两类错误：
+<ul>
+<li>看到 <code>ALL</code> 就急着加索引，结果小表全扫本来比走索引更快；</li>
+<li>看到 <code>ref</code> 就放心，结果 <code>rows</code> 是 80 万，回表把 buffer pool 洗了一遍。</li>
+</ul>
+
+<code>EXPLAIN</code> 回答的是「优化器打算怎么执行」，不是「执行要多久」。它给出的每个字段都是估算值或结构描述，真正的耗时要靠 <code>EXPLAIN ANALYZE</code>、慢查询日志和 <code>performance_schema</code>。
+
+本文按「列 → type → key_len → rows/filtered → Extra → 扩展格式 → 排查顺序」的顺序拆一遍。
+<h2>先把列名认全</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+</code></pre></div>
+
+
+输出是一张表，常见列如下：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>列</th>
+<th>含义</th>
+<th>怎么用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>查询块编号</td>
+<td>同一 <code>id</code> 内从上到下执行；<code>id</code> 越大越先执行</td>
+</tr>
+<tr>
+<td><code>select_type</code></td>
+<td>查询类型</td>
+<td><code>SIMPLE</code>、<code>PRIMARY</code>、<code>SUBQUERY</code>、<code>DERIVED</code>、<code>UNION</code></td>
+</tr>
+<tr>
+<td><code>table</code></td>
+<td>访问的表或派生表</td>
+<td>派生表显示为 <code>&lt;derivedN&gt;</code></td>
+</tr>
+<tr>
+<td><code>partitions</code></td>
+<td>命中的分区</td>
+<td>分区表才有关注价值</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>访问类型</td>
+<td>本文的重点</td>
+</tr>
+<tr>
+<td><code>possible_keys</code></td>
+<td>可能用到的索引</td>
+<td>用来判断「有没有候选」</td>
+</tr>
+<tr>
+<td><code>key</code></td>
+<td>实际选用的索引</td>
+<td><code>NULL</code> 表示没用到索引</td>
+</tr>
+<tr>
+<td><code>key_len</code></td>
+<td>实际用到的索引字节数</td>
+<td>反推用了几列</td>
+</tr>
+<tr>
+<td><code>ref</code></td>
+<td>与索引比较的值或列</td>
+<td>常量、列名、函数结果</td>
+</tr>
+<tr>
+<td><code>rows</code></td>
+<td>预计扫描行数</td>
+<td>估算值，不是实际值</td>
+</tr>
+<tr>
+<td><code>filtered</code></td>
+<td>预计通过剩余条件的比例</td>
+<td>百分比</td>
+</tr>
+<tr>
+<td><code>Extra</code></td>
+<td>额外操作信息</td>
+<td>信息量最大的一列</td>
+</tr>
+</tbody>
+</table></div>
+
+先记住一条：<code>possible_keys</code> 有值而 <code>key</code> 为 <code>NULL</code>，说明「有索引可用但优化器没选」，这比「压根没有索引」更值得深挖。
+<h2>type 的完整阶梯</h2>
+
+MySQL 文档给出的顺序，大致从「定位最精确」到「扫描最粗」：
+<div class="codehilite"><pre><span></span><code><span class="n">system</span>
+<span class="k">const</span>
+<span class="n">eq_ref</span>
+<span class="n">ref</span>
+<span class="n">fulltext</span>
+<span class="n">ref_or_null</span>
+<span class="n">index_merge</span>
+<span class="n">unique_subquery</span>
+<span class="n">index_subquery</span>
+<span class="nb">range</span>
+<span class="n">index</span>
+<span class="n">ALL</span>
+</code></pre></div>
+
+
+这个顺序是「访问方式的精确度」，不是严格的性能排序。下面逐档解释。
+<h2>const 与 system：最好的一档</h2>
+
+<code>WHERE</code> 里是主键或唯一索引的等值查询，优化器在编译期就能确定只有一行：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;a@example.com&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>type</code> 为 <code>const</code>。如果这张表本身只有一行，<code>type</code> 会进一步变成 <code>system</code>。
+
+<code>const</code> 的前提是「唯一」且「非空」：
+<ul>
+<li>主键天然唯一非空；</li>
+<li>唯一索引如果允许 <code>NULL</code>，多行 <code>NULL</code> 不违反唯一约束，优化器不能保证只有一行，可能退化成 <code>ref</code>。</li>
+</ul>
+
+还有一个细节：如果 <code>WHERE</code> 里的值在表里不存在，<code>Extra</code> 会显示 <code>no matching row in const table</code>，<code>rows</code> 为 0。这不是错误，是优化器提前知道「查不到」。
+<h2>eq_ref：JOIN 里的唯一匹配</h2>
+
+<code>eq_ref</code> 出现在 JOIN 里：被驱动的表通过<strong>唯一索引</strong>匹配，每行驱动数据只对应一行。
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">email</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="n">o</span>
+<span class="k">JOIN</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">user_id</span><span class="p">;</span>
+</code></pre></div>
+
+
+如果 <code>users.id</code> 是主键，<code>u</code> 这一行的 <code>type</code> 是 <code>eq_ref</code>。如果 <code>u.id</code> 不是唯一索引，就会退化成 <code>ref</code>。
+
+<code>eq_ref</code> 和 <code>const</code> 的区别在于「驱动源」：<code>const</code> 的匹配值是编译期常量，<code>eq_ref</code> 的匹配值来自另一张表的当前行。所以 <code>eq_ref</code> 是「每读一行驱动表，就做一次唯一查找」。
+<h2>ref 与 ref_or_null：最常见的「好」</h2>
+
+普通二级索引的等值查询，可能命中多行：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>type = ref</code>，<code>key = idx_tenant_status</code>。这是最常见的「好」状态。但注意：<code>ref</code> 只代表能用索引定位，命中多少行要看 <code>rows</code>。
+
+<code>ref_or_null</code> 是 <code>ref</code> 的变体，出现在：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+
+优化器需要同时扫描「等于 7」的区间和「NULL」的区间。它比 <code>ref</code> 多一次 NULL 区间扫描，通常不是大问题，但如果 NULL 行很多，<code>rows</code> 会明显上升。
+<h2>range：索引上的范围扫描</h2>
+
+索引上的范围条件：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">BETWEEN</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="s1">&#39;2026-02-01&#39;</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;abc%&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>type = range</code>。范围越小越好；如果范围覆盖了大半张表，优化器可能直接选 <code>ALL</code>。
+
+<code>range</code> 的 <code>key_len</code> 通常只覆盖到「范围列」为止。范围列之后的列不能用于定位，只能用于过滤或索引条件下推。这一点在 <a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" rel="noopener noreferrer" target="_blank">MySQL 联合索引最左前缀</a> 里有详细推导。
+<h2>index 与 ALL：全扫的两种形态</h2>
+
+<code>index</code> 是「扫整棵索引」，不是扫表：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">tenant_id</span><span class="p">;</span>
+</code></pre></div>
+
+
+如果 <code>Extra</code> 是 <code>Using index</code>，说明只读索引、不回表。<code>type = index</code> 常见于「覆盖索引 + 排序」，但如果索引很大，依然很慢。
+
+<code>ALL</code> 是全表扫描：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>status</code> 没有单独索引（它在联合索引的第二位，不满足最左前缀），只能全表扫。小表（几百行）出现 <code>ALL</code> 完全正常；百万行表出现 <code>ALL</code> 才需要处理。
+
+两者都可能很快，也都可能很慢。判断依据是「要扫多少页」，不是「名字看起来谁更高级」。
+<h2>index_merge：三个索引凑一个答案</h2>
+
+当一个 <code>WHERE</code> 同时命中多个索引、又没有一条联合索引能覆盖时，优化器可能把多个索引的结果合并：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;a@example.com&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>Extra</code> 里会出现三种形态：
+<ul>
+<li><code>Using intersect(...)</code>：多个索引结果取交集，对应 <code>AND</code>；</li>
+<li><code>Using union(...)</code>：取并集，对应 <code>OR</code>；</li>
+<li><code>Using sort_union(...)</code>：取并集但需要排序。</li>
+</ul>
+
+<code>index_merge</code> 在实践中不稳定：它要分别扫多个索引，再做集合运算，CPU 和内存开销都不低。通常不如一条设计良好的联合索引。可以用 <code>optimizer_switch</code> 关闭它做对比，但不建议在生产环境长期关闭。
+<h2>子查询里的 unique_subquery 与 index_subquery</h2>
+
+这两档出现在 <code>IN</code> 子查询里：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">orders</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">user_id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</code></pre></div>
+
+<ul>
+<li>如果子查询的列是主键或唯一索引，<code>type</code> 可能是 <code>unique_subquery</code>；</li>
+<li>如果是普通索引，<code>type</code> 可能是 <code>index_subquery</code>；</li>
+<li>如果子查询无法用索引，可能退化成 <code>ALL</code> 或物化成派生表。</li>
+</ul>
+
+MySQL 8.0 对子查询做了较多优化（半连接、物化、<code>derived_merge</code>），实际计划可能和 5.7 不同。看 <code>EXPLAIN</code> 时不要拿旧版本的经验硬套。
+<h2><code>key_len</code> 的逐字节算法</h2>
+
+<code>key_len</code> 是「本次实际用到的索引字节数」。它不能直接告诉你用了哪几列，但结合列类型可以反推。
+
+常见类型的字节数：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>字节数</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TINYINT</code></td>
+<td>1</td>
+<td></td>
+</tr>
+<tr>
+<td><code>SMALLINT</code></td>
+<td>2</td>
+<td></td>
+</tr>
+<tr>
+<td><code>MEDIUMINT</code></td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td><code>INT</code></td>
+<td>4</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BIGINT</code></td>
+<td>8</td>
+<td></td>
+</tr>
+<tr>
+<td><code>DATE</code></td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td><code>DATETIME</code></td>
+<td>5</td>
+<td>小数秒每 1-2 位加 1 字节</td>
+</tr>
+<tr>
+<td><code>TIMESTAMP</code></td>
+<td>4</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>CHAR(n)</code> utf8mb4</td>
+<td><code>4n</code></td>
+<td>可空再 +1</td>
+</tr>
+<tr>
+<td><code>VARCHAR(n)</code> utf8mb4</td>
+<td><code>4n + 2</code></td>
+<td>2 字节存变长长度；可空再 +1</td>
+</tr>
+<tr>
+<td>前缀索引 <code>col(k)</code></td>
+<td><code>4k + 2</code></td>
+<td>只索引前 k 个字符</td>
+</tr>
+<tr>
+<td>任意可空列</td>
+<td>额外 +1</td>
+<td>NULL 标志位</td>
+</tr>
+</tbody>
+</table></div>
+
+对 <code>idx_tenant_status (tenant_id BIGINT NOT NULL, status TINYINT NOT NULL)</code>：
+<ul>
+<li>只用到 <code>tenant_id</code>：<code>key_len = 8</code>；</li>
+<li>两列都用到：<code>key_len = 9</code>。</li>
+</ul>
+
+如果两列都可空，<code>key_len</code> 会变成 <code>10</code>（每列各加 1 字节的 NULL 标志）。
+
+<code>key_len</code> 偏小通常意味着三种情况之一：后面的列没写进 <code>WHERE</code>、列顺序不满足最左前缀、或者中间出现了范围条件。
+
+还有一个容易踩的坑：<code>key_len</code> 只统计索引键本身，不包含 InnoDB 二级索引自动追加的主键。所以不能用它来估算「一条二级索引记录占多少字节」。
+<h2><code>rows</code> 与 <code>filtered</code>：估算的估算</h2>
+<ul>
+<li><code>rows</code>：优化器估算「这次访问要扫描多少行」；</li>
+<li><code>filtered</code>：这些行里预计有多少比例能通过 <code>WHERE</code> 的剩余条件。</li>
+</ul>
+
+两者相乘才是「预计真正参与后续计算的行数」。JOIN 时把每张表的 <code>rows × filtered</code> 串起来，就能看出这条 SQL 的量级。
+
+估算依赖统计信息。以下几种情况会让 <code>rows</code> 严重失真：
+<ul>
+<li>刚导入大批数据，还没 <code>ANALYZE TABLE</code>；</li>
+<li>表频繁增删，统计信息更新滞后；</li>
+<li>等值条件太多，超过了 <code>eq_range_index_dive_limit</code>，优化器改用统计信息抽样；</li>
+<li>数据分布倾斜，直方图没有覆盖到。</li>
+</ul>
+
+MySQL 8.0 可以用 <code>ANALYZE TABLE users UPDATE HISTOGRAM ON status</code> 生成直方图，改善倾斜列的估算。
+<h2><code>Extra</code> 信号字典</h2>
+
+<code>Extra</code> 是信息量最大的一列。常见的值：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Extra</th>
+<th>含义</th>
+<th>要不要处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Using index</code></td>
+<td>覆盖索引，不回表</td>
+<td>好事</td>
+</tr>
+<tr>
+<td><code>Using index condition</code></td>
+<td>索引条件下推（ICP），减少回表</td>
+<td>一般好事</td>
+</tr>
+<tr>
+<td><code>Using where</code></td>
+<td>服务器层还要过滤</td>
+<td>看 <code>rows</code> 大小</td>
+</tr>
+<tr>
+<td><code>Using filesort</code></td>
+<td>排序没蹭上索引顺序</td>
+<td>数据量大时要处理</td>
+</tr>
+<tr>
+<td><code>Using temporary</code></td>
+<td>用了临时表（<code>GROUP BY</code> / <code>DISTINCT</code> / <code>UNION</code>）</td>
+<td>数据量大时要处理</td>
+</tr>
+<tr>
+<td><code>Using join buffer (Block Nested Loop)</code></td>
+<td>JOIN 没走索引</td>
+<td>通常要补索引</td>
+</tr>
+<tr>
+<td><code>Using join buffer (hash join)</code></td>
+<td>8.0.20+ 的哈希连接</td>
+<td>大表 JOIN 时未必差</td>
+</tr>
+<tr>
+<td><code>Using index for skip scan</code></td>
+<td>8.0.13+ 的索引跳跃扫描</td>
+<td>知道即可，别当常规方案</td>
+</tr>
+<tr>
+<td><code>Using index for group-by</code></td>
+<td>松散索引扫描，<code>GROUP BY</code> 蹭上索引</td>
+<td>好事</td>
+</tr>
+<tr>
+<td><code>Backward index scan</code></td>
+<td>反向扫描索引</td>
+<td>正常</td>
+</tr>
+<tr>
+<td><code>Range checked for each record (index map: N)</code></td>
+<td>每行都重新选索引</td>
+<td>通常要处理</td>
+</tr>
+<tr>
+<td><code>Select tables optimized away</code></td>
+<td>优化器直接算出结果，不用扫表</td>
+<td>好事</td>
+</tr>
+<tr>
+<td><code>Impossible WHERE</code></td>
+<td>条件恒假，直接返回空</td>
+<td>正常</td>
+</tr>
+<tr>
+<td><code>no matching row in const table</code></td>
+<td>常量在唯一索引里不存在</td>
+<td>正常</td>
+</tr>
+<tr>
+<td><code>Distinct</code></td>
+<td>优化器用索引去重</td>
+<td>好事</td>
+</tr>
+<tr>
+<td><code>Not exists</code></td>
+<td>半连接提前终止</td>
+<td>好事</td>
+</tr>
+<tr>
+<td><code>Start temporary</code> / <code>End temporary</code></td>
+<td>物化临时表参与 JOIN</td>
+<td>看数据量</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>Using filesort</code> 不代表一定有磁盘排序，小结果集在内存里排也很快；但 <code>rows</code> 很大时，它就是明显的 CPU 和内存开销。
+
+<code>Using temporary</code> 也不一定落盘。MySQL 8.0.16 起，内部临时表默认使用 <code>TempTable</code> 引擎，超过 <code>temptable_max_ram</code> 才会转成磁盘上的 InnoDB 临时表。判断是否落盘要看 <code>Created_tmp_disk_tables</code> 计数器。
+<h2><code>EXPLAIN FORMAT=JSON</code> 能多看什么</h2>
+
+普通 <code>EXPLAIN</code> 是表格，信息被压缩过。<code>FORMAT=JSON</code> 会给出更细的代价与条件：
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="n">FORMAT</span><span class="o">=</span><span class="n">JSON</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+
+重点看这几项：
+<ul>
+<li><code>access_type</code>：等价于表格里的 <code>type</code>；</li>
+<li><code>possible_keys</code> / <code>key</code>：候选与实际选择；</li>
+<li><code>used_key_parts</code>：<strong>实际用到了索引的哪几列</strong>，比 <code>key_len</code> 更直观；</li>
+<li><code>key_length</code>：等价于 <code>key_len</code>；</li>
+<li><code>ref</code>：与索引比较的值；</li>
+<li><code>rows_examined_per_scan</code> / <code>rows_produced_per_join</code>：扫描行数与产出行数；</li>
+<li><code>filtered</code>：过滤比例；</li>
+<li><code>attached_condition</code>：被下推或附加的条件；</li>
+<li><code>used_columns</code>：这条查询实际需要读的列；</li>
+<li><code>cost_info</code>：<code>read_cost</code>、<code>eval_cost</code>、<code>prefix_cost</code>、<code>query_cost</code>。</li>
+</ul>
+
+<code>used_key_parts</code> 是最值得记住的字段。比如 <code>INDEX(a, b, c)</code> 上执行 <code>WHERE a = 1 AND c = 3</code>，它会明确显示只用了 <code>["a"]</code>，比盯着 <code>key_len</code> 猜要快得多。
+
+<code>query_cost</code> 是优化器估算的总代价，单位是「任意的代价单位」，不是毫秒。它只能用来横向比较两个计划，不能用来预测真实耗时。
+<h2><code>EXPLAIN ANALYZE</code>：让估算和实际对账</h2>
+
+MySQL 8.0.18 起支持：
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">ANALYZE</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+</code></pre></div>
+
+
+它会<strong>真正执行</strong>这条 SQL，并输出每个算子的：
+<ul>
+<li><code>actual time</code>：实际耗时（毫秒级）；</li>
+<li><code>rows</code>：实际产出的行数；</li>
+<li><code>loops</code>：该算子被执行的次数；</li>
+<li><code>estimated rows</code>：优化器的估算值。</li>
+</ul>
+
+最常见的用法是对账：
+<div class="codehilite"><pre><span></span><code><span class="o">-&gt;</span><span class="w"> </span><span class="nf">Index</span><span class="w"> </span><span class="kr">lookup</span><span class="w"> </span><span class="n">on</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="n">using</span><span class="w"> </span><span class="n">idx_tenant_status</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+<span class="w">   </span><span class="p">(</span><span class="n">cost</span><span class="o">=</span><span class="p">...</span><span class="w"> </span><span class="n">rows</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="n">actual</span><span class="w"> </span><span class="n">time</span><span class="o">=</span><span class="mf">0.05</span><span class="p">.</span><span class="mf">.0.06</span><span class="w"> </span><span class="n">rows</span><span class="o">=</span><span class="mi">1200</span><span class="w"> </span><span class="n">loops</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+
+估算 3 行、实际 1200 行，说明统计信息或代价模型有问题。先 <code>ANALYZE TABLE</code>，再看是否需要用直方图。
+
+注意两点：
+<ul>
+<li><code>EXPLAIN ANALYZE</code> 会执行查询，对 <code>SELECT</code> 安全，对写操作要谨慎；</li>
+<li>它展示的是「这一次执行」的实际情况，缓存冷热、并发负载都会影响结果，不要拿一次采样当定论。</li>
+</ul>
+<h2>五种常见误判</h2>
+<h3>隐式类型转换</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- tenant_id 是 BIGINT，字符串会被转成数字，索引通常仍可用</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;7&#39;</span>
+
+<span class="c1">-- email 是 VARCHAR，数字会把整列转成数字，索引失效</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">123</span>
+</code></pre></div>
+
+
+规则是：转换发生在「常量」上时通常安全，发生在「列」上时索引失效。类型要显式对齐。
+<h3>统计信息过期</h3>
+
+刚导入大批数据、或频繁增删的表，<code>rows</code> 可能严重失真。先 <code>ANALYZE TABLE</code>，再看 <code>EXPLAIN</code>。
+<h3>优化器主动放弃索引</h3>
+
+命中行数占比太高时，回表成本超过全表扫描，优化器选 <code>ALL</code> 是合理的，不是 bug。可以用 <code>FORCE INDEX</code> 强行验证一次：如果强行后变快，说明统计信息或代价模型有问题；如果更慢，就接受优化器的选择。
+<h3>索引存在但没被选</h3>
+
+<code>possible_keys</code> 有值、<code>key</code> 为 <code>NULL</code>，常见原因有：
+<ul>
+<li>列顺序不满足最左前缀；</li>
+<li>条件里对列做了函数运算；</li>
+<li>隐式类型转换；</li>
+<li>优化器估算回表成本过高；</li>
+<li><code>index_merge</code> 或 <code>skip_scan</code> 抢了选择。</li>
+</ul>
+<h3>把 <code>LIMIT</code> 当成万能优化</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+</code></pre></div>
+
+
+有索引时很快；没有索引时，<code>Using filesort</code> 要先排完整个结果集再取前 10 行。<code>LIMIT</code> 不会让排序变便宜，只会让传输变少。
+<h2>拿到一条慢 SQL 的排查顺序</h2>
+
+按这个顺序看，基本不会漏：
+<ol>
+<li><strong>表有多大</strong>：<code>SHOW TABLE STATUS</code> 或 <code>information_schema.TABLES</code> 看行数与数据量；</li>
+<li><strong><code>type</code> 与 <code>key</code></strong>：有没有 <code>ALL</code> / <code>index</code>，<code>key</code> 是否为 <code>NULL</code>；</li>
+<li><strong><code>rows × filtered</code></strong>：量级是否和业务预期差一个数量级；</li>
+<li><strong><code>Extra</code></strong>：有没有 <code>Using filesort</code> / <code>Using temporary</code> / <code>Using join buffer</code>；</li>
+<li><strong><code>used_key_parts</code></strong>：用 <code>FORMAT=JSON</code> 确认索引到底用了几列；</li>
+<li><strong>对账</strong>：用 <code>EXPLAIN ANALYZE</code> 看估算与实际行数；</li>
+<li><strong>再改</strong>：加索引、改 SQL、改列顺序，改完再用同样流程对比。</li>
+</ol>
+
+顺手可以打开优化器追踪，看它为什么选了这个计划：
+<div class="codehilite"><pre><span></span><code><span class="k">SET</span><span class="w"> </span><span class="n">optimizer_trace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;enabled=on&#39;</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">TRACE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">information_schema</span><span class="p">.</span><span class="n">OPTIMIZER_TRACE</span><span class="p">;</span>
+<span class="k">SET</span><span class="w"> </span><span class="n">optimizer_trace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;enabled=off&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>TRACE</code> 是一段很长的 JSON，里面有每个候选索引的代价估算。它适合排查「为什么没选那条看起来更好的索引」，不适合日常阅读。
+<h2>小结</h2>
+<ul>
+<li><code>type</code> 看访问方式，<code>rows</code> 看规模，<code>Extra</code> 看额外操作，三者一起看才有意义；</li>
+<li><code>const</code> / <code>eq_ref</code> / <code>ref</code> / <code>range</code> 是可用区间，<code>index</code> / <code>ALL</code> 要看表大小；</li>
+<li><code>key_len</code> 是联合索引用了几列的直接证据，<code>FORMAT=JSON</code> 的 <code>used_key_parts</code> 更直观；</li>
+<li><code>rows</code> 和 <code>filtered</code> 都是估算，必要时用 <code>EXPLAIN ANALYZE</code> 对账；</li>
+<li>加索引前先 <code>EXPLAIN</code>，加完再 <code>EXPLAIN</code> 对比，不要凭感觉。</li>
+</ul>
+<hr>
+
+<strong>相关阅读</strong>
+<ul>
+<li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" rel="noopener noreferrer" target="_blank">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" rel="noopener noreferrer" target="_blank">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li>
+<li><a href="https://blog.zhoujun.dev/article/django-slow-query-index-tuning/" rel="noopener noreferrer" target="_blank">索引建了，为什么排序还是没用上？——慢查询实战</a></li>
+<li><a href="https://blog.zhoujun.dev/article/btree-page-split/" rel="noopener noreferrer" target="_blank">B+ 树索引回源：页分裂长什么样</a></li>
+<li><a href="https://blog.zhoujun.dev/topics/database/" rel="noopener noreferrer" target="_blank">数据库专题</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li></ul></nav></div></div>
+  </body>
+</html>

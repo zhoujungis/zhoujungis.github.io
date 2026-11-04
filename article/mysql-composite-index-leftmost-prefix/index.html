@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：建过 INDEX(a, b) 却发现查 b 走全表的人；被 key_len 数字绕晕的人；想知道联合索引列顺序到底该按什么排的人 结论先行： INDEX(a, b) 不…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" />
+    <meta property="og:title" content="MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b" />
+    <meta property="og:description" content="适用读者：建过 INDEX(a, b) 却发现查 b 走全表的人；被 key_len 数字绕晕的人；想知道联合索引列顺序到底该按什么排的人 结论先行： INDEX(a, b) 不…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/mysql-composite-index-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/mysql-composite-index-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b" />
+    <meta name="twitter:description" content="适用读者：建过 INDEX(a, b) 却发现查 b 走全表的人；被 key_len 数字绕晕的人；想知道联合索引列顺序到底该按什么排的人 结论先行： INDEX(a, b) 不…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/mysql-composite-index-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-WlsUbDLT.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-04T10:21:50.078971+08:00" />
+        <meta property="article:modified_time" content="2026-11-04T10:21:50.079108+08:00" />
+        <meta property="article:tag" content="后端" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/#article","url":"https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/","headline":"MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b","description":"适用读者：建过 INDEX(a, b) 却发现查 b 走全表的人；被 key_len 数字绕晕的人；想知道联合索引列顺序到底该按什么排的人 结论先行： INDEX(a, b) 不…","image":"https://blog.zhoujun.dev/photos/mysql-composite-index-cover.png","datePublished":"2026-11-04T10:21:50.078971+08:00","dateModified":"2026-11-04T10:21:50.079108+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/"},"articleSection":"数据库内核","keywords":"后端, 存储引擎, 性能优化, 数据库","inLanguage":"zh-CN","wordCount":4632},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b","item":"https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"mysql-composite-index-leftmost-prefix","title":"MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b","created_at":"2026-11-04T10:21:50.078971+08:00","updated_at":"2026-11-04T10:21:50.079108+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":40,"name":"后端","slug":"backend-dev"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/mysql-composite-index-cover.png","excerpt":"适用读者：建过 INDEX(a, b) 却发现查 b 走全表的人；被 key_len 数字绕晕的人；想知道联合索引列顺序到底该按什么排的人 结论先行： INDEX(a, b) 不是「给 a 和 b 各建一棵树」，而是按「先 a 后 b」的字典序建了一棵 B+ 树。想让 b 起作用，必须先能用 a 把扫描范围收窄——这就","reading_time":19,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</span></nav><h1>MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</h1><div class="ns-meta">2026/11/4 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：<a href="https://blog.zhoujun.dev/tags/backend-dev/">后端</a> <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（6 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><strong>MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：建过 <code>INDEX(a, b)</code> 却发现查 <code>b</code> 走全表的人；被 <code>key_len</code> 数字绕晕的人；想知道联合索引列顺序到底该按什么排的人
+结论先行：<code>INDEX(a, b)</code> 不是「给 a 和 b 各建一棵树」，而是按「先 a 后 b」的字典序建了一棵 B+ 树。想让 b 起作用，必须先能用 a 把扫描范围收窄——这就是最左前缀。它不是优化器的限制，是 B+ 树的物理结构决定的。
+阅读时间：约 18 分钟 | 难度：进阶 | 收获：从记录排序规则推出最左前缀、用 <code>key_len</code> 反推用了几列、六种 WHERE 写法的可用性矩阵、以及一套列顺序决策法
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>前言：一条「明明建了索引」的慢查询</li>
+<li>联合索引在磁盘上是一棵怎样的树</li>
+<li>最左前缀的严格定义</li>
+<li>六种 WHERE 写法逐个验证</li>
+<li>范围查询之后为什么断了</li>
+<li><code>key_len</code>：用了几列的直接证据</li>
+<li>ORDER BY、GROUP BY、DISTINCT 能不能蹭索引</li>
+<li>索引下推、覆盖索引与最左前缀的关系</li>
+<li>列顺序怎么排：四步决策</li>
+<li>前缀索引与函数索引</li>
+<li>Index Skip Scan：8.0 的例外</li>
+<li>联合索引与多个单列索引怎么选</li>
+<li>索引不是免费的</li>
+<li>实战：从一条慢 SQL 到一条索引</li>
+<li>五个常见误区</li>
+<li>小结</li>
+</ul>
+<h2>前言：一条「明明建了索引」的慢查询</h2>
+
+线上有一条查询：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+表上明明有 <code>INDEX idx_uid_kind_ts (uid, kind, ts)</code>，但 <code>EXPLAIN</code> 显示 <code>type = ALL</code>、<code>key = NULL</code>。开发者的第一反应通常是「索引没生效」或者「统计信息过期」。
+
+真实原因更简单：这条 SQL 没有给 <code>uid</code>。而这棵索引的第一排序键就是 <code>uid</code>，没有 <code>uid</code> 就无法把扫描范围收窄到一个连续区间，优化器只能退化成全表扫描。
+
+这就是最左前缀。下面从磁盘上的排序规则开始，把它推一遍。
+<h2>联合索引在磁盘上是一棵怎样的树</h2>
+
+建一张事件表：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w">      </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTO_INCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">uid</span><span class="w">     </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">kind</span><span class="w">    </span><span class="n">TINYINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ts</span><span class="w">      </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">payload</span><span class="w"> </span><span class="n">JSON</span><span class="p">,</span>
+<span class="w">    </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_uid_kind_ts</span><span class="w"> </span><span class="p">(</span><span class="n">uid</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">)</span>
+<span class="p">)</span><span class="w"> </span><span class="n">ENGINE</span><span class="o">=</span><span class="n">InnoDB</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>idx_uid_kind_ts</code> 的叶子项不是「三个独立的键」，而是把三列的值按定义顺序拼成一个复合键，然后按这个复合键排序。排序规则是字典序：
+<div class="codehilite"><pre><span></span><code>先比 uid
+uid 相同，再比 kind
+kind 相同，再比 ts
+</code></pre></div>
+
+
+假设表里有这些记录，叶子链表大致是这样的：
+<div class="codehilite"><pre><span></span><code>(uid=1, kind=1, ts=10:00) → (uid=1, kind=1, ts=10:05)
+→ (uid=1, kind=2, ts=09:00) → (uid=1, kind=2, ts=09:30)
+→ (uid=2, kind=1, ts=08:00) → (uid=2, kind=3, ts=11:00)
+→ ...
+</code></pre></div>
+
+
+注意中间那一行：<code>uid=1, kind=2, ts=09:00</code> 排在 <code>uid=1, kind=1, ts=10:05</code> 后面，尽管它的 <code>ts</code> 更早。因为排序先看 <code>kind</code>，<code>kind=2</code> 整体排在 <code>kind=1</code> 之后。
+
+这张图就是最左前缀的全部来源：
+<ul>
+<li>给定 <code>uid</code>，这一段记录在叶子链表上是连续的，能二分定位；</li>
+<li>只给 <code>kind</code>，<code>kind=2</code> 的记录散落在每个 <code>uid</code> 段里，不连续，没法定位；</li>
+<li>给 <code>uid</code> 和 <code>ts</code>、跳过 <code>kind</code>，<code>ts</code> 只在每个 <code>kind</code> 段内有序，跨段无序，也没法定位。</li>
+</ul>
+<h2>最左前缀的严格定义</h2>
+
+最左前缀不是「必须用第一列」，而是：
+<blockquote>
+
+从索引的第一列开始，连续匹配若干列；一旦跳过某一列，后面的列都不能再用于「定位」。
+</blockquote>
+
+这里要区分两个动作：
+<ul>
+<li><strong>定位（seek）</strong>：用 B+ 树的分支判断把扫描起点收窄到某个叶子区间；</li>
+<li><strong>过滤（filter）</strong>：在已经读到的记录上逐条判断条件是否成立。</li>
+</ul>
+
+最左前缀约束的是定位，不是过滤。跳过的列仍然可以参与过滤，只是它不能帮你少读页。
+
+对 <code>INDEX(a, b, c)</code> 来说：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>WHERE 条件</th>
+<th>能用于定位的列</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a = 1</code></td>
+<td><code>a</code></td>
+<td>定位到 <code>a=1</code> 的连续段</td>
+</tr>
+<tr>
+<td><code>a = 1 AND b = 2</code></td>
+<td><code>a, b</code></td>
+<td>定位到 <code>(1,2)</code> 的连续段</td>
+</tr>
+<tr>
+<td><code>a = 1 AND b = 2 AND c = 3</code></td>
+<td><code>a, b, c</code></td>
+<td>精确定位</td>
+</tr>
+<tr>
+<td><code>a = 1 AND c = 3</code></td>
+<td><code>a</code></td>
+<td><code>c</code> 只能过滤，因为 <code>b</code> 断了</td>
+</tr>
+<tr>
+<td><code>b = 2</code></td>
+<td>无</td>
+<td>只能全表扫或走别的索引</td>
+</tr>
+<tr>
+<td><code>a = 1 AND b &gt; 2 AND c = 3</code></td>
+<td><code>a, b</code></td>
+<td><code>c</code> 在范围扫描后无序，只能过滤</td>
+</tr>
+</tbody>
+</table></div>
+<h2>六种 WHERE 写法逐个验证</h2>
+
+还是用 <code>idx_uid_kind_ts (uid, kind, ts)</code>。
+<h3>全等值</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;2026-01-01 10:00:00&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+三列都能定位，<code>key_len</code> 是完整长度，<code>type</code> 通常是 <code>ref</code> 或 <code>const</code>（如果三列组合唯一）。
+<h3>前缀等值</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+
+能定位到 <code>(1,2)</code> 段。<code>ts</code> 没用到，但 <code>key_len</code> 会停在 <code>kind</code> 的字节数上。
+<h3>只用第一列</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+能定位到 <code>uid=1</code> 段，<code>kind</code> 和 <code>ts</code> 都不能用于定位。
+<h3>跳过中间列</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;2026-01-01 10:00:00&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+只能用 <code>uid</code> 定位。<code>ts</code> 可能出现在 <code>Extra</code> 的 <code>Using index condition</code> 里，表示它被下推到索引层做过滤，减少了回表次数，但<strong>依然要扫完 <code>uid=1</code> 的全部记录</strong>。
+
+很多人在这里产生错觉：看到 <code>Using index condition</code> 就以为 <code>ts</code> 用上了索引。它确实被用上了，但只是用于过滤，不是用于定位。
+<h3>范围条件</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>uid</code> 等值 + <code>kind</code> 范围，能定位到 <code>uid=1</code> 段里 <code>kind&gt;1</code> 的起点，然后顺序扫到段尾。<code>type</code> 是 <code>range</code>。
+
+如果再加 <code>ts</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;2026-01-01 10:00:00&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>ts</code> 不能定位，因为 <code>kind</code> 是范围，扫描输出在 <code>ts</code> 维度上不再有序。它最多作为 ICP 过滤条件。
+<h3><code>IN</code> 与 <code>OR</code></h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>IN</code> 在优化器里通常被展开成多个等值区间，仍然能用 <code>uid, kind</code> 定位，<code>type</code> 可能是 <code>range</code>。
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+
+同一列上的 <code>OR</code> 可以合并成 <code>IN</code> 式的范围，仍然能用索引。
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+
+不同列上的 <code>OR</code>，单棵联合索引无法同时满足两个分支，优化器可能选 <code>index_merge</code>。但 <code>index_merge</code> 在实践里经常不如一条合适的联合索引稳定，不要把它当成常规方案。
+<h2>范围查询之后为什么断了</h2>
+
+这是最容易被忽略的一条规则。原因还是排序：
+
+对 <code>INDEX(a, b, c)</code> 来说，只有在 <code>a</code> 的取值被「钉死」之后，<code>b</code> 才在整个扫描区间内有序；只有在 <code>b</code> 也被钉死之后，<code>c</code> 才有序。
+
+一旦 <code>b</code> 变成范围（<code>b &gt; 2</code>、<code>b BETWEEN 1 AND 5</code>、<code>b LIKE 'abc%'</code>），扫描输出里 <code>b</code> 取了多个值，<code>c</code> 在这些 <code>b</code> 值之间不再全局有序。B+ 树没法用 <code>c</code> 做二分定位，只能逐条比较。
+
+这条规则直接决定列顺序：
+<blockquote>
+
+等值列放前面，范围列放最后。
+</blockquote>
+
+如果业务里 <code>ts</code> 的等值查询也很常见，可以考虑把索引改成 <code>(uid, ts, kind)</code>。此时 <code>uid = 1 AND ts = ?</code> 能精确定位，<code>kind</code> 退化为过滤；而原来的 <code>(uid, kind, ts)</code> 在 <code>uid = 1 AND kind = ?</code> 下更精确。两条查询谁更常见，就优先照顾谁。
+<h2><code>key_len</code>：用了几列的直接证据</h2>
+
+<code>EXPLAIN</code> 的 <code>key_len</code> 表示「本次实际用到的索引字节数」。它不能直接告诉你用了哪几列，但结合列类型可以反推。
+
+常见类型的字节数：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>字节数</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TINYINT</code></td>
+<td>1</td>
+<td></td>
+</tr>
+<tr>
+<td><code>SMALLINT</code></td>
+<td>2</td>
+<td></td>
+</tr>
+<tr>
+<td><code>MEDIUMINT</code></td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td><code>INT</code></td>
+<td>4</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BIGINT</code></td>
+<td>8</td>
+<td></td>
+</tr>
+<tr>
+<td><code>DATE</code></td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td><code>DATETIME</code></td>
+<td>5</td>
+<td>有小数秒时每 1-2 位加 1 字节</td>
+</tr>
+<tr>
+<td><code>TIMESTAMP</code></td>
+<td>4</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>CHAR(n)</code> utf8mb4</td>
+<td><code>4n</code></td>
+<td>可空再 +1</td>
+</tr>
+<tr>
+<td><code>VARCHAR(n)</code> utf8mb4</td>
+<td><code>4n + 2</code></td>
+<td>2 字节存变长长度；可空再 +1</td>
+</tr>
+<tr>
+<td>任意可空列</td>
+<td>额外 +1</td>
+<td>NULL 标志位</td>
+</tr>
+</tbody>
+</table></div>
+
+对 <code>idx_uid_kind_ts (uid BIGINT NOT NULL, kind TINYINT NOT NULL, ts DATETIME NOT NULL)</code>：
+<ul>
+<li>只用到 <code>uid</code>：<code>key_len = 8</code>；</li>
+<li>用到 <code>uid, kind</code>：<code>key_len = 9</code>；</li>
+<li>三列全用：<code>key_len = 14</code>。</li>
+</ul>
+
+如果 <code>key_len</code> 比你预期的小，通常只有三种原因：后面的列没写进 <code>WHERE</code>、列顺序不满足最左前缀、或者中间出现了范围条件。
+
+<code>key_len</code> 有一个坑：它统计的是「索引键的字节数」，不包含主键后缀。二级索引叶子虽然带主键，但 <code>key_len</code> 不会把主键算进去。所以不要用 <code>key_len</code> 去推断「二级索引项的总大小」。
+<h2>ORDER BY、GROUP BY、DISTINCT 能不能蹭索引</h2>
+
+索引本身就是有序的，所以排序、分组、去重都有机会免掉额外操作。
+<h3>ORDER BY</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 能用索引顺序，免 filesort</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
+
+<span class="c1">-- 不行：跳过了 kind</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
+
+<span class="c1">-- 不行：uid 是范围，kind 不再全局有序</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">kind</span><span class="p">;</span>
+</code></pre></div>
+
+
+规则和 <code>WHERE</code> 一样：<code>ORDER BY</code> 的列必须是索引列的「最左前缀的延续」，并且前面的列必须是等值条件。如果 <code>Extra</code> 出现 <code>Using filesort</code>，说明排序没蹭上索引，只能先取出结果再排。
+
+方向也有讲究：
+<ul>
+<li><code>ORDER BY kind ASC, ts ASC</code> 可以正向扫；</li>
+<li><code>ORDER BY kind DESC, ts DESC</code> 可以反向扫，<code>EXPLAIN</code> 里可能显示 <code>Backward index scan</code>；</li>
+<li><code>ORDER BY kind ASC, ts DESC</code> 方向混用，普通索引不行，需要 MySQL 8.0 的降序索引：<code>KEY idx (uid, kind ASC, ts DESC)</code>。</li>
+</ul>
+<h3>GROUP BY</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">kind</span><span class="p">;</span>
+</code></pre></div>
+
+
+如果 <code>GROUP BY</code> 的列顺序与索引一致，优化器可以用「松散索引扫描」（<code>Using index for group-by</code>）或「紧凑索引扫描」，避免建临时表。否则 <code>Extra</code> 会出现 <code>Using temporary</code>。
+<h3>DISTINCT</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>DISTINCT</code> 本质上也是分组，能蹭索引时不会出现 <code>Using temporary</code>。
+<h2>索引下推、覆盖索引与最左前缀的关系</h2>
+
+这三个概念经常被混在一起，实际是三件不同的事：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>解决的问题</th>
+<th>是否还需要回表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>最左前缀</td>
+<td>能不能用索引定位</td>
+<td>取决于是否覆盖</td>
+</tr>
+<tr>
+<td>索引条件下推（ICP）</td>
+<td>把过滤条件下沉到索引层，减少回表次数</td>
+<td>需要</td>
+</tr>
+<tr>
+<td>覆盖索引</td>
+<td>查询所需列都在索引里</td>
+<td>不需要</td>
+</tr>
+</tbody>
+</table></div>
+
+ICP 由 <code>optimizer_switch</code> 里的 <code>index_condition_pushdown</code> 控制，默认开启。
+
+一个组合例子：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+<ul>
+<li><code>uid, kind</code> 用于定位，<code>ts</code> 用于范围收窄；</li>
+<li><code>Extra</code> 可能是 <code>Using index condition</code>，因为 <code>ts</code> 条件下推；</li>
+<li>如果 <code>SELECT</code> 只要 <code>id, uid</code>，并且 <code>ts</code> 也在索引里，那么整条查询是覆盖的，<code>Extra</code> 会同时出现 <code>Using index</code>。</li>
+</ul>
+
+注意：<strong>覆盖索引不要求最左前缀</strong>。即使 <code>WHERE kind = 2</code> 用不上这棵索引，只要优化器愿意全扫这棵较小的索引，也可能出现 <code>Using index</code>。但那是「扫整棵索引」，不是「定位」，性能是另一回事。
+<h2>列顺序怎么排：四步决策</h2>
+
+不要按建表字段顺序排索引，按查询形态排。一个可执行的顺序：
+<ol>
+<li><strong>先把等值列放最前</strong>：几乎每个查询都会带、且选择性高的列，比如 <code>tenant_id</code>、<code>uid</code>、<code>status</code>；</li>
+<li><strong>再把排序列放进来</strong>：如果某个 <code>ORDER BY</code> 很稳定，放在等值列之后、范围列之前；</li>
+<li><strong>范围列放最后</strong>：<code>ts</code>、<code>amount &gt; ?</code>、<code>LIKE 'abc%'</code>；</li>
+<li><strong>最后考虑覆盖列</strong>：把高频 <code>SELECT</code> 里的少量列追加到末尾，换 <code>Using index</code>。</li>
+</ol>
+
+举两个具体的取舍：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 查询 A：WHERE uid = ? AND kind = ? ORDER BY ts</span>
+<span class="c1">-- 查询 B：WHERE uid = ? AND ts &gt;= ? AND ts &lt; ?</span>
+</code></pre></div>
+
+
+如果 A 远多于 B，用 <code>(uid, kind, ts)</code>；如果 B 更多，用 <code>(uid, ts)</code> 或 <code>(uid, ts, kind)</code>。不要试图用一条索引同时完美服务两种形态，通常会让两边都退化。
+
+区分度（selectivity）不是第一优先级。区分度再高，如果列不在最左且不能被定位，也用不上。正确顺序是：先满足查询形态，再在同等条件下优先高区分度。
+
+查看区分度可以用：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">uid</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">uid_sel</span><span class="p">,</span>
+<span class="w">       </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">kind</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">kind_sel</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>SHOW INDEX FROM events</code> 里的 <code>Cardinality</code> 是优化器的估算值，不是精确值。大批量导入或频繁增删后，先 <code>ANALYZE TABLE events</code> 再观察。
+<h2>前缀索引与函数索引</h2>
+<h3>前缀索引</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_email</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">(</span><span class="mi">20</span><span class="p">));</span>
+</code></pre></div>
+
+
+它只对 <code>email</code> 的前 20 个字符建索引，适合超长字符串。代价是：
+<ul>
+<li>只能用于前缀匹配（<code>LIKE 'abc%'</code>、等值查询的定位仍然可以）；</li>
+<li>不能覆盖：索引里只有前 20 个字符，要返回完整 <code>email</code> 仍然要回表；</li>
+<li><code>ORDER BY email</code> 不一定能完全走索引，因为前缀有序不等于全值有序。</li>
+</ul>
+
+选择前缀长度的常用办法是比较「前缀区分度」与「全值区分度」：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="k">LEFT</span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">))</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">prefix_sel</span><span class="p">,</span>
+<span class="w">       </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">email</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">full_sel</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="p">;</span>
+</code></pre></div>
+
+
+前缀区分度接近全值区分度时，再短一点也可以。
+<h3>函数索引</h3>
+
+MySQL 8.0.13 起支持函数索引：
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_ts_date</span><span class="w"> </span><span class="p">((</span><span class="nb">DATE</span><span class="p">(</span><span class="n">ts</span><span class="p">)));</span>
+</code></pre></div>
+
+
+这样 <code>WHERE DATE(ts) = '2026-01-01'</code> 就能走索引，而不必把函数写到 <code>WHERE</code> 里再失效。函数索引的表达式必须被查询逐字匹配，写法不一致时仍然用不上。
+<h2>Index Skip Scan：8.0 的例外</h2>
+
+MySQL 8.0.13 引入了 Index Skip Scan，用于「联合索引的第一列没出现在条件里」的场景。它的大致思路是：既然第一列的不同值不多，就把第一列每个值都当作一个虚拟前缀，分别去查第二列。
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 索引 (uid, kind, ts)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+</code></pre></div>
+
+
+在满足条件时，<code>EXPLAIN</code> 可能显示 <code>Using index for skip scan</code>。
+
+但它有几个限制：
+<ul>
+<li>第一列的基数必须较低（不同值不能太多），否则虚拟前缀的数量会爆炸；</li>
+<li>第一列不能已经有等值或范围条件；</li>
+<li>需要 <code>optimizer_switch</code> 里的 <code>skip_scan</code> 开启，默认是开的；</li>
+<li>它只是「让原本不可用的索引变得勉强可用」，通常仍然不如直接建一条 <code>(kind, ...)</code> 的索引。</li>
+</ul>
+
+所以正确的态度是：知道它存在，但不要把它当成「最左前缀失效了」的兜底方案。
+<h2>联合索引与多个单列索引怎么选</h2>
+
+假设有两条查询：<code>WHERE uid = ?</code> 和 <code>WHERE kind = ?</code>。可以建两个单列索引，也可以建一个 <code>(uid, kind)</code>。怎么选？
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两个单列索引</td>
+<td>两条查询各自精确</td>
+<td>索引数量多，写放大；同时查两列时可能走 <code>index_merge</code></td>
+</tr>
+<tr>
+<td>一条 <code>(uid, kind)</code></td>
+<td>同时查两列时最优；<code>uid</code> 单独查也能用</td>
+<td><code>kind</code> 单独查用不上</td>
+</tr>
+</tbody>
+</table></div>
+
+判断依据是查询形态的分布，不是「索引越少越好」。如果两条查询频率接近，两个单列索引可能更合适；如果 <code>WHERE uid = ? AND kind = ?</code> 是主流，一条联合索引更划算。
+
+<code>index_merge</code> 的三种形态在 <code>Extra</code> 里表现为：
+<ul>
+<li><code>Using intersect(...)</code>：多个索引结果取交集；</li>
+<li><code>Using union(...)</code>：取并集；</li>
+<li><code>Using sort_union(...)</code>：并集但需要排序。</li>
+</ul>
+
+实践里 <code>index_merge</code> 经常被优化器误选，可以用 <code>optimizer_switch</code> 关闭它做对比，但关闭是全局行为，不建议在生产环境长期这么干。
+<h2>索引不是免费的</h2>
+
+每个二级索引都是一棵独立的 B+ 树，写入时要同步维护：
+<ul>
+<li><code>INSERT</code> 要往每棵索引里插一条；</li>
+<li><code>UPDATE</code> 改了索引列要删旧插新；</li>
+<li><code>DELETE</code> 要在每棵树里标记删除；</li>
+<li>页分裂、buffer pool、redo/undo 都会被放大。</li>
+</ul>
+
+索引越多，写入越慢，buffer pool 越紧张，DDL 越重。正确的做法不是「为每个查询建一条索引」，而是：
+<ol>
+<li>先用慢查询日志和 <code>performance_schema</code> 找出真正的慢 SQL；</li>
+<li>用 <code>EXPLAIN</code> 确认它缺的是定位、覆盖还是排序；</li>
+<li>只为高频、明确的查询建索引；</li>
+<li>定期用 <code>sys.schema_unused_indexes</code> 找从未被使用的索引。</li>
+</ol>
+<h2>实战：从一条慢 SQL 到一条索引</h2>
+
+回到开头那条：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+<h3>第一步：确认现状</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+如果 <code>key = NULL</code>、<code>type = ALL</code>，说明没有可用索引。
+<h3>第二步：判断查询形态</h3>
+<ul>
+<li><code>kind</code> 是等值；</li>
+<li><code>ts</code> 是范围；</li>
+<li><code>uid</code> 没出现，所以原来的 <code>(uid, kind, ts)</code> 用不上。</li>
+</ul>
+<h3>第三步：设计候选索引</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_kind_ts</span><span class="w"> </span><span class="p">(</span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">);</span>
+</code></pre></div>
+
+
+等值列 <code>kind</code> 在前，范围列 <code>ts</code> 在后，符合规则。
+<h3>第四步：验证</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">EXPLAIN</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="p">;</span>
+</code></pre></div>
+
+
+预期 <code>type = range</code>、<code>key = idx_kind_ts</code>、<code>key_len</code> 等于 <code>kind</code> 加 <code>ts</code> 的字节数。再对比 <code>rows</code> 与 <code>filtered</code>，确认扫描量级符合预期。
+<h3>第五步：考虑覆盖</h3>
+
+如果这条查询频率很高，并且 <code>SELECT</code> 只取 <code>id, uid, kind, ts</code>，可以把 <code>uid</code> 追加到末尾：
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">idx_kind_ts_uid</span><span class="w"> </span><span class="p">(</span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">uid</span><span class="p">);</span>
+</code></pre></div>
+
+
+这样 <code>id</code>（主键）和 <code>uid</code> 都在索引里，查询可以变成覆盖索引。代价是索引更大、写入更慢，需要用写入量换读取量。
+<h2>五个常见误区</h2>
+
+误区一：「<code>(a, b)</code> 建了，查 <code>b</code> 也能用」。不能。要么建 <code>(b, a)</code>，要么单独建 <code>(b)</code>。
+
+误区二：「把区分度最高的列放最左一定最好」。区分度只影响筛掉多少行；如果不满足最左前缀，再高的区分度也用不上。
+
+误区三：「在索引列上做运算也能用索引」。<code>WHERE DATE(ts) = '2026-01-01'</code>、<code>WHERE uid + 1 = 2</code> 都会让普通索引失效。改成范围查询，或者建函数索引。
+
+误区四：「隐式转换只会影响性能，不会影响结果」。<code>WHERE varchar_col = 123</code> 会把列转成数字，索引失效；某些边界值还可能产生意外的匹配结果。类型要显式对齐。
+
+误区五：「<code>Using index condition</code> 说明索引列全用上了」。它只说明有条件下推，不代表最左前缀完整。
+<h2>小结</h2>
+<ul>
+<li>联合索引是一棵按列顺序排序的树，最左前缀由物理顺序决定；</li>
+<li>范围列之后的列不能用于定位，只能用于过滤；</li>
+<li>列顺序 = 等值列 → 排序列 → 范围列 → 覆盖列；</li>
+<li><code>key_len</code> 是「用了几列」的直接证据，但要记得 <code>VARCHAR</code> 的 2 字节长度和可空列的 1 字节；</li>
+<li>用 <code>EXPLAIN</code>、<code>EXPLAIN ANALYZE</code> 和 <code>performance_schema</code> 验证，别靠感觉。</li>
+</ul>
+<hr>
+
+<strong>相关阅读</strong>
+<ul>
+<li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" rel="noopener noreferrer" target="_blank">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li>
+<li><a href="https://blog.zhoujun.dev/article/btree-page-split/" rel="noopener noreferrer" target="_blank">B+ 树索引回源：页分裂长什么样</a></li>
+<li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" rel="noopener noreferrer" target="_blank">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li>
+<li><a href="https://blog.zhoujun.dev/article/django-slow-query-index-tuning/" rel="noopener noreferrer" target="_blank">索引建了，为什么排序还是没用上？——慢查询实战</a></li>
+<li><a href="https://blog.zhoujun.dev/topics/database/" rel="noopener noreferrer" target="_blank">数据库专题</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li></ul></nav></div></div>
+  </body>
+</html>
