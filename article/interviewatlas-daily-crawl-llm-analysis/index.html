@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/" />
+    <meta property="og:title" content="InterviewAtlas：3 万条面经的自动采集与 LLM 归纳" />
+    <meta property="og:description" content="适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/interviewatlas-daily-crawl-llm-analysis-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/interviewatlas-daily-crawl-llm-analysis-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="InterviewAtlas：3 万条面经的自动采集与 LLM 归纳 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="InterviewAtlas：3 万条面经的自动采集与 LLM 归纳" />
+    <meta name="twitter:description" content="适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/interviewatlas-daily-crawl-llm-analysis-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>InterviewAtlas：3 万条面经的自动采集与 LLM 归纳 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BYB4JsSG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-05T10:33:57.055200+08:00" />
+        <meta property="article:modified_time" content="2026-11-05T10:33:57.055200+08:00" />
+        <meta property="article:tag" content="GitHub Actions" />
+    <meta property="article:tag" content="Python" />
+    <meta property="article:tag" content="大模型" />
+    <meta property="article:tag" content="数据管道" />
+    <meta property="article:tag" content="爬虫" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/#article","url":"https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/","headline":"InterviewAtlas：3 万条面经的自动采集与 LLM 归纳","description":"适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；","image":"https://blog.zhoujun.dev/photos/interviewatlas-daily-crawl-llm-analysis-cover.png","datePublished":"2026-11-05T10:33:57.055200+08:00","dateModified":"2026-11-05T10:33:57.055200+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/"},"articleSection":"项目实战","keywords":"GitHub Actions, Python, 大模型, 数据管道, 爬虫","inLanguage":"zh-CN","wordCount":9703},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"InterviewAtlas：3 万条面经的自动采集与 LLM 归纳","item":"https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"interviewatlas-daily-crawl-llm-analysis","title":"InterviewAtlas：3 万条面经的自动采集与 LLM 归纳","created_at":"2026-11-05T10:33:57.055200+08:00","updated_at":"2026-11-05T10:33:57.055224+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":195,"name":"GitHub Actions","slug":"github-actions"},{"id":194,"name":"Python","slug":"python"},{"id":70,"name":"大模型","slug":"llm"},{"id":197,"name":"数据管道","slug":"data-pipeline"},{"id":196,"name":"爬虫","slug":"crawler"}],"cover_image":"/photos/interviewatlas-daily-crawl-llm-analysis-cover.png","excerpt":"适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；好奇免费额度下怎样把一次分析拆成多天跑完的人 结论先行：InterviewAtlas 的难点不在写爬虫，而在三件事——把增量判断做在请求之前、把落盘做成幂等、把模型调用做成可预算可缓存","reading_time":38,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</span></nav><h1>InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</h1><div class="ns-meta">2026/11/5 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：GitHub Actions Python <a href="https://blog.zhoujun.dev/tags/llm/">大模型</a> 数据管道 爬虫</p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><strong>InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；好奇免费额度下怎样把一次分析拆成多天跑完的人
+结论先行：InterviewAtlas 的难点不在写爬虫，而在三件事——把增量判断做在请求之前、把落盘做成幂等、把模型调用做成可预算可缓存的两阶段流水线。真正拖住它的也不是反爬，而是两处静默失败：采集端吞掉异常，分析端被 Python 3.11 的 f-string 限制挡在编译期。
+阅读时间：约 28 分钟 | 难度：进阶 | 收获：一条零服务器数据流水线的完整拆解、十余个真实故障的现象与代价、一套可照搬的增量、去重与预算设计
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>项目缘起：把面经变成一份可查询的数据集</li>
+<li>整体架构：一条采集链，一条分析链</li>
+<li>数据模型：一条记录与三层归一化</li>
+<li>采集层：三个站点，三套打法</li>
+<li>增量采集：把请求省在去重之前</li>
+<li>存储与渲染：分片、幂等与写放大</li>
+<li>LLM 归纳：两阶段 map-reduce</li>
+<li>缓存、预算与失效</li>
+<li>GitHub Actions：无人值守的流水线</li>
+<li>故障复盘一：面试鸭的「0 个题库，0 条记录」</li>
+<li>故障复盘二：LLM 分析永远停在 0/237</li>
+<li>问题清单：截断、脏字符与重复</li>
+<li>问题清单：100MB、额度与源下线</li>
+<li>实测数据与已知限制</li>
+<li>小结</li>
+<li>相关阅读</li>
+</ul>
+<hr>
+<h2>项目缘起：把面经变成一份可查询的数据集</h2>
+
+面经是一种半衰期很短的数据。2026 年秋招的面经，到春招只剩流程骨架还有参考价值，具体题目和面试官风格早已换了一轮。它又散落在互不联通的地方：牛客的讨论区、掘金的专栏、面试鸭的题库，各自有搜索、各自有登录墙，站内搜索还经常只能回答「包含这个关键词」，回答不了「这家公司这个岗位最近问了什么」。
+
+InterviewAtlas 想解决的就是这个信息聚合问题：每天自动从三个站点采集面经，做公司、岗位归一化，按 URL 去重合并，渲染成 README 与按公司岗位拆分的 Markdown，再用大模型归纳成「面试流程、高频考点、典型题目、准备建议」四节报告。整套东西跑在 GitHub Actions 上，没有服务器、没有数据库，模型走 GitHub Models 的免费额度。
+
+到本文写作时，仓库里是 41,771 条记录、157 家公司、1,634 个公司岗位文件；<code>data/interviews</code> 下有 158 个 <code>.json.gz</code>（35.9 MB），<code>interviews/</code> 下有 1,791 个 Markdown（92.3 MB）；源码 22 个 Python 文件，运行期依赖只有 <code>requests</code>、<code>bs4</code>、<code>lxml</code>、<code>PyYAML</code> 四个。下文不复述功能清单，只讲实现思路和真实踩过的坑。
+<h2>整体架构：一条采集链，一条分析链</h2>
+
+<code>src/main.py</code> 里没有采集逻辑，它只做编排：按配置顺序调用各数据源，把结果交给归一化、存储、渲染，最后打印本次新增条数与耗时。真正的代码分布在两层：
+<div class="codehilite"><pre><span></span><code>src/main.py                 编排与计时
+  ├─ sources/nowcoder.py    牛客：搜索 + 详情
+  ├─ sources/mianshiya.py   面试鸭：题库 → 题目
+  ├─ sources/juejin.py      掘金：深分页 + 正文
+  ├─ normalize.py           公司/岗位识别、正文清洗、相关性判断
+  ├─ storage.py             去重合并、按公司分片落盘
+  └─ render.py              README 与分文件 Markdown
+src/analyze.py              独立进程：读落盘数据，调 GitHub Models
+</code></pre></div>
+
+
+分析被拆成独立进程，而不是接在采集函数后面，有三个原因。第一是隔离：模型接口限流、额度耗尽、返回空内容，都不应该让已经采到的数据烂在内存里。第二是运行时间：采集本身要跑三十分钟，分析在免费额度下可能跑不完，必须允许它第二天接着跑。第三是缓存：分析结果要写进 <code>analysis/</code> 并提交，和采集数据一样是仓库状态，不该依赖一次运行的内存。
+
+不用数据库也是同一个思路。Actions 的 runner 是一次性的，状态只能落在 git 里；41,771 条记录全量读进内存也远没到需要索引的程度。这个选择的代价会在「写放大」一节展开。
+
+编排层还承担一个容易被忽略的职责：把每个源的耗时单独打出来。日更日志里能看到牛客、面试鸭、掘金各自的条数与秒数，这既是性能观测，也是故障线索。面试鸭只有 1 秒，与另外两个源十几分钟的耗时形成刺眼对比，这个对比本身就是异常信号；如果只看总时长，少掉的这段时间混在三十分钟里，很难察觉。
+<h2>数据模型：一条记录与三层归一化</h2>
+
+一条面经在仓库里是一个 JSON 对象，字段不多，但每个都有明确用途：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>URL 摘要或来源加外部 ID</td>
+<td>稳定标识</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>nowcoder、mianshiya、juejin</td>
+<td>来源统计与展示</td>
+</tr>
+<tr>
+<td><code>external_id</code></td>
+<td>站点内部 ID</td>
+<td>面试鸭跨题库合并</td>
+</tr>
+<tr>
+<td><code>title</code> / <code>url</code></td>
+<td>标题与原始链接</td>
+<td>展示、去重键</td>
+</tr>
+<tr>
+<td><code>company</code> / <code>position</code></td>
+<td>归一化后的公司与岗位</td>
+<td>分片、分组分析</td>
+</tr>
+<tr>
+<td><code>content</code></td>
+<td>清洗后的正文</td>
+<td>去重、喂模型</td>
+</tr>
+<tr>
+<td><code>published_at</code></td>
+<td>发布日期</td>
+<td>样本「最新一半」排序</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>面经、面试题、题库</td>
+<td>区分内容形态</td>
+</tr>
+<tr>
+<td><code>first_seen</code> / <code>last_seen</code></td>
+<td>首次与最近出现</td>
+<td>保留期裁剪</td>
+</tr>
+</tbody>
+</table></div>
+
+归一化分三层。第一层是公司别名，<code>COMPANY_ALIASES</code> 按字符串长度从长到短匹配，避免「阿里」抢在「阿里云」前面命中；第二层是岗位，按预设顺序识别后端、前端、算法、测试、产品等，识别不出就落到「其他岗位」；第三层是兜底，公司和岗位都归到「其他公司」「其他岗位」，这两类不进入 LLM 分析，因为它们无法支撑有意义的归纳。最终 157 家公司、1,634 个公司岗位组合，就是这三层过滤后的结果。
+
+别名表看着笨，却是整个数据集可用的前提。同一家公司在三个站点会写成「字节」「字节跳动」「bytedance」，不统一就只能得到三份各自很薄的统计；而「阿里云」和「阿里巴巴」又必须分开，否则阿里云的岗位会被集团总部的面经稀释。按长度倒序匹配解决的正是这类包含关系：先试长别名，命中就停，短别名只在前者都不匹配时才有机会。
+<h2>采集层：三个站点，三套打法</h2>
+
+三个站点的接口形态完全不同，采集策略也必须不同：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>来源</th>
+<th>入口</th>
+<th>翻页上限</th>
+<th>正文来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>牛客</td>
+<td><code>POST gw-c.nowcoder.com/api/sparta/pc/search</code></td>
+<td>单关键词 3 页 × 20 条</td>
+<td>搜索接口截断，详情接口补全</td>
+</tr>
+<tr>
+<td>掘金</td>
+<td><code>search_api</code> 的 cursor 深分页</td>
+<td>可一直翻到没有下一页</td>
+<td>搜索接口里的 <code>web_html_content</code></td>
+</tr>
+<tr>
+<td>面试鸭</td>
+<td>题库列表 → 题目列表</td>
+<td>单查询 5 页硬上限</td>
+<td>题干 + 题库描述</td>
+</tr>
+</tbody>
+</table></div>
+
+牛客的覆盖面靠关键词矩阵堆出来：10 个通用词，加上 157 家公司乘 2 个模板（「公司 面经」「公司 面试经验」），一共三百多个查询，每个查询最多三页。这个做法必然产生大量重复，但搜索接口不提供稳定的全量游标，只能靠关键词交叉覆盖。搜索返回的正文是被截断的，所以真正入库前还要对每条没见过的记录再发一次详情请求；详情用 6 个线程、线程级 0.2 秒间隔，既压住总时长，也不至于把站点打疼。
+
+掘金支持 cursor 深分页，翻页本身不是瓶颈，麻烦在正文格式：搜索接口返回的 <code>web_html_content</code> 是一段转义过的字符串，引号、换行、反斜杠都套了一层，标准 JSON 解码拿不到可直接用的 HTML。代码里为此写了一个手写的反转义流程，按转义序列逐段还原，再交给统一的清洗函数。这一步没有现成库可用，因为字符串里的转义和 JSON 自身的转义叠在一起，直接再解一次会把正文里的合法反斜杠吃掉；只能按平台输出的固定形态逐段处理，属于「知道它长什么样才敢写」的代码。
+
+面试鸭是另一种形态：先遍历题库列表，再对每个题库展开题目。题目接口有一个硬限制——同一个查询最多只能翻 5 页。为了多拿数据，采集器对每个题库跑三个变体：不带筛选、<code>difficulty:1</code>、<code>difficulty:3</code>，用难度分组把「单查询 5 页」变成「三组各 5 页」。代价是请求数变成三倍，而且三组结果之间仍有重叠，需要在本地按题目 ID 去重。这个绕法也只缓解了上限，没有真正解决它。
+
+反爬策略是统一的：Chrome/124 的 User-Agent、按站点设置 Referer、<code>Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 5xx])</code>、全局请求间隔 0.5 秒。没有用浏览器，也没有处理登录态，因此只覆盖公开可见的内容；这是能力边界，也是不被封的前提。
+<h2>增量采集：把请求省在去重之前</h2>
+
+每天全量重抓三个站点是不可能的：牛客三百多个关键词、掘金十几页深分页、面试鸭上千个题库，光请求数就超过预算。流水线的第一件事是 <code>load_records()</code> 把历史数据全量读回来，构造两个集合：<code>known_urls</code> 和 <code>known_content</code>（正文长度达到 300 字才进正文集合）。
+
+采集器拿到一条搜索结果时，先算规范化 URL。命中 <code>known_urls</code> 就直接跳过，连详情请求都不发；URL 没命中、但正文与历史某条完全一致，也跳过。这一步省掉的是最贵的详情请求，而不是搜索请求——搜索仍然要翻，但详情调用只落在新增或正文不完整的内容上。
+
+合并阶段按 URL 合并，<code>merge_records()</code> 的行为是「旧记录为主、新记录补空」：标题、来源、公司、岗位缺失才用新值覆盖，正文只在新的更长时替换；<code>last_seen</code> 不是每天刷新，而是隔三十天才刷一次，避免所有分片因为一个时间戳字段日日重写。返回的 <code>new_count</code> 与 <code>new_records</code> 供 README 的「本次更新」区块使用。保留期 <code>retention_days: 365</code>，超过一年没再出现过的记录会被裁掉。
+
+去重一共三层。第一层是 URL 规范化：去掉 <code>#</code> 锚点、去掉查询串、去掉尾部斜杠、统一小写，同一个帖子的分享链接、带跟踪参数的链接会收敛成同一个键。第二层是面试鸭的跨题库合并：同一道题可能被多个题库收录，按 <code>external_id</code> 合并，并优先保留能识别出公司的那个题库归属。第三层发生在喂模型之前：<code>_dedupe()</code> 按「标题 + 正文前 120 字」再筛一遍，因为不同来源可能转载同一篇面经，URL 不同但内容几乎一样，前两层拦不住。
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">record_key</span><span class="p">(</span><span class="n">record</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;#&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;?&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">url</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">url</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">external_id</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;external_id&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="p">(</span><span class="n">source</span> <span class="ow">or</span> <span class="n">external_id</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+这套设计的收益很直接：日更只处理增量，详情请求只花在真正的新帖上。代价是每次运行都要把 35.9 MB 压缩数据全部解压、反序列化、建索引，启动成本固定；数据再涨一个量级，就得考虑按公司分片懒加载了。
+
+还有一个细节决定了「增量」是否可靠：正文集合只收长度达到 300 字的记录。太短的正文本身可能是截断产物，拿它当「已抓过」的证据，会把一条残缺记录永久锁在库里，后续再遇到同一 URL 也不会补全文。阈值放在 300，是为了让不完整的记录不进入「已知」集合，给详情补全留出机会。
+<h2>存储与渲染：分片、幂等与写放大</h2>
+
+存储层按公司分片，每家公司一个 <code>.json.gz</code>，而不是一个全量 JSON。原因很现实：GitHub 对单文件有 100 MB 上限，41,771 条记录塞进一个文件迟早会顶到线；分片后每个文件都很小，<code>_meta.json</code> 只存总数与公司数。<code>load_records()</code> 同时兼容旧的单文件格式和新的目录格式，读取时优先选 <code>.json.gz</code>，避免迁移期同一公司被读两遍。
+
+写入做了两层幂等。第一层是 <code>_write_if_changed()</code>：内容相同就不落盘，不产生新的 git 变更。第二层是 <code>gzip.compress(raw, mtime=0)</code>：固定压缩头里的时间戳，保证「同样的内容」生成「同样的字节」，否则每次压缩出来的二进制都不同，git 每天都会认为所有分片被改过。
+<div class="codehilite"><pre><span></span><code><span class="n">raw</span> <span class="o">=</span> <span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">mtime</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>   <span class="c1"># 同内容同字节，避免无意义 diff</span>
+<span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">path</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">()</span> <span class="o">==</span> <span class="n">data</span><span class="p">:</span>
+    <span class="k">return</span>
+</code></pre></div>
+
+
+渲染层生成两类产物：根目录 README，以及 <code>interviews/&lt;公司&gt;/&lt;岗位&gt;.md</code>。README 是索引页，包含公司列表、岗位列表、总数、来源统计和「本次更新」；分文件是给人读的正文页。问题在于 README 是每天全量重排的：一条新记录可能改变公司排序、岗位计数和更新时间，于是整页都要重写。日更实测 README 的 diff 约 3,404 行，这个数字比数据本身的增量大得多。
+
+写放大是这套仓库最贵的隐性成本。日更提交是 53,614 行新增、41,513 行删除；周更因为 <code>--full</code> 重抓，达到 541,773 行新增、372,746 行删除；首版一次提交就有 203 万行。仓库 348 MB，而当前快照只有约 128 MB，差额基本都是历史里被反复整文件重写的 blob。git 会压缩，但不会忘记。
+
+值得强调的是，这些 diff 里真正的新信息很少。一天新增几百条面经，落到文件上可能只有几百行；剩下五万多行是排序位置变化、计数变化、时间戳变化导致的整段搬移。git 的 diff 算法会把它们记成删除加新增，历史因此越滚越大。幂等只能保证「内容没变就不写文件」，管不住「内容变了一点、整页重排」。
+<h2>LLM 归纳：两阶段 map-reduce</h2>
+
+分析的门槛是 <code>min_records: 20</code>：一个公司岗位组合至少二十条面经才值得归纳，否则模型只能编。满足条件的组先做组级报告，再把组级报告汇总成岗位级报告，是典型的 map-reduce。
+
+这里没有选「把所有面经一次性塞给模型」的省事做法。41,771 条正文按平均长度算远超任何模型的上下文，即便能塞下，成本和延迟也不可控。map-reduce 把问题拆成「每家公司每个岗位看八条」和「每个岗位看十六家公司的摘要」，两次输入都被压在可预算的范围内；代价是信息在两层截断中损耗，组级报告没写到的细节，岗位级永远拿不到。
+
+组级 prompt 的输入是有选择的：公司、岗位、总条数、样本时间跨度，加最多 8 条样本。样本一半取正文最长的（信息密度高），一半取最新的（流程更贴近当下）；每条截断到 1,200 字，整段样本不超过 16,000 字。prompt 强制四节标题，并要求材料不足时写「样本不足」，不许补全不存在的流程、薪资和轮次。
+<div class="codehilite"><pre><span></span><code>要求：
+1. 只依据给定材料，不要编造公司流程、薪资、面试轮次或材料中没有出现的题目；材料不足时直接写「样本不足」。
+2. 使用二级标题（##），依次输出以下四节：面试流程与轮次、高频考点、典型题目、难度与准备建议。
+3. 「典型题目」用无序列表列出 5-10 条，尽量保留原题的表述。
+</code></pre></div>
+
+
+调用参数是 <code>temperature: 0.3</code>、<code>max_tokens: 1600</code>。低温度让同一批材料两次运行的输出更接近，也方便缓存判断；1600 个 token 刚好够四节 400 到 800 字，也限制了模型跑题。截断函数 <code>_clip()</code> 按段落边界切，优先找换行、句号、叹号、问号，切完补一句「（后文略）」，避免把一句话拦腰截断。
+
+质量兜底有两层。<code>_missing_sections()</code> 检查四个二级标题是否齐全；缺节就带着「必须严格包含这四个标题」的追加指令重试一次；重试后仍缺，不再重试，而是在正文前加一行注记，说明本次生成缺了哪几节，让读者知道这是降级产物，而不是完整报告。
+
+岗位级是第二阶段：按岗位收集各公司的组级报告，每份截断到 700 字，最多纳入 16 家公司，少于 3 家就放弃这个岗位。它不再看原始面经，只看已经归纳过的摘要，这样既控制了输入长度，也避免第二阶段把同一批原文再读一遍。
+
+样本选择还有一个兜底：按「最长一半 + 最新一半」取完之后，如果还不够 8 条，就从剩下的最长记录里继续补，直到上限。这样小样本组不会因为「最新的一半」里全是短帖而只喂进去两三条；同时补入顺序仍然是长度优先，信息密度不会掉得太厉害。8 条、1,200 字、16,000 字这三个上限不是拍脑袋：它们共同决定了单次 prompt 的 token 量，也决定了 100 次调用能覆盖多少个组。
+<h2>缓存、预算与失效</h2>
+
+分析结果不是每次重算。<code>analysis/manifest.json</code> 记录 <code>PROMPT_VERSION</code>、模型名、每个组的条数与生成时间。<code>PROMPT_VERSION</code> 当前是 <code>2026-10-29.1</code>；只要提示词版本或模型名任一变化，整份缓存失效，全部重算。这个设计很粗暴，但正确：提示词改了，旧报告就不再代表当前口径，局部复用只会让仓库里同时存在两套标准。
+
+单组的重算条件是 <code>refresh_after_days: 30</code>，或者条数增长达到 <code>max(5, 10%)</code>。前者防止材料过期，后者保证新增样本足够多时才值得再花一次调用；只有一两条新面经时，重算的收益低于成本。
+
+预算是另一条硬约束。免费额度大约 15 RPM，配置里保守设成 <code>rpm: 12</code>、<code>workers: 2</code>、<code>max_calls_per_run: 100</code>。100 次调用意味着一天只能覆盖一部分组，剩下顺延到次日。为此有一个组预算分配：先给岗位级汇总留出 <code>reserve = min(岗位数, max_calls // 6)</code> 次调用，剩下的才分给公司组，避免公司组把额度吃光、岗位报告永远排不上。
+
+失败处理按状态码分流。429 先看 <code>x-ratelimit-remaining</code>，为 0 说明当日额度用尽，抛 <code>QuotaExceeded</code> 立即停整轮，不再做无谓重试；不为 0 则读 <code>Retry-After</code>，最多等 60 秒再试。403 且响应体含 rate limit，同样按额度耗尽处理；401、403 的其他情况按权限错误处理，提示检查 <code>models: read</code> 权限。5xx 走指数退避，最多三次。这套分流的意义是把「等一等还能好」和「今天别再试了」区分开。
+
+缓存判断发生在调用之前，顺序是：先读 manifest，比提示词版本与模型名；再逐组比条数与生成日期；只有两项都满足复用条件才跳过。这个顺序保证「版本变了」时不会因为条数没变而误用旧报告。manifest 同时是观测面：它记录了哪些组分析过、用的什么模型、什么时候生成的，出问题时不用去翻 Actions 日志。
+<h2>GitHub Actions：无人值守的流水线</h2>
+
+两条工作流，一条日更、一条周更。日更 <code>daily.yml</code> 的 cron 是 <code>0 1 * * *</code>，即北京时间 09:00，<code>timeout-minutes: 60</code>；周更 <code>weekly-full.yml</code> 在周日 10:00 跑，带 <code>--full --limit 150</code>，超时 180 分钟。<code>--full</code> 打开更多翻页与更多公司查询模板，<code>--limit</code> 把每个来源的详情补全数量压住，避免周更把额度一次打空。
+
+权限只有两项：<code>contents: write</code> 用于提交，<code>models: read</code> 用于 GitHub Models。凭据只用仓库自带的 <code>GITHUB_TOKEN</code>，不额外配 secret，这样 fork 和 PR 都不会拿到写权限。并发用 <code>group: interview-crawl</code> 加 <code>cancel-in-progress: false</code>，日更和周更撞车时排队而不是互相取消——采集是幂等的，但中途取消会留下半套数据。
+<div class="codehilite"><pre><span></span><code><span class="nt">permissions</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
+<span class="w">  </span><span class="nt">models</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">read</span>
+<span class="nt">concurrency</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">interview-crawl</span>
+<span class="w">  </span><span class="nt">cancel-in-progress</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+
+
+提交步骤先 <code>git status --porcelain -- README.md data/ interviews/ analysis/</code>，没有变更就 <code>exit 0</code>；有变更才 <code>git add</code> 这四类路径并提交。注意它没有用 <code>git add -A</code>，避免把临时文件、日志、本地配置带进仓库。分析步骤标了 <code>continue-on-error: true</code>，理由是额度或权限异常不该阻断已采数据的提交——这个决定本身合理，但它后来成了第二起事故的放大器。
+
+步骤顺序也有讲究：先采集、再分析、最后统一提交。这样即使分析失败，采集结果仍然会被提交；如果反过来，分析失败可能让整次运行提前结束，连数据一起丢。代价是分析和采集共用同一个 job，分析的实际耗时挤在采集之后，60 分钟的作业超时对两者是共享的。日更目前 30 分钟出头，余量够，但不是一个可以无限加源的结构。
+<h2>故障复盘一：面试鸭的「0 个题库，0 条记录」</h2>
+<h3>现象</h3>
+
+某天的 Actions 运行（run 41792215767）里，面试鸭的日志只有两行：<code>面试鸭共 0 个题库，开始展开题目</code> 和 <code>面试鸭完成：0 个题库共 0 条记录</code>。从提交 <code>116976f8</code> 之后，这条日志每天都出现，连续多日。更迷惑的是整条流水线是绿色的：没有失败步骤，没有告警，README 照常更新，来源统计里面试鸭仍然显示 1,962 条。
+
+排查是从「不像」开始的：一次正常的全量题库遍历不可能在 1 秒内结束，而日更总时长仍然有三十分钟，说明另外两个源在正常工作，只有面试鸭这一段空转。向上翻历史日志，发现同样的两行从某个提交之后每天重复；用 commit hash 去查，落点在面试鸭相关的改动范围内。再对照代码路径，请求失败、捕获、break、返回空列表，链条完整，但没有任何一处会让作业失败。
+<h3>原因</h3>
+
+直接原因是题库列表接口返回 567 Server Error。<code>MianshiyaSource.fetch()</code> 对题库列表的请求包在 <code>try/except Exception</code> 里，捕获后只写一条 warning 然后 <code>break</code>，函数继续往下走，<code>banks</code> 为空，<code>fetch()</code> 返回空列表。上游 <code>main.py</code> 把「返回空列表」当成正常结果，继续合并、渲染、提交。历史数据不会被删除，于是 README 的来源统计继续沿用旧的 1,962 条，页面上完全看不出这个源已经停更。
+
+真正的问题是错误语义：采集器用「空结果」同时表达了两种完全不同的状态——「这个源今天确实没有新内容」和「这个源坏了」。前者应该成功，后者应该失败，但代码把它们压成了同一个返回值。再加上 <code>except Exception</code> 把 HTTP 错误、解析错误、结构变化全都吃掉，日志里只剩一行 warning，运行层面没有任何断言去检查「题库数大于 0」这个最基本的健康条件。
+<h3>解决与现状</h3>
+
+从记录看，接口侧的问题仍未恢复，代码侧的静默 <code>break</code> 也仍然在，所以现状是：面试鸭继续每天返回 0 条，历史数据继续留在仓库里，README 的数字看起来没变。这不是「已修复」，而是一个被记录下来的未修复缺陷。
+
+应当落地的改法是三条。第一，采集器的异常不再吞掉：题库列表第一页失败就抛 <code>SourceError</code>，让 <code>main.py</code> 捕获并标记该源 failed，而不是返回空列表。第二，给每个源加最低产出断言，比如题库数大于 0、题目数大于 0，不满足就记为异常；「今天没新内容」应该是「请求成功但新增为 0」，而不是「请求失败所以为 0」。第三，README 增加每个源的最后成功时间与本次状态，让停更在页面上可见，而不是只藏在日志里。
+<h3>代价</h3>
+
+停更期间缺失的数据不会自动回来，只能靠一次 <code>--full</code> 重跑补，而重跑的请求量和时间都远高于日更。更贵的代价是信任：一个每天绿色、数字不变的流水线，会让维护者和读者都以为一切正常。这类静默失败发现得越晚，回填成本越高，且中间这段时间的所有统计口径都带着一个已知的缺口。
+<h2>故障复盘二：LLM 分析永远停在 0/237</h2>
+<h3>现象</h3>
+
+<code>analysis/README.md</code> 长期显示「已分析 0/237」，<code>analysis/</code> 下没有任何公司报告。Actions 里名为 Analyze with GitHub Models 的步骤，每次都以 0 秒、成功状态结束。237 是满足 <code>min_records: 20</code> 的组数，说明数据侧没有问题，问题在分析侧从来没真正启动过。
+
+排查顺序是反的：先怀疑模型、再怀疑额度，最后才怀疑代码有没有跑。日志里没有一条模型请求记录，没有 401、没有 429、没有超时，连「跳过缓存」的日志都没有，这不符合任何调用失败的特征；0 秒的耗时也不符合「遍历 237 个组、逐个判断缓存」的预期。把同一份代码在本地跑 <code>python -m src.analyze</code>，才拿到真正的错误：SyntaxError，位置在 <code>_dedupe()</code> 的那行 f-string。错误不在运行期，而在导入期，所以所有运行期日志都不会出现。
+<h3>原因</h3>
+
+根因在 <code>src/analyze.py</code> 的 <code>_dedupe()</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\s+&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;content&#39;</span><span class="p">)</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)[:</span><span class="mi">120</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+
+这行在 Python 3.12 起合法，在 3.11 不合法：3.11 的 f-string 表达式里不允许出现反斜杠，<code>r'\s+'</code> 会让整个模块在编译期报 <code>SyntaxError</code>。workflow 固定 <code>python-version: "3.11"</code>，所以 <code>python -m src.analyze</code> 连第一行业务代码都没执行就退出了。
+
+为什么一直没被发现：分析步骤设了 <code>continue-on-error: true</code>，编译失败被当成「可忽略的分析异常」，作业仍然是绿色；0 秒的耗时又容易被当成「没有需要分析的组，快速返回」。本地如果用的是更新的 Python，同一行代码完全正常，环境差异把这个错误藏得更深。三个因素叠在一起，一个编译期错误伪装成了「分析任务正常但无结果」。
+<h3>解决与现状</h3>
+
+当前仍未修复，<code>_dedupe()</code> 里的写法还在，workflow 仍是 3.11，分析步骤仍标着 <code>continue-on-error: true</code>。修法有两条，任选其一即可：把 workflow 升到 3.12；或者把 <code>re.sub</code> 提到 f-string 外面先算好。
+<div class="codehilite"><pre><span></span><code><span class="n">normalized</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\s+&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)[:</span><span class="mi">120</span><span class="p">])</span>
+<span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">normalized</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+
+但只改这一行还不够。<code>continue-on-error</code> 的初衷是「模型挂了也别丢数据」，这个诉求应当保留，只是不能让失败以「0 秒成功」的形式消失。更稳的做法是把分析拆成独立 job，失败时照常提交已有数据，同时让 job 标红并在 summary 里写明失败原因；或者在同一个 job 里读取 <code>steps.analyze.outcome</code>，失败时输出注解。核心是：可以允许失败，但不能允许失败不可见。
+<h3>代价</h3>
+
+237 个组的调用一次都没发出，免费额度没有被消耗，但「LLM 归纳」这个核心功能等于不存在；README 长期展示 0，读者会误以为数据不满足分析条件。更隐蔽的成本是排障时间：0 秒成功、无日志、无产物，这三个特征指向「没有工作可做」，而真实原因在另一层——代码根本没被加载。一个被 <code>continue-on-error</code> 包住的步骤，失败信号会沿着最不希望的方向衰减。
+<h2>问题清单：截断、脏字符与重复</h2>
+<h3>搜索接口的正文截断</h3>
+
+现象：部分面经入库后正文只有一两百字，结尾带省略号；有些帖子干脆从结果里消失。原因：牛客搜索接口返回的是摘要而非全文，只有详情接口才有完整正文。归一化里有一个 <code>_is_truncated()</code> 判断，把「正文少于 300 字且以省略号结尾」视为抓取失败并直接丢弃，这个启发式能挡住大部分残缺数据，但也会误伤真正短小、恰好以省略号结尾的帖子。
+
+解决：对没见过的记录补一次详情请求，拿全文后再判断；已经抓过的记录用正文集合跳过，不重复请求。现状是这套机制已经落地，日更里 2,900 多次详情请求、18 分 46 秒，主要时间就花在这里。代价是「短而完整」的内容仍有被误删的可能，且丢弃没有单独计数，属于看不见的损失。
+<h3>同一个帖子被收了三次</h3>
+
+现象：同一篇面经在结果里出现多次，公司岗位计数虚高，喂给模型的样本也重复。原因有三：关键词矩阵本身交叉覆盖；分享链接带 <code>#</code>、查询参数、尾斜杠等变体；面试鸭同一道题被多个题库收录。解决是前面说的三层去重：URL 规范化、跨题库按 <code>external_id</code> 合并、喂模型前按「标题 + 正文前 120 字」再筛。代价是规范化如果过激，可能把查询参数确实代表不同内容的页面合并掉；标题加开头 120 字的判据，也可能把两篇开头相同、后文不同的面经误判为一篇。
+<h3>看不见的字符</h3>
+
+现象：正文里出现 <code>&amp;nbsp;</code>、零宽空格、连续空行，句子被 <code>&lt;br&gt;</code> 粘在一起。原因：三个站点返回的都是 HTML 片段或富文本，标签、实体、平台注入的不可见字符混在一起。解决是统一的 <code>clean_content</code>：先把 <code>&lt;br&gt;</code>、<code>&lt;/p&gt;</code> 之类的换行标签替换成换行，再做 <code>html.unescape</code>，清掉 <code>\u200b</code> 和 <code>\xa0</code>，最后压缩空白。代价是清洗顺序很敏感：先反转义再删标签，会把原本只想显示的文字当成真标签删掉；清洗又发生在去重之前，清洗规则一改，正文哈希与去重结果都会变。
+<h2>问题清单：100MB、额度与源下线</h2>
+<h3>单文件逼近 100MB</h3>
+
+现象：早期所有记录存在一个 JSON 里，随着条数增长，文件体积逼近 GitHub 的 100 MB 单文件硬上限，一旦超过，push 会被直接拒绝。原因不只是当前体积，还有 git 的历史：每次整文件重写都会留下一个新 blob，仓库膨胀速度远高于数据增长速度。解决是改成按公司分片，每家公司一个 <code>.json.gz</code>，落到 158 个文件、35.9 MB；读取兼容旧的单文件，写入后删除不再存在的公司分片。代价是每次运行要打开 158 个文件，公司名 slug 冲突需要加摘要后缀，分片的增删逻辑本身也成了新的故障面。
+<h3>免费额度的硬边界</h3>
+
+现象：分析跑到一半停止，后半段组没有结果；偶尔连续 429，重试也无效。原因：GitHub Models 免费档大约 15 RPM，237 个组远超单日预算。解决是 <code>max_calls_per_run: 100</code>、<code>rpm: 12</code>、<code>workers: 2</code>，加 429 的 <code>Retry-After</code> 与 <code>x-ratelimit-remaining</code> 判断、403 限流直接抛 <code>QuotaExceeded</code> 停整轮，再用 <code>reserve = min(岗位数, max_calls // 6)</code> 给岗位汇总留额度。代价是完整分析要跨多天，且「先公司组、后岗位汇总」的顺序意味着新岗位的报告永远滞后；预算分配只能保证不饿死汇总，不能保证公平。
+<h3>关掉一个源，还要删掉它的历史</h3>
+
+现象：PracHub 以国外公司为主，而配置开了 <code>exclude_foreign_companies: true</code>，采回来的内容大部分被过滤，性价比很低。原因：来源价值与目标不一致，继续跑只是浪费请求。解决是 <code>prachub: enabled: false</code> 加 <code>exclude_sources: [prachub]</code>，下次运行按 dropped 把它的历史记录一并清理。代价是不可逆：历史数据删除后，重新启用只能从头抓，且旧链接可能已经失效。这个决定本质上是数据资产与运行成本的取舍，没有两全。
+<h3>三件仍未解决的事</h3>
+
+第一，没有做 robots.txt 检查。采集只覆盖公开内容、控制了频率，但「是否允许抓取」这件事没有在代码里核对，属于明确的合规缺口。第二，掘金的请求没有带签名参数，目前能用，但只要接口加签就会再次失效，而且这类失效很可能又表现为「0 条」，重演面试鸭的静默失败。第三，README 用文件 mtime 展示最后更新时间，Actions 每次都是全新 checkout，未变更的文件会被统一刷成同一时间，读者看到的「更新时间」并不真实。这三件都属于未解决项，不是待办清单上的装饰。
+<h2>实测数据与已知限制</h2>
+
+日更实测 30 分 08 秒：牛客 18 分 46 秒、12,945 条、2,900 多次详情；面试鸭 1 秒（即前面说的 0 条）；掘金 10 分 46 秒、3,924 条搜索结果、3,333 篇正文。周更是 24 分 48 秒，比日更短，主要是因为 <code>--limit 150</code> 压住了详情补全数量。两条工作流的超时分别是 60 与 180 分钟，实测都留了一倍以上余量，主要风险不在时长，而在接口变更和额度。
+
+从耗时结构能看出瓶颈在哪：牛客占了六成以上时间，其中绝大部分是 2,900 多次详情请求；掘金 3,333 篇正文抓取只用了十分钟出头，因为它的搜索接口一次就给全文，详情请求少得多。这也解释了为什么增量设计必须优先省详情请求：搜索翻页是固定成本，详情才是随新增条数线性增长的部分。
+
+几个判断。第一，这套架构在「零服务器、免费额度、每天一次」的约束下是成立的：增量判断省掉了大部分详情请求，幂等落盘避免了无意义提交，两阶段分析把一次做不完的工作拆成了可续跑的任务。第二，它最脆弱的地方不是反爬，而是失败的表达方式：一个源坏了、一个步骤编译失败了，流水线都可以是绿的。第三，仓库体积会持续增长，README 全量重排和整文件重写的历史 blob 是主要来源，未来要么接受，要么把渲染改成增量。
+
+如果要继续改进，优先级应该是：先修 <code>analyze.py</code> 的 f-string 与工作流版本，让分析真正跑起来；再给每个源加健康断言和最后成功时间；然后才是 robots.txt、掘金签名、mtime 这些正确性问题。采集量已经不是瓶颈，可见性才是。
+<h2>小结</h2>
+
+InterviewAtlas 是一个用四个依赖、两条工作流、一份 git 仓库撑起来的长期数据管道。它的实现思路可以概括成四句话：增量判断放在请求之前，去重分三层做在不同阶段，落盘用固定压缩时间戳换幂等，模型调用用版本清单加预算换可控。
+
+它踩过的坑比功能更有价值。面试鸭的 0 条说明「空结果」不能同时表示成功与失败；LLM 分析的 0/237 说明一个编译期错误可以被 <code>continue-on-error</code> 伪装成正常运行；截断、重复、脏字符说明数据清洗的每个启发式都有误伤；写放大说明 git 仓库的存储成本不在快照，而在历史。
+
+这两个最严重的问题当前都还没有修完：面试鸭的接口未恢复、静默 break 仍在；分析侧的 f-string 与 3.11 组合仍在，0/237 不会自己变成 237/237。把修法写清楚，比声称已经解决更诚实。
+
+如果重来一次，我会先写「失败可见」再写采集：每个源必须有独立的成功、失败、产出为零三种状态，每个后台步骤的退出码必须进入汇总，而不是被 <code>continue-on-error</code> 抹平。数据管道的大部分事故不是抓不到，而是抓不到的时候没人知道。
+<h2>相关阅读</h2>
+<ul>
+<li><a href="/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a>：另一种「依赖极简 + 输出有界」的工程取舍，适合对照本文的预算与截断设计。</li>
+<li><a href="/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a>：从最小实现理解「采集、归纳、落盘」之外的另一类循环。</li>
+<li><a href="/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a>：当自动生成的分析报告需要判断质量时，这套评测思路比单一分数更有用。</li>
+<li><a href="/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a>：本文的数据量还没到需要搜索引擎，但增量与去重的取舍可以参考这里的索引视角。</li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li></ul></nav></div></div>
+  </body>
+</html>

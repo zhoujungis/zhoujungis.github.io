@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/" />
+    <meta property="og:title" content="micromd：3 MB 的单文件 Markdown 阅读器" />
+    <meta property="og:description" content="适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/micromd-3mb-markdown-reader-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/micromd-3mb-markdown-reader-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="micromd：3 MB 的单文件 Markdown 阅读器 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="micromd：3 MB 的单文件 Markdown 阅读器" />
+    <meta name="twitter:description" content="适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/micromd-3mb-markdown-reader-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>micromd：3 MB 的单文件 Markdown 阅读器 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BYB4JsSG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-05T10:33:13.844355+08:00" />
+        <meta property="article:modified_time" content="2026-11-05T10:33:13.844355+08:00" />
+        <meta property="article:tag" content="Go" />
+    <meta property="article:tag" content="Markdown" />
+    <meta property="article:tag" content="WebView2" />
+    <meta property="article:tag" content="单文件" />
+    <meta property="article:tag" content="桌面应用" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/#article","url":"https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/","headline":"micromd：3 MB 的单文件 Markdown 阅读器","description":"适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；","image":"https://blog.zhoujun.dev/photos/micromd-3mb-markdown-reader-cover.png","datePublished":"2026-11-05T10:33:13.844355+08:00","dateModified":"2026-11-05T10:33:13.844355+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/"},"articleSection":"项目实战","keywords":"Go, Markdown, WebView2, 单文件, 桌面应用","inLanguage":"zh-CN","wordCount":8730},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"micromd：3 MB 的单文件 Markdown 阅读器","item":"https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"micromd-3mb-markdown-reader","title":"micromd：3 MB 的单文件 Markdown 阅读器","created_at":"2026-11-05T10:33:13.844355+08:00","updated_at":"2026-11-05T10:33:13.844389+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":187,"name":"Go","slug":"go"},{"id":192,"name":"Markdown","slug":"markdown"},{"id":191,"name":"WebView2","slug":"webview2"},{"id":193,"name":"单文件","slug":"single-file"},{"id":190,"name":"桌面应用","slug":"desktop-app"}],"cover_image":"/photos/micromd-3mb-markdown-reader-cover.png","excerpt":"适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；关心体积、启动、保存语义与安全边界的工程师 结论先行：MicroMD 把约 3.17 MiB 的 exe、零依赖的 HTML 界面和一个手写 Markdown 解析","reading_time":35,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>micromd：3 MB 的单文件 Markdown 阅读器</span></nav><h1>micromd：3 MB 的单文件 Markdown 阅读器</h1><div class="ns-meta">2026/11/5 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：<a href="https://blog.zhoujun.dev/tags/go/">Go</a> Markdown WebView2 单文件 <a href="https://blog.zhoujun.dev/tags/desktop-app/">桌面应用</a></p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><strong>micromd：3 MB 的单文件 Markdown 阅读器</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；关心体积、启动、保存语义与安全边界的工程师
+结论先行：MicroMD 把约 3.17 MiB 的 exe、零依赖的 HTML 界面和一个手写 Markdown 解析器装进同一个进程。真正值得复盘的不是「小」，而是四个取舍：用系统 WebView2、把界面落到 file://、用三个绑定连接原生与 JS、用两遍式解析同时守住转义与占位符。它还有七个没有完全解决的问题，文章会逐个给出代价与遗留
+阅读时间约 30 分钟 | 难度：进阶 | 收获：一套可复用的 WebView2 单文件壳实现 + 手写 Markdown 解析器的两遍式设计 + 七个真实问题的现象、原因与解决代价 + 一份不粉饰的限制清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>为什么再造一个 Markdown 阅读器</li>
+<li>一个 exe 与它的原生外壳</li>
+<li>界面为什么先写到磁盘</li>
+<li>三个绑定与保存语义</li>
+<li>手写解析器：两遍式与块级状态机</li>
+<li>问题一：WebView2 缺失与浏览器回退</li>
+<li>问题二：图片相对路径的基址错位</li>
+<li>问题三：全量重渲染与大文件节流</li>
+<li>问题四：草稿配额与未使用的 MAX_DRAFT</li>
+<li>问题五：体积、图标与启动时间</li>
+<li>问题六：保存语义与用户预期错位</li>
+<li>问题七：没有文件变更监听，也没有最近文件</li>
+<li>已知限制与设计取舍</li>
+<li>小结</li>
+<li>相关阅读</li>
+</ul>
+<hr>
+<h2>为什么再造一个 Markdown 阅读器</h2>
+
+把 Markdown 阅读器做成 3 MB 的单文件，听起来像在压缩一个本来就不大的东西。真正难的地方不在 Markdown：一个能解析标题、列表、表格的解析器可以很短，难的是 Windows 桌面壳——窗口、DPI、图标、WebView2 运行时、文件读写权限，以及「双击就能用」这四个字背后的分发问题。
+
+MicroMD 的解法是尽量把成本外置：渲染引擎不打包，直接用系统里的 WebView2；界面不引入框架，写成一个 HTML 文件；Markdown 解析器不引第三方库，用两百多行 JavaScript 手写；原生层只保留窗口创建、三个绑定和启动参数解析。换来的结果是发布物只有一个 exe，解压即用，只写自己的应用数据目录，不装服务，也不依赖网络。
+
+但要先把边界说清楚。它不是跨平台应用，代码里大量 Win32 调用和 WebView2 依赖决定了它只面向 Windows 10 与 11。它也不是功能完整的编辑器：没有代码高亮、没有侧栏目录、没有文件变更监听、没有最近文件列表。这些不是「以后会加」的路线图，而是当前版本的真实状态。本文按实现顺序拆开它：先看外壳和落盘，再看三个绑定与解析器，最后把七个已经暴露的问题逐个复盘。
+
+体积数字也先摆正。release 构建在 strip 之后是 3,323,392 字节，即 3.17 MiB（十进制约 3.32 MB）；未 strip 是 4,943,872 字节，<code>-s -w</code> 省下 32.8%。标题里的「3 MB」说的是这个量级，不是精确的十进制 3.00 MB。
+<h2>一个 exe 与它的原生外壳</h2>
+
+先看这个 exe 里到底有什么。它没有把 Chromium 打进去，所以「3 MB」不是「3 MB 的浏览器」，而是「3 MB 的壳 + 系统里那份引擎」。壳的组成可以拆成五层：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>实现</th>
+<th>已核实的事实</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原生外壳</td>
+<td>Go + <code>github.com/jchv/go-webview2</code></td>
+<td>直接依赖 3 个 Go 模块，<code>go.mod</code> 里三行都误标了 <code>// indirect</code></td>
+</tr>
+<tr>
+<td>界面</td>
+<td>单个 <code>web/index.html</code></td>
+<td>29,520 字节，零个 JavaScript 库</td>
+</tr>
+<tr>
+<td>渲染引擎</td>
+<td>系统安装的 Microsoft Edge WebView2</td>
+<td>不随 exe 分发</td>
+</tr>
+<tr>
+<td>图标与版本资源</td>
+<td><code>go-winres</code> 生成的 <code>.syso</code></td>
+<td><code>.syso</code> 被 <code>.gitignore</code> 忽略，本地不生成就没有图标</td>
+</tr>
+<tr>
+<td>打包</td>
+<td><code>//go:embed</code></td>
+<td><code>main.go:18</code> 把 HTML 编进二进制</td>
+</tr>
+</tbody>
+</table></div>
+
+原生入口很短。<code>main.go</code> 先做 DPI 初始化，再算出应用数据目录，把内嵌的 HTML 写到磁盘，解析命令行参数，最后创建窗口并 <code>Run()</code>。窗口由 <code>webview2.NewWithOptions</code> 创建，关键参数只有几个：标题 <code>MicroMD</code>、宽高由 <code>windowSize()</code> 计算、<code>IconId: 1</code>、<code>Center: true</code>、<code>DataPath</code> 指向 <code>%LOCALAPPDATA%\MicroMD\webview</code>。<code>Debug: false</code> 同时关掉默认右键菜单和 DevTools，这是发布配置，不是开发配置。窗口样式来自 <code>go-webview2</code> 内部的默认值，注释写的是 <code>WS_OVERLAPPEDWINDOW</code>，也就是说它没有自定义标题栏，也没有原生菜单栏，外观完全交给系统。
+
+这个选择很省事，也把限制写死了。没有自绘标题栏，就没有拖动区域、最小化动画、窗口阴影的全套适配问题；没有菜单栏，所有操作只能放进 HTML 里的按钮和快捷键。<code>DataPath</code> 单独指向应用目录，意味着 WebView2 的缓存、Cookie、localStorage 都落在 <code>%LOCALAPPDATA%\MicroMD\webview</code>，不会污染用户的其他浏览器配置，卸载时删目录即可。代价是这个目录会随使用增长，而代码里没有清理逻辑。
+
+还有一个容易被忽略的细节：<code>NewWithOptions</code> 返回 <code>nil</code> 时，<code>main</code> 会调用 <code>openExternal(page)</code> 用默认浏览器打开同一个页面，然后直接返回。这条路径是「没有 WebView2 运行时」时的兜底，后文会单独讲。需要提醒的是，并非所有初始化失败都会返回 <code>nil</code>；<code>go-webview2</code> 的部分错误路径直接 <code>log.Fatal</code>，所以「兜底」覆盖的是窗口创建失败，而不是全部启动失败。
+<h2>界面为什么先写到磁盘</h2>
+
+<code>//go:embed web/index.html</code> 把 29,520 字节的界面编进二进制后，代码没有用 <code>NavigateToString</code>，而是先落盘再以 <code>file://</code> 导航。启动时的顺序是：
+<ol>
+<li><code>appDataDir()</code> 取 <code>LOCALAPPDATA</code>，拼出 <code>%LOCALAPPDATA%\MicroMD</code>；取不到就退到 <code>os.UserCacheDir()</code>，再退到相对路径 <code>MicroMD</code>。</li>
+<li>拼接 <code>app\index.html</code>，<code>os.MkdirAll(appDir, 0o755)</code>。</li>
+<li>读现有文件，和 <code>indexHTML</code> 全文比较；读失败或内容不同才 <code>os.WriteFile(page, indexHTML, 0o644)</code>。</li>
+<li><code>view.Navigate(fileURL(page))</code>，<code>fileURL</code> 用 <code>net/url</code> 处理盘符、斜杠和转义。</li>
+</ol>
+
+为什么不用字符串直接导航？从代码能看到的直接收益是：页面有了一个稳定的 <code>file://</code> 源，localStorage 才能按这个源持久化；<code>&lt;input type="file"&gt;</code>、File System Access API、相对资源解析都按普通页面的规则工作；不需要自己注册自定义 scheme，也不需要起一个本地 HTTP 服务。最后一点尤其重要——起本地端口会引入端口冲突、防火墙提示和「到底有没有联网」的疑问，而这个项目的卖点之一就是渲染全在本地。
+
+落盘策略是「字节不同才重写」，而不是每次启动都写。好处是升级时界面会更新，平时启动只多一次 29,520 字节的读取，开销可以忽略；坏处是用户如果手动改了 <code>%LOCALAPPDATA%\MicroMD\app\index.html</code>，下次启动会被覆盖回去。代码没有提供「使用外部界面」的开关，这是刻意的简化。
+
+这条链路有两个静默失败点：<code>MkdirAll</code> 失败直接 <code>return</code>，<code>WriteFile</code> 失败也直接 <code>return</code>。两者都不会弹窗，用户看到的是「双击没反应」。在正常权限下这几乎不会发生，但如果目录被杀软锁定、磁盘满、或者 <code>LOCALAPPDATA</code> 指向不可写位置，就没有任何可诊断信息。这是「单文件、无安装器」带来的直接代价：没有安装程序替你检查目录权限。
+<h2>三个绑定与保存语义</h2>
+
+原生与 JS 之间只有三个绑定，名字都很直白：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>绑定</th>
+<th>原生行为</th>
+<th>返回值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>micromdLoad</code></td>
+<td>如果启动参数给了文件路径，读取并 <code>json.Marshal</code> 成 <code>{name, content}</code></td>
+<td>没有文件时返回空字符串</td>
+</tr>
+<tr>
+<td><code>micromdSave</code></td>
+<td>如果 <code>docPath</code> 非空，<code>os.WriteFile</code> 写回</td>
+<td>成功返回 <code>ok</code>，没有路径返回错误 <code>no file</code></td>
+</tr>
+<tr>
+<td><code>micromdOpenExternal</code></td>
+<td>只接受 <code>http://</code>、<code>https://</code>、<code>mailto:</code> 前缀，再交给 <code>ShellExecuteW</code></td>
+<td>接受并执行返回 <code>ok</code>，其他返回空</td>
+</tr>
+</tbody>
+</table></div>
+
+<code>micromdLoad</code> 的设计很省：它不返回路径，只返回文件名和内容。前端拿到 JSON 后把 <code>app.native</code> 设为 <code>true</code>，于是 <code>Ctrl+S</code> 会调 <code>micromdSave</code>。<code>micromdSave</code> 自己不接受路径参数，只认启动时解析出的 <code>docPath</code>；当前端在「没有原生文件」的状态下误调它，原生侧用 <code>no file</code> 拒绝，这是一层防御。
+
+真正的语义分叉发生在前端。<code>native</code> 只在一种情况下为 <code>true</code>：命令行传入了文件路径，或者把 <code>.md</code> 拖到了 exe 图标上——后者在 Windows 上同样表现为启动参数。其他打开方式都会走 <code>setDocument(file, handle)</code>，而这个函数第一件事就是把 <code>app.native = false</code>。于是保存出现三条路径：
+<ul>
+<li>原生文件：<code>micromdSave</code> 直接写回原路径，提示「已保存到 文件名」。</li>
+<li>文件选择器：如果 <code>showOpenFilePicker</code> 可用，拿到 <code>FileSystemHandle</code>，用 <code>createWritable()</code> 写回；提示「已保存到 handle.name」。</li>
+<li>拖进窗口或 <code>&lt;input type="file"&gt;</code> 回退：既没有原生路径，也没有可写句柄，退化成 Blob 下载，提示「已导出 文件名」。</li>
+</ul>
+
+降级逻辑在 <code>saveFile()</code> 里是显式的三级：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="kr">native</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="ow">typeof</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">micromdSave</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;function&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">micromdSave</span><span class="p">(</span><span class="nx">content</span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">handle</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">app</span><span class="p">.</span><span class="nx">handle</span><span class="p">.</span><span class="nx">createWritable</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">writable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">app</span><span class="p">.</span><span class="nx">handle</span><span class="p">.</span><span class="nx">createWritable</span><span class="p">();</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">writable</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">content</span><span class="p">);</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">writable</span><span class="p">.</span><span class="nx">close</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">link</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">);</span>
+<span class="nx">link</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">URL</span><span class="p">.</span><span class="nx">createObjectURL</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nx">Blob</span><span class="p">([</span><span class="nx">content</span><span class="p">],</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;text/markdown;charset=utf-8&#39;</span><span class="w"> </span><span class="p">}));</span>
+<span class="nx">link</span><span class="p">.</span><span class="nx">download</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">app</span><span class="p">.</span><span class="nx">name</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;untitled.md&#39;</span><span class="p">;</span>
+<span class="nx">link</span><span class="p">.</span><span class="nx">click</span><span class="p">();</span>
+</code></pre></div>
+
+
+这段代码有一个值得肯定的细节：<code>setDocument</code> 每次打开新文件都会重置 <code>native</code>。假设用户先用命令行打开 <code>A.md</code>，原生 <code>docPath</code> 指向 A；随后又通过选择器打开 <code>B.md</code>，如果没有这个重置，<code>Ctrl+S</code> 可能把 B 的内容写进 A。现在它明确地把「当前文档是否可原生写回」和「当前文档是谁」绑在一起，避免了最危险的那类错写。
+
+代价是用户必须理解三套语义。同一个 <code>Ctrl+S</code>，在不同打开方式下分别意味着「覆盖原文件」「覆盖选择器文件」「下载一份副本」。README 写了规则，界面只用 toast 区分「已保存」和「已导出」，没有在打开文件时提前告诉用户「这个文件不会被写回」。这不是实现错误，而是安全模型与用户预期之间的缝，后文会展开。
+<h2>手写解析器：两遍式与块级状态机</h2>
+
+<code>web/index.html</code> 里用 <code>/* md:start */</code> 和 <code>/* md:end */</code> 圈出了解析器，约在 166 到 412 行。它没有引 marked、markdown-it 之类的库，而是自己实现了 <code>inline()</code> 和 <code>blocks()</code> 两层。最值得讲的是 <code>inline()</code> 的两遍式设计，因为它同时解决了两个看似矛盾的问题：既要让 Markdown 语法识别生效，又不能让原文里的 HTML 注入页面。
+
+第一遍不是解析，而是「藏」。代码段、自动链接、反斜杠转义先被替换成占位符，形如 <code>\u0001</code> + 数字 + <code>\u0001</code>，对应的 HTML 存进 <code>stash</code> 数组：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">stash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">put</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">html</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="s1">&#39;\u0001&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">stash</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">html</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;\u0001&#39;</span><span class="p">;</span>
+<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/(`+)([\s\S]*?)\1/g</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">m</span><span class="p">,</span><span class="w"> </span><span class="nx">ticks</span><span class="p">,</span><span class="w"> </span><span class="nx">code</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span>
+<span class="w">  </span><span class="nx">put</span><span class="p">(</span><span class="s1">&#39;&lt;code&gt;&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">code</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/^ ([\s\S]*?) $/</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;$1&#39;</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;&lt;/code&gt;&#39;</span><span class="p">));</span>
+<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/&lt;((?:https?:\/\/|mailto:)[^\s&lt;&gt;]+)&gt;/g</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">m</span><span class="p">,</span><span class="w"> </span><span class="nx">url</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span>
+<span class="w">  </span><span class="nx">put</span><span class="p">(</span><span class="s1">&#39;&lt;a href=&quot;&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;&quot;&gt;&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;&lt;/a&gt;&#39;</span><span class="p">));</span>
+<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\\([\\`*_{}\[\]()#+\-.!&gt;~|])/g</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">m</span><span class="p">,</span><span class="w"> </span><span class="nx">ch</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">put</span><span class="p">(</span><span class="nx">esc</span><span class="p">(</span><span class="nx">ch</span><span class="p">)));</span>
+<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">t</span><span class="p">);</span>
+</code></pre></div>
+
+
+第二遍才是整体转义：<code>&amp;</code>、<code>&lt;</code>、<code>&gt;</code>、<code>"</code> 全部变成实体。第三遍在转义后的文本上识别图片、链接、裸 URL 和强调，最后把占位符回填成真正的 HTML。这个顺序很关键：如果先整体转义，代码段里的反引号和链接里的括号会被实体打乱，语法识别失败；如果先识别再转义，拼接出来的 <code>&lt;a&gt;</code>、<code>&lt;img&gt;</code> 又会被当成用户输入转义掉。占位符把「需要保留的 HTML」暂时移出文本，让 <code>esc</code> 只处理真正的用户文本，回填后再把结构放回去。
+
+<code>blocks()</code> 是逐行状态机。它先统一换行、把 tab 展开成四个空格，然后在 <code>while</code> 循环里按优先级判断：围栏代码块、分隔线、标题、引用、表格、列表，最后才是普通段落。每种块都有自己的边界判断：
+<ul>
+<li>围栏代码块记录开头的反引号或波浪号数量，只有同字符且长度不小于开头的闭合行才结束，代码内容整体 <code>esc</code>，语言名写进 <code>class="language-xxx"</code>。</li>
+<li>标题用 <code>^ {0,3}(#{1,6})</code> 匹配，生成 <code>id</code> 时先去掉标签和标点，再按空白转连字符；标题重复时 <code>id</code> 也会重复。</li>
+<li>引用把所有连续的 <code>&gt;</code> 行剥掉前缀，递归调用 <code>blocks()</code>，所以引用里可以再放列表和代码块。</li>
+<li>表格先拆表头，再读分隔行判断左中右对齐；正文行用带负向断言的 <code>\|</code> 分割，避免把转义的竖线当列边界。</li>
+<li>列表记录第一项的缩进和有序/无序类型，遇到更深缩进的行就并入当前项，最后对每一项的文本递归 <code>blocks()</code>，嵌套列表因此成立；任务项用 <code>^\[([ xX])\][ \t]+</code> 单独识别，输出禁用的复选框。</li>
+</ul>
+
+普通段落会把连续的非空行用 <code>&lt;br&gt;</code> 连接，而不是按 CommonMark 的软换行合成空格。这是实现选择，不是 bug：对一个本地阅读器来说，作者在源码里换行通常就是希望看到换行。但它也意味着解析结果并不严格等价于 CommonMark，复制一段标准 Markdown 到别处渲染，段落形状可能不同。
+
+解析器没有做代码高亮，<code>class="language-xxx"</code> 只是留给未来或外部样式，页面里没有对应的着色规则。它也没有侧栏目录，标题的 <code>id</code> 生成了，但没有扫描标题生成导航的代码。块级状态机是逐行的，不做完整 AST，因此复杂嵌套、跨行强调、列表与表格的极端组合都只能靠规则覆盖，边界情况没有自动化测试兜底。整个仓库没有 <code>*_test.go</code>，解析质量靠人工样例验证。
+<h3>安全边界：先转义再解析</h3>
+
+解析顺序本身就是第一道安全边界。原文里的 <code>&lt;script&gt;</code>、<code>&lt;iframe&gt;</code>、<code>onerror=</code> 会先经过 <code>esc</code>，显示成文本，而不是进入 DOM。第二道是 <code>safeUrl()</code>：图片和链接在拼接前检查是否以 <code>javascript:</code>、<code>vbscript:</code>、<code>data:text/html</code> 开头，命中就把整段原文转义后原样显示。第三道是点击拦截：预览区的普通链接与裸 URL 会带 <code>target="_blank"</code> 和 <code>rel="noreferrer noopener"</code>，页面在捕获阶段只放行 <code>http(s)</code> 和 <code>mailto</code>，然后 <code>preventDefault()</code> 交给 <code>micromdOpenExternal</code>；原生侧再做一次前缀白名单，最后才 <code>ShellExecuteW</code>。<code>Debug: false</code> 关掉 DevTools 与右键菜单，减少了「在应用内调试页面」的入口。
+
+这几层能挡住常见的脚本注入，但有两个现状需要说清楚。第一，它没有禁用远程图片：如果 Markdown 里写了一个 <code>https://</code> 图片地址，WebView2 仍然会发起网络请求。「渲染在本地、不联网」指的是应用自身不依赖网络，不是「文档里的远程资源一定不会加载」。第二，<code>safeUrl</code> 只拦三类危险协议，其他协议或相对路径不会被拒绝；相对链接在 <code>file://</code> 下会按当前页面的基址解析，这正好引出后面的图片路径问题。另外，普通链接和裸 URL 会补上 <code>target</code> 与 <code>rel</code>，尖括号自动链接这一支没有补，但它同样会被点击拦截，真正的边界仍在原生白名单。
+<h2>问题一：WebView2 缺失与浏览器回退</h2>
+
+<strong>现象</strong>：在一台没有 WebView2 运行时的 Windows 机器上双击 exe，没有应用窗口，默认浏览器被打开，页面看起来还是那个 MicroMD，但「保存」变成了下载，原生写回完全失效。<code>micromd.bat</code> 则提供另一条路：依次找 Edge、Chrome、系统默认浏览器，用 <code>--app</code> 模式打开 <code>web/index.html</code>。
+
+<strong>原因</strong>：整个渲染层依赖系统安装的 WebView2 Runtime。Windows 10 与 11 的大多数版本自带，但 LTSC、精简镜像、部分企业管控环境可能没有。<code>webview2.NewWithOptions</code> 内部创建窗口失败时返回 <code>nil</code>，<code>main</code> 只能用 <code>openExternal(page)</code> 兜底；这时 JS 里 <code>typeof window.micromdLoad</code> 不是函数，<code>micromdSave</code> 也不存在，保存自然退化。另一个原因是 <code>micromd.bat</code> 依赖源码树里的 <code>web/index.html</code>，而发布物只有 exe，所以这个批处理只对仓库使用者有意义，不能作为终端用户的兜底。
+
+<strong>解决</strong>：原生层检测 <code>nil</code> 后用 <code>ShellExecuteW</code> 打开已经落盘的页面；README 明确给出「没有运行时就直接用浏览器打开」的路径；批处理脚本用 Edge、Chrome、默认浏览器的三级顺序，尽量复用本机已有的 Chromium。前端不需要为这两种模式写分支，因为它本来就把原生绑定当成可选的。
+
+<strong>代价与遗留</strong>：两种模式的能力不一致，而且用户很难在界面上看出自己处于哪一种。浏览器模式没有原生窗口、没有图标、没有直接写回，草稿的 localStorage 也取决于浏览器的 <code>file://</code> 策略；代码没有提示「请安装 WebView2」，也没有提供引导安装的链接。兜底覆盖的只是窗口创建失败，部分初始化错误在库内直接 <code>log.Fatal</code>，进程会静默退出。这个问题的本质是「把引擎外置」换来的体积优势，必然要接受运行时不受自己控制。
+<h2>问题二：图片相对路径的基址错位</h2>
+
+<strong>现象</strong>：文档里写 <code>![截图](images/shot.png)</code>，在别的编辑器里正常显示，在 MicroMD 里是破图。图片 URL 实际被解析到 <code>%LOCALAPPDATA%\MicroMD\app\images\shot.png</code>，而不是 Markdown 文件旁边的 <code>images\shot.png</code>。
+
+<strong>原因</strong>：页面是通过 <code>file://</code> 从应用目录导航的，浏览器的相对 URL 基址就是 <code>app/index.html</code> 所在目录。解析器把 <code>src</code> 原样放进 <code>&lt;img&gt;</code>，既没有注入 <code>&lt;base href="..."&gt;</code>，也没有按文档路径重写相对地址。原生绑定只回传文件名和内容，不暴露目录，所以前端即使想重写也拿不到原始路径。命令行打开时原生知道 <code>docPath</code>，但这个信息没有传给页面。
+
+<strong>解决</strong>：当前版本没有修复。能用的绕法是写绝对路径，例如 <code>file:///C:/docs/images/shot.png</code> 或 <code>data:</code> 内嵌图片；这两种都能被 <code>safeUrl</code> 放行，也能被 WebView2 加载。但绝对路径会破坏文档的可移植性，<code>data:</code> 会让文件迅速膨胀，都不是通用方案。
+
+<strong>代价与遗留</strong>：这是「界面先落盘」这个决定的直接副作用。要修就得在 <code>micromdLoad</code> 里多返回一个目录，前端在渲染后把相对 <code>src</code> 拼成绝对 <code>file://</code> 地址，或者注入一个按文档目录计算的 <code>&lt;base&gt;</code>。前者要处理 URL 编码、盘符、<code>..</code> 和混合斜杠；后者会影响页面内所有相对 URL，包括链接和未来的资源。更麻烦的是拖进窗口和文件选择器打开时，浏览器出于安全不暴露完整路径，只有 File 对象，拿不到真实目录，所以同一份文档在不同打开方式下会出现不同的图片行为。这也是为什么它到现在仍然是一个「已知限制」，而不是一个已修复项。
+<h2>问题三：全量重渲染与大文件节流</h2>
+
+<strong>现象</strong>：在长文档里连续输入时，光标还在走，预览区却一顿一顿；文档越长，输入延迟越明显。滚动时也可能出现预览位置和编辑位置对不上的情况。
+
+<strong>原因</strong>：<code>render()</code> 的实现只有一句核心逻辑：<code>preview.innerHTML = MD.render(editor.value)</code>。每次输入都从头解析整篇文档，再把整个预览树的 HTML 字符串替换掉。没有增量解析，没有 DOM diff，也没有把解析放进 Worker。<code>scheduleRender()</code> 只用 <code>requestAnimationFrame</code> 合并同一帧内的多次输入，合并的是调用次数，不是工作量；解析和布局仍然在主线程上按整篇文档的规模跑。
+
+<strong>解决</strong>：代码里有一个阈值 <code>BIG_DOC = 200000</code>。文档字符数超过 20 万时，<code>scheduleRender()</code> 不再用 <code>requestAnimationFrame</code>，而是改成 150ms 的 <code>setTimeout</code>，把重渲染频率压到大约每秒六到七次；低于阈值时仍然每帧全量渲染。这是一个非常便宜的降级：不引入 Worker，不做增量，只把「多久渲染一次」调粗。
+
+<strong>代价与遗留</strong>：阈值是按字符数拍的，和实际解析成本并不完全对应。19.9 万字符的文档仍然每帧全量渲染，20.1 万字符的文档突然降频，边界两侧体验不连续。150ms 是固定值，不随文档大小或机器性能自适应；在更长的文档上，单次解析本身就可能超过 150ms，节流只能减少次数，不能减少单次卡顿。<code>innerHTML</code> 全量替换还会让预览区丢失选区、图片重新加载、滚动高度瞬间变化，滚动同步按比例计算 <code>scrollTop</code>，在高度跳变时就会失准。要真正解决，需要增量解析、虚拟列表或至少把解析搬到 Worker，这三者都会显著增加代码量和状态管理成本，不符合这个项目的体积目标。
+<h2>问题四：草稿配额与未使用的 MAX_DRAFT</h2>
+
+<strong>现象</strong>：README 说「超长草稿不写入本地存储」，但代码里声明了 <code>MAX_DRAFT = 1000000</code> 之后，全文没有任何地方引用它。实际行为是：每次输入都尝试写 localStorage，写不进去就被 <code>try/catch</code> 吞掉，界面没有任何提示，关掉窗口后草稿可能已经丢了。
+
+<strong>原因</strong>：<code>saveDraft()</code> 在输入停止 400ms 后调用 <code>store.set('draft', editor.value)</code> 和 <code>store.set('name', app.name)</code>；<code>store.set</code> 的实现是 <code>try { localStorage.setItem(...) } catch (e) {}</code>，空 catch 意味着配额异常、隐私模式限制、序列化失败都不会冒泡。<code>MAX_DRAFT</code> 很可能是早期打算用来做「超过上限就跳过」的分支，但最终没有接上。localStorage 的配额通常是每源几 MB，具体取决于浏览器和 <code>file://</code> 的策略；把整篇文档作为一个字符串反复写，超过配额时 <code>setItem</code> 抛异常，草稿就停在旧版本。
+
+<strong>解决</strong>：当前实现没有真正的超长保护，只有「异常不致命」的兜底。可行的修法很直接：在 <code>saveDraft()</code> 里判断 <code>editor.value.length &gt; MAX_DRAFT</code>，超过就跳过并给一次 toast；或者把草稿改存 IndexedDB；或者原生模式下落一份草稿文件到应用目录。三种方案都比现在的空 catch 更诚实。
+
+<strong>代价与遗留</strong>：用户看到的是「自动保存草稿」的承诺，实际得到的是「尽量保存」。连续输入时 400ms 的防抖意味着定时器不断重置，只有在停顿超过 400ms 后才会真正写一次；如果用户连续敲十分钟后直接关机，最后一次成功写入之前的全部内容都可能丢失。原生文件有未保存修改时，草稿是唯一的恢复手段，所以这个缺陷在「命令行打开、编辑、没按保存」的场景下风险最高。README 与实现的这处出入，应该按「现状缺陷」来读，而不是按「已实现的上限保护」来读。
+<h2>问题五：体积、图标与启动时间</h2>
+
+<strong>现象</strong>：release exe 是 3,323,392 字节；不 strip 是 4,943,872 字节；一个空的 <code>windowsgui</code> Go 程序也有 1,214,976 字节；内嵌的 <code>WebView2Loader.dll</code> 约 134 KB。启动时窗口句柄出现的时间，本机三次实测分别是 203ms、112ms、106ms。另一个现象是：本地直接 <code>go build</code> 出来的 exe 没有自定义图标。
+
+<strong>原因</strong>：体积由四块构成：Go 运行时与链接产物的基线、<code>go-webview2</code> 与 <code>golang.org/x/sys</code> 的代码、134 KB 的 WebView2Loader、29,520 字节的 HTML。<code>-H windowsgui</code> 去掉控制台窗口，<code>-s -w</code> 去掉符号表和调试信息，合起来把未 strip 的 4.94 MB 压到 3.17 MiB，省 32.8%。图标不是 Go 代码能直接带的资源，<code>IconId: 1</code> 只是在窗口创建时按资源 ID 去取图标；真正的图标和版本信息由 <code>go-winres</code> 写进 <code>rsrc_windows_amd64.syso</code>，而这个 <code>.syso</code> 被 <code>.gitignore</code> 忽略。CI 的 release 流程会先安装 <code>go-winres</code>、生成资源再构建，本地构建如果跳过这一步，<code>IconId: 1</code> 找不到资源，窗口就没有预期图标。
+
+<strong>解决</strong>：构建命令固定为 <code>-trimpath -buildvcs=false -ldflags "-H windowsgui -s -w"</code>；发布工作流把 <code>go-winres</code> 的安装和生成放在构建之前，并检查 <code>rsrc_windows_amd64.syso</code> 是否存在，不存在就报错；<code>windowSize()</code> 按屏幕的 92% 和 88% 夹取 1280×860 的缩放结果，避免小屏上窗口超出边界；DPI 先尝试 <code>SetProcessDpiAwarenessContext(-4)</code>，失败再退回 <code>SetProcessDpiAwareness(2)</code>。图标本身由 <code>tools/icon/main.go</code> 生成，用有向距离场和四倍超采样绘制，输出 16 到 256 的多种尺寸，不依赖外部设计文件。
+
+<strong>代价与遗留</strong>：<code>-s -w</code> 让 release 二进制失去符号表和调试信息，线上崩溃更难定位；本地构建多了一步工具链，忘记生成 <code>.syso</code> 就会得到「能跑但没图标」的版本，而且没有编译期报错。启动时间这组数字只是「窗口句柄出现」的时间，不是首帧可见时间，也不是内容渲染完成时间；窗口出现后还要创建 WebView2 环境、导航到 <code>file://</code>、执行 boot 脚本、读取草稿或原生文档，这些都没有计入。把 106ms 说成「启动完成」是不准确的，它最多说明原生窗口创建很快。体积也一样：3.17 MiB 是「不分发引擎」的结果，不是把 Chromium 压到了 3 MB。
+<h2>问题六：保存语义与用户预期错位</h2>
+
+<strong>现象</strong>：把 <code>notes.md</code> 拖进窗口，改几行，按 <code>Ctrl+S</code>，提示「已导出 notes.md」，原文件没有变化；下一次再拖进来，看到的还是旧内容。相反，如果把同一个文件拖到 exe 图标上打开，<code>Ctrl+S</code> 会直接写回原文件。用户很难从界面看出这两种打开方式的区别。
+
+<strong>原因</strong>：浏览器安全模型不允许网页凭一个 <code>File</code> 对象写回任意路径，<code>native</code> 又只在启动参数存在时才为 <code>true</code>。拖进窗口得到的是 File API 的 <code>File</code>，没有可写句柄；文件选择器走 <code>showOpenFilePicker</code> 时能得到 <code>FileSystemHandle</code>，但 <code>setDocument</code> 仍然把 <code>native</code> 设为 <code>false</code>，保存走句柄而不是原生路径。代码选择了「默认安全」：没有明确的原生路径，就绝不猜测要覆盖哪个文件，宁可导出副本。
+
+<strong>解决</strong>：三级降级已经覆盖了三种能力：原生路径、可写句柄、Blob 下载。<code>setDocument</code> 重置 <code>native</code> 防止串文件；<code>micromdSave</code> 在原生侧再次拒绝无路径调用；toast 用「已保存到」和「已导出」区分结果。这个实现没有错，它把「能不能写回」变成了能力探测，而不是靠用户记忆。
+
+<strong>代价与遗留</strong>：能力探测的结果没有提前暴露。用户在拖入文件时不会收到「此文档将以导出方式保存」的提示，直到按下保存才看到差异。也没有原生「另存为」对话框：一旦进入下载分支，保存位置由 WebView2 的下载策略决定，通常是下载目录，文件名相同就多一份副本。文件选择器分支依赖 File System Access API，在 WebView2 里是否可用、权限提示如何呈现，都取决于运行时版本；不可用时就静默退回 <code>&lt;input type="file"&gt;</code>，连句柄都没有。这个缝不是靠再加一个分支能补上的，它需要界面在打开文件时就明确展示当前保存模式，或者干脆提供「另存为」的原生入口。
+<h2>问题七：没有文件变更监听，也没有最近文件</h2>
+
+<strong>现象</strong>：用别的编辑器改了同一个 <code>notes.md</code>，MicroMD 里还是旧内容；此时按 <code>Ctrl+S</code>，如果当前是原生命中模式，旧内容会覆盖掉外部修改，而且没有任何冲突提示。关掉应用再打开，也没有「最近打开」列表，只能重新拖文件或重新走命令行。
+
+<strong>原因</strong>：原生层只在启动时通过 <code>micromdLoad</code> 读一次文件，之后没有任何 <code>ReadDirectoryChangesW</code>、<code>fsnotify</code> 或轮询 mtime 的逻辑。前端的状态只有 <code>app.name</code>、<code>app.saved</code>、<code>app.handle</code>、<code>app.native</code>，localStorage 里只存 <code>draft</code>、<code>name</code>、<code>theme</code>、<code>view</code>、<code>split</code>，没有路径历史。整个应用也没有单实例锁或进程间通信，所以第二个实例不会把「文件已变化」传给第一个实例。
+
+<strong>解决</strong>：当前版本没有实现自动重载，也没有冲突检测。可行的绕法是关掉再开、重新拖入，或者用文件选择器重新打开；但这些操作都不会提示「磁盘上的版本更新了」。要补这个能力，最小方案是原生侧定时检查 <code>docPath</code> 的修改时间，变化时通过绑定或 <code>Eval</code> 通知页面，页面弹一条「文件已在外部修改，重新加载 / 保留当前」的条；更完整的方案是接 <code>ReadDirectoryChangesW</code>，并处理重命名、删除和原子替换。
+
+<strong>代价与遗留</strong>：没有监听，就没有「读者」和「作者」之间的边界。作为纯阅读器，这个问题还可以接受；但它同时提供了编辑和写回，旧内容覆盖新内容就是真实的数据风险。没有最近文件，则把「打开」的成本推给了文件系统，和「双击即用」的定位不太一致。加监听还会带来新的决策：收到变更时自动重载会丢掉未保存的编辑，弹窗询问又会打断阅读；保存时是覆盖还是另存，也需要一套策略。这些问题不解决，贸然加监听反而更危险，所以当前版本选择了不做。
+<h2>已知限制与设计取舍</h2>
+
+把前面散落的限制收拢成一张表，方便判断它适不适合你的场景。下表中的每一项都是当前代码的现状，不是「已经修好」的条目：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>限制</th>
+<th>现状</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>相对路径图片</td>
+<td>基址是应用目录，未注入 <code>&lt;base&gt;</code>，未重写 <code>src</code></td>
+<td>文档旁的图片无法显示</td>
+</tr>
+<tr>
+<td>草稿上限</td>
+<td><code>MAX_DRAFT</code> 声明未引用，配额异常被空 catch 吞掉</td>
+<td>超长草稿可能静默丢失</td>
+</tr>
+<tr>
+<td>大文件渲染</td>
+<td>全量 <code>innerHTML</code> 替换，超过 20 万字符改为 150ms 节流</td>
+<td>长文档输入卡顿，滚动同步可能失准</td>
+</tr>
+<tr>
+<td>文件变更</td>
+<td>无监听、无轮询、无冲突提示</td>
+<td>外部修改可能被旧内容覆盖</td>
+</tr>
+<tr>
+<td>最近文件</td>
+<td>无路径历史，localStorage 不存路径</td>
+<td>每次打开都要重新选择</td>
+</tr>
+<tr>
+<td>代码高亮</td>
+<td>只输出 <code>language-xxx</code> 类名，无着色器</td>
+<td>代码块是纯文本样式</td>
+</tr>
+<tr>
+<td>侧栏目录</td>
+<td>标题有 <code>id</code>，但不生成导航</td>
+<td>长文档只能靠滚动</td>
+</tr>
+<tr>
+<td>解析器测试</td>
+<td>仓库没有 <code>*_test.go</code></td>
+<td>边界语法靠人工验证</td>
+</tr>
+<tr>
+<td>本地构建图标</td>
+<td>依赖 <code>go-winres</code> 生成 <code>.syso</code>，该文件被忽略</td>
+<td>跳过生成就没有自定义图标</td>
+</tr>
+<tr>
+<td>启动失败提示</td>
+<td><code>MkdirAll</code>、<code>WriteFile</code> 失败直接返回</td>
+<td>极端环境下双击无反应</td>
+</tr>
+</tbody>
+</table></div>
+
+这些限制大多不是「没想到」，而是「在当前体积和复杂度预算下没做」。可以把它们归成四组取舍：
+<ul>
+<li>引擎外置换体积：不打包 Chromium，接受 WebView2 运行时依赖和两种能力模式。</li>
+<li>单文件换工程简单：界面、解析器、样式全在一个 HTML 里，接受没有模块拆分、没有构建步骤、没有前端测试。</li>
+<li>全量渲染换实现短：一句 <code>innerHTML</code> 就能工作，接受长文档的性能上限。</li>
+<li>默认安全换可预期：没有原生路径就不写回，接受同一快捷键有三种结果。</li>
+</ul>
+
+如果继续做，优先级应该是「数据安全」高于「体验优化」：先把草稿上限真正接上、把外部修改冲突处理好，再考虑增量渲染和图片基址。代码高亮和侧栏目录属于阅读体验，不涉及数据丢失，可以放在后面。这个排序也解释了为什么文章把七个问题写得比功能更细：功能可以堆，数据丢了补不回来。
+<h2>小结</h2>
+
+MicroMD 的实现可以压缩成三句话：
+<ol>
+<li>体积不是单一优化，而是预算分配。3.17 MiB 的 exe 由约 1.21 MB 的空 <code>windowsgui</code> Go 基线、三个 Go 模块、134 KB 的 WebView2Loader、29,520 字节的 HTML 和链接产物组成；省掉的 Chromium 被系统 WebView2 接住了。</li>
+<li>壳的复杂度集中在 Windows 细节。<code>file://</code> 落盘、三个绑定、保存语义、DPI 回退、图标资源、运行时缺失兜底，每一项都不大，但每一项都能让「双击即用」失效。</li>
+<li>手写解析器的关键不是语法覆盖，而是顺序。先把代码段、自动链接、转义藏进占位符，再整体 <code>esc</code>，最后回填；这个两遍式设计同时解决了「语法要识别」和「原文不能注入」两个问题。</li>
+</ol>
+
+它也不是一个「完成品」。相对路径图片、草稿配额、全量重渲染、文件变更、最近文件、代码高亮、侧栏目录、解析器测试，这些都还没有做或者只做了一半。文章把它们写成现状，是因为一个 3 MB 的单文件应用真正的价值，不在于它多小，而在于它用多大的代价换来了这个体积，以及这些代价有没有被如实说清楚。
+<h2>相关阅读</h2>
+<ul>
+<li><a href="/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a>：同样依赖系统 WebView2 的桌面壳，但在窗口、子 webview 和调试协议上走了更深的路线。</li>
+<li><a href="/article/nanoss-windows-ssh-client/">NanoSS：Windows SSH 客户端</a>：另一个把原生 Windows 能力收进单文件交付的项目，可以对照看壳层与终端层的分工。</li>
+<li><a href="/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a>：同样是单进程、少依赖、把复杂度压在实现内部的设计，适合对照「小体积」背后的取舍。</li>
+<li><a href="/article/search-inverted-index-to-engine/">从倒排索引到搜索引擎</a>：如果要把 Markdown 文档做成可搜索的知识库，可以从这篇的索引与查询链路继续往下读。</li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li></ul></nav></div></div>
+  </body>
+</html>

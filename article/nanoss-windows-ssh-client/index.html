@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。 结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/" />
+    <meta property="og:title" content="NanoSSH：13 MB 的 Windows SSH 客户端怎么做" />
+    <meta property="og:description" content="适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。 结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/nanoss-windows-ssh-client-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/nanoss-windows-ssh-client-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="NanoSSH：13 MB 的 Windows SSH 客户端怎么做 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NanoSSH：13 MB 的 Windows SSH 客户端怎么做" />
+    <meta name="twitter:description" content="适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。 结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/nanoss-windows-ssh-client-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>NanoSSH：13 MB 的 Windows SSH 客户端怎么做 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BYB4JsSG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXSmS9tJ.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-05T10:32:27.037424+08:00" />
+        <meta property="article:modified_time" content="2026-11-05T10:32:27.037424+08:00" />
+        <meta property="article:tag" content="Go" />
+    <meta property="article:tag" content="SSH" />
+    <meta property="article:tag" content="Wails" />
+    <meta property="article:tag" content="桌面应用" />
+    <meta property="article:tag" content="网络" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/#article","url":"https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/","headline":"NanoSSH：13 MB 的 Windows SSH 客户端怎么做","description":"适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。 结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的…","image":"https://blog.zhoujun.dev/photos/nanoss-windows-ssh-client-cover.png","datePublished":"2026-11-05T10:32:27.037424+08:00","dateModified":"2026-11-05T10:32:27.037424+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/"},"articleSection":"项目实战","keywords":"Go, SSH, Wails, 桌面应用, 网络","inLanguage":"zh-CN","wordCount":10141},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"NanoSSH：13 MB 的 Windows SSH 客户端怎么做","item":"https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"nanoss-windows-ssh-client","title":"NanoSSH：13 MB 的 Windows SSH 客户端怎么做","created_at":"2026-11-05T10:32:27.037424+08:00","updated_at":"2026-11-05T10:32:27.037450+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":187,"name":"Go","slug":"go"},{"id":189,"name":"SSH","slug":"ssh"},{"id":188,"name":"Wails","slug":"wails"},{"id":190,"name":"桌面应用","slug":"desktop-app"},{"id":182,"name":"网络","slug":"networking"}],"cover_image":"/photos/nanoss-windows-ssh-client-cover.png","excerpt":"适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。 结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的序列化方式、终端字节流的反压、PTY 参数顺序、主机密钥信任模型和 Windows 平台细节。 阅读时间约 30 分钟 | 难度：进阶 | 收","reading_time":41,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>NanoSSH：13 MB 的 Windows SSH 客户端怎么做</span></nav><h1>NanoSSH：13 MB 的 Windows SSH 客户端怎么做</h1><div class="ns-meta">2026/11/5 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：<a href="https://blog.zhoujun.dev/tags/go/">Go</a> SSH Wails <a href="https://blog.zhoujun.dev/tags/desktop-app/">桌面应用</a> <a href="https://blog.zhoujun.dev/tags/networking/">网络</a></p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><strong>NanoSSH：13 MB 的 Windows SSH 客户端怎么做</strong>（当前）</li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。
+结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的序列化方式、终端字节流的反压、PTY 参数顺序、主机密钥信任模型和 Windows 平台细节。
+阅读时间约 30 分钟 | 难度：进阶 | 收获：一套可复用的桌面 SSH 架构，以及十二个真实问题的定位与取舍。
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>一个刻意做窄的 Windows SSH 客户端</li>
+<li>架构：把风险放在可替换的那一层</li>
+<li>问题一：README 写二进制 WebSocket，实现是 base64 事件桥</li>
+<li>问题二：汉字跨块变 U+FFFD</li>
+<li>问题三：反压闭环与 ack 的三个坑</li>
+<li>问题四：PTY 的宽高顺序</li>
+<li>问题五：known_hosts 与 TOFU 的硬边界</li>
+<li>问题六：Windows ssh-agent 的命名管道</li>
+<li>问题七：托盘“点了没反应”</li>
+<li>问题八：14 MB 体积红线</li>
+<li>问题九：高 DPI 闪烁与尺寸归零</li>
+<li>问题十：SFTP 与转发：复用连接，但别复用生命周期</li>
+<li>问题十一：密码、旧密码与凭据自愈</li>
+<li>问题十二：密钥管理的三个边界</li>
+<li>小结</li>
+<li>相关阅读</li>
+</ul>
+<hr>
+<h2>一个刻意做窄的 Windows SSH 客户端</h2>
+
+NanoSSH 的定位可以先说清楚：它是 Windows 上的 SSH 客户端，只做五件事——服务器列表、终端、SFTP、本地端口转发、密钥管理。没有账号、云同步、插件市场、AI 助手，也没有自动更新。功能窄是产品主张，不是排期没做完。
+
+技术栈是 Wails v2 加 WebView2。Go 后端分成三块：<code>internal/sshcore</code> 是纯 SSH 内核，不依赖任何 UI；<code>internal/shell</code> 是 Wails 绑定门面，负责会话、文件、转发、密钥和托盘；<code>internal/store</code> 负责本地落盘。前端是零框架的 TypeScript，DOM 由手写的 <code>h()</code> 构造，状态用 <code>@preact/signals-core</code>，终端用 xterm.js 6。整个前端运行时依赖只有 7 个，其中 6 个是 xterm 及其 addon。
+
+构建产物是单文件可执行程序，x64 下 13.23 MB，没有外部运行时。<code>build.ps1</code> 把 14 MB 设为硬上限，超过就直接构建失败。Go 直接依赖 5 个，间接依赖 27 个。这些数字不是宣传语，而是后面许多技术选择的约束条件：拒绝 SQLite、手写托盘、不用第三方 systray、尽量不引入新的模块。
+
+也正因为约束足够硬，这个项目里留下的问题都比较“具体”：不是“要不要支持某某功能”，而是“为什么这个汉字变成了问号”“为什么点托盘图标没反应”“为什么 vim 一打开就错行”。下面按问题展开，每个问题都写清现象、原因、解决和代价。
+<h2>架构：把风险放在可替换的那一层</h2>
+
+这个项目最重要的架构决定，是把 SSH 协议逻辑和 UI 外壳彻底分开。<code>sshcore</code> 不知道 Wails、WebView2、xterm 的存在，只暴露连接、会话、SFTP、转发、密钥解析这些能力。<code>shell</code> 负责把内核能力翻译成前端可调用的绑定方法，并把字节流搬进事件通道。前端再通过 <code>ipc/api.ts</code> 和 <code>ipc/transport.ts</code> 两层的封装访问后端。
+
+这样做的好处是，风险被放在可替换的那一层。Wails 是外壳，未来如果要换成裸 WebView2 或别的窗口容器，只需要改 <code>main.go</code>、<code>internal/shell</code> 的绑定层和前端两个 IPC 文件；<code>sshcore</code> 一行不用动。反过来说，协议层的测试也不需要打开窗口，进程内的测试 sshd 就能把连接、PTY、SFTP、转发全部跑通。
+
+后端的事件出口被抽成了一个函数类型，而不是直接写死 Wails 调用：
+<div class="codehilite"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">emitFunc</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">eventName</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="o">...</span><span class="kt">any</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>App</code> 和 <code>shellSession</code> 都持有这个字段，生产环境赋值为 <code>runtime.EventsEmit</code>，测试里换成收集器。这个小小的间接层，是后面能把反压、主机密钥询问、传输进度放进自动化测试的前提。
+
+落盘侧也遵循同样的窄口径：<code>servers.json</code> 是唯一的数据库，版本号为 1，读取时先做纯函数迁移，保存时先备份 <code>.bak</code>，再走临时文件、fsync、rename。<code>known_hosts</code> 用标准 OpenSSH 格式，可以直接和系统的同名文件互拷；私钥目录放标准 OpenSSH 私钥；日志单独放 <code>logs</code> 下。数据根目录默认 <code>%APPDATA%\NanoSSH</code>，测试和便携模式用 <code>NANOSSH_DATA_DIR</code> 覆盖。整个存储没有隐藏的二进制格式，出问题时可以用文本编辑器直接打开看。
+
+窗口层还有几个与业务无关但影响体验的装配：无边框窗口的标题栏由前端自绘，Wails 保留缩放热区和投影；单实例锁保证第二次启动只唤起已有窗口，而不是再开一个进程；Mica 背景通过注册表读取 <code>CurrentBuildNumber</code>，只有 22621 及以上才启用半透明，老系统自动退回不透明，避免得到一个没有底色的透明窗口。前端通过 <code>MicaEnabled()</code> 感知这个决定，再决定标题栏和侧栏是否做成半透明表面。
+
+前端同样有一条明确的缝。<code>views</code>、<code>term</code>、<code>components</code> 一律不直接碰 <code>window.go</code>，所有绑定调用和事件订阅都从 <code>api.ts</code> 出去。终端字节搬运单独放在 <code>transport.ts</code>，它也是整个前端里唯一与外壳强相关的模块。以后换掉 Wails 时，要重写的范围是被刻意圈定的。
+<h2>问题一：README 写二进制 WebSocket，实现是 base64 事件桥</h2>
+
+现象：第一次读 README 时会看到“二进制 WebSocket IPC + ack 反压”这句话，但翻遍代码，找不到自建的 WebSocket 服务，也找不到二进制帧的封装。终端数据实际走的是 Wails 的 <code>runtime.EventsEmit</code>，事件名是 <code>term:data:&lt;sessionId&gt;</code>。
+
+原因：README 描述的是最初的设计意图，而实现最终选了 Wails 自带的事件桥。同一份 README 后面的架构说明又写着“Worker 解 base64”，前后并不一致。Wails 的绑定调用本身是 JSON 序列化，事件传参也一样。Go 侧的 <code>[]byte</code> 经过事件桥后，到了前端手里已经变成 base64 字符串。依赖树里确实有 <code>gorilla/websocket</code>，但它是 Wails 的间接依赖，不是这套 IPC 的实现。
+
+解决：没有为了迎合 README 去自建 WebSocket，而是承认事件桥的能力边界，并针对它的缺点做补偿。补偿分两步：前端用 Web Worker 解码 base64，再把 <code>ArrayBuffer</code> 通过 Transferable 转移给主线程，避免解码阻塞渲染；解码后的字节直接交给 xterm 的 <code>write</code>，不在主线程做字符串拼接。
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">decodeBase64</span><span class="p">(</span><span class="nx">input</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">bin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">atob</span><span class="p">(</span><span class="nx">input</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">bin</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="nx">len</span><span class="p">);</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">len</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="nx">out</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">bin</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="nx">i</span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">out</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nx">ctx</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="o">:</span><span class="w"> </span><span class="kt">MessageEvent</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">decodeBase64</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">ctx</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="nx">buf</span><span class="p">.</span><span class="nx">buffer</span><span class="p">]);</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+代价与遗留：base64 让 IPC 的字节量理论上有约 33% 的膨胀，16 KiB 的终端块会变成约 21.8 KiB 的字符串；Go 侧还要做一次 JSON 序列化，WebView 侧要做一次 base64 解码。换来的好处是不用自己维护一条 WebSocket 服务、不用处理连接鉴权、不用在 Wails 之外再开一个端口。这个取舍对局域网或本机 SSH 客户端是可接受的，但 README 的表述不准确。后来正确的做法是把文档改成“Wails 事件桥 + base64 解码”，而不是继续保留一个听起来更快的名词。工程文档里，描述实现比描述愿望重要。如果未来真的改回二进制 WebSocket，Wails 的单实例、同源事件分发和无额外端口这些优势就没了，还要自己解决本地鉴权与跨进程攻击面；这也是最终没有为了文档改实现的原因。
+
+Worker 不可用时（例如某些受限的 WebView 环境）<code>createDecoder</code> 会退回主线程同步 <code>atob</code>。这时解码会占用渲染线程，长输出更容易卡，但至少功能不缺失。每个终端会话各自持有一个 Worker，切标签不会销毁，只有关闭会话才 <code>terminate</code>；代价是会话多时内存里会多几个 Worker 实例。
+<h2>问题二：汉字跨块变 U+FFFD</h2>
+
+现象：终端里执行一条包含中文、韩文或 emoji 的 <code>echo</code>，偶尔会在输出中间出现 <code>�</code>。不是每次都有，输出越长、机器越慢时越容易复现。
+
+原因：最初后端在读取远端字节后做了 <code>string(buf[:n])</code>，并按行切分再发往前端。SSH 通道的读取边界和字符边界没有任何关系，一个三字节的汉字完全可能被切在两次 <code>Read</code> 之间。把半个字符转成字符串，Go 只能补上 U+FFFD。只要中间做过一次 UTF-8 解码，后面的拼接就再也补不回来。
+
+解决：后端全程 <code>[]byte</code> 直通。读取缓冲固定 32 KiB，读到的字节立刻复制一份送进深度为 8 的 <code>chunks</code> 通道；<code>pumpSession</code> 只做合并、攒批和发送，不做行切分，也不做解码。stdout 和 stderr 各自有独立的读取协程，但都写入同一个通道，由单一消费者输出。前端 xterm 拿到的是原始字节，由它自己完成解码和宽字符处理。
+
+这里还要区分两条路径：交互式 shell 走 <code>pumpSession</code> 的流式读取；非交互的 <code>RunCommand</code> 则用 <code>limitedBuffer</code> 收集输出，单次上限 8 MiB，超出部分静默丢弃但不阻断远端。后者只用于探针和批处理，不能拿来做大文件读取；真正的大输出必须走 shell 或 SFTP 的流式接口。
+<div class="codehilite"><pre><span></span><code><span class="nx">buf</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="o">&lt;&lt;</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">for</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">n</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">rd</span><span class="p">.</span><span class="nx">Read</span><span class="p">(</span><span class="nx">buf</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">n</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">cp</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="nx">n</span><span class="p">)</span>
+<span class="w">        </span><span class="nb">copy</span><span class="p">(</span><span class="nx">cp</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="p">[:</span><span class="nx">n</span><span class="p">])</span>
+<span class="w">        </span><span class="k">select</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">chunks</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="nx">cp</span><span class="p">:</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">sess</span><span class="p">.</span><span class="nx">done</span><span class="p">:</span>
+<span class="w">            </span><span class="k">return</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+验证这条路径的测试是 <code>TestShellUTF8Passthrough</code>。它让远端回显 <code>你好，世界 한국어 日本語 emoji🙂</code>，然后断言整行内容与原文完全一致，并且不包含 U+FFFD。另一个测试用 40,000 字节的单行回显压过 16 KiB 的分块上限，强制走多轮 flush 与 ack，确认没有丢字节。非交互路径上还有一个 8 MiB 的 flood 命令，用来确认大输出能被连续读完。
+
+代价与遗留：后端放弃了按行处理的能力。如果未来要做服务端的关键字过滤、日志落盘或命令审计，就不能在字节流上直接做，必须在前端或单独的解析层完成。另一个代价是每个块都要复制一次，因为读取缓冲会被下一轮 <code>Read</code> 复用；这是用少量内存拷贝换取正确的所有权语义。stdout 和 stderr 两个 reader 的顺序仍然无法严格保证，只是 PTY 会把它们合并，实际观感通常没有问题。
+<h2>问题三：反压闭环与 ack 的三个坑</h2>
+
+现象：如果只是“读到就发”，本地 <code>cat</code> 一个大文件时，WebView 的事件队列会越堆越长，终端先是延迟，然后整窗卡住；更糟的情况是前端已经销毁，Go 的读协程还在等一个永远不会来的回执，会话既读不动也关不掉。
+
+原因：Wails 的事件发送没有提供“前端处理完了”的信号。xterm 的 <code>write</code> 是异步的，缓冲区里的数据没渲染完，继续灌只会让延迟无上限累积。SSH 通道本身有窗口，但窗口只覆盖到 Go 的读取端，覆盖不到 WebView 的渲染端。中间这段没有闭环，压力就堆在进程内存里。
+
+解决：把 ack 做成显式的端到端反压。后端一次只发一段，前端在 xterm 的 <code>write</code> 回调里回执，后端收到回执才继续读。常量是三个：单次最多 16 KiB、攒批最多 8 毫秒、等回执最多 30 秒。<code>ackCh</code> 容量为 1，<code>AckTermData</code> 用 <code>select/default</code> 丢重复回执。
+<div class="codehilite"><pre><span></span><code><span class="nx">flush</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">pending</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">data</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pending</span>
+<span class="w">    </span><span class="nx">pending</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">nil</span>
+<span class="w">    </span><span class="nx">sess</span><span class="p">.</span><span class="nx">emit</span><span class="p">(</span><span class="nx">sess</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;term:data:&quot;</span><span class="o">+</span><span class="nx">sess</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">)</span>
+<span class="w">    </span><span class="k">select</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">sess</span><span class="p">.</span><span class="nx">ackCh</span><span class="p">:</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">sess</span><span class="p">.</span><span class="nx">done</span><span class="p">:</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">time</span><span class="p">.</span><span class="nx">After</span><span class="p">(</span><span class="nx">termAckTimeout</span><span class="p">):</span>
+<span class="w">        </span><span class="nx">wruntime</span><span class="p">.</span><span class="nx">LogWarning</span><span class="p">(</span><span class="nx">sess</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;terminal: 等待前端回执超时，放行继续读取&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+前端这一侧用 Promise 链把 <code>write</code> 和 <code>ack</code> 串起来，防止慢渲染时回执乱序：
+<div class="codehilite"><pre><span></span><code><span class="k">this</span><span class="p">.</span><span class="nx">chain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">chain</span>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">handlers</span><span class="p">.</span><span class="nx">onData</span><span class="p">(</span><span class="nx">bytes</span><span class="p">))</span>
+<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">disposed</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">undefined</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">backend.ackTermData</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">sessionId</span><span class="p">)))</span>
+<span class="w">  </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&quot;[nanossh] 终端写入失败：&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">));</span>
+</code></pre></div>
+
+
+这里有三个坑。第一，前端可能先于后端等待而回 ack，所以 <code>ackCh</code> 必须有 1 的容量，否则第一个回执会被丢掉。第二，<code>dispose</code> 时必须补一次 ack，否则后端的读协程会一直挂到 30 秒超时。第三，重复 ack 必须被安全丢弃，因为链路上任意时刻只允许一个块在飞，多出来的回执没有语义。
+
+<code>flush</code> 里还有一个容易被忽略的细节：等待回执期间如果 <code>chunks</code> 通道被排空，计时器可能已经触发过，所以下一次进入循环前要先 <code>Stop</code> 并排掉已触发的值，否则会立刻再 flush 一次。8 毫秒的攒批不是为了省事件，而是为了把按键回显这类小包尽快送出去；如果只按 16 KiB 攒，交互会明显变钝。
+
+这套闭环的测试里，收集器的 ack 是在事件回调里同步发出的，等价于“前端已经渲染完”的最快情况；真实浏览器还要经过 Worker 解码、Transferable 转移和 xterm 渲染，所以线上的块间隔会比测试大。
+
+代价与遗留：吞吐上限被渲染速度锁死，这是有意的，因为终端场景要的是低延迟而不是最大带宽。ack 没有携带块序号，所以实现上只能保证“单块在飞”；如果以后要并行多个块，就必须把 ack 改成带 ID 的确认。30 秒超时是兜底而不是正常路径，它会把“前端卡死”变成“后端继续读”，可能掩盖真正的渲染故障，日志里要能看出来。测试里的收集器在收到数据后立即 ack，正好模拟了前端渲染完成的那一刻；少了这个回执，<code>pumpSession</code> 在发出第一段后就会永久等待。
+<h2>问题四：PTY 的宽高顺序</h2>
+
+现象：在本地终端里 <code>vim</code> 打开正常，连到 NanoSSH 后整屏错位，<code>htop</code> 的列也对不上；把窗口拉大再拉小，有时又“碰巧”正常。最初以为是 xterm 的 <code>fit</code> 算错了，查了很久才发现问题在后端。
+
+原因：PTY 尺寸有两个互相矛盾的命名习惯。RFC 4254 的 <code>pty-req</code> 和 <code>window-change</code> 线上编码是“宽在前、高在后”，也就是先传列数再传行数；而 <code>golang.org/x/crypto/ssh</code> 的 <code>RequestPty(term, h, w, modes)</code> 和 <code>WindowChange(h, w)</code> 的参数语义是“行在前、列在后”。封装层只要照着 RFC 的字段顺序去调 x/crypto，两个值就会互换。<code>vim</code> 拿到 80 行、24 列，自然会错。
+
+解决：项目内统一 API 一律写成 <code>(rows, cols)</code>，行在前、列在后。<code>sshcore.ShellOptions</code>、<code>Shell.Resize</code>、<code>shell.StartShellRequest</code>、前端 <code>resizeShell</code> 全部遵守这个约定，并且在注释里把 RFC 与 x/crypto 的差异写清楚。更关键的是用测试把顺序钉死：<code>TestStartShellPTYParamOrder</code> 让测试 sshd 按 RFC 原样解析 <code>pty-req</code>，断言服务端读到的是 <code>rows=30, cols=100</code>；如果封装层传反，测试会直接报“参数错位”。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sess</span><span class="p">.</span><span class="nx">RequestPty</span><span class="p">(</span><span class="nx">term</span><span class="p">,</span><span class="w"> </span><span class="nx">rows</span><span class="p">,</span><span class="w"> </span><span class="nx">cols</span><span class="p">,</span><span class="w"> </span><span class="nx">opts</span><span class="p">.</span><span class="nx">Modes</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">sess</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;sshcore: 请求 PTY（%dx%d）失败: %w&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">cols</span><span class="p">,</span><span class="w"> </span><span class="nx">rows</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注意错误文案里的 <code>%dx%d</code> 仍然是“列 x 行”，这是给人看的；真正的参数顺序是 <code>rows, cols</code>。这两个视角必须同时存在，否则读代码的人会被绕晕。
+
+默认尺寸也有兜底：<code>rows</code> 或 <code>cols</code> 小于等于 0 时回落到 24×80，避免前端在容器尚未布局时传 0 进来。<code>Resize</code> 对非法尺寸直接报错，不允许把 0 行 0 列写到远端。前端 <code>fit()</code> 在容器还没布局完成时可能抛错，封装里直接吞掉并返回当前的 <code>term.rows</code> 与 <code>term.cols</code>，等下一次 <code>ResizeObserver</code> 再算。
+
+代价与遗留：前端的 <code>fit()</code> 返回 <code>{ rows, cols }</code>，调用后端时必须按 <code>(rows, cols)</code> 传，代码里用注释反复提醒。<code>window-change</code> 是 <code>wantReply=false</code> 的“发后不管”，函数返回只代表字节写进了连接，不代表远端已经应用，所以测试必须轮询服务端的记录，不能立即断言。拖动窗口时还会产生大量 resize 请求，前端做了 150 毫秒去抖，代价是远端看到新尺寸会稍有延迟。
+<h2>问题五：known_hosts 与 TOFU 的硬边界</h2>
+
+现象：第一次连接陌生主机时应该弹指纹卡；如果主机的密钥变了，应该明确阻断，而不是给一个“忽略一次”的按钮让用户顺手点过去。真正实现时，<code>knownhosts</code> 返回的错误类型很容易被笼统处理，结果把“未知主机”和“指纹变化”混成一类。
+
+原因：<code>knownhosts.New</code> 返回的 <code>KeyError</code> 里，<code>Want</code> 字段为空表示“这个主机没有记录”，非空表示“有记录但本次出示的密钥不匹配”。前者是 TOFU，后者是可能的中人攻击信号。另外还有独立的 <code>RevokedError</code>，对应 known_hosts 里的 <code>@revoked</code> 行，必须硬阻断，不能询问。把这三者混在一起，就会出现“指纹变了也允许仅本次”的严重漏洞。
+
+解决：回调里先处理 <code>RevokedError</code>，直接返回错误；再判断 <code>KeyError.Want</code> 是否非空。未知主机走三档：仅本次、信任并保存、取消。指纹变化只接受“显式替换”，<code>HostKeyAcceptOnce</code> 和拒绝都会产生 <code>ErrHostKeyRejected</code>。替换时按地址匹配旧条目，写入新的公钥行。写入采用“临时文件 → fsync → rename”，权限 0600。<code>knownhosts.New</code> 要求文件存在，所以首连之前要先 <code>ensureFile</code>，创建父目录并落一个空文件；否则第一次连接还没弹指纹卡就会先报“解析 known_hosts 失败”。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">keyErr</span><span class="p">.</span><span class="nx">Want</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">change</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">HostKeyChange</span><span class="p">{</span><span class="nx">Info</span><span class="p">:</span><span class="w"> </span><span class="nx">info</span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">wk</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">keyErr</span><span class="p">.</span><span class="nx">Want</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">change</span><span class="p">.</span><span class="nx">OldFingerprints</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">change</span><span class="p">.</span><span class="nx">OldFingerprints</span><span class="p">,</span>
+<span class="w">            </span><span class="nx">ssh</span><span class="p">.</span><span class="nx">FingerprintSHA256</span><span class="p">(</span><span class="nx">wk</span><span class="p">.</span><span class="nx">Key</span><span class="p">))</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">decision</span><span class="p">,</span><span class="w"> </span><span class="nx">perr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">prompt</span><span class="p">(</span><span class="nx">info</span><span class="p">,</span><span class="w"> </span><span class="nx">change</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">perr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">perr</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">decision</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nx">HostKeyAcceptAndSave</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;%w（指纹变化）&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">ErrHostKeyRejected</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">writeKnownHost</span><span class="p">(</span><span class="nx">knownHostsPath</span><span class="p">,</span><span class="w"> </span><span class="nx">hostname</span><span class="p">,</span><span class="w"> </span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+测试覆盖了三档行为：首次询问并保存、第二次不再询问、服务端轮换密钥后必须阻断且回调能拿到旧指纹；另一个测试确认“仅本次”不会落盘，两次连接都会再问。
+
+代价与遗留：<code>known_hosts</code> 支持哈希主机名（<code>|1|...</code>），而替换逻辑无法反查哈希条目，遇到这种行只能跳过并追加新行。结果是旧的哈希记录仍留在文件里，后续连接可能继续报指纹变化，需要用户手工清理。这是一个已知边界，代码注释里写明了“哈希形式无法反查，一律视为不命中并保留”。另外，Windows 上 <code>0600</code> 只是意图，实际访问控制来自 <code>%APPDATA%</code> 继承的 ACL；这一点在密钥落盘的测试里也有说明。
+<h2>问题六：Windows ssh-agent 的命名管道</h2>
+
+现象：用户明明装了 Windows OpenSSH，<code>ssh-add</code> 也能列出密钥，NanoSSH 的 agent 认证却一直失败；如果机器上还装了 Git Bash，<code>SSH_AUTH_SOCK</code> 环境变量存在，但拿它去拨号同样拨不通。
+
+原因：Windows 上没有 Unix 域套接字，Windows OpenSSH 的 agent 监听的是固定命名管道 <code>\\.\pipe\openssh-ssh-agent</code>。<code>SSH_AUTH_SOCK</code> 在 Windows 上即便存在，也可能是 Cygwin 或 MSYS 的私有格式，Go 的 <code>net.Dial("unix", ...)</code> 根本连不上。另一个问题是管道存在但所有实例都忙时，<code>CreateFile</code> 会返回 <code>ERROR_PIPE_BUSY</code>，如果直接报错，用户看到的就是“agent 不可用”。
+
+解决：手写 <code>CreateFile</code> 加 <code>WaitNamedPipe</code> 等价逻辑，不引入 <code>winio</code>。固定管道名，3 秒截止时间，遇到 <code>ERROR_PIPE_BUSY</code> 每 50 毫秒重试一次。连接成功后用 <code>agent.NewClient</code> 包起来，并在认证前先 <code>List()</code> 一次密钥串；空列表就明确提示“请先 ssh-add”，而不是把 <code>no supported methods remain</code> 这种库内文案甩给用户。<code>authMethods</code> 返回一个 <code>io.Closer</code>，握手失败时会关闭它，连接成功则挂到 <code>Client</code> 上随连接一起关闭；这样 agent 管道不会因为一次失败握手而泄漏。
+<div class="codehilite"><pre><span></span><code><span class="nx">deadline</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">().</span><span class="nx">Add</span><span class="p">(</span><span class="nx">agentDialTimeout</span><span class="p">)</span>
+<span class="k">for</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">h</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">CreateFile</span><span class="p">(</span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">GENERIC_READ</span><span class="o">|</span><span class="nx">windows</span><span class="p">.</span><span class="nx">GENERIC_WRITE</span><span class="p">,</span>
+<span class="w">        </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">OPEN_EXISTING</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">NewFile</span><span class="p">(</span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">h</span><span class="p">),</span><span class="w"> </span><span class="nx">agentPipeName</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">ERROR_PIPE_BUSY</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">().</span><span class="nx">After</span><span class="p">(</span><span class="nx">deadline</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;sshcore: 无法连接 ssh-agent（%s）: %w；&quot;</span><span class="o">+</span>
+<span class="w">            </span><span class="s">&quot;请确认 Windows 的「OpenSSH 身份验证代理」服务已启动&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">agentPipeName</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">time</span><span class="p">.</span><span class="nx">Sleep</span><span class="p">(</span><span class="mi">50</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+有一条 Windows 专用测试专门断言这个路径真的被送进了管道命名空间：没有 agent 时，错误必须是 <code>ERROR_FILE_NOT_FOUND</code> 或 <code>ERROR_PIPE_BUSY</code>，不能是 <code>ERROR_INVALID_NAME</code>。这样如果哪天 Go 或 <code>x/sys</code> 对设备路径的处理变了，测试会先炸，而不是等用户报“agent 永远失败”。
+
+代价与遗留：只支持 Windows OpenSSH 的 agent，不支持 PuTTY 的 Pageant，也不打算为了兼容再去引一套第三方协议。3 秒是硬上限，管道一直忙时宁可给出明确报错，也不让连接界面无限转圈。如果用户同时开了多个 SSH 客户端，命名管道会发生争用，重试窗口内的失败是正常的；超过 3 秒仍然拿不到句柄，才判定为不可用。这个阈值比 TCP 建连的 15 秒短，是因为 agent 是本机资源，正常情况下应当在毫秒级返回。agent 连接句柄随 SSH 连接一起关闭，避免每次连接都漏一个管道句柄。
+<h2>问题七：托盘“点了没反应”</h2>
+
+现象：关窗后应用缩进托盘，图标能看到，但双击没反应，右键菜单也弹不出来。日志里没有任何错误，进程还活着。
+
+原因：Win32 的窗口消息按线程投递，消息窗口和 <code>GetMessage</code> 循环必须绑定在同一个 OS 线程上。Go 的 goroutine 在阻塞调用前后可能漂移到另一个 OS 线程，如果建窗在一个线程、<code>GetMessage</code> 在另一个线程，消息就永远收不到。这个症状非常像“图标没挂上”，但实际上是消息循环收不到回调。
+
+解决：托盘线程在入口处调用 <code>runtime.LockOSThread()</code>，并在退出时解锁；创建消息窗口和进入 <code>GetMessage</code> 循环都在这个被锁定的线程上完成。窗口用 <code>HWND_MESSAGE</code> 的消息窗口，不占屏幕；托盘回调、气泡、右键菜单都通过自定义消息投递。创建过程是同步握手：<code>newTray</code> 阻塞等待就绪或 3 秒超时，失败就返回错误，调用方放行正常关闭，绝不留下“窗口藏起来了、图标却没挂上”的失联状态。
+<div class="codehilite"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">tray</span><span class="p">)</span><span class="w"> </span><span class="nx">run</span><span class="p">(</span><span class="nx">done</span><span class="w"> </span><span class="kd">chan</span><span class="o">&lt;-</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">runtime</span><span class="p">.</span><span class="nx">LockOSThread</span><span class="p">()</span>
+<span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">runtime</span><span class="p">.</span><span class="nx">UnlockOSThread</span><span class="p">()</span>
+<span class="w">    </span><span class="c1">// 注册窗口类、创建消息窗口、Shell_NotifyIcon，然后进入 GetMessage 循环</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+托盘是懒创建的：窗口开着时不占通知区，只有真的要收进托盘时才挂图标。这个决定还带来一个好处：如果托盘创建失败，用户可以正常退出，而不是被迫留在一个没有出口的后台进程里。气泡提示只弹一次，用一个 <code>trayTipShown</code> 标记保证不反复打扰；右键菜单用 <code>TPM_RETURNCMD</code> 直接拿返回值，不绕 <code>WM_COMMAND</code>；退出时通过自定义消息销毁图标并结束消息循环。
+
+代价与遗留：一个 OS 线程被长期锁定，托盘生命周期内不能做阻塞操作；回调里只做发消息和状态切换，重活都扔回主逻辑。Win32 的消息回调还必须避免 panic 穿透，项目在 <code>wndProc</code> 里对每个分支做了防御，菜单命令通过 channel 送回业务层，托盘线程本身不碰数据库和网络。项目只允许一个托盘图标，所以用包级变量绑定 <code>wndProc</code>，而不是 <code>SetWindowLongPtr</code>。手写 Win32 代码约两百行，可维护性不如第三方库，但换来了零新增依赖和更小的体积。
+<h2>问题八：14 MB 体积红线</h2>
+
+现象：功能加着加着，产物从 10 MB 出头涨到 13.23 MB，离 14 MB 的上限只剩不到 0.8 MB。此时任何“顺手引一个库”的决定都可能让构建直接失败。
+
+原因：Wails 运行时本身就不小，<code>x/crypto</code> 的 SSH 实现、WebView2 加载器、前端打包产物都在里面。依赖树里还有一批 Wails 的间接依赖，比如 echo、gorilla/websocket、各种字符串和模板库，它们不一定都走到，但会进模块图。如果再用 SQLite 或第三方托盘库，体积会迅速失控。
+
+解决：把体积从口头约定变成构建断言。<code>build.ps1</code> 固定 <code>GOARCH=amd64</code>、<code>CGO_ENABLED=0</code>，用 <code>wails build -ldflags "-s -w"</code> 剥掉符号和调试信息，然后检查 PE 头的 machine 字段必须是 <code>0x8664</code>，最后按 MB 检查产物大小，超过阈值直接 <code>throw</code>。
+<div class="codehilite"><pre><span></span><code><span class="nv">$sizeMB</span> <span class="p">=</span> <span class="no">[math]</span><span class="p">::</span><span class="n">Round</span><span class="p">((</span><span class="nb">Get-Item</span> <span class="nv">$exe</span><span class="p">).</span><span class="n">Length</span> <span class="p">/</span> <span class="n">1MB</span><span class="p">,</span> <span class="n">2</span><span class="p">)</span>
+<span class="k">if</span> <span class="p">(</span><span class="nv">$sizeMB</span> <span class="o">-gt</span> <span class="nv">$MaxSizeMB</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">throw</span> <span class="s2">&quot;体积超限：$sizeMB MB &gt; $MaxSizeMB MB。定位是&#39;极致轻&#39;，先查依赖增量再提阈值。&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+具体选型上，拒绝 SQLite：服务器数据是几十条级别，<code>modernc.org/sqlite</code> 预计会带来 4 到 6 MB 的增量，完全不划算；改用 JSON 文件，原子写加 <code>.bak</code> 备份，既小又方便手工修复。托盘不引第三方库，手写 <code>Shell_NotifyIconW</code>。前端只保留 7 个运行时依赖，不引 UI 框架。密钥、known_hosts、servers.json 全部用标准格式，不额外造二进制容器。前端产物通过 <code>go:embed all:frontend/dist</code> 直接嵌进可执行文件，没有外部资源目录；<code>wails.json</code> 驱动前端构建，<code>build.ps1</code> 只负责 Go 侧和产物断言。CI 里还跑 <code>govulncheck</code>，因为 <code>x/crypto</code> 的 advisory 需要可持续发现，不能等出问题再查。
+
+代价与遗留：JSON 存储意味着每次保存都要整文件重写，数据量大时会变成 O(n)，但对几十条服务器可以接受；没有 SQL 查询能力，未来要做复杂检索得自己写。手写 Win32 和手写 DOM 构造器增加了维护成本。体积守卫本身也脆：换一个 Go 版本、Wails 版本或前端依赖，数字就可能跳变，阈值需要跟着复核；断言发生在 Wails 构建之后，失败时已生成的 exe 会被保留供分析，但 CI 会直接判定失败。还有一个容易忽略的点是构建机的 Go 工具链如果是 32 位发行版，默认产物会是 386，脚本必须显式钉死 <code>amd64</code>，否则会得到一个能跑但架构不对的包。
+<h2>问题九：高 DPI 闪烁与尺寸归零</h2>
+
+现象：窗口在 100% 和 150% 缩放的显示器之间拖动时，WebView2 会反复重绘，界面闪烁；在会话内从“终端”切到“文件”再切回来，xterm 的光标位置会按旧列宽错位，有时终端直接变成一条细线。
+
+原因：两个问题叠在一起。第一，WebView2 在高 DPI 或多显示器切换时会收到密集的 resize 事件，如果每次 resize 都立刻重排，就会看到闪烁。第二，会话内的子视图切换用的是 <code>display:none</code>，被隐藏的 <code>.term-host</code> 尺寸归零，<code>ResizeObserver</code> 会收到 0×0 的观察值；此时调用 <code>fit()</code> 会把行列算成极小值，再切回来就错位。
+
+解决：窗口层设置 <code>ResizeDebounceMS=120</code>，让 Wails 对 WebView2 的重绘做去抖；前端自己再做 150 毫秒的 resize 去抖，跳过宽或高小于 4 像素的观察值，并在 <code>requestAnimationFrame</code> 之后重新 <code>fit</code> 和同步尺寸。切回终端子视图时也走 <code>rAF</code>，等布局完成再量。从密钥页切回服务器页时调用 <code>refitAll()</code>，确保所有可见终端重新贴合容器。
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">ro</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">ResizeObserver</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">handle</span><span class="p">]</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">terminals</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">hosts</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">id</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">host</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">panes</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span><span class="o">?</span><span class="p">.</span><span class="nx">hidden</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">host</span><span class="p">.</span><span class="nx">clientWidth</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">host</span><span class="p">.</span><span class="nx">clientHeight</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">handle</span><span class="p">.</span><span class="nx">fit</span><span class="p">();</span>
+<span class="w">    </span><span class="nx">handle</span><span class="p">.</span><span class="nx">syncSize</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+WebGL 渲染器也在这一层做了降级：<code>new WebglAddon()</code> 放在 <code>try</code> 里，初始化失败就保持 xterm 默认的 DOM 渲染器；上下文丢失时主动 <code>dispose()</code>，同样退回 DOM。功能不受影响，只是长输出时更吃 CPU。窗口还启用了 PerMonitorV2 DPI 感知（manifest 里声明），否则跨显示器时 WebView2 会被系统位图拉伸，文字发虚；深浅色跟随系统，Mica 只在 build 22621 以上启用，老系统走不透明背景，避免透明窗口没有底色。
+
+代价与遗留：120 毫秒和 150 毫秒两层去抖会叠加，拖动结束后远端 PTY 要稍晚一点才拿到最终尺寸；对交互式终端来说这是可感知但不难受的延迟。跳过小于 4 像素的尺寸避免了 0×0 的坑，但也意味着极小的布局变化不会触发重算。WebGL 降级后没有提示，用户只会觉得滚动变慢；这是为了不打扰主流程做的取舍。
+<h2>问题十：SFTP 与转发：复用连接，但别复用生命周期</h2>
+
+现象：最初每个文件面板都新建一条 SSH 连接，转发规则也各自拨号。结果是打开文件面板会多一次握手，服务器上多一条登录记录；更糟的是关掉会话标签后，本地监听端口还被占着，因为转发对象没有跟着会话一起释放。
+
+原因：SFTP 和端口转发在协议上都只是同一条 SSH 连接上的额外通道。SFTP 是 <code>sftp</code> 子系统通道，本地转发是每个连接一条 <code>direct-tcpip</code> 通道。它们不需要重新拨号、握手、认证。真正需要设计的是生命周期：通道挂在会话上，会话关闭时必须把通道、监听和规则一起收掉。
+
+解决：SFTP 懒创建并缓存。第一次 <code>SftpOpen</code> 时在已有 <code>ssh.Client</code> 上开子系统，之后复用同一个 <code>sftp.Client</code>；测试断言两次打开只产生 1 条 SSH 连接和 1 个 SFTP 通道。端口转发按会话维护规则表，新增时先校验端口和主机，再监听 <code>127.0.0.1</code>；每个进来的本地连接通过 <code>ssh.Dial</code> 开一条 <code>direct-tcpip</code>，双向各用一个 32 KiB 缓冲搬运，统计活动连接、累计连接和双向字节数。会话关闭时 <code>dropForwards</code> 统一关闭监听、掐断在途连接，并推送 <code>removed</code> 状态。
+<div class="codehilite"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">Forward</span><span class="p">)</span><span class="w"> </span><span class="nx">handle</span><span class="p">(</span><span class="nx">local</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">Conn</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">remote</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">ssh</span><span class="p">.</span><span class="nx">Dial</span><span class="p">(</span><span class="s">&quot;tcp&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">remoteAddr</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">local</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// 登记 pair，双向 splice；任一端关闭都会让两个方向收工</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+细节上还有几处补丁。SFTP 重命名优先用 <code>PosixRename</code>，服务端不支持时回退标准 <code>Rename</code>；符号链接只在“是链接且不是目录”时补一次 <code>Stat</code>，避免大目录里每条目都多一次往返；删除只做空目录，不做递归删除，因为递归一旦路径算错就是不可逆的。转发只绑 <code>127.0.0.1</code>，把服务暴露到局域网必须是显式决定；端口冲突直接报错，不留下半成品规则。传输进度事件有 120 毫秒的下限间隔，避免每 32 KiB 都推一次事件把 WebView 打满；取消通过 <code>context</code> 传递，<code>shuttle</code> 每读一块前先看 <code>ctx.Err()</code>，取消后终态是 <code>cancelled</code> 而不是 <code>done</code>。转发统计也复用同一个间隔，并且只在数值变化时推送，空闲规则不会每 120 毫秒打一次无意义的事件。
+
+代价与遗留：所有通道共享同一条 TCP 连接，终端、SFTP、转发会争用同一条链路的带宽和 SSH 连接级资源；单个大文件传输可能让终端回显变慢。没有实现远程转发（<code>-R</code>）和动态转发（<code>-D</code>），只做本地 <code>-L</code>。下载时为了拿文件大小会先打开一次远端文件再关闭，真正传输时重新打开，多了一次往返；这是为了避免长时间持有两个句柄。递归上传和递归删除都明确不支持。
+<h2>问题十一：密码、旧密码与凭据自愈</h2>
+
+现象：用户改了远端密码后，NanoSSH 每次点击连接都直接失败，而且再也没有机会输入新密码；另一个方向是，用户在弹窗里手滑打错一次密码，错误的密码却被存进了凭据管理器，下次连接继续失败。
+
+原因：如果“用户输入密码”和“保存密码”绑在同一次调用里，认证失败也会落库；如果保存的旧密码失效后不删除，前端看到 <code>HasPassword</code> 为真就不再弹框，用户被永久卡在“点了就失败”的死角。删服务器时如果只删 <code>servers.json</code> 记录，凭据管理器里会留下指向不存在主机的孤儿密码。
+
+解决：认证成功后才保存密码；认证失败且本次没有用户输入时，删除已保存的密码，让下次连接重新询问。删除服务器时同步删除 <code>NanoSSH/server/&lt;id&gt;</code> 凭据。<code>HasPassword</code> 只回答“有没有”，前端据此决定直接连还是先弹框；用户也可以显式“清除已保存密码”。<code>HasPassword</code> 只看能否取回，不返回密码本身，避免把秘密带到前端；<code>ForgetPassword</code> 是幂等的，重复清除不报错。前端在密码认证且本次未提供密码时先问 <code>HasPassword</code>，有就直接连，没有才弹框，这样正常使用不会每次都被问一遍。私钥口令同理：解析失败且本地存有口令时，先删旧口令，再带 <code>retry</code> 标记询问，最多重试 3 次。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nx">srv</span><span class="p">.</span><span class="nx">Auth</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nx">sshcore</span><span class="p">.</span><span class="nx">AuthPassword</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">Password</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">serr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nx">Set</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">PasswordTarget</span><span class="p">(</span><span class="nx">srv</span><span class="p">.</span><span class="nx">ID</span><span class="p">),</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">Password</span><span class="p">);</span><span class="w"> </span><span class="nx">serr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">wruntime</span><span class="p">.</span><span class="nx">LogWarning</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;保存服务器密码失败: &quot;</span><span class="o">+</span><span class="nx">serr</span><span class="p">.</span><span class="nx">Error</span><span class="p">())</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+凭据存进 Windows 凭据管理器，使用 <code>wincred</code> 的通用凭据，<code>PersistLocalMachine</code>，target 是 <code>NanoSSH/server/&lt;id&gt;</code> 或 <code>NanoSSH/key/&lt;id&gt;</code>。没有自研加密文件，因为那是“自研密码学”的经典陷阱；凭据管理器用 DPAPI 绑定当前用户，只有本人登录后能读回，也不会随数据目录被拷走。
+
+代价与遗留：认证失败的自愈依赖 <code>strings.Contains(err.Error(), "unable to authenticate")</code>，这是对 <code>x/crypto</code> 错误文案的字符串匹配；库一改文案，自愈就失效。更稳的做法是识别具体的认证错误类型，但当前实现选择了简单路径。凭据绑定 Windows 账户，换机后无法解密是正确行为；用户复制 <code>servers.json</code> 和 <code>keys</code> 到新机器后，密码需要重新输一次。密码在进程内存中仍是明文，应用没有主密码或内存加密，这是桌面 SSH 客户端的常规边界。凭据管理器里的记录对同一用户的其他程序并非不可见：任何以该用户身份运行的程序都能枚举 target 并读取。这是 Windows 凭据模型的边界，不是 NanoSSH 能单独解决的；它只保证秘密不落在明文 JSON 里，以及不随数据目录被复制。
+<h2>问题十二：密钥管理的三个边界</h2>
+
+现象：导入一把 FIDO 安全密钥时，界面报“解析私钥失败”，看起来像文件损坏；生成 RSA 密钥时，如果默认 2048 位，又会被基线要求淘汰；删除一把仍被服务器引用的密钥，如果“顺手”改了服务器的认证方式，用户下次连接会莫名其妙失败。
+
+原因：FIDO 密钥的私钥句柄永远留在硬件里，Go 的 <code>ssh</code> 库不支持，必须明确告诉用户“这不是文件坏了，是算法不支持”。RSA 2048 已不够，4096 生成要数秒，交互体验太慢。密钥被引用时直接删除会造成死引用，而暗改服务器配置比报错更难排查。
+
+解决：只支持 ed25519、RSA 3072、ECDSA P256 三种算法，生成 OpenSSH 原生格式，公钥行可直接粘到 <code>authorized_keys</code>，指纹与 <code>ssh-keygen -lf</code> 一致。FIDO 的判断必须在解出的 PEM 二进制载荷里做，因为 OpenSSH 私钥把算法名作为明文字符串存在二进制体内，外层是 base64，在 PEM 文本上搜 <code>sk-</code> 是搜不到的。
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nx">block</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pem</span><span class="p">.</span><span class="nx">Decode</span><span class="p">(</span><span class="nx">pemBytes</span><span class="p">);</span><span class="w"> </span><span class="nx">block</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">block</span><span class="p">.</span><span class="nx">Bytes</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;sk-ssh-ed25519&quot;</span><span class="p">))</span><span class="w"> </span><span class="o">||</span>
+<span class="w">        </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">block</span><span class="p">.</span><span class="nx">Bytes</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;sk-ecdsa-sha2&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">ErrKeyFIDOUnsupported</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+私钥文件用 ULID 命名，而不是用户取的名字：既杜绝重名和路径穿越，也让密钥可以随便改名。导入时先解析再落盘，解析成功同时证明“这确实是一把可用私钥”并且拿到了准确的公钥和指纹；解析失败不会留下“记录有了、指纹为空”的半成品。三种失败路径被刻意区分：需要口令返回 <code>ErrKeyEncrypted</code>，硬件密钥返回 <code>ErrKeyFIDOUnsupported</code>，其余才是文件本身有问题。导入时如果没给名字，默认取源文件名去掉扩展名；带口令的导入成功后顺手把口令存进凭据管理器，第一次连接就不用再问。删除密钥前扫描服务器列表，仍被引用就拒绝，并在报错里点名是哪几台服务器。删除顺序是先落盘记录、再删文件，避免“记录还在、文件没了”的死引用。
+
+代价与遗留：不支持 FIDO 安全密钥，也不支持 agent forwarding；这两项都被明确写进错误文案，而不是静默失败。RSA 3072 的生成速度比 2048 慢，但比 4096 好得多，是一个折中。密钥目录的 <code>0600</code> 在 Windows 上同样只是意图，实际保护来自 <code>%APPDATA%</code> 的 ACL。没有密钥轮换、没有多密钥绑定，功能面刻意保持窄。
+<h2>小结</h2>
+
+NanoSSH 的实现价值不在“做了多少功能”，而在把几个容易错的边界钉死了。IPC 选择了 Wails 的 base64 事件桥，承认 33% 的膨胀，用 Worker 解码和 Transferable 抵消开销；终端字节流全程 <code>[]byte</code>，不做行切分和解码，用 16 KiB 分块、8 毫秒攒批和 ack 闭环把延迟压在渲染端；PTY 参数统一成 <code>(rows, cols)</code>，用测试防止 RFC 与 x/crypto 的顺序再次错位；主机密钥区分未知、变化、吊销三种情况，指纹变化只允许显式替换；Windows 平台细节则落在命名管道、<code>LockOSThread</code>、ResizeDebounce 和 14 MB 体积守卫上。
+
+这些决定都有代价：吞吐受渲染限制、哈希 known_hosts 条目无法自动替换、JSON 存储不能查询、手写 Win32 增加维护成本、旧密码自愈依赖错误文案。项目没有试图把这些代价藏起来，而是尽量写进注释、测试和错误提示里。
+
+测试策略也是这套架构的一部分：进程内 <code>testsshd</code> 提供真实的 SSH 服务端，<code>eventCollector</code> 替换事件出口并在收到终端数据后立即回 ack，凭据后端换成内存实现，测试绝不往真实凭据管理器写东西。于是“终端字节不丢”“PTY 顺序正确”“转发复用同一条连接”“会话关闭释放端口”这些结论都能在无窗口环境下重复验证。对同类工具来说，可复用的不是某一个函数，而是这种“先把边界写清楚，再选实现”的顺序。
+<h2>相关阅读</h2>
+<ul>
+<li><a href="/article/nanobrowser-tauri-webview2/">NanoBrowser：Tauri 与 WebView2 的桌面浏览器实践</a>：同样是轻量 WebView 外壳，可以对照看窗口层与 IPC 的取舍。</li>
+<li><a href="/article/websocket-production-deep-dive/">WebSocket 生产环境深挖</a>：理解为什么“看起来像 WebSocket”与“实际走什么通道”需要在文档里说清楚。</li>
+<li><a href="/article/nanohermes-rust-coding-agent/">NanoHermes：用 Rust 写编码 Agent</a>：另一种把协议内核与外壳分离的组织方式。</li>
+<li><a href="/article/file-upload-production-deep-dive/">文件上传的生产实践</a>：与 SFTP 传输的进度、取消和分块策略可以互相参照。</li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li></ul></nav></div></div>
+  </body>
+</html>
