@@ -41,6 +41,25 @@ rm -rf "$STALE_DIR"/*          # under OS temp → exempt from the bulk guard
 [ -d dist ] && mv dist "$STALE_DIR/dist"
 npm run build
 
+# ── 拒绝部署降级构建 ─────────────────────────────────────────────────────────
+# prerender.mjs 的失败策略是「软失败」：API 不可达时它只打一行 warning 就
+# 退出，dist/ 里留下的是没有 #app 正文的空壳 shell。这时 cp 会用它覆盖仓库
+# 根的 index.html 与全部列表页，把已经上线的静态正文清掉 —— 而 AdSense 审核
+# 期间看到的正是这个状态。宁可不部署，也不要把空壳推上去。
+if ! grep -q '<div id="app"><div class="ns-' dist/index.html; then
+    echo "ERROR: dist/index.html 没有预渲染正文（prerender 被跳过），已中止部署。"
+    echo "       多为接口不可达导致，等接口恢复后重新运行。"
+    exit 1
+fi
+
+# 文章页同理：预渲染一旦整体跳过，dist/article/ 会是空的。
+ARTICLE_PAGES=$(ls -d dist/article/*/ 2>/dev/null | wc -l)
+if [ "$ARTICLE_PAGES" -eq 0 ]; then
+    echo "ERROR: dist/article/ 下没有任何预渲染页面，已中止部署。"
+    exit 1
+fi
+echo "==> 预渲染检查通过：$ARTICLE_PAGES 个文章页 + 首页静态正文"
+
 echo "==> Cleaning stale build artifacts in repo root..."
 # M9: prune hashed asset files that the new build no longer references,
 # otherwise old chunks accumulate in repo root forever. rsync isn't on

@@ -68,11 +68,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getFriends } from '@/api/articles'
+import { FRIEND_FALLBACK } from '@/data/friends'
 
-const DEFAULT_FRIENDS = [
-  { name: 'GitHub', url: 'https://github.com' },
-  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
-]
+const DEFAULT_FRIENDS = FRIEND_FALLBACK
 
 const friends = ref([])
 const loading = ref(true)

@@ -15,6 +15,12 @@
 export const SITE_NAME = '尘世栈帧'
 export const SITE_AUTHOR = 'Stack Frame'
 export const SITE_DESCRIPTION = '尘世栈帧 — 技术、编程、AI 与科学'
+/**
+ * 站点对外联系邮箱。关于页、隐私政策、免责声明与页头/刊头的 mailto 都读
+ * 这一个值 —— AdSense 审核会看「能否联系到作者」，几处地址一旦不一致，
+ * 读者按旧地址发信就石沉大海。
+ */
+export const CONTACT_EMAIL = 'edfc1582@shmarpe.resend.app'
 // 自定义域名（Cloudflare 注册的 zhoujun.dev，博客挂在 blog 子域）。
 // 全站 canonical / og:url / sitemap / rss / 预渲染快照都以它为准；
 // 旧的 zhoujungis.github.io 由 GitHub Pages 自动 301 到此处。
@@ -99,6 +105,11 @@ export const LIST_PAGES = [
     description: `${SITE_NAME}的照片墙 — 光影里的生活片段。`,
     sections: 'photos',
     priority: '0.4',
+    // 照片来自后端接口，而接口目前是空的：这一页实际只有标题和一句说明。
+    // 空壳页被索引会拉低整站的「内容量」判断（AdSense 审核尤其敏感），所以
+    // 在真的上传照片之前保持 noindex、不进 sitemap。补上内容后删掉这一行，
+    // 它会自动回到 sitemap 与站内导航。
+    noindex: true,
   },
   {
     path: '/friends/',

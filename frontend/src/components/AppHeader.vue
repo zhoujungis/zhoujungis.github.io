@@ -169,7 +169,7 @@
 
         <div class="drawer-foot">
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener">GitHub</a>
-          <a href="mailto:no-reply@blog.zhoujun.dev">Email</a>
+          <a :href="`mailto:${CONTACT_EMAIL}`">Email</a>
           <a href="https://blog.zhoujun.dev/rss.xml">RSS</a>
         </div>
       </aside>
@@ -184,6 +184,7 @@ import { useLoginModal } from '@/composables/useLogin'
 import { useScrollLock } from '@/composables/useScrollLock'
 import { useSubscription } from '@/composables/useSubscription'
 import { useAuthStore } from '@/stores/auth'
+import { CONTACT_EMAIL } from '@/utils/siteConfig'
 import ThemeToggle from './ThemeToggle.vue'
 
 const route = useRoute()

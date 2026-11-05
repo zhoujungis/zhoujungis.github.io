@@ -8,6 +8,7 @@ import {
   LIST_PAGES,
   FEED_ITEM_COUNT,
   FEED_FULL_TEXT_COUNT,
+  HOME_ARTICLE_COUNT,
   sanitizeHtml,
   wrapTables,
   upsertMeta,
@@ -171,6 +172,14 @@ describe('renderArticlePage static internal links', () => {
     expect(html).toContain('/article/newer/')
     expect(html).toContain('/article/related/')
   })
+
+  it('reaches the legal pages from every article, not just the home page', () => {
+    // 审核爬虫可能只落到某一篇文章上；隐私政策必须在这一页就能点到。
+    const html = renderArticlePage(SHELL, linked, options)
+    for (const path of ['/about/', '/privacy/', '/disclaimer/', '/articles/', '/topics/']) {
+      expect(html, path).toContain(`href="${SITE_ORIGIN}${path}"`)
+    }
+  })
 })
 
 describe('sanitizeHtml', () => {
@@ -204,7 +213,14 @@ describe('upsertMeta', () => {
 
 describe('renderHomePage', () => {
   const articles = [
-    { slug: 'b', title: 'B post', created_at: '2026-08-02T00:00:00+08:00' },
+    {
+      slug: 'b',
+      title: 'B post',
+      excerpt: 'B 的摘要正文',
+      category: { name: '后端架构', slug: 'backend' },
+      reading_time: 9,
+      created_at: '2026-08-02T00:00:00+08:00',
+    },
     { slug: 'a', title: 'A post', created_at: '2026-08-01T00:00:00+08:00' },
   ]
 
@@ -213,6 +229,44 @@ describe('renderHomePage', () => {
     expect(html).toContain('<div id="app"><div class="ns-home-list">')
     expect(html).not.toContain('<noscript>')
     expect(html.indexOf('/article/b/')).toBeLessThan(html.indexOf('/article/a/'))
+  })
+
+  it('carries enough readable text for a no-JS crawler to judge content', () => {
+    const html = renderHomePage(SHELL, articles)
+    // 站点自述 + 摘要 + 专题简介都要在静态正文里……
+    expect(html).toContain('本站写什么')
+    expect(html).toContain('B 的摘要正文')
+    // ……专题与项目也要有可链接的正文条目。
+    expect(html).toContain(`href="${SITE_ORIGIN}${topicPath(TOPICS[0].slug)}"`)
+    expect(html).toContain(TOPICS[0].intro[0].slice(0, 12))
+    expect(html).toContain('最新项目')
+    // 纯文本可见字符数应远多于旧快照的约 450 字。
+    const text = html
+      .replace(/<style[\s\S]*?<\/style>/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, '')
+    expect(text.length).toBeGreaterThan(1200)
+  })
+
+  it('leaves the shell alone when there is nothing to list', () => {
+    expect(renderHomePage(SHELL, [])).toBe(SHELL)
+  })
+
+  it('lists the newest 50 articles, not just a handful', () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      slug: `post-${String(i).padStart(2, '0')}`,
+      title: `Post ${i}`,
+      excerpt: `第 ${i} 篇的摘要`,
+      created_at: new Date(Date.UTC(2026, 0, 1) + i * 3600 * 1000).toISOString(),
+    }))
+    const html = renderHomePage(SHELL, many)
+    expect(HOME_ARTICLE_COUNT).toBe(50)
+    expect(html).toContain('共 60 篇')
+    // 最新 50 篇：post-59 … post-10
+    expect(html).toContain('/article/post-10/')
+    expect(html).not.toContain('/article/post-09/')
+    // 每篇都带摘要，而不只是一行标题
+    expect(count(html, 'class="ns-excerpt"')).toBeGreaterThanOrEqual(50)
   })
 })
 
@@ -506,6 +560,30 @@ describe('renderListPage', () => {
       expect(html, path).toContain(`<h1>${page.title}</h1>`)
       expect(html, path).toContain('class="ns-nav"')
     }
+  })
+
+  it('writes the friend list into the snapshot instead of a bare heading', () => {
+    const page = pageFor('/friends/')
+    const friends = [
+      { name: 'Aqara', url: 'https://www.aqara.com/', description: '智能家居品牌' },
+      { name: 'Halo Music', url: 'https://halo-music.pages.dev/', description: '在线音乐欣赏' },
+    ]
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles, { friends }))
+    expect(html).toContain('共 2 个站点')
+    expect(html).toContain('href="https://www.aqara.com/"')
+    expect(html).toContain('智能家居品牌')
+  })
+
+  it('marks a noindex page noindex in the static HTML, not just in the SPA', () => {
+    // 路由 meta 的 noindex 要等 JS 起来才生效；不执行 JS 的抓取器读到的就是
+    // 这份文件，所以标签必须写死在这里。
+    const page = pageFor('/photos/')
+    expect(page.noindex).toBe(true)
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(html).toContain('<meta name="robots" content="noindex, follow" />')
+
+    const indexable = renderListPage(SHELL, pageFor('/articles/'), [])
+    expect(indexable).not.toContain('name="robots"')
   })
 })
 

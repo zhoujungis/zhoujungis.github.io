@@ -73,6 +73,11 @@ import {
   seriesOrder,
   SERIES_MIN_MINUTES,
 } from '../src/data/topics.js'
+// 首页刊头文案与项目列表：运行时 Home.vue 与首页静态快照共用这一份，
+// 快照里的自述不会和页面上显示的写成两套。
+import { HOME_MASTHEAD, HOME_SUMMARY, HOME_PROJECTS } from '../src/data/home.js'
+// 友链兜底：接口不可用时运行时页面用这一份，静态快照也必须一致。
+import { FRIEND_FALLBACK } from '../src/data/friends.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -90,6 +95,11 @@ const SITE_ORIGIN = process.env.PRERENDER_ORIGIN || SITE_ORIGIN_DEFAULT
 const FEED_PATH = '/rss.xml'
 const FEED_ITEM_COUNT = 20
 const FEED_FULL_TEXT_COUNT = 5
+
+// 首页静态快照列出的文章条数。审核方判断「内容量」看的是落地页本身，只列
+// 十来篇文章名会让一个有 100+ 篇存量的站点看起来像目录页；50 条带摘要的
+// 条目约 20KB，一次请求的成本可以忽略，但首屏就能看出站点确实在持续写作。
+const HOME_ARTICLE_COUNT = 50
 
 // A burst of updates this close together is a batch job (title rewrites, mass
 // re-tagging, excerpt refresh), not organic editing. Measured on this blog:
@@ -214,11 +224,21 @@ const NOSCRIPT_STYLE = `
 .ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
 .ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
 .ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
 .ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
 .ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
 .ns-home-list ul{padding-left:1.2em}
 .ns-home-list li{margin:.4em 0}
 .ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
 .ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
 .ns-list h1{font-size:1.8rem;margin:0 0 .4em}
 .ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
@@ -239,6 +259,27 @@ async function fetchArticleDetail(slug) {
   })
   if (!res.ok) throw new Error(`detail ${slug}: HTTP ${res.status}`)
   return res.json()
+}
+
+// 友链列表：失败不阻断构建 —— 退回与 FriendLinks.vue 共用的兜底数据，
+// 至少 /friends/ 的静态快照不会是一片空白。
+async function fetchFriends() {
+  try {
+    const res = await fetch(`${API_BASE}friends/`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(20000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    const list = data.results || data || []
+    const active = list.filter(
+      (f) => f?.name && f?.url && f.is_active !== false && f.active !== false,
+    )
+    if (active.length) return active
+  } catch (e) {
+    console.warn(`[prerender] could not fetch friends: ${e?.message || e}`)
+  }
+  return FRIEND_FALLBACK
 }
 
 async function fetchAllArticles() {
@@ -612,6 +653,18 @@ function renderArticlePage(
   // 静态正文直接放进 #app，而不是 <noscript>：
   // 百度、Bing 等不执行 JS 的爬虫也能读到完整段落与内链；Vue 在 #app 上
   // mount 时会清空并替换这段 fallback，JS 用户不会看到两份内容。
+  // 每个文章页都带一条站内页脚：AdSense 审核要求全站能走到隐私政策，
+  // 而审核爬虫可能只落到某一篇文章上，不能指望它先回首页再找页脚。
+  const siteNav =
+    `<nav class="ns-site-nav">` +
+    `<a href="${SITE_ORIGIN}/">首页</a> ` +
+    `<a href="${SITE_ORIGIN}/articles/">全部文章</a> ` +
+    `<a href="${SITE_ORIGIN}/topics/">专题</a> ` +
+    `<a href="${SITE_ORIGIN}/about/">关于本站</a> ` +
+    `<a href="${SITE_ORIGIN}/privacy/">隐私政策</a> ` +
+    `<a href="${SITE_ORIGIN}/disclaimer/">免责声明</a>` +
+    `</nav>`
+
   const staticBody =
     `<div class="ns-article">` +
     `<nav class="ns-breadcrumb"><a href="${SITE_ORIGIN}/">首页</a> / ` +
@@ -625,33 +678,109 @@ function renderArticlePage(
     topicCta +
     pager +
     relatedNav +
+    siteNav +
     `</div>`
   html = html.replace('<div id="app"></div>', literal(`<div id="app">${staticBody}</div>`))
 
   return html
 }
 
-// Inject a crawlable <noscript> latest-articles list into the home shell so
-// the index page has static content even when JS/API is unavailable.
+// ── 首页静态快照 ──────────────────────────────────────────────────────────
+// 为什么这份快照要写这么多正文：首页是审核爬虫（AdSense、Bing 等不执行或
+// 延迟执行 JS 的抓取器）看到的第一屏。原来的快照只有标题 + 10 个文章名，
+// 约 450 字可见文本 —— 对「内容量」判定来说接近空壳。现在把刊头自述、站点
+// 定位、五个专题简介、最近 50 篇文章（各带摘要）与项目介绍一起写进去，
+// 首屏就是可判定主题与体量的真实内容。
+//
+// 正文仍然放进 #app：Vue 在 #app 上 mount 时会整体替换这段 fallback，JS
+// 用户不会看到两份。
+const homeDate = (iso) => {
+  const d = new Date(iso || '')
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('zh-CN')
+}
+
 function renderHomePage(template, articles) {
   const sorted = [...articles]
     .filter((a) => a?.slug && a?.title)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, 10)
+    .sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at))
   if (!sorted.length) return template
-  const items = sorted
-    .map(
-      (a) =>
-        `<li><a href="${SITE_ORIGIN}/article/${escapeHtml(a.slug)}/">${escapeHtml(a.title)}</a>` +
-        (a.created_at
-          ? ` — ${escapeHtml(new Date(a.created_at).toLocaleDateString('zh-CN'))}`
-          : '') +
-        `</li>`,
-    )
+
+  const lede = HOME_MASTHEAD.lede
+    .map((p, i) => `<p${i === 0 ? ' class="ns-lede"' : ''}>${escapeHtml(p)}</p>`)
     .join('\n')
+
+  const stats = [
+    `共 ${sorted.length} 篇文章`,
+    homeDate(sorted[0].created_at) ? `最近更新 ${homeDate(sorted[0].created_at)}` : '',
+    '技术栈 Vue 3 × Django',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const summary = HOME_SUMMARY.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n')
+
+  // 专题条目：名字 + 英文名 + 一句话定位 + 首段简介。这段简介与 /topics/<slug>/
+  // 的静态聚合页同源（data/topics.js），两处措辞不会分叉。
+  const topicItems = TOPICS.map(
+    (topic) =>
+      `<li><a href="${SITE_ORIGIN}${topicPath(topic.slug)}">${escapeHtml(topic.name)}</a>` +
+      ` <span class="ns-date">${escapeHtml(topic.en)} · ${escapeHtml(topic.tagline)}</span>` +
+      `<p class="ns-excerpt">${escapeHtml(topic.intro?.[0] || topic.tagline)}</p></li>`,
+  ).join('\n')
+
+  // 文章条目带摘要：只靠标题的一串链接构不成「内容」，摘要才是审核方与
+  // 读者据以判断站点主题的文本。列表接口给的 excerpt 已经截到 160 字。
+  const listedArticles = sorted.slice(0, HOME_ARTICLE_COUNT)
+  const articleItems = listedArticles
+    .map((a) => {
+      const meta = [
+        homeDate(a.created_at),
+        CATEGORY_NAME(a),
+        a.reading_time ? `${a.reading_time} 分钟` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+      const excerpt = plainText(a.excerpt || a.html_content || '').slice(0, 120)
+      return (
+        `<li><a href="${SITE_ORIGIN}/article/${escapeHtml(a.slug)}/">${escapeHtml(a.title)}</a>` +
+        ` <span class="ns-date">${escapeHtml(meta)}</span>` +
+        (excerpt ? `<p class="ns-excerpt">${escapeHtml(excerpt)}</p>` : '') +
+        `</li>`
+      )
+    })
+    .join('\n')
+
+  const projectItems = HOME_PROJECTS.map(
+    (p) =>
+      `<li><a href="${escapeHtml(p.url)}">${escapeHtml(p.name)}</a>` +
+      ` — ${escapeHtml(p.strong)}<p class="ns-excerpt">${escapeHtml(p.desc)}</p></li>`,
+  ).join('\n')
+
+  const nav = LIST_PAGES.filter((p) => !p.noindex)
+    .map((p) => `<a href="${SITE_ORIGIN}${p.path}">${escapeHtml(p.title)}</a>`)
+    .join('\n')
+
   const staticBody =
-    `<div class="ns-home-list"><h1>${escapeHtml(SITE_NAME)}</h1>` +
-    `<p>最新文章（静态快照，完整体验请启用 JavaScript）：</p><ul>\n${items}\n</ul></div>`
+    `<div class="ns-home-list">` +
+    `<header class="ns-masthead">` +
+    `<h1>${escapeHtml(SITE_NAME)} · ${escapeHtml(HOME_MASTHEAD.title)}</h1>` +
+    `<p class="ns-sub">${escapeHtml(HOME_MASTHEAD.sub)}</p>\n` +
+    `${lede}\n` +
+    `<p class="ns-meta">${escapeHtml(stats)}</p>` +
+    `</header>\n` +
+    `<section><h2>本站写什么</h2>\n${summary}\n</section>\n` +
+    `<section><h2>精选专题</h2>\n<ul>\n${topicItems}\n</ul>\n</section>\n` +
+    `<section><h2>最新文章</h2>\n` +
+    `<p class="ns-more">共 ${sorted.length} 篇，下面按发布时间列出最近 ${listedArticles.length} 篇：</p>\n` +
+    `<ul>\n${articleItems}\n</ul>\n` +
+    `<p class="ns-more">更多：<a href="${SITE_ORIGIN}/articles/">全部文章</a> · ` +
+    `<a href="${SITE_ORIGIN}/archives/">按年月归档</a> · ` +
+    `<a href="${SITE_ORIGIN}/topics/">全部专题</a> · ` +
+    `<a href="${SITE_ORIGIN}/rss.xml">RSS 订阅</a></p></section>\n` +
+    `<section><h2>最新项目</h2>\n<ul>\n${projectItems}\n</ul>\n</section>\n` +
+    `<nav class="ns-nav">\n${nav}\n</nav>` +
+    `</div>`
+
   // 与文章页一致：静态正文放进 #app，Vue mount 时替换。
   return template.replace(
     '<div id="app"></div>',
@@ -955,7 +1084,7 @@ function renderSections(sections) {
   return parts.join('\n')
 }
 
-function sectionsForPage(page, articles) {
+function sectionsForPage(page, articles, { friends = [] } = {}) {
   switch (page.sections) {
     case 'articles':
       return dateSections(articles)
@@ -1011,6 +1140,20 @@ function sectionsForPage(page, articles) {
         })),
       ]
     }
+    // 友链：数据来自后端 /friends/，构建期取一次写进快照，页面就有一份真实
+    // 的站点清单而不是空壳。接口失败时退回与页面共用的兜底列表。
+    case 'friends':
+      return friends.length
+        ? [
+            {
+              heading: `共 ${friends.length} 个站点`,
+              items: friends.map((f) => ({
+                text: f.description ? `${f.name} — ${f.description}` : f.name,
+                href: f.url,
+              })),
+            },
+          ]
+        : []
     // 合规页：正文完全来自 src/data/sitePages.js（与页面组件同源），
     // 所以快照里有全文而不只是标题。
     case 'site-page': {
@@ -1025,11 +1168,10 @@ function sectionsForPage(page, articles) {
         })),
       }))
     }
-    // /photos, /friends and /search draw their content from the backend API
-    // (the photo wall and the friend list) or from a query at runtime, so the
-    // build has nothing to inline. They still get a real 200, a page-level
-    // <title>, their own meta and the sibling cross-links — which is what
-    // fixes the direct-hit 404.
+    // /photos 的照片来自后端接口，而接口目前是空的；/search 的结果只在有查询
+    // 参数时才存在。两者都没有可内联的正文，只拿到真实的 200、页级 <title>、
+    // 自己的 meta 与同栏目互链 —— 它们也都不进 sitemap（见 LIST_PAGES 的
+    // noindex 标记）。
     default:
       return []
   }
@@ -1052,10 +1194,15 @@ function renderListPage(template, page, sections) {
   html = upsertMeta(html, 'name', 'twitter:title', title)
   html = upsertMeta(html, 'name', 'twitter:description', page.description)
   html = upsertMeta(html, 'property', 'og:image:alt', `${page.title} — ${SITE_NAME}`)
+  // noindex 必须写进静态 HTML：SPA 里路由 meta 的 noindex 要等 JS 起来才会
+  // 生效，而不执行 JS 的抓取器读到的就是这份文件本身。
+  if (page.noindex) {
+    html = upsertMeta(html, 'name', 'robots', 'noindex, follow')
+  }
 
   // Cross-links so crawlers (and no-JS readers) can reach the sibling pages
   // without going back through the app shell.
-  const nav = LIST_PAGES.filter((p) => p.path !== page.path)
+  const nav = LIST_PAGES.filter((p) => p.path !== page.path && !p.noindex)
     .map((p) => `<a href="${SITE_ORIGIN}${p.path}">${escapeHtml(p.title)}</a>`)
     .join('\n')
 
@@ -1544,6 +1691,7 @@ async function main() {
   // Static list pages — these are what let /articles & co. answer 200 instead
   // of bouncing through 404.html, and they are the only non-article URLs the
   // sitemap is allowed to list.
+  const friends = await fetchFriends()
   let listWritten = 0
   for (const page of LIST_PAGES) {
     try {
@@ -1551,7 +1699,7 @@ async function main() {
       mkdirSync(dir, { recursive: true })
       writeFileSync(
         join(dir, 'index.html'),
-        renderListPage(template, page, sectionsForPage(page, articles)),
+        renderListPage(template, page, sectionsForPage(page, articles, { friends })),
         'utf8',
       )
       listWritten += 1
@@ -1678,6 +1826,7 @@ export {
   FEED_PATH,
   FEED_ITEM_COUNT,
   FEED_FULL_TEXT_COUNT,
+  HOME_ARTICLE_COUNT,
   escapeHtml,
   sanitizeHtml,
   wrapTables,
