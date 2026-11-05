@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
 from .models import Article, Category, Tag, Subscriber
 
@@ -31,6 +31,28 @@ class ArticleAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ["title"]}
     readonly_fields = ["html_content", "excerpt", "views_count", "notification_sent"]
     date_hierarchy = "created_at"
+    actions = ["resend_notifications"]
+
+    @admin.action(description="重新发送订阅通知（忽略已发送标记）")
+    def resend_notifications(self, request, queryset):
+        from .signals import send_new_article_notification
+
+        total = 0
+        failed = 0
+        for article in queryset.filter(status=Article.Status.PUBLISHED):
+            try:
+                sent = send_new_article_notification(article, force=True)
+            except Exception as exc:  # noqa: BLE001 — 一篇失败不影响其余
+                failed += 1
+                self.message_user(
+                    request,
+                    f"{article.slug}: 发送失败 — {exc}",
+                    level=messages.ERROR,
+                )
+                continue
+            total += sent
+            self.message_user(request, f"{article.slug}: 已发送 {sent} 封")
+        self.message_user(request, f"完成：共 {total} 封，失败 {failed} 篇")
 
 
 @admin.register(Subscriber)
