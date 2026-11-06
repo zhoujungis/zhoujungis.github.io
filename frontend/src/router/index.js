@@ -15,8 +15,26 @@ const routes = [
   {
     path: '/en',
     name: 'EnIndex',
-    meta: { lang: 'en', title: 'Writing in English | Stack Frame' },
+    meta: { lang: 'en', title: 'Code & Life | Stack Frame' },
     component: () => import('../pages/en/EnIndex.vue'),
+  },
+  {
+    path: '/en/articles',
+    name: 'EnArticles',
+    meta: { lang: 'en', title: 'Articles | Stack Frame' },
+    component: () => import('../pages/en/EnArticles.vue'),
+  },
+  {
+    path: '/en/topics',
+    name: 'EnTopics',
+    meta: { lang: 'en', title: 'Topics | Stack Frame' },
+    component: () => import('../pages/en/EnTopics.vue'),
+  },
+  {
+    path: '/en/topics/:slug',
+    name: 'EnTopic',
+    meta: { lang: 'en', title: 'Topic | Stack Frame' },
+    component: () => import('../pages/en/EnTopic.vue'),
   },
   {
     path: '/en/article/:slug',

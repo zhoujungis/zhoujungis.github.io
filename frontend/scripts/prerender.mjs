@@ -78,6 +78,8 @@ import {
 import { HOME_MASTHEAD, HOME_SUMMARY, HOME_PROJECTS } from '../src/data/home.js'
 // 英文版文章（手写英文稿，不是机翻）。静态页与运行时共用同一份数据。
 import { EN_ARTICLES, EN_BY_SLUG } from '../src/data/en/articles.js'
+// 英文站导航与专题文案：与 pages/en/* 同源，静态快照不会和界面写成两套。
+import { EN_UI, EN_TOPICS } from '../src/data/en/site.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -819,34 +821,126 @@ function enAlternates(article) {
   )
 }
 
+const EN_BASE = `${SITE_ORIGIN}/en`
+
+function enPostItems(articles) {
+  if (!articles.length) return `<p class="ns-more">${escapeHtml(EN_UI.home.emptyNote)}</p>`
+  return (
+    `<ul>\n` +
+    articles
+      .map(
+        (a) =>
+          `<li><a href="${EN_BASE}/article/${a.slug}/">${escapeHtml(a.title)}</a>` +
+          ` <span class="ns-date">${escapeHtml(a.date)} · ${a.readingTime} min</span>` +
+          `<p class="ns-excerpt">${escapeHtml(a.excerpt)}</p></li>`,
+      )
+      .join('\n') +
+    `\n</ul>`
+  )
+}
+
+function enNav() {
+  return (
+    `<nav class="ns-nav">` +
+    `<a href="${EN_BASE}/">Home</a>` +
+    `<a href="${EN_BASE}/articles/">Articles</a>` +
+    `<a href="${EN_BASE}/topics/">Topics</a>` +
+    `<a href="${SITE_ORIGIN}/about/">About (中文)</a>` +
+    `<a href="${SITE_ORIGIN}/rss.xml">RSS</a>` +
+    `<a href="${SITE_ORIGIN}/" hreflang="zh-CN">中文</a>` +
+    `</nav>`
+  )
+}
+
 function renderEnIndexPage(template) {
-  const items = EN_ARTICLES.map(
-    (a) =>
-      `<li><a href="${EN_HOME_URL}article/${a.slug}/">${escapeHtml(a.title)}</a>` +
-      ` <span class="ns-date">${escapeHtml(a.date)} · ${a.readingTime} min</span>` +
-      `<p class="ns-excerpt">${escapeHtml(a.excerpt)}</p></li>`,
+  const topics = EN_TOPICS.map(
+    (t) =>
+      `<li><a href="${EN_BASE}/topics/${t.slug}/">${escapeHtml(t.name)}</a>` +
+      ` — ${escapeHtml(t.tagline)}</li>`,
   ).join('\n')
 
   const body =
     `<div class="ns-home-list">` +
-    `<h1>Writing in English</h1>` +
-    `<p>Selected posts about the projects on this site — small desktop tools, ` +
-    `embedded databases, AI agents and the trade-offs behind them. The full ` +
-    `archive is in Chinese; these are written for an English audience rather ` +
-    `than machine-translated.</p>` +
-    `<p class="ns-meta">${EN_ARTICLES.length} post(s)</p>\n` +
-    `<h2>Posts</h2>\n<ul>\n${items}\n</ul>\n` +
-    `<nav class="ns-nav"><a href="${SITE_ORIGIN}/">中文版</a>` +
-    `<a href="${SITE_ORIGIN}/articles/">全部文章（中文）</a>` +
-    `<a href="${SITE_ORIGIN}/rss.xml">RSS</a></nav>` +
+    `<h1>${escapeHtml(EN_UI.home.title)}</h1>` +
+    `<p class="ns-sub">${escapeHtml(EN_UI.home.sub)}</p>\n` +
+    EN_UI.home.lede.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n') +
+    `\n<p class="ns-meta">${EN_ARTICLES.length} English post(s) · full archive in Chinese</p>` +
+    `<h2>${escapeHtml(EN_UI.home.topicsTitle)}</h2>\n<ul>\n${topics}\n</ul>` +
+    `<h2>${escapeHtml(EN_UI.home.postsTitle)}</h2>\n${enPostItems(EN_ARTICLES)}` +
+    enNav() +
     `</div>`
 
   return renderEnPage(template, {
-    title: 'Writing in English | Stack Frame',
+    title: 'Code & Life | Stack Frame',
     description:
       'Selected English posts about small desktop tools, embedded databases and AI agents.',
-    url: EN_HOME_URL,
+    url: `${EN_HOME_URL}`,
     alternates: enAlternates(null),
+    body,
+  })
+}
+
+function renderEnArticlesPage(template) {
+  const body =
+    `<div class="ns-list">` +
+    `<h1>${escapeHtml(EN_UI.articles.title)}</h1>` +
+    `<p class="ns-lead">${escapeHtml(EN_UI.articles.lead)}</p>\n` +
+    `${enPostItems(EN_ARTICLES)}\n` +
+    enNav() +
+    `</div>`
+
+  return renderEnPage(template, {
+    title: 'Articles | Stack Frame',
+    description: EN_UI.articles.lead,
+    url: `${EN_BASE}/articles/`,
+    alternates: enAlternates(null),
+    body,
+  })
+}
+
+function renderEnTopicsPage(template) {
+  const items = EN_TOPICS.map(
+    (t) =>
+      `<li><a href="${EN_BASE}/topics/${t.slug}/">${escapeHtml(t.name)}</a>` +
+      ` — ${escapeHtml(t.tagline)}` +
+      `<p class="ns-excerpt">${escapeHtml(t.intro)}</p></li>`,
+  ).join('\n')
+
+  const body =
+    `<div class="ns-list">` +
+    `<h1>${escapeHtml(EN_UI.topics.title)}</h1>` +
+    `<p class="ns-lead">${escapeHtml(EN_UI.topics.lead)}</p>\n<ul>\n${items}\n</ul>\n` +
+    enNav() +
+    `</div>`
+
+  return renderEnPage(template, {
+    title: 'Topics | Stack Frame',
+    description: EN_UI.topics.lead,
+    url: `${EN_BASE}/topics/`,
+    alternates: enAlternates(null),
+    body,
+  })
+}
+
+function renderEnTopicPage(template, topic) {
+  const posts = EN_ARTICLES.filter((a) => a.topicSlug === topic.slug)
+  const body =
+    `<div class="ns-list">` +
+    `<h1>${escapeHtml(topic.name)}</h1>` +
+    `<p class="ns-lead">${escapeHtml(topic.tagline)}</p>\n` +
+    `<p>${escapeHtml(topic.intro)}</p>\n` +
+    `${enPostItems(posts)}\n` +
+    enNav() +
+    `</div>`
+
+  return renderEnPage(template, {
+    title: `${topic.name} | Stack Frame`,
+    description: topic.tagline,
+    url: `${EN_BASE}/topics/${topic.slug}/`,
+    alternates:
+      `    <link rel="alternate" hreflang="zh-CN" href="${SITE_ORIGIN}/topics/${topic.slug}/" />\n` +
+      `    <link rel="alternate" hreflang="en" href="${EN_BASE}/topics/${topic.slug}/" />\n` +
+      `    <link rel="alternate" hreflang="x-default" href="${SITE_ORIGIN}/topics/${topic.slug}/" />\n`,
     body,
   })
 }
@@ -986,14 +1080,34 @@ function renderSitemap(articles, { bulkEdits = new Set(), collections } = {}) {
     ...(EN_ARTICLES.length
       ? [
           entry({
-            loc: EN_HOME_URL,
+            loc: `${EN_BASE}/`,
+            lastmod: isoOrEmpty(newestIso),
+            changefreq: 'weekly',
+            priority: '0.7',
+          }),
+          entry({
+            loc: `${EN_BASE}/articles/`,
             lastmod: isoOrEmpty(newestIso),
             changefreq: 'weekly',
             priority: '0.6',
           }),
+          entry({
+            loc: `${EN_BASE}/topics/`,
+            lastmod: isoOrEmpty(newestIso),
+            changefreq: 'weekly',
+            priority: '0.5',
+          }),
+          ...EN_TOPICS.map((t) =>
+            entry({
+              loc: `${EN_BASE}/topics/${t.slug}/`,
+              lastmod: isoOrEmpty(newestIso),
+              changefreq: 'weekly',
+              priority: '0.5',
+            }),
+          ),
           ...EN_ARTICLES.map((a) =>
             entry({
-              loc: `${EN_HOME_URL}article/${a.slug}/`,
+              loc: `${EN_BASE}/article/${a.slug}/`,
               lastmod: isoOrEmpty(a.date),
               changefreq: 'monthly',
               priority: '0.6',
@@ -1777,18 +1891,25 @@ async function main() {
   }
   console.log(`[prerender] wrote ${written} static article page(s) into dist/article/.`)
 
-  // 英文版：/en/ 首页 + 每篇英文稿。没有英文稿时整块跳过，不留空目录页。
+  // 英文版：/en 首页、文章列表、专题列表与每个专题页、每篇英文稿。
+  // 没有英文稿时整块跳过，不留空目录页。
   if (EN_ARTICLES.length) {
     let enWritten = 0
     try {
-      mkdirSync(join(DIST, 'en'), { recursive: true })
-      writeFileSync(join(DIST, 'en', 'index.html'), renderEnIndexPage(template), 'utf8')
-      enWritten += 1
-      for (const article of EN_ARTICLES) {
-        const dir = join(DIST, 'en', 'article', article.slug)
+      const writeEn = (segments, html) => {
+        const dir = join(DIST, 'en', ...segments)
         mkdirSync(dir, { recursive: true })
-        writeFileSync(join(dir, 'index.html'), renderEnArticlePage(template, article), 'utf8')
+        writeFileSync(join(dir, 'index.html'), html, 'utf8')
         enWritten += 1
+      }
+      writeEn([], renderEnIndexPage(template))
+      writeEn(['articles'], renderEnArticlesPage(template))
+      writeEn(['topics'], renderEnTopicsPage(template))
+      for (const topic of EN_TOPICS) {
+        writeEn(['topics', topic.slug], renderEnTopicPage(template, topic))
+      }
+      for (const article of EN_ARTICLES) {
+        writeEn(['article', article.slug], renderEnArticlePage(template, article))
       }
       console.log(`[prerender] wrote ${enWritten} English page(s).`)
     } catch (e) {
@@ -1880,7 +2001,7 @@ async function main() {
           TOPICS.length +
           collections.tags.length +
           collections.categories.length +
-          (EN_ARTICLES.length ? EN_ARTICLES.length + 1 : 0) +
+          (EN_ARTICLES.length ? EN_ARTICLES.length + 3 + EN_TOPICS.length : 0) +
           1
         } URLs).`,
     )

@@ -9,6 +9,11 @@ import { exchangeOAuthTicket } from './api/auth'
 import { refreshAccessToken } from './api/client'
 import { useLoginModal } from './composables/useLogin'
 import { useAuthStore } from './stores/auth'
+import { autoSwitchLang } from './utils/locale'
+
+// 首次访问且系统时区在中文地区之外 → 直接换到 /en/。必须在挂载前调用，
+// 否则中文首页会先闪一下再跳走。
+autoSwitchLang()
 
 const pinia = createPinia()
 const app = createApp(App)

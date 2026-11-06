@@ -31,6 +31,7 @@ import {
 import { TAG_PAGE_MIN_ARTICLES, tagPath } from '../utils/siteConfig'
 import { TOPICS, topicPath } from '../data/topics'
 import { EN_ARTICLES } from '../data/en/articles'
+import { EN_TOPICS } from '../data/en/site'
 import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS, FOOTPRINT_PROVINCES } from '../data/footprints'
 
 const SHELL = `<!doctype html>
@@ -385,7 +386,13 @@ describe('renderSitemap', () => {
   it('lists the home page, every indexable list page, every topic and every article', () => {
     const xml = renderSitemap(articles)
     expect(count(xml, '<loc>')).toBe(
-      1 + indexable.length + TOPICS.length + EN_ARTICLES.length + 1 + 2,
+      1 +
+        indexable.length +
+        TOPICS.length +
+        EN_ARTICLES.length +
+        3 +
+        EN_TOPICS.length +
+        2,
     )
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/</loc>`)
     for (const page of indexable) {
@@ -716,7 +723,7 @@ describe('English edition', () => {
     const html = renderEnIndexPage(SHELL)
     expect(html).toContain('<html lang="en">')
     expect(html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}/en/" />`)
-    expect(html).toContain('Writing in English')
+    expect(html).toContain('Code &amp; Life')
   })
 
   it('pairs the English article with its Chinese original via hreflang', () => {

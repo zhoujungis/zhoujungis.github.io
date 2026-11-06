@@ -1,48 +1,58 @@
 <template>
-  <div class="en-page">
-    <header class="en-top">
-      <a class="en-brand" href="/">
-        <span class="en-brand__name">Stack Frame</span>
-        <span class="en-brand__sub">Code &amp; Life · Journal</span>
-      </a>
-      <nav class="en-nav">
-        <a href="/">中文</a>
-        <a href="/articles/">All posts (中文)</a>
-        <a href="https://blog.zhoujun.dev/rss.xml">RSS</a>
-      </nav>
-    </header>
-
-    <section class="en-hero">
-      <h1>Writing in English</h1>
-      <p>
-        Selected posts about the projects on this site — small desktop tools,
-        embedded databases, AI agents and the engineering trade-offs behind
-        them. The full archive is in Chinese; these are written for an English
-        audience rather than machine-translated.
+  <EnShell>
+    <section class="hero">
+      <p class="hero__kicker">{{ ui.home.kicker }}</p>
+      <h1>{{ ui.home.title }}</h1>
+      <p class="hero__sub">{{ ui.home.sub }}</p>
+      <div class="hero__lede">
+        <p v-for="(text, i) in ui.home.lede" :key="i" :class="{ 'hero__lead': i === 0 }">
+          {{ text }}
+        </p>
+      </div>
+      <p class="hero__meta">
+        {{ EN_ARTICLES.length }} English post(s) · the full archive is in Chinese
       </p>
-      <p class="en-hero__meta">{{ articles.length }} post(s) · updated {{ updated }}</p>
     </section>
 
-    <ul class="en-list">
-      <li v-for="article in articles" :key="article.slug">
-        <a :href="`/en/article/${article.slug}/`">{{ article.title }}</a>
-        <span class="en-list__meta">{{ article.date }} · {{ article.readingTime }} min</span>
-        <p class="en-list__excerpt">{{ article.excerpt }}</p>
-      </li>
-    </ul>
+    <section class="block">
+      <header class="block__head">
+        <h2>{{ ui.home.topicsTitle }}</h2>
+        <a :href="path.topics">All topics →</a>
+      </header>
+      <div class="topics">
+        <a v-for="(topic, i) in topics" :key="topic.slug" :href="path.topic(topic.slug)" class="topic">
+          <span class="topic__no">{{ String(i + 1).padStart(2, '0') }}</span>
+          <strong class="topic__name">{{ topic.name }}</strong>
+          <span class="topic__tagline">{{ topic.tagline }}</span>
+        </a>
+      </div>
+    </section>
 
-    <footer class="en-foot">
-      <a href="/">← 中文版</a>
-      <span>© Stack Frame</span>
-    </footer>
-  </div>
+    <section class="block">
+      <header class="block__head">
+        <h2>{{ ui.home.postsTitle }}</h2>
+        <a :href="path.articles">All posts →</a>
+      </header>
+      <ul class="posts">
+        <li v-for="article in EN_ARTICLES" :key="article.slug">
+          <a :href="path.article(article.slug)">{{ article.title }}</a>
+          <span class="posts__meta">{{ article.date }} · {{ article.readingTime }} min</span>
+          <p class="posts__excerpt">{{ article.excerpt }}</p>
+        </li>
+      </ul>
+      <p v-if="!EN_ARTICLES.length" class="empty">{{ ui.home.emptyNote }}</p>
+    </section>
+  </EnShell>
 </template>
 
 <script setup>
+import EnShell from '@/components/en/EnShell.vue'
 import { EN_ARTICLES } from '@/data/en/articles'
+import { EN_TOPICS, EN_UI, enPath } from '@/data/en/site'
 
-const articles = EN_ARTICLES
-const updated = articles[0]?.date || ''
+const ui = EN_UI
+const topics = EN_TOPICS
+const path = enPath
 </script>
 
 <style lang="scss" scoped>
@@ -50,86 +60,128 @@ const updated = articles[0]?.date || ''
 
 $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
 
-.en-page {
-  width: min(100% - 48px, 760px);
-  margin-inline: auto;
-  padding: 96px 0 64px;
-  color: var(--text-primary);
-  line-height: 1.8;
-}
+.hero {
+  margin-top: 36px;
 
-.en-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding-bottom: 12px;
-  border-bottom: 3px solid var(--text-primary);
-}
+  &__kicker {
+    margin: 0 0 10px;
+    color: var(--text-secondary);
+    font-family: $font-mono;
+    font-size: 0.64rem;
+    letter-spacing: 0.3em;
+  }
 
-.en-brand {
-  text-decoration: none;
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-
-  &__name {
+  h1 {
+    margin: 0;
     font-family: $serif;
-    font-size: 1.35rem;
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
     font-weight: 900;
+    line-height: 1.15;
   }
 
   &__sub {
-    color: var(--text-secondary);
-    font-family: $font-mono;
-    font-size: 0.66rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-  }
-}
-
-.en-nav {
-  display: flex;
-  gap: 16px;
-
-  a {
-    color: var(--accent);
-    font-size: 0.82rem;
-    font-weight: 600;
-    text-decoration: none;
-
-    &:hover { text-decoration: underline; }
-  }
-}
-
-.en-hero {
-  margin-top: 32px;
-
-  h1 {
-    margin: 0 0 0.5em;
+    margin: 8px 0 0;
+    color: var(--accent-secondary);
     font-family: $serif;
-    font-size: 1.9rem;
-    font-weight: 900;
-    line-height: 1.25;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
   }
 
-  p {
-    margin: 0.6em 0;
+  &__lede {
+    max-width: 44em;
+    margin-top: 18px;
+    padding-left: 16px;
+    border-left: 3px solid var(--accent-secondary);
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
+
+    p { margin: 0; }
+    p + p { margin-top: 8px; }
+  }
+
+  &__lead {
+    color: var(--text-primary);
+    font-family: $serif;
+    font-size: 1.02rem;
+    font-weight: 700;
   }
 
   &__meta {
+    margin-top: 14px;
+    color: var(--text-secondary);
     font-family: $font-mono;
-    font-size: 0.72rem;
-    letter-spacing: 0.04em;
+    font-size: 0.7rem;
   }
 }
 
-.en-list {
+.block {
+  margin-top: 48px;
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding-bottom: 8px;
+    border-bottom: 3px solid var(--text-primary);
+
+    h2 {
+      margin: 0;
+      font-family: $serif;
+      font-size: 1.25rem;
+      font-weight: 900;
+    }
+
+    a {
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+  }
+}
+
+.topics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  border-top: 1px solid var(--glass-border);
+}
+
+.topic {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--glass-border);
+
+  &:hover .topic__name { color: var(--accent); }
+
+  &__no {
+    color: var(--text-secondary);
+    font-family: $font-mono;
+    font-size: 0.7rem;
+  }
+
+  &__name {
+    font-family: $serif;
+    font-size: 1rem;
+    font-weight: 800;
+    transition: color $transition-fast;
+  }
+
+  &__tagline {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+}
+
+.posts {
   list-style: none;
-  margin: 36px 0 0;
+  margin: 0;
   padding: 0;
 
   li {
@@ -140,7 +192,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
   a {
     color: var(--text-primary);
     font-family: $serif;
-    font-size: 1.05rem;
+    font-size: 1.02rem;
     font-weight: 800;
     text-decoration: none;
 
@@ -162,18 +214,9 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
   }
 }
 
-.en-foot {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 48px;
-  padding-top: 14px;
-  border-top: 1px solid var(--glass-border);
+.empty {
+  margin-top: 16px;
   color: var(--text-secondary);
-  font-size: 0.8rem;
-
-  a {
-    color: var(--accent);
-    text-decoration: none;
-  }
+  font-size: 0.85rem;
 }
 </style>

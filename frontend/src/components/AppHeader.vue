@@ -100,7 +100,7 @@
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
           </svg>
         </router-link>
-        <a href="/en/" class="lang-switch" title="English edition" hreflang="en">EN</a>
+        <a href="/en/" class="lang-switch" title="English edition" hreflang="en" @click="rememberLang('en')">EN</a>
         <ThemeToggle class="desktop-theme" />
         <button
           class="hamburger"
@@ -172,7 +172,7 @@
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener">GitHub</a>
           <a :href="`mailto:${CONTACT_EMAIL}`">Email</a>
           <a href="https://blog.zhoujun.dev/rss.xml">RSS</a>
-          <a href="/en/" hreflang="en">English</a>
+          <a href="/en/" hreflang="en" @click="rememberLang('en')">English</a>
         </div>
       </aside>
     </transition>
@@ -187,6 +187,7 @@ import { useScrollLock } from '@/composables/useScrollLock'
 import { useSubscription } from '@/composables/useSubscription'
 import { useAuthStore } from '@/stores/auth'
 import { CONTACT_EMAIL } from '@/utils/siteConfig'
+import { rememberLang } from '@/utils/locale'
 import ThemeToggle from './ThemeToggle.vue'
 
 const route = useRoute()

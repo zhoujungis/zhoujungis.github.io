@@ -18,6 +18,7 @@ export const EN_ARTICLES = [
   {
     slug: 'aidevops-terminal-client',
     zhSlug: 'aidevops-terminal-client',
+    topicSlug: 'projects',
     title: 'aidevops: an AI DevOps copilot that lives in your terminal',
     excerpt:
       'An open-source terminal client that stitches requirements, commits, tests, bugs and releases into one traceable chain — with an LLM layer that can only propose, never act.',
