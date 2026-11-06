@@ -173,7 +173,7 @@ aidevops reject &lt;id&gt;               # reject; discard
 
 <p>Three rules make that real. Only <code>approve</code> executes, and the executor is code, not a model decision. No approval means no writes; there is no implicit adoption and no "run by default, undo on objection". Everything lands in <code>AuditLog</code>, queryable with <code>aidevops audit</code>.</p>
 
-<p>For QA the trade-off is easy to state. Tests are a line of defence, and you do not put something that acts on its own on a line of defence.</p>
+<p>For QA the trade-off is easy to state. Tests are a line of defense, and you do not put something that acts on its own on a line of defense.</p>
 
 <p>Multi-tenancy follows the same logic. The tenant id comes from the URL and never from the request body. Non-member access returns 404 without leaking existence, insufficient role returns 403, and every query goes through one <code>scoped_queryset</code> entry point, so there is no place to forget the filter.</p>
 
@@ -261,7 +261,7 @@ python -m mypy ai_devops_cli
     html: `
 <blockquote>
 <p>Who this is for: people who want long-running data collection on GitHub Actions without renting a server; people designing a crawl → dedupe → render → LLM pipeline; people wondering how to spread one analysis across several days on a free quota.</p>
-<p><strong>TL;DR:</strong> the hard part of InterviewAtlas was never writing crawlers. It was three things — deciding what is new <em>before</em> sending the request, making the writes idempotent, and turning model calls into a budgeted, cacheable two-stage pipeline. What actually held it back was not anti-bot defences either: it was two silent failures — a collector that swallowed exceptions, and an analysis step blocked at compile time by a Python 3.11 f-string restriction.</p>
+<p><strong>TL;DR:</strong> the hard part of InterviewAtlas was never writing crawlers. It was three things — deciding what is new <em>before</em> sending the request, making the writes idempotent, and turning model calls into a budgeted, cacheable two-stage pipeline. What actually held it back was not anti-bot defenses either: it was two silent failures — a collector that swallowed exceptions, and an analysis step blocked at compile time by a Python 3.11 f-string restriction.</p>
 <p>Reading time: ~28 minutes · Level: advanced</p>
 </blockquote>
 
@@ -3946,53 +3946,49 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
     date: '2026-10-16',
     readingTime: 24,
     html: `
-<blockquote>
-<p>Part two of the NanoBrowser teardown. <a href="/en/article/nanobrowser-tauri-webview2/">Part one</a> covered the shell, the in-process CDP core, the hand-written WebSocket server and the docked DevTools panel.</p>
-</blockquote>
-
-<strong>Contents</strong>
-<ul>
-<li>Core 6: the tab engine</li>
-<li>Core 7: the zero-framework front end</li>
-<li>Core 8: nanoagent, an invisible browser</li>
-<li>Core 9: the MCP server and its nine tools</li>
-<li>Core 10: traffic capture and capture-time redaction</li>
-<li>The five security layers</li>
-<li>Size and startup accounting</li>
-<li>Persistence: atomic writes, caps and drive policy</li>
-<li>Fourteen paid-for pitfalls</li>
-<li>Known limits</li>
-<li>My verdict</li>
-</ul>
-<hr>
+<p>This is part two. <a href="/en/article/nanobrowser-tauri-webview2/">Part one</a> covered the shell, the in-process CDP core, the hand-written WebSocket server and the docked DevTools panel.</p>
 
 <h2>Core 6: the tab engine</h2>
 
-<p><code>tabs.rs</code> is the largest business file, and it is full of small algorithms worth looking at individually.</p>
+<p><code>tabs.rs</code> is the largest business file, and it is full of small algorithms worth looking at on their own.</p>
 
-<p><strong>Omnibox parsing</strong> (<code>parse_input</code>) has three branches: empty input goes to <code>nano://newtab</code>; an internal page (<code>nano://...</code>) is used as-is; something that looks like a URL gets <code>https://</code> prepended when needed; anything else is searched with the configured engine. <code>looks_like_url</code> is precise: an explicit <code>http://</code> or <code>https://</code> prefix must also survive <code>Url::parse</code>; strings containing spaces or empty strings are rejected (a strong "the user wants to search" signal); otherwise the candidate gets <code>https://</code> and must then have a host equal to <code>localhost</code>, <strong>or</strong> parse as an IP, <strong>or</strong> contain at least two dot-separated segments, and must start with an ASCII letter or digit. Together they draw the least-wrong line between "<code>example.com</code> is a URL" and "<code>how to code</code> is a search".</p>
+<p><strong>Omnibox parsing</strong> has three branches. Empty input goes to the new tab page. An internal <code>nano://</code> address is used as written. Anything that looks like a URL gets <code>https://</code> prepended if needed. Everything else is handed to the configured search engine.</p>
 
-<p><strong>Downloads: race-safe naming.</strong> Same-name files become <code>report (1).pdf</code>, <code>report (2).pdf</code>. Sounds easy, except two downloads starting together can both conclude "this path is free" and write the same file. The fix is an <strong>atomic reservation</strong>: claim the path with an exclusive <code>create_new</code>, and only the winner owns it; WebView2 fills in the content afterwards. <code>unique_path</code> tries up to 1000 candidates. In one line: <strong>use the filesystem's atomicity to arbitrate naming, not an in-memory check.</strong></p>
+<p>The "looks like a URL" test is where the judgement lives. An explicit scheme must also survive <code>Url::parse</code>. A string containing spaces, or an empty string, is treated as a search, because that is a strong signal the user is typing words. Otherwise the candidate gets <code>https://</code> and must then have a host of <code>localhost</code>, or parse as an IP, or contain at least two dot-separated segments, and must start with an ASCII letter or digit.</p>
 
-<p><strong>Favicons must include the port</strong>: <code>scheme://host:port/favicon.ico</code>. Dropping the port on a site running on a non-default port points at a different origin's icon — not just ugly, but semantically wrong.</p>
+<p>Those rules draw the least-wrong line between "<code>example.com</code> is an address" and "<code>how to code</code> is a query".</p>
 
-<p><strong>Zoom</strong> is a fixed 15-step ladder (<code>0.25 … 3.0</code>) read with <code>zoom_idx.min(len - 1)</code>, so an out-of-range index in an old profile cannot panic. In a <code>panic = "abort"</code> build that matters: one out-of-bounds is the whole process. A test pins it (index 999 still yields 3.0).</p>
+<p><strong>Downloads</strong> handle name collisions with <code>report (1).pdf</code> and so on. That sounds trivial until two downloads start together. Both can decide the path is free and both can write the same file.</p>
 
-<p><strong>Shortcuts</strong> are handled in two places depending on whether focus is in the page or the shell: page keystrokes are reported by the injected script and handled in <code>tabs.rs::handle_shortcut</code>; shell keystrokes are handled directly in <code>shell.js</code>. The map covers tab creation and closing, <code>Ctrl+Shift+T</code> reopen, tab cycling and number selection, omnibox focus, find, bookmark, history, downloads, bookmark manager, back/forward, zoom in/out/reset, <code>F5</code> reload, <code>F11</code> fullscreen and <code>F12</code>/<code>Ctrl+Shift+I</code> for the docked panel.</p>
+<p>The fix is an atomic reservation. The winner claims the path with an exclusive create, and only then does WebView2 fill in the content. The naming helper tries up to a thousand candidates. In one line: let the filesystem arbitrate the name, not an in-memory check.</p>
 
-<p>One act of <strong>restraint</strong> is worth noting: editing keys (<code>Ctrl+C/V/X/A</code>), <code>Ctrl+R</code>, <code>Ctrl+P</code> and <code>Ctrl+Shift+1..9</code> are deliberately <strong>left to the engine</strong>. The worst thing a browser shell can do is cleverly swallow keys a page needs. Under the same rule, <code>F5</code> is not intercepted either.</p>
+<p><strong>Favicons</strong> must include the port. Dropping it on a site running on a non-default port points at a different origin's icon, which is not just ugly but wrong.</p>
 
-<h2>Core 7: the zero-framework front end</h2>
+<p><strong>Zoom</strong> is a fixed fifteen-step ladder. The index is clamped before use, so an out-of-range value in an old profile cannot panic. In a build with <code>panic = "abort"</code>, one out-of-bounds read ends the process, so a test pins the clamp.</p>
 
-<p><code>ui/</code> is hand-written HTML/CSS/JS with <strong>no bundler, no framework, no npm</strong>. What that buys: no build step (edit a line of HTML and reload); a UI asset size near zero; and an extremely simple interface to Rust — <code>withGlobalTauri</code> on, so the page calls those 40 commands through the global Tauri API. What it costs: <strong>no component reuse, no type checking, manual state and DOM management</strong> — hence the effort spent on "manual but deterministic" interactions.</p>
+<p><strong>Shortcuts</strong> are handled in two places. Keystrokes inside a page are reported by the injected script and handled in Rust. Keystrokes inside the shell are handled by <code>shell.js</code>. The map covers tab creation and closing, reopen, cycling and number selection, address bar focus, find, bookmark, history, downloads, bookmark manager, back and forward, zoom, reload, fullscreen, and the DevTools toggle.</p>
 
-<p><strong>Tab dragging: FLIP plus one deterministic click suppression.</strong> Driven by <code>pointermove</code>/<code>pointerup</code>/<code>pointercancel</code>, the dragged tab follows the cursor while siblings slide aside with FLIP transitions, so the strip always previews where the drop will land; on release <code>invoke("move_tab", ...)</code> makes Rust reorder for real. The subtle part: <strong>the browser still fires a <code>click</code> after a drag</strong>, so without care you "drag a tab and accidentally select it". The project sets a <code>suppressClick</code> flag and <strong>resets it on the next pointer-down</strong> — not on a timer, not after a tick. It is deterministic and does not depend on task-queue timing.</p>
+<p>One act of restraint is worth noting. Editing keys, <code>Ctrl+R</code>, <code>Ctrl+P</code> and <code>Ctrl+Shift+1</code> through <code>9</code> are left to the engine. The worst thing a browser shell can do is swallow a key the page needs. <code>F5</code> is left alone for the same reason.</p>
 
-<p>Other front-end notes: <strong>suggestions</strong> call <code>omnibox_suggest</code> (Rust matches history and bookmarks, <strong>at most eight, deduplicated</strong>); <strong>themes</strong> resolve "setting + system dark flag" into a final value and merely set <code>document.documentElement.dataset.theme</code> — all design tokens hang off <code>:root</code> and <code>[data-theme="dark"]</code>, so switching themes never touches a class name; and <strong>window control icons are injected by JS, and the SVG's CSS class must come with them</strong> — without the class, glyphs sized by class name (most visibly the fullscreen restore icon) render at default giant size.</p>
+<h2>Core 7: the zero-framework frontend</h2>
+
+<p>The frontend is hand-written HTML, CSS and JavaScript in <code>ui/</code>. No bundler, no framework, no npm.</p>
+
+<p>Three things improve. There is no build step, so editing a line of HTML and reloading is the whole cycle. UI asset size is close to zero. And the interface to Rust is trivial, because <code>withGlobalTauri</code> is on and the page calls the 40 commands directly.</p>
+
+<p>Two things get worse. There is no component reuse and no type checking, and state plus DOM are managed by hand. That is why so much of <code>shell.js</code> is careful, manual interaction code.</p>
+
+<p><strong>Tab dragging</strong> is the most delicate part. Pointer move, up and cancel drive it. The dragged tab follows the cursor while its siblings slide aside with FLIP transitions, so the strip always previews where the drop will land. On release, a command tells Rust to reorder for real.</p>
+
+<p>One detail decides whether this feels broken. The browser still fires a <code>click</code> after a drag, so without care you drag a tab and accidentally select it. The project sets a suppression flag and clears it on the next pointer down, not on a timer. That is deterministic and does not depend on task-queue timing.</p>
+
+<p>Smaller notes. Suggestions ask Rust for matches across history and bookmarks, at most eight and deduplicated. Themes resolve the setting plus the system flag into a final value and set one attribute on the document element, so no component knows about themes. And window control icons are injected by JavaScript, which means the SVG's CSS class must travel with the markup, or glyphs sized by that class render at their default enormous size.</p>
 
 <h2>Core 8: nanoagent, an invisible browser</h2>
 
-<p><code>nanoagent</code> is <strong>the same browser engine in a window that is never shown</strong>, driven by AI tools. The window is created with <code>visible(false)</code>, <code>skip_taskbar(true)</code> and <code>decorations(false)</code>, and uses <strong>its own</strong> WebView2 user-data directory (<code>data\\automation</code>) <strong>fully isolated</strong> from the GUI profile — automated logins and human cookies never mix. Control goes through the <strong>in-process</strong> CDP bridge: <strong>no debugging port</strong>. One-shot commands start a fresh browser each time; MCP mode keeps one warm page across many tool calls.</p>
+<p><code>nanoagent</code> is the same browser engine in a window that is never shown, driven by AI tools.</p>
+
+<p>The window is created hidden, without a taskbar entry and without decorations. It uses its own WebView2 user-data directory, fully separate from the GUI profile, so automated logins and personal cookies never mix. Control goes through the in-process bridge, which means no debugging port. One-shot commands start a fresh browser each time. MCP mode keeps a single warm page across many calls.</p>
 
 <pre><code>nanoagent --mcp                              MCP over stdio (long session)
 nanoagent &lt;command&gt; [args...]                run one action and exit
@@ -4000,7 +3996,7 @@ nanoagent &lt;command&gt; [args...]                run one action and exit
 navigate &lt;url&gt;                               open a URL, print {url,title}
 read &lt;url&gt; [selector] [--html]               print page text (or HTML)
 shot &lt;url&gt; &lt;out.png&gt;                         save a PNG screenshot
-cookies &lt;url&gt;                                list cookies in the profile for that page
+cookies &lt;url&gt;                                list cookies for that page
 traffic &lt;url&gt; [limit]                        print recorded requests (redacted)
 eval &lt;url&gt; &lt;js&gt;                              run JS, print the value
 click &lt;url&gt; &lt;selector&gt;                       click with a trusted mouse event
@@ -4008,100 +4004,110 @@ fill &lt;url&gt; &lt;selector&gt; &lt;value&gt;                type into an inpu
 wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 </code></pre>
 
-<p><strong>Three implementation details, all of them pits.</strong> First, <strong>trusted input</strong>: <code>click</code> uses <code>Input.dispatchMouseEvent</code> (moving, pressed, released) and <code>fill</code> uses <code>Input.insertText</code>, so <strong>the page sees real user input rather than a scripted DOM assignment</strong> — which is what defeats pages that detect automation via <code>isTrusted</code>.</p>
+<p>Three implementation details, all of them earned.</p>
 
-<p>Second, <strong>screenshots go through screencast</strong>: WebView2 <strong>does not implement <code>Page.captureScreenshot</code></strong>, but a hidden window <strong>still composites</strong>, so the agent subscribes to <code>Page.startScreencast</code> and caches frames. The README keeps a fallback on record: if hidden windows ever stop compositing, the official workaround is to move the window off-screen rather than set <code>visible(false)</code>.</p>
+<p><strong>Input is real.</strong> Clicking dispatches mouse events and typing inserts text through the input domain. The page sees genuine user input rather than a scripted assignment to a DOM property, which is what defeats pages that detect automation through <code>isTrusted</code>.</p>
 
-<p>Third, <strong>readiness and thread discipline</strong>: the worker polls <code>is_ready()</code> up to 600 times at 50 ms, because <strong>a webview must have a running event loop before it answers CDP</strong>. And while waiting for a CDP reply it <strong>must never block the UI thread</strong> — the reply lands in shared state and the worker waits on a condition variable. That is exactly the payoff of the <code>cdp.rs</code> design in agent scenarios.</p>
+<p><strong>Screenshots go through screencast.</strong> WebView2 does not implement <code>Page.captureScreenshot</code>. A hidden window still composites, so the agent subscribes to the screencast stream and caches frames. The README keeps one fallback on record: if hidden windows ever stop compositing, move the window off-screen instead of setting it invisible.</p>
+
+<p><strong>Readiness needs discipline on both sides.</strong> The worker polls for readiness up to 600 times at 50 ms intervals, because a webview must have a running event loop before it answers CDP. And while waiting for a reply it never blocks the UI thread. The reply lands in shared state and the worker waits on a condition variable. That is exactly what the bridge design buys in agent scenarios.</p>
 
 <h2>Core 9: the MCP server and its nine tools</h2>
 
-<p><code>--mcp</code> speaks <strong>JSON-RPC 2.0</strong> over stdin/stdout, implements <code>tools/list</code> and <code>tools/call</code>, and reports <code>serverInfo.name</code> as <code>"nanobrowser-agent"</code>. The nine tools: <code>browser_navigate</code>, <code>browser_read</code>, <code>browser_click</code> (synthesized trusted mouse event), <code>browser_fill</code> (<code>Input.insertText</code>), <code>browser_wait_for</code> (poll until a selector exists), <code>browser_screenshot</code> (PNG bytes), <code>browser_cookies</code> (the automation profile's cookies), <code>browser_traffic</code> (recorded requests, redacted) and <code>browser_eval</code> (run JS, return its value).</p>
+<p><code>--mcp</code> speaks JSON-RPC 2.0 over stdin and stdout, implements <code>tools/list</code> and <code>tools/call</code>, and reports its name as <code>nanobrowser-agent</code>.</p>
 
-<p>The loop is simple and typical: read stdin line by line, parse method/params/id, dispatch <code>initialize</code> / <code>tools/list</code> / <code>tools/call</code>, write the reply to stdout. Pure stdio — no network, no port — which makes it a natural child of a local agent process. Against the earlier capabilities, the intent is clear: <strong>navigate, read, click, fill, wait, screenshot and eval are hands and eyes; cookies are the session; traffic is observability</strong> — a minimal complete set for "let an agent operate a web page".</p>
+<p>The nine tools map cleanly onto what an agent needs. Navigate, read, click, fill, wait, screenshot and eval are hands and eyes. Cookies are the session. Traffic is observability.</p>
+
+<p>The loop is deliberately plain: read a line, parse method, params and id, dispatch initialize, list or call, write the reply. Pure stdio means no network and no port, which makes the process easy for a local agent to own and easy to kill.</p>
 
 <h2>Core 10: traffic capture and capture-time redaction</h2>
 
-<p><code>traffic.rs</code> subscribes to <code>Network.*</code> events and records requests. Its core security principle: <strong>redact at capture time, not at output time</strong>. The difference matters — with "store then redact", the plaintext secret has already been sitting in a log buffer where any dump can take it; capture-time redaction means <strong>the secret never entered the buffer</strong>.</p>
+<p><code>traffic.rs</code> subscribes to network events and records requests. Its security rule is one sentence: <strong>redact at capture time, not at output time.</strong></p>
 
-<p>The rules: <strong>eighteen sensitive key substrings</strong> (case-insensitive) — <code>password, passwd, pwd, pass, token, secret, apikey, api_key, api-key, auth, cookie, session, csrf, credit, card, cvv, ssn, otp</code> — replaced with three asterisks in both JSON bodies and header maps; <code>Authorization</code>/<code>Cookie</code> headers and form bodies covered by the same rules; bodies truncated (<code>MAX_BODY = 4096</code>, <code>MAX_VALUE = 512</code>) with <code>MAX_ENTRIES = 500</code>; the log kept <strong>in memory only</strong>, never written to disk; and <strong>redaction cannot be turned off</strong>.</p>
+<p>The difference matters. Store first and redact later, and the plaintext secret has already sat in a log buffer where any dump can take it. Redacting at capture means the secret never entered the buffer.</p>
 
-<p>One more pit: <strong>a redirect reuses the same CDP <code>requestId</code></strong>, so keying by the raw id lets a later record <strong>overwrite the original request and lose its body</strong>. Entries are therefore keyed by a unique key derived from the redirect chain.</p>
+<p>Eighteen key substrings are matched case-insensitively, covering password, token, secret, API key, auth, cookie, session, CSRF, card, CVV, SSN and OTP. A hit becomes three asterisks in both JSON bodies and header maps. Authorization and cookie headers and form bodies follow the same rules. Bodies are truncated, the buffer holds 500 entries, and the log lives only in memory. Redaction cannot be turned off.</p>
 
-<h2>The five security layers</h2>
+<p>One trap sits underneath. A redirect reuses the same CDP request id, so keying records by that id lets a later record overwrite the original request and lose its body. Entries are keyed by a unique id derived from the redirect chain instead.</p>
 
-<p><strong>Layer one: origin validation for page events.</strong> Each tab's init script embeds an <strong>opaque random token minted in Rust</strong> (<code>new_token()</code>, 24 hex digits). A page therefore cannot forge events for another tab, since it does not know that tab's token, and Rust looks the sender up with <code>tab_id_by_token</code> rather than trusting a self-reported id. Tab identity is minted on the Rust side and injected into the page — "pages are untrusted" made concrete.</p>
+<h2>Five security layers</h2>
 
-<p><strong>Layer two: favicons as hostile data.</strong> A favicon is reported by a page and displayed by the trusted shell, so it is treated as hostile input: HTML-escaped before insertion, plus an <code>&lt;img onerror&gt;</code> falling back to a built-in globe icon. A page can therefore never inject a URL of its choosing into the shell.</p>
+<p><strong>Layer one: event origin.</strong> Each tab's init script embeds an opaque random token minted in Rust, twenty-four hex digits. A page cannot forge events for another tab because it does not know that tab's token, and Rust resolves the sender through the token rather than trusting a self-reported id. Tab identity is minted on the Rust side and injected into the page.</p>
 
-<p><strong>Layer three: per-webview capability scopes.</strong> Tauri capabilities are scoped by webview label: <code>shell</code> gets <code>core:default</code> plus window control; <code>tab-local</code> (internal pages) gets <code>core:default</code> plus <code>core:event:allow-emit</code>, i.e. the full app IPC; <code>tab-remote</code> (external URLs) gets <strong>only</strong> <code>core:event:allow-emit</code> — a remote page can report UI events and never call a command. That cell is the crux: internal pages are trusted with IPC, external pages can only emit.</p>
+<p><strong>Layer two: favicons are hostile input.</strong> A favicon is reported by a page and displayed by the trusted shell, so it is escaped before insertion and gets an error handler that swaps in a built-in globe. A page can never inject a URL of its choosing into the shell.</p>
 
-<p>There is a counter-intuitive trap here, explicitly called out: <strong><code>tab-remote</code> must cover all ports</strong> (<code>https://*:*</code>, <code>http://*:*</code> and <code>https://*/*</code>). A site on a non-default port that no capability matches <strong>loses every injected feature at once</strong> — shortcuts, hover state, find highlighting and favicon reporting all fail together. "A configuration problem that looks like broken code" is the hardest kind to diagnose.</p>
+<p><strong>Layer three: per-webview capabilities.</strong> Tauri capabilities are scoped by webview label. The shell gets defaults plus window control. Internal pages get defaults plus the ability to emit, which is the full application IPC. Remote pages get the ability to emit and nothing else, so a remote page can report UI events and can never call a command.</p>
 
-<p><strong>Layer four: no debugging socket.</strong> Neither binary passes <code>--remote-debugging-port</code>; all CDP goes through in-process <code>CallDevToolsProtocolMethod</code>. The GUI's DevTools WebSocket binds a random loopback port and accepts only the session id minted for this panel, so nothing outside the process can attach.</p>
+<p>That last cell is the crux of the model. But it comes with a trap the README calls out. The remote capability must cover all ports. A site on a non-default port matched by no capability declaration loses every injected feature at once: shortcuts, hover state, find highlighting and favicon reporting all fail together. A configuration problem that looks like broken code is the hardest kind to diagnose.</p>
 
-<p><strong>Layer five: profile isolation.</strong> The automation browser uses its own WebView2 data directory, separate from the GUI's; cookies and login state never cross that boundary in either direction.</p>
+<p><strong>Layer four: no debugging socket.</strong> Neither binary passes <code>--remote-debugging-port</code>, and the DevTools WebSocket binds a random loopback port that accepts only the session id minted for the panel.</p>
 
-<h2>Size and startup accounting</h2>
+<p><strong>Layer five: profile isolation.</strong> The automation browser has its own data directory, and cookies never cross between it and the human profile in either direction.</p>
 
-<p>Adding up the earlier decisions: <strong>no rendering engine</strong> (reuse the system WebView2) removes the largest block; the <strong>release profile is entirely size-oriented</strong>; <strong>no WebSocket library</strong> (hand-written SHA-1 and framing) removes a dependency tree; <strong>the front end has no framework or bundler</strong>, so UI assets are near zero; and <strong>Rust + Tauri</strong> never bundles WebView, which is an order of magnitude smaller than embedding Chromium.</p>
+<h2>Where 4.52 MB comes from</h2>
 
-<p>Hence 4.52 MB for the GUI and 4.24 MB for the agent, sharing one library crate — the protocol bridge exists once. Startup follows the same logic: <code>start.bat</code> prefers the release binary and only falls back to debug, and for a shell, cold start is essentially "create a window and load local HTML" with no engine initialization to wait for.</p>
+<p>Add up the earlier decisions. No rendering engine removes the largest block. The release profile is tuned entirely for size. No WebSocket library removes a dependency tree. No framework and no bundler keep UI assets near zero. And Tauri never bundles a webview, which is an order of magnitude smaller than embedding Chromium.</p>
 
-<h2>Persistence: atomic writes, caps and drive policy</h2>
+<p>The GUI binary lands at 4.52 MB and the agent at 4.24 MB, sharing one library crate, so the protocol bridge exists once.</p>
 
-<p>Every path derives from the executable's location, with environment overrides for tests: data root <code>&lt;project&gt;\\data</code> (<code>NANO_DATA_DIR</code>), profile <code>data\\profile.json</code>, WebView2 user-data <code>data\\webview</code>, default downloads <code>&lt;project&gt;\\Downloads</code>, automation profile <code>data\\automation</code> (<code>NANOBROWSER_AGENT_DIR</code>), agent data root (<code>NANOBROWSER_DATA_DIR</code>). That is where "everything lives on the D: drive" comes from: runtime data, caches, downloads and WebView2 user-data all stay inside the project directory and never write to the system drive.</p>
+<p>Startup follows the same logic. The launcher prefers the release binary and falls back to debug. For a shell, cold start is a window creation plus loading local HTML, with no engine to initialise.</p>
 
-<p><code>profile.json</code> holds settings (search engine, theme, homepage, bookmarks bar, startup mode, downloads dir, dock side), bookmarks, history (capped at 500), downloads (capped at 100), the session and window geometry. Three practices worth copying: <strong>atomic save</strong> — write <code>.profile.tmp</code> then rename over <code>profile.json</code>, so a crash mid-write cannot corrupt the profile; <strong>cap-tolerant reads</strong> — truncate history and downloads on load, so a hand-edited oversized file cannot exhaust memory; and <strong>debounced window geometry</strong> so dragging the window does not write to disk every frame.</p>
+<h2>Persistence</h2>
 
-<h2>Fourteen paid-for pitfalls</h2>
+<p>Every path derives from the executable's location, with environment overrides for tests. Runtime data, caches, downloads and the WebView2 user-data directory all stay inside the project directory and never write to the system drive.</p>
 
-<p>The README lists these counter-intuitive constraints in their own section, because they are the most valuable part of the project — <strong>each one cost a real debugging session</strong>.</p>
+<p>The profile file holds settings, bookmarks, history capped at 500, downloads capped at 100, the session and the window geometry. Three practices are worth copying.</p>
 
-<p><strong>Layout and z-order:</strong> every tab is an independent HWND, so a later-created page webview covers the shell and clips menus and suggestions (fix: expand and raise the shell while open, restore on close, and re-assert z-order after any tab change); a child webview cannot see pointer movement outside its own bounds, so panel resizing must route the pointer through a full-window capture layer in the shell; and window control icons injected by JS must carry their SVG CSS classes, or class-sized glyphs render at default giant size.</p>
+<p>Saving is atomic: write a temporary file in the same directory, then rename over the profile, so a crash mid-write cannot corrupt it. Loads are cap-tolerant: history and downloads are truncated on read, so a hand-edited oversized file cannot exhaust memory. And window geometry is debounced, so dragging the window does not write to disk on every frame.</p>
 
-<p><strong>Concurrency and downloads:</strong> closing tabs by index concurrently deletes the wrong neighbours (re-look the tab up inside the lock); and concurrent downloads of the same URL overwrite each other if matched by URL alone (reserve the path with an atomic <code>create_new</code>).</p>
+<h2>Fourteen pitfalls that cost real time</h2>
 
-<p><strong>CDP:</strong> waiting for a CDP reply on the UI thread deadlocks, especially with a hidden window (callback writes shared state, worker thread waits); a redirect reusing <code>requestId</code> overwrites the original record and loses its body (key by a redirect-chain-derived id); <code>--remote-debugging-port</code> is a dead end since only the shell becomes a target; <code>Schema.getDomains</code> lists domains without event names, so a static event table plus lazy per-domain subscription is required; and <code>AreDevToolsEnabled = false</code> does not affect <code>CallDevToolsProtocolMethod</code>, which is what makes docking possible at all.</p>
+<p>The README keeps these in their own section because they are the most valuable artefact of the project. Each one came out of a debugging session.</p>
 
-<p><strong>Docked DevTools:</strong> <code>devtools://</code> is a privileged page where neither <code>window.chrome.webview</code> nor Tauri IPC exists, leaving <code>window.open</code> plus <code>Deny</code> as the only signalling channel; a second query key after <code>?ws=</code> fails the whole load, so extra data must go in the fragment — and while debugging that, <code>webview.url()</code> lies (the error page reports the requested URL), leaving "did the bridge get a client" and "how many domains registered" as the reliable signals; and the grip sits on the edge facing the page, with drag maths of <code>panel_h = window_h - clientY</code> or <code>panel_w = window_w - clientX</code>.</p>
+<p><strong>Layout and z-order.</strong> Every tab is an independent window, so a later-created page covers the shell and clips menus; expand and raise the shell while a menu is open, then re-assert order after any tab change. A child webview cannot see pointer movement outside itself, so panel resizing must route the pointer through the shell. And injected window icons need their CSS classes, or class-sized glyphs render enormous.</p>
 
-<p><strong>Capabilities:</strong> a non-default-port site matched by no capability declaration loses every injected feature at once.</p>
+<p><strong>Concurrency and downloads.</strong> Closing tabs by index concurrently deletes the wrong neighbours, so look the tab up inside the lock. Concurrent downloads of the same URL overwrite each other when matched by URL, so reserve the path atomically.</p>
 
-<p>Three of the fourteen are worth memorizing outright: <strong>the <code>devtools://</code> URL rejects a second query key</strong>, <strong>disabling native DevTools does not disable in-process CDP</strong>, and <strong>sibling webviews cannot see outside themselves</strong>. They are the most counter-intuitive and the most likely to recur in another project.</p>
+<p><strong>CDP.</strong> Waiting for a reply on the UI thread deadlocks, especially in a hidden window. A redirect reusing the request id overwrites the original record. <code>--remote-debugging-port</code> is a dead end because only the shell becomes a target. <code>Schema.getDomains</code> lists domains without event names, so a static table and lazy subscription are required. And disabling native DevTools does not disable in-process CDP, which is the reason docking works at all.</p>
+
+<p><strong>Docked DevTools.</strong> The <code>devtools://</code> page has neither the host object nor Tauri IPC, so a popup request the app denies is the only signalling channel. A second query key fails the whole load, which pushes extra data into the fragment, and while debugging that, the reported URL lies. The splitter sits on the edge facing the page, and the drag maths is a subtraction from the window edge.</p>
+
+<p><strong>Capabilities.</strong> A site on a non-default port matched by no declaration loses every injected feature at once.</p>
+
+<p>Three of the fourteen are worth memorising outright. The DevTools URL rejects a second query key. Disabling native DevTools does not disable in-process CDP. And sibling webviews cannot see anything outside themselves. They are the most counter-intuitive, and the most likely to reappear in another project.</p>
 
 <h2>Known limits</h2>
 
 <ul>
-<li>History and the new-tab "top sites" still guess favicons as <code>scheme://host/favicon.ico</code>; only bookmarks store the icon the page actually reported. Unifying them is a known follow-up.</li>
-<li>The docked panel supports <strong>bottom and right only</strong> — no left side, no undocking into a separate window.</li>
-<li><strong>Windows only</strong>: the whole stack rests on WebView2 COM interop.</li>
-<li>The repository ships <strong>no release pipeline</strong> beyond the <code>nsis</code> target declared in <code>tauri.conf.json</code>.</li>
-<li>There is <strong>no LICENSE file</strong> — per the README's own note, one should be added before distribution.</li>
+<li>History and the new tab page still guess favicons from the host, while only bookmarks store the icon a page actually reported.</li>
+<li>The panel docks bottom or right only, with no left side and no detaching into a separate window.</li>
+<li>Windows only, because the stack rests on WebView2 COM interop.</li>
+<li>No release pipeline beyond the installer target declared in the Tauri config.</li>
+<li>No LICENSE file yet, which the README itself flags before distribution.</li>
 </ul>
 
-<h2>My verdict</h2>
+<h2>Verdict</h2>
 
-<p>Three takeaways, none of them really about "how to write a browser".</p>
+<p>Three things are worth taking away, and none of them is really about writing a browser.</p>
 
-<p><strong>First, "build no engine" is a capability, not laziness.</strong> Most projects default to "implement whatever I need". NanoBrowser asks <strong>what the system already has</strong>. Windows already has Chromium, so build only the shell. That buys 4.5 MB and almost zero engine maintenance, at the cost of Windows-only — a cost its target users can accept. Recognizing which costs are acceptable matters far more than any comparison table.</p>
+<p><strong>Building no engine is a capability, not laziness.</strong> Most projects default to implementing whatever they need. NanoBrowser asks what the system already has, finds Chromium, and builds only the shell. That buys 4.5 MB and near-zero engine maintenance, at the cost of Windows-only. Recognising which costs are acceptable matters more than any comparison table.</p>
 
-<p><strong>Second, the hard part is not features but the host environment's boundaries.</strong> Almost all the complexity here is four invariants: child webviews are sibling HWNDs; CDP callbacks run on the UI thread with no request ids; <code>devtools://</code> has no conventional IPC; and its URL rejects a second query key. Those non-negotiable constraints shape the architecture and explain the long list of pitfalls.</p>
+<p><strong>The hard part is the host's boundaries, not the features.</strong> Nearly all the complexity here comes from four invariants: sibling windows, callbacks on the UI thread without request ids, a privileged page with no conventional IPC, and a URL that rejects a second query key. Those constraints shape the architecture, and they explain the whole list of pitfalls.</p>
 
-<p><strong>Third, "use a side-effect channel as a signal channel" is worth learning.</strong> The panel-to-native <code>window.open('https://nano-dt.invalid/...')</code> plus <code>Deny</code> path is a clean way out when both legitimate channels are cut: <strong>find a side effect that is guaranteed to be intercepted and hang the parameters on it.</strong> Not elegant, but correct, reliable, and requiring no cooperation from the host.</p>
+<p><strong>A side effect can be a signal channel.</strong> When both legitimate channels are cut, find an effect the host is guaranteed to intercept and hang the parameters on it. It is not elegant. It is correct, reliable, and needs no cooperation from the host.</p>
 
-<p>Back to the three decisions — no engine, no debugging port, hand-written hard dependencies. Together they say one thing: <strong>push reuse to the limit and shrink the self-written surface to the layer that must be written and is worth writing.</strong> A 4.5 MB browser is not the result of trimming; it is the result of choosing "do not rebuild this" at every fork.</p>
+<p>Put the three decisions together, no engine, no debugging port, hand-written hard dependencies, and they say one thing: push reuse to its limit, and shrink the self-written surface to the part that must be written and is worth writing. A 4.5 MB browser is not the result of trimming. It is the result of choosing not to rebuild something at every fork.</p>
 
-<h2>Further reading</h2>
+<h2>References</h2>
 <ul>
-<li><a href="https://github.com/zhoujungis/NanoBrowser" rel="noopener noreferrer" target="_blank">zhoujungis/NanoBrowser</a> and its README</li>
-<li><a href="https://tauri.app/" rel="noopener noreferrer" target="_blank">Tauri 2 docs</a></li>
-<li><a href="https://learn.microsoft.com/microsoft-edge/webview2/" rel="noopener noreferrer" target="_blank">WebView2 docs</a></li>
+<li><a href="https://github.com/zhoujungis/NanoBrowser" rel="noopener noreferrer" target="_blank">zhoujungis/NanoBrowser</a></li>
+<li><a href="https://tauri.app/" rel="noopener noreferrer" target="_blank">Tauri 2 documentation</a></li>
+<li><a href="https://learn.microsoft.com/microsoft-edge/webview2/" rel="noopener noreferrer" target="_blank">WebView2 documentation</a></li>
 <li><a href="https://chromedevtools.github.io/devtools-protocol/" rel="noopener noreferrer" target="_blank">Chrome DevTools Protocol</a></li>
 <li><a href="https://modelcontextprotocol.io/" rel="noopener noreferrer" target="_blank">Model Context Protocol</a></li>
 </ul>
 
-<p>Along the same chain: <a href="/en/article/nanohermes-rust-coding-agent/">NanoHermes: a Rust agent with zero runtime</a> and <a href="/en/article/aidevops-terminal-client/">aidevops: an AI DevOps copilot in your terminal</a>.</p>
+<p>Related: <a href="/en/article/nanohermes-rust-coding-agent/">NanoHermes, a Rust agent with no runtime</a> and <a href="/en/article/aidevops-terminal-client/">aidevops, an AI DevOps copilot in your terminal</a>.</p>
 `,
   },
 ]
