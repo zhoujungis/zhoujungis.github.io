@@ -9,7 +9,7 @@
         <a :href="path.home">{{ ui.nav.home }}</a>
         <a :href="path.articles">{{ ui.nav.articles }}</a>
         <a :href="path.topics">{{ ui.nav.topics }}</a>
-        <a href="/about/" hreflang="zh-CN">{{ ui.nav.about }} (中文)</a>
+        <a :href="path.about">{{ ui.nav.about }}</a>
         <a href="/rss.xml">{{ ui.nav.rss }}</a>
         <a href="/" hreflang="zh-CN" @click="rememberLang('zh')">{{ ui.nav.zh }}</a>
         <ThemeToggle />
@@ -20,6 +20,11 @@
 
     <footer class="en-shell__foot">
       <span>{{ ui.footer.rights }}</span>
+      <nav class="en-shell__legal">
+        <a :href="path.about">About</a>
+        <a :href="path.privacy">Privacy</a>
+        <a :href="path.disclaimer">Disclaimer</a>
+      </nav>
       <span class="en-shell__built">{{ ui.footer.built }}</span>
     </footer>
   </div>
@@ -116,6 +121,18 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
 .en-shell__built {
   font-family: $font-mono;
   font-size: 0.7rem;
+}
+
+.en-shell__legal {
+  display: flex;
+  gap: 14px;
+
+  a {
+    color: var(--text-secondary);
+    text-decoration: none;
+
+    &:hover { color: var(--accent); }
+  }
 }
 
 @media (max-width: 640px) {

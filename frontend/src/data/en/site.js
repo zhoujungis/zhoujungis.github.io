@@ -106,6 +106,9 @@ export const enPath = {
   home: '/en/',
   articles: '/en/articles/',
   topics: '/en/topics/',
+  about: '/en/about/',
+  privacy: '/en/privacy/',
+  disclaimer: '/en/disclaimer/',
   topic: (slug) => `/en/topics/${slug}/`,
   article: (slug) => `/en/article/${slug}/`,
 }

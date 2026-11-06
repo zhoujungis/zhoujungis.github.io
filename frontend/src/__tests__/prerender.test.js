@@ -390,7 +390,7 @@ describe('renderSitemap', () => {
         indexable.length +
         TOPICS.length +
         EN_ARTICLES.length +
-        3 +
+        6 +
         EN_TOPICS.length +
         2,
     )

@@ -80,6 +80,8 @@ import { HOME_MASTHEAD, HOME_SUMMARY, HOME_PROJECTS } from '../src/data/home.js'
 import { EN_ARTICLES, EN_BY_SLUG } from '../src/data/en/articles.js'
 // 英文站导航与专题文案：与 pages/en/* 同源，静态快照不会和界面写成两套。
 import { EN_UI, EN_TOPICS } from '../src/data/en/site.js'
+// 英文版合规页正文：与 pages/en/EnPage.vue 同源。
+import { EN_PAGES } from '../src/data/en/pages.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -845,11 +847,53 @@ function enNav() {
     `<a href="${EN_BASE}/">Home</a>` +
     `<a href="${EN_BASE}/articles/">Articles</a>` +
     `<a href="${EN_BASE}/topics/">Topics</a>` +
-    `<a href="${SITE_ORIGIN}/about/">About (中文)</a>` +
+    `<a href="${EN_BASE}/about/">About</a>` +
+    `<a href="${EN_BASE}/privacy/">Privacy</a>` +
+    `<a href="${EN_BASE}/disclaimer/">Disclaimer</a>` +
     `<a href="${SITE_ORIGIN}/rss.xml">RSS</a>` +
     `<a href="${SITE_ORIGIN}/" hreflang="zh-CN">中文</a>` +
     `</nav>`
   )
+}
+
+// 英文合规页：与中文 /about/ /privacy/ /disclaimer/ 一一对应，互相声明 hreflang。
+function renderEnContentPage(template, page) {
+  const zhPath = `/${page.key}/`
+  const body =
+    `<div class="ns-list">` +
+    `<h1>${escapeHtml(page.title)}</h1>` +
+    `<p class="ns-lead">${escapeHtml(page.subtitle)}</p>\n` +
+    page.sections
+      .map((section) => {
+        const paragraphs = (section.paragraphs || [])
+          .map((p) => `<p>${escapeHtml(p)}</p>`)
+          .join('\n')
+        const items = (section.items || []).length
+          ? `<ul>\n` +
+            section.items
+              .map((item) =>
+                item.href
+                  ? `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.text)}</a></li>`
+                  : `<li>${escapeHtml(item.text)}</li>`,
+              )
+              .join('\n') +
+            `\n</ul>`
+          : ''
+        return `<h2>${escapeHtml(section.heading)}</h2>\n${paragraphs}${items ? `\n${items}` : ''}`
+      })
+      .join('\n') +
+    `\n${enNav()}</div>`
+
+  return renderEnPage(template, {
+    title: `${page.title} | Stack Frame`,
+    description: page.description,
+    url: `${SITE_ORIGIN}${page.path}`,
+    alternates:
+      `    <link rel="alternate" hreflang="zh-CN" href="${SITE_ORIGIN}${zhPath}" />\n` +
+      `    <link rel="alternate" hreflang="en" href="${SITE_ORIGIN}${page.path}" />\n` +
+      `    <link rel="alternate" hreflang="x-default" href="${SITE_ORIGIN}${zhPath}" />\n`,
+    body,
+  })
 }
 
 function renderEnIndexPage(template) {
@@ -1111,6 +1155,14 @@ function renderSitemap(articles, { bulkEdits = new Set(), collections } = {}) {
               lastmod: isoOrEmpty(a.date),
               changefreq: 'monthly',
               priority: '0.6',
+            }),
+          ),
+          ...EN_PAGES.map((p) =>
+            entry({
+              loc: `${SITE_ORIGIN}${p.path}`,
+              lastmod: isoOrEmpty(p.updated),
+              changefreq: 'monthly',
+              priority: '0.3',
             }),
           ),
         ]
@@ -1401,6 +1453,20 @@ function renderListPage(template, page, sections) {
   // 生效，而不执行 JS 的抓取器读到的就是这份文件本身。
   if (page.noindex) {
     html = upsertMeta(html, 'name', 'robots', 'noindex, follow')
+  }
+  // 中文合规页与英文版互指，两个语言版本不会被判重复内容。
+  if (page.sitePageKey) {
+    const en = EN_PAGES.find((p) => p.key === page.sitePageKey)
+    if (en) {
+      html = html.replace(
+        '</head>',
+        literal(
+          `    <link rel="alternate" hreflang="zh-CN" href="${url}" />\n` +
+            `    <link rel="alternate" hreflang="en" href="${SITE_ORIGIN}${en.path}" />\n` +
+            `    <link rel="alternate" hreflang="x-default" href="${url}" />\n  </head>`,
+        ),
+      )
+    }
   }
 
   // Cross-links so crawlers (and no-JS readers) can reach the sibling pages
@@ -1911,6 +1977,9 @@ async function main() {
       for (const article of EN_ARTICLES) {
         writeEn(['article', article.slug], renderEnArticlePage(template, article))
       }
+      for (const page of EN_PAGES) {
+        writeEn([page.key], renderEnContentPage(template, page))
+      }
       console.log(`[prerender] wrote ${enWritten} English page(s).`)
     } catch (e) {
       console.warn(`[prerender] could not write English pages: ${e?.message || e}`)
@@ -2001,7 +2070,7 @@ async function main() {
           TOPICS.length +
           collections.tags.length +
           collections.categories.length +
-          (EN_ARTICLES.length ? EN_ARTICLES.length + 3 + EN_TOPICS.length : 0) +
+          (EN_ARTICLES.length ? EN_ARTICLES.length + 6 + EN_TOPICS.length : 0) +
           1
         } URLs).`,
     )

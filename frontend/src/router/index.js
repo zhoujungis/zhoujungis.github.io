@@ -42,6 +42,25 @@ const routes = [
     meta: { lang: 'en', title: 'Stack Frame' },
     component: () => import('../pages/en/EnArticle.vue'),
   },
+  // 英文版合规页：与中文 /about/ /privacy/ /disclaimer/ 一一对应。
+  {
+    path: '/en/about',
+    name: 'EnAbout',
+    meta: { lang: 'en', enPageKey: 'about', title: 'About | Stack Frame' },
+    component: () => import('../pages/en/EnPage.vue'),
+  },
+  {
+    path: '/en/privacy',
+    name: 'EnPrivacy',
+    meta: { lang: 'en', enPageKey: 'privacy', title: 'Privacy Policy | Stack Frame' },
+    component: () => import('../pages/en/EnPage.vue'),
+  },
+  {
+    path: '/en/disclaimer',
+    name: 'EnDisclaimer',
+    meta: { lang: 'en', enPageKey: 'disclaimer', title: 'Disclaimer | Stack Frame' },
+    component: () => import('../pages/en/EnPage.vue'),
+  },
   { path: '/articles', name: 'Articles', meta: listPageMeta('/articles/'), component: () => import('../pages/Articles.vue') },
   // 专题聚合页。文章 URL 保持不变（/article/:slug），专题页只做「按主题
   // 聚类 + 正文介绍」的 SEO 入口，不迁移任何已收录的旧链接。
