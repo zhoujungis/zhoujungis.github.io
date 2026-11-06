@@ -3350,37 +3350,46 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
     date: '2026-10-26',
     readingTime: 38,
     html: `
-<p>SQLite is two million lines. LevelDB is a compact LSM textbook. MongoDB is a distributed system. Writing another database in 2026 looks like reinventing a wheel.</p>
+<p>SQLite has two million lines. LevelDB is a compact LSM textbook. MongoDB is a distributed system. Writing another database in 2026 looks like reinventing a wheel.</p>
 
-<p>But nobody builds a wheel to have a wheel. NanoDB answers three specific questions. What is the shortest path to a database with transactions? How many lines does "committed data survives a crash" actually take? And how do a document model, secondary indexes and optimistic concurrency fit on one in-memory data structure?</p>
+<p>But the point of building a wheel is never the wheel. NanoDB answers a specific set of questions.</p>
 
-<p>The answer is about ten thousand lines of Go with zero third-party dependencies and a single <code>go build</code>. More useful than the line count: one person can read any single part of it in an hour. That is not true of SQLite's pager or RocksDB's compaction.</p>
+<ul>
+<li>What is the shortest path to a database that supports transactions?</li>
+<li>After removing all the engineering jargon, how many lines does "committed data survives a crash" actually take?</li>
+<li>How do a document model, secondary indexes and optimistic concurrency control fit together on a single in-memory data structure?</li>
+</ul>
 
-<p>So read this two ways. As a usable tool, to see when it fits. And as an anatomy specimen, to see what to build first if you write your own.</p>
+<p>The answer is about ten thousand lines of Go with zero third-party dependencies and one <code>go build</code>. More useful than the line count: every part of it can be read by one person in an hour, which is close to impossible in a real database. How long does SQLite's pager layer take to read? How long does RocksDB's compaction?</p>
+
+<p>So read this two ways. <strong>As a usable tool, and as an anatomy specimen.</strong> The first tells you when to reach for it. The second tells you, if you write your own, what to build first, what to build later, and what has to be right the first time.</p>
 
 <h2>What it is</h2>
 
-<p>NanoDB is an embedded document database in Go, currently 0.1.0. Embedded means no daemon and no wire protocol. It is a library in your process, with a CLI, an interactive shell and a REST service wrapped around it.</p>
+<p>NanoDB is a lightweight <strong>embedded document database</strong> written in Go, currently version 0.1.0. Embedded means there is no daemon and no wire protocol. It is a library inside your process, with a CLI, an interactive shell and a REST service wrapped around it.</p>
 
 <table>
-<thead><tr><th>Dimension</th><th>Fact</th></tr></thead>
+<thead><tr><th>Dimension</th><th>Detail</th></tr></thead>
 <tbody>
 <tr><td>Language</td><td>Go 1.22+, single module <code>nanodb</code></td></tr>
 <tr><td>Third-party dependencies</td><td>Zero. Standard library only, no cgo</td></tr>
-<tr><td>Size</td><td>34 <code>.go</code> files, 9,791 lines: 6,592 source, 3,199 tests</td></tr>
+<tr><td>Size</td><td>34 <code>.go</code> files, 9,791 lines: 6,592 source and 3,199 tests, measured</td></tr>
 <tr><td>Data model</td><td>Collection to JSON document, with a non-empty string <code>_id</code></td></tr>
-<tr><td>Persistence</td><td><code>snapshot.json</code> plus <code>wal.log</code> in JSON Lines</td></tr>
-<tr><td>Concurrency</td><td>Safe across goroutines; one process per data directory, enforced by an OS lock</td></tr>
+<tr><td>Persistence</td><td><code>snapshot.json</code> for the full state, <code>wal.log</code> in JSON Lines for changes</td></tr>
+<tr><td>Concurrency</td><td>Safe across goroutines in one process; the data directory is locked at the OS level</td></tr>
 <tr><td>Entry points</td><td>One-shot CLI, interactive shell, REST service</td></tr>
-<tr><td>Coverage</td><td>About 80% on <code>engine</code> and <code>server</code>, 75% on <code>cmd</code></td></tr>
+<tr><td>Tests</td><td>About 80% coverage on <code>engine</code> and <code>server</code>, about 75% on <code>cmd</code></td></tr>
+<tr><td>Target</td><td>Small to medium data, tooling projects, desktop and edge deployments</td></tr>
 </tbody>
 </table>
 
-<p>The trade-off is one sentence: do single-machine, memory-resident, JSON-native well, and give up distribution explicitly. No replicas, no sharding, one process per directory. The README lists all of it rather than leaving it implied.</p>
+<p>The trade-off in one sentence: <strong>do single-machine, memory-resident, JSON-native well, and give up distribution explicitly.</strong> No replicas, no sharding, no clustering, and one process per data directory at a time. Those are outside the boundary by design, and the README lists all of them under known limits.</p>
 
-<p>One detail captures the whole temperament. <code>go build -o bin/nanodb ./cmd/nanodb</code> needs no network, because there is nothing to download.</p>
+<p>One detail says a lot about the project. <code>go build -o bin/nanodb ./cmd/nanodb</code> needs no network, because nothing has to be downloaded. In an era of dependency trees measured in hundreds of megabytes, that belongs in the introduction.</p>
 
-<h2>Five minutes in</h2>
+<h2>Five minutes to first query</h2>
+
+<h3>The one-shot CLI</h3>
 
 <pre><code>go build -o bin/nanodb ./cmd/nanodb
 
@@ -3396,15 +3405,32 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 ./bin/nanodb -db ./data delete users u2
 </code></pre>
 
-<p>Successful commands print indented JSON. Failures exit 1 with an <code>Error:</code> prefix on stderr, so scripts can branch.</p>
+<p>Successful commands print indented JSON to stdout. Failures exit with status 1 and write the error to stderr behind an <code>Error:</code> prefix, so a script can branch on the exit code.</p>
 
-<p>Run without a subcommand and you get a shell. Inside a transaction the prompt changes, and quitting rolls back anything uncommitted.</p>
+<h3>The interactive shell</h3>
 
-<p>The REST service is one flag away: <code>serve -addr :8080 -token secret</code>, then requests carry the token header.</p>
+<p>Run without a subcommand and you get a shell. Inside a transaction the prompt becomes <code>nano(tx)&gt;</code>, and quitting or reaching EOF rolls back anything uncommitted.</p>
 
-<p>All three entry points share one engine. <code>cmd/nanodb/main.go</code> only dispatches arguments, <code>server/server.go</code> only routes and authenticates, and the logic sits in <code>engine/</code>. That is the first decision worth copying: thin entry points, one engine.</p>
+<pre><code>$ ./bin/nanodb -db ./data
+NanoDB 0.1.0 interactive shell. Quote JSON arguments with single quotes.
+nano&gt; begin
+transaction started
+nano(tx)&gt; put users '{"name":"Bob"}'
+nano(tx)&gt; commit
+transaction committed
+</code></pre>
 
-<p>The real usage is the library:</p>
+<h3>The REST service</h3>
+
+<pre><code>./bin/nanodb -db ./data serve -addr :8080 -token secret
+curl -H 'X-NanoDB-Token: secret' localhost:8080/v1/users
+</code></pre>
+
+<p>All three entry points share one engine rather than being three implementations. <code>cmd/nanodb/main.go</code> at 722 lines only dispatches arguments. <code>server/server.go</code> at 764 lines only routes and authenticates. The logic sits in <code>engine/</code>. That is the first architectural decision worth copying: <strong>thin entry points, one engine.</strong></p>
+
+<h3>Go embedding, which is the real usage</h3>
+
+<p>For an embedded database, the CLI and the REST service are attachments. The body is the library call.</p>
 
 <pre><code>db, err := engine.Open("./data", &amp;engine.Options{
     Sync:             true,        // fsync every write
@@ -3423,68 +3449,93 @@ docs, _ := db.Find("users", engine.Query{
     Sort:   []engine.SortField{{Field: "age", Desc: true}},
     Limit:  10,
 })
+fmt.Println(len(docs))
 </code></pre>
 
-<p>The API is a flat method table mirroring the CLI: insert, insert many, get, find, count, replace, update, delete, batch, aggregate, query SQL, create and drop index, compact, stats, close.</p>
+<p>The API is a flat method table that mirrors the CLI subcommands: insert, insert many, get, find, count, replace, update, update many, delete, delete many, batch, aggregate, query SQL, create index, drop index, compact, stats and close.</p>
 
-<p>Two traps are worth knowing. Passing <code>nil</code> for options gives <code>Sync: true</code>, while passing an empty <code>Options</code> literal gives <code>Sync: false</code>, because Go's zero values decide. And every read and write returns a copy, so mutating a returned document never writes back.</p>
+<p>Two notes on using it. Passing <code>nil</code> for options gives the default behaviour, which is sync enabled, while passing an empty <code>Options</code> literal actually means <strong>you chose</strong> sync disabled, because Go's zero values decide. The README calls that trap out explicitly. And every read and write returns a copy, so mutating a returned document never writes back. To change data, go through update or replace.</p>
 
-<h2>Code map</h2>
+<h2>Architecture and code map</h2>
 
 <pre><code>NanoDB/
-├── cmd/nanodb/main.go        # CLI, dispatch, shell, serve, user admin (722)
+├── cmd/nanodb/
+│   └── main.go              # CLI args, dispatch, shell, serve, user admin (722)
 ├── server/
-│   ├── server.go             # REST routes, transaction sessions (764)
-│   ├── auth.go               # auth, roles, collection allowlists
-│   └── users.go              # users.json store
-├── engine/                   # all core logic
-│   ├── db.go                 # storage engine, CRUD, WAL, snapshot, compaction (928)
-│   ├── query.go              # filter compilation, sort, Top-N, projection (585)
-│   ├── index.go              # single and compound indexes, planning (804)
-│   ├── text.go / geo.go      # inverted text index, geo index
-│   ├── sql.go                # read-only SQL: lexer, parser, execution (624)
-│   ├── aggregate.go          # aggregation pipeline
-│   ├── tx.go                 # explicit transactions
-│   ├── batch.go              # atomic batches
-│   ├── lock*.go              # directory lock (LockFileEx / flock)
-│   └── id.go / copy.go       # id generation, deep copy
-└── docs/transaction-isolation.md
+│   ├── server.go            # REST routes, transaction sessions (764)
+│   ├── auth.go              # auth, roles, collection allowlists
+│   └── users.go             # users.json account store
+├── engine/                  # all core logic
+│   ├── db.go                # storage engine, CRUD, WAL, snapshot, compaction (928)
+│   ├── query.go             # filter compilation, sort, Top-N, projection (585)
+│   ├── index.go             # single and compound indexes, query planning (804)
+│   ├── text.go / geo.go     # inverted text index, geo index
+│   ├── sql.go               # read-only SQL: lexer, parser, execution (624)
+│   ├── aggregate.go         # aggregation pipeline
+│   ├── tx.go                # explicit transactions
+│   ├── batch.go             # atomic batches
+│   ├── lock*.go             # directory lock (LockFileEx / flock)
+│   └── id.go / copy.go      # id generation, document deep copy
+└── docs/
+    └── transaction-isolation.md   # full isolation level documentation
 </code></pre>
 
-<p>Dependencies run one way. <code>cmd</code> and <code>server</code> depend on <code>engine</code>, and <code>engine</code> depends on nothing. There is no interface layer, because there is one implementation, and reserving abstractions for an imaginary second one is how small projects become large ones.</p>
+<p>Dependencies run in one direction. <code>cmd</code> and <code>server</code> depend on <code>engine</code>, and <code>engine</code> depends on nobody. There is no abstract interface forest. <code>collection</code>, <code>index</code> and <code>Tx</code> are concrete types, because there is one implementation, and reserving interfaces for a hypothetical second one is how small projects turn into large ones.</p>
+
+<table>
+<thead><tr><th>Module</th><th>Lines</th><th>Job in one sentence</th></tr></thead>
+<tbody>
+<tr><td><code>engine/db.go</code></td><td>928</td><td>In-memory structures, WAL, snapshot compaction, directory lock</td></tr>
+<tr><td><code>engine/index.go</code></td><td>804</td><td>Index structures and query plan selection</td></tr>
+<tr><td><code>server/server.go</code></td><td>764</td><td>REST routing and HTTP transaction sessions</td></tr>
+<tr><td><code>cmd/nanodb/main.go</code></td><td>722</td><td>CLI and shell</td></tr>
+<tr><td><code>engine/sql.go</code></td><td>624</td><td>The three-stage read-only SQL implementation</td></tr>
+<tr><td><code>engine/query.go</code></td><td>585</td><td>Filter compilation, matching, sorting, paging, projection</td></tr>
+</tbody>
+</table>
 
 <h2>Data model</h2>
+
+<p>The data directory holds only a few files.</p>
 
 <pre><code>data/
 ├── snapshot.json   # full data and index definitions at a point in time
 ├── wal.log         # operations since the snapshot, JSON Lines
-├── LOCK            # exclusive process lock
-└── users.json      # optional HTTP accounts
+├── LOCK            # exclusive process lock (empty file, OS-level lock)
+└── users.json      # optional: HTTP accounts
 </code></pre>
 
-<p>A document is a JSON object. Its <code>_id</code> is a non-empty string, generated when absent as a millisecond timestamp in hex plus random characters. The time prefix keeps generated ids roughly ordered, so inserts do not scatter the index.</p>
+<p>The hierarchy is collection to document. A collection resembles a table with no fixed schema. The rules are few, and each one is deliberate.</p>
 
-<p>Writes deep-copy. Mutating the caller's map afterwards cannot affect the database, and reads return copies. That removes a whole class of concurrency bugs where a shared map is edited somewhere else, at the cost of one copy per operation. For memory-resident data of moderate size, that is cheap insurance.</p>
-
-<p>Field names accept dotted paths for filters, sorts, projections and indexes. Field names starting with <code>$</code> are operators, a MongoDB habit the README warns about.</p>
+<ul>
+<li>A document must be a JSON object. Its <code>_id</code> must be a non-empty string, and when absent it is generated as <strong>a 13-hex-digit millisecond timestamp plus 12 random characters</strong>. The time prefix keeps generated ids roughly ordered, so an insert does not scatter the index.</li>
+<li>Writes deep-copy, so mutating your object afterwards cannot affect the database, and reads return copies as well. That rule eliminates a whole class of concurrency bug where a shared map is edited somewhere else, at the price of one copy per operation. For memory-resident data of moderate size, it is cheap insurance.</li>
+<li>Field names accept dotted paths for filters, sorts, projections and indexes, while documents themselves stay freely nested.</li>
+<li>Field names beginning with <code>$</code> are treated as operators. That is a MongoDB compatibility constraint, and the README warns against using <code>$</code> for ordinary field names.</li>
+<li>Numbers written through the CLI or HTTP decode as <code>float64</code>, numbers passed through Go keep their type, and comparisons are numeric either way. Cross-entry type behaviour is defined rather than left to be discovered.</li>
+</ul>
 
 <table>
 <thead><tr><th>JSON type</th><th>Stored</th><th>Filter and sort</th><th>Indexable</th></tr></thead>
 <tbody>
-<tr><td>string</td><td>Yes</td><td>Equality, regex, lexicographic</td><td>Yes</td></tr>
+<tr><td>string</td><td>Yes</td><td>Equality, regex, lexicographic order</td><td>Yes</td></tr>
 <tr><td>number</td><td>Yes</td><td>Numeric comparison</td><td>Yes</td></tr>
 <tr><td>boolean</td><td>Yes</td><td>Equality</td><td>Yes</td></tr>
-<tr><td>null</td><td>Yes</td><td>Only <code>$eq: null</code> and <code>$exists</code></td><td>No</td></tr>
-<tr><td>array</td><td>Yes</td><td>Multikey, any element matches</td><td>Per element</td></tr>
-<tr><td>object</td><td>Yes</td><td>Whole-object equality</td><td>No</td></tr>
+<tr><td><code>null</code></td><td>Yes</td><td>Only <code>$eq: null</code> and <code>$exists</code></td><td>Not written to indexes</td></tr>
+<tr><td>array</td><td>Yes</td><td>Multikey, any element matches</td><td>Each element indexed</td></tr>
+<tr><td>object</td><td>Yes</td><td>Whole-object equality</td><td>Not written to indexes</td></tr>
 </tbody>
 </table>
 
-<p>Null and objects staying out of indexes is easy to miss, because an index-driven candidate set can then miss documents. NanoDB marks such indexes incomplete and still runs the full match over the candidate set.</p>
+<p>Null and objects staying out of indexes is easy to overlook: an index-driven candidate set can then miss documents. NanoDB handles the variants with an incomplete flag plus a rule that the candidate set is only a pre-filter, with the full match still running.</p>
 
 <h2>Persistence</h2>
 
-<p>Every database reduces durability to one question: what happens if power is lost mid-write? NanoDB's answer has three layers, none longer than a few dozen lines.</p>
+<p>This is the core of the project. Every durability problem reduces to one question: <strong>what happens if power is lost mid-write?</strong> NanoDB's answer has three layers, none of them longer than a few dozen lines.</p>
+
+<h3>What a record looks like</h3>
+
+<p><code>wal.log</code> holds one complete record per line, in write order.</p>
 
 <pre><code>{"op":"put","coll":"users","doc":{"_id":"u1","name":"Alice","age":30}}
 {"op":"delete","coll":"users","id":"u2"}
@@ -3493,70 +3544,196 @@ docs, _ := db.Find("users", engine.Query{
 {"op":"drop","coll":"users"}
 </code></pre>
 
-<p>There are seven operation types. Puts are also used for updates, batches and transactions are a parent record with children, and that structure is what makes "all or nothing" hold during replay.</p>
+<p>There are seven operation types: put, delete, drop, batch, tx, index creation and index drop. Updates are written as overwriting puts. Batches and transactions are one parent record with children in an ops array, which is what keeps "all of it or none of it" atomic during recovery too.</p>
 
-<p>JSON Lines is a blunt trade. It is readable, greppable, one record per line, and it costs space and parse time against a binary format. In exchange, crash recovery becomes "parse line by line and truncate the bad tail".</p>
+<p>JSON Lines is a blunt trade. It is readable, greppable, one full record per line, and it costs more space and parse time than a binary format. For a database aimed at moderate data that is a fair exchange, and it reduces crash recovery to "parse line by line, truncate the bad tail".</p>
 
-<p><strong>Layer one: a torn record.</strong> If the process dies mid-line, the file ends with half a line. Replay returns the length of the valid prefix and the WAL is truncated to it:</p>
+<h3>Layer one: truncating a torn record</h3>
 
-<pre><code>func (db *DB) replay(data []byte) (int, error) {
+<p>If the process dies mid-line, the file ends with half a line. Replay returns the length of the valid prefix, and the WAL is truncated to that length.</p>
+
+<pre><code>// replay applies the WAL in order and returns the length of the valid prefix.
+func (db *DB) replay(data []byte) (int, error) {
     offset := 0
     for offset &lt; len(data) {
-        nl := bytes.IndexByte(data[offset:], '\n')
+        nl := bytes.IndexByte(data[offset:], '\\n')
         if nl &lt; 0 {
             return offset, nil   // no newline: the tail is torn, stop here
         }
+        ...
         if err := json.Unmarshal(line, &amp;rec); err != nil {
             return 0, fmt.Errorf("nanodb: corrupt wal near byte %d: %w", offset, err)
         }
+        ...
     }
     return offset, nil
 }
 </code></pre>
 
-<p>Two failures are treated differently on purpose. A missing trailing newline is a normal tear: truncate it and keep everything committed before it. A parse failure in the middle is real corruption, and the database refuses to open. Skipping a bad line in the middle would disguise data loss as a successful recovery.</p>
+<p>Two failures are treated differently on purpose. <strong>A missing trailing newline</strong> is a normal tear: truncate it, and everything committed before it stays. <strong>A parse failure in the middle</strong> is real corruption, and the database refuses to open. Silently skipping a bad line in the middle would disguise data loss as a successful recovery, and that is the one boundary recovery logic must never cross.</p>
 
-<p><strong>Layer two: the writer undoes its own damage.</strong> Recovery alone is not enough, because the writer must not leave half a record for the next recovery to find. If a write or the following fsync fails, the WAL is truncated back to the end of the last complete record. Without that, the next append fuses with the fragment into an invalid line and the database will not open.</p>
+<h3>Layer two: the writer rolls back its own damage</h3>
 
-<p>There is a Windows trap in the same function. The file is opened without <code>O_APPEND</code>, because that flag removes write access on Windows and later truncation fails. Writes are serialised by the mutex and seek explicitly to the end, which keeps append semantics and keeps truncation possible. Cross-platform is not a slogan, it is decisions like this one.</p>
+<p>Recovery alone is not enough. The writer must not leave half a record behind for the next recovery to find, and one function handles it with a comment worth reading in full.</p>
 
-<p><strong>Layer three: a generation number.</strong> The dangerous window in any snapshot plus WAL design is a crash after the snapshot is renamed but before the WAL is cleared. Replay then reapplies records already in the snapshot. For a plain put that is harmless. For a unique index it is a false conflict. For a delete followed by an insert it can resurrect data.</p>
+<pre><code>n, err := db.wal.Write(data)
+if err != nil || n != len(data) {
+    // A failed write may leave half a record at the tail, so roll back to the
+    // previous complete record. Otherwise the next append fuses with the
+    // fragment into an invalid line, and the database cannot be opened.
+    db.rollbackWALLocked()
+    ...
+}
+</code></pre>
 
-<p>So the snapshot records a generation, compaction increments it, and every WAL record carries the generation it was written in. Replay skips anything older than the snapshot. Whichever step compaction crashed on, either the old records are skipped or the old snapshot replays normally, and both states are consistent. One <code>uint64</code> and a comparison separate designed correctness from luck.</p>
+<p>The rollback truncates to the offset of the last complete record and seeks back to it. That offset is both an in-memory counter and the recovery anchor. The same rollback is attached to a failing fsync.</p>
 
-<p>Compaction order matters too. Write a temporary snapshot, fsync it, rename it into place, then clear the WAL, so a complete snapshot always exists on disk. The compaction check runs from points where the in-memory state is fully applied, never inside the write path, because a snapshot taken there could miss a pending delete or index creation.</p>
+<p>There is a Windows trap hidden in the open path, and it is worth quoting as written.</p>
 
-<p><strong>The directory lock.</strong> A convention of one process per directory fails eventually. NanoDB makes it physical with an OS file lock: <code>LockFileEx</code> on Windows, <code>flock</code> elsewhere. A second process gets an error, and a crash releases the lock automatically, so no zombie lock survives a crash.</p>
+<pre><code>// Not O_APPEND: on Windows that flag removes GENERIC_WRITE, so a later
+// Truncate fails with Access is denied. Writes are serialized by db.mu, so an
+// explicit seek to the end preserves append semantics.
+f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, filePerm)
+</code></pre>
+
+<p>"Cross-platform" is usually a claim in a README. Here it is a decision about one flag, made by someone who actually ran the thing on Windows.</p>
+
+<h3>Layer three: a generation number for the compaction window</h3>
+
+<p>Any snapshot plus WAL design has a dangerous window: a crash after the snapshot is renamed but before the WAL is cleared. Replay would then reapply records already folded into the snapshot. For a plain put that is harmless. For a unique index it is a false conflict. For a delete followed by an insert, it can resurrect data.</p>
+
+<p>NanoDB closes the window with generations. The snapshot records a generation, compaction increments it, and every WAL record carries the generation it was written in. Replay has one rule.</p>
+
+<pre><code>// Records older than the current snapshot generation are already covered.
+if rec.Gen &lt; db.walGen {
+    offset += nl + 1
+    continue
+}
+</code></pre>
+
+<p>Whichever step compaction crashed on, the result is self-consistent: either the old-generation records are skipped, or the snapshot is still the old generation and replays normally. One <code>uint64</code> and one comparison is all it takes. That is the line between designed correctness and luck.</p>
+
+<p>Compaction order matters too: <strong>write a temporary snapshot, fsync it, rename it into place, then clear the WAL.</strong> At any moment a complete old or new snapshot exists on disk. The compaction check is also called from points where the in-memory state has been fully applied, such as after a transaction commit or a completed batch. Compacting inside the write path could snapshot a state that is ahead of the data, missing a pending delete or index creation.</p>
+
+<h3>The directory lock</h3>
+
+<p>"One process per data directory" as a convention eventually fails, and two processes write at once. NanoDB makes it a physical fact with an operating-system file lock: <code>LockFileEx</code> on Windows, <code>flock</code> on Unix. A second process gets a distinct error, and a crashed process releases the lock automatically, so there is no zombie lock after a crash. A few dozen lines per platform, selected by build tags.</p>
 
 <h2>Query execution</h2>
 
-<p>A find runs through five steps, each with a clear motive: pick an index, compile the filter, match documents, sort, then skip, limit and project.</p>
+<p>A find call runs through five steps, each one with a clear motive.</p>
 
-<p><strong>Pick the smallest candidate set.</strong> There is no cost model, no statistics and no histograms. Each usable index is asked for its candidate set, and the smallest wins. For a single-machine in-memory database that is the best value per line of code, because an index lookup is logarithmic and asking four is far cheaper than choosing badly.</p>
+<pre><code>planCandidates   (choose a candidate set from indexes)
+    → compileFilter
+    → match each document
+    → Top-N or full sort
+    → skip and limit → projection copy
+</code></pre>
 
-<p>One rule is more important than the planner's cleverness. <code>$or</code> and <code>$not</code> cannot produce a candidate set safely, because the union of branches can miss documents, so the planner declines to use an index rather than risk it. Knowing when not to be clever is the main quality of a planner.</p>
+<h3>Step one: the smallest candidate set</h3>
 
-<p>The candidate set is also only a pre-filter. The full match always runs afterwards.</p>
+<pre><code>// planCandidates picks the index with the smallest candidate set from the
+// filter, and returns nil to mean a full scan.
+func (c *collection) planCandidates(filter map[string]any) map[string]struct{} {
+    ...
+    conds := make(map[string][]any, len(filter))
+    collectConditions(filter, conds)
+    ...
+    consider := func(ids map[string]struct{}) {
+        if ids == nil { return }
+        if best == nil || len(ids) &lt; len(best) { best = ids }
+    }
+    for _, ix := range c.indexes { consider(ix.lookup(conds)) }
+    for _, tx := range c.texts    { consider(tx.lookup(conds["$text"])) }
+    for field, gx := range c.geos { consider(gx.lookup(conds[field])) }
+    return best
+}
+</code></pre>
 
-<p><strong>Compile the filter once.</strong> A naive implementation re-walks the filter map per document and recompiles regexes per document. Both are hoisted above the scan: the map becomes a slice, and regexes are compiled once, with an invalid pattern compiled to "never matches" rather than one error per document. On a hundred thousand documents that is the difference between two thousand allocations and hundreds of thousands.</p>
+<p>No cost model, no statistics, no histograms. Every usable index is asked for a candidate set, and the smallest one wins. For a single-machine in-memory database that is the best planner per line of code, because an index lookup is logarithmic and asking three or four is far cheaper than choosing badly and scanning.</p>
 
-<p><strong>Sort with a heap when there is a limit.</strong> Asking for the first fifty means one pass with a heap of size skip plus limit, then sorting fifty elements. Complexity drops from n log n to n log k. Measured on a hundred thousand randomly ordered documents, that is 6.5 ms against 85.3 ms.</p>
+<p>The rule in <code>collectConditions</code> matters more than the cleverness. It gathers top-level conditions and those inside <code>$and</code>. A union of branches under <code>$or</code> cannot be narrowed safely, because a candidate set that is too small silently drops documents, so the planner declines to use an index rather than risk it. The most important quality of a planner is <strong>knowing when not to be clever</strong>. The chosen set is also only a pre-filter: the full match still runs afterwards as a second safety net.</p>
+
+<h3>Step two: compile the filter once</h3>
+
+<pre><code>// compileFilter flattens the filter into a slice so per-document matching does
+// not allocate map iterators, and precompiles regexes so a scan does not
+// recompile the same pattern for every document.
+func compileFilter(filter map[string]any) []filterClause { ... }
+</code></pre>
+
+<p>An invalid regex compiles to a nil matcher that never matches, rather than producing one error per document. On a scan of a hundred thousand documents, those two decisions are the difference between roughly two thousand allocations and hundreds of thousands.</p>
+
+<h3>Step four: sort through a heap when there is a limit</h3>
+
+<pre><code>if len(q.Sort) &gt; 0 {
+    if q.Limit &gt; 0 {
+        k := len(out)
+        if q.Skip &lt; len(out) &amp;&amp; q.Limit &lt; len(out)-q.Skip {
+            k = q.Skip + q.Limit
+        }
+        out = topNSortDocs(out, q.Sort, k)   // max-heap of size k
+    } else {
+        sortDocs(out, q.Sort)
+    }
+}
+</code></pre>
+
+<p>Asking for the first fifty means one pass with a heap of size skip plus limit, where the top of the heap is the worst of the current best k, and then sorting k elements. Complexity drops from n log n to n log k. Measured on a hundred thousand randomly ordered documents, that is <strong>6.5 ms against 85.3 ms</strong>.</p>
+
+<p>Sort keys are also extracted up front, so a comparison never has to walk back into nested fields. And skip is handled by fetching skip plus limit rather than sorting the whole result and then slicing.</p>
 
 <h2>Indexes</h2>
 
-<p>An index is an ordered key to document-id map. It supports single fields, compound keys, uniqueness and arrays, where each element is indexed and any element matching counts. Range queries binary-search the boundaries, so cost is logarithmic plus the number of hits.</p>
+<h3>Secondary indexes and the incomplete flag</h3>
 
-<p>Compound indexes have one honest limitation. A document containing an array cannot enter a compound index under tuple semantics, so the index is marked incomplete and the planner falls back to a full scan. Slow is better than wrong: a partially visible index treated as complete would silently drop documents, which is worse than one order of magnitude of latency.</p>
+<p>An index is an ordered key to a set of document ids. It supports single fields, compound keys, uniqueness, and arrays where each element is indexed and any element matching counts. Range queries binary-search the boundaries.</p>
 
-<p><strong>Text search</strong> covers every string in a document. Alphanumeric runs become lowercase words, and runs of Han characters also emit bigrams, so a query is sliced the same way and ANDed. Chinese search works without a segmentation dictionary.</p>
+<pre><code>// spanFor binary-searches the entry range for a first-field range condition.
+func (ix *index) spanFor(op string, val any) (entrySpan, bool)
+</code></pre>
 
-<p>The limits are stated plainly: no stop words, no stemming, no synonyms, no relevance score, multi-term queries are pure AND, and results are not ranked. It is usable retrieval, not a search engine, and for an embedded database that is the right scope.</p>
+<p>That makes a range query logarithmic plus the number of hits instead of a full walk. It is where the measured gap between 3.1 ms indexed and 27.3 ms scanned comes from.</p>
 
-<p><strong>Geo</strong> stores entries ordered by longitude, so a box query narrows candidates through the ordered structure before running trigonometry. Circles use haversine distance. No polygons, no GeoJSON geometry, no handling of the 180th meridian, and results are not distance-sorted.</p>
+<p>Compound indexes have one honest limitation. A document containing an array field cannot enter a compound index under tuple semantics, so the index is marked incomplete, and lookups against an incomplete index return nil, which means unusable. The planner then falls back to a scan. <strong>Slow is better than wrong.</strong> A partially visible index treated as complete would silently drop documents, which is far worse than one order of magnitude of latency.</p>
+
+<h3>Text indexes: Chinese search without a dictionary</h3>
+
+<p>The full-text index covers every string in a document and is queried with <code>$text</code>. The tokenizer is about thirty lines.</p>
+
+<pre><code>// tokenizeText splits on letters and digits, and additionally emits bigrams
+// for runs of Han characters, so Chinese queries match fragments without a
+// segmentation dictionary.
+func tokenizeText(s string) []string {
+    ...
+    if han &amp;&amp; len(word) &gt; 1 {
+        for i := 0; i &lt; len(word)-1; i++ {
+            out = append(out, string(word[i:i+2]))   // 数据库 -&gt; 数据, 据库
+        }
+    } else {
+        out = append(out, strings.ToLower(string(word)))
+    }
+    ...
+}
+</code></pre>
+
+<p>Bigrams are a classic dictionary-free approach. A phrase becomes overlapping pairs, a query is sliced the same way, and every term must match. No segmentation dictionary is needed anywhere in the pipeline.</p>
+
+<p>The limits are stated plainly in the README: no stop words, no stemming, no synonyms, no relevance score, multi-term queries are pure AND, and results come back unordered. It is <strong>usable retrieval, not a search engine</strong>. For an embedded database that is the right scope, because most cases only need the documents containing these words.</p>
+
+<h3>Geo indexes: longitude order plus haversine</h3>
+
+<p>Geo entries are ordered by longitude and support <code>$geoWithin</code> with a box and a metric circle. Circles use haversine distance.</p>
+
+<pre><code>// haversineMeters returns the great-circle distance between two points.
+func haversineMeters(lon1, lat1, lon2, lat2 float64) float64
+</code></pre>
+
+<p>A box narrows candidates through the ordered structure first, and only then does the circle test run, so the expensive trigonometry is limited to a small set. The limits are equally explicit: no polygons and no GeoJSON geometry, no handling of the 180th meridian, and results are not distance-ordered.</p>
 
 <h2>Transactions</h2>
 
-<p>No lock waits, no deadlocks, no undo chains. The scheme is the plainest one that fits "in memory, one process": a collection snapshot plus version checks.</p>
+<p>No lock waiting, no deadlocks, no MVCC undo chain. NanoDB uses the plainest scheme that fits "in memory, one process": <strong>collection snapshots plus version validation.</strong></p>
 
 <pre><code>type Tx struct {
     mu       sync.Mutex
@@ -3569,53 +3746,103 @@ docs, _ := db.Find("users", engine.Query{
 }
 </code></pre>
 
-<p>Begin takes no lock. On first access to a collection, under a read lock, the transaction records the version and deep-copies the collection. Everything after that works on the snapshot, which gives repeatable read for free and lets the transaction see its own uncommitted writes.</p>
+<p>The workflow is short.</p>
 
-<p>Commit takes the write lock once and validates the whole read set. If any accessed collection changed since it was copied, the transaction aborts with a conflict error, all changes are discarded, and the caller retries. On success, the entire change set becomes one WAL record, the affected collections are replaced, and their versions increment.</p>
+<ol>
+<li><strong>Begin takes no database lock at all.</strong></li>
+<li><strong>The first access to a collection</strong> takes a read lock, records the version and deep-copies the whole collection. Everything after that reads and writes the snapshot, which gives repeatable read for free and lets the transaction see its own uncommitted writes.</li>
+<li><strong>Commit takes the write lock once</strong> and validates the entire read set.</li>
+</ol>
 
-<p>Four consequences follow.</p>
+<pre><code>// Validate the whole read set to avoid lost updates and non-repeatable reads;
+// read-only transactions validate snapshot consistency the same way.
+for name, ver := range tx.versions {
+    if tx.db.versions[name] != ver {
+        tx.finishLocked()
+        return fmt.Errorf("%w: collection %q changed during transaction", ErrConflict, name)
+    }
+}
+</code></pre>
 
-<p>Conflicts are at collection granularity. Touching a different document in the same collection still aborts, and that is the acknowledged false conflict. A version comparison is much cheaper than per-document tracking, which is the right trade for low-conflict workloads and a poor one for hot collections.</p>
+<p>If validation passes, the whole change set becomes <strong>one</strong> WAL record, the affected collections are replaced and their versions increment. If it fails, the caller gets a conflict error, every change is discarded, and it retries from begin.</p>
 
-<p>There are no deadlocks, because there is no lock waiting. The only synchronisation point is the brief commit, and the database stays writable throughout.</p>
+<p>Four consequences follow from that design.</p>
 
-<p>Read-only transactions still call commit, because that is what certifies a consistent cross-collection view.</p>
+<ul>
+<li><strong>Conflict granularity is the collection.</strong> If anyone touched any collection you read, even a different document, the commit fails. That is the acknowledged false conflict. A single version comparison is far cheaper than per-document tracking, which is the right trade for low-conflict workloads and a poor one for hot collections under heavy writes.</li>
+<li><strong>There are no deadlocks.</strong> Nothing waits on a lock. The only synchronization point is the brief commit, and conflicts return an error rather than queueing. Between begin and commit the database stays fully writable.</li>
+<li><strong>Read-only transactions still call commit.</strong> That is what certifies a consistent cross-collection view.</li>
+<li><strong>Transaction methods are goroutine-safe</strong> behind one mutex. After the transaction ends every method returns a done error, and deferred rollback is idempotent.</li>
+</ul>
 
-<p>Transaction methods are goroutine-safe, a finished transaction returns an error from every method, and rollback is idempotent.</p>
+<p>The canonical example is a transfer.</p>
 
-<h2>Batches</h2>
+<pre><code>tx, err := db.Begin()
+if err != nil { return err }
+defer tx.Rollback() // idempotent; returns a done error after commit
 
-<p>Transactions handle multi-step work with rollback. Batches handle "all at once, no intermediate state", and the strategy is to clone and stage.</p>
+if _, err := tx.Update("accounts", from, map[string]any{"$inc": map[string]any{"balance": -100}}); err != nil {
+    return err
+}
+if _, err := tx.Update("accounts", to, map[string]any{"$inc": map[string]any{"balance": 100}}); err != nil {
+    return err
+}
+if err := tx.Commit(); err != nil {
+    if errors.Is(err, engine.ErrConflict) {
+        // A related collection changed; Begin again and retry.
+    }
+    return err
+}
+</code></pre>
 
-<p>Every write in the batch runs against clones. Any failure, whether a duplicate id, a unique index conflict, an invalid update or a missing target, discards the whole batch with the real data untouched. On success the whole change set becomes one WAL record, so replay is atomic and there is no half-commit.</p>
+<p>Full isolation levels, semantic details and retry advice live in <code>docs/transaction-isolation.md</code>. Keeping transaction semantics in their own document rather than scattering them through comments says something about the project's documentation.</p>
 
-<p>Batches span collections. Updating a missing target is an error; deleting a missing target is not, and reports that nothing was deleted.</p>
+<h2>Atomic batches</h2>
 
-<p>Cloning costs peak memory and buys atomicity without rollback logic. A failed path throws the clone away, and there is no code that has to undo half-applied index maintenance.</p>
+<p>Transactions cover multi-step work with rollback. Batches cover "all at once, no intermediate state", and the strategy is <strong>clone and stage</strong>.</p>
 
-<p>Batches also read from stdin, and because success writes one record, importing a hundred thousand documents costs one fsync instead of a hundred thousand.</p>
+<ul>
+<li>Every write in the batch runs against clones of the affected collections. Any failure, whether a duplicate id, a unique index conflict, an invalid update expression or a missing target, discards the whole batch with the real data never touched.</li>
+<li>On success the whole change set is written as one batch record, which is <strong>one</strong> WAL entry, replayed atomically, so there is no half-commit.</li>
+<li>Batches span collections. Updating a missing target is an error; deleting a missing target is not, and the result reports that nothing was deleted. Both directions follow what the caller most likely meant.</li>
+</ul>
 
-<h2>SQL and aggregation</h2>
+<p>Cloning costs peak memory during the batch and buys <strong>atomicity without rollback logic</strong>. A failing path throws the clone away, and there is no code that has to undo half-applied index maintenance, which is the hardest code in a database to get right. The mechanism is the same snapshot family as transactions.</p>
 
-<p><code>engine/sql.go</code> is a hand-written read-only subset: lex, parse, execute. It supports select with from, where, order by and limit or offset, plus count star.</p>
+<p>Batches also read from stdin, and because success writes one record, importing a hundred thousand documents costs one fsync instead of a hundred thousand. Under a WAL, batching pays multiplicatively.</p>
 
-<p>It brings no engine of its own. The parse result becomes the same query structure the REST and CLI paths use, so it runs through the same filter compiler, the same planning and the same Top-N sort. SQL and find performing identically is not a coincidence. They are one pipeline with two front doors.</p>
+<h2>Read-only SQL and aggregation</h2>
 
-<p>The boundary is explicit. No joins, no group by, no having, no distinct, no subqueries, no union, no column aliases, and like is case-sensitive.</p>
+<h3>SQL: three stages, same engine</h3>
 
-<p>Aggregation has eight stages and seven accumulators, named to match MongoDB. No lookup, no facet, no window functions, and aggregation does not use indexes.</p>
+<p><code>engine/sql.go</code> at 624 lines is a hand-written read-only subset: lex, parse, execute. It supports select with from, where, order by and limit or offset, plus count star.</p>
+
+<p>The important property is that it <strong>brings no execution engine of its own</strong>. The parse result is translated into the same query structure the REST and CLI paths use, with filter, sort, limit, skip and fields, and then runs through the same filter compiler, the same index planning and the same Top-N sort. SQL and find performing identically is not a coincidence. They are one pipeline with two front doors.</p>
+
+<p>The boundary is explicit, and the cost of that simplicity is stated too: no joins, no group by, no having, no distinct, no subqueries, no union and no column aliases; aggregation supports only count star; and like is case-sensitive. For query convenience on an embedded store, that subset covers most of "pull data out for a script".</p>
+
+<h3>Aggregation pipeline</h3>
+
+<p>Eight stages: match, group, sort, skip, limit, project, unwind and count. Accumulators are sum, average, minimum, maximum, first, last and push, named to match MongoDB so people who know it need no learning time.</p>
+
+<p>The limits are honest in the same way: no lookup, no facet, no window functions, no out or merge, and <strong>aggregation does not use indexes</strong>. A match at the head of a pipeline can still benefit from the caller pushing filters down, but the pipeline itself does no index planning.</p>
 
 <h2>HTTP service</h2>
 
-<p>The REST layer exposes health, CRUD under a versioned collection path with filter, sort, limit, skip, fields and count in query parameters, and a small set of admin endpoints.</p>
+<p>The server package wraps the engine in REST.</p>
 
-<p>Authentication is a shared token header, or per-user tokens limited to admin, write or read with an exact-match collection allowlist.</p>
+<ul>
+<li><strong>Routes.</strong> Health, CRUD under a versioned collection path with filter, sort, limit, skip, fields and count carried in query parameters, and admin endpoints such as compaction.</li>
+<li><strong>Auth.</strong> An empty token disables authentication. Otherwise requests carry a token header. The shared token is the admin credential, and per-user tokens can be limited to admin, write or read with an exact-match collection allowlist.</li>
+<li><strong>HTTP transactions.</strong> A post opens a transaction and returns an id, operations run under that id, and the caller commits or rolls back. Sessions live <strong>in server memory</strong>, roll back after thirty idle minutes, and roll back at shutdown, so a forgotten transaction cannot pin snapshot memory indefinitely.</li>
+<li><strong>Defensive details.</strong> An 8 MiB request body cap, with large imports pushed to the CLI; parameter validation; consistent error codes; and request parsing that never leaves a connection half-open.</li>
+</ul>
 
-<p>Transactions are opened by a POST that returns an id, and subsequent requests operate under that id until they commit or roll back. Sessions live in server memory, roll back after thirty idle minutes, and roll back at shutdown, so a forgotten transaction cannot pin snapshot memory indefinitely.</p>
+<p>HTTP transactions <strong>share the same transaction implementation</strong> as the Go API. The session layer only maps ids to transactions and reaps the idle ones. Thin entry points, one engine, again.</p>
 
-<p>The session layer is only a map from id to transaction. HTTP transactions share the same implementation as library transactions.</p>
+<h2>Measured performance</h2>
 
-<h2>Measured</h2>
+<p>A hundred thousand documents, with equality and range queries matching a thousand of them. These are local Windows numbers, and they move with the machine and the load.</p>
 
 <table>
 <thead><tr><th>Scenario</th><th>Time</th><th>Allocations per op</th></tr></thead>
@@ -3631,20 +3858,39 @@ docs, _ := db.Find("users", engine.Query{
 </tbody>
 </table>
 
-<p>Four readings. Indexes are worth four to nine times, and more on ranges, because a scan recompares per document. Top-N is worth thirteen times, so never fully sort when you need the first N. Allocations per op are more trustworthy than wall time, because consecutive benchmark runs throttle the CPU and absolute numbers swing by more than 30%. And sort plus pagination allocates 208 times because key extraction and the heap decouple comparison from field access.</p>
+<p>Four readings from that table.</p>
 
-<h2>Tests</h2>
+<ol>
+<li><strong>Indexes are worth four to nine times</strong>, and the range case shows the wider gap because a scan recompares per document while an index binary-searches and walks the hit span.</li>
+<li><strong>Top-N is worth thirteen times</strong>. Never fully sort when you only need the first N.</li>
+<li><strong>Allocations per op are more trustworthy than wall time.</strong> The README notes that consecutive benchmark runs throttle the CPU and absolute timings can swing by more than 30%, so compare allocation counts.</li>
+<li><strong>Sort with pagination allocates only 208 times</strong>, because extracting sort keys and using a heap decouples comparison from field lookup.</li>
+</ol>
+
+<p>The tuning advice is just those mechanisms again. Index hot filter fields, but not too many. Project with the fields parameter when you need a subset, since projection copies while copying and costs the same allocations. Pair sort with limit whenever you only need the first N. Accept losing recent writes with the no-sync flag if throughput matters more. And raise the compaction threshold for write-heavy workloads, at the cost of a longer replay on restart.</p>
+
+<h2>Tests and engineering quality</h2>
 
 <pre><code>go vet ./...
 go test ./...
 go test -cover ./...
-go test -race ./...
+go test -race ./...        # needs cgo and a C compiler
 go test ./engine -run '^$' -bench Benchmark -benchmem
 </code></pre>
 
-<p>All three packages pass, with coverage around 80% on the engine and the server and 75% on the CLI. Coverage includes WAL replay, compaction and the directory lock, which is where durability projects actually fail. Benchmarks use a hundred thousand documents, with a paired A/B between full sort and Top-N.</p>
+<p>All three packages pass: <code>cmd</code> in 0.87 s, <code>engine</code> in 1.08 s, <code>server</code> in 1.58 s. Coverage is about 80% on engine and server, 75% on cmd.</p>
 
-<p>The git history shows the process being maintained too: semantic version tags and releases on each commit, normalised line endings, explicit module cache handling. A 0.1.0 project that built its release pipeline first intends to stay.</p>
+<p>The coverage list shows where the emphasis sits.</p>
+
+<ul>
+<li><strong>Engine:</strong> CRUD, query operators, sort, paging and projection, four kinds of index and uniqueness, aggregation, SQL parsing and execution, batch atomicity, transaction isolation and conflict, <strong>WAL replay, compaction and the directory lock</strong>, behaviour after close, and update error paths.</li>
+<li><strong>Server:</strong> auth, roles and allowlists, account storage, routing, method handling, parameter validation, error codes, transaction sessions and timeout reaping, and the body cap.</li>
+<li><strong>CLI:</strong> argument parsing, the full path of a one-shot command, shell transactions and EOF rollback, and starting and stopping the server.</li>
+</ul>
+
+<p>What deserves credit is that crash and boundary scenarios are part of the regular suite rather than a happy-path check. Recovery, compaction, locking and EOF rollback are exactly where durability projects fail in production. Benchmarks use a hundred thousand documents, with a paired A/B between a full sort and Top-N on randomly ordered data.</p>
+
+<p>The git history shows the process being maintained as well: semantic version tags and releases on each commit, normalised line endings, explicit module cache handling. A 0.1.0 project that builds its release pipeline first intends to be around.</p>
 
 <h2>Where it sits</h2>
 
@@ -3652,51 +3898,60 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 <thead><tr><th>Dimension</th><th>NanoDB</th><th>SQLite</th><th>LevelDB / BadgerDB</th><th>MongoDB</th></tr></thead>
 <tbody>
 <tr><td>Shape</td><td>Embedded, single process</td><td>Embedded, single process</td><td>Embedded key-value</td><td>Service, distributed</td></tr>
-<tr><td>Model</td><td>JSON documents</td><td>Relational, SQL</td><td>Byte key-value</td><td>JSON documents</td></tr>
-<tr><td>Query</td><td>Mongo-like plus read-only SQL and aggregation</td><td>Full SQL</td><td>Keys and iterators</td><td>Mongo queries and aggregation</td></tr>
-<tr><td>Transactions</td><td>Explicit, optimistic, collection granularity</td><td>Single-database ACID</td><td>None, or limited MVCC in Badger</td><td>Multi-document, 4.0 and later</td></tr>
-<tr><td>Indexes</td><td>Including text and geo</td><td>B-trees</td><td>Build your own</td><td>Many kinds</td></tr>
+<tr><td>Model</td><td>JSON documents and collections</td><td>Relational tables and SQL</td><td>Byte key-value</td><td>JSON documents</td></tr>
+<tr><td>Query language</td><td>Mongo-like plus read-only SQL and aggregation</td><td>Full SQL</td><td>Keys and iterators</td><td>Mongo queries and aggregation</td></tr>
+<tr><td>Transactions</td><td>Explicit, optimistic, collection granularity</td><td>Single-database ACID</td><td>None, or limited MVCC in Badger</td><td>Multi-document since 4.0</td></tr>
+<tr><td>Secondary indexes</td><td>Yes, including text and geo</td><td>B-trees</td><td>Build your own</td><td>Yes, many kinds</td></tr>
 <tr><td>Persistence</td><td>Snapshot plus JSON Lines WAL</td><td>Pager plus WAL</td><td>LSM plus WAL</td><td>WiredTiger plus WAL</td></tr>
-<tr><td>Dependencies</td><td>None</td><td>None</td><td>None</td><td>Server and driver</td></tr>
-<tr><td>Data size</td><td>Fits in memory</td><td>Terabytes on disk</td><td>Terabytes on disk</td><td>Cluster scale</td></tr>
+<tr><td>Dependencies</td><td>None</td><td>None, in C</td><td>None</td><td>Server and driver</td></tr>
+<tr><td>Data size</td><td>What fits in memory</td><td>Terabytes on disk</td><td>Terabytes on disk</td><td>Cluster scale</td></tr>
 </tbody>
 </table>
 
-<p>Against SQLite: SQLite is relational with full SQL and disk paging and can exceed memory, while NanoDB is a document model that lives in memory and sells native JSON plus friction-free Go embedding. Against the LevelDB family: those are key-value engines with no query language and no index abstraction, and NanoDB sells the layer above them. Against MongoDB: no distributed ambition at all.</p>
+<p>The differences in positioning come down to three points.</p>
+
+<p><strong>Against SQLite:</strong> SQLite is relational, with full SQL and disk paging, and its data can far exceed memory. NanoDB is a document model that lives in memory, and it sells native JSON plus friction-free Go embedding. For analytical SQL over a lot of data, choose SQLite. For dropping a JSON store into a Go service, NanoDB is less work.</p>
+
+<p><strong>Against the LevelDB family:</strong> those are key-value engines with no query language and no index abstraction. Using one for documents means writing the whole layer above it, which is exactly what NanoDB ships.</p>
+
+<p><strong>Against MongoDB:</strong> Mongo is a network protocol, replica sets and sharding, with an operational cost in a different category. NanoDB has no distributed ambition. It is a data directory inside your process.</p>
 
 <h2>Known limits</h2>
 
+<p>This section comes straight from the project's own statement, and a database project that documents its limits more carefully than its features is easier to trust.</p>
+
 <ul>
-<li>Documents and indexes live in memory, so size is bounded by RAM. The WAL costs more space than a binary format.</li>
-<li>No replicas, no sharding, no clustering. One process per directory.</li>
-<li>Isolation is fixed, conflicts are per collection, and there are no savepoints, no DDL inside a transaction and no cross-process transactions.</li>
-<li>Text search is approximate: bigrams only, no scoring, no ranking.</li>
-<li>Geo supports boxes and circles only, not polygons, and not the 180th meridian.</li>
-<li>SQL is a read-only subset, and aggregation does not use indexes.</li>
-<li>Compound indexes fall back to a scan when a document contains an array.</li>
-<li>Permissions are coarse: exact-match collection allowlists, no field-level rights, and an 8 MiB request body cap.</li>
-<li>Posting an array of documents is not atomic. Use a batch or a transaction.</li>
+<li><strong>Memory resident.</strong> Documents and indexes live in memory, so data size is bounded by RAM. The WAL is JSON Lines, which costs more space than a binary format.</li>
+<li><strong>No distribution.</strong> No replicas, no sharding, no clustering, one process per directory at a time.</li>
+<li><strong>Transaction boundaries.</strong> Isolation is fixed and not configurable. Conflict granularity is the collection, so false conflicts happen. No savepoints, no DDL inside a transaction, no cross-process transactions.</li>
+<li><strong>Text search is approximate.</strong> Bigram tokenization, no stop words, no stemming, no synonyms, no relevance scoring, multi-term queries are AND, and the indexed field is fixed.</li>
+<li><strong>Geo is limited.</strong> Box and circle only, no polygons or GeoJSON geometry, no 180th meridian, and results are not distance-ordered.</li>
+<li><strong>SQL is read-only and partial.</strong> No joins, group by, having, distinct, subqueries or union. Aggregation is count star.</li>
+<li><strong>Aggregation skips indexes.</strong> No lookup, no facet, no window functions, no out or merge.</li>
+<li><strong>Compound indexes fall back on arrays.</strong> A document containing an array field never enters a compound index, and planning falls back to a scan.</li>
+<li><strong>Coarse permissions.</strong> Collection allowlists are exact match, with no wildcards or field-level rights, and the HTTP body cap is 8 MiB.</li>
+<li><strong>Array inserts are not atomic.</strong> Use a batch or a transaction when atomicity matters.</li>
 </ul>
 
-<h2>When to use it</h2>
+<h2>When to use it, and when not to</h2>
 
-<p>Use it for local storage inside Go tools and services: configuration, task queues, crawler state, desktop app data, anywhere you do not want to run a database service to store tens of thousands of JSON rows. Use it for read-heavy workloads whose data fits in memory. Use it for teaching and forking, because ten thousand dependency-free lines with every part present make a good starting point. Use it for edge and single-machine deployment, where one binary with no cgo and no external service is the whole story.</p>
+<p><strong>A good fit:</strong> local storage inside Go tools and services, such as configuration, task queues, crawler state or desktop application data, where you do not want to run a database service to store tens of thousands of JSON rows. Read-heavy workloads whose data fits in memory, where indexes and Top-N give millisecond responses. Teaching and forking, because ten thousand dependency-free lines with every part present make an excellent starting point for changing the WAL format, adding an index kind or practising transactions. And edge or single-machine deployment, where one binary with no cgo and no external service is the entire story.</p>
 
-<p>Do not use it for data larger than memory, for multi-process writes to one directory, for transaction-heavy writes on hot collections, or when you need relevance-ranked search, complex SQL analytics or precise geospatial work.</p>
+<p><strong>A poor fit:</strong> data larger than memory, or terabyte-scale durability, which belongs to SQLite and the LSM family. Multi-process writes to one directory, or multi-node high availability, which the project explicitly gives up. Transaction-heavy writes on hot collections, where collection-level optimistic conflicts cause large numbers of retries. And production requirements around relevance-ranked search, complex SQL analytics or precise geospatial computation.</p>
 
 <h2>Closing</h2>
 
-<p>Back to the three questions.</p>
+<p>Back to the three opening questions.</p>
 
-<p>How short is the shortest path to a transactional database? A transaction struct plus a version-check loop. No lock manager, no undo log, and it still gives repeatable read, lost-update protection and an explicit conflict error the caller can retry.</p>
+<p><strong>How short is the shortest path to a transactional database?</strong> A transaction struct plus a version-check loop. The whole file is "collection snapshot plus read-set validation at commit". No lock manager, no undo log, and it still provides repeatable read, protection against lost updates, and an explicit conflict error for the caller to retry.</p>
 
-<p>How many lines is "committed data survives a crash"? Three layers and under a hundred lines of core, plus the thinking about every crash point, which is the real work.</p>
+<p><strong>How many lines is "committed data survives a crash"?</strong> Three layers: replay finds the valid prefix and truncates a torn record, the writer rolls back a failed write to the previous complete record, and a generation number makes a crash inside the compaction window self-resolve. Under a hundred lines of core. The hard part is not the code, it is thinking through the state at every crash point.</p>
 
-<p>How do documents, indexes and concurrency mesh? Writes maintain every index synchronously, transactions carry those indexes inside the cloned snapshot, and the planner picks the smallest candidate set with a full match as the backstop.</p>
+<p><strong>How do documents, indexes and concurrency fit together?</strong> Every write goes through one entry point that maintains all four index kinds synchronously. Transactions carry those indexes inside the cloned snapshot. And planning only chooses the smallest candidate set, with the full match as the backstop.</p>
 
-<p>NanoDB will not replace SQLite and has no ambition to replace MongoDB. Its value is putting the black box on the table. The WAL is newline-delimited JSON. A transaction is a version comparison. Planning is picking the smallest candidate set. The mechanisms are plain enough to memorise, and that plainness is why they can be trusted.</p>
+<p>NanoDB will not replace SQLite, and has no intention of replacing MongoDB. Its value is putting the black box on the table: <strong>the WAL is newline-delimited JSON, a transaction is a version comparison, and query planning is picking the smallest candidate set.</strong> The mechanisms are plain enough to memorise, and that plainness is exactly why they can be trusted.</p>
 
-<p>If you have ever thought about writing a database, the answer here is yes, and it does not take many lines. The next step is not more papers. Clone it and break replay, commit and planning one at a time, then see whether the tests still pass.</p>
+<p>If you have ever thought about writing a database, the answer here is yes, and it does not take many lines. The next step is not reading more papers. Clone it and break replay, commit and planning one at a time, then check whether the tests still pass. That is a faster introduction than any article.</p>
 `,
   },
   {
