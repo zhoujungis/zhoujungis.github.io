@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="An Electron desktop agent that keeps the database, keys, tools and system capabilities in the main process, asks permission before every side effect, and uses FTS5 instead of a vector database." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/z-bot-local-first-ai-assistant/" />
+    <meta property="og:title" content="Z Bot: building a local-first personal AI assistant | Stack Frame" />
+    <meta property="og:description" content="An Electron desktop agent that keeps the database, keys, tools and system capabilities in the main process, asks permission before every side effect, and uses FTS5 instead of a vector database." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/z-bot-local-first-ai-assistant/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Z Bot: building a local-first personal AI assistant | Stack Frame" />
+    <meta name="twitter:description" content="An Electron desktop agent that keeps the database, keys, tools and system capabilities in the main process, asks permission before every side effect, and uses FTS5 instead of a vector database." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Z Bot: building a local-first personal AI assistant | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CANmxzoo.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/z-bot-local-first-ai-assistant/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Z Bot: building a local-first personal AI assistant</h1><div class="ns-meta">2026-11-05 · 55 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who want an AI assistant on their own machine without handing chat history and file paths to a cloud; people building desktop agents in Electron and fighting permissions, paths and packaging; people who want to see where a local-first product must compromise.</p>
+<p><strong>Bottom line first:</strong> the core of Z Bot is not "plug in a model" but putting the model in a box managed by the main process — database, keys, tool execution and system capabilities all stay there, the renderer gets only a whitelisted API, every side-effecting action needs permission, memory starts with SQLite FTS5 rather than a vector store, and reminders, context and retries all have hard caps.</p>
+<p>Reading time ~55 minutes · Level: advanced</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Why build a local-first personal assistant</li>
+<li>Architecture: the main process and six core packages</li>
+<li>Process boundary: what the renderer can and cannot do</li>
+<li>IPC contract: whitelist, Zod and redaction</li>
+<li>Permissions: declare first, confirm every time</li>
+<li>Path safety: an authorised directory is not a string prefix</li>
+<li>The agent loop: when to answer directly, when to act</li>
+<li>Context budget: how 72k characters get spent</li>
+<li>Model layer: streaming, retries and the fallback boundary</li>
+<li>Memory: no vector store, FTS5 first</li>
+<li>Reminder scheduling: the ceiling of setTimeout</li>
+<li>Proactive checks and task recovery</li>
+<li>Windows integration: notifications, OCR and the tray</li>
+<li>Tests and packaging: after 32 unit tests and 2 E2E</li>
+<li>Closing</li>
+</ul>
+<hr>
+
+<h2>Why build a local-first personal assistant</h2>
+
+<p>Cloud chat products are already strong, but "personal assistant" and "general Q&amp;A" are different products. General Q&amp;A does not need to know your project directories, last week's todos or your writing voice; a personal assistant does, and that information naturally should not leave the machine. Z Bot starts from a plain idea: keep personal context, long-term memory, tasks and reminders in a local SQLite database; let the model do reasoning and generation; and execute file reads, web fetches and reminder creation locally, each with the user's authorisation.</p>
+
+<p>That positioning brings three hard constraints. Data must be explainable, backup-able and deletable — never "the memory lives in some cloud table you cannot see or remove". The model must be swappable: OpenAI, OpenAI-compatible, Anthropic, Google and Ollama all work, so the product cannot lock anyone to one vendor. And the assistant must be resident, able to keep standing by after the window closes, send system notifications and read local files — which makes it a desktop app, not a web page.</p>
+
+<p>Z Bot is not a coding agent. Its loop is understand, remember, reason, help, act, learn, focused on personal context and daily tasks rather than editing a repository. The README says plainly that complex software work belongs to a specialised agent like NanoHermes, while Z Bot understands the request, dispatches work, receives results and reminds the user. That boundary matters: the moment it sees itself as a general coding agent, the tool set, permission model and context budget all run out of control.</p>
+
+<p>Local-first has costs too. No multi-device sync, no server push; a new machine means reconfiguring models and authorised directories; reminders are reliable only while the process lives, with no catch-up after a full exit; and local OCR is capped by whatever engine Windows ships. Those costs recur throughout this post. Stating the product boundary first is what makes the technical choices defensible.</p>
+
+<h2>Architecture: the main process and six core packages</h2>
+
+<p>The stack is Electron 45, React 19 and TypeScript 6, with Node's built-in <code>node:sqlite</code> and FTS5 for search. The repository is a pnpm workspace with six packages — <code>shared</code>, <code>database</code>, <code>model</code>, <code>memory</code>, <code>tools</code>, <code>bot-core</code> — plus <code>apps/desktop</code>. Tests are 32 unit tests plus 2 E2E, covering path guards, memory dedupe, reminder recurrence, provider normalisation, the runtime and project-stall reminders.</p>
+
+<p>The layering is direct. <code>shared</code> holds types, Zod schemas, IPC channel constants and defaults; <code>database</code> wraps <code>node:sqlite</code>, migrations and stores; <code>model</code> collapses five providers into one streaming event shape; <code>memory</code> owns writing, dedupe, retrieval and prompt formatting; <code>tools</code> is the registry, path guard, web safety policy and concrete tools; <code>bot-core</code> is the runtime, context manager, permission manager, intent router and agent loop. The Electron main process in <code>apps/desktop</code> assembles them and exclusively owns the database, secrets, tool execution and system capabilities.</p>
+
+<p>One conversation flows like this: the renderer calls <code>chat.send</code> through preload; the IPC layer validates with Zod; <code>BotRuntime.startChat</code> immediately writes the user message and an empty assistant message, creates a <code>requestId</code> and an <code>AbortController</code>, then runs asynchronously. Execution first judges intent — direct answers take one model call, multi-step tasks enter the agent loop. Model <code>text-delta</code>, <code>tool-call</code>, <code>finish</code> and <code>error</code> events are normalised into <code>ChatEvent</code> and pushed back via <code>chat.event</code>. Tool calls pass through the permission manager first, results are appended to the message array, and the assistant message is finally persisted.</p>
+
+<p>Two database decisions deserve their own note. <code>node:sqlite</code> avoids native compilation, so the installer never faces <code>node-gyp</code> or ABI issues; the cost is a synchronous API, with every query on the main process's single event loop. Z Bot keeps transactions short, serialises migrations, and on open sets WAL, <code>synchronous=NORMAL</code> and a 5-second busy timeout, runs <code>wal_checkpoint(TRUNCATE)</code> before exit, and copies the whole database before a version upgrade. It did not move the database to a worker, so long queries can still stall the window and IPC.</p>
+
+<h3>Problem 1: a synchronous database on the main process</h3>
+
+<p><strong>Symptom.</strong> During migrations, bulk queries or checkpoints, window events and IPC responses can be blocked by the same thread, showing brief unresponsiveness.</p>
+
+<p><strong>Cause.</strong> <code>DatabaseSync</code> in <code>node:sqlite</code> is synchronous, and Z Bot deliberately gives the main process exclusive ownership without a worker or a separate database process.</p>
+
+<p><strong>Fix.</strong> WAL for read/write concurrency, <code>synchronous=NORMAL</code> to cut per-commit fsync cost, a 5-second busy timeout, <code>BEGIN IMMEDIATE</code> for serialised migrations, <code>wal_checkpoint(TRUNCATE)</code> before exit, and a full backup before upgrades based on <code>user_version</code>.</p>
+
+<p><strong>Cost.</strong> The root problem of a synchronous API does not disappear; it is confined to short transactions. Full exports, index rebuilds or large log searches would need a worker; this version trades simplicity for stability.</p>
+
+<h2>Process boundary: what the renderer can and cannot do</h2>
+
+<p>The first rule of Electron security is not to hand Node to the page. Z Bot's window uses <code>contextIsolation: true</code>, <code>nodeIntegration: false</code> and <code>sandbox: true</code>; the renderer has no <code>require</code>, no <code>process</code>, no filesystem. CSP narrows loading to <code>self</code> and the custom <code>zbot-media:</code> scheme rather than opening arbitrary <code>https:</code>; all web permission requests are denied by default, so camera, microphone, geolocation and notifications never open because a page asked once.</p>
+
+<p>Attachments are capped at 25 MB each and six per message before saving, so one conversation cannot blow up local storage or later requests. Attachment images are read through <code>zbot-media://attachment/&lt;id&gt;</code>: the main process accepts only <code>hostname === 'attachment'</code>, treats the path as an attachment id looked up in the database and attachment directory, returns 404 when missing, and adds a <code>default-src 'none'</code> CSP to the response. The renderer therefore cannot reach arbitrary local paths — only an image already recorded in the attachment table. That is far safer than exposing <code>file://</code>, but it also means attachments must pass through the main process first.</p>
+
+<p>Preload is the only bridge. It exposes a <code>ZBotApi</code> via <code>contextBridge.exposeInMainWorld('zbot', api)</code> with roughly 40 methods grouped under <code>app</code>, <code>chat</code>, <code>conversations</code>, <code>memory</code>, <code>settings</code>, <code>providers</code>, <code>webSearch</code>, <code>projects</code>, <code>roots</code>, <code>tasks</code>, <code>todos</code>, <code>reminders</code>, <code>home</code>, <code>permissions</code>, <code>clipboard</code>, <code>screenshot</code> and <code>events</code>. Raw <code>ipcRenderer</code> is never handed over, so the page cannot compose channel names or listen to arbitrary events.</p>
+
+<p>Event subscriptions are closed off too. <code>chat.onEvent</code>, <code>events.onNavigate</code>, <code>events.onScreenshot</code> and <code>events.onTheme</code> return an unsubscribe function, wrapping the listener internally before <code>removeListener</code>. That looks cosmetic but actually fixes listener leaks after React unmounts: callers can unsubscribe in <code>useEffect</code> cleanup without remembering which function reference they passed.</p>
+
+<p>This boundary is not "configure once, safe forever". Add one generic <code>invoke(channel, ...args)</code> to preload and the whitelist is decoration; expose <code>shell.openPath</code> straight to the renderer and the path guard is bypassed. Z Bot keeps every IPC in <code>register.ts</code> behind a uniform <code>handle()</code> wrapper with per-channel schemas — but a few channels slipped through, covered below.</p>
+
+<h2>IPC contract: whitelist, Zod and redaction</h2>
+
+<p>IPC registration goes through one <code>handle</code> wrapper: channel, handler, optional schema. Each call runs <code>schema.parse(raw)</code>; Zod's <code>.strict()</code> rejects extra fields so the renderer cannot smuggle unexpected properties. Parse failures turn <code>ZodError.issues</code> into a readable message; handler throws pass through <code>redactErrorMessage</code> before being returned. Logs record an <code>ipc request failed</code> line without raw keys, tokens or cookies.</p>
+
+<pre><code>ipcMain.handle(channel, async (_event, raw: unknown) =&gt; {
+  try {
+    const input = schema ? schema.parse(raw) : raw;
+    return await handler(input);
+  } catch (error) {
+    logger.warn({ channel, error: redactErrorMessage(error) }, 'ipc request failed');
+    throw new Error(redactErrorMessage(error));
+  }
+});
+</code></pre>
+
+<p>The value here is safe by default: adding a channel forces an explicit decision about a schema, and a channel without one stays visible in review. There is an obvious gap: the third argument is optional, so <code>app:open-path</code> and <code>web-search:set-key</code> genuinely lack schemas. The first only does a string-containment check for "inside the data directory", the second uses <code>value</code> as a string. They are not the most dangerous channels, but they show that a uniform wrapper is not uniform validation.</p>
+
+<h3>Problem 2: inconsistent IPC surface and validation</h3>
+
+<p><strong>Symptom.</strong> <code>app:open-path</code> and <code>web-search:set-key</code> have no Zod schema; <code>clipboard:read-text</code> and <code>screenshot:capture</code> execute over IPC without permission confirmation, while tools of the same name go through <code>PermissionManager</code>. Subtler still: the renderer never calls those two IPC channels — they are high-privilege surfaces that exist unused.</p>
+
+<p><strong>Cause.</strong> IPC is the UI's fast path, tools are the model's controlled path; the two evolved separately and the permission model covers only the latter. Optional schema arguments make omissions easy.</p>
+
+<p><strong>Fix.</strong> <code>app:open-path</code> uses <code>path.relative</code> instead of naive string comparison; secret-writing IPC accepts only strings and goes through <code>safeStorage</code> in ProviderService; logging and error messages are redacted uniformly. Clipboard and screenshot tools go through full permission confirmation with risk described in the prompt.</p>
+
+<p><strong>Cost.</strong> Unused high-privilege IPC stays on the attack surface. The right move is deleting channels nobody needs or giving them schemas and confirmation; the repository keeps them because the UI may need them later. That is an explicit to-do, not a solved problem.</p>
+
+<h3>Problem 3: secrets on disk and log redaction</h3>
+
+<p><strong>Symptom.</strong> Model API keys and web-search keys are sensitive; written in plaintext or leaked into logs, even a local app exposes them.</p>
+
+<p><strong>Cause.</strong> A desktop app must persist keys, but <code>safeStorage</code> is unavailable in some Windows environments; logs, error messages and IPC payloads can all carry configuration objects.</p>
+
+<p><strong>Fix.</strong> <code>SecretService.encrypt</code> throws when <code>safeStorage.isEncryptionAvailable()</code> is false, refusing plaintext; the database stores <code>encrypted_api_key</code>; outbound DTOs strip <code>encryptedApiKey</code> and tell the UI only "configured"; pino's redact list hides <code>apiKey</code>, <code>password</code>, <code>cookie</code>, <code>encryptedApiKey</code> and nested variants, with regex redaction on error messages.</p>
+
+<p><strong>Cost.</strong> <code>safeStorage</code> relies on the OS credential service, so keys become unreadable after a machine change or a broken profile and users must re-enter them. Redaction is a double line of defence (field names plus regex) and cannot guarantee that a key concatenated into an arbitrary string is always caught. Acceptable for a local app, not absolute safety.</p>
+
+<h2>Permissions: declare first, confirm every time</h2>
+
+<p>Registering a tool does not make it runnable. Every tool calls <code>getPermission()</code> before executing, producing a <code>ToolPermissionSpec</code> with title, description, risk level, scope and operation list. <code>PermissionManager.authorize()</code> checks persisted rules first: an <code>allow</code> hit passes, a <code>deny</code> hit rejects; only a miss creates a <code>PermissionRequest</code>, pushes it to the UI via <code>chat.permission</code>, and awaits the user's decision.</p>
+
+<pre><code>tool.run()
+  -&gt; getPermission() -&gt; ToolPermissionSpec
+  -&gt; PermissionManager.authorize(spec)
+       -&gt; rule allow / deny
+       -&gt; miss: chat.permission -&gt; wait for UI
+       -&gt; AbortSignal cancel -&gt; cancelForChat
+</code></pre>
+
+<p>Users have four choices: deny, allow once, allow for the scope, or cancel the task. <code>allow_once</code> deliberately is not persisted, so the same action asks again next time; <code>allow_scope</code> persists on "tool name + scope", usually an authorised directory or operation type; <code>deny</code> does not run the tool and returns <code>Permission denied by user. The operation was not executed: ...</code> as the tool result so the model learns the path is blocked instead of the conversation collapsing. Cancellation rejects every pending promise through <code>AbortSignal</code> and <code>cancelForChat</code>, so permission dialogs never hang forever.</p>
+
+<p>The key idea is that a denial is not an exception. Many agents throw when a tool is refused, leaving the model blind to the reason and retrying the same action next turn. Z Bot makes denial an ordinary tool result: the model can take another route or explain why it did not act. The cost is that the model may ask for the same permission repeatedly; there is no soft "do not ask again in this conversation", only persisted deny rules.</p>
+
+<p>Scope granularity is another matter. <code>allow_scope</code> binds tool and scope, not specific arguments; once write access to a directory is allowed, later writes there never prompt. That matches the "reduce interruptions" goal but leaves high-risk tools depending on scopes designed narrowly. Z Bot models write, delete and batch-move separately, sends deletes to the Recycle Bin and shows a preview before batch operations — using tool design to compensate for permission granularity.</p>
+
+<p>Tasks and permissions interact. If the agent stalls waiting for permission, the task becomes <code>waiting_permission</code>; on app exit, <code>markInterrupted()</code> turns <code>running</code> and <code>pending</code> into <code>paused</code>, and a restart never automatically replays interrupted tasks that may have had side effects. That trades "auto-resume after restart" for "never quietly delete or move files again".</p>
+
+<h2>Path safety: an authorised directory is not a string prefix</h2>
+
+<p>The first gate for file tools is <code>resolveAuthorizedPath</code>. It rejects relative paths, drive roots, device paths and UNC shares, caps length at 4096 and refuses NUL bytes; then it canonicalises the target and checks containment against every authorised root's real path. Writes additionally require <code>allowWrite</code> on that root, <code>mustExist</code> checks read/write access, and <code>expected</code> verifies file versus directory.</p>
+
+<p>Containment must not use <code>startsWith</code>. <code>C:\Users\me\Documents</code> and <code>C:\Users\me\Documents-evil</code> differ by a suffix, and a string prefix misjudges them; Z Bot computes a relative path with <code>path.relative</code>, rejects <code>..</code> and absolute escapes, and lowercases on Windows before comparing. This is easy to miss in cross-platform code, and missing it is a directory traversal bug.</p>
+
+<h3>Problem 4: Windows 8.3 short paths break test assertions</h3>
+
+<p><strong>Symptom.</strong> A test creates a temp directory with <code>mkdtemp</code>, compares against a <code>realpath</code> result, the two differ and the test fails on Windows. Two commits fixed tests: <code>f4cf8a8</code> and <code>b9b45de</code>.</p>
+
+<p><strong>Cause.</strong> Windows generates 8.3 short names for long paths, so the temp directory and its real path can come back in different forms. The test compared strings while production code canonicalised with <code>realpath</code>: the test thought the product was wrong when the assertion was not normalised.</p>
+
+<p><strong>Fix.</strong> The test normalises expectations the same way; production <code>path-guard.ts</code> calls <code>realpath</code> level by level, reattaches the missing segments to the real parent, and lowercases before comparing.</p>
+
+<p><strong>Cost.</strong> Path canonicalisation is best effort, not cryptographic equivalence: short names, casing and junctions can make two strings look different or identical. Tests must follow platform behaviour rather than assume POSIX semantics.</p>
+
+<h3>Problem 5: symlink escapes and "the target does not exist yet"</h3>
+
+<p><strong>Symptom.</strong> Canonicalising only the target makes a not-yet-created write path fail with <code>ENOENT</code>; if the target is a junction or symlink pointing outside the authorised directory, <code>realpath</code> lands outside the root. The two failures are opposite: one false positive, one false negative.</p>
+
+<p><strong>Cause.</strong> Write targets often do not exist and cannot be required to resolve, while symlinks can carry a path outside the authorised range after resolution, so checks are needed before and after.</p>
+
+<p><strong>Fix.</strong> <code>canonicalizePotentialPath</code> walks upward from the target to the nearest existing parent, at most 64 levels, collecting missing segments, resolves that parent, then reattaches segments in order; roots are canonicalised too; <code>expected</code> checks reject <code>isSymbolicLink()</code> after <code>lstat</code>. A Windows system-directory blacklist rejects <code>SystemRoot</code>, <code>Program Files</code> and similar.</p>
+
+<pre><code>for (let index = 0; index &lt; 64; index += 1) {
+  try {
+    const canonical = await realpath(current);
+    return resolve(canonical, ...missing.reverse());
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' &amp;&amp; code !== 'ENOTDIR') throw error;
+    missing.push(basename(current));
+    current = dirname(current);
+  }
+}
+</code></pre>
+
+<p><strong>Cost.</strong> A TOCTOU window remains between check and use: an attacker can swap a parent directory for a link after <code>realpath</code> and before the write. The 64-level cap rejects very deep paths, and the system blacklist depends on environment variables that may be missing. The guard stops ordinary mistakes and naive attacks, not a kernel-level sandbox.</p>
+
+<h2>The agent loop: when to answer directly, when to act</h2>
+
+<p>The first step of <code>startChat</code> is not calling the model but persisting. It confirms or creates the conversation, writes the user message, updates the title, writes an empty assistant message, then creates <code>requestId</code> and <code>AbortController</code>, emits <code>chat.started</code> and runs asynchronously. That ordering guarantees the user message and a failure placeholder exist even if the model call fails, so the UI never shows "sent but missing from history".</p>
+
+<p>Two shortcuts sit at the entrance. First, an explicit memory regex: sentences starting with "remember" go straight to memory writing without a model call. Second, intent routing: short sentences, greetings and questions take <code>direct</code>, while todos, reminders, files, web and long sentences take <code>agent</code>. Routing is not a semantic classifier but an ordered set of regexes — cheap, testable, no extra model call, and occasionally wrong.</p>
+
+<p>Direct mode calls the model once, suited to "explain this concept" or "write one line of copy". Agent mode loops: the model emits text and tool calls, results are appended, the model is called again, until it stops calling tools or hits a cap. The loop allows at most 20 steps, 30 tool calls and a 5-minute total timeout; usage and retries accumulate on the task record. If a tool result fails its <code>verification</code>, the step is marked failed rather than pretending success.</p>
+
+<h3>Problem 6: the boundary of regex intent routing</h3>
+
+<p><strong>Symptom.</strong> Routing depends only on keywords and sentence length. A chatty sentence containing "file" can enter the agent, while a long sentence with no keyword that genuinely needs multiple steps can be misrouted.</p>
+
+<p><strong>Cause.</strong> No trained classifier and no model call to judge intent first; regexes plus an 80-character threshold were chosen to save a call and reduce latency.</p>
+
+<p><strong>Fix.</strong> High-frequency intents are separate regexes matched in order — memory, todo, reminder, web, system, file, recall, image, greeting, question, short sentence; explicit memory and shortcuts short-circuit before routing; long or unclassifiable requests default to the agent, spending an extra loop rather than treating a multi-step task as chat.</p>
+
+<p><strong>Cost.</strong> Regex maintenance grows with every intent, and mixed Chinese/English or colloquial phrasing slips through; the 80-character threshold is empirical, not semantic. A small local classifier could replace it later; that has not been done.</p>
+
+<h2>Context budget: how 72k characters get spent</h2>
+
+<p>Z Bot does not stuff all history into the prompt. <code>ContextManager.build()</code> fetches the project, authorised roots and relevant memories, assembles the system prompt, then fills history against a character budget. The total is 72,000 characters; history holds at most 20 messages, newest first, each truncated to 8,000 characters; the current user input is cut at 20,000; OCR text is capped at 24,000 and wrapped in <code>&lt;untrusted_image_text&gt;</code> so the model is told plainly that it is untrusted data, not instructions.</p>
+
+<p>Memory retrieval uses the first 500 characters of the current question as the query, takes 8 FTS hits, and if fewer than four arrive, tops up with the four most recent by project and time, deduplicated to at most eight. Ordering is <code>bm25</code> ascending, then <code>importance</code> descending, then <code>updated_at</code> descending. The strategy is conservative: better a few recent memories than answering with none.</p>
+
+<p>History loading is short code with a clear boundary:</p>
+
+<pre><code>let remaining = Math.max(0, maxChars - system.length);
+const selectedHistory: LlmMessage[] = [];
+for (let index = history.length - 1; index &gt;= 0; index -= 1) {
+  const message = history[index]!;
+  if (message.content.length &gt; remaining) break;
+  selectedHistory.unshift(message);
+  remaining -= message.content.length;
+}
+</code></pre>
+
+<h3>Problem 7: one oversized message ends the loop</h3>
+
+<p><strong>Symptom.</strong> When a single historical message exceeds the remaining budget, the loop breaks and no earlier messages load at all. One long old reply truncates the entire history instead of being skipped.</p>
+
+<p><strong>Cause.</strong> The implementation chose "load continuously from newest backwards" so the context is one contiguous run with no holes; the cheapest way to handle a message that does not fit is to stop.</p>
+
+<p><strong>Fix.</strong> Each message is truncated to 8,000 characters first, reducing the chance; the system prompt and memories are kept inside the budget; the current user message is truncated separately and never competes with history.</p>
+
+<p><strong>Cost.</strong> This is a known rough edge. Skipping the oversized message and continuing with older ones would be more reasonable, as would budgeting in tokens rather than characters; neither is done, because contiguous history helps the model and the 8,000-character cut already excludes most cases.</p>
+
+<p>Character budgets carry another error: Chinese, English and code differ in token density, so 72k characters is not 72k tokens. Characters were chosen because they can be estimated cheaply without a tokenizer, at the risk of occasionally exceeding the model window. Provider errors surface as <code>MODEL_*</code> codes in the UI, so users see a failure instead of a silently dropped message.</p>
+
+<h2>Model layer: streaming, retries and the fallback boundary</h2>
+
+<p>The provider layer wraps OpenAI, OpenAI-compatible, Anthropic, Google and Ollama. The first four use official or compatible SDKs; Ollama goes through the OpenAI-compatible interface at <code>http://127.0.0.1:11434/v1</code> by default. The AI SDK's <code>streamText</code> performs the request, and Z Bot normalises output into its own events: <code>text-delta</code>, <code>tool-call</code>, <code>finish</code>, <code>usage</code>, <code>error</code>, <code>aborted</code>. The agent above never needs to know which provider is in use or how each streams.</p>
+
+<p>Retry policy is at most three attempts per provider with 500 ms, 1000 ms and 2000 ms backoff; the AI SDK's <code>maxRetries</code> is set to 0 to avoid a second layer inside. Only retryable errors retry — configuration failures like <code>MODEL_KEY_MISSING</code> or <code>MODEL_BASE_URL_MISSING</code> fail immediately. The fallback model is used only after every primary attempt fails, and never once text has already been emitted.</p>
+
+<pre><code>const retryable = normalized instanceof ModelRequestError ? normalized.retryable : true;
+if (!retryable || attemptNumber &gt;= maxAttempts || textEmittedRef.value) {
+  break;
+}
+retries += 1;
+await delay(500 * 2 ** (retries - 1), signal);
+</code></pre>
+
+<h3>Problem 8: retries duplicate text in the UI</h3>
+
+<p><strong>Symptom.</strong> Streaming already produced a few words, the request fails midway, the retry answers from the beginning, and the UI shows "partial text + complete answer".</p>
+
+<p><strong>Cause.</strong> Retry logic cared only about "the request failed", not about whether visible deltas had already been emitted; the SDK could also retry internally and amplify it.</p>
+
+<p><strong>Fix.</strong> A <code>textEmittedRef</code> records whether this attempt sent any <code>text-delta</code>; once true, the current provider may not retry and fallback is forbidden. The provider sets <code>maxRetries: 0</code>, concentrating retries in <code>streamModel</code>.</p>
+
+<p><strong>Cost.</strong> Emitted partial text is not retracted, so a user may see half a sentence followed by an error; and if the model fails after a tool call, retry is also forbidden and the task fails. This buys "no duplicates" over "always succeed", which matters more for chat.</p>
+
+<p>The 5-minute overall timeout is a second gate covering the whole conversation, not one request; when it fires, <code>AbortController</code> cancels the running stream, permission waits and tool execution, and the run is marked <code>cancelled</code> rather than treated as a successful partial answer.</p>
+
+<h2>Memory: no vector store, FTS5 first</h2>
+
+<p>Memory has five types: <code>user</code>, <code>project</code>, <code>event</code>, <code>task</code>, <code>global</code>. They live in a <code>STRICT</code> <code>memories</code> table with content, type, project id, importance, confidence, expiry and archive time; tags live in <code>memory_tags</code> with cascading foreign keys. Retrieval uses the <code>memories_fts</code> FTS5 virtual table with <code>content='memories'</code> and <code>content_rowid='rowid'</code>, kept in sync by three triggers for insert, update and delete.</p>
+
+<p>Chinese retrieval is the most underrated problem here. FTS5's default <code>unicode61</code> tokenizer does not segment Chinese into meaningful words; a whole sentence often becomes one token, and searching "release process" matches nothing beyond the exact phrase. Z Bot switches to the <code>trigram</code> tokenizer, indexing three-character windows so Chinese phrases can be partially matched; queries shorter than three characters cannot use FTS and degrade to <code>instr(lower(content), lower(query))</code> substring scans.</p>
+
+<pre><code>CREATE VIRTUAL TABLE memories_fts USING fts5(
+  content,
+  content='memories',
+  content_rowid='rowid',
+  tokenize='trigram'
+);
+</code></pre>
+
+<h3>Problem 9: the default FTS5 tokenizer does not split Chinese</h3>
+
+<p><strong>Symptom.</strong> English keywords match, whole Chinese sentences do not; after switching the tokenizer to <code>trigram</code>, two-character queries stop matching entirely.</p>
+
+<p><strong>Cause.</strong> FTS5's default tokenizer targets space-separated languages and Chinese has no spaces; <code>trigram</code> needs at least three characters to build a window.</p>
+
+<p><strong>Fix.</strong> Create the table with <code>trigram</code>; queries of three or more characters use <code>MATCH</code> with the query quoted and inner quotes escaped; shorter ones use <code>instr(lower(...))</code>. A test with the two-character word "简洁" covers the degraded path specifically.</p>
+
+<p><strong>Cost.</strong> A <code>trigram</code> index is larger than the default and costs more on write; two-character queries become full scans and slow down as memory grows; there are no synonyms, no pinyin and no semantic recall, so "go live" and "release" stay unconnected. v0.1 accepts this and defers a vector store.</p>
+
+<p>Memory has exactly two write paths: the entry regex recognising "remember ...", or the model actively calling the <code>remember</code> tool. The latter is gated by <code>memory.autoExtract</code>; with it off, the model cannot write on its own. There is no post-conversation extraction pass, deliberately: that needs extra model calls plus handling for duplicates and hallucination, so v0.1 first makes "the user explicitly said remember" reliable.</p>
+
+<p>Dedupe is exact equality after normalisation: same type, same project, and equal <code>lower(trim(content))</code>. A hit takes the larger of importance and confidence and merges tags. There is no semantic dedupe and no decay scoring; expiry only archives via <code>expiresAt -&gt; archivedAt</code>, with no time-decayed ranking. Retrieval orders by <code>bm25</code>, importance and <code>updated_at</code> — simple, explainable, fast enough.</p>
+
+<p>This system is closer to an index than a brain. It does not summarise conversations, and an unused memory never loses weight; its strength is that every item can be seen, edited and deleted in the UI, so users can explain why the model mentioned something. For a personal assistant, explainability beats recall.</p>
+
+<h2>Reminder scheduling: the ceiling of setTimeout</h2>
+
+<p>The scheduler is light: one <code>setTimeout</code> per enabled reminder, and <code>refresh()</code> clears every timer and re-plans on start or on any change. A fired reminder writes a <code>reminder.triggered</code> event, sends a Windows notification per settings, then computes the next trigger with <code>nextReminderTrigger</code>; one-off reminders set <code>enabled</code> to 0, recurring ones advance to the next future moment.</p>
+
+<p>The problem is the <code>setTimeout</code> ceiling. Node's timer delay overflows above 2^31−1 milliseconds (about 24.8 days) and fires immediately. Z Bot clamps to <code>2_147_000_000</code> ms, sleeps that long, then re-reads the reminder and re-plans, forming a chain.</p>
+
+<pre><code>const MAX_TIMEOUT = 2_147_000_000;
+const delay = reminder.triggerAt - Date.now();
+if (delay &gt; MAX_TIMEOUT) {
+  const timer = setTimeout(() =&gt; {
+    this.timers.delete(reminder.id);
+    this.schedule(this.reminders.get(reminder.id) ?? reminder);
+  }, MAX_TIMEOUT);
+  timer.unref?.();
+  this.timers.set(reminder.id, timer);
+  return;
+}
+</code></pre>
+
+<h3>Problem 10: very long reminders overflow the timer</h3>
+
+<p><strong>Symptom.</strong> A reminder a month out fires immediately after startup.</p>
+
+<p><strong>Cause.</strong> <code>setTimeout</code> takes a 32-bit signed delay; beyond <code>2^31-1</code> ms it wraps negative or to zero and runs at once.</p>
+
+<p><strong>Fix.</strong> Sleep one 24.8-day segment and re-read the reminder in the callback; treat negative delays as 0 so overdue reminders fire once; disable one-off reminders after firing, and advance recurring ones with <code>nextReminderTrigger</code> instead of replaying missed history.</p>
+
+<p><strong>Cost.</strong> Chained re-planning requires the process to stay alive; a full exit loses the timers and missed reminders never fire. The README admits this. Windows Task Scheduler is not used, nor is a startup scan for reminders that should have fired in the last 24 hours, because catch-up policy is a product decision — once or every missed occurrence — and v0.1 declines it.</p>
+
+<p>One more boundary: at startup a negative delay fires immediately. For one-off reminders that surfaces an overdue, never-fired item; for recurring ones it fires the current occurrence and advances to the next future moment without replaying every missed day. The semantics are right, but a user expecting "catch up on everything missed" will feel one is missing.</p>
+
+<h2>Proactive checks and task recovery</h2>
+
+<p>The proactive service handles project-stall reminders. It checks 10 seconds after start and every 6 hours after; a <code>running</code> flag prevents re-entry. Each pass reads 400 events, finds the latest <code>project.inactivity</code> per project, skips when that notification is newer than the project's latest activity, and otherwise decides against the threshold. The default threshold is 7 days, and directory <code>mtime</code> counts as activity only when the directory is inside an authorised root.</p>
+
+<p>That dedupe solves "notify the same stalled project on every pass". It compares "last notified" with "latest activity": activity after a notification restarts the clock, and silence since then stops repeats. The cost is that the event table must retain enough history; 400 rows is empirical, and a busy event stream can squeeze out old records and cause duplicate notifications.</p>
+
+<p>Task recovery is the other half. On exit, <code>markInterrupted()</code> turns <code>running</code> and <code>pending</code> into <code>paused</code>, and nothing auto-resumes. Agent tasks can have side effects — writing files, moving files, deleting to the Recycle Bin, sending notifications; replaying them after a restart could delete or move twice, far worse than a task sitting paused.</p>
+
+<h3>Problem 11: side effects replayed after a restart</h3>
+
+<p><strong>Symptom.</strong> The app closes halfway through a task; resuming from the stored state on restart can execute a tool call again.</p>
+
+<p><strong>Cause.</strong> Task state and tool-call records persist, but "which step ran" and "whether the side effect happened" have no transactional link, so the model may replay a tool.</p>
+
+<p><strong>Fix.</strong> Call <code>markInterrupted()</code> at startup, turning <code>running</code> and <code>pending</code> into <code>paused</code>; tasks waiting on permission become <code>waiting_permission</code>; nothing resumes automatically, and the user must confirm and re-issue. Tools add idempotency: writes carry content hashes, moves and deletes preview, deletes go to the Recycle Bin.</p>
+
+<p><strong>Cost.</strong> Users lose auto-resume, and a long interrupted task must be re-described; paused tasks have no one-click resume. That is safety over completeness.</p>
+
+<p>Tray residency, minimise-on-close, single instance and launch-at-login are the foundation of that residency. <code>requestSingleInstanceLock()</code> makes a second launch exit and focus the existing window; closing the window minimises to the tray and only an explicit quit ends the process. That gives reminders and proactive checks somewhere to run, and makes it easy for users to think the app already exited.</p>
+
+<h2>Windows integration: notifications, OCR and the tray</h2>
+
+<p>Windows notifications are mandatory for a desktop assistant and the classic "code is correct but nothing appears". Z Bot calls <code>app.setAppUserModelId('com.zbot.desktop')</code> at startup, the prerequisite for Windows notifications; before sending it checks <code>Notification.isSupported()</code> and returns false instead of throwing. Clicks can navigate — a reminder to Home, a stalled project to Memory.</p>
+
+<h3>Problem 12: Windows notifications never appear</h3>
+
+<p><strong>Symptom.</strong> A reminder fires, the log says <code>reminder fired</code>, and no desktop notification shows.</p>
+
+<p><strong>Cause.</strong> Windows needs the right App User Model ID or it cannot attribute the notification; Focus Assist, disabled notification permission or a tray process that is not running also suppress it silently.</p>
+
+<p><strong>Fix.</strong> Set <code>setAppUserModelId</code> in the main process; <code>NotificationService.show</code> checks <code>isSupported()</code> first; the README documents the diagnostic steps — system notification settings, Focus Assist, whether the app runs in the tray.</p>
+
+<p><strong>Cost.</strong> <code>isSupported()</code> reports platform capability, not whether the user muted notifications, and there is no in-app banner fallback, so reminders can be missed. That is a blank spot in this version.</p>
+
+<p>OCR better illustrates how plans change. The repository ends up using Windows' built-in <code>Windows.Media.Ocr</code> through a PowerShell child process: <code>-NoProfile</code>, <code>-NonInteractive</code>, <code>-ExecutionPolicy Bypass</code>, <code>windowsHide</code>, a 30-second timeout and a 1 MB output buffer. Results go to a temp file, are read back and clipped to 20,000 characters; failure returns <code>null</code> so the vision model can take over.</p>
+
+<h3>Problem 13: migrating OCR from Tesseract to the system engine</h3>
+
+<p><strong>Symptom.</strong> It started with Tesseract, the build config still carries a plugin copying <code>@tesseract.js-data</code>, but runtime code no longer references it.</p>
+
+<p><strong>Cause.</strong> Tesseract needs extra language data and native dependencies, with unfavourable size, startup and Chinese accuracy; Windows 10/11 ships an OCR engine with language packs already installed, so calling it is lighter.</p>
+
+<p><strong>Fix.</strong> Move to a PowerShell child process driving <code>Windows.Media.Ocr</code>, packaging the script as a resource; return <code>null</code> on failure so the vision model handles it; hide the window and cap timeout and output so the main process cannot hang.</p>
+
+<p><strong>Cost.</strong> The child process has startup overhead, and 30 seconds may be too short for huge images; it depends on Windows language packs, so Chinese OCR can fail on non-Chinese systems; the leftover Tesseract build config is technical debt — harmless at runtime, misleading to the next reader.</p>
+
+<p>The tray and shortcuts are the last piece. The tray menu offers show, quick ask and quit; <code>Ctrl+Space</code> opens Quick Ask and <code>Ctrl+Shift+Z</code> captures the primary screen into the chat. Single instance and launch-at-login keep those entry points stable, which also means a lifetime longer than a normal window app — quit order must call <code>scheduler.stop()</code>, <code>proactive.stop()</code>, <code>database.close()</code> and <code>wal_checkpoint</code> in sequence.</p>
+
+<h2>Tests and packaging: after 32 unit tests and 2 E2E</h2>
+
+<p>The 32 unit tests cover what is easy to get wrong and hard to notice afterwards: short paths and symlinks in the path guard, exact memory dedupe, reminder recurrence rules, provider event normalisation, runtime permission denial, project-stall dedupe. Two E2E tests cover starting a real window and a basic conversation. The suite is small, but each case maps to a real hole, which beats chasing a coverage number.</p>
+
+<p>Packaging is another category of trap. Automated releases ship only portable and MSI, because the NSIS uninstaller gets locked by antivirus; unsigned Windows installers trigger SmartScreen, requiring an extra "run anyway". <code>playwright</code> and <code>jsdom</code> sit in runtime dependencies and inflate the installer; the repository has no measured size, so this post states the cost without inventing a number.</p>
+
+<h3>Problem 14: NSIS locked and runtime dependencies bloated</h3>
+
+<p><strong>Symptom.</strong> The NSIS installer never reaches release artefacts, only portable and MSI; the installer is larger than expected.</p>
+
+<p><strong>Cause.</strong> The NSIS uninstaller is held or locked by antivirus during build or scan; <code>playwright</code> and <code>jsdom</code>, which belong in tests or tooling, were written into <code>dependencies</code>, so the packager bundles them at runtime.</p>
+
+<p><strong>Fix.</strong> The release script uses <code>electron-builder --win portable msi</code> to bypass NSIS; <code>asar</code> is enabled; the signing gap is documented rather than pretended away; dependency cleanup — moving test dependencies to <code>devDependencies</code> or excluding them in the bundler — is deferred.</p>
+
+<p><strong>Cost.</strong> Without NSIS there is no classic setup wizard or Start Menu uninstall entry, only the portable build or MSI; unsigned builds warn in SmartScreen; no size measurement exists to judge the benefit. All three remain open.</p>
+
+<h2>Closing</h2>
+
+<p>Z Bot compresses into four sentences. First, keep dangerous capability in the main process: database, keys, tools and system calls never enter the renderer, and preload exposes only whitelisted methods. Second, make permissions a flow rather than a switch: tools declare a spec, matching rules pass, misses wait for the user, and denial becomes a tool result rather than an exception. Third, write the budgets down: 72k context characters, 20 history messages, 8 memories, 20 agent steps, 30 tool calls, 5 minutes, 24.8-day timers — numbers that can be audited. Fourth, make memory an explainable index: FTS5 with trigram, exact dedupe, archival on expiry, no vector store.</p>
+
+<p>Its value is not feature count but that every feature has a traceable boundary: which step runs in the main process, which needs authorisation, which can fail, and what the user sees when it does. Its rough edges are equally explicit: an oversized history message breaks the loop, some IPC lacks validation, OCR build config is stale, NSIS and signing are unresolved, and reminders do not catch up after a full exit. Writing those down beats pretending they do not exist.</p>
+
+<p>If you are building a desktop agent, copy these three first: main-process exclusivity plus a whitelisted preload, the declare-check-wait permission flow, and realpath normalisation in the path guard. Context budgets, memory retrieval and scheduling can be tuned to your product.</p>
+
+<h2>Further reading</h2>
+<ul>
+<li><a href="/article/agent-memory-without-vector-db/">Agent memory: long-term recall without a vector database</a></li>
+<li><a href="/article/agent-prompt-injection-boundary/">Where the prompt-injection boundary sits in an agent</a></li>
+<li><a href="/article/agent-concurrency-without-async/">Agent concurrency without an async runtime</a></li>
+<li><a href="/article/metrics-and-distributed-tracing/">Metrics and distributed tracing: from instrumentation to debugging</a></li>
+<li><a href="/en/article/nanohermes-rust-coding-agent/">Writing a coding agent in Rust</a></li>
+</ul>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">中文版</a></nav></div></div>
+  </body>
+</html>
