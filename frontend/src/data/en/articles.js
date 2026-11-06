@@ -2775,137 +2775,63 @@ if ($sizeMB -gt $MaxSizeMB) {
     date: '2026-10-22',
     readingTime: 38,
     html: `
-<blockquote>
-<p>Who this is for: engineers who want to write a coding agent without inheriting a Node or Python runtime; anyone curious how little code an agent actually needs; people interested in Landlock sandboxes, MCP transports and local BM25 retrieval.</p>
-<p><strong>TL;DR:</strong> the technical density here is not in the feature list but in three disciplines — <strong>no async runtime</strong> (blocking HTTP plus scoped threads), <strong>three dependency crates</strong> (not even <code>libc</code>; raw syscalls are hand-written), and <strong>a ceiling on every output</strong> (20 KB tool results, 256 KB per command stream, a hard refusal above 4 MB for file reads). Plus a Tauri shell that puts the same agent into a four-column GUI, or into a systemd service on a 1 GB VPS.</p>
-<p>Reading time ~30 minutes · Level: advanced</p>
-</blockquote>
+<p>Coding agents are not scarce in 2026. Claude Code, Codex, Trae and Cursor each own a niche, and open-source clones appear weekly. What they share is weight: a Node or Python runtime, hundreds of transitive dependencies, a tokio or asyncio event loop, installers hundreds of megabytes wide, idle processes hundreds of megabytes resident.</p>
 
-<strong>Contents</strong>
-<ul>
-<li>Preface: why write the Nth coding agent</li>
-<li>NanoHermes in a minute</li>
-<li>The three disciplines</li>
-<li>Stack, dependency list and release profile</li>
-<li>Repository layout: one workspace, two crates</li>
-<li>Core 1: the agent loop without an async runtime</li>
-<li>Core 2: concurrent tool calls via scoped threads</li>
-<li>Core 3: not even libc — a 30-line raw syscall shim</li>
-<li>Core 4: 19 built-in tools and the "bounded output" rule</li>
-<li>Core 5: compaction — old conversation becomes a summary</li>
-<li>Core 6: long-term memory — local BM25 with CJK bigrams</li>
-<li>Core 7: an MCP client with two transports</li>
-<li>Core 8: skills and progressive disclosure</li>
-<li>Core 9: the subagent board and the concurrency gate</li>
-<li>Core 10: lifecycle hooks that can veto a tool call</li>
-<li>Core 11: security — Landlock and three approval tiers</li>
-<li>Core 12: Ctrl-C does not kill the process, and <code>/undo</code> rewinds</li>
-<li>Desktop: the four-column Tauri shell and streaming isolation</li>
-<li>Daemon mode and VPS deployment</li>
-<li>Session persistence and multimodal input</li>
-<li>Test matrix</li>
-<li>Known limits and my verdict</li>
-</ul>
-<hr>
+<p>NanoHermes asks a smaller question. If all I need is a terminal agent that reads files, edits code, runs commands and speaks MCP, how small can it be?</p>
 
-<h2>Preface: why write the Nth coding agent</h2>
+<p>The answer is three disciplines. No async runtime. Three dependency crates. And a ceiling on every output.</p>
 
-<p>Coding agents are not scarce in 2026. Claude Code, Codex, Trae and Cursor each own a niche, and open-source clones appear weekly. What they share: <strong>they are heavy</strong>. A Node or Python runtime, hundreds of transitive dependencies, a tokio or asyncio event loop, installers hundreds of MB wide, idle processes hundreds of MB resident.</p>
+<p>The result is a single binary targeting about 2 MB, memory that scales with context length rather than with the framework, and the same agent running as a CLI, a desktop app, and a systemd service on a 1 GB VPS.</p>
 
-<p>NanoHermes asks a much smaller engineering question: <strong>if all I need is a terminal agent that reads files, edits code, runs commands and speaks MCP, how small can it be?</strong></p>
+<h2>What it is</h2>
 
-<p>The answer is a set of trade-offs: a single binary (target around 2 MB), resident memory that scales with context length, three dependency crates, no async runtime, not even <code>libc</code> — and it can run as a resident HTTP service on a 1 GB Debian VPS.</p>
-
-<p>This post does not sell concepts; it takes implementations apart. The density is in a few places: how an agent loop is organized without async, which primitive concurrency uses, how Landlock and SIGINT handling work without <code>libc</code>, how long-term memory does Chinese retrieval without any embedding service, and how every layer of context gets a ceiling. Each of those has details you cannot guess from the outside.</p>
-
-<h2>NanoHermes in a minute</h2>
-
-<p>One sentence: <strong>an OpenAI-compatible terminal coding agent written in Rust, plus a Tauri desktop shell, plus a deployable HTTP daemon.</strong> Written once, shipped in three shapes:</p>
+<p>An OpenAI-compatible terminal coding agent written in Rust, plus a Tauri desktop shell, plus an HTTP daemon. One codebase, three shapes.</p>
 
 <table>
 <thead><tr><th>Shape</th><th>Artefact</th><th>Use</th></tr></thead>
 <tbody>
-<tr><td>CLI / REPL</td><td><code>agent</code> (crate name; release binary <code>target/release/agent</code>)</td><td>One-shot tasks, interactive REPL, stdin pipe, <code>--json</code> / <code>--stream-json</code></td></tr>
-<tr><td>Desktop</td><td><code>NanoHermes</code> (Tauri v2, <code>gui/</code> + <code>ui/</code>)</td><td>Four-column GUI, each task with its own session, permissions, model and persona</td></tr>
-<tr><td>HTTP service</td><td><code>agent --daemon</code></td><td>Resident service on a VPS, consumed as "cloud tasks" from the desktop</td></tr>
+<tr><td>CLI and REPL</td><td><code>agent</code></td><td>One-shot tasks, interactive REPL, stdin pipe, JSON output</td></tr>
+<tr><td>Desktop</td><td><code>NanoHermes</code> (Tauri v2)</td><td>Four-column GUI, each task with its own session, permissions, model and persona</td></tr>
+<tr><td>Service</td><td><code>agent --daemon</code></td><td>Resident service on a VPS, consumed as cloud tasks</td></tr>
 </tbody>
 </table>
 
-<p>Capabilities, ordered by how quickly you notice them: real tools (read, write, edit, patch, list, grep, glob, shell, fetch web, search web, todos, git, background tasks); planning and memory (<code>todo_write</code> / <code>todo_read</code> keep a plan across turns, long-term memory distils lessons, preferences, corrections and facts into local files and re-injects them by relevance); extensibility (MCP servers over stdio and streamable HTTP, skills at <code>.nanohermes/skills/&lt;name&gt;/SKILL.md</code>, subagents, lifecycle hooks that can veto a tool call); security (three approval tiers plus a Linux Landlock filesystem sandbox); and a desktop shell with a virtualized transcript, incremental Markdown, a docked results panel, a command palette and three themes.</p>
+<p>It has real tools, not stubs: read, write, edit, patch, list, grep, glob, shell, fetch web, search web, todos, git and background tasks. It keeps a plan across turns and distils long-term memory into local files. It speaks MCP over two transports, loads skills on demand, delegates to subagents, and runs lifecycle hooks that can veto a tool call. On Linux it also enforces a Landlock filesystem sandbox.</p>
 
-<p>One easily missed fact: the desktop front end is React 19 + TypeScript + Vite, while the Rust side is a 72 KB single file, <code>gui/src/main.rs</code> — no plugins, no glue framework, no state-machine generator. Tauri commands are ordinary functions with an attribute macro.</p>
+<p>One detail sets the tone. The desktop front end is React and Vite, and the Rust side is a 72 KB single file. No plugins, no glue framework, no state-machine generator. Tauri commands are ordinary functions with an attribute macro.</p>
 
-<h2>The three disciplines</h2>
+<h2>Three disciplines</h2>
 
-<p><strong>One: no async runtime.</strong> HTTP uses blocking <code>ureq</code>; concurrent tool calls use <code>std::thread::scope</code>; each MCP server gets a dedicated reader thread. No tokio means no per-task state machines, no thread pools, no runtime memory overhead.</p>
+<p><strong>No async runtime.</strong> HTTP uses a blocking client. Concurrent tool calls use scoped threads. Each MCP server gets a reader thread. No tokio means no per-task state machines, no thread pools, and no runtime memory overhead.</p>
 
-<p><strong>Two: minimalism approaching fanaticism.</strong> The <code>agent</code> crate depends on <code>serde_json</code>, <code>ureq</code> (with TLS) and <code>base64</code>. Not even serde's derive macro — everything is <code>serde_json::Value</code>. Not even <code>libc</code> — Landlock and SIGINT handling detour through a hand-written raw syscall module.</p>
+<p><strong>Three crates.</strong> The agent depends on <code>serde_json</code>, <code>ureq</code> with TLS, and <code>base64</code>. Not even serde's derive macro. Everything is a JSON value. Not even <code>libc</code>: Landlock and signal handling detour through a hand-written syscall module.</p>
 
-<p><strong>Three: every output has a ceiling.</strong> Tool results clamp to 20 KB; command output 256 KB per stream; file reads over 4 MB are refused; web responses clip at 2 MB; grep returns 200 matches; glob 500 files; project guidance and skill bodies 20 KB each. Context and process memory are both held by these numbers.</p>
+<p><strong>A ceiling on everything.</strong> Tool results clamp to 20 KB. Command output caps at 256 KB per stream. Reads over 4 MB are refused. Web responses clip at 2 MB. Grep returns 200 matches, glob 500 files, and prompts and skill bodies 20 KB each.</p>
 
-<p>Together they define the project's character: <strong>push complexity into the layer that must be written and is worth writing, and cut everything else.</strong></p>
+<p>Together they set the character of the project: push complexity into the layer that must be written and is worth writing, and cut everything else.</p>
 
-<h2>Stack, dependencies and release profile</h2>
+<h2>Stack and size</h2>
 
-<p>The workspace <code>Cargo.toml</code> is the single source of truth; both crates inherit <code>version</code>, <code>edition</code> and <code>license</code>:</p>
+<p>The release profile is tuned for size: optimise for size, link-time optimisation, one codegen unit, strip, abort on panic. An empty <code>windowsgui</code> Go binary is 1.2 MB; a Rust binary in this configuration is smaller still.</p>
 
-<pre><code>[workspace]
-resolver = "2"
-members = ["agent", "gui"]
-
-[workspace.package]
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-
-[profile.release]
-opt-level = "z"    # optimize for size
-lto = true         # link-time optimization
-codegen-units = 1  # slower compile, more aggressive optimization
-panic = "abort"    # no unwind tables
-strip = true       # strip symbols
-</code></pre>
-
-<p>The agent's dependency table is short enough to paste whole; the comments state the design goal:</p>
-
-<pre><code># Minimal dependency footprint is a design goal:
-#  - no async runtime (no tokio) =&gt; no per-task state machines / thread pools
-#  - one blocking HTTP client (ureq) instead of reqwest/hyper
-#  - serde_json only (no serde derive proc-macro)
-[dependencies]
+<pre><code>[dependencies]
 serde_json = "1"
 ureq = { version = "2", features = ["json", "tls"] }
 base64 = "0.22"
 </code></pre>
 
-<p>The GUI side is equally restrained and reuses the same blocking HTTP client, with the reason in a comment: <code>ureq = { version = "2", features = ["json", "tls"] }</code> keeps Caddy-fronted HTTPS daemons reachable. The frontend keeps five runtime dependencies (<code>@tauri-apps/api</code>, <code>highlight.js</code>, <code>marked</code>, <code>react</code>, <code>react-dom</code>) and Vite 6 / Vitest 5 / TypeScript 5.7 / jsdom 30 as tooling.</p>
+<p>That is the complete dependency list of the agent crate. The comment above it in the repository states the goal: no async runtime, one blocking HTTP client instead of a stack of hyper, and JSON without derive macros.</p>
 
-<p>The Tauri window config is plain; two settings matter: <code>withGlobalTauri: true</code> (the frontend uses <code>window.__TAURI__</code> directly, no injection package) and <code>decorations: false</code> (no system title bar; the frontend draws its own).</p>
+<p><code>agent/src</code> is about 9,200 lines. The three largest files are the loop, the CLI and the MCP client, which together are more than half the code. The rest is tools.</p>
 
-<h2>Repository layout</h2>
+<h2>The loop</h2>
 
-<table>
-<thead><tr><th>Path</th><th>What</th></tr></thead>
-<tbody>
-<tr><td><code>agent/</code></td><td>The agent itself: CLI, loop, tools, MCP client, daemon mode</td></tr>
-<tr><td><code>gui/</code></td><td>Desktop shell: <code>tauri.conf.json</code>, <code>src/main.rs</code>, icons, capabilities</td></tr>
-<tr><td><code>ui/</code></td><td>Desktop front end: Vite + React 19 + TypeScript</td></tr>
-<tr><td><code>scripts/</code></td><td><code>deploy-debian.sh</code>: install the daemon on Debian/Ubuntu in one command</td></tr>
-</tbody>
-</table>
-
-<p><code>agent/src</code> is about 9,200 lines of Rust, finely split. The three largest are <code>agent.rs</code> (loop, 52 KB), <code>main.rs</code> (CLI and REPL, 58 KB) and <code>mcp.rs</code> (MCP client, 38 KB) — <strong>the loop, a terminal UI and one protocol client take more than half</strong>; the rest is tools.</p>
-
-<p><code>ui/src</code> is about 8,800 lines of TypeScript; the biggest files are <code>lib/store.ts</code> (45 KB, global state and IPC glue), <code>components/SettingsPage.tsx</code> (33 KB), <code>styles/shell.css</code> (65 KB) and <code>App.e2e.test.tsx</code> (26 KB).</p>
-
-<h2>Core 1: the agent loop without an async runtime</h2>
-
-<p><code>Agent::run</code> in <code>agent/src/agent.rs</code> is a bit over a hundred lines and takes one user turn from start to finish:</p>
+<p>One user turn runs through a loop a little over a hundred lines long.</p>
 
 <pre><code>pub fn run(&amp;mut self, content: Value) -&gt; Result&lt;String, String&gt; {
     // A Ctrl-C during this turn sets a flag instead of killing the process.
     let _guard = InterruptGuard::new();
-    // Cross-session memory: retrieve for this instruction, replace the injected block.
+    // Memory is retrieved for this instruction and the injected block is replaced.
     let user_text = memory::content_text(&amp;content);
     if let Some(dir) = self.ctx.memory_dir.clone() {
         let block = memory::retrieve_block(&amp;dir, &amp;user_text);
@@ -2914,43 +2840,38 @@ base64 = "0.22"
     self.messages.push(json!({ "role": "user", "content": content }));
 
     for _ in 0..self.cfg.max_iterations {
-        // Abort only at a step boundary so the history never keeps an
-        // assistant tool-call without its matching tool result.
+        // Abort at a step boundary, never mid tool call.
         if crate::interrupt::take() { interrupted = true; break; }
         let turn = self.complete()?;
-        // ... accumulate token usage, push the assistant message
         if turn.tool_calls.is_empty() { completed = true; break; }
-        // ... run tools concurrently, backfill tool messages in call order
+        // Run tools concurrently, then backfill results in call order.
         self.compact();
     }
-    // Only fully completed turns distil memories
-    if completed &amp;&amp; self.cfg.memory { self.distill_memories(&amp;user_text, had_tools); }
+    if completed &amp;&amp; self.cfg.memory { self.distill_memories(&amp;user_text); }
     self.persist();
     Ok(final_text)
 }
 </code></pre>
 
-<p>Four things deserve comment.</p>
+<p>Four decisions inside that shape are worth calling out.</p>
 
-<p><strong>Interruption happens at step boundaries, not anywhere.</strong> <code>crate::interrupt::take()</code> at the top of the loop is the only break point, and the comment says why: interrupting after a tool call is issued but before its result is written leaves an assistant tool-call with no matching result, which the API rejects on the next request. The cost is up to one step of extra latency.</p>
+<p>Interruption happens at step boundaries. Breaking in the middle would leave an assistant tool call with no matching result, and the next request would be rejected by the API. The cost is up to one step of extra latency.</p>
 
-<p><strong>Long-term memory is re-retrieved and wholesale-replaced each turn.</strong> <code>set_memory_block</code> replaces the old block by its markers rather than appending, so a hundred turns still inject one block. This is the classic trap of injected memory.</p>
+<p>Memory is re-retrieved and replaced, not appended. A hundred turns still inject one block, which avoids the usual failure of injected memory growing without bound.</p>
 
-<p><strong>Token usage reports the delta, not the running total.</strong> A daemon serving many sessions would make a cumulative total meaningless to the client; deltas let the client compute a per-task total, and locally deltas sum to the total anyway.</p>
+<p>Token usage reports the delta, not the running total. A daemon serving many sessions would make a total meaningless to the client, and locally deltas sum to the same number.</p>
 
-<p><strong>Memory distillation has a hard gate.</strong> It only runs when <code>completed</code> is true — not interrupted, not iteration-capped — and failing to distil degrades silently. Half a conversation never becomes a "lesson".</p>
+<p>Distillation has a gate. It only runs on a completed turn, never on an interrupted or iteration-capped one, so half a conversation never becomes a lesson.</p>
 
-<p>One model round trip is encapsulated in <code>complete()</code>, landing in <code>llm::chat</code>: it builds the request body, attaches <code>tools</code> and <code>tool_choice</code> as needed, sets <code>reasoning_effort: "high"</code> when thinking is enabled, adds <code>stream_options.include_usage</code> so token counts arrive in the stream, then enters the retry loop. Backoff is <code>base * 2^(attempt-1)</code> capped at 30 seconds; retryable means HTTP 429, 500, 502, 503 or 504; after the attempts are exhausted, a configured <code>--fallback-model</code> gets one final call. Defaults: <code>--max-retries 2</code>, <code>--retry-base-ms 500</code>.</p>
+<p>One model round trip lives in <code>complete</code>. It builds the request, attaches tools and tool choice as needed, asks for reasoning effort when thinking is on, requests usage in the stream, then retries. Backoff doubles from a 500 ms base with a 30-second cap. Only 429 and 5xx retry. After the attempts are exhausted, a configured fallback model gets one call.</p>
 
-<h2>Core 2: concurrent tool calls via scoped threads</h2>
+<h2>Concurrency without async</h2>
 
-<p>When a turn returns several <code>tool_calls</code>, they run concurrently — with <code>std::thread::scope</code>, not tokio:</p>
+<p>When a turn returns several tool calls, they run at once through <code>std::thread::scope</code>.</p>
 
 <pre><code>let results: Vec&lt;String&gt; = if turn.tool_calls.len() == 1 {
     vec![self.execute(&amp;turn.tool_calls[0])]
 } else {
-    // Reborrow as \`&amp;Agent\` so the scoped threads can share it
-    // (\`execute\` takes \`&amp;self\`, and \`Agent\` is \`Sync\`).
     let this: &amp;Agent = self;
     std::thread::scope(|s| {
         let handles: Vec&lt;_&gt; = turn.tool_calls.iter()
@@ -2963,251 +2884,113 @@ base64 = "0.22"
 };
 </code></pre>
 
-<p>Four details: a single call takes the direct path and pays no thread cost; results are collected in <code>tool_calls</code> order, so completion order cannot mismatch <code>tool_call_id</code>; <code>Agent</code> must be <code>Sync</code>, achieved by putting each MCP server's <code>Child</code> and reader <code>JoinHandle</code> inside a <code>Mutex&lt;Server&gt;</code>; and a panicking tool thread returns a string that looks like a tool error, so the model simply sees a failed call and continues.</p>
+<p>Four details. A single call takes the direct path and pays no thread cost, which matters because most turns call one tool. Results are collected in call order, so completion order cannot mismatch a result to its call id. The agent must be <code>Sync</code>, achieved by putting each MCP server behind a mutex. And a panicking tool thread returns a string that reads like a tool error, so the model sees a failed call and continues.</p>
 
-<p>MCP concurrency has a finer grain: calls to the same server serialize on its stdin lock (the protocol is request-response over one connection), while different servers run in parallel.</p>
+<p>MCP concurrency has a finer grain. Calls to one server serialise on its stdin lock, because the protocol is request and response over a single connection. Different servers run in parallel.</p>
 
-<h2>Core 3: not even libc — a 30-line raw syscall shim</h2>
+<h2>Thirty lines of assembly instead of libc</h2>
 
-<p><code>sandbox.rs</code> and <code>interrupt.rs</code> both need syscalls the standard library does not expose: the Landlock family and <code>rt_sigaction</code>. The usual answer is a <code>libc</code> dependency; here it is <code>agent/src/sys.rs</code>:</p>
+<p>Two features need syscalls the standard library does not expose: Landlock and <code>rt_sigaction</code>. The usual answer is the <code>libc</code> crate. Here it is a shim with two syscall tables, one per architecture, and a six-argument dispatch that issues <code>syscall</code> on x86_64 and <code>svc 0</code> on aarch64.</p>
 
-<pre><code>#[cfg(target_arch = "x86_64")]
-pub mod nr {
-    pub const CLOSE: usize = 3;
-    pub const RT_SIGACTION: usize = 13;
-    pub const OPENAT: usize = 257;
-    pub const PRCTL: usize = 157;
-}
-</code></pre>
+<p>The module is under 75 lines and compiles away entirely on non-Linux targets. That is the most expensive consequence of dependency minimalism: portability traded for assembly. It is also reasonable, because both features only mean anything on Linux.</p>
 
-<p>Two architectures get their own tables (x86_64 versus aarch64: <code>openat</code> is 257 versus 56, <code>prctl</code> 157 versus 167), plus a <code>syscall()</code> taking up to six arguments — <code>asm!</code> with the <code>syscall</code> instruction on x86_64, <code>svc 0</code> on aarch64, with different register assignments.</p>
+<h2>Tools and bounded output</h2>
 
-<p>The module is under 75 lines, gated on <code>#![cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]</code>, and vanishes on other platforms. <strong>This is the most expensive consequence of dependency minimalism: portability and some audit surface traded for thirty lines of assembly.</strong> It is also reasonable — both features only mean anything on Linux.</p>
+<p>Nineteen built-in tools, plus conditional ones for MCP, skills and subagents. Dispatch is a plain match, and every error becomes a string result rather than a panic.</p>
 
-<h2>Core 4: 19 built-in tools and bounded output</h2>
-
-<p>Nineteen built-in tools in four groups, up to 28 with conditional ones (the four <code>mcp_*</code> tools appear only with a server configured):</p>
-
-<table>
-<thead><tr><th>Group</th><th>Tools</th></tr></thead>
-<tbody>
-<tr><td>Files</td><td><code>read_file</code>, <code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code>, <code>list_dir</code></td></tr>
-<tr><td>Search</td><td><code>grep</code>, <code>glob</code></td></tr>
-<tr><td>Execution</td><td><code>run_command</code>, <code>task_output</code>, <code>task_list</code>, <code>task_kill</code></td></tr>
-<tr><td>Network</td><td><code>web_fetch</code>, <code>web_search</code></td></tr>
-<tr><td>Git</td><td><code>git_status</code>, <code>git_diff</code>, <code>git_log</code>, <code>git_commit</code></td></tr>
-<tr><td>Planning</td><td><code>todo_write</code>, <code>todo_read</code></td></tr>
-<tr><td>Conditional</td><td><code>skill</code>, <code>subagent</code>, <code>agent_list</code>, <code>memory_save</code>, <code>memory_search</code>, <code>mcp_list_resources</code>, <code>mcp_read_resource</code>, <code>mcp_list_prompts</code>, <code>mcp_get_prompt</code></td></tr>
-</tbody>
-</table>
-
-<p>Dispatch is a plain <code>match</code>; every error becomes a string tool result — no panic, no broken loop. The last line is the point:</p>
-
-<pre><code>r.map(|s| clamp(s, ctx.max_output))
-</code></pre>
-
-<p><strong>Every tool result clamps to <code>max_output</code> (20 KB).</strong> That line is where the bounded-output discipline lives: whichever tool, whatever arguments, no single tool result ever exceeds 20 KB in context.</p>
-
-<p>Each tool also has a second ceiling, deliberately chosen:</p>
+<p>The last line of dispatch is the important one. Every result clamps to 20 KB, whichever tool produced it. That single call site is where the bounded-output discipline is enforced.</p>
 
 <table>
 <thead><tr><th>Location</th><th>Limit</th><th>Reason</th></tr></thead>
 <tbody>
-<tr><td>Tool results</td><td>20 KB</td><td>Hold the context</td></tr>
-<tr><td>Command stdout / stderr</td><td>256 KB each</td><td>Survive exploding build logs</td></tr>
-<tr><td><code>read_file</code></td><td>Hard refusal above 4 MB</td><td>Force chunked reads with <code>offset</code> / <code>limit</code></td></tr>
-<tr><td><code>web_fetch</code> body</td><td>2 MB</td><td>Web pages are untrusted; clip before parsing</td></tr>
-<tr><td><code>grep</code></td><td>200 matches</td><td>One screen is enough</td></tr>
-<tr><td><code>glob</code></td><td>500 files</td><td>Same</td></tr>
-<tr><td><code>todo_write</code></td><td>50 items</td><td>A plan need not be infinite</td></tr>
-<tr><td>AGENTS.md / skill bodies</td><td>20 KB each</td><td>Prompts need budgets too</td></tr>
+<tr><td>Tool results</td><td>20 KB</td><td>Protect the context</td></tr>
+<tr><td>Command output</td><td>256 KB per stream</td><td>Survive a runaway build log</td></tr>
+<tr><td>File reads</td><td>Refused above 4 MB</td><td>Force chunked reads</td></tr>
+<tr><td>Web responses</td><td>2 MB</td><td>Pages are untrusted; clip before parsing</td></tr>
+<tr><td>Grep and glob</td><td>200 matches, 500 files</td><td>One screen is enough</td></tr>
+<tr><td>Prompts and skills</td><td>20 KB each</td><td>Prompts need budgets too</td></tr>
 </tbody>
 </table>
 
-<p>One security-relevant detail: command output uses <code>read_capped</code> — <strong>clip while reading</strong>, not read-then-truncate, or a stray <code>yes</code> or runaway build script eats memory first. <code>apply_patch</code> matches on <strong>content</strong> rather than line numbers, so a small drift in the source still applies.</p>
+<p>Command output is clipped while reading rather than after, so a stray <code>yes</code> cannot eat memory before the cap applies. Patch application matches on content rather than line numbers, so a small drift in the source still applies.</p>
 
-<h2>Core 5: compaction — old conversation becomes a summary</h2>
+<h2>Compaction</h2>
 
-<p>Context management lives in <code>compact_with</code>, set by two constants:</p>
+<p>History is budgeted by characters. Past 120,000, or past ten messages beyond the keep count, older turns are drained and replaced by a summary inserted near the top of the conversation.</p>
 
-<pre><code>const CONTEXT_CHAR_BUDGET: usize = 120_000;
-const KEEP_RECENT: usize = 10;
-</code></pre>
+<p>Three details prevent the usual accidents. The cut point never lands inside a tool call, so a summary cannot orphan a tool result. A failed summary degrades to a one-line note instead of losing data. And a command forces compaction on demand.</p>
 
-<p>Past 120,000 characters (or more than keep-count + 1 messages), compaction begins: starting ten messages back, find a safe start point, <code>drain</code> the older span for a model summary, then insert that summary as a <code>system</code> message at index 1. Three details avoid the usual accidents: the start point is pushed forward if it lands on a <code>role == "tool"</code> message, so a summary never orphans a tool result; a failed summary degrades to <code>[Earlier conversation was omitted to keep the context small]</code> rather than erroring or losing data; and <code>/compact</code> forces one regardless of size.</p>
+<p>Keeping ten recent messages is empirical. Ten cover the file being edited and the last tool result, and older context decays quickly in value.</p>
 
-<p><code>KEEP_RECENT = 10</code> is empirical: ten messages cover "the file being edited plus the last tool result", and older context decays quickly in value.</p>
+<h2>Memory without a vector database</h2>
 
-<h2>Core 6: long-term memory — local BM25 with CJK bigrams</h2>
+<p>Memory persists to one JSON file. The question it answers: how do you search Chinese with no embedding service? Tokenise, then BM25.</p>
 
-<p>Memory lives in <code>agent/src/memory.rs</code> and persists to <code>~/.nanohermes/memory.json</code>. The practical question it answers: <strong>how do you search Chinese without any embedding service?</strong> Two stages: tokenize, then BM25.</p>
+<p>Alphanumeric runs become lowercase words, and runs shorter than two characters are dropped as noise. Runs of CJK characters are split into bigrams, with isolated characters kept whole, so a four-character phrase becomes three overlapping pairs. The query is sliced the same way and every term must match.</p>
 
-<p><code>tokenize()</code> handles mixed Chinese and English: runs of ASCII alphanumerics become lowercase words, and <strong>anything shorter than two characters is dropped</strong> as noise; runs of CJK are <strong>split into bigrams</strong> (<code>windows(2)</code>), with isolated characters kept alone — so 上下文压缩 becomes 上下 / 下文 / 文压 / 压缩; and the CJK ranges cover Han, kana, hangul and compatibility blocks, not just the unified ideographs.</p>
+<p>Scoring is standard BM25 with the usual parameters. Two details go beyond the textbook: each memory's category label joins the document bag, so a question about corrections hits correction entries; and zero-score entries are filtered before ranking, so irrelevant memories cannot crowd the top results.</p>
 
-<p>Scoring is standard BM25 with <code>k1 = 1.2</code> and <code>b = 0.75</code>:</p>
+<p>Writes are deduplicated on normalized text, and automatic distillation only runs on completed turns. The result is closer to an index than to a brain: no synonyms, no semantic recall, but every entry is visible, editable and deletable, which for a personal assistant matters more than recall.</p>
 
-<pre><code>let idf = (1.0 + (n - n_q + 0.5) / (n_q + 0.5)).ln();
-score += idf * (f * (k1 + 1.0))
-       / (f + k1 * (1.0 - b + b * len / avg_len.max(1.0)));
-</code></pre>
+<h2>MCP, skills and subagents</h2>
 
-<p>Two details beyond the textbook: <strong>category words participate in matching</strong> — each memory has a <code>kind</code> (<code>lesson</code>, <code>preference</code>, <code>correction</code>, <code>fact</code>) whose labels are added to the document bag, so "what did I correct earlier" hits <code>correction</code> entries; and <strong>zero-score entries are filtered</strong> before ranking so irrelevant memories cannot crowd the top-k.</p>
+<p>The MCP client implements both transports. Over stdio it uses LSP-style framing with a content-length header and a JSON body. Over streamable HTTP it posts synchronously, keeps the session id the server returns, and parses both JSON and server-sent events.</p>
 
-<p>With a small number of entries it scores linearly, no inverted index — one <code>Vec</code> plus one <code>HashMap</code>. Retrieval is recomputed every turn and injected by the same marker mechanism as the memory block. On the write side, <code>memory_save</code> skips identical text (dedupe), and automatic distillation only runs on completed turns, so small talk and half conversations never pollute the store.</p>
+<p>The handshake is the standard three steps, after which declared tools become OpenAI function definitions. From the model's point of view an MCP tool is indistinguishable from a built-in one.</p>
 
-<h2>Core 7: an MCP client with two transports</h2>
+<p>Skills are directories with a markdown file and optional frontmatter. The system prompt lists only each skill's name and description; the body is read when the model asks for it. The library can be large while the base prompt stays small.</p>
 
-<p>Both transports are implemented. <strong>stdio</strong> uses LSP-style framing — <code>Content-Length: N\\r\\n\\r\\n</code> followed by the JSON body, byte for byte. <strong>Streamable HTTP</strong> is a synchronous POST with <code>Accept: application/json, text/event-stream</code>; the server's <code>Mcp-Session-Id</code> is remembered and echoed on later requests. Responses may be JSON or SSE (<code>event: message</code> plus <code>data: {...}</code>) and both are parsed.</p>
+<p>Subagents are declared in a JSON file with their own prompt, model and tool allowlist. A board tracks each delegation with id, status, duration and a preview, and a counting semaphore caps concurrency at four. Without the cap, one turn that emits several delegations would fire a dozen model requests at once.</p>
 
-<p>The handshake is the standard three steps: <code>initialize</code> (<code>protocolVersion: "2024-11-05"</code>) → <code>notifications/initialized</code> → <code>tools/list</code>. Declared tools are converted to OpenAI function-calling format and merged into the agent's table, then dispatched by name — <strong>an MCP tool is indistinguishable from a built-in one</strong> to the model.</p>
+<h2>Hooks</h2>
 
-<p>Four auxiliary tools expose resources and prompts: <code>mcp_list_resources</code>, <code>mcp_read_resource</code>, <code>mcp_list_prompts</code>, <code>mcp_get_prompt</code>. Configuration is one JSON file where <code>command</code> means stdio and <code>url</code> means HTTP, both inside the same <code>servers</code> object.</p>
+<p>Hooks are shell commands that run before and after tool use, matched by tool name or a wildcard, receiving the call on stdin plus two environment variables.</p>
 
-<h2>Core 8: skills and progressive disclosure</h2>
+<p>Two implementation details matter. Both pipes get their own draining thread, because reading only one deadlocks once the other fills its buffer, and chatty hooks are normal. And hooks time out after thirty seconds, because a hook that hangs must not hang the agent.</p>
 
-<p>Skills are reusable instruction packs: one directory per skill with a <code>SKILL.md</code> and optional YAML frontmatter declaring <code>name</code> and <code>description</code>. Discovery is workspace-first: <code>&lt;workspace&gt;/.nanohermes/skills/</code>, then <code>~/.nanohermes/skills/</code>, with workspace entries overriding global ones of the same name.</p>
+<p>The semantics are asymmetric on purpose. A non-zero pre-hook blocks the call and returns its output to the model. A non-zero post-hook can only append a warning to something that already happened.</p>
 
-<p>The key property is that <strong>the body never enters context</strong>: startup parses only the frontmatter, and the system prompt lists only each skill's name and description. The model calls the <code>skill</code> tool to pull a body (capped at 20 KB) when it needs one. That is progressive disclosure — <strong>the library can be large while the base prompt stays small</strong>. Missing frontmatter falls back to the directory name and the first body line.</p>
+<h2>Sandbox and approvals</h2>
 
-<h2>Core 9: the subagent board and the concurrency gate</h2>
+<p>Two independent switches: whether to ask, and what is possible.</p>
 
-<p>Subagents come from a JSON file passed with <code>--subagents</code>; each can carry its own prompt, model and <code>allowed_tools</code> allowlist, exposing <code>subagent</code> (delegate) and <code>agent_list</code> (inspect the board).</p>
+<p>Approval policies are never, on-request and untrusted. On-request asks only for commands that are not recognized read-only, and the read-only test is stricter than it looks. Any pipe, redirect, semicolon, substitution or newline makes a command untrusted regardless of the program, because a shell metacharacter means the command is a program, not a binary. Past that gate, leading environment assignments are skipped, path prefixes are stripped, and the remaining binary is checked against an allowlist.</p>
 
-<p><code>agent/src/board.rs</code> holds two mechanisms. The <strong>board</strong> records each delegated task: an incrementing id (<code>agent-N</code>), name, description, status (<code>running</code>, <code>done</code>, <code>failed</code>), duration and a result preview of 500 characters. The preview clipper respects UTF-8 boundaries (<code>while end &gt; 0 &amp;&amp; !flat.is_char_boundary(end)</code>) so a multi-byte character is never split into a panic; the full result still returns as the tool result, the board keeps only a summary for readable <code>agent_list</code> output.</p>
+<p>Sandboxing uses Landlock to restrict the filesystem view of spawned commands: off, read-only, or workspace-write. The most interesting part is that it refuses to degrade. Landlock is installed between fork and exec, so it covers every child, and if the kernel does not expose it the command is refused rather than run unsandboxed. A security mechanism that always falls back gracefully is no mechanism at all.</p>
 
-<p>The <strong>gate</strong> is a textbook counting semaphore over <code>Mutex</code> + <code>Condvar</code>: <code>acquire()</code> waits when full, the returned <code>GateGuard</code> decrements and <code>notify_one</code>s on <code>Drop</code>. The cap is <code>MAX_PARALLEL_SUBAGENTS = 4</code>, because the loop spawns one thread per tool call and a turn can emit several delegations at once — without the gate you would fire a dozen concurrent LLM requests.</p>
+<h2>Ctrl-C and undo</h2>
 
-<h2>Core 10: lifecycle hooks that can veto a tool call</h2>
+<p>In interactive use, Ctrl-C does not kill the process. It flips a flag, and the current turn exits at the next step boundary with the conversation intact.</p>
 
-<p>Hooks are <code>PreToolUse</code> and <code>PostToolUse</code> shell commands from the config, with a <code>matcher</code> of <code>*</code> or a comma-separated tool list. They run via <code>sh -c</code> in the workspace root, receiving the tool call as JSON on stdin, plus <code>NANOHERMES_TOOL_NAME</code> and <code>NANOHERMES_HOOK_EVENT</code> so scripts need not parse JSON.</p>
+<p>The handler is installed only while a turn runs. Reference counting lets nested turns share one handler, and the outermost exit restores the default action, so Ctrl-C while idle still quits. One signal, two meanings, decided by install timing rather than by inspecting a flag.</p>
 
-<p>Two implementation details worth copying: <strong>both pipes get their own draining thread</strong> (reading only one deadlocks once the other fills its 64 KB buffer, and chatty hooks are normal), and <strong>hooks must be fast or they fail</strong> — <code>HOOK_TIMEOUT_SECS = 30</code>, after which the process is killed and <code>-2</code> returned (<code>-1</code> means killed by a signal).</p>
+<p>Paired with it is undo, which removes the last N complete turns from history and persists the result. Interrupt preserves and undo erases, and both are needed, because "let me correct it" and "pretend it never happened" are different intentions.</p>
 
-<p>The semantics differ by event: a non-zero <code>PreToolUse</code> <strong>blocks</strong> the call and returns the hook output to the model, while a non-zero <code>PostToolUse</code> can only <strong>append a warning</strong> to a result that already happened. The asymmetry is deliberate — block before, not after.</p>
+<h2>Desktop and daemon</h2>
 
-<h2>Core 11: security — Landlock and three approval tiers</h2>
+<p>The desktop shell is four columns: a self-drawn title bar, a collapsible task list, a streaming conversation, and a results panel with a file tree, diffs and read-only previews.</p>
 
-<p>Two independent switches: one governs whether to ask, the other what is possible.</p>
+<p>Five permission modes cover the practical range: full agent, accept edits, plan-only, unattended, and debug. Three of them also inject a mode instruction into the prompt, because a model should behave according to how it was launched rather than discover that tools are missing.</p>
 
-<table>
-<thead><tr><th>Policy</th><th>Behavior</th></tr></thead>
-<tbody>
-<tr><td><code>never</code></td><td>Never ask (default; <code>-y</code> as well)</td></tr>
-<tr><td><code>on-request</code></td><td>Ask only for commands that are <strong>not</strong> recognized read-only</td></tr>
-<tr><td><code>untrusted</code></td><td>Ask for everything, read-only included</td></tr>
-</tbody>
-</table>
+<p>Four performance rules came out of real problems. No blocking Tauri commands, because a synchronous command runs on the window thread and freezes the UI. Streaming text stays out of the global store, so a long answer does not re-render the sidebar. The transcript is virtualised. And Markdown is parsed incrementally, splitting on blank lines outside code fences so stable blocks render once.</p>
 
-<p>Read-only detection (<code>is_trusted_command</code>) is stricter than expected. The first gate is metacharacters: any <code>|</code>, <code>&amp;</code>, <code>;</code>, <code>&lt;</code>, <code>&gt;</code>, backtick, <code>$</code>, parenthesis or newline makes the command untrusted <strong>regardless of the program</strong>. Past that gate comes allowlist matching: skip leading <code>KEY=VALUE</code> assignments, strip path prefixes, then check <code>TRUSTED_BINARIES</code> (<code>ls</code>, <code>cat</code>, <code>grep</code>, <code>rg</code>, <code>stat</code>, <code>jq</code>, <code>tree</code> and similar). <code>git</code> gets its own <code>git_subcommand_is_read_only()</code> that skips <code>-C</code>, <code>-c</code>, <code>--git-dir</code>, <code>--work-tree</code> and <code>--namespace</code> — options that consume the next token as a value — before checking the subcommand.</p>
+<p>The daemon exposes two endpoints: post a prompt, and a health check. Sessions are isolated by a header, each persists to its own file, and one daemon can serve many desktop tasks without cross-talk. The cost is that cloud turns cannot be cancelled midway and their configuration comes from startup flags.</p>
 
-<p>Sandboxing uses Linux Landlock to restrict the spawned command's filesystem view:</p>
+<p>The deploy script installs the binary, generates a token, writes a systemd unit with restart-always and basic hardening, then curls the health endpoint. One trap is documented: a strict protected system blocks writes to the memory file, so long-term memory needs an explicit writable path. The warning about exposure is blunt, and correct: never put the port on the internet, because the only credential is a bearer token and the traffic is plaintext.</p>
 
-<table>
-<thead><tr><th>Mode</th><th>Behavior</th></tr></thead>
-<tbody>
-<tr><td><code>off</code></td><td>Unrestricted (default)</td></tr>
-<tr><td><code>read-only</code></td><td>Read and execute, no writes at all</td></tr>
-<tr><td><code>workspace-write</code></td><td>Read and execute, writes only inside the workspace</td></tr>
-</tbody>
-</table>
+<h2>Tests and limits</h2>
 
-<p>The most interesting part is that <strong>it refuses to degrade</strong>: Landlock is installed in <code>Command::pre_exec</code>, between <code>fork</code> and <code>exec</code>, so the restriction covers every child the command spawns. If the kernel does not expose Landlock (or an outer sandbox blocks it), NanoHermes <strong>refuses to run the command</strong> rather than quietly running unsandboxed — a security mechanism that always falls back gracefully is no mechanism at all. And all of it still goes through the raw syscall shim, with no external crate.</p>
+<p>Rust tests are per-module unit tests plus a real end-to-end suite driven by a local mock OpenAI server that depends only on the standard library. They cover tool round trips, streaming and non-streaming replies, retry after a transient error, and hard API errors. A mock MCP server covers the other transport.</p>
 
-<h2>Core 12: Ctrl-C does not kill, and <code>/undo</code> rewinds</h2>
+<p>The unit list reads like a map of where things actually break: patch application, glob matching, MCP dispatch and concurrency, HTML to text, git round trips, backoff arithmetic, multimodal assembly, skill discovery, hook exit codes, the subagent gate, approval decisions, the Landlock boundary, signal flags, and Chinese bigram retrieval.</p>
 
-<p>In interactive use Ctrl-C is redefined: it <strong>does not</strong> kill the process, it flips a flag so the current turn exits cleanly at the next step boundary with the conversation intact.</p>
+<p>The limits are stated as plainly. Sandboxing and signal handling are Linux-only, so the Windows desktop runs without either. Cloud turns cannot be cancelled. The daemon runs as root with a token as its only credential. A stuck HTTP request occupies a thread until timeout, which is fine for a CLI and wrong for a high-concurrency gateway. And the installer is unsigned.</p>
 
-<p><code>agent/src/interrupt.rs</code> has one neat piece of timing: <strong>the handler is installed only while a turn runs</strong>.</p>
+<h2>Closing</h2>
 
-<pre><code>static INTERRUPTED: AtomicBool = AtomicBool::new(false);
-/// Nesting depth of active turns; the handler is installed at 0 -&gt; 1 and
-/// removed at 1 -&gt; 0.
-static DEPTH: AtomicUsize = AtomicUsize::new(0);
-</code></pre>
+<p>What is worth reading here is the discipline, not the feature list. Coding agents converge on similar features. Holding four constraints to the end, no async runtime, three crates, no libc, and a cap on every output, is what produced the syscall shim, the scoped-thread concurrency, the layered clamps and the dependency-free Chinese search.</p>
 
-<p>Reference counting keeps nested turns (a subagent inside a tool call) sharing one handler, and the outermost exit restores <code>SIG_DFL</code> — so <strong>Ctrl-C while idle still quits</strong>, and only while busy does it mean "stop this turn". One signal, two meanings, decided by install/uninstall timing rather than flag inspection.</p>
-
-<p>One more engineering detail: on x86_64 the kernel <strong>refuses to deliver a caught signal unless the caller supplies a restorer that executes <code>rt_sigreturn</code> (syscall 15)</strong>. That is the only hand-written assembly in the project beyond the <code>syscall</code> instruction itself: a tiny <code>global_asm!</code> stub with <code>mov rax, 15</code> and <code>syscall</code>.</p>
-
-<p>The desktop has no SIGINT to send, so a <code>request()</code> flips the same flag: <strong>the GUI's stop button and the terminal's Ctrl-C take one path</strong>, and the loop never needs to know who asked.</p>
-
-<p>Paired with it is <code>/undo [n]</code>, which removes the last n complete user turns (that message and everything after) from history and persists. Interrupt preserves, undo erases — both are needed, because "it went sideways, let me correct it" and "it went sideways, pretend it never happened" are different real needs.</p>
-
-<h2>Desktop: the four-column Tauri shell</h2>
-
-<table>
-<thead><tr><th>Column</th><th>Contents</th></tr></thead>
-<tbody>
-<tr><td>Title bar</td><td>Self-drawn: brand, model/location pill, task list and results toggles, settings, window buttons</td></tr>
-<tr><td>Task list (left, collapsible)</td><td>Location and accumulated tokens per task; search, pin, rename, delete, export</td></tr>
-<tr><td>Conversation (centre)</td><td>Task bar (title, state, tokens, export, clear context) plus a streaming Markdown transcript</td></tr>
-<tr><td>Results (right, collapsible)</td><td>Workspace tree, this task's artefacts (all / changed / read), read-only previews, word-level diff highlighting</td></tr>
-</tbody>
-</table>
-
-<p>Five permission modes, whose differences are bigger than their names:</p>
-
-<table>
-<thead><tr><th>Mode</th><th>Label</th><th>Behavior</th></tr></thead>
-<tbody>
-<tr><td><code>default</code></td><td>Agent</td><td>All tools; file edits and commands without asking</td></tr>
-<tr><td><code>accept-edits</code></td><td>Accept</td><td>Edits auto-approved, commands still gated</td></tr>
-<tr><td><code>plan</code></td><td>Plan</td><td>Read-only: no writes, no commands</td></tr>
-<tr><td><code>goal</code></td><td>Goal</td><td>Unattended: every tool until the task completes</td></tr>
-<tr><td><code>debug</code></td><td>Debug</td><td>Read files and run commands to reproduce, never write</td></tr>
-</tbody>
-</table>
-
-<p><code>plan</code>, <code>goal</code> and <code>debug</code> also inject a mode instruction into the system prompt, because <strong>the model should behave according to how it was launched, not merely discover that tools are disabled</strong> — it will retry a disabled tool otherwise.</p>
-
-<p>The GUI performance notes are four hard-won conclusions: <strong>no blocking Tauri commands</strong> (synchronous <code>#[tauri::command]</code> runs on the window's main thread and freezes the whole UI; everything touching the filesystem, processes or HTTP is <code>async fn</code> on <code>tauri::async_runtime::spawn_blocking</code>, with only <code>get_settings</code> and <code>stop_task</code> staying synchronous, plus a static mutex serializing settings writes); <strong>streaming text stays out of the global store</strong> (a dedicated subscription feeds only the bubble being written, committed to the transcript per stage, batched on the <code>nanohermes://delta|tool|note|usage</code> channels at 40 ms); <strong>the transcript is virtualized</strong> (only visible messages mount, height measurement is skipped while the last bubble grows, and follow-scroll is driven by the stream rather than React); and <strong>Markdown is incremental</strong> (split on blank lines outside code fences, stable blocks render once, an unterminated fence only updates its <code>code</code> text node, and highlighting runs per block after the turn rather than once over the whole answer).</p>
-
-<p>The GUI's IPC surface is 16 commands plus two stream readers, all inside a 72 KB file.</p>
-
-<h2>Daemon mode and VPS deployment</h2>
-
-<p><code>agent --daemon</code> turns the agent into a resident HTTP service with two endpoints: <code>POST /</code> (Bearer auth when a token is set) taking <code>{"prompt": "..."}</code> and returning <code>{"response": "...", "session": "&lt;id&gt;"}</code>, and <code>GET /health</code> returning <code>{"status":"ok","sessions":N}</code> for liveness probes.</p>
-
-<p>Sessions are isolated by a header: <code>X-Session-Id</code> selects a session, different ids never share context, and omitting it uses <code>default</code>. Each session persists to its own JSON file. The desktop connects "cloud tasks" this way, each with its own id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost: cloud configuration comes from daemon startup flags (model, persona, temperature, permission mode), and <strong>cloud turns cannot be canceled midway</strong>.</p>
-
-<p><code>scripts/deploy-debian.sh</code> does the whole job: install the binary to <code>/opt/nanohermes/nanohermes</code> with a workspace and 700 session directory; generate a token with <code>openssl rand -hex 24</code> into <code>.daemon_token</code> (reused on re-runs); write a systemd unit running <code>--daemon --daemon-port 8787 -C &lt;workspace&gt; --session &lt;dir&gt;/default.json --sandbox workspace-write</code> with <code>Restart=always</code>; harden with <code>NoNewPrivileges</code> and <code>ProtectSystem=strict</code> plus <code>ReadWritePaths</code>; enable and curl <code>/health</code>, printing the token.</p>
-
-<p>One documented trap: <code>ProtectSystem=strict</code> blocks writes to <code>~/.nanohermes/memory.json</code>, so long-term memory needs <code>ReadWritePaths=/root/.nanohermes</code> in a drop-in. A 1 GB instance also needs swap first — <strong>compilation is the only memory-hungry step</strong>. Exposure options: an SSH tunnel (no open port), a Caddy reverse proxy (8443 if 443 is taken, remembering HTTP-01 still needs 80), or a Cloudflare Tunnel. The documentation's warning is worth quoting: <strong>never expose 8787 directly</strong> — the only credential is the Bearer token and the traffic is plaintext.</p>
-
-<h2>Session persistence and multimodal input</h2>
-
-<p>A session file is a JSON array of OpenAI-style messages, written atomically: <strong>write a <code>.tmp</code> sibling and rename</strong>, so a crash mid-write never truncates history. Saves happen after each completed turn and after <code>/clear</code>; a failed read at startup falls back to a fresh conversation with a warning rather than refusing to start.</p>
-
-<p>Multimodal input is available to vision models: <code>-i</code> for one-shot, <code>/image</code> in the REPL, paste or drag on the desktop. Limits: four images per turn, long edge scaled to 1024 px, undecodable images or anything over 12 MB rejected with a reason. Transfer is by data URL, so the model must support vision.</p>
-
-<h2>Test matrix</h2>
-
-<p>Rust tests are per-module <code>#[cfg(test)]</code> plus a real end-to-end suite, all via <code>cargo test --workspace</code>. <code>agent/tests/e2e_mock_llm.rs</code> starts a <strong>standard-library-only local mock OpenAI service</strong> and drives the real <code>Agent</code> through tool round trips, streaming and non-streaming replies, a retry after a transient 5xx, and a hard API error; <code>agent/tests/mock_mcp_server.py</code> is a mock stdio server.</p>
-
-<p>Unit coverage reads like a list of places assumed to break: patch application (simple, multi-hunk, insert, missing context), glob matching, MCP resource and prompt listing, MCP tool dispatch, streamable HTTP handshake and calls, MCP concurrency safety, <code>execute()</code> concurrency with built-in and mixed tools, HTML-to-text and search parsing, session task lists, git round trips, token usage parsing and backoff, multimodal assembly, session persistence round trips, AGENTS.md injection, skill discovery, hook execution (exit codes, matcher, stdin payload), the subagent board's ordering and gate, approval decisions and trusted-command detection, <strong>Landlock's workspace boundary</strong>, SIGINT flag setting and clearing, and long-term memory (CJK bigrams, BM25 ordering, dedupe, distillation gate).</p>
-
-<p>The frontend uses Vitest with jsdom: pure logic (theme resolution and persistence, store migrations, Markdown sanitizing, image attachments, in-session search, diff blocks) plus component tests and an <code>App.e2e.test.tsx</code> that <strong>renders the real store and components against a mocked Tauri IPC bridge</strong>, verifying transcript virtual scrolling, cross-screen search, diff jump-to-change and input state while running or stopping. One regression test asserts that long-running commands never execute synchronously on the main thread — exactly the performance contract most likely to be broken quietly later.</p>
-
-<h2>Known limits and my verdict</h2>
-
-<ul>
-<li><strong>Sandboxing and SIGINT handling are Linux-only.</strong> Both rest on raw syscalls and disappear on Windows and macOS, so the desktop on Windows runs unsandboxed with default Ctrl-C handling.</li>
-<li><strong>Cloud turns cannot be canceled</strong> — the request is held by the daemon and the desktop can only wait; only local tasks stop at step boundaries.</li>
-<li><strong>The daemon runs as root and the token is the only credential.</strong> Anyone with it can read, write and execute in the workspace, which is exactly why the docs insist on not exposing the port.</li>
-<li><strong>Not having async costs something real.</strong> A stuck HTTP request occupies a thread until timeout (120 s default). Fine for CLI and GUI; the assumptions break for a high-concurrency gateway.</li>
-<li><strong>The Windows installer is unsigned</strong>, so the first run trips SmartScreen.</li>
-</ul>
-
-<p>My verdict: what is worth reading here is <strong>the discipline, not the feature list</strong>. Coding agents converge on similar feature sets; holding four constraints to the end — no async runtime, three crates, no libc, every output bounded — is what produced the raw syscall shim, scoped-thread concurrency, layered clamps and dependency-free Chinese BM25.</p>
-
-<p>What those constraints buy: a single binary targeting about 2 MB, resident memory that tracks context length, doing CLI, desktop app and systemd service on a VPS. <strong>When everyone else is adding dependencies, taking them away is also an engineering skill.</strong></p>
-
-<h2>Further reading</h2>
-<ul>
-<li><a href="/en/article/nanobrowser-tauri-webview2/">NanoBrowser: hand-writing an in-process CDP</a></li>
-<li><a href="/article/agent-loop-two-hundred-lines/">The essence of an agent: a two-hundred-line loop</a></li>
-<li><a href="/en/article/nanoss-windows-ssh-client/">NanoSSH: a single-file Windows SSH client</a></li>
-</ul>
+<p>What those constraints buy is a single binary targeting about 2 MB, memory that tracks context rather than framework, and one codebase that is a CLI, a desktop app and a systemd service. When everyone else is adding dependencies, taking them away is also an engineering skill.</p>
 `,
   },
   {
