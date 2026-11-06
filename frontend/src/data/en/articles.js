@@ -1307,6 +1307,10 @@ npm run desktop:portable
 
 <p>Those numbers do not come from cutting features. They come from choices: rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend keeps only the DOM plus a little glue. So there is no Chromium copy, no Node runtime, no third-party HTTP client and no database. There is not even auto-update or crash reporting.</p>
 
+<p>What "sufficient" leaves out is worth naming, because the omissions are structural rather than temporary. There are no team workspaces, no shared collections, no OAuth 2.0 browser flows that call back to a local port, no mock servers, no monitors running on a schedule, and no generated client code. Those features all assume a server, an account or a background scheduler. Adding any one of them would put a boundary this project deliberately keeps clean, so they stay out. If your daily work depends on them, another tool is the right answer and this one is not.</p>
+
+<p>What is left is a workflow that covers whole categories of debugging: verify an API contract while reading someone else's documentation, reproduce a failing request from a bug report, paste a cURL command out of a browser's network tab, hit a local development server without fighting CORS, or save a request collection next to the project it belongs to. Those tasks are frequent and short, and a large client charges startup cost for every one of them.</p>
+
 <p>The boundary has to be stated too. NanoAPI supports its own bundle format, version 1, plus a bare settings file. It does not import Postman collections, Bruno, OpenAPI or HAR, and the repository contains no parser for any of them. That is scope control rather than an oversight. A format adapter layer turns "a project one person can maintain on weekends" into "a compatibility layer that is never finished". For migration, users go through cURL, the universal channel, or tidy the JSON by hand.</p>
 
 <h2>Architecture: edit in the frontend, execute in the backend</h2>
@@ -1333,6 +1337,21 @@ npm run desktop:portable
 <p>Frontend state lives in tab objects, each owning its own request and response. Response bodies stay in memory and tab state, never in the data file. A restart restores tabs and unsaved edits, but not the last response. That keeps the data file small and stable, and avoids repeatedly serializing potentially large bodies.</p>
 
 <p>Startup checks whether the backend global exists. If the backend is not ready the app shows an error page rather than a blank window. A failed initial load raises a toast but initialization continues, so one read error cannot block the whole application.</p>
+
+<p>The package map is short enough to hold in your head, which matters when you are debugging a request at odd hours.</p>
+
+<pre><code>main.go          window, embedded assets, startup order
+app.go           bound methods: request, history, settings, bundle, files
+internal/proxy   URL merge, transport, redirect policy, timing, response read
+internal/interp  placeholder parsing and three-level resolution
+internal/curl    lexer, option table, import mapping, export quoting
+internal/store   JSON data file, field repair, atomic write, debounce
+internal/bundle  version-1 export and append-merge import
+internal/model   request, response, environment, tab types
+frontend/dist    index.html plus ES modules: bridge, api, render, state
+</code></pre>
+
+<p>One consequence of the split is that the frontend cannot cheat. There is no second code path where the renderer opens a socket, and no hidden fetch call in a component. If a feature needs the network, it has to go through a bound method, which means it inherits variable resolution, permission-free file access and consistent error shapes. That constraint is why an editor change cannot accidentally invent a second set of transport rules three months later.</p>
 
 <h2>The full path of one request</h2>
 
@@ -1366,6 +1385,10 @@ npm run desktop:portable
 
 <p>History stores the original request, never the resolved one, so it keeps placeholders rather than resolved secrets. Response bodies, timings and headers are not persisted, only status code, size, time and an error summary. History caps at 200 entries, dropping from the tail. Success and failure both record, so history contains 200s as well as timeouts and DNS failures.</p>
 
+<p>Each history entry carries the whole request that produced it: method, URL, parameter rows including disabled ones, header rows, body type and body text, auth type and its fields, and the environment id that was selected at the time. That makes "send this again" faithful. It also makes "send it again in a different environment" possible, which is how you compare a staging response with a production one without retyping anything.</p>
+
+<p>Cancellation is part of the same contract. A running request can be aborted from the interface, which cancels the context and ends the read loop. The result then comes back with an aborted kind rather than a network error, so the interface can stay quiet instead of showing a scary message for something the user did on purpose. The same abort path runs when the window closes, so a request in flight does not hold the process open.</p>
+
 <h2>The HTTP engine: written, not wrapped</h2>
 
 <p>There is no third-party HTTP client. The proxy package uses the standard library directly, because it needs full control over TLS verification, redirect policy, timeouts, connection closing and phase timings. High-level wrappers tend to flatten exactly those.</p>
@@ -1396,11 +1419,21 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>Status text is sliced out of the raw status line, the protocol field records HTTP/1.1 or HTTP/2, and headers stay a multi-value map, so the frontend can show repeated headers on separate lines instead of merging them into one.</p>
 
+<p>Two behaviours are inherited from the standard library on purpose, and both surprise people who have only used high-level clients.</p>
+
+<p><strong>Compression is negotiated, not forced.</strong> When the client adds the accept-encoding header itself, it also decompresses the body. When a user writes that header by hand, the transport assumes the caller wants the raw bytes and stops decompressing. The interface then shows what looks like garbage, and the honest explanation is "you took over negotiation". The same rule applies to deflate and brotli, which this build has no decoders for. Both facts live in the known limits, because they are a consequence of the design rather than a bug to patch.</p>
+
+<p><strong>Cookies follow the jar, not the tab.</strong> Every request shares one cookie jar, which is what makes a login flow work across three requests typed by hand. Clearing cookies replaces the jar instead of walking its entries, so a stale set can never survive a clear. The trade is that two unrelated hosts in the same session share one jar, which is fine for a local tool and wrong for anything approximating a browser profile.</p>
+
 <h2>Variable interpolation: one pass, three levels</h2>
 
 <p>The syntax is a double-brace placeholder, matched by a regular expression that allows whitespace. Resolution recurses at most three levels, replacing matching keys each round. It exits early when a round changes nothing, and placeholders still unresolved after three rounds stay as written.</p>
 
 <p>That handles a placeholder inside a path and a variable that refers to another variable, without looping forever on a pair that refer to each other.</p>
+
+<p>A worked example, because the three-level rule is easier to see than to describe. Suppose the environment holds <code>host</code> as a staging domain, <code>base</code> as a placeholder pointing at <code>host</code>, and <code>token</code> as a literal string. A URL of <code>{{base}}/users</code> resolves in two rounds: the first replaces <code>base</code>, the second would resolve anything the replacement introduced. A header of <code>Authorization: Bearer {{token}}</code> resolves in one. Both land in the same request, and neither is written back to the environment or to the request editor.</p>
+
+<p>Rounds stop early when a round changes nothing, which is the common case. That detail matters for performance as much as correctness: most requests have shallow placeholders, so the usual path is one match and one replacement pass over a handful of short strings, not three passes over everything.</p>
 
 <p>Precedence is explicit. All global environments merge first, then the selected environment overrides same-name keys. Global variables are the floor and environment variables are the override. Disabled rows and empty keys are skipped.</p>
 
@@ -1435,6 +1468,28 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>Dedupe removes content-length, transfer-encoding, a hand-written multipart content type, and any authorization or API key header that duplicates the auth section.</p>
 
+<p>Since both directions share one option table, it is worth reading the mapping as a table rather than as a list of rules.</p>
+
+<table>
+<thead><tr><th>cURL option</th><th>Request field</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>request</td><td>method</td><td>Overrides any inference</td></tr>
+<tr><td>header</td><td>header row</td><td>Split on the first colon; a header with no value keeps an empty value</td></tr>
+<tr><td>data, binary-data</td><td>raw body</td><td>At sign reads a file, 20 MB cap, UTF-8 required</td></tr>
+<tr><td>data-raw</td><td>raw body</td><td>Literal text, no file read</td></tr>
+<tr><td>data-urlencode</td><td>raw body</td><td>Imported verbatim with a warning that nothing was encoded</td></tr>
+<tr><td>json</td><td>JSON body</td><td>Also adds an accept header</td></tr>
+<tr><td>form</td><td>multipart body</td><td>Text fields become form rows, at-sign values become file rows</td></tr>
+<tr><td>user</td><td>basic auth</td><td>Split on the first colon, so a password may contain colons</td></tr>
+<tr><td>oauth2-bearer</td><td>bearer auth</td><td>Header-form API keys map here too</td></tr>
+<tr><td>cookie, user-agent, referer</td><td>header rows</td><td>Written as the ordinary header they correspond to</td></tr>
+<tr><td>get, head</td><td>method plus body handling</td><td>GET moves data into the query string</td></tr>
+<tr><td>insecure, proxy, upload-file, cert</td><td>nothing</td><td>Warn only, never silently applied</td></tr>
+</tbody>
+</table>
+
+<p>Export reuses the same table in reverse, which is the whole reason the two directions cannot drift. A change to how a header row is written during import shows up in export the same day, because it is one function and not two.</p>
+
 <p>Multipart text fields use form-string deliberately, so an at sign or a less-than in the value is not read as a file reference. File fields use a file form, with the path handed to shell quoting. HEAD exports as a head flag rather than an explicit method, because the explicit form can leave clients waiting for a body that never comes. The quoting helper guarantees safety under Bash only, so export targets Bash, WSL or Git Bash. That is an explicit platform assumption.</p>
 
 <p>This is not a complete cURL. The goal is to bring the common debugging commands in, not to interpret every part of the cURL language, which makes the warning policy important. Anything unrecognized is reported instead of quietly producing a request that looks right and behaves differently. An unclosed quote returns an error rather than guessing intent.</p>
@@ -1453,6 +1508,10 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>Binary responses show as base64, and the backend decodes back to raw bytes when saving. Image responses preview directly when untruncated and small. The viewer therefore needs no renderer per format, and binary data never reaches a text highlighter.</p>
 
+<p>The three caps are not arbitrary round numbers. Twenty megabytes for a single file keeps one attachment from dominating memory while still covering screenshots, PDFs and small datasets. Fifty megabytes for the total bounds a request body that has to be held in memory and then copied into the transport. Twenty megabytes for a response bounds the string that crosses the binding boundary, which is the step that actually hurts when it gets large. Raising any of them is easy. Raising them without measuring the copy cost is how a debugging tool starts swapping.</p>
+
+<p>Filename sanitation is the kind of code that never gets written until it bites. The backend reduces to a base name so a header cannot write outside the chosen directory, replaces the characters Windows rejects, trims trailing dots and spaces that Windows silently drops, and caps the length so a long title plus a quota cannot produce a path the filesystem refuses. The frontend runs the same cleanup to suggest a name in the save dialog. Duplicated logic usually means two places to fix a bug, and here it is deliberate: the frontend version exists for convenience, the backend version exists for safety, and only the second one is trusted.</p>
+
 <h2>Storage: reliability for a single JSON file</h2>
 
 <p>The data file sits under the user's application data directory, derived from the standard config path. It holds collections, environments, global variables, settings, history and open tabs. There is no database, no schema version and no migration framework.</p>
@@ -1460,6 +1519,8 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 <p>If the config directory is unavailable, the application falls back to the system temp directory so it still starts, with no persistence across restarts.</p>
 
 <p>Reads do no whole-file validation, only per-field repair. A timeout of zero or less resets to the default, an empty theme resets to the default, and nil collections, environments, history and tabs become empty slices. One bad field therefore cannot cost the user their chosen theme.</p>
+
+<p>The repair pass is deliberately short, and each rule exists because a specific value would break the interface downstream. A negative timeout would make every request fail instantly with an aborted kind that looks like a network fault. An unknown theme name would render the app with no colors at all. Nil slices would turn every list render into a null check spread across the frontend. Repairing four things is cheaper than defending against them at twenty call sites.</p>
 
 <p>If JSON parsing fails, the original file is renamed with a corrupt marker and a timestamp, and the app starts empty. Nothing is deleted, so manual repair or restoring a backup stays possible.</p>
 
@@ -1640,6 +1701,21 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 <p><strong>There is no schema version.</strong> Upgrades rely on per-field defaults and ignoring unknown fields, so the file cannot express when a field became meaningful, and destructive migration is unsafe.</p>
 
 <p><strong>The capability boundary also includes</strong> no client certificates or custom CAs, no custom multipart content type, a hard 20 MB response cap, and history limited to 200 entries without bodies.</p>
+
+<p>Each of those has a workaround, and each workaround has a cost worth knowing in advance.</p>
+
+<table>
+<thead><tr><th>Limit</th><th>What you can do instead</th><th>What it costs</th></tr></thead>
+<tbody>
+<tr><td>No brotli or deflate decoding</td><td>Leave accept-encoding unset and let the transport negotiate</td><td>You cannot test a server that only answers brotli</td></tr>
+<tr><td>Authorization dropped cross-origin</td><td>Re-add the header manually on the redirected host</td><td>Two requests instead of one, and the first 401 stays in history</td></tr>
+<tr><td>Proxy inherited from the environment</td><td>Clear the proxy variables for that process</td><td>Other tools in the same shell lose their proxy too</td></tr>
+<tr><td>No Postman import</td><td>Export cURL from Postman, import that</td><td>Collection structure is lost, only the requests survive</td></tr>
+<tr><td>No schema version</td><td>Keep a backup before upgrading</td><td>Manual recovery is the only recovery</td></tr>
+<tr><td>No client certificates</td><td>Use a different client for mutual TLS</td><td>Two tools for one API</td></tr>
+<tr><td>20 MB response cap</td><td>Save the body before truncation matters, or query a narrower endpoint</td><td>Large exports need another tool</td></tr>
+</tbody>
+</table>
 
 <p>One more boundary is easy to miss. History stores the original request, so placeholders never become plaintext secrets, but a token typed directly into a URL or a header does land in the data file as plaintext. The tool does no field-level encryption and makes no promise against a local reader.</p>
 
