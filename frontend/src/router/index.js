@@ -29,8 +29,6 @@ const routes = [
     meta: listPageMeta('/search/'),
     component: () => import('../pages/Search.vue'),
   },
-  { path: '/photos', name: 'PhotoWall', meta: listPageMeta('/photos/'), component: () => import('../pages/PhotoWall.vue') },
-  { path: '/friends', name: 'FriendLinks', meta: listPageMeta('/friends/'), component: () => import('../pages/FriendLinks.vue') },
   { path: '/footprints', name: 'Footprints', meta: listPageMeta('/footprints/'), component: () => import('../pages/Footprints.vue') },
   { path: '/archives', name: 'Archives', meta: listPageMeta('/archives/'), component: () => import('../pages/Archives.vue') },
   // 合规与介绍页（AdSense 审核必查）：三条路由共用一个页面组件，正文来自

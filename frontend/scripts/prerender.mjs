@@ -76,8 +76,6 @@ import {
 // 首页刊头文案与项目列表：运行时 Home.vue 与首页静态快照共用这一份，
 // 快照里的自述不会和页面上显示的写成两套。
 import { HOME_MASTHEAD, HOME_SUMMARY, HOME_PROJECTS } from '../src/data/home.js'
-// 友链兜底：接口不可用时运行时页面用这一份，静态快照也必须一致。
-import { FRIEND_FALLBACK } from '../src/data/friends.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -259,27 +257,6 @@ async function fetchArticleDetail(slug) {
   })
   if (!res.ok) throw new Error(`detail ${slug}: HTTP ${res.status}`)
   return res.json()
-}
-
-// 友链列表：失败不阻断构建 —— 退回与 FriendLinks.vue 共用的兜底数据，
-// 至少 /friends/ 的静态快照不会是一片空白。
-async function fetchFriends() {
-  try {
-    const res = await fetch(`${API_BASE}friends/`, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(20000),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    const list = data.results || data || []
-    const active = list.filter(
-      (f) => f?.name && f?.url && f.is_active !== false && f.active !== false,
-    )
-    if (active.length) return active
-  } catch (e) {
-    console.warn(`[prerender] could not fetch friends: ${e?.message || e}`)
-  }
-  return FRIEND_FALLBACK
 }
 
 async function fetchAllArticles() {
@@ -1084,7 +1061,7 @@ function renderSections(sections) {
   return parts.join('\n')
 }
 
-function sectionsForPage(page, articles, { friends = [] } = {}) {
+function sectionsForPage(page, articles) {
   switch (page.sections) {
     case 'articles':
       return dateSections(articles)
@@ -1140,20 +1117,6 @@ function sectionsForPage(page, articles, { friends = [] } = {}) {
         })),
       ]
     }
-    // 友链：数据来自后端 /friends/，构建期取一次写进快照，页面就有一份真实
-    // 的站点清单而不是空壳。接口失败时退回与页面共用的兜底列表。
-    case 'friends':
-      return friends.length
-        ? [
-            {
-              heading: `共 ${friends.length} 个站点`,
-              items: friends.map((f) => ({
-                text: f.description ? `${f.name} — ${f.description}` : f.name,
-                href: f.url,
-              })),
-            },
-          ]
-        : []
     // 合规页：正文完全来自 src/data/sitePages.js（与页面组件同源），
     // 所以快照里有全文而不只是标题。
     case 'site-page': {
@@ -1168,10 +1131,9 @@ function sectionsForPage(page, articles, { friends = [] } = {}) {
         })),
       }))
     }
-    // /photos 的照片来自后端接口，而接口目前是空的；/search 的结果只在有查询
-    // 参数时才存在。两者都没有可内联的正文，只拿到真实的 200、页级 <title>、
-    // 自己的 meta 与同栏目互链 —— 它们也都不进 sitemap（见 LIST_PAGES 的
-    // noindex 标记）。
+    // /search 的结果只在带查询参数时才存在，没有可内联的正文：它拿到真实的
+    // 200、页级 <title>、自己的 meta 与同栏目互链，但不进 sitemap
+    // （见 LIST_PAGES 的 noindex 标记）。
     default:
       return []
   }
@@ -1691,7 +1653,6 @@ async function main() {
   // Static list pages — these are what let /articles & co. answer 200 instead
   // of bouncing through 404.html, and they are the only non-article URLs the
   // sitemap is allowed to list.
-  const friends = await fetchFriends()
   let listWritten = 0
   for (const page of LIST_PAGES) {
     try {
@@ -1699,7 +1660,7 @@ async function main() {
       mkdirSync(dir, { recursive: true })
       writeFileSync(
         join(dir, 'index.html'),
-        renderListPage(template, page, sectionsForPage(page, articles, { friends })),
+        renderListPage(template, page, sectionsForPage(page, articles)),
         'utf8',
       )
       listWritten += 1

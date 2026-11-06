@@ -100,25 +100,6 @@ export const LIST_PAGES = [
     priority: '0.5',
   },
   {
-    path: '/photos/',
-    title: '照片墙',
-    description: `${SITE_NAME}的照片墙 — 光影里的生活片段。`,
-    sections: 'photos',
-    priority: '0.4',
-    // 照片来自后端接口，而接口目前是空的：这一页实际只有标题和一句说明。
-    // 空壳页被索引会拉低整站的「内容量」判断（AdSense 审核尤其敏感），所以
-    // 在真的上传照片之前保持 noindex、不进 sitemap。补上内容后删掉这一行，
-    // 它会自动回到 sitemap 与站内导航。
-    noindex: true,
-  },
-  {
-    path: '/friends/',
-    title: '友情链接',
-    description: `${SITE_NAME}的友情链接 — 经常访问的站点与同好。`,
-    sections: 'friends',
-    priority: '0.3',
-  },
-  {
     path: '/search/',
     title: '搜索',
     description: `搜索${SITE_NAME}的全部文章。`,

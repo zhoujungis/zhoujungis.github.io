@@ -551,33 +551,20 @@ describe('renderListPage', () => {
     expect(privacy).toContain('Cookie')
   })
 
-  it('gives the API-driven pages a 200 with head, lead and cross-links', () => {
-    for (const path of ['/photos/', '/friends/', '/search/']) {
-      const page = pageFor(path)
-      const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
-      expect(html, path).toContain(`<title>${page.title} | ${SITE_NAME}</title>`)
-      expect(html, path).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}" />`)
-      expect(html, path).toContain(`<h1>${page.title}</h1>`)
-      expect(html, path).toContain('class="ns-nav"')
-    }
-  })
-
-  it('writes the friend list into the snapshot instead of a bare heading', () => {
-    const page = pageFor('/friends/')
-    const friends = [
-      { name: 'Aqara', url: 'https://www.aqara.com/', description: '智能家居品牌' },
-      { name: 'Halo Music', url: 'https://halo-music.pages.dev/', description: '在线音乐欣赏' },
-    ]
-    const html = renderListPage(SHELL, page, sectionsForPage(page, articles, { friends }))
-    expect(html).toContain('共 2 个站点')
-    expect(html).toContain('href="https://www.aqara.com/"')
-    expect(html).toContain('智能家居品牌')
+  it('gives the query-only page a 200 with head, lead and cross-links', () => {
+    const path = '/search/'
+    const page = pageFor(path)
+    const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
+    expect(html).toContain(`<title>${page.title} | ${SITE_NAME}</title>`)
+    expect(html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}" />`)
+    expect(html).toContain(`<h1>${page.title}</h1>`)
+    expect(html).toContain('class="ns-nav"')
   })
 
   it('marks a noindex page noindex in the static HTML, not just in the SPA', () => {
     // 路由 meta 的 noindex 要等 JS 起来才生效；不执行 JS 的抓取器读到的就是
     // 这份文件，所以标签必须写死在这里。
-    const page = pageFor('/photos/')
+    const page = pageFor('/search/')
     expect(page.noindex).toBe(true)
     const html = renderListPage(SHELL, page, sectionsForPage(page, articles))
     expect(html).toContain('<meta name="robots" content="noindex, follow" />')

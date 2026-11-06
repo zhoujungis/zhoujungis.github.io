@@ -71,11 +71,3 @@ export async function getArticlesByCategory(slug, { pageSize = 100 } = {}) {
 export function getTags() {
   return client.get('/tags/')
 }
-
-export function getPhotos(params) {
-  return client.get('/photos/', { params })
-}
-
-export function getFriends() {
-  return client.get('/friends/')
-}
