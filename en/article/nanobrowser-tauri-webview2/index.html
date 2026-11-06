@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-DxpR5TNn.js"></script>
+    <script type="module" crossorigin src="/assets/index-ltK1n6cZ.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -162,213 +162,485 @@
   </head>
   <body>
     <div id="app"><div class="ns-article"><h1>NanoBrowser, part 1: a Chrome-like browser that ships no engine</h1><div class="ns-meta">2026-10-16 · 25 min · Stack Frame</div><div class="markdown-body">
-<p>NanoBrowser is an open-source project at <a href="https://github.com/zhoujungis/NanoBrowser" rel="noopener noreferrer" target="_blank">zhoujungis/NanoBrowser</a>. It asks one small question: <strong>if I refuse to bundle Chromium, can I still ship a desktop browser that feels like Chrome?</strong></p>
+<p>NanoBrowser is an open-source project at <a href="https://github.com/zhoujungis/NanoBrowser" rel="noopener noreferrer" target="_blank">zhoujungis/NanoBrowser</a>, and it asks one small engineering question.</p>
 
-<p>Most attempts at this drift the same way. Chromium or Electron goes into the installer, the download starts at 100 MB, and every app carries its own copy of the engine and its own memory footprint. Nobody wants to pay that for a shell.</p>
+<p><strong>If I refuse to bundle all of Chromium, can I still build a desktop browser that works like Chrome?</strong></p>
 
-<p>NanoBrowser takes the other road: <strong>build no engine, only the shell.</strong> Rendering is the WebView2 already installed on Windows. The app does tabs, an address bar, bookmarks, history, downloads, find-in-page, shortcuts and themes, plus something harder: it wires the DevTools protocol into its own process.</p>
+<p>Most attempts at this slide towards the same answer. Chromium or Electron goes into the package, the installer starts at 100 MB, and every application carries its own copy of the engine and its own memory footprint. As of 2026, nobody wants to pay that for a shell.</p>
 
-<p>The result is two binaries. The visible browser <code>nanobrowser.exe</code> is about <strong>4.52 MB</strong>. The headless automation browser <code>nanoagent.exe</code> is about <strong>4.24 MB</strong>. They share one library crate and one in-process protocol bridge.</p>
+<p>NanoBrowser takes the other road: <strong>build no engine, only the shell.</strong> Rendering is the WebView2 already installed on Windows, which is the system's copy of Chromium and Edge. The application does the shell work: tabs, address bar, bookmarks, history, downloads, find in page, shortcuts and themes. It also does something harder, which is to wire the DevTools protocol into its own process.</p>
 
-<p>This is part one of two. Part two covers the tab engine, the headless agent, the five security layers and the fourteen pitfalls that cost real debugging time.</p>
+<p>The result is two binaries. The visible GUI browser, <code>nanobrowser.exe</code>, is about <strong>4.52 MB</strong>. The headless automation browser, <code>nanoagent.exe</code>, is about <strong>4.24 MB</strong>. Both share one library crate and one in-process DevTools protocol bridge.</p>
 
-<h2>What it does</h2>
+<p>This post does not sell concepts. It takes the implementation apart. The technical density is concentrated in four places: <strong>three kinds of sibling window inside one window</strong>, <strong>speaking CDP with no debugging port</strong>, <strong>hand-writing a SHA-1 handshake and a frame codec</strong>, and <strong>loading the official DevTools frontend into a child webview with a draggable docked panel</strong>. Each of those has a detail you only learn by trying it.</p>
+
+<p>This is part one of two. Part two covers the tab engine, the headless agent, the five security layers and the fourteen pitfalls.</p>
+
+<h2>One minute</h2>
+
+<p><strong>A Chrome-shaped browser shell written in Tauri 2, plus a headless browser that AI tools can drive.</strong></p>
 
 <table>
 <thead><tr><th>Binary</th><th>Purpose</th><th>Release size</th></tr></thead>
 <tbody>
-<tr><td><code>nanobrowser.exe</code></td><td>Visible GUI browser</td><td>~4.52 MB</td></tr>
-<tr><td><code>nanoagent.exe</code></td><td>Headless automation browser (CLI and MCP)</td><td>~4.24 MB</td></tr>
+<tr><td><code>nanobrowser.exe</code></td><td>The visible GUI browser</td><td>About 4.52 MB</td></tr>
+<tr><td><code>nanoagent.exe</code></td><td>Headless automation browser, CLI and MCP</td><td>About 4.24 MB</td></tr>
 </tbody>
 </table>
 
-<p>The browser side covers a full Chrome-shaped surface. Tabs drag to reorder with FLIP animation, pin and unpin, close on middle click, and reopen with <code>Ctrl+Shift+T</code>. There is an omnibox with suggestions, a bookmarks bar, find-in-page, a download manager, history, zoom, light and dark themes, and native window buttons.</p>
+<p>Browser features, ordered by how quickly you notice them.</p>
 
-<p>The unusual part is DevTools. The <em>real</em> DevTools frontend loads into a child webview of the same window, docked to the bottom or the right, resizable by dragging a splitter. It is not a popup.</p>
+<ul>
+<li><strong>A Chrome-style tab strip.</strong> Drag to reorder with FLIP animation, pin and unpin, middle-click to close, a per-tab context menu, overflow handling, and <code>Ctrl+Shift+T</code> to reopen the last closed tab.</li>
+<li><strong>A complete shell.</strong> An omnibox with a suggestion dropdown, a bookmarks bar, find in page, a download manager, history, zoom, three-state theming (light, dark, follow system), and native window buttons.</li>
+<li><strong>Docked DevTools.</strong> The <strong>real</strong> official DevTools frontend loaded into a child webview of the same window, dockable to the <strong>bottom</strong> or the <strong>right</strong>, with a draggable splitter that resizes it. It is not a popup.</li>
+<li><strong>Internal pages</strong> under the <code>nano://</code> scheme: new tab, history, bookmarks, downloads, settings and about.</li>
+<li><strong>A headless agent.</strong> One-shot CLI commands and an MCP server over stdio, with redacted traffic capture, trusted input synthesis and screenshots.</li>
+</ul>
 
-<p>Internal pages live under <code>nano://</code>: new tab, history, bookmarks, downloads, settings, about. The agent half runs as one-shot CLI commands or as an MCP server over stdio, with redacted traffic capture, trusted input synthesis and screenshots.</p>
-
-<p>The frontend is hand-written HTML, CSS and JavaScript with no bundler. No npm, no Vite, no framework. That is a size and complexity trade, and the costs show up later.</p>
+<p>One thing is worth noting up front. The entire frontend is <strong>hand-written HTML, CSS and JavaScript with no bundler</strong>. No npm, no Vite, no framework. That is not novelty for its own sake. It is a deliberate trade of size and complexity, and the costs show up later in this post.</p>
 
 <h2>Three decisions that go against instinct</h2>
 
-<p><strong>No engine.</strong> The project contains no rendering engine, no disassembler, no JavaScript engine. It drives the WebView2 already on the machine. The cost is Windows-only, because the whole stack rests on WebView2's COM interop. The benefit is single-digit megabytes and the system's security updates for free.</p>
+<p><strong>Decision one: no engine.</strong> NanoBrowser contains no rendering engine, no disassembler and no JavaScript engine. It drives the WebView2 that is already installed. The cost is Windows only, because the whole stack rests on WebView2's COM interop. The benefit is an application measured in single-digit megabytes that shares the system's security updates for free.</p>
 
-<p><strong>No debugging port, ever.</strong> Neither binary passes <code>--remote-debugging-port</code>. All CDP traffic goes through <code>ICoreWebView2::CallDevToolsProtocolMethod</code> inside the process. The DevTools panel does need a WebSocket, but that socket is a loopback service the process opens itself. It has an admission requirement, it lives only while the panel lives, and nothing outside the process can use it.</p>
+<p><strong>Decision two: never open a debugging port.</strong> Neither the GUI nor the agent passes <code>--remote-debugging-port</code>. All CDP traffic goes through <code>ICoreWebView2::CallDevToolsProtocolMethod</code> inside the process. The counter-intuitive part is this: the DevTools panel does need a WebSocket, but that socket is a <strong>loopback service the process opens for itself</strong> rather than a debugging port exposed by the browser. It has an admission requirement, its lifetime is tied to the panel, and nothing outside the process can use it.</p>
 
-<p><strong>Hand-write the hard dependencies.</strong> The WebSocket bridge behind DevTools is implemented here: SHA-1 handshake, base64 accept key, text and close frame codec. No <code>tungstenite</code>, no equivalent library.</p>
+<p><strong>Decision three: hand-write the hard dependencies.</strong> The hardest piece, the WebSocket bridge that DevTools talks to, is this project's own SHA-1 handshake, base64 accept key and text and close frame codec. No <code>tungstenite</code>, no similar library.</p>
 
-<p>The three add up to a rule: reuse what the system already has, and shrink the self-written surface to the part that must be written and is worth writing.</p>
+<p>Together those three define the character of the project. Reuse what the system already provides, and shrink the self-written surface to the layer that must be written and is worth writing.</p>
 
-<h2>Stack and release profile</h2>
+<h2>Stack, versions and release profile</h2>
 
 <table>
 <thead><tr><th>Layer</th><th>Choice</th><th>Version</th></tr></thead>
 <tbody>
-<tr><td>App framework</td><td>Tauri</td><td>2.12.4</td></tr>
+<tr><td>Application framework</td><td>Tauri</td><td>2.12.4</td></tr>
 <tr><td>WebView abstraction</td><td>wry</td><td>0.57.0</td></tr>
-<tr><td>Engine</td><td>Microsoft Edge WebView2 (Chromium)</td><td>System-installed</td></tr>
+<tr><td>Engine</td><td>Microsoft Edge WebView2, which is Chromium</td><td>Installed on the system</td></tr>
 <tr><td>WebView2 COM bindings</td><td><code>webview2-com</code></td><td>0.39.1</td></tr>
 <tr><td>Win32 bindings</td><td><code>windows</code></td><td>0.62.2</td></tr>
-<tr><td>Serialization</td><td><code>serde</code> / <code>serde_json</code></td><td>1.0.154</td></tr>
+<tr><td>Serialization</td><td><code>serde</code> and <code>serde_json</code></td><td>1.0.154</td></tr>
 <tr><td>Language</td><td>Rust</td><td>edition 2021</td></tr>
 </tbody>
 </table>
 
-<p>Two Tauri features are enabled and both are required:</p>
+<p>Two Tauri features are enabled, and <strong>both are required</strong>.</p>
 
 <pre><code>tauri = { version = "2", features = ["unstable", "devtools"] }
 </code></pre>
 
-<p><code>unstable</code> gates the child webview API: <code>add_child</code>, <code>get_webview</code>, per-webview <code>devtools(false)</code>. Without it the core topology does not exist. <code>devtools</code> exposes the <code>ICoreWebView2</code> interop the bridge needs.</p>
+<p><code>unstable</code> gates the whole child webview API: adding a child, getting a webview, and per-webview <code>devtools(false)</code>. Without it the core topology of this project does not exist. <code>devtools</code> exposes the <code>ICoreWebView2</code> interop that the protocol bridge needs.</p>
 
-<p>The release profile is tuned entirely for size: <code>opt-level = "s"</code>, <code>lto = true</code>, <code>codegen-units = 1</code>, <code>strip = true</code>, <code>panic = "abort"</code>. That last flag has a consequence worth knowing. There is no catch-unwind safety net, so every panic ends the process, which is why the code returns <code>Option</code> or <code>Err</code> at boundaries instead of writing first and fixing later.</p>
+<p>The release profile is tuned item by item for size.</p>
+
+<pre><code>[profile.release]
+opt-level = "s"    # optimize for size, not speed
+lto = true         # link-time optimization, cross-crate inlining and pruning
+codegen-units = 1  # slower compiles in exchange for more aggressive optimization
+strip = true       # drop symbols
+panic = "abort"    # drop unwinding tables
+</code></pre>
+
+<p>Those lines together are what keeps a Rust and Tauri application at the 4 MB mark. Note the side effect of aborting on panic: <strong>there is no catch-unwind safety net</strong>, so any panic terminates the process. That is why the code prefers returning an option or an error at boundaries rather than writing first and worrying afterwards.</p>
+
+<p>Crate sources go through a mirror configured in <code>.cargo/config.toml</code>.</p>
 
 <h2>Repository layout</h2>
 
 <pre><code>NanoBrowser/
-├─ start.bat                  launcher: release first, debug fallback
-├─ ui/                        frontend: plain HTML/CSS/JS, no bundler
-│  ├─ index.html              trusted shell: tab strip, toolbar, SVG sprite
-│  ├─ shell.js / shell.css    shell behaviour and styles
-│  ├─ internal.css / internal.js   shared internal-page assets
-│  ├─ ntp.html|js             nano://newtab
-│  ├─ history.html|js         nano://history
-│  ├─ bookmarks.html|js       nano://bookmarks
-│  ├─ downloads.html|js       nano://downloads
-│  ├─ settings.html|js        nano://settings
-│  └─ about.html              nano://about
+├─ start.bat                       # launcher: release first, debug fallback
+├─ .cargo/config.toml              # crate mirror
+├─ ui/                             # frontend: plain HTML, CSS and JS, no bundler
+│  ├─ index.html                   # trusted shell: tab strip, toolbar, SVG sprite
+│  ├─ shell.js / shell.css         # shell behaviour and styles
+│  ├─ internal.css / internal.js   # shared internal-page assets
+│  ├─ ntp.html|js                  # nano://newtab
+│  ├─ history.html|js              # nano://history
+│  ├─ bookmarks.html|js            # nano://bookmarks
+│  ├─ downloads.html|js            # nano://downloads
+│  ├─ settings.html|js             # nano://settings
+│  └─ about.html                   # nano://about
 └─ src-tauri/
-   ├─ tauri.conf.json         productName, frontendDist=../ui, withGlobalTauri
-   ├─ capabilities/           per-webview permission scopes
+   ├─ tauri.conf.json              # productName, frontendDist, withGlobalTauri
+   ├─ capabilities/
+   │  ├─ default.json              # for the "shell" webview
+   │  └─ tabs.json                 # for "tab-*": local pages vs remote pages
    └─ src/
-      ├─ lib.rs               library crate exporting cdp
-      ├─ main.rs              GUI binary: window, shell webview, wiring
-      ├─ cdp.rs               in-process CDP bridge (shared by both binaries)
-      ├─ state.rs             Settings / Profile / AppState / Tab / constants
-      ├─ profile.rs           data dirs, profile.json read and atomic save
-      ├─ tabs.rs              tab lifecycle, layout, downloads, shortcuts
-      ├─ inject.rs            per-tab init script
-      ├─ commands.rs          the #[tauri::command] surface
-      ├─ devtools.rs          docked panel and WebSocket bridge
+      ├─ lib.rs                    # library crate, exports cdp
+      ├─ main.rs                   # GUI binary: window, shell webview, wiring
+      ├─ cdp.rs                    # in-process CDP bridge, shared by both binaries
+      ├─ state.rs                  # settings, profile, app state, tab, constants
+      ├─ profile.rs                # data directory, profile.json read and atomic save
+      ├─ tabs.rs                   # tab lifecycle, layout, downloads, shortcuts
+      ├─ inject.rs                 # per-tab init script
+      ├─ commands.rs               # the command surface
+      ├─ devtools.rs               # docked panel and WebSocket bridge, the hardest module
       └─ bin/nanoagent/
-         ├─ main.rs           hidden window, mode dispatch
-         ├─ browser.rs        navigate/read/click/fill/screenshot/cookies/wait
-         ├─ cli.rs            one-shot command front end
-         ├─ mcp.rs            MCP server over stdio
-         ├─ traffic.rs        Network.* capture with redaction
-         └─ paths.rs          data dirs and the automation profile
+         ├─ main.rs                # hidden window, mode dispatch
+         ├─ browser.rs             # navigate, read, click, fill, screenshot, cookies, wait
+         ├─ cli.rs                 # one-shot commands and help
+         ├─ mcp.rs                 # MCP server over stdio
+         ├─ traffic.rs             # network capture with redaction
+         └─ paths.rs               # data directories and the automation profile
 </code></pre>
 
-<p>Two things stand out in that tree. <code>cdp.rs</code> is exported as a library, and both <code>main.rs</code> and <code>bin/nanoagent/main.rs</code> depend on it. That is "one core, two entry points" made physical. And <code>devtools.rs</code> is named as the hardest module, with its own chapter in the README.</p>
+<p>Two signals in that structure are worth attention.</p>
 
-<h2>Core 1: N+1 webviews in one window</h2>
+<p>First, <strong><code>cdp.rs</code> is exported as a library</strong>, and both the GUI <code>main.rs</code> and <code>bin/nanoagent/main.rs</code> depend on it. That is where "one core, two entry points" becomes physical: the two binaries share one protocol bridge implementation instead of each writing its own.</p>
 
-<p>The architecture rests on one fact. NanoBrowser has exactly one OS window, and inside it live up to three kinds of <strong>child webview</strong>, each a <strong>sibling HWND</strong> rather than a true child.</p>
+<p>Second, <strong><code>devtools.rs</code> is called out as the most complex module</strong>, and the README gives its design a chapter of its own. Core 4 below expands on it.</p>
 
-<pre><code>┌─ main window ─────────────────────────────────────────────┐
-│  shell webview  (label "shell")   ← y: 0 .. shell_h       │
-│    tab strip (40) + toolbar (44) + bookmarks bar (28)      │
-├──────────────────────────┬────────────────────────────────┤
-│  page webview            │  devtools panel webview        │
-│  (label "tab-&lt;id&gt;")      │  (label "devtools")            │
-│  one per tab, only the   │  exists only while open;       │
-│  active one is visible   │  bottom or right               │
-└──────────────────────────┴────────────────────────────────┘
+<h2>Core 1: N+1 webviews in a single window</h2>
+
+<p>This is the architectural foundation, and the key to everything that follows.</p>
+
+<h3>Topology: three kinds of sibling window</h3>
+
+<p>NanoBrowser's entire interface is <strong>one operating-system window</strong>. Inside it live up to three kinds of <strong>child webview</strong>, and every child is a <strong>sibling HWND</strong> rather than a true child.</p>
+
+<pre><code>┌─ main window ───────────────────────────────────────────────┐
+│  shell webview  (label "shell")   ← y: 0 .. shell_h         │
+│    tab strip (40) + toolbar (44) + bookmarks bar (28, optional)
+├──────────────────────────┬──────────────────────────────────┤
+│  page webview            │  devtools panel webview          │
+│  (label "tab-&lt;id&gt;")      │  (label "devtools")              │
+│  one per tab, only the   │  exists only while open;         │
+│  active one is visible   │  bottom or right                 │
+└──────────────────────────┴──────────────────────────────────┘
 </code></pre>
 
-<p>The shell is the trusted chrome at <code>ui/index.html</code>, and it holds every IPC command. Each tab gets its own webview under the label <code>tab-&lt;id&gt;</code>, created lazily and hidden or shown on switch. All tab webviews share one WebView2 user-data directory, so cookies and login state carry across tabs. The DevTools panel is created the first time it opens.</p>
+<ul>
+<li><strong>shell.</strong> The trusted browser chrome at <code>ui/index.html</code>, holding every IPC command. In Tauri terms it is the only webview that is trusted.</li>
+<li><strong><code>tab-&lt;id&gt;</code>.</strong> One child webview per tab, <strong>created lazily</strong> and hidden or shown on switch. All tab webviews share <strong>one</strong> WebView2 user-data directory, so cookies and login state carry across tabs.</li>
+<li><strong><code>devtools</code>.</strong> The docked panel, created the first time it opens.</li>
+</ul>
 
-<p>Layout is computed in Rust and applied per webview with <code>set_position</code> and <code>set_size</code>. The shell height is derived, not guessed: <code>STRIP_H(40) + TOOLBAR_H(44) + (bookmarks_bar ? BM_H(28) : 0)</code>, which is 84 logical pixels, or 112 with the bookmarks bar. Everything below is page area. Sizes are logical and scaled by <code>scale_factor</code>, so window coordinates and logical coordinates never mix on a HiDPI display.</p>
+<p>Layout is computed in Rust in <code>tabs.rs::layout</code> and applied to each webview with position and size calls.</p>
 
-<p><code>AppState</code> sits behind a single mutex and holds the tab list, the active id, the reopen stack, the shell height, the profile, the id counter, the system dark flag, the overlay flag, and the DevTools state. A <code>Tab</code> carries its id, label, URL, title, loading state, pin state, icon, internal flag, a <code>live</code> flag, zoom index, back and forward availability, navigation counters, and an opaque per-tab token that the security model depends on.</p>
+<h3>Deriving the shell height</h3>
 
-<p>The <code>live</code> flag is the interesting one. It says whether the tab's real webview exists yet, because a tab can be logically open before it has a webview. That is why session restore paints immediately.</p>
+<p>The chrome height is derived rather than guessed, from three pieces.</p>
 
-<p>The shell reaches Rust through 40 commands covering state, navigation, tabs, UI, DevTools and data. Rust pushes state back through Tauri events: tab state, omnibox state, bookmark changes, theme changes, find results, focus requests and drag state. The frontend never polls. Even the window title is composed on the Rust side.</p>
+<pre><code>shell_h = STRIP_H(40) + TOOLBAR_H(44) + (bookmarks_bar ? BM_H(28) : 0)
+</code></pre>
 
-<h3>Why sibling HWNDs matter</h3>
+<p>That is <strong>84 logical pixels without the bookmarks bar and 112 with it</strong>. The page area is everything below the chrome.</p>
 
-<p>This is the source of every counter-intuitive problem later in the post. Child webviews are sibling HWNDs, and later-created windows paint above earlier ones. The shell is created first and page webviews after it, so by default the page covers the shell.</p>
+<p>All of it is in <strong>logical pixels</strong>, Tauri's logical size and position types, with scaling folded in through the scale factor. The window-size helper reads the inner size and divides by the scale factor, so window coordinates and logical coordinates never get mixed on a HiDPI display.</p>
 
-<p>Two consequences follow. Any shell UI that overflows the chrome area, such as the main menu, the omnibox dropdown or a tab context menu, is clipped by the page webview. And a child webview cannot see pointer movement outside its own bounds, which makes drag-resizing the DevTools panel awkward in a way that has nothing to do with DevTools.</p>
+<h3>State model</h3>
+
+<p>The application state is guarded by <strong>a single mutex</strong> and handed to Tauri to manage.</p>
+
+<table>
+<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>tabs</code></td><td>The live tabs</td></tr>
+<tr><td><code>active</code></td><td>The current tab id</td></tr>
+<tr><td><code>closed</code></td><td>A stack of url and title pairs, feeding reopen</td></tr>
+<tr><td><code>shell_h</code></td><td>The chrome height described above</td></tr>
+<tr><td><code>profile</code></td><td>Persisted settings, bookmarks, history, downloads, session and window geometry</td></tr>
+<tr><td><code>next_id</code></td><td>Tab id allocator</td></tr>
+<tr><td><code>sys_dark</code></td><td>System dark mode flag</td></tr>
+<tr><td><code>overlay</code></td><td>Whether the shell is currently stretched over the whole window</td></tr>
+<tr><td><code>devtools_open</code></td><td>Whether the panel is visible</td></tr>
+<tr><td><code>devtools_h</code></td><td>Panel height when docked at the bottom</td></tr>
+<tr><td><code>devtools_w</code></td><td>Panel width when docked at the right</td></tr>
+<tr><td><code>win_save_pending</code></td><td>Debounce flag for persisting window geometry</td></tr>
+</tbody>
+</table>
+
+<p>A tab carries its id, label, URL, title, loading state, pin state, icon, an internal flag, a <code>live</code> flag, the zoom index, back and forward availability, navigation counters and pending navigation. It also carries an <strong>opaque per-tab token</strong>, which is central to the security model in part two.</p>
+
+<p>The <code>live</code> flag deserves a note. It says whether the tab's real webview has been created yet. A tab can exist logically while its webview does not, which is exactly how session restore paints a window full of tabs immediately.</p>
+
+<h3>The IPC surface</h3>
+
+<p>The shell calls Rust through <strong>40 commands</strong>, all in <code>commands.rs</code> and registered with one macro, grouped by purpose.</p>
+
+<ul>
+<li><strong>State reads:</strong> initial state, tabs, settings, bookmarks, history, downloads, top sites.</li>
+<li><strong>Navigation:</strong> navigate, new tab, activate, back, forward, reload, stop, internal navigation.</li>
+<li><strong>Tabs:</strong> close, toggle pin, move, duplicate, close others, close to the right, reopen.</li>
+<li><strong>UI:</strong> zoom, omnibox suggestions, find query, find move, find close, chrome overlay, system theme changed.</li>
+<li><strong>DevTools:</strong> toggle, set size, set side, drag end.</li>
+<li><strong>Data:</strong> add, remove and update bookmarks, delete and clear history, set settings, open the downloads folder.</li>
+</ul>
+
+<p>Rust pushes state back through events: tab state, omnibox state, bookmark changes, theme changes, system theme, find results, focus requests, open find bar, and drag state.</p>
+
+<p>One detail is worth copying: <strong>the frontend never polls and Rust pushes.</strong> The tab-state emitter serializes the whole tab list into an array of view models. The omnibox emitter sends the current tab's URL, title, loading state, zoom, star state, back and forward availability and id. Even the window title is composed on the Rust side.</p>
+
+<pre><code>title = current tab title is non-empty ? "&lt;title&gt; - NanoBrowser" : "NanoBrowser"
+</code></pre>
+
+<h3>Why sibling windows matter</h3>
+
+<p>This single fact is the source of every counter-intuitive problem later in the post. <strong>Child webviews are sibling HWNDs, so a later-created window paints above an earlier one.</strong> The shell is created first and page webviews after it, so by default <strong>the page covers the shell</strong>.</p>
+
+<p>Two consequences follow immediately.</p>
+
+<ol>
+<li>Any shell UI that overflows the chrome region, such as the main menu, the omnibox dropdown or a tab context menu, is clipped by the page webview.</li>
+<li>A child webview <strong>cannot see pointer movement outside its own bounds</strong>, which makes drag-resizing the DevTools panel genuinely awkward.</li>
+</ol>
+
+<p>Those two consequences map to Core 5 and Core 4 below.</p>
 
 <h2>Core 2: the in-process CDP core</h2>
 
-<p><code>cdp.rs</code> is the heart of the project, shared by both binaries, and its shape comes from two properties of <code>CallDevToolsProtocolMethod</code>.</p>
+<p><code>cdp.rs</code> is the heart of the project, shared by both binaries. Its design is shaped by two properties of <code>CallDevToolsProtocolMethod</code>.</p>
 
-<p><strong>There is no <code>{"id": ...}</code> envelope.</strong> A CDP client written against a debugging port sends <code>{"id":7,"method":"Page.navigate","params":{...}}</code> and matches the reply by id. <code>CallDevToolsProtocolMethod</code> has no such layer. You pass a method and params, and the completion callback receives that method's result object. No id. No envelope.</p>
+<h3>Property one: no request envelope</h3>
 
-<p>Replies therefore cannot be matched by id. The project assigns each call an incrementing sequence number, bakes it into the callback closure created for that call, and dispatches the result to the matching waiter when the callback fires.</p>
+<p>Anyone who has written a CDP client against a debugging port is used to this shape, with replies matched by id.</p>
 
-<p><strong>The callback runs on the WebView2 UI thread.</strong> This one is worse. Waiting for a callback on that thread means waiting for yourself, which deadlocks immediately, and it happens most easily in the hidden-window agent.</p>
+<pre><code>{"id": 7, "method": "Page.navigate", "params": {"url": "..."}}
+</code></pre>
 
-<p>So every call is fire-and-forget, and the caller is always a worker thread, never the UI thread. The caller parks on a condition variable until the reply lands in shared state. Internally that is an atomic sequence counter, a mutex-guarded sink, a condition variable, and a pending map for callback replies.</p>
+<p><code>CallDevToolsProtocolMethod</code> has <strong>no such layer</strong>. You pass a method name and parameters, and its completion callback receives <strong>that method's own result object</strong>. No id, no envelope.</p>
 
-<p>Two calling styles sit on top, and the split is a hard constraint rather than a preference. The blocking style waits for a reply with a 30-second default timeout and is used by the automation agent. The non-blocking style hands the reply to a callback and is used by the DevTools bridge, whose service loop runs on its own socket thread and would deadlock if it blocked.</p>
+<p>Replies therefore cannot be matched by id. The project's solution is to give each call an <strong>incrementing sequence number</strong>, allocated from an atomic counter, and <strong>bake that number into the callback closure</strong> created for that specific call. When the callback fires, the result is dispatched to the matching waiter.</p>
 
-<p>The timeout message is <code>CDP &lt;method&gt; timed out</code>. Putting the method name in the error is worth copying, because it tells you where it hung.</p>
+<h3>Property two: callbacks run on the UI thread</h3>
 
-<p>A few more details matter. Empty replies are normalized to <code>null</code> rather than an empty string. <code>on_event</code> subscribes through <code>GetDevToolsProtocolEventReceiver</code>, and once registered the subscription belongs to WebView2, so the callback lives as long as the webview and there is no unsubscribe. <code>with_webview</code> must be called off the main thread. And <code>Cdp::webview()</code> is the single entry point that resolves both child webviews and the agent's window.</p>
+<p>The second property is more dangerous. <strong>The completion callback runs on the WebView2 UI thread.</strong> Waiting for that callback on that same thread means waiting for yourself, which deadlocks immediately, and the bug appears most easily in the hidden-window agent.</p>
 
-<p>All of that adds up to one job: turn a callback-based, UI-thread-bound COM interface with no request ids into a blocking, worker-thread-safe, sequence-correlated Rust API. It is the most infrastructure-like piece of the project.</p>
+<p>So the calling model is this.</p>
+
+<ul>
+<li><strong>Every call is fire-and-forget.</strong> It is issued and returns without waiting.</li>
+<li><strong>The caller is always a worker thread, never the UI thread.</strong> After issuing the request it blocks on a mutex and condition variable until the reply lands in shared state and wakes it.</li>
+<li>Internally that is an atomic sequence counter for issuing, a mutex-guarded sink, a condition variable for waiting, and a pending map for callback-style replies.</li>
+</ul>
+
+<h3>Two calling styles</h3>
+
+<p>Two styles sit on top, with a strict split of purpose.</p>
+
+<table>
+<thead><tr><th>API</th><th>Style</th><th>Who uses it</th></tr></thead>
+<tbody>
+<tr><td><code>call</code>, <code>call_raw</code>, <code>call_within</code></td><td><strong>Block</strong> for a reply, with a 30-second default timeout</td><td>The automation agent</td></tr>
+<tr><td><code>send</code></td><td>Hand the reply to a callback, <strong>non-blocking</strong></td><td>The DevTools bridge, which must not block because it answers on its own socket thread</td></tr>
+</tbody>
+</table>
+
+<p>That split is not a matter of taste. It is a hard constraint. The DevTools bridge service loop runs on its own thread, and if it blocked while issuing a CDP request it would deadlock against its own replies to the panel.</p>
+
+<p>The default timeout is 30 seconds, and the error message is fixed.</p>
+
+<pre><code>CDP &lt;method&gt; timed out
+</code></pre>
+
+<p>Putting the method name in the error is worth copying, because when something hangs you can see which protocol method it hung on.</p>
+
+<h3>Other details that matter</h3>
+
+<ul>
+<li><strong>Empty replies become <code>null</code>.</strong> Some CDP methods return nothing, so the callback receives an empty value. It is normalized to null rather than an empty string or undefined.</li>
+<li><strong><code>on_event</code></strong> subscribes through <code>GetDevToolsProtocolEventReceiver</code>. The important point: <strong>once registered, the subscription belongs to WebView2</strong>, so the callback lives as long as the webview does. There is no unsubscribe; the webview must go away.</li>
+<li><strong><code>with_webview</code> must be called off the main thread.</strong> That thread constraint is easy to trip over.</li>
+<li><strong><code>Cdp::webview()</code> is the single entry point.</strong> It resolves child webviews by label and also resolves a <code>WebviewWindow</code>. One implementation serves the GUI's three child webviews and the agent's main window, which is how "one core, two entry points" is cashed out in code.</li>
+</ul>
+
+<p>Put together, <code>cdp.rs</code> does one job: <strong>wrap a callback-based COM interface that runs on the UI thread and has no request ids into a Rust API that can block, can be called from any worker thread, and correlates replies by sequence number.</strong> It is the most infrastructure-like piece in the project.</p>
 
 <h2>Core 3: a hand-written WebSocket server</h2>
 
-<p>The DevTools frontend needs a WebSocket, and the project implements the server itself in <code>ws.rs</code>.</p>
+<p>The DevTools frontend needs a WebSocket to talk over. Rather than pull in <code>tungstenite</code>, the project writes the server by hand in <code>ws.rs</code>.</p>
 
-<p>The handshake reads HTTP headers from the TCP stream with two guards: a 2048-byte read buffer, and abandonment once headers exceed 16384 bytes. It scans for the blank line, takes <code>Sec-WebSocket-Key</code>, and computes the accept key as <code>base64(sha1(key + GUID))</code> against the fixed GUID. SHA-1, base64 and the accept helper are all written here.</p>
+<h3>The handshake</h3>
 
-<p>Framing handles masking, 1/2/4-byte length extensions, and fragmentation, where one logical message arrives across several reads. Outgoing frames never mask, as the RFC requires of servers. Text, PONG and CLOSE are supported.</p>
+<p>It is the standard upgrade handshake, implemented item by item.</p>
 
-<p>After the handshake, <code>accept</code> sets a 25 ms read timeout. That is not a failure timeout. It is the service loop's tick. The loop polls the socket: a zero-byte read means the panel left, and a would-block result means no data yet. One thread therefore handles both panel messages and CDP events without select or epoll.</p>
+<ol>
+<li>Read HTTP request headers from the TCP stream, with two guards: a <strong>2048-byte read buffer</strong>, and abandonment once headers exceed <strong>16384 bytes</strong>, which stops anyone from flooding the port with an enormous header.</li>
+<li>Scan the headers byte by byte until the blank line, which is where the header section ends.</li>
+<li>Take <code>Sec-WebSocket-Key</code> and compute the accept key per RFC 6455, as the base64 of the SHA-1 of the key plus the fixed GUID. <strong>SHA-1 and base64 are both implemented here.</strong></li>
+<li>Reply with <code>101 Switching Protocols</code> and the accept header.</li>
+</ol>
 
-<p>The tests use an independently written client encoder rather than round-tripping the decoder against itself. They cover a completed handshake with the exact status and accept value, a connection without the session key receiving no headers and no bytes at all, a 70 KB payload reassembled across reads, PING answered with PONG, and CLOSE answered with an empty-payload close.</p>
+<h3>Frame codec</h3>
+
+<ul>
+<li><strong>Receiving</strong> handles masking, the length extensions for one, two and four byte lengths, and <strong>fragmentation</strong>, where one logical message spans several reads.</li>
+<li><strong>Sending</strong> picks the length encoding by payload size. <strong>Server frames are not masked</strong>, as the RFC requires.</li>
+<li>Text, pong and close are supported.</li>
+</ul>
+
+<h3>The heartbeat of the service loop</h3>
+
+<p>After reading the headers, the accept function does one small thing that decides the shape of the entire bridge.</p>
+
+<pre><code>s.set_read_timeout(25ms)
+</code></pre>
+
+<p>That is not a failure timeout. <strong>It is the service loop's tick.</strong> The loop polls the socket: a zero-byte read means the panel left, and a would-block or timed-out result means no data yet, detected by an idle check. One thread therefore handles both panel messages and CDP events, with no need for select or epoll.</p>
+
+<h3>Tests</h3>
+
+<p><code>tests/ws_bridge.rs</code> validates the server with an <strong>independently implemented client encoder</strong>, deliberately not round-tripping the decoder against its own inverse. Coverage includes a completed handshake reporting its session path with the exact status and accept value; <strong>a connection without a session key receiving no headers and no bytes at all</strong>, which is the assertion that this port is not a public debugging port; <strong>a 70 KB payload reassembled across several reads</strong>; ping answered with pong; and close answered with an empty-payload close frame.</p>
 
 <h2>Core 4: the docked DevTools panel</h2>
 
-<p>This is the hardest part of the project and the most worth reading.</p>
+<p>This is the most complex part of the project and the most worth reading. The README gives it its own chapter.</p>
 
-<p>WebView2 does ship the real DevTools frontend, but only through <code>OpenDevToolsWindow</code>, which is a separate window. A Chrome-style docked panel needs another route, and both easier options are dead ends. <code>--remote-debugging-port</code> fails because only the shell webview becomes a CDP target, so the official frontend cannot attach to a page. Writing a minimal custom panel loses Elements, Console, Network and Sources.</p>
+<h3>Why it exists</h3>
 
-<p>The route taken is the official frontend plus an in-process loopback WebSocket bridge. The panel loads a <code>devtools://devtools/bundled/inspector.html</code> URL with the socket address in the query string and the dock side in the fragment.</p>
+<p>WebView2 does ship <strong>the real DevTools frontend</strong>, but exposes it only through <code>OpenDevToolsWindow</code>, which creates a <strong>separate window</strong>. A Chrome-style panel docked inside the window needs another route.</p>
+
+<p>Two easier routes were rejected.</p>
+
+<ul>
+<li><strong><code>--remote-debugging-port</code></strong> is not viable, because with that port open <strong>only the shell webview becomes a CDP target</strong>, and the official frontend cannot attach to a page webview.</li>
+<li><strong>Writing a minimal custom panel</strong> was rejected because it loses the complete Elements, Console, Network and Sources experience.</li>
+</ul>
+
+<p>The route taken is <strong>the official frontend plus an in-process loopback WebSocket bridge</strong>.</p>
+
+<h3>The URL and the counter-intuitive fragment trap</h3>
+
+<pre><code>devtools://devtools/bundled/inspector.html?ws=127.0.0.1:PORT/devtools/page/&lt;session-id&gt;#nanoSide=bottom|right
+</code></pre>
+
+<ul>
+<li><code>devtools://devtools/bundled/</code> is the DevTools bundle WebView2 already ships, so the frontend needs no packaging of its own.</li>
+<li>It speaks CDP over a <strong>loopback WebSocket served by this process</strong>.</li>
+<li>The dock side lives in the <strong>fragment</strong>, and <strong>cannot go into the query string</strong>.</li>
+</ul>
+
+<p>That last line is the most valuable non-obvious constraint in the project.</p>
 
 <blockquote>
-<p>Appending a second query key after <code>?ws=</code> makes WebView2's <code>devtools://</code> handler fail the entire load, and the panel shows Chromium's "this page cannot be reached" error. A fragment is parsed by the browser before that handler runs, so it is safe.</p>
+<p><strong>Appending a second query key after <code>?ws=</code>, for example <code>&amp;nanoSide=right</code>, makes WebView2's <code>devtools://</code> handler fail the entire load</strong>, and the page shows Chromium's "this page cannot be reached" error. A fragment is parsed by the browser before that handler sees it, so it is safe.</p>
 </blockquote>
 
-<p>There is a nastier follow-up. While debugging this, <code>webview.url()</code> lies, because the error page still reports the URL you asked for. The reliable signals are whether the bridge received a client and how many domains it registered.</p>
+<p>The trap has a nastier follow-up. <strong>While debugging it, <code>webview.url()</code> cannot be trusted</strong>, because the error page still reports the URL you asked for. The reliable signals are whether the bridge received a client, and how many domains it registered.</p>
 
-<p>Three constraints keep the bridge from being a debugging port. It binds a random loopback port, it accepts only the single session id minted for this panel's URL, and every CDP request is forwarded to a page webview through <code>CallDevToolsProtocolMethod</code>. A page that scans localhost finds a listener that answers nothing without that id, and the id exists only while the panel does.</p>
+<h3>Admission: this is not a debugging port</h3>
 
-<p>Events exposed a gap in the protocol. <code>Schema.getDomains</code> lists 35 domains and returns no event names, so events cannot be discovered dynamically. The project keeps a static event table and subscribes lazily per domain, only for domains the frontend actually enabled. Two robustness rules follow: a failed subscription is skipped rather than abandoning the domain, and calls WebView2 does not implement, such as <code>Page.startScreencast</code>, come back as CDP errors instead of breaking the bridge.</p>
+<p>The loopback WebSocket has three constraints.</p>
 
-<p>Geometry is computed in one function that returns both the page rectangle and the panel rectangle, and takes state as a parameter so docking rules are unit-testable without a window. Six constants bound it: minimum and default panel size for each dock side, plus a minimum page size. The two minimums are enforced together, so neither the panel nor the page can squeeze the other out of existence.</p>
+<ol>
+<li>It binds to a <strong>random loopback port</strong>.</li>
+<li>It <strong>accepts only the one session id minted for this panel's URL</strong>. The request path must match, and anything else gets no response.</li>
+<li>Every CDP request is <strong>forwarded to a page webview</strong> through <code>CallDevToolsProtocolMethod</code>.</li>
+</ol>
 
-<p>Dragging the splitter runs into the sibling-window limit. A child webview cannot see pointer movement outside itself, so the pointer leaving the panel is invisible to the panel. The fix routes the pointer through the shell. On pointer down the panel asks Rust to expand the shell over the whole window and raise it. A full-window capture layer in the shell forwards coordinates to a command that computes the new panel size. On pointer up the layer is removed. The same overlay flag serves this and the menu-clipping fix, which is one mechanism for two problems.</p>
+<p>Why that is not a debugging port: a page scanning localhost finds a listener that answers nothing without the id, and the id exists only while the panel does. <strong>Nothing outside the process can attach to either browser.</strong> Combined with never passing the debugging-port flag, this is the "no debugging socket" layer of the security model.</p>
 
-<p>Signalling needed a trick, because the panel loads a <code>devtools://</code> document where Tauri's IPC does not exist and <code>window.chrome.webview</code> does not exist either. Both normal channels are cut. So the panel calls <code>window.open</code> with a URL on <code>nano-dt.invalid</code>, a domain that can never resolve. Rust sees the popup request, reads the action from the path, and denies it. Nothing navigates and nothing loads. The side effect is the message.</p>
+<h3>Events: a static table plus lazy subscription</h3>
 
-<p>Lifecycle is small but precise. <code>F12</code>, <code>Ctrl+Shift+I</code> and the main menu toggle the panel. Activating or creating a tab retargets the panel so it follows the active tab. Closing a tab forgets its protocol state. Pressing <code>F12</code> inside the panel closes it. The dock side persists in settings, and switching sides reloads the panel so the splitter lands on the right edge.</p>
+<p>There is a very typical gap in the protocol here. <code>Schema.getDomains</code> <strong>reports 35 domains and returns no event names at all</strong>, so events cannot be discovered dynamically.</p>
 
-<p>Every webview, including the panel itself, calls <code>.devtools(false)</code>. That disables the native DevTools popup and does not affect <code>CallDevToolsProtocolMethod</code>, which is what makes the whole docking approach possible.</p>
+<p>The solution is a <strong>static table of event names</strong> plus <strong>lazy subscription per domain</strong>: only the domains the frontend actually enabled get subscriptions. The table covers the common domains, such as runtime console calls, exceptions and execution contexts; debugger script parsed, paused and resumed; profiler start and finish; heap snapshot chunks and progress; console messages; and page lifecycle events including navigation, dialogs, screencast frames and downloads.</p>
+
+<p>Two robustness rules sit on top.</p>
+
+<ul>
+<li><strong>A single failed subscription is skipped</strong> rather than abandoning the whole domain.</li>
+<li><strong><code>Page.startScreencast</code> is not implemented on WebView2</strong>, which matters for the agent's screenshots. Calls like that come back to the frontend as <strong>CDP errors</strong> instead of breaking the bridge.</li>
+</ul>
+
+<p>The bridge loop also normalizes empty replies to an empty object, because the panel expects one; wraps errors as JSON-RPC errors; extracts the domain from the method name and deduplicates subscriptions per tab and domain; and fills empty parameters before pushing an event to the panel.</p>
+
+<h3>Geometry: one split function and six constants</h3>
+
+<p>Panel sizing lives in one function that returns the <strong>page rectangle</strong> and the <strong>panel rectangle</strong>. The benefit is that docking rules can be unit-tested without a real window, because the state is passed in as an argument.</p>
+
+<table>
+<thead><tr><th>Constant</th><th>Value</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>MIN_H</code></td><td>96</td><td>Minimum panel height when docked at the bottom</td></tr>
+<tr><td><code>DEFAULT_H</code></td><td>320</td><td>Height on first open at the bottom</td></tr>
+<tr><td><code>MIN_PAGE_H</code></td><td>96</td><td>Minimum height left for the page</td></tr>
+<tr><td><code>MIN_W</code></td><td>240</td><td>Minimum panel width when docked at the right</td></tr>
+<tr><td><code>DEFAULT_W</code></td><td>480</td><td>Width on first open at the right</td></tr>
+<tr><td><code>MIN_PAGE_W</code></td><td>240</td><td>Minimum width left for the page</td></tr>
+</tbody>
+</table>
+
+<p>For bottom docking, the page gets the content width and the content height minus the panel, and the panel sits at the bottom of the content. For right docking, the page gives up the panel width and the panel takes the right edge.</p>
+
+<p>A clamp keeps both sides above their minimums, so a small window never squeezes the page out or the panel out.</p>
+
+<p>There is also a timing detail. Opening computes the window layout <strong>before</strong> making the panel visible, so it does not flash at the previous session's geometry for one frame.</p>
+
+<h3>Dragging the splitter when a child webview cannot see outside itself</h3>
+
+<p>The panel edge has a grip. It runs into a physical limit: <strong>a child webview cannot see pointer movement outside its own bounds</strong>. The panel is only so tall or so wide, and once the pointer leaves it, the panel no longer receives pointer events.</p>
+
+<p>The fix routes the pointer through the shell.</p>
+
+<ol>
+<li>On pointer down, the panel asks Rust to enable the overlay, which stretches the shell webview over the whole window and raises it.</li>
+<li>The shell has a full-window capture layer that forwards coordinates to a size command.</li>
+<li>Rust computes the new size:</li>
+</ol>
+
+<pre><code>bottom:  devtools_h = clamp(window_h - clientY)
+right:   devtools_w = clamp(window_w - clientX)
+</code></pre>
+
+<ol>
+<li>On pointer up, the capture layer is removed and the overlay is restored.</li>
+</ol>
+
+<p>Note that this chain uses <strong>the same overlay mechanism as Core 5</strong>. One flag serves both purposes: keeping menus from being clipped, and letting the grip drag across boundaries.</p>
+
+<h3>Signalling between the panel and native code</h3>
+
+<p>This is the prettiest trick in the project. The panel is a <code>devtools://</code> document, and in that environment <strong>Tauri's IPC does not exist</strong>, and <strong>WebView2's host object on the window does not exist either</strong>.</p>
+
+<p>Both normal channels are cut. So the panel talks to Rust like this.</p>
+
+<pre><code>window.open('https://nano-dt.invalid/&lt;action&gt;', '_blank');
+</code></pre>
+
+<p><code>nano-dt.invalid</code> is a domain that <strong>cannot exist</strong>, so it is never actually visited. Rust sees the popup request in its new-window handler, reads the action from the path, and returns a deny response.</p>
+
+<pre><code>NewWindowResponse::Deny
+</code></pre>
+
+<p><strong>Nothing navigates and nothing loads. The popup request is the message.</strong> It is a textbook use of a side-effect channel as a signal channel.</p>
+
+<h3>Lifecycle</h3>
+
+<ul>
+<li><code>F12</code>, <code>Ctrl+Shift+I</code> and the main menu all toggle the panel.</li>
+<li>Activate and create-tab retarget it, so the panel <strong>follows the active tab</strong>.</li>
+<li>Close-tab forgets the dead tab's protocol state.</li>
+<li><strong>Pressing <code>F12</code> inside the panel closes it.</strong></li>
+<li>The dock side persists in settings, and <strong>switching sides reloads the panel</strong> so the grip lands on the correct edge.</li>
+<li>Every webview, including the shell, the page tabs <strong>and the panel itself</strong>, calls <code>.devtools(false)</code>.</li>
+</ul>
+
+<p>That last line needs spelling out. <code>.devtools(false)</code> turns off the <strong>native DevTools popup</strong>, but it <strong>does not affect <code>CallDevToolsProtocolMethod</code></strong>. So the project can kill the native popup and keep full CDP at the same time. That is one of the pitfalls the README lists, and it is the precondition for the whole docking approach.</p>
 
 <h2>Core 5: z-order and the overlay trick</h2>
 
-<p>The mine planted in Core 1 needs defusing. The page webview is created later, so it covers the shell and clips every overflowing menu.</p>
+<p>Back to the mine planted in Core 1: <strong>the page webview is created later and covers the shell</strong>, clipping every piece of overflowing shell UI, including the main menu, the omnibox dropdown and the tab context menu.</p>
 
-<p>While a menu or suggestion list is open, the shell expands to the whole window and is raised with <code>SetWindowPos</code> against <code>HWND_TOP</code>. On close it returns to its normal height. After any tab create, activate or close, a helper re-asserts z-order, because the new page webview would otherwise climb back on top.</p>
+<p>The fix is the chrome-overlay command, which does three things.</p>
+
+<ol>
+<li>While a menu or suggestion list is open, <strong>stretch the shell webview over the whole window</strong> and raise it to the top of the z-order.</li>
+<li>On close, restore the shell to its normal chrome height.</li>
+<li><strong>After any tab is created, activated or closed</strong>, re-assert the z-order, otherwise the newly created page webview climbs back over the chrome.</li>
+</ol>
 
 <pre><code>SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
              SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
 </code></pre>
 
-<p>The flags read together mean: change z-order only. No move, no resize, no focus steal, stay visible. <code>SWP_NOACTIVATE</code> is the one people forget, and without it every menu open re-activates the window and focus jumps.</p>
+<p>The four flags together mean: <strong>change z-order only</strong>, without moving, resizing, stealing focus, or hiding. The one people forget is <code>SWP_NOACTIVATE</code>. Without it, every menu open re-activates the window and focus jumps.</p>
 
-<p>So "expand and raise" is used by exactly two things, menu overflow and splitter dragging. One mechanism, two scenarios.</p>
+<p>So "stretch and raise" is reused in exactly two places: menu overflow and splitter dragging. One mechanism, two scenarios, and one of the few places in this project where the abstraction is exactly the right size.</p>
 
 <hr>
-<p><em>Continues in <a href="/en/article/nanobrowser-tauri-webview2-part-2/">part two</a>: the tab engine, the zero-framework front end, the headless agent, the MCP server, traffic capture, the five security layers, the size accounting and the fourteen pitfalls.</em></p>
+<p><em>Continued in <a href="/en/article/nanobrowser-tauri-webview2-part-2/">part two</a>: the tab engine, the zero-framework frontend, the headless agent, the MCP server, traffic capture, the five security layers, the size accounting and the fourteen pitfalls.</em></p>
 </div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">中文版</a></nav></div></div>
   </body>
 </html>
