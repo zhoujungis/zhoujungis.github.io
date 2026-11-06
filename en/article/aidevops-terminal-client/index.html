@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-BAy6QDug.js"></script>
+    <script type="module" crossorigin src="/assets/index-DKc3D4hG.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -162,10 +162,17 @@
   </head>
   <body>
     <div id="app"><div class="ns-article"><h1>aidevops: an AI DevOps copilot that lives in your terminal</h1><div class="ns-meta">2026-10-16 · 17 min · Stack Frame</div><div class="markdown-body">
-<p>A few days ago I put <strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong> on PyPI. It is the terminal client for an AI DevOps and QA copilot, and <code>pipx install aidevops</code> is the whole installation. The source is on <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a> under MIT.</p>
+<blockquote>
+<p>Who this is for: engineers who want desktop-grade developer tooling without leaving the terminal; people building AI features that must stay on a leash; anyone interested in how four systems of record can be joined into one traceable chain.</p>
+<p><strong>TL;DR:</strong> aidevops joins requirements, commits, tests, bugs and releases into one chain, then answers four questions from it. The model layer can read everything and write nothing. Every attribution, every risk contribution and every model claim is traceable back to a record you can open.</p>
+<p>Reading time around 17 minutes. Level: intermediate.</p>
+</blockquote>
 
-<p>This post covers what problem it solves, how data moves through it, how the risk score is computed, what the model is allowed to do, how each command works, and what I chose not to build.</p>
+<p>A few days ago I put <strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong> on PyPI. It is the terminal client for an AI DevOps and QA copilot, and <code>pipx install aidevops</code> is the whole installation. The source is on <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a> under MIT, and the project is fully open source.</p>
 
+<p>This post covers what problem it solves, how data moves through it, how the risk score is computed, what the model is allowed to do and why it is kept in a cage, how each command works, and what I chose not to build.</p>
+
+<strong>Contents</strong>
 <ul>
 <li>The problem: development data lives in six places that never talk</li>
 <li>Architecture: a thin client over a thick server</li>
@@ -183,20 +190,20 @@
 
 <h2>The problem: development data lives in six places that never talk</h2>
 
-<p>A team generates a lot of development data every day. Requirements sit in Jira. Commits sit in GitHub. Test results sit in CI. Bugs sit in a tracker. Releases sit in a pipeline. All of it exists, and none of it knows about the others.</p>
+<p>A team generates a lot of development data every day. Requirements sit in Jira, commits in GitHub, test results in CI, bugs in a defect tracker, and release records in a pipeline. All of it exists. None of it knows about the others.</p>
 
-<p>So every developer does the same manual work. Which modules did this change touch? What broke in those modules before? Do the tests cover them? If we ship this release, where is the risk? The answers are all in the system. Putting them together means five browser tabs, three exported reports, and a memory test.</p>
+<p>So every developer does the same manual work, every day. Which modules did this change touch? What broke in those modules before? Do the tests cover them? If we ship this release, where is the risk concentrated? The answers are all in the system, but assembling them means opening five browser tabs, exporting three reports, and trusting your memory for the rest.</p>
 
-<p>aidevops links the chain requirement, code, test, bug, release, and answers four questions from it:</p>
+<p>aidevops links that chain and answers four questions from it:</p>
 
 <ul>
-<li>Where is the risk in this commit, and which signal fired?</li>
-<li>What should be regression-tested?</li>
-<li>Where did this production incident probably start?</li>
-<li>After reading all of it, what does the model suggest?</li>
+<li>Where is the <strong>risk</strong> in this commit, which module, which signal, and why;</li>
+<li>What should be <strong>regression-tested</strong>, meaning the historical bugs and the candidate test list;</li>
+<li>Where did this production incident <strong>most likely start</strong>, traced back to a requirement and a release;</li>
+<li>After reading all of it, what does the model <strong>suggest</strong>?</li>
 </ul>
 
-<p>The terminal client exists because people who live in a terminal should not open a browser to read one risk report.</p>
+<p>The terminal client exists because people who live in a terminal should not have to open a browser to read one risk report.</p>
 
 <h2>Architecture: a thin client over a thick server</h2>
 
@@ -204,27 +211,27 @@
 
 <p>That boundary is deliberate, for three reasons.</p>
 
-<p>First, the data is too large for a client. Commit history, test records and bug lists run to hundreds of thousands of rows. The correlation engine, the risk model and the agents all need the whole picture. Putting that on a laptop turns the product into a demo.</p>
+<p><strong>The data is too large for a client.</strong> Commit history, test records and bug lists run to hundreds of thousands of rows. The correlation engine, the risk model and the agents all need the complete picture. Putting that on a laptop turns the product into a demo.</p>
 
-<p>Second, credentials stay on the server. Git tokens and model API keys are encrypted with Fernet and stored server-side. The client holds one access token, in its own config directory, mode 0600.</p>
+<p><strong>Credentials stay on the server.</strong> Git tokens and model API keys are encrypted with Fernet and stored server-side. The client holds exactly one access token, in its own config directory, with mode 0600.</p>
 
-<p>Third, there is only one set of rules. The CLI, the TUI and any future web UI read the same REST API at <code>/api/v1</code>. Logic cannot drift between surfaces, because there is no second copy.</p>
+<p><strong>There is one set of rules.</strong> The CLI, the TUI and any future web UI read the same REST API under <code>/api/v1</code>. Logic cannot drift between surfaces, because there is no second copy of it.</p>
 
-<p>This is why installing the client alone gets you a login failure. That is the architecture, not a bug. To run the backend locally, copy <code>.env.example</code> to <code>.env</code> and run <code>docker compose up -d --build</code>, with Swagger at <code>/api/docs/</code>. Or use <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> plus <code>make worker</code> and <code>make beat</code> for Celery.</p>
+<p>This is why installing the client alone gets you a login failure on the first step. That is the architecture, not a bug. To run the backend locally, copy <code>.env.example</code> to <code>.env</code> and run <code>docker compose up -d --build</code>, with Swagger at <code>/api/docs/</code>. Or run <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> and start Celery with <code>make worker</code> and <code>make beat</code>.</p>
 
-<p>The client is Typer for the CLI, Textual for the TUI, Rich for output, and httpx for HTTP. Pure Python, no compiled extensions, Python 3.11 and up.</p>
+<p>The client stack is Typer for the command line, Textual for the TUI, Rich for output and httpx for HTTP. Pure Python, no compiled extensions, Python 3.11 and up.</p>
 
 <h2>Getting data in: two cursors and idempotent ingestion</h2>
 
-<p>Without data, everything downstream is an empty state. Ingestion is the least glamorous part of the system and it has three channels.</p>
+<p>Without data, everything downstream is an empty state. Ingestion is the least glamorous part of the system, and it has three channels.</p>
 
 <p><strong>GitHub sync.</strong> Two cursors are maintained separately: one for new commits, one for the initial history backfill. Rate limits are handled with backoff, because hitting them is normal rather than exceptional.</p>
 
-<p><strong>Webhooks.</strong> Pushes, CI results and issue changes arrive in real time. Two checks guard the door. An HMAC-SHA256 signature proves the request came from GitHub, and <code>delivery_id</code> idempotency means a redelivered event cannot create a second record.</p>
+<p><strong>Webhooks.</strong> Pushes, CI results and issue changes arrive in real time. Two checks guard the door. An HMAC-SHA256 signature proves the request actually came from GitHub, and idempotency on the delivery id means a redelivered event cannot create a second record.</p>
 
 <p><strong>Scheduled reconciliation.</strong> Webhooks get lost when the network hiccups or the service restarts, so a Celery beat job periodically reconciles and guarantees eventual consistency.</p>
 
-<p>Attribution and test correlation run asynchronously afterwards. The trade-off is explicit: ingestion prefers slow over lost or duplicated, because every downstream calculation assumes the data is trustworthy.</p>
+<p>Attribution and test correlation run asynchronously after ingestion completes. The trade-off is explicit: <strong>ingestion prefers slow over lost or duplicated</strong>, because every downstream calculation assumes the data is trustworthy.</p>
 
 <h2>Pinning a commit to a module</h2>
 
@@ -233,18 +240,27 @@
 <p>Attribution runs in three levels, in priority order.</p>
 
 <ol>
-<li><strong>Overrides.</strong> A maintainer declares a path-to-module mapping. That decision is final.</li>
-<li><strong>Source-root inference.</strong> Without an override, the layout is read the way the language expects: top-level directories under <code>src/</code> or <code>lib/</code>.</li>
-<li><strong>Fallback.</strong> Everything else lands in an explicit bucket instead of floating unassigned.</li>
+<li><strong>Overrides.</strong> A maintainer declares a path-to-module mapping, and that decision is final.</li>
+<li><strong>Source-root inference.</strong> Without an override, the layout is read the way the language expects, taking top-level directories under <code>src/</code> or <code>lib/</code>.</li>
+<li><strong>Fallback.</strong> Everything else lands in an explicit bucket rather than floating unassigned.</li>
 </ol>
 
 <p>The important half is the last sentence of the design: every attribution carries a reason you can read. "This file belongs to auth because it matched the override <code>src/auth/**</code>." Attribution is not a guess. Risk scores and regression candidates are built on that traceable layer.</p>
 
 <h2><code>explain</code>: everything behind one commit</h2>
 
-<p><code>aidevops explain &lt;sha&gt;</code> is the command people try first. Give it a SHA and it returns the commit's place in the chain: the requirement it serves, the modules it changed and how central each one is, the tests and bugs historically entangled with those modules, what went wrong there before, which release contains it, and which of these answers has no data behind it.</p>
+<p><code>aidevops explain &lt;sha&gt;</code> is the command people try first. Give it a SHA and it returns the commit's place in the chain.</p>
 
-<p>That last item matters more than it looks. <code>data_gaps</code> separates "nothing was found" from "we have no data". A tool loses trust fastest by dressing ignorance as a conclusion. In a repository that never ingested test results, "no regression candidates" has to mean "unknown", not "safe". <code>explain</code> makes that distinction part of the output.</p>
+<ul>
+<li><strong>The requirement</strong> this change serves, or the requirement cluster it belongs to.</li>
+<li><strong>Module impact</strong>: which modules changed, and how central each one is.</li>
+<li><strong>Regression candidates</strong>: the tests and bugs historically entangled with those modules.</li>
+<li><strong>Historical bugs</strong>: what went wrong in the same area before, and in what pattern.</li>
+<li><strong>The release</strong> that contains this commit, and when its window is.</li>
+<li><strong>Data gaps</strong>: which of the above has no data behind it.</li>
+</ul>
+
+<p>That last item matters more than it looks. The gap field separates "nothing was found" from "we have no data". A tool loses trust fastest by dressing ignorance as a conclusion. In a repository that never ingested test results, "no regression candidates" has to mean "unknown", not "safe". Making that distinction part of the output is the product's integrity floor.</p>
 
 <h2>The risk engine: ten signals, each one inspectable</h2>
 
@@ -257,30 +273,30 @@
 <tr><td><code>historical_bug_density</code></td><td>Bug density of the modules involved</td></tr>
 <tr><td><code>test_failure_rate</code></td><td>Recent failure rate of the related tests</td></tr>
 <tr><td><code>module_centrality</code></td><td>How central those modules are in the dependency graph</td></tr>
-<tr><td><code>change_frequency</code></td><td>How often this area changes (hotspot detection)</td></tr>
+<tr><td><code>change_frequency</code></td><td>How often this area changes, which is hotspot detection</td></tr>
 <tr><td><code>coverage_gap</code></td><td>Coverage on the changed paths</td></tr>
 <tr><td><code>open_high_severity_bugs</code></td><td>Open high-severity bugs on those modules</td></tr>
 <tr><td><code>test_coverage_gap</code></td><td>Test coverage for the module</td></tr>
-<tr><td><code>release_proximity</code></td><td>Distance to the next release; risk costs more near a cut</td></tr>
-<tr><td><code>data_freshness_penalty</code></td><td>A penalty when the data is too old to trust</td></tr>
+<tr><td><code>release_proximity</code></td><td>Distance to the next release, because risk costs more near a cut</td></tr>
+<tr><td><code>data_freshness_penalty</code></td><td>A penalty applied when the data is too old to trust</td></tr>
 </tbody>
 </table>
 
 <p>Three engineering decisions sit under that table.</p>
 
-<p>Weights are configuration, not code. They live on the server and can be tuned in Django admin without a deploy.</p>
+<p><strong>Weights are configuration, not code.</strong> They live on the server and can be tuned in Django admin without a deploy.</p>
 
-<p>Weights inherit in three levels: defaults, then organization, then project. A team that ships constantly can raise <code>release_proximity</code>. A team with weak test infrastructure can emphasize <code>coverage_gap</code>.</p>
+<p><strong>Weights inherit in three levels</strong>: defaults, then organization, then project. A team that ships constantly can raise the weight on release proximity. A team with weak test infrastructure can emphasize coverage gaps.</p>
 
-<p>Contributions sum to the score. That is not decoration. It turns "I don't believe this number" into a concrete question: find the largest contributor and inspect its input. A black-box score gives you nowhere to look.</p>
+<p><strong>Contributions sum to the score.</strong> That is not decoration. It turns "I do not believe this number" into a concrete question: find the largest contributor and inspect its input. A black-box score gives you nowhere to look.</p>
 
 <h2>The model layer: five agents, evidence checks, full tracing</h2>
 
-<p>The model layer answers a narrower question than it sounds: given this data, what can be automated safely?</p>
+<p>The model layer answers a narrower question than it sounds: given all this data, what can be automated safely?</p>
 
-<p>Providers are pluggable. Credentials are managed per organization through <code>aidevops providers</code>, <code>provider-add</code> and <code>provider-verify</code>, over an OpenAI-compatible protocol, with presets for DeepSeek, Qwen and Ollama. Keys are encrypted with Fernet and live on the server, like the Git tokens.</p>
+<p><strong>Providers are pluggable.</strong> Credentials are managed per organization through the provider commands, over an OpenAI-compatible protocol, with presets for DeepSeek, Qwen and Ollama. Keys are encrypted with Fernet and live on the server, exactly like the Git tokens.</p>
 
-<p>Five agents ship with explicit input and output contracts:</p>
+<p>Five agents ship with explicit input and output contracts.</p>
 
 <table>
 <thead><tr><th>Agent</th><th>What it does</th></tr></thead>
@@ -288,16 +304,16 @@
 <tr><td>Code Impact</td><td>Analyzes the blast radius of a commit</td></tr>
 <tr><td>Test Generation</td><td>Generates cases along an eleven-category scenario matrix</td></tr>
 <tr><td>Bug Investigation</td><td>Builds an evidence chain around one bug</td></tr>
-<tr><td>Root Cause Analysis</td><td>Works backwards from symptoms to plausible causes</td></tr>
+<tr><td>Root Cause Analysis</td><td>Works backwards from symptoms to plausible root-cause areas</td></tr>
 <tr><td>Requirement Analysis</td><td>Extracts verifiable acceptance points from requirement text</td></tr>
 </tbody>
 </table>
 
-<p>Start one with <code>aidevops analyse -a test-generation --wait</code>. History is in <code>analyses</code> and <code>job</code>. <code>aidevops trace &lt;id&gt;</code> shows every model call and tool call behind one analysis, with timings, so the agent is never a black box.</p>
+<p>Start one with <code>aidevops analyse -a test-generation --wait</code>. History is in <code>analyses</code> and <code>job</code>. The trace command shows every model call and tool call behind one analysis, with timings, so the agent is never a black box.</p>
 
-<p>Findings carry citations. Anything the model says has to resolve back to real data: a commit, a bug, a test. Unresolvable references are dropped rather than shown. <code>aidevops findings</code>, <code>finding &lt;id&gt;</code> and <code>triage &lt;id&gt; &lt;status&gt;</code> track them from open to confirmed or false positive, and that trail becomes team knowledge.</p>
+<p><strong>Findings carry citations.</strong> Anything the model says has to resolve back to real data: a commit, a bug, a test. Unresolvable references are dropped rather than shown. Triage moves each finding from open to confirmed or false positive, and that trail becomes team knowledge.</p>
 
-<p>The tool surface is closed on purpose. The model can call thirteen read-only tools, all scoped to the project. No write operation appears in its tool list. It can see the data and cannot change it, which is the precondition for the next section.</p>
+<p><strong>The tool surface is closed on purpose.</strong> The model can call thirteen read-only tools, all scoped to the project. No write operation appears in its tool list. It can see the data and cannot change it, which is the precondition for the next section.</p>
 
 <h2>Proposals and audit: the model suggests, a person approves</h2>
 
@@ -305,14 +321,14 @@
 
 <pre><code>aidevops proposals                 # pending proposals
 aidevops approve &lt;id&gt;              # approve; a fixed executor runs it
-aidevops reject &lt;id&gt;               # reject; discard
+aidevops reject &lt;id&gt;               # reject and discard
 </code></pre>
 
-<p>Three rules make that real. Only <code>approve</code> executes, and the executor is code, not a model decision. No approval means no writes; there is no implicit adoption and no "run by default, undo on objection". Everything lands in <code>AuditLog</code>, queryable with <code>aidevops audit</code>.</p>
+<p>Three rules make that real. Only approval executes, and the executor is code rather than a model decision. No approval means no writes, with no implicit adoption and no "run by default, undo on objection". Everything lands in the audit log, queryable from the same client.</p>
 
 <p>For QA the trade-off is easy to state. Tests are a line of defense, and you do not put something that acts on its own on a line of defense.</p>
 
-<p>Multi-tenancy follows the same logic. The tenant id comes from the URL and never from the request body. Non-member access returns 404 without leaking existence, insufficient role returns 403, and every query goes through one <code>scoped_queryset</code> entry point, so there is no place to forget the filter.</p>
+<p>Multi-tenancy follows the same logic. The tenant id comes from the URL and never from the request body. Non-member access returns 404 without leaking existence, an insufficient role returns 403, and every query goes through one scoped entry point, so there is nowhere to forget the filter.</p>
 
 <h2>Install and a five-minute tour</h2>
 
@@ -321,11 +337,11 @@ aidevops reject &lt;id&gt;               # reject; discard
 pip install aidevops
 </code></pre>
 
-<p>Login uses the GitHub device flow: type a code in the browser, never paste a password into a terminal. Remote machines and containers use <code>login --no-browser</code>.</p>
+<p>Login uses the GitHub device flow. You type a code in the browser and never paste a password into a terminal. Remote machines and containers use the no-browser variant.</p>
 
 <pre><code>aidevops login                       # GitHub device-flow login
-aidevops org-add "My Team"           # first run: create an org (you are admin)
-aidevops projects                    # list projects (* marks the current one)
+aidevops org-add "My Team"           # first run: create an org, you become admin
+aidevops projects                    # list projects, * marks the current one
 aidevops use qa-copilot-platform     # select a project for later commands
 aidevops status                      # backend, account and project
 </code></pre>
@@ -336,23 +352,23 @@ aidevops status                      # backend, account and project
 aidevops connection-add -l my-github -t &lt;PAT&gt;     # private repos need repo read
 aidevops connection-verify &lt;connection-id&gt;        # verify before using it
 aidevops repo-add -c &lt;connection-id&gt; -f owner/repo  # register the repository
-aidevops sync &lt;repository-id&gt; --wait              # pull history; ready on return
+aidevops sync &lt;repository-id&gt; --wait              # pull history; ready when it returns
 </code></pre>
 
-<p>A connection is an organization-level credential, managed by admins, and can register several repositories. <code>repo-update</code> adjusts the sync window and attribution depth.</p>
+<p>A connection is an organization-level credential managed by admins, and can register several repositories. A repo update adjusts the sync window and the attribution depth.</p>
 
-<p>Upgrades run through <code>aidevops upgrade</code>. The client compares itself against PyPI on every run and warns in red when it is behind; the result is cached for 24 hours and <code>AIDEVOPS_NO_UPDATE_CHECK=1</code> turns it off. One guardrail: <code>upgrade</code> refuses to run inside a <code>pip install -e</code> checkout, because that would silently replace your working tree with the released version. It tells you to <code>git pull</code> instead.</p>
+<p>Upgrades go through the upgrade command. The client compares itself against PyPI on every run and warns in red when it is behind; the result is cached for 24 hours and an environment variable turns it off. One guardrail is worth calling out: the upgrade command refuses to run inside an editable checkout, because that would silently replace your working tree with the released version. It tells you to pull instead.</p>
 
 <h2>Scripting and CI</h2>
 
-<p><code>--json</code> is a global option and goes before the subcommand:</p>
+<p>The JSON flag is global and goes before the subcommand.</p>
 
 <pre><code>aidevops --json findings | jq '.[] | select(.severity == "critical")'
 </code></pre>
 
-<p>Two details exist for pipelines. In <code>--json</code> mode the upgrade notice goes to stderr, so stdout stays clean. <code>AIDEVOPS_JSON=1</code> is equivalent to the flag. In CI, inject the token with <code>AIDEVOPS_TOKEN</code> and point <code>AIDEVOPS_BASE_URL</code> at a test backend.</p>
+<p>Two details exist for pipelines. In JSON mode the upgrade notice goes to stderr, so stdout stays clean. And setting the environment variable is equivalent to passing the flag. In CI, inject the token through the environment and point the base URL at a test backend for integration checks.</p>
 
-<p>A realistic pipeline step: run <code>aidevops --json risk $GITHUB_SHA</code>; if the score crosses a threshold, post the regression candidates as a PR comment.</p>
+<p>A realistic pipeline step: run the risk command against the commit SHA, and if the score crosses a threshold, post the regression candidates as a pull request comment.</p>
 
 <h2>Tests, types and releases</h2>
 
@@ -363,23 +379,22 @@ python -m ruff check .
 python -m mypy ai_devops_cli
 </code></pre>
 
-<p>The TUI is tested with Textual's pilot, so keystroke flows and panel switches are covered without manual clicking. The backend has 569 tests, with four network cases skipped by default, none of which need the internet.</p>
+<p>The TUI is tested with Textual's pilot, so keystroke flows and panel switches are covered without manual clicking. The backend has 569 tests, with four network cases skipped by default, and none of them needs the internet, so CI stays fast.</p>
 
-<p>Every multi-tenant write path funnels through <code>scoped_queryset</code>, which lets tests assert case by case that tenant A cannot see tenant B's data.</p>
+<p>Every multi-tenant write path funnels through one scoped query helper, which lets tests assert case by case that tenant A cannot see tenant B's data.</p>
 
-<p>Releases use tag-triggered trusted publishing: push a tag, GitHub Actions builds, and OIDC short-lived credentials upload to PyPI. No local packaging, no long-lived token.</p>
+<p>Releases use tag-triggered trusted publishing. Push a tag, GitHub Actions builds, and short-lived OIDC credentials upload to PyPI. No local packaging, no long-lived token.</p>
 
 <h2>Where it stands, and what is missing</h2>
 
 <p>It is alpha, and the limits are worth stating.</p>
 
-<p>It needs its own backend. The client has no standalone value; trying the full flow means running the server first.</p>
-
-<p>Single organization with multiple projects works. The cross-organization permission model is still settling.</p>
-
-<p>End-to-end testing against a real model is on the roadmap. Agent tests currently use a stub model: the logic paths are covered, the output contract of real models is not.</p>
-
-<p>Attribution wants one override configured per repository. Zero-config accuracy depends on how well source-root inference guesses.</p>
+<ul>
+<li><strong>It needs its own backend.</strong> The client has no standalone value; trying the full flow means running the server first, either through compose or through the local make targets.</li>
+<li><strong>Single organization with multiple projects</strong> works. The cross-organization permission model is still settling.</li>
+<li><strong>End-to-end testing against a real model</strong> is on the roadmap. Agent tests currently use a stub model, so the logic paths are covered and the output contract of real models is not.</li>
+<li><strong>Attribution wants one override per repository.</strong> Zero-configuration accuracy depends on how well source-root inference guesses.</li>
+</ul>
 
 <p>The next priorities are the terminal detail views, then a real-model smoke test, then validating the Celery worker shape in production.</p>
 
