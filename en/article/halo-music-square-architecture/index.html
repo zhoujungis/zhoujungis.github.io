@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CLsmKSgk.js"></script>
+    <script type="module" crossorigin src="/assets/index-BzkqARwQ.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -162,29 +162,29 @@
   </head>
   <body>
     <div id="app"><div class="ns-article"><h1>Halo Music: a multi-source music app on Cloudflare Pages, D1 and Electron</h1><div class="ns-meta">2026-10-16 · 30 min · Stack Frame</div><div class="markdown-body">
-<p>I wanted a music tool that works the moment you open a browser: type a song name, get results from several platforms at once; click a track and it plays with scrolling lyrics; keep favourites and organize them into playlists. That idea became <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">HALO Music</a>, my own music square.</p>
+<p>I wanted a music tool that works the moment you open a browser. Type a song name, get results from several platforms at once. Click a track and it plays, with lyrics scrolling along. Keep favourites and organize them into playlists. That idea became <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">HALO Music</a>, my own music square.</p>
 
-<p>The point was never to rebuild one platform's page. It was to fit multiple audio sources, a browser player, user data and a desktop wrapper into one lightweight architecture. The frontend is a static page deployable straight to Cloudflare Pages; Pages Functions provide the API; D1 holds accounts, libraries and caches; and Electron wraps the same web app as a Windows desktop client.</p>
+<p>The point was never to rebuild someone else's platform page. It was to fit multiple audio sources, a browser player, user data and a desktop wrapper into one lightweight architecture. The frontend is a static page you can deploy straight to Cloudflare Pages. Pages Functions provide the API. D1 holds accounts, libraries and caches. Electron wraps the same web app as a Windows desktop client.</p>
 
 <blockquote>
-<p>The project is for learning, research and demonstration. Music content, audio URLs, lyrics and cover art belong to the respective platforms and original authors; use must comply with local law, upstream terms of service and copyright policy.</p>
+<p>The project is for learning, research and demonstration. Music content, audio URLs, lyrics and cover art belong to the respective platforms and their original authors. Use must comply with local law, upstream terms of service and copyright policy.</p>
 </blockquote>
 
 <h2>1. The architecture at a glance</h2>
 
-<p>There is no separate frontend and desktop player. Both the browser and Electron load the same <code>index.html</code>; the only difference is whether a native window wraps it:</p>
+<p>There is no separate frontend and desktop player. Both the browser and Electron load the same <code>index.html</code>. The only difference is whether a native window wraps it.</p>
 
 <pre><code>flowchart TB
     subgraph Client[Client]
         Browser[Browser]
         Electron[Electron BrowserWindow]
-        UI[index.html\nHTML + CSS + runtime JS]
+        UI[index.html\\nHTML + CSS + runtime JS]
         Audio[HTMLAudioElement]
-        Local[localStorage\ntheme / favourites / playlists]
+        Local[localStorage\\ntheme / favourites / playlists]
     end
     subgraph Cloudflare[Cloudflare Pages]
         Static[Pages static assets]
-        Functions[Pages Functions\n/api/*]
+        Functions[Pages Functions\\n/api/*]
         D1[(D1 SQLite)]
     end
     subgraph Sources[Upstream platforms]
@@ -209,12 +209,12 @@
     Functions --&gt; Joox
 </code></pre>
 
-<p>The split buys three things: static assets ride Pages' CDN; requests needing keys, signatures or CORS handling live in Functions; and player state stays in the browser, so audio never streams through my own server.</p>
+<p>The split buys three things. Static assets ride Pages' CDN. Requests that need keys, signatures or CORS handling live in Functions. Player state stays in the browser, so audio never streams through my own server.</p>
 
 <h2>2. Frontend: one static entry point carrying a whole player</h2>
 <h3>2.1 Driving interaction with plain runtime state</h3>
 
-<p>To keep deployment and the desktop build small, there is no large UI framework. Structure, styles and runtime logic live in <code>index.html</code>, <code>styles.css</code> and <code>app.js</code>. A handful of variables describe the current session:</p>
+<p>To keep deployment and the desktop build small, there is no large UI framework. Structure, styles and runtime logic live in <code>index.html</code>, <code>styles.css</code> and <code>app.js</code>. A handful of variables describe the current session.</p>
 
 <pre><code>let tracks = []
 let currentIndex = 0
@@ -225,11 +225,11 @@ let liked = new Set(JSON.parse(localStorage.getItem("halo-liked-tracks") || "[]"
 const audio = new Audio()
 </code></pre>
 
-<p>Search, player, lyrics and queue all re-render around that state. Track rows, album cards and player buttons use event delegation, so clicking a song only updates the index, the playback context and the <code>&lt;audio&gt;</code> element — never a second player instance.</p>
+<p>Search, player, lyrics and queue all re-render around that state. Track rows, album cards and player buttons use event delegation, so clicking a song only updates the index, the playback context and the <code>&lt;audio&gt;</code> element. It never spawns a second player instance.</p>
 
 <h3>2.2 Parallel multi-source search, then one merge and dedupe</h3>
 
-<p>The platforms' search responses differ. Each adapter extracts song id, title, artist, album, cover and duration into a common object. In the browser, search fans out to Netease, QQ Music and Kuwo at once:</p>
+<p>The platforms answer differently. Each adapter pulls song id, title, artist, album, cover and duration into a common object. In the browser, search fans out to Netease, QQ Music and Kuwo at once.</p>
 
 <pre><code>const results = await Promise.allSettled([
   searchNetease(keyword, limit),
@@ -243,13 +243,13 @@ const groups = results.map((item) =&gt;
 return interleave(groups)
 </code></pre>
 
-<p><code>Promise.allSettled</code> is deliberate: when one source is temporarily down the others should still show. <code>interleave</code> alternates platforms so the first half of the list is not all from one place, and <code>dedupeTracks</code> filters on platform id plus a normalized "title + artist" key. Normalization strips spaces, hyphens and brackets so the same recording does not appear three times.</p>
+<p><code>Promise.allSettled</code> is deliberate. When one source is temporarily down, the other two still show up. <code>interleave</code> alternates platforms so the first half of the list is not all from one place. <code>dedupeTracks</code> filters on platform id plus a normalized "title + artist" key, and normalization strips spaces, hyphens and brackets so the same recording does not appear three times.</p>
 
-<p>Server-side adapters also cover QQ, Kuwo and JOOX — cases that need proxying or a fallback resolver — while playlist import additionally supports public Netease, Qishui and QQ links. That lets "search indexing" and "audio URL resolution" evolve separately: one platform changing its API cannot take every feature down with it.</p>
+<p>Server-side adapters also cover QQ, Kuwo and JOOX, meaning the cases that need proxying or a fallback resolver. Playlist import additionally accepts public Netease, Qishui and QQ links. That lets search indexing and audio URL resolution evolve separately. One platform changing its API cannot take every feature down with it.</p>
 
 <h3>2.3 Lazy detail loading, audio resolved only on play</h3>
 
-<p>Search results carry only the metadata needed to render a list; real playback URLs for QQ and Kuwo tracks are fetched when the user presses play. <code>ensureTrackDetails</code> picks an adapter from <code>track.source</code> and collapses concurrent requests for the same track through <code>loadingPromise</code>:</p>
+<p>Search results carry only the metadata needed to render a list. Real playback URLs for QQ and Kuwo tracks are fetched when the user presses play. <code>ensureTrackDetails</code> picks an adapter from <code>track.source</code> and collapses concurrent requests for the same track through <code>loadingPromise</code>.</p>
 
 <pre><code>async function ensureTrackDetails(track) {
   if (track.detailsLoaded &amp;&amp; track.audioUrl) return true
@@ -261,20 +261,20 @@ return interleave(groups)
 }
 </code></pre>
 
-<p>Only after an address arrives does the code set <code>audio.src</code> and call <code>audio.load()</code>. On failure it never writes short-lived URLs permanently into favourites or playlists; it offers refresh, an alternate candidate, or a switch to another source. Netease paths go through a compatible resolver for both URL and lyrics, while QQ and Kuwo prefer <code>/api/music</code>.</p>
+<p>Only after an address arrives does the code set <code>audio.src</code> and call <code>audio.load()</code>. On failure it never writes short-lived URLs permanently into favourites or playlists. Instead it offers a refresh, an alternate candidate, or a switch to another source. Netease paths go through a compatible resolver for both URL and lyrics, while QQ and Kuwo prefer <code>/api/music</code>.</p>
 
 <h3>2.4 One clock for LRC lyrics and the player timeline</h3>
 
-<p>Lyric sync does not start another timer; it listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms:</p>
+<p>Lyric sync does not start another timer. It listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both the <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms.</p>
 
 <pre><code>function parseLrc(text) {
   const lines = []
-  for (const line of String(text || "").split(/\r?\n/)) {
-    const tags = [...line.matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)]
-    const content = line.replace(/\[[^\]]+\]/g, "").trim()
+  for (const line of String(text || "").split(/\\r?\\n/)) {
+    const tags = [...line.matchAll(/\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]/g)]
+    const content = line.replace(/\\[[^\\]]+\\]/g, "").trim()
     if (!content) continue
     for (const tag of tags) {
-      const fraction = tag[3] ? Number(`0.${tag[3].padEnd(3, "0").slice(0, 3)}`) : 0
+      const fraction = tag[3] ? Number(\`0.\${tag[3].padEnd(3, "0").slice(0, 3)}\`) : 0
       lines.push({ time: Number(tag[1]) * 60 + Number(tag[2]) + fraction, text: content })
     }
   }
@@ -282,15 +282,15 @@ return interleave(groups)
 }
 </code></pre>
 
-<p>Rendering walks backwards to the last line with <code>line.time &lt;= audio.currentTime</code> and marks it active; clicking a lyric line sets <code>audio.currentTime</code> to that timestamp. Progress bar, lyric highlight and current track therefore stay consistent by construction.</p>
+<p>Rendering walks backwards to the last line with <code>line.time &lt;= audio.currentTime</code> and marks it active. Clicking a lyric line sets <code>audio.currentTime</code> to that timestamp. Progress bar, lyric highlight and current track therefore stay consistent by construction, not by coordination.</p>
 
 <h3>2.5 Responsive layout is not just shrinking</h3>
 
-<p>Desktop is a three-column workspace: search / player and lyrics / queue. Mobile switches to bottom navigation between search, lyrics and library. Layout uses CSS Grid, media queries and independent scroll containers, so lyrics and queue never push the page past the viewport. Theme, favourites and playlists sit in <code>localStorage</code>, so search and local organization work before you ever sign in.</p>
+<p>Desktop is a three-column workspace: search, then player and lyrics, then queue. Mobile switches to bottom navigation between search, lyrics and library. Layout uses CSS Grid, media queries and independent scroll containers, so lyrics and queue never push the page past the viewport. Theme, favourites and playlists sit in <code>localStorage</code>, which means search and local organization work before you ever sign in.</p>
 
 <h2>3. HALO Track: the data model that isolates platform differences</h2>
 
-<p>If every component read platform-specific fields, adding a source would turn into conditional hell. The project therefore defines one track shape:</p>
+<p>If every component read platform-specific fields, adding a source would turn into conditional hell. The project defines one track shape instead.</p>
 
 <pre><code>{
   uid: "qq-song-id",
@@ -308,12 +308,12 @@ return interleave(groups)
 }
 </code></pre>
 
-<p>The view layer only reads stable fields — <code>title</code>, <code>artist</code>, <code>album</code>, <code>cover</code>, <code>source</code>; adapters translate platform responses into them; the detail layer fills <code>audioUrl</code> and lyrics by <code>source</code>. <code>serializeTrack()</code> filters out short-lived audio URLs, lyrics and detail state, persisting only reusable identifiers and display data, so expired resources never reach localStorage or D1.</p>
+<p>The view layer reads only stable fields: <code>title</code>, <code>artist</code>, <code>album</code>, <code>cover</code> and <code>source</code>. Adapters translate platform responses into them. The detail layer fills <code>audioUrl</code> and lyrics by <code>source</code>. <code>serializeTrack()</code> filters out short-lived audio URLs, lyrics and detail state, persisting only reusable identifiers and display data, so expired resources never reach localStorage or D1.</p>
 
 <h2>4. Backend: Pages Functions as adapter and safety boundary</h2>
 <h3>4.1 Files as routes</h3>
 
-<p>Cloudflare Pages maps files under <code>functions/api/</code> to <code>/api/*</code>. The main endpoints fall into three groups:</p>
+<p>Cloudflare Pages maps files under <code>functions/api/</code> to <code>/api/*</code>. The main endpoints fall into three groups.</p>
 
 <table>
 <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
@@ -326,20 +326,20 @@ return interleave(groups)
 </tbody>
 </table>
 
-<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts so one misbehaving platform cannot occupy the whole Function invocation.</p>
+<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts, so one misbehaving platform cannot occupy the whole Function invocation.</p>
 
 <h3>4.2 Caching and verifying resolved addresses</h3>
 
-<p>Audio resolution hits short-lived URLs, dead candidates and upstream throttling far more often than search, so the strategy is candidates plus playability checks plus caching:</p>
+<p>Audio resolution runs into short-lived URLs, dead candidates and upstream throttling far more often than search does. The strategy is candidates, then playability checks, then caching.</p>
 <ol>
 <li>Build a cache key from song id, quality and duration.</li>
 <li>Check the Worker's in-process LRU, then the shared D1 cache.</li>
 <li>On a miss, try the primary endpoint and a fallback.</li>
 <li>Validate the returned address with an HTTP request, song id and duration.</li>
-<li>Store the verified candidate; on playback failure, force a re-resolve with <code>refresh=1</code>.</li>
+<li>Store the verified candidate. On playback failure, force a re-resolve with <code>refresh=1</code>.</li>
 </ol>
 
-<p>The in-memory LRU holds about 500 entries, search caching defaults to roughly 45 seconds, and D1 acts as the cross-request, cross-instance second level. Only reusable resolution results are cached — audio files are never copied into my storage, and temporary URLs are never treated as permanent links.</p>
+<p>The in-memory LRU holds about 500 entries, search caching defaults to roughly 45 seconds, and D1 acts as the cross-request, cross-instance second level. Only reusable resolution results are cached. Audio files are never copied into my storage, and temporary URLs are never treated as permanent links.</p>
 
 <h3>4.3 Importing public playlists server-side</h3>
 
@@ -362,13 +362,15 @@ return interleave(groups)
 </tbody>
 </table>
 
-<p>Favourites and playlists are "write localStorage first, sync to D1 asynchronously": signed out, the data belongs to that browser; signed in, the page submits the library to <code>/api/library</code>, and a weak connection still leaves local data usable. The cloud library is stored as JSON — simple, appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
+<p>Favourites and playlists are "write localStorage first, sync to D1 asynchronously". Signed out, the data belongs to that browser. Signed in, the page submits the library to <code>/api/library</code>, and a weak connection still leaves local data usable.</p>
+
+<p>The cloud library is stored as JSON. That is simple and appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
 
 <h2>6. How does the Electron app keep accounts safe?</h2>
 
-<p>Passwords are never stored in plaintext. The server uses Web Crypto PBKDF2-SHA-256 with 100,000 iterations and a 16-byte random salt, writing only hash and salt to D1. After login a random UUID becomes a session token in an <code>HttpOnly; Secure; SameSite=Lax</code> cookie, valid for 30 days by default.</p>
+<p>Passwords are never stored in plaintext. The server uses Web Crypto PBKDF2-SHA-256 with 100,000 iterations and a 16-byte random salt, writing only the hash and salt to D1. After login a random UUID becomes a session token in an <code>HttpOnly; Secure; SameSite=Lax</code> cookie, valid for 30 days by default.</p>
 
-<p>The desktop security goal is "a window shell only, never Node privileges for the page":</p>
+<p>The desktop security goal is one sentence: a window shell only, never Node privileges for the page.</p>
 
 <pre><code>webPreferences: {
   preload: path.join(__dirname, "preload.cjs"),
@@ -378,23 +380,23 @@ return interleave(groups)
 }
 </code></pre>
 
-<p><code>preload.cjs</code> exposes only minimal platform information through <code>contextBridge</code>, and external links open in the system browser. The main process creates a 1440×920 window (minimum 960×640) and can point at a custom Pages domain via <code>HALO_MUSIC_URL</code> or <code>--url=</code>.</p>
+<p><code>preload.cjs</code> exposes only minimal platform information through <code>contextBridge</code>, and external links open in the system browser. The main process creates a 1440 by 920 window with a 960 by 640 minimum, and can point at a custom Pages domain through <code>HALO_MUSIC_URL</code> or <code>--url=</code>.</p>
 
 <h2>7. Tests, development and deployment</h2>
 
-<p>Local development needs Node.js 20 LTS or newer, npm and Wrangler 4:</p>
+<p>Local development needs Node.js 20 LTS or newer, npm and Wrangler 4.</p>
 
 <pre><code>npm install
 npx wrangler d1 execute halo-music-db --local --file schema.sql
 npm run dev
 </code></pre>
 
-<p>Tests use Node's built-in <code>node:test</code> and cover sessions, favourites and playlist persistence, field normalization across platforms, playlist link recognition, QQ signing and pagination, LRC parsing, audio container detection, next-track playback context, plus a syntax check of the browser's inline scripts:</p>
+<p>Tests use Node's built-in <code>node:test</code>. They cover sessions, favourites and playlist persistence, field normalization across platforms, playlist link recognition, QQ signing and pagination, LRC parsing, audio container detection, next-track playback context, plus a syntax check of the browser's inline scripts.</p>
 
 <pre><code>npm test
 </code></pre>
 
-<p>Deployment publishes the static files and Functions together, with D1 bound in <code>wrangler.toml</code>:</p>
+<p>Deployment publishes the static files and Functions together, with D1 bound in <code>wrangler.toml</code>.</p>
 
 <pre><code>name = "halo-music"
 compatibility_date = "2025-01-01"
@@ -406,27 +408,27 @@ database_name = "halo-music-db"
 database_id = "your D1 database_id"
 </code></pre>
 
-<p>The desktop build reuses the deployed Pages URL, so there is no second local HTTP server:</p>
+<p>The desktop build reuses the deployed Pages URL, so there is no second local HTTP server.</p>
 
 <pre><code>npm run desktop:dev
 npm run desktop:all
 npm run desktop:portable
 </code></pre>
 
-<p>Windows installers and the portable build land in <code>release/</code>; the app id is <code>com.halomusic.desktop</code>.</p>
+<p>Windows installers and the portable build land in <code>release/</code>. The app id is <code>com.halomusic.desktop</code>.</p>
 
 <h2>8. What the project taught me</h2>
 
-<p>What is worth recording is not any single platform API but several reusable engineering decisions:</p>
+<p>What is worth recording is not any single platform API but several reusable engineering decisions.</p>
 <ol>
-<li><strong>Unify the domain model before adding sources.</strong> HALO Track keeps platform differences inside adapters; the player and playlist logic never learn upstream field names.</li>
-<li><strong>Separate search from playback resolution.</strong> Search optimizes for parallelism and tolerance; resolution optimizes for validation, caching and retry. Their performance goals differ.</li>
-<li><strong>Never treat temporary resources as database facts.</strong> Audio URLs expire; store the song id and display data, and re-resolve on play.</li>
-<li><strong>Local-first removes dependence on login and network.</strong> localStorage makes favourites usable on a weak connection; D1 adds cross-device sync for signed-in users.</li>
-<li><strong>Reuse the web build on desktop.</strong> Electron supplies a native window and a security boundary; business logic, player and API stay one implementation.</li>
+<li><strong>Unify the domain model before adding sources.</strong> HALO Track keeps platform differences inside adapters, so the player and playlist logic never learn upstream field names.</li>
+<li><strong>Separate search from playback resolution.</strong> Search optimizes for parallelism and tolerance. Resolution optimizes for validation, caching and retry. Their performance goals differ, so their code should too.</li>
+<li><strong>Never treat temporary resources as database facts.</strong> Audio URLs expire. Store the song id and display data, and re-resolve on play.</li>
+<li><strong>Local-first removes dependence on login and network.</strong> localStorage makes favourites usable on a weak connection, and D1 adds cross-device sync for signed-in users.</li>
+<li><strong>Reuse the web build on desktop.</strong> Electron supplies a native window and a security boundary, while business logic, player and API stay one implementation.</li>
 </ol>
 
-<p>Clear boundaries remain: upstream APIs and audio addresses can change without warning, Functions execution time limits bulk import, and the frontend entry point could still be split into modules. The more valuable next steps are a finer-grained playlist model, incremental sync, Playwright visual regression, and stable contract tests per source adapter.</p>
+<p>Clear boundaries remain. Upstream APIs and audio addresses can change without warning. Functions execution time limits bulk import. The frontend entry point could still be split into modules. The more valuable next steps are a finer-grained playlist model, incremental sync, Playwright visual regression, and stable contract tests per source adapter.</p>
 
 <p>If you want to read the implementation, the <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">halo_music source</a> is open. The project started as a small "search and play" tool and grew into a complete playground spanning web, serverless, SQLite caching and a desktop shell.</p>
 
