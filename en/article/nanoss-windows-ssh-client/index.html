@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CWUusDoG.js"></script>
+    <script type="module" crossorigin src="/assets/index-DV7D9rox.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -164,7 +164,7 @@
     <div id="app"><div class="ns-article"><h1>NanoSSH: a 13 MB Windows SSH client, and the twelve boundaries that shaped it</h1><div class="ns-meta">2026-11-05 · 41 min · Stack Frame</div><div class="markdown-body">
 <blockquote>
 <p>Who this is for: developers building lightweight desktop tools with Go and a webview, or anyone working with terminal byte streams and SSH protocol details.</p>
-<p><strong>Bottom line first:</strong> the point of this project is not feature count but a handful of boundaries that are easy to get wrong — how IPC serialises, terminal backpressure, PTY parameter order, the host-key trust model and Windows platform details.</p>
+<p><strong>TL;DR:</strong> the point of this project is not feature count but a handful of boundaries that are easy to get wrong — how IPC serializes, terminal backpressure, PTY parameter order, the host-key trust model and Windows platform details.</p>
 <p>Reading time ~30 minutes · Level: advanced</p>
 </blockquote>
 
@@ -221,7 +221,7 @@
 
 <p><strong>Symptom.</strong> The README mentions "binary WebSocket IPC + ack backpressure", yet no WebSocket server or binary framing exists anywhere. Terminal data actually travels over Wails <code>runtime.EventsEmit</code> with event names like <code>term:data:&lt;sessionId&gt;</code>.</p>
 
-<p><strong>Cause.</strong> The README described the original intent; the implementation settled on Wails' own event bridge. Another part of the same README says "a Worker decodes base64", which contradicts the first claim. Wails binding calls are JSON-serialised, and so are event payloads: a Go <code>[]byte</code> arrives in the frontend as a base64 string. The dependency tree does contain <code>gorilla/websocket</code>, but as a transitive Wails dependency, not this IPC.</p>
+<p><strong>Cause.</strong> The README described the original intent; the implementation settled on Wails' own event bridge. Another part of the same README says "a Worker decodes base64", which contradicts the first claim. Wails binding calls are JSON-serialized, and so are event payloads: a Go <code>[]byte</code> arrives in the frontend as a base64 string. The dependency tree does contain <code>gorilla/websocket</code>, but as a transitive Wails dependency, not this IPC.</p>
 
 <p><strong>Fix.</strong> Rather than build a WebSocket to match the document, the project accepted the bridge's limits and compensated: the frontend decodes base64 in a Web Worker and transfers the <code>ArrayBuffer</code> to the main thread via Transferable so decoding never blocks rendering, then hands raw bytes to xterm's <code>write</code> without string concatenation.</p>
 
@@ -239,7 +239,7 @@ ctx.onmessage = (e: MessageEvent&lt;string&gt;) =&gt; {
 };
 </code></pre>
 
-<p><strong>Cost.</strong> Base64 inflates bytes by roughly 33%, so a 16 KiB terminal chunk becomes a ~21.8 KiB string; Go also serialises JSON and the webview decodes base64. What it buys: no WebSocket service to maintain, no connection auth, no extra port outside Wails. That trade is acceptable for a local SSH client, but the README was inaccurate. The fix was to document "Wails event bridge + base64 decoding" rather than keep a faster-sounding noun. Engineering documents should describe the implementation, not the wish. Reverting to binary WebSocket would also lose single-instance, same-origin event dispatch and no-extra-port, and require solving local authentication and a new attack surface — which is why the implementation was not changed for the document.</p>
+<p><strong>Cost.</strong> Base64 inflates bytes by roughly 33%, so a 16 KiB terminal chunk becomes a ~21.8 KiB string; Go also serializes JSON and the webview decodes base64. What it buys: no WebSocket service to maintain, no connection auth, no extra port outside Wails. That trade is acceptable for a local SSH client, but the README was inaccurate. The fix was to document "Wails event bridge + base64 decoding" rather than keep a faster-sounding noun. Engineering documents should describe the implementation, not the wish. Reverting to binary WebSocket would also lose single-instance, same-origin event dispatch and no-extra-port, and require solving local authentication and a new attack surface — which is why the implementation was not changed for the document.</p>
 
 <p>When a Worker is unavailable (some restricted webview environments), <code>createDecoder</code> falls back to synchronous <code>atob</code> on the main thread: decoding then occupies the render thread and long output stutters, but nothing is missing. Each terminal session owns a Worker, kept across tab switches and terminated only when the session closes; many sessions mean a few more Worker instances in memory.</p>
 
@@ -360,7 +360,7 @@ for {
 }
 </code></pre>
 
-<p>Tests cover three behaviours: first prompt then save, no second prompt, and a server key rotation that must block while the callback still receives the old fingerprint; another test confirms "once" is not persisted and both connections prompt again.</p>
+<p>Tests cover three behaviors: first prompt then save, no second prompt, and a server key rotation that must block while the callback still receives the old fingerprint; another test confirms "once" is not persisted and both connections prompt again.</p>
 
 <p><strong>Cost.</strong> <code>known_hosts</code> supports hashed hostnames (<code>|1|...</code>) and the replacement logic cannot reverse a hash, so such lines are skipped and a new line appended. Old hashed entries remain and may keep reporting changes until the user cleans them by hand — a documented edge, with a comment saying hashed forms are treated as misses and preserved. On Windows, mode 0600 is only intent; real access control comes from ACLs inherited from <code>%APPDATA%</code>.</p>
 
@@ -407,7 +407,7 @@ for {
 }
 </code></pre>
 
-<p>The tray is created lazily: no notification-area slot while the window is open, an icon only when actually minimising. That also means a failed tray creation still lets the user exit instead of being trapped in a background process with no exit. The balloon shows once (a <code>trayTipShown</code> flag); the context menu uses <code>TPM_RETURNCMD</code> to read the selection directly instead of routing <code>WM_COMMAND</code>; quitting destroys the icon via a custom message and ends the loop.</p>
+<p>The tray is created lazily: no notification-area slot while the window is open, an icon only when actually minimizing. That also means a failed tray creation still lets the user exit instead of being trapped in a background process with no exit. The balloon shows once (a <code>trayTipShown</code> flag); the context menu uses <code>TPM_RETURNCMD</code> to read the selection directly instead of routing <code>WM_COMMAND</code>; quitting destroys the icon via a custom message and ends the loop.</p>
 
 <p><strong>Cost.</strong> One OS thread is locked for the whole tray lifetime and must not block; callbacks only send messages and flip state, with heavy work pushed back to the business layer. The <code>wndProc</code> defends every branch against panics, menu commands travel over a channel, and the tray thread never touches the database or network. Only one tray icon is supported, so <code>wndProc</code> is bound via a package variable rather than <code>SetWindowLongPtr</code>. The handwritten Win32 code is about two hundred lines — less maintainable than a library, but zero new dependencies and a smaller binary.</p>
 
@@ -448,7 +448,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 });
 </code></pre>
 
-<p>WebGL is downgraded at the same layer: <code>new WebglAddon()</code> sits in a <code>try</code>, initialisation failure keeps xterm's DOM renderer, and context loss calls <code>dispose()</code> and falls back the same way. Nothing breaks; long output just costs more CPU. The window also declares PerMonitorV2 DPI awareness in the manifest, otherwise WebView2 gets bitmap-stretched across displays and text blurs. Light/dark follows the system, and Mica only enables on build 22621+, with older systems staying opaque so a transparent window never lacks a background.</p>
+<p>WebGL is downgraded at the same layer: <code>new WebglAddon()</code> sits in a <code>try</code>, initialization failure keeps xterm's DOM renderer, and context loss calls <code>dispose()</code> and falls back the same way. Nothing breaks; long output just costs more CPU. The window also declares PerMonitorV2 DPI awareness in the manifest, otherwise WebView2 gets bitmap-stretched across displays and text blurs. Light/dark follows the system, and Mica only enables on build 22621+, with older systems staying opaque so a transparent window never lacks a background.</p>
 
 <p><strong>Cost.</strong> The two debounces stack (120 ms then 150 ms), so the remote PTY receives the final size a moment after dragging ends — perceptible but not painful. Skipping sub-4-pixel sizes avoids 0×0 but also means tiny layout changes do not recompute. The WebGL downgrade is silent; users just notice scrolling got slower, a trade made to keep the main flow undisturbed.</p>
 
@@ -470,7 +470,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 }
 </code></pre>
 
-<p>Smaller patches matter too. Rename prefers <code>PosixRename</code> and falls back to standard <code>Rename</code>; symlinks only trigger a <code>Stat</code> when the entry is a link and not a directory, avoiding a round trip per entry in big directories; delete only removes empty directories, never recursively, because a wrong path in recursion is irreversible. Forwarding binds <code>127.0.0.1</code> only — exposing a service to the LAN must be an explicit decision — and a port conflict errors instead of leaving half a rule. Transfer progress is rate-limited to 120 ms so every 32 KiB does not flood the webview; cancellation travels through <code>context</code>, <code>shuttle</code> checks <code>ctx.Err()</code> before each block, and the terminal state is <code>cancelled</code> rather than <code>done</code>. Forwarding stats share the same interval and only push on change, so idle rules emit nothing.</p>
+<p>Smaller patches matter too. Rename prefers <code>PosixRename</code> and falls back to standard <code>Rename</code>; symlinks only trigger a <code>Stat</code> when the entry is a link and not a directory, avoiding a round trip per entry in big directories; delete only removes empty directories, never recursively, because a wrong path in recursion is irreversible. Forwarding binds <code>127.0.0.1</code> only — exposing a service to the LAN must be an explicit decision — and a port conflict errors instead of leaving half a rule. Transfer progress is rate-limited to 120 ms so every 32 KiB does not flood the webview; cancellation travels through <code>context</code>, <code>shuttle</code> checks <code>ctx.Err()</code> before each block, and the terminal state is <code>canceled</code> rather than <code>done</code>. Forwarding stats share the same interval and only push on change, so idle rules emit nothing.</p>
 
 <p><strong>Cost.</strong> All channels share one TCP connection, so terminal, SFTP and forwarding contend for the same bandwidth and connection-level resources; a single large transfer can slow terminal echo. Remote forwarding (<code>-R</code>) and dynamic forwarding (<code>-D</code>) are not implemented — only local <code>-L</code>. Downloads open the remote file once to get its size and reopen for the transfer, costing a round trip to avoid holding two handles. Recursive upload and recursive delete are explicitly unsupported.</p>
 
@@ -491,7 +491,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>Credentials live in Windows Credential Manager as generic credentials with <code>PersistLocalMachine</code>, target <code>NanoSSH/server/&lt;id&gt;</code> or <code>NanoSSH/key/&lt;id&gt;</code>. No bespoke encrypted file, because that is the classic "roll your own crypto" trap; the credential manager uses DPAPI bound to the current user and does not travel with the data directory.</p>
 
-<p><strong>Cost.</strong> Self-healing depends on <code>strings.Contains(err.Error(), "unable to authenticate")</code>, a string match against <code>x/crypto</code>'s message; change the wording and healing stops. Detecting a typed auth error would be sturdier, but the simpler path was chosen. Credentials bound to the Windows account cannot be decrypted on another machine — correct behaviour — so copying <code>servers.json</code> and <code>keys</code> means re-entering passwords. Passwords are still plaintext in process memory; there is no master password or memory encryption, which is the usual desktop SSH boundary. Other programs running as the same user can enumerate the targets: that is the Windows credential model, not something NanoSSH can fix alone. It guarantees only that secrets are not in a plaintext JSON file and do not travel with the data directory.</p>
+<p><strong>Cost.</strong> Self-healing depends on <code>strings.Contains(err.Error(), "unable to authenticate")</code>, a string match against <code>x/crypto</code>'s message; change the wording and healing stops. Detecting a typed auth error would be sturdier, but the simpler path was chosen. Credentials bound to the Windows account cannot be decrypted on another machine — correct behavior — so copying <code>servers.json</code> and <code>keys</code> means re-entering passwords. Passwords are still plaintext in process memory; there is no master password or memory encryption, which is the usual desktop SSH boundary. Other programs running as the same user can enumerate the targets: that is the Windows credential model, not something NanoSSH can fix alone. It guarantees only that secrets are not in a plaintext JSON file and do not travel with the data directory.</p>
 
 <h2>Problem 12: three edges of key management</h2>
 

@@ -28,21 +28,21 @@ export const EN_UI = {
     title: 'Code & Life',
     sub: 'Writing, code, and the everyday.',
     lede: [
-      'The world of code is black and white; the canvas of life is mottled and colourful.',
-      'I like to push a project forward in the gaps between logic and syntax, letting cold characters come alive in compilation until they grow bones and a soul. I also like to dredge the small, poetic moments out of ordinary days — pinning the fleeting ones into the warmth of a coffee cup and the folds of an evening sky.',
-      'The world is large and the tides come and go. This is where I keep what I have made and what has moved me. No grand narrative here — just lines of code growing, and the traces of an ordinary person living deliberately.',
+      'Code is black and white. Life is not.',
+      'Most of my working hours go into projects: reading the source, arguing with the compiler, deleting the abstraction I was proud of last month. The rest go into the ordinary things — a cup going cold, the light at seven in the evening, a walk with no destination.',
+      'This is where I keep both. No grand narrative, just lines of code growing and notes from an ordinary life.',
     ],
     topicsTitle: 'Topics',
-    postsTitle: 'Latest posts',
-    postsNote: 'English editions of selected posts.',
+    postsTitle: 'Latest',
+    postsNote: 'English editions, written for this audience rather than machine-translated.',
     emptyNote:
-      'English editions are being added one by one. The full archive is in Chinese.',
+      'English editions are being added one at a time. The full archive is in Chinese.',
     more: 'Chinese edition',
   },
   topics: {
     title: 'Topics',
     lead:
-      'Editorially curated clusters. Each topic collects the posts that belong together, in reading order.',
+      'Five curated clusters. Each one groups posts that belong together and puts them in a sensible reading order.',
     count: (n) => `${n} post${n === 1 ? '' : 's'}`,
     empty: 'No English edition in this topic yet.',
   },
@@ -62,35 +62,35 @@ export const EN_TOPICS = [
     name: 'Algorithms',
     tagline: 'From brute force to the optimal solution, with the reasoning in between',
     intro:
-      'Algorithm write-ups organised by pattern: greedy, dynamic programming, graphs and union-find, sliding windows, linked lists and binary trees, heaps and binary search. Every post starts from the brute-force solution, walks step by step to the best time and space bounds, and ends with runnable code and a complexity analysis.',
+      'Write-ups organized by pattern: greedy, dynamic programming, graphs and union-find, sliding windows, linked lists, trees, heaps and binary search. Each one starts from the brute-force solution, works step by step to the best time and space bounds, and ends with runnable code and a complexity analysis.',
   },
   {
     slug: 'aiagent',
     name: 'AI Agent',
-    tagline: 'Multi-agent systems, prompt-injection defence, context engineering',
+    tagline: 'Multi-agent systems, prompt-injection defense, context engineering',
     intro:
-      'What it actually takes to put a language model into production: how multi-agent systems split responsibility, how sub-agents talk to each other, how task boards and rate gates prevent cascading failures, and where the trust boundary sits when text from a web page tries to become an instruction.',
+      'What it actually takes to put a language model into production. How multi-agent setups divide responsibility, how sub-agents talk to each other, how task boards and rate gates stop cascading failures, and where the trust boundary sits when text from a web page tries to become an instruction.',
   },
   {
     slug: 'backend',
     name: 'Backend',
     tagline: 'Django, concurrency, rate limiting, canary releases',
     intro:
-      'The full chain from interface design to production operations: Django and DRF practice, rate limiting and circuit breaking, idempotency, caching and message queues, plus the domain, TLS, CDN and host choices that come up when a service actually ships.',
+      'The whole chain, from interface design to running the thing: Django and DRF practice, rate limiting, circuit breakers, idempotency, caching and queues — plus the domain, TLS, CDN and hosting decisions that only show up once a service ships.',
   },
   {
     slug: 'database',
     name: 'Database Internals',
     tagline: 'B+ trees, WAL, MVCC and the details inside a storage engine',
     intro:
-      'This topic cares about one thing: how bytes actually get written down and read back. Page splits and back-to-root writes in a B+ tree, the write-ahead ordering of a WAL, the version chain behind MVCC, and the trade-offs between LSM and B-trees — all taken down to specific pages and fields.',
+      'One question: how do bytes actually get written down, and how do they come back? B+ tree page splits and back-to-root writes, the write-ahead ordering of a WAL, the version chain behind MVCC, and the LSM-versus-B-tree trade-off — taken down to specific pages and fields.',
   },
   {
     slug: 'projects',
     name: 'Projects',
     tagline: 'Built from scratch: desktop tools, data pipelines, local agents',
     intro:
-      'Complete teardowns of open-source projects: a browser with an in-process CDP implementation, a zero-runtime Rust agent, a 13 MB Windows SSH client, a single-file Markdown reader, a local-first personal assistant, and a 30k-row interview-experience pipeline. The point is never "what I built" but which trade-offs were made and what broke along the way.',
+      'Full teardowns of the open-source projects behind this site: a browser with an in-process CDP implementation, a zero-runtime Rust agent, a 13 MB Windows SSH client, a single-file Markdown reader, a local-first assistant, and a 30k-row interview pipeline. The interesting part is never what got built — it is which trade-offs were made and what broke on the way.',
   },
 ]
 

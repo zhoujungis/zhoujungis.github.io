@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CWUusDoG.js"></script>
+    <script type="module" crossorigin src="/assets/index-DV7D9rox.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -164,7 +164,7 @@
     <div id="app"><div class="ns-article"><h1>NanoDB: an embedded document database in Go, with zero dependencies</h1><div class="ns-meta">2026-10-26 · 38 min · Stack Frame</div><div class="markdown-body">
 <blockquote>
 <p>Who this is for: backend engineers who want to see how a database hangs together from WAL to transactions; anyone planning a toy DB or an embedded store; people choosing between SQLite, an LSM key-value store and MongoDB.</p>
-<p><strong>Bottom line first:</strong> NanoDB is a <strong>zero-dependency</strong> embedded document database in Go — JSON document model, snapshot + WAL persistence, secondary/text/geo indexes, optimistic transactions, atomic batches and a read-only SQL subset, all in 34 Go files: 6,592 lines of source and 3,199 of tests, 9,791 total. It demonstrates how plain every part of a database can be: the WAL is a JSON Lines file, a transaction is a collection snapshot plus a version check, and query planning is "pick the index with the smallest candidate set".</p>
+<p><strong>TL;DR:</strong> NanoDB is a <strong>zero-dependency</strong> embedded document database in Go — JSON document model, snapshot + WAL persistence, secondary/text/geo indexes, optimistic transactions, atomic batches and a read-only SQL subset, all in 34 Go files: 6,592 lines of source and 3,199 of tests, 9,791 total. It demonstrates how plain every part of a database can be: the WAL is a JSON Lines file, a transaction is a collection snapshot plus a version check, and query planning is "pick the index with the smallest candidate set".</p>
 <p>Reading time ~38 minutes · Level: advanced</p>
 </blockquote>
 
@@ -178,7 +178,7 @@
 <li>The persistence core: snapshot + WAL</li>
 <li>Query execution: the pipeline behind one <code>find</code></li>
 <li>The index system: from binary search to bigrams</li>
-<li>Transactions: collection-granularity optimistic serialisation</li>
+<li>Transactions: collection-granularity optimistic serialization</li>
 <li>Atomic batches: one WAL record for a whole batch</li>
 <li>Read-only SQL and the aggregation pipeline</li>
 <li>HTTP service: tokens, roles and transaction sessions</li>
@@ -322,7 +322,7 @@ fmt.Println(len(docs))
 <li>Writes deep-copy, so mutating the caller's object afterwards does not affect the database; reads return copies. That rule eliminates a whole class of "shared map mutated elsewhere" concurrency bugs at the price of a copy per operation — worth it for memory-resident data of moderate size.</li>
 <li>Field names accept dotted paths (<code>profile.city</code>) for filters, sorts, projections and indexes, while documents stay freely nested.</li>
 <li>Field names beginning with <code>$</code> are operators — a MongoDB-compatibility constraint the README warns about.</li>
-<li>Numbers written through the CLI or HTTP decode to <code>float64</code>; numbers passed through the Go API keep their type, and comparisons are numeric either way. Cross-entry type behaviour is defined explicitly rather than left to be discovered.</li>
+<li>Numbers written through the CLI or HTTP decode to <code>float64</code>; numbers passed through the Go API keep their type, and comparisons are numeric either way. Cross-entry type behavior is defined explicitly rather than left to be discovered.</li>
 </ul>
 
 <table>
@@ -396,7 +396,7 @@ if err != nil || n != len(data) {
 
 <p><code>rollbackWALLocked</code> is <code>Truncate(walBytes) + Seek</code>, where <code>walBytes</code> always marks the end of the last complete record — both an in-memory counter and the recovery anchor. The same rollback hangs off <code>fsync</code> failures.</p>
 
-<p>One Windows trap lives in <code>openWAL</code> and deserves quoting: it deliberately does not use <code>O_APPEND</code>, because that flag removes <code>GENERIC_WRITE</code> on Windows and makes later <code>Truncate</code> fail with access denied. Writes are serialised by <code>db.mu</code> and seek explicitly to the end, which preserves append semantics while keeping truncation available. "Cross-platform" is not a slogan; it is decisions like this one.</p>
+<p>One Windows trap lives in <code>openWAL</code> and deserves quoting: it deliberately does not use <code>O_APPEND</code>, because that flag removes <code>GENERIC_WRITE</code> on Windows and makes later <code>Truncate</code> fail with access denied. Writes are serialized by <code>db.mu</code> and seek explicitly to the end, which preserves append semantics while keeping truncation available. "Cross-platform" is not a slogan; it is decisions like this one.</p>
 
 <h3>Layer three: a generation number closes the compaction window</h3>
 
@@ -485,7 +485,7 @@ func (c *collection) planCandidates(filter map[string]any) map[string]struct{} {
 
 <h3>Text index: Chinese search without a dictionary</h3>
 
-<p>The full-text index covers every string in a document and is queried with <code>$text</code>. Tokenisation is about thirty lines: alphanumeric runs become lowercase words; runs of Han characters additionally emit bigrams, so <code>数据库</code> produces <code>数据</code> and <code>据库</code>. Queries are sliced the same way and ANDed, which supports Chinese without any segmentation dictionary.</p>
+<p>The full-text index covers every string in a document and is queried with <code>$text</code>. Tokenization is about thirty lines: alphanumeric runs become lowercase words; runs of Han characters additionally emit bigrams, so <code>数据库</code> produces <code>数据</code> and <code>据库</code>. Queries are sliced the same way and ANDed, which supports Chinese without any segmentation dictionary.</p>
 
 <p>The limits are stated plainly: no stop words, stemming or synonyms, no relevance scoring, multi-term queries are pure AND and results are not ranked. It is <strong>usable retrieval, not a search engine</strong> — and for an embedded database that is the right scope, since most cases only need "fetch the documents containing these words".</p>
 
@@ -493,7 +493,7 @@ func (c *collection) planCandidates(filter map[string]any) map[string]struct{} {
 
 <p>The geo index stores entries ordered by longitude and supports <code>$geoWithin</code> with <code>$box</code> and metric <code>$circle</code>. Circles use haversine distance; boxes narrow candidates through the ordered structure first, so expensive trigonometry only runs on a small set. No polygons or GeoJSON geometry, no handling of the 180° meridian, and <code>$geoWithin</code> results are not distance-ordered.</p>
 
-<h2>Transactions: collection-granularity optimistic serialisation</h2>
+<h2>Transactions: collection-granularity optimistic serialization</h2>
 
 <p>No lock waits, no deadlocks, no MVCC undo chains — the plainest scheme that fits "in memory, one process": <strong>collection snapshots plus version checks.</strong></p>
 
@@ -599,11 +599,11 @@ go test -race ./...        # needs CGO and a C compiler; gcc on Windows
 go test ./engine -run '^$' -bench Benchmark -benchmem
 </code></pre>
 
-<p>All three packages pass (<code>cmd</code> 0.87 s, <code>engine</code> 1.08 s, <code>server</code> 1.58 s), with coverage around 80% for engine and server, 75% for cmd. Coverage spans CRUD, query operators, sort/pagination/projection, four index kinds and uniqueness, aggregation, SQL parsing and execution, batch atomicity, transaction isolation and conflict, <strong>WAL replay, compaction and the directory lock</strong>, behaviour after close, and update error paths — plus auth, roles, allowlists, accounts, routing, 405s, validation, error codes, transaction sessions and timeouts, and the CLI end to end including shell transactions and EOF rollback.</p>
+<p>All three packages pass (<code>cmd</code> 0.87 s, <code>engine</code> 1.08 s, <code>server</code> 1.58 s), with coverage around 80% for engine and server, 75% for cmd. Coverage spans CRUD, query operators, sort/pagination/projection, four index kinds and uniqueness, aggregation, SQL parsing and execution, batch atomicity, transaction isolation and conflict, <strong>WAL replay, compaction and the directory lock</strong>, behavior after close, and update error paths — plus auth, roles, allowlists, accounts, routing, 405s, validation, error codes, transaction sessions and timeouts, and the CLI end to end including shell transactions and EOF rollback.</p>
 
 <p>Worth praising: crash and boundary scenarios are part of the regular suite rather than happy-path only — durability incidents live almost entirely there. Benchmarks use 100,000 documents, with <code>BenchmarkSortRandom*</code> doing the A/B between full sort and Top-N that backs rows seven and eight above.</p>
 
-<p>The git history also shows the process being maintained: semantic version tags and releases on every commit, normalised LF endings, explicit Go module cache handling — a 0.1.0 project that built the release pipeline first intends to stay.</p>
+<p>The git history also shows the process being maintained: semantic version tags and releases on every commit, normalized LF endings, explicit Go module cache handling — a 0.1.0 project that built the release pipeline first intends to stay.</p>
 
 <h2>Where it sits among the alternatives</h2>
 
@@ -640,7 +640,7 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 
 <h2>When to use it, when not to</h2>
 
-<p><strong>Good fit:</strong> local storage inside Go tools and services — configuration, task queues, crawler state, desktop app data — where you do not want to run a database service to store tens of thousands of JSON rows; read-heavy workloads whose data fits in memory, where indexes and Top-N give millisecond responses; teaching and forking, because ten thousand dependency-free lines with every part present are an excellent starting point for changing the WAL format, adding an index kind or practising transactions; and edge or single-machine deployments where a single binary with no cgo and no external service is the whole story.</p>
+<p><strong>Good fit:</strong> local storage inside Go tools and services — configuration, task queues, crawler state, desktop app data — where you do not want to run a database service to store tens of thousands of JSON rows; read-heavy workloads whose data fits in memory, where indexes and Top-N give millisecond responses; teaching and forking, because ten thousand dependency-free lines with every part present are an excellent starting point for changing the WAL format, adding an index kind or practicing transactions; and edge or single-machine deployments where a single binary with no cgo and no external service is the whole story.</p>
 
 <p><strong>Poor fit:</strong> data larger than memory or terabyte-scale durability (that is SQLite and LSM territory); multi-process writes to one directory or multi-node high availability (explicitly out of scope); transaction-heavy writes on hot collections (collection-level optimistic conflicts mean many retries); and production needs around relevance-ranked full-text search, complex SQL analytics or precise geospatial computation.</p>
 
@@ -652,7 +652,7 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 
 <p><strong>How do the document model, indexes and concurrency mesh?</strong> Writes go through <code>collection.add</code>, which maintains all four index kinds synchronously; transactions carry those indexes along inside the cloned snapshot; and planning only picks the smallest candidate set, with the full match as the backstop.</p>
 
-<p>NanoDB will not replace SQLite and has no intention of replacing MongoDB. Its value is laying the black box out on the table: <strong>the WAL is newline-delimited JSON, a transaction is a version comparison, and query planning is picking the smallest candidate set.</strong> The mechanisms are plain enough to memorise — and plainness is exactly why they can be trusted.</p>
+<p>NanoDB will not replace SQLite and has no intention of replacing MongoDB. Its value is laying the black box out on the table: <strong>the WAL is newline-delimited JSON, a transaction is a version comparison, and query planning is picking the smallest candidate set.</strong> The mechanisms are plain enough to memorize — and plainness is exactly why they can be trusted.</p>
 
 <p>If you have ever thought "I should write a database", the answer here is yes, and it does not take many lines. The next step is not more papers: clone it and break <code>replay</code>, <code>Commit</code> and <code>planCandidates</code> one at a time, then see whether the tests still pass. That is a faster introduction than any article.</p>
 

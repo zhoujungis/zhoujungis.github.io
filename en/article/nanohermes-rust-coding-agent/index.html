@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-CWUusDoG.js"></script>
+    <script type="module" crossorigin src="/assets/index-DV7D9rox.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -164,7 +164,7 @@
     <div id="app"><div class="ns-article"><h1>NanoHermes: a coding agent in Rust with no async runtime and three dependencies</h1><div class="ns-meta">2026-10-22 · 38 min · Stack Frame</div><div class="markdown-body">
 <blockquote>
 <p>Who this is for: engineers who want to write a coding agent without inheriting a Node or Python runtime; anyone curious how little code an agent actually needs; people interested in Landlock sandboxes, MCP transports and local BM25 retrieval.</p>
-<p><strong>Bottom line first:</strong> the technical density here is not in the feature list but in three disciplines — <strong>no async runtime</strong> (blocking HTTP plus scoped threads), <strong>three dependency crates</strong> (not even <code>libc</code>; raw syscalls are hand-written), and <strong>a ceiling on every output</strong> (20 KB tool results, 256 KB per command stream, a hard refusal above 4 MB for file reads). Plus a Tauri shell that puts the same agent into a four-column GUI, or into a systemd service on a 1 GB VPS.</p>
+<p><strong>TL;DR:</strong> the technical density here is not in the feature list but in three disciplines — <strong>no async runtime</strong> (blocking HTTP plus scoped threads), <strong>three dependency crates</strong> (not even <code>libc</code>; raw syscalls are hand-written), and <strong>a ceiling on every output</strong> (20 KB tool results, 256 KB per command stream, a hard refusal above 4 MB for file reads). Plus a Tauri shell that puts the same agent into a four-column GUI, or into a systemd service on a 1 GB VPS.</p>
 <p>Reading time ~30 minutes · Level: advanced</p>
 </blockquote>
 
@@ -203,7 +203,7 @@
 
 <p>The answer is a set of trade-offs: a single binary (target around 2 MB), resident memory that scales with context length, three dependency crates, no async runtime, not even <code>libc</code> — and it can run as a resident HTTP service on a 1 GB Debian VPS.</p>
 
-<p>This post does not sell concepts; it takes implementations apart. The density is in a few places: how an agent loop is organised without async, which primitive concurrency uses, how Landlock and SIGINT handling work without <code>libc</code>, how long-term memory does Chinese retrieval without any embedding service, and how every layer of context gets a ceiling. Each of those has details you cannot guess from the outside.</p>
+<p>This post does not sell concepts; it takes implementations apart. The density is in a few places: how an agent loop is organized without async, which primitive concurrency uses, how Landlock and SIGINT handling work without <code>libc</code>, how long-term memory does Chinese retrieval without any embedding service, and how every layer of context gets a ceiling. Each of those has details you cannot guess from the outside.</p>
 
 <h2>NanoHermes in a minute</h2>
 
@@ -218,7 +218,7 @@
 </tbody>
 </table>
 
-<p>Capabilities, ordered by how quickly you notice them: real tools (read, write, edit, patch, list, grep, glob, shell, fetch web, search web, todos, git, background tasks); planning and memory (<code>todo_write</code> / <code>todo_read</code> keep a plan across turns, long-term memory distils lessons, preferences, corrections and facts into local files and re-injects them by relevance); extensibility (MCP servers over stdio and streamable HTTP, skills at <code>.nanohermes/skills/&lt;name&gt;/SKILL.md</code>, subagents, lifecycle hooks that can veto a tool call); security (three approval tiers plus a Linux Landlock filesystem sandbox); and a desktop shell with a virtualised transcript, incremental Markdown, a docked results panel, a command palette and three themes.</p>
+<p>Capabilities, ordered by how quickly you notice them: real tools (read, write, edit, patch, list, grep, glob, shell, fetch web, search web, todos, git, background tasks); planning and memory (<code>todo_write</code> / <code>todo_read</code> keep a plan across turns, long-term memory distils lessons, preferences, corrections and facts into local files and re-injects them by relevance); extensibility (MCP servers over stdio and streamable HTTP, skills at <code>.nanohermes/skills/&lt;name&gt;/SKILL.md</code>, subagents, lifecycle hooks that can veto a tool call); security (three approval tiers plus a Linux Landlock filesystem sandbox); and a desktop shell with a virtualized transcript, incremental Markdown, a docked results panel, a command palette and three themes.</p>
 
 <p>One easily missed fact: the desktop front end is React 19 + TypeScript + Vite, while the Rust side is a 72 KB single file, <code>gui/src/main.rs</code> — no plugins, no glue framework, no state-machine generator. Tauri commands are ordinary functions with an attribute macro.</p>
 
@@ -246,9 +246,9 @@ edition = "2021"
 license = "MIT"
 
 [profile.release]
-opt-level = "z"    # optimise for size
-lto = true         # link-time optimisation
-codegen-units = 1  # slower compile, more aggressive optimisation
+opt-level = "z"    # optimize for size
+lto = true         # link-time optimization
+codegen-units = 1  # slower compile, more aggressive optimization
 panic = "abort"    # no unwind tables
 strip = true       # strip symbols
 </code></pre>
@@ -352,7 +352,7 @@ base64 = "0.22"
 
 <p>Four details: a single call takes the direct path and pays no thread cost; results are collected in <code>tool_calls</code> order, so completion order cannot mismatch <code>tool_call_id</code>; <code>Agent</code> must be <code>Sync</code>, achieved by putting each MCP server's <code>Child</code> and reader <code>JoinHandle</code> inside a <code>Mutex&lt;Server&gt;</code>; and a panicking tool thread returns a string that looks like a tool error, so the model simply sees a failed call and continues.</p>
 
-<p>MCP concurrency has a finer grain: calls to the same server serialise on its stdin lock (the protocol is request-response over one connection), while different servers run in parallel.</p>
+<p>MCP concurrency has a finer grain: calls to the same server serialize on its stdin lock (the protocol is request-response over one connection), while different servers run in parallel.</p>
 
 <h2>Core 3: not even libc — a 30-line raw syscall shim</h2>
 
@@ -427,7 +427,7 @@ const KEEP_RECENT: usize = 10;
 
 <h2>Core 6: long-term memory — local BM25 with CJK bigrams</h2>
 
-<p>Memory lives in <code>agent/src/memory.rs</code> and persists to <code>~/.nanohermes/memory.json</code>. The practical question it answers: <strong>how do you search Chinese without any embedding service?</strong> Two stages: tokenise, then BM25.</p>
+<p>Memory lives in <code>agent/src/memory.rs</code> and persists to <code>~/.nanohermes/memory.json</code>. The practical question it answers: <strong>how do you search Chinese without any embedding service?</strong> Two stages: tokenize, then BM25.</p>
 
 <p><code>tokenize()</code> handles mixed Chinese and English: runs of ASCII alphanumerics become lowercase words, and <strong>anything shorter than two characters is dropped</strong> as noise; runs of CJK are <strong>split into bigrams</strong> (<code>windows(2)</code>), with isolated characters kept alone — so 上下文压缩 becomes 上下 / 下文 / 文压 / 压缩; and the CJK ranges cover Han, kana, hangul and compatibility blocks, not just the unified ideographs.</p>
 
@@ -477,10 +477,10 @@ score += idf * (f * (k1 + 1.0))
 <p>Two independent switches: one governs whether to ask, the other what is possible.</p>
 
 <table>
-<thead><tr><th>Policy</th><th>Behaviour</th></tr></thead>
+<thead><tr><th>Policy</th><th>Behavior</th></tr></thead>
 <tbody>
 <tr><td><code>never</code></td><td>Never ask (default; <code>-y</code> as well)</td></tr>
-<tr><td><code>on-request</code></td><td>Ask only for commands that are <strong>not</strong> recognised read-only</td></tr>
+<tr><td><code>on-request</code></td><td>Ask only for commands that are <strong>not</strong> recognized read-only</td></tr>
 <tr><td><code>untrusted</code></td><td>Ask for everything, read-only included</td></tr>
 </tbody>
 </table>
@@ -490,7 +490,7 @@ score += idf * (f * (k1 + 1.0))
 <p>Sandboxing uses Linux Landlock to restrict the spawned command's filesystem view:</p>
 
 <table>
-<thead><tr><th>Mode</th><th>Behaviour</th></tr></thead>
+<thead><tr><th>Mode</th><th>Behavior</th></tr></thead>
 <tbody>
 <tr><td><code>off</code></td><td>Unrestricted (default)</td></tr>
 <tr><td><code>read-only</code></td><td>Read and execute, no writes at all</td></tr>
@@ -535,7 +535,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 <p>Five permission modes, whose differences are bigger than their names:</p>
 
 <table>
-<thead><tr><th>Mode</th><th>Label</th><th>Behaviour</th></tr></thead>
+<thead><tr><th>Mode</th><th>Label</th><th>Behavior</th></tr></thead>
 <tbody>
 <tr><td><code>default</code></td><td>Agent</td><td>All tools; file edits and commands without asking</td></tr>
 <tr><td><code>accept-edits</code></td><td>Accept</td><td>Edits auto-approved, commands still gated</td></tr>
@@ -547,7 +547,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p><code>plan</code>, <code>goal</code> and <code>debug</code> also inject a mode instruction into the system prompt, because <strong>the model should behave according to how it was launched, not merely discover that tools are disabled</strong> — it will retry a disabled tool otherwise.</p>
 
-<p>The GUI performance notes are four hard-won conclusions: <strong>no blocking Tauri commands</strong> (synchronous <code>#[tauri::command]</code> runs on the window's main thread and freezes the whole UI; everything touching the filesystem, processes or HTTP is <code>async fn</code> on <code>tauri::async_runtime::spawn_blocking</code>, with only <code>get_settings</code> and <code>stop_task</code> staying synchronous, plus a static mutex serialising settings writes); <strong>streaming text stays out of the global store</strong> (a dedicated subscription feeds only the bubble being written, committed to the transcript per stage, batched on the <code>nanohermes://delta|tool|note|usage</code> channels at 40 ms); <strong>the transcript is virtualised</strong> (only visible messages mount, height measurement is skipped while the last bubble grows, and follow-scroll is driven by the stream rather than React); and <strong>Markdown is incremental</strong> (split on blank lines outside code fences, stable blocks render once, an unterminated fence only updates its <code>code</code> text node, and highlighting runs per block after the turn rather than once over the whole answer).</p>
+<p>The GUI performance notes are four hard-won conclusions: <strong>no blocking Tauri commands</strong> (synchronous <code>#[tauri::command]</code> runs on the window's main thread and freezes the whole UI; everything touching the filesystem, processes or HTTP is <code>async fn</code> on <code>tauri::async_runtime::spawn_blocking</code>, with only <code>get_settings</code> and <code>stop_task</code> staying synchronous, plus a static mutex serializing settings writes); <strong>streaming text stays out of the global store</strong> (a dedicated subscription feeds only the bubble being written, committed to the transcript per stage, batched on the <code>nanohermes://delta|tool|note|usage</code> channels at 40 ms); <strong>the transcript is virtualized</strong> (only visible messages mount, height measurement is skipped while the last bubble grows, and follow-scroll is driven by the stream rather than React); and <strong>Markdown is incremental</strong> (split on blank lines outside code fences, stable blocks render once, an unterminated fence only updates its <code>code</code> text node, and highlighting runs per block after the turn rather than once over the whole answer).</p>
 
 <p>The GUI's IPC surface is 16 commands plus two stream readers, all inside a 72 KB file.</p>
 
@@ -555,7 +555,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p><code>agent --daemon</code> turns the agent into a resident HTTP service with two endpoints: <code>POST /</code> (Bearer auth when a token is set) taking <code>{"prompt": "..."}</code> and returning <code>{"response": "...", "session": "&lt;id&gt;"}</code>, and <code>GET /health</code> returning <code>{"status":"ok","sessions":N}</code> for liveness probes.</p>
 
-<p>Sessions are isolated by a header: <code>X-Session-Id</code> selects a session, different ids never share context, and omitting it uses <code>default</code>. Each session persists to its own JSON file. The desktop connects "cloud tasks" this way, each with its own id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost: cloud configuration comes from daemon startup flags (model, persona, temperature, permission mode), and <strong>cloud turns cannot be cancelled midway</strong>.</p>
+<p>Sessions are isolated by a header: <code>X-Session-Id</code> selects a session, different ids never share context, and omitting it uses <code>default</code>. Each session persists to its own JSON file. The desktop connects "cloud tasks" this way, each with its own id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost: cloud configuration comes from daemon startup flags (model, persona, temperature, permission mode), and <strong>cloud turns cannot be canceled midway</strong>.</p>
 
 <p><code>scripts/deploy-debian.sh</code> does the whole job: install the binary to <code>/opt/nanohermes/nanohermes</code> with a workspace and 700 session directory; generate a token with <code>openssl rand -hex 24</code> into <code>.daemon_token</code> (reused on re-runs); write a systemd unit running <code>--daemon --daemon-port 8787 -C &lt;workspace&gt; --session &lt;dir&gt;/default.json --sandbox workspace-write</code> with <code>Restart=always</code>; harden with <code>NoNewPrivileges</code> and <code>ProtectSystem=strict</code> plus <code>ReadWritePaths</code>; enable and curl <code>/health</code>, printing the token.</p>
 
@@ -573,13 +573,13 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>Unit coverage reads like a list of places assumed to break: patch application (simple, multi-hunk, insert, missing context), glob matching, MCP resource and prompt listing, MCP tool dispatch, streamable HTTP handshake and calls, MCP concurrency safety, <code>execute()</code> concurrency with built-in and mixed tools, HTML-to-text and search parsing, session task lists, git round trips, token usage parsing and backoff, multimodal assembly, session persistence round trips, AGENTS.md injection, skill discovery, hook execution (exit codes, matcher, stdin payload), the subagent board's ordering and gate, approval decisions and trusted-command detection, <strong>Landlock's workspace boundary</strong>, SIGINT flag setting and clearing, and long-term memory (CJK bigrams, BM25 ordering, dedupe, distillation gate).</p>
 
-<p>The frontend uses Vitest with jsdom: pure logic (theme resolution and persistence, store migrations, Markdown sanitising, image attachments, in-session search, diff blocks) plus component tests and an <code>App.e2e.test.tsx</code> that <strong>renders the real store and components against a mocked Tauri IPC bridge</strong>, verifying transcript virtual scrolling, cross-screen search, diff jump-to-change and input state while running or stopping. One regression test asserts that long-running commands never execute synchronously on the main thread — exactly the performance contract most likely to be broken quietly later.</p>
+<p>The frontend uses Vitest with jsdom: pure logic (theme resolution and persistence, store migrations, Markdown sanitizing, image attachments, in-session search, diff blocks) plus component tests and an <code>App.e2e.test.tsx</code> that <strong>renders the real store and components against a mocked Tauri IPC bridge</strong>, verifying transcript virtual scrolling, cross-screen search, diff jump-to-change and input state while running or stopping. One regression test asserts that long-running commands never execute synchronously on the main thread — exactly the performance contract most likely to be broken quietly later.</p>
 
 <h2>Known limits and my verdict</h2>
 
 <ul>
 <li><strong>Sandboxing and SIGINT handling are Linux-only.</strong> Both rest on raw syscalls and disappear on Windows and macOS, so the desktop on Windows runs unsandboxed with default Ctrl-C handling.</li>
-<li><strong>Cloud turns cannot be cancelled</strong> — the request is held by the daemon and the desktop can only wait; only local tasks stop at step boundaries.</li>
+<li><strong>Cloud turns cannot be canceled</strong> — the request is held by the daemon and the desktop can only wait; only local tasks stop at step boundaries.</li>
 <li><strong>The daemon runs as root and the token is the only credential.</strong> Anyone with it can read, write and execute in the workspace, which is exactly why the docs insist on not exposing the port.</li>
 <li><strong>Not having async costs something real.</strong> A stuck HTTP request occupies a thread until timeout (120 s default). Fine for CLI and GUI; the assumptions break for a high-concurrency gateway.</li>
 <li><strong>The Windows installer is unsigned</strong>, so the first run trips SmartScreen.</li>
