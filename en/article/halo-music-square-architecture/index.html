@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="One static page, serverless functions, SQLite as a cache, and the same web app wrapped in an Electron shell — with the domain model that keeps four upstream platforms from leaking into the UI." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/halo-music-square-architecture/" />
+    <meta property="og:title" content="Halo Music: a multi-source music app on Cloudflare Pages, D1 and Electron | Stack Frame" />
+    <meta property="og:description" content="One static page, serverless functions, SQLite as a cache, and the same web app wrapped in an Electron shell — with the domain model that keeps four upstream platforms from leaking into the UI." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/halo-music-square-architecture/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Halo Music: a multi-source music app on Cloudflare Pages, D1 and Electron | Stack Frame" />
+    <meta name="twitter:description" content="One static page, serverless functions, SQLite as a cache, and the same web app wrapped in an Electron shell — with the domain model that keeps four upstream platforms from leaking into the UI." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Halo Music: a multi-source music app on Cloudflare Pages, D1 and Electron | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BMw6GK-l.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/halo-music-square-architecture/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/halo-music-square-architecture/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/halo-music-square-architecture/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Halo Music: a multi-source music app on Cloudflare Pages, D1 and Electron</h1><div class="ns-meta">2026-10-16 · 30 min · Stack Frame</div><div class="markdown-body">
+<p>I wanted a music tool that works the moment you open a browser: type a song name, get results from several platforms at once; click a track and it plays with scrolling lyrics; keep favourites and organise them into playlists. That idea became <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">HALO Music</a>, my own music square.</p>
+
+<p>The point was never to rebuild one platform's page. It was to fit multiple audio sources, a browser player, user data and a desktop wrapper into one lightweight architecture. The frontend is a static page deployable straight to Cloudflare Pages; Pages Functions provide the API; D1 holds accounts, libraries and caches; and Electron wraps the same web app as a Windows desktop client.</p>
+
+<blockquote>
+<p>The project is for learning, research and demonstration. Music content, audio URLs, lyrics and cover art belong to the respective platforms and original authors; use must comply with local law, upstream terms of service and copyright policy.</p>
+</blockquote>
+
+<h2>1. The architecture at a glance</h2>
+
+<p>There is no separate frontend and desktop player. Both the browser and Electron load the same <code>index.html</code>; the only difference is whether a native window wraps it:</p>
+
+<pre><code>flowchart TB
+    subgraph Client[Client]
+        Browser[Browser]
+        Electron[Electron BrowserWindow]
+        UI[index.html\nHTML + CSS + runtime JS]
+        Audio[HTMLAudioElement]
+        Local[localStorage\ntheme / favourites / playlists]
+    end
+    subgraph Cloudflare[Cloudflare Pages]
+        Static[Pages static assets]
+        Functions[Pages Functions\n/api/*]
+        D1[(D1 SQLite)]
+    end
+    subgraph Sources[Upstream platforms]
+        Netease[Netease Cloud Music]
+        QQ[QQ Music]
+        Kuwo[Kuwo Music]
+        Joox[JOOX / fallback resolver]
+        Qishui[Qishui playlist pages]
+    end
+    Browser --&gt; Static
+    Electron --&gt; UI
+    Static --&gt; UI
+    UI --&gt; Audio
+    UI --&gt; Local
+    UI --&gt; Functions
+    Functions --&gt; D1
+    Functions --&gt; QQ
+    Functions --&gt; Kuwo
+    Functions --&gt; Qishui
+    UI --&gt; Netease
+    UI --&gt; Joox
+    Functions --&gt; Joox
+</code></pre>
+
+<p>The split buys three things: static assets ride Pages' CDN; requests needing keys, signatures or CORS handling live in Functions; and player state stays in the browser, so audio never streams through my own server.</p>
+
+<h2>2. Frontend: one static entry point carrying a whole player</h2>
+<h3>2.1 Driving interaction with plain runtime state</h3>
+
+<p>To keep deployment and the desktop build small, there is no large UI framework. Structure, styles and runtime logic live in <code>index.html</code>, <code>styles.css</code> and <code>app.js</code>. A handful of variables describe the current session:</p>
+
+<pre><code>let tracks = []
+let currentIndex = 0
+let currentList = tracks
+let isPlaying = false
+let repeatOn = true
+let liked = new Set(JSON.parse(localStorage.getItem("halo-liked-tracks") || "[]"))
+const audio = new Audio()
+</code></pre>
+
+<p>Search, player, lyrics and queue all re-render around that state. Track rows, album cards and player buttons use event delegation, so clicking a song only updates the index, the playback context and the <code>&lt;audio&gt;</code> element — never a second player instance.</p>
+
+<h3>2.2 Parallel multi-source search, then one merge and dedupe</h3>
+
+<p>The platforms' search responses differ. Each adapter extracts song id, title, artist, album, cover and duration into a common object. In the browser, search fans out to Netease, QQ Music and Kuwo at once:</p>
+
+<pre><code>const results = await Promise.allSettled([
+  searchNetease(keyword, limit),
+  searchQQ(keyword, limit),
+  searchKuwo(keyword, limit),
+])
+
+const groups = results.map((item) =&gt;
+  item.status === "fulfilled" ? item.value : [],
+)
+return interleave(groups)
+</code></pre>
+
+<p><code>Promise.allSettled</code> is deliberate: when one source is temporarily down the others should still show. <code>interleave</code> alternates platforms so the first half of the list is not all from one place, and <code>dedupeTracks</code> filters on platform id plus a normalised "title + artist" key. Normalisation strips spaces, hyphens and brackets so the same recording does not appear three times.</p>
+
+<p>Server-side adapters also cover QQ, Kuwo and JOOX — cases that need proxying or a fallback resolver — while playlist import additionally supports public Netease, Qishui and QQ links. That lets "search indexing" and "audio URL resolution" evolve separately: one platform changing its API cannot take every feature down with it.</p>
+
+<h3>2.3 Lazy detail loading, audio resolved only on play</h3>
+
+<p>Search results carry only the metadata needed to render a list; real playback URLs for QQ and Kuwo tracks are fetched when the user presses play. <code>ensureTrackDetails</code> picks an adapter from <code>track.source</code> and collapses concurrent requests for the same track through <code>loadingPromise</code>:</p>
+
+<pre><code>async function ensureTrackDetails(track) {
+  if (track.detailsLoaded &amp;&amp; track.audioUrl) return true
+  if (track.loadingPromise) return track.loadingPromise
+
+  track.loadingPromise = resolveBySource(track)
+    .finally(() =&gt; { track.loadingPromise = null })
+  return track.loadingPromise
+}
+</code></pre>
+
+<p>Only after an address arrives does the code set <code>audio.src</code> and call <code>audio.load()</code>. On failure it never writes short-lived URLs permanently into favourites or playlists; it offers refresh, an alternate candidate, or a switch to another source. Netease paths go through a compatible resolver for both URL and lyrics, while QQ and Kuwo prefer <code>/api/music</code>.</p>
+
+<h3>2.4 One clock for LRC lyrics and the player timeline</h3>
+
+<p>Lyric sync does not start another timer; it listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms:</p>
+
+<pre><code>function parseLrc(text) {
+  const lines = []
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const tags = [...line.matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)]
+    const content = line.replace(/\[[^\]]+\]/g, "").trim()
+    if (!content) continue
+    for (const tag of tags) {
+      const fraction = tag[3] ? Number(`0.${tag[3].padEnd(3, "0").slice(0, 3)}`) : 0
+      lines.push({ time: Number(tag[1]) * 60 + Number(tag[2]) + fraction, text: content })
+    }
+  }
+  return lines.sort((a, b) =&gt; a.time - b.time)
+}
+</code></pre>
+
+<p>Rendering walks backwards to the last line with <code>line.time &lt;= audio.currentTime</code> and marks it active; clicking a lyric line sets <code>audio.currentTime</code> to that timestamp. Progress bar, lyric highlight and current track therefore stay consistent by construction.</p>
+
+<h3>2.5 Responsive layout is not just shrinking</h3>
+
+<p>Desktop is a three-column workspace: search / player and lyrics / queue. Mobile switches to bottom navigation between search, lyrics and library. Layout uses CSS Grid, media queries and independent scroll containers, so lyrics and queue never push the page past the viewport. Theme, favourites and playlists sit in <code>localStorage</code>, so search and local organisation work before you ever sign in.</p>
+
+<h2>3. HALO Track: the data model that isolates platform differences</h2>
+
+<p>If every component read platform-specific fields, adding a source would turn into conditional hell. The project therefore defines one track shape:</p>
+
+<pre><code>{
+  uid: "qq-song-id",
+  source: "qq",              // netease / qq / kuwo / joox
+  title: "Song title",
+  artist: "Artist",
+  album: "Album",
+  cover: "https://...",
+  songid: "platform song id",
+  quality: "lossless",
+  qualityLabel: "Lossless",
+  pay: "",
+  audioUrl: null,            // runtime field
+  lrc: null                  // runtime field
+}
+</code></pre>
+
+<p>The view layer only reads stable fields — <code>title</code>, <code>artist</code>, <code>album</code>, <code>cover</code>, <code>source</code>; adapters translate platform responses into them; the detail layer fills <code>audioUrl</code> and lyrics by <code>source</code>. <code>serializeTrack()</code> filters out short-lived audio URLs, lyrics and detail state, persisting only reusable identifiers and display data, so expired resources never reach localStorage or D1.</p>
+
+<h2>4. Backend: Pages Functions as adapter and safety boundary</h2>
+<h3>4.1 Files as routes</h3>
+
+<p>Cloudflare Pages maps files under <code>functions/api/</code> to <code>/api/*</code>. The main endpoints fall into three groups:</p>
+
+<table>
+<thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>GET /api/music</code></td><td>Search, detail, audio resolution, proxying and caching</td></tr>
+<tr><td><code>POST /api/register</code>, <code>POST /api/login</code>, <code>POST /api/logout</code></td><td>Accounts and sessions</td></tr>
+<tr><td><code>GET/PUT /api/library</code></td><td>Read or overwrite the current user's favourites and playlists</td></tr>
+<tr><td><code>POST /api/import-playlist</code></td><td>Resolve a public playlist server-side into HALO Tracks</td></tr>
+<tr><td><code>GET /api/me</code></td><td>Username for the current session</td></tr>
+</tbody>
+</table>
+
+<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts so one misbehaving platform cannot occupy the whole Function invocation.</p>
+
+<h3>4.2 Caching and verifying resolved addresses</h3>
+
+<p>Audio resolution hits short-lived URLs, dead candidates and upstream throttling far more often than search, so the strategy is candidates plus playability checks plus caching:</p>
+<ol>
+<li>Build a cache key from song id, quality and duration.</li>
+<li>Check the Worker's in-process LRU, then the shared D1 cache.</li>
+<li>On a miss, try the primary endpoint and a fallback.</li>
+<li>Validate the returned address with an HTTP request, song id and duration.</li>
+<li>Store the verified candidate; on playback failure, force a re-resolve with <code>refresh=1</code>.</li>
+</ol>
+
+<p>The in-memory LRU holds about 500 entries, search caching defaults to roughly 45 seconds, and D1 acts as the cross-request, cross-instance second level. Only reusable resolution results are cached — audio files are never copied into my storage, and temporary URLs are never treated as permanent links.</p>
+
+<h3>4.3 Importing public playlists server-side</h3>
+
+<p>Public playlist import lives in <code>import-playlist.js</code>, because link resolution, pagination and upstream requests belong on the server. The Function recognises public Netease, Qishui and QQ links, resolves official short links when needed, reads song information from pages or APIs, and converts everything into HALO Tracks.</p>
+
+<p>Import caps are explicit: at most the first 1,200 tracks for a QQ playlist, 2,000 for Netease, and a 4 MB page-read limit for Qishui. Bounding request volume protects upstream and keeps the Function inside its execution budget.</p>
+
+<h2>5. How does the D1 database do local-first sync?</h2>
+
+<p>D1 is SQLite. The core tables:</p>
+
+<table>
+<thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>music_users</code></td><td>Username, password hash and random salt</td></tr>
+<tr><td><code>music_sessions</code></td><td>Session token, username and expiry</td></tr>
+<tr><td><code>music_libraries</code></td><td>User favourites and user playlists as JSON</td></tr>
+<tr><td><code>music_cache</code></td><td>Shared audio and detail cache</td></tr>
+<tr><td><code>search_cache</code></td><td>Short-lived search cache</td></tr>
+</tbody>
+</table>
+
+<p>Favourites and playlists are "write localStorage first, sync to D1 asynchronously": signed out, the data belongs to that browser; signed in, the page submits the library to <code>/api/library</code>, and a weak connection still leaves local data usable. The cloud library is stored as JSON — simple, appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
+
+<h2>6. How does the Electron app keep accounts safe?</h2>
+
+<p>Passwords are never stored in plaintext. The server uses Web Crypto PBKDF2-SHA-256 with 100,000 iterations and a 16-byte random salt, writing only hash and salt to D1. After login a random UUID becomes a session token in an <code>HttpOnly; Secure; SameSite=Lax</code> cookie, valid for 30 days by default.</p>
+
+<p>The desktop security goal is "a window shell only, never Node privileges for the page":</p>
+
+<pre><code>webPreferences: {
+  preload: path.join(__dirname, "preload.cjs"),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+}
+</code></pre>
+
+<p><code>preload.cjs</code> exposes only minimal platform information through <code>contextBridge</code>, and external links open in the system browser. The main process creates a 1440×920 window (minimum 960×640) and can point at a custom Pages domain via <code>HALO_MUSIC_URL</code> or <code>--url=</code>.</p>
+
+<h2>7. Tests, development and deployment</h2>
+
+<p>Local development needs Node.js 20 LTS or newer, npm and Wrangler 4:</p>
+
+<pre><code>npm install
+npx wrangler d1 execute halo-music-db --local --file schema.sql
+npm run dev
+</code></pre>
+
+<p>Tests use Node's built-in <code>node:test</code> and cover sessions, favourites and playlist persistence, field normalisation across platforms, playlist link recognition, QQ signing and pagination, LRC parsing, audio container detection, next-track playback context, plus a syntax check of the browser's inline scripts:</p>
+
+<pre><code>npm test
+</code></pre>
+
+<p>Deployment publishes the static files and Functions together, with D1 bound in <code>wrangler.toml</code>:</p>
+
+<pre><code>name = "halo-music"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "halo-music-db"
+database_id = "your D1 database_id"
+</code></pre>
+
+<p>The desktop build reuses the deployed Pages URL, so there is no second local HTTP server:</p>
+
+<pre><code>npm run desktop:dev
+npm run desktop:all
+npm run desktop:portable
+</code></pre>
+
+<p>Windows installers and the portable build land in <code>release/</code>; the app id is <code>com.halomusic.desktop</code>.</p>
+
+<h2>8. What the project taught me</h2>
+
+<p>What is worth recording is not any single platform API but several reusable engineering decisions:</p>
+<ol>
+<li><strong>Unify the domain model before adding sources.</strong> HALO Track keeps platform differences inside adapters; the player and playlist logic never learn upstream field names.</li>
+<li><strong>Separate search from playback resolution.</strong> Search optimises for parallelism and tolerance; resolution optimises for validation, caching and retry. Their performance goals differ.</li>
+<li><strong>Never treat temporary resources as database facts.</strong> Audio URLs expire; store the song id and display data, and re-resolve on play.</li>
+<li><strong>Local-first removes dependence on login and network.</strong> localStorage makes favourites usable on a weak connection; D1 adds cross-device sync for signed-in users.</li>
+<li><strong>Reuse the web build on desktop.</strong> Electron supplies a native window and a security boundary; business logic, player and API stay one implementation.</li>
+</ol>
+
+<p>Clear boundaries remain: upstream APIs and audio addresses can change without warning, Functions execution time limits bulk import, and the frontend entry point could still be split into modules. The more valuable next steps are a finer-grained playlist model, incremental sync, Playwright visual regression, and stable contract tests per source adapter.</p>
+
+<p>If you want to read the implementation, the <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">halo_music source</a> is open. The project started as a small "search and play" tool and grew into a complete playground spanning web, serverless, SQLite caching and a desktop shell.</p>
+
+<p>Along the same chain: <a href="/article/test-manage-system-vue-django/">Building a test management system from scratch: Vue 3 + Django</a> and <a href="/article/blog-tech-stack/">The tech stack behind this blog: Vue 3 + Django, split front and back</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">中文版</a></nav></div></div>
+  </body>
+</html>
