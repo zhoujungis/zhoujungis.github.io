@@ -1155,46 +1155,47 @@ npm run desktop:portable
     readingTime: 30,
     html: `
 <blockquote>
-<p>Who this is for: engineers who want desktop tools in Go without dragging in Electron; developers who need a lightweight HTTP client; anyone curious about Wails v2, WebView2 and <code>net/http</code> details.</p>
-<p><strong>TL;DR:</strong> NanoAPI's bet is "reuse the system WebView2, build a minimal HTTP engine, store everything in one JSON file". Sending a request is not the hard part — aligning timeouts, redirects, Windows paths, multipart boundaries and crash-safe writes is.</p>
-<p>Reading time ~30 minutes · Level: advanced</p>
+<p>Who this is for: engineers who want desktop tools in Go without dragging in Electron; developers who need a lightweight HTTP client; anyone curious about Wails v2, WebView2 and the details of Go's standard HTTP stack.</p>
+<p><strong>TL;DR:</strong> NanoAPI's bet is to reuse the system WebView2, build a minimal HTTP engine, and store everything in one JSON file. Sending a request is the easy part. Aligning timeouts, redirects, Windows paths, multipart boundaries and crash-safe writes is the work.</p>
+<p>Reading time around 30 minutes. Level: advanced.</p>
 </blockquote>
 
 <strong>Contents</strong>
 <ul>
-<li>Why "a Postman that is just enough"</li>
+<li>Why a Postman that is just enough</li>
 <li>Architecture: edit in the frontend, execute in the backend</li>
 <li>The full path of one request</li>
 <li>The HTTP engine: written, not wrapped</li>
-<li>Variable interpolation: one pass, three levels of recursion</li>
+<li>Variable interpolation: one pass, three levels</li>
 <li>cURL both ways: lexing, mapping and warnings</li>
-<li>Upload and download: how files get in and out</li>
-<li>Storage: reliability design for a single JSON file</li>
-<li>Bulk edit and backups: pure frontend logic and merge-on-import</li>
-<li>Problem list 1: four network-semantics traps</li>
-<li>Problem list 2: four Windows and cURL traps</li>
-<li>Problem list 3: four desktop-engineering traps</li>
+<li>Upload and download: how bytes get in and out</li>
+<li>Storage: reliability for a single JSON file</li>
+<li>Bulk edit and backups</li>
+<li>Problem list one: four network traps</li>
+<li>Problem list two: four Windows and cURL traps</li>
+<li>Problem list three: four desktop traps</li>
 <li>Build and release: the cost of one exe</li>
-<li>Known limits and open problems</li>
+<li>Known limits</li>
 <li>Closing</li>
 </ul>
-<hr>
 
-<h2>Why "a Postman that is just enough"</h2>
+<h2>Why a Postman that is just enough</h2>
 
-<p>Postman is powerful, and that power rests on size, accounts, cloud sync, a plugin ecosystem and telemetry. For a developer who only needs to "enter a URL, pick a method, add a few headers, read the JSON back", most of that is background noise. NanoAPI compresses the goal into one sentence: a sufficient HTTP debugging client, one exe, double-click to run, data stays local.</p>
+<p>Postman is powerful, and that power rests on size, accounts, cloud sync, a plugin ecosystem and telemetry. For a developer who wants to enter a URL, pick a method, add a few headers and read the JSON back, most of that is background noise.</p>
 
-<p>"Sufficient" here is not an adjective but a checkable set of constraints. <code>go.mod</code> has exactly one direct dependency: <code>github.com/wailsapp/wails/v2 v2.17.0</code>. The frontend has no npm dependencies and no build step; native ES modules are embedded straight into the binary by <code>go:embed</code>. The release asset <code>NanoAPI-0.1.0-x64.exe</code> is 11,341,824 bytes, about 10.8 MiB; the NSIS installer is about 6.3 MB, the MSI about 4.5 MB. For comparison, an Electron app's installer usually counts in hundreds of MB.</p>
+<p>NanoAPI compresses the goal into one sentence: a sufficient HTTP debugging client, one executable, double-click to run, data stays local.</p>
 
-<p>Those numbers are not squeezed out by cutting features; they come from choices: rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend keeps only the DOM plus a little glue beyond <code>fetch</code>. So there is no Chromium copy, no Node runtime, no third-party HTTP client, no database. There is not even auto-update or crash reporting.</p>
+<p>"Sufficient" is not an adjective here. It is a checkable set of constraints. The module file has exactly one direct dependency, the Wails runtime. The frontend has no npm dependencies and no build step, and native ES modules are embedded straight into the binary. The release executable is 11,341,824 bytes, about 10.8 MiB. The NSIS installer for the same version is about 6.3 MB and the MSI about 4.5 MB. An Electron application's installer usually starts in the hundreds of megabytes.</p>
 
-<p>The boundary must be stated too: NanoAPI only supports its own bundle format <code>nanoapi-bundle</code> v1, plus a bare <code>nanoapi.json</code>. It does not import Postman, Bruno, OpenAPI or HAR, and the repository contains no parser for any of them. That is scope control, not an oversight: a format adapter layer turns "a project one can maintain on weekends" into "a compatibility layer that is never finished". For migration, users go through cURL — the universal channel — or tidy the JSON by hand.</p>
+<p>Those numbers do not come from cutting features. They come from choices: rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend keeps only the DOM plus a little glue. So there is no Chromium copy, no Node runtime, no third-party HTTP client and no database. There is not even auto-update or crash reporting.</p>
+
+<p>The boundary has to be stated too. NanoAPI supports its own bundle format, version 1, plus a bare settings file. It does not import Postman collections, Bruno, OpenAPI or HAR, and the repository contains no parser for any of them. That is scope control rather than an oversight. A format adapter layer turns "a project one person can maintain on weekends" into "a compatibility layer that is never finished". For migration, users go through cURL, the universal channel, or tidy the JSON by hand.</p>
 
 <h2>Architecture: edit in the frontend, execute in the backend</h2>
 
-<p>A classic two-layer Wails v2 app. <code>main.go</code> owns the window and <code>go:embed</code>; <code>app.go</code> binds the <code>App</code> struct to the frontend; <code>internal/</code> splits into six packages — <code>proxy</code>, <code>interp</code>, <code>curl</code>, <code>store</code>, <code>bundle</code>, <code>model</code>. The frontend lives in <code>frontend/dist</code>: <code>index.html</code> plus a set of ESM modules, no <code>node_modules</code>, no Vite.</p>
+<p>This is a two-layer Wails v2 application. <code>main.go</code> owns the window and the embedded assets, and <code>app.go</code> binds the application struct to the frontend. The internal packages split by responsibility into proxy, interp, curl, store, bundle and model. The frontend lives in a dist directory as one HTML file plus a set of ES modules, with no <code>node_modules</code> and no Vite.</p>
 
-<p>At runtime Wails exposes bound methods on <code>window.go.main.App</code>. <code>bridge.js</code> is a thin promise wrapper that turns synchronous throws into rejections so callers cannot forget <code>.catch</code>:</p>
+<p>At runtime Wails exposes bound methods on a global object. A small bridge module wraps calls in promises so a synchronous throw becomes a rejection and callers cannot forget to catch it.</p>
 
 <pre><code>function call(method, ...args) {
   try {
@@ -1205,19 +1206,19 @@ npm run desktop:portable
 }
 </code></pre>
 
-<p>That boundary decides the division of labour. The frontend owns tabs, the collection tree, the request editor, response rendering, context menus and shortcuts; the backend owns URL merging, variable interpolation, authentication, multipart, TLS, redirects, timeouts, timing capture, response reading, file saving and bundle import/export. The frontend never calls <code>fetch</code> directly, so there is no "two sets of network rules" problem.</p>
+<p>That boundary decides the division of labour. The frontend owns tabs, the collection tree, the request editor, response rendering, context menus and shortcuts. The backend owns URL merging, variable interpolation, authentication, multipart bodies, TLS, redirects, timeouts, timing capture, response reading, file saving and bundle import and export.</p>
 
-<p>Bound methods cover data loading, three kinds of save, tabs, history, cookies, bundles, cURL, sending, file picking and response saving. Every method returns a promise, handled with <code>await</code> or <code>.catch</code>. Because all I/O sits in Go, the frontend never deals with CORS, certificates, cookies or filesystem permissions; WebView2 only draws the UI.</p>
+<p>The frontend never calls fetch directly, so there is no "two sets of network rules" problem. Every bound method returns a promise, handled with await or catch. Because all I/O sits in Go, the frontend never deals with CORS, certificates, cookies or filesystem permissions.</p>
 
-<p>That split also explains why response bodies never touch disk: Wails bindings transfer JSON strings, and a large response crossing that boundary once is already enough — persisting another copy only multiplies memory and disk cost. When a response must be kept, the user explicitly clicks "save body", which goes through the system save dialog.</p>
+<p>That split also explains why response bodies never touch disk. Wails bindings transfer JSON strings, and a large response crossing that boundary once is enough. Persisting another copy only multiplies memory and disk cost. When a response must be kept, the user clicks save body and goes through the system save dialog.</p>
 
-<p>Frontend state lives in tab objects, each owning its own request and response. Response bodies stay in memory and tab state, never in the data file; a restart restores tabs and unsaved edits, but not the last response. That keeps the data file small and stable and avoids repeatedly serializing possibly large bodies.</p>
+<p>Frontend state lives in tab objects, each owning its own request and response. Response bodies stay in memory and tab state, never in the data file. A restart restores tabs and unsaved edits, but not the last response. That keeps the data file small and stable, and avoids repeatedly serializing potentially large bodies.</p>
 
-<p>Startup checks whether <code>window.go</code> exists; if the backend is not ready the app shows an error page rather than an empty window. A failed <code>loadAll</code> raises a toast but initialization continues, so one read error cannot block the whole app.</p>
+<p>Startup checks whether the backend global exists. If the backend is not ready the app shows an error page rather than a blank window. A failed initial load raises a toast but initialization continues, so one read error cannot block the whole application.</p>
 
 <h2>The full path of one request</h2>
 
-<p>The send button lives in <code>app.js</code>. It guards re-entry with <code>state.sending</code>, records the originating <code>tabKey</code>, and after the await finds that tab again and writes the result back to the caller. Switching tabs while waiting therefore cannot leak results into the wrong tab:</p>
+<p>The send button lives in the frontend. It guards against re-entry, records the originating tab key, and after the await finds that tab again and writes the result back to the caller. Switching tabs while waiting therefore cannot leak a result into the wrong tab.</p>
 
 <pre><code>async function send() {
   if (state.sending) return;
@@ -1237,286 +1238,312 @@ npm run desktop:portable
 }
 </code></pre>
 
-<p>Backend <code>SendRequest</code> is a one-way pipeline: <code>Store.Snapshot()</code> takes a data copy, <code>buildVars</code> assembles the variable table, <code>resolveRequest</code> interpolates on a request copy, <code>buildBody</code> produces bytes and a Content-Type, <code>proxy.Options</code> is assembled, and <code>Client.Send</code> takes over. Network failures are not returned as Go errors; they land in <code>Result.Error</code> and <code>Result.ErrorKind</code>. Only program state such as "store unavailable" travels as a Go error, so the frontend can distinguish "the request failed" from "the program is broken".</p>
+<p>The backend handler is a one-way pipeline. It takes a snapshot of the store, builds the variable table, resolves the request on a copy, builds the body and its content type, assembles transport options, and sends.</p>
 
-<p><code>SendOptions</code> uses pointer booleans to distinguish "the frontend did not specify, use global settings" from "explicitly off". <code>pickInt</code> and <code>pickBool</code> fall back through settings then defaults, and timeout, follow-redirects and skip-TLS all resolve in that order — so a single request can override settings without rewriting them globally.</p>
+<p>Network failures are not returned as Go errors. They land in a result object with an error kind, so the frontend can distinguish "the request failed" from "the program is broken". Only program state, such as an unavailable store, travels as a Go error.</p>
 
-<p>If <code>buildBody</code> fails to read a file it does not return a Go error either: it builds a Result with <code>ErrorKind: file</code> and records history as usual. The frontend can then show "file read failed" instead of an unhandled exception. The model holds across the chain: once a request has been attempted, failure comes back as a Result.</p>
+<p>Request options use pointer booleans to distinguish "the frontend did not specify, use global settings" from "explicitly off". Timeout, redirect following and TLS skipping all resolve through settings then defaults, so a single request can override settings without rewriting them.</p>
 
-<p>History stores the original request <code>req</code>, never the interpolated <code>resolved</code> — so history keeps <code>{{token}}</code>, not the resolved secret. Response bodies, timings and headers are not persisted; only status code, size, time and an error summary are. History caps at 200 entries, dropping from the tail. Success and failure both call <code>recordHistory</code>, so history contains 200s as well as timeouts and DNS failures; with status 0 the frontend still renders by error kind.</p>
+<p>If building the body fails to read a file, that is also not a Go error. It produces a result with a file error kind and records history as usual, so the frontend shows "file read failed" instead of an unhandled exception. The model holds across the chain: once a request has been attempted, failure comes back as a result.</p>
+
+<p>History stores the original request, never the resolved one, so it keeps placeholders rather than resolved secrets. Response bodies, timings and headers are not persisted, only status code, size, time and an error summary. History caps at 200 entries, dropping from the tail. Success and failure both record, so history contains 200s as well as timeouts and DNS failures.</p>
 
 <h2>The HTTP engine: written, not wrapped</h2>
 
-<p>No third-party HTTP client: <code>internal/proxy/proxy.go</code> uses <code>net/http</code> directly. The reason is practical — full control over TLS verification, redirect policy, timeouts, connection closing and phase timings, all of which high-level wrappers tend to flatten.</p>
+<p>There is no third-party HTTP client. The proxy package uses the standard library directly, because it needs full control over TLS verification, redirect policy, timeouts, connection closing and phase timings. High-level wrappers tend to flatten exactly those.</p>
 
-<p>Layer one is URL merging. <code>BuildURL</code> first completes a bare domain with <code>http://</code>, then parses the original query string and merges the parameter table; same-name keys overwrite, the rest keep order, and query-style API keys append at the end. One easily missed detail: a bare <code>?flag</code> with no equals sign must keep its valueless state and must not become <code>?flag=</code>. The implementation records this with <code>kvPair{hasValue bool}</code>, shared by sending and cURL export so two URL rule sets cannot drift.</p>
+<p><strong>Layer one is URL merging.</strong> A bare domain gets its scheme filled in, then the original query string is parsed and the parameter table is merged in. Same-name keys overwrite, the rest keep their order, and query-form API keys append at the end.</p>
 
-<p>Concretely: with the original URL <code>https://api.example.com/users?page=1&amp;flag</code> and a parameter table adding <code>size=20</code> while overriding <code>page=2</code>, the final query is <code>page=2&amp;flag&amp;size=20</code>. <code>flag</code> has no equals sign and must not gain one; spaces in values become <code>+</code>, and non-ASCII text is percent-encoded.</p>
+<p>One detail is easy to miss: a bare flag parameter with no equals sign has to keep its valueless state and must not become an empty assignment. The implementation records that with an explicit has-value flag, and the same function is shared by sending and by cURL export, so the two cannot drift apart.</p>
 
-<p>Layer two is request construction. Timeout and <code>httptrace</code> must be attached to the context before the request is created:</p>
+<p>Concretely, with the original query string holding a page and a flag, and a parameter table adding a size while overriding the page, the final query keeps the flag bare, applies the override, and appends the new key. Spaces become plus signs and non-ASCII text is percent-encoded.</p>
+
+<p><strong>Layer two is request construction.</strong> The timeout and the trace hook have to be attached to the context before the request is created.</p>
 
 <pre><code>ctx, cancel := context.WithTimeout(ctx, timeout)
 defer cancel()
-ctx = httptrace.WithClientTrace(ctx, &amp;httptrace.ClientTrace{ /* DNS/Connect/TLS/TTFB */ })
+ctx = httptrace.WithClientTrace(ctx, &amp;httptrace.ClientTrace{ /* DNS, connect, TLS, first byte */ })
 req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 </code></pre>
 
-<p>Reverse the order and <code>http.Request</code> holds a parent context with no deadline, making the timeout useless. That ordering trap gets its own entry below.</p>
+<p>Reverse the order and the request keeps a parent context with no deadline, which makes the timeout a decoration. That trap gets its own entry in the problem list.</p>
 
-<p>Layer three is transport. Every request clones <code>http.DefaultTransport.(*http.Transport)</code>, sets <code>InsecureSkipVerify</code> when the user disabled certificate checks, and calls <code>CloseIdleConnections()</code> in a <code>defer</code>. Go's <code>http.Client</code> handles redirects itself; <code>CheckRedirect</code> does two things: return <code>http.ErrUseLastResponse</code> when following is off so 3xx responses surface as-is; or allow at most 10 hops and record each hop's URL and status in <code>Hop</code>.</p>
+<p><strong>Layer three is transport.</strong> Every request clones the default transport, sets the skip-verify flag when the user turned off certificate checks, and closes idle connections when done. Redirect handling does two things: with following off it returns the last response so 3xx bodies surface as-is; with following on it allows at most ten hops and records each hop's URL and status.</p>
 
-<p>Layer four is reading the response. <code>io.LimitReader(resp.Body, max+1)</code> reads 20 MB plus one byte; beyond that the data is cut to 20 MB and <code>Truncated</code> is set. Memory stays bounded and "exactly 20 MB" is distinguishable from "truncated". Content-Type, UTF-8 validity and NUL bytes decide whether the body is binary; binary becomes Base64, text passes through. Cookies live in a shared <code>cookiejar</code>, and <code>ClearCookies</code> swaps in a new jar rather than deleting entries one by one.</p>
+<p><strong>Layer four is reading the response.</strong> A limited reader takes 20 MB plus one byte. Past that, the body is cut and marked truncated, so memory stays bounded and "exactly 20 MB" is distinguishable from "truncated". Content type, UTF-8 validity and NUL bytes decide whether the body is binary; binary becomes base64, text passes through. Cookies live in a shared jar, and clearing swaps in a new jar rather than deleting entries one by one.</p>
 
-<p>One special case when writing headers: <code>Host</code> does not go into <code>Header</code> but onto <code>req.Host</code>, because Go's Header does not participate in host selection. Authentication is applied after headers: Basic via <code>SetBasicAuth</code>, Bearer writing <code>Authorization</code>, and API keys going to a header or a query parameter depending on <code>AddTo</code>.</p>
+<p>One special case in header writing: the host header is assigned to the request's host field rather than the header map, because the map does not participate in host selection. Authentication is applied after headers. Basic auth uses the standard helper, bearer writes the authorization header, and API keys go to a header or a query parameter depending on their placement setting.</p>
 
-<p><code>Proto</code>, <code>RemoteAddr</code>, <code>Redirects</code> and the phase timings in <code>Result</code> are not decoration: they show whether a request is slow in DNS, TCP, TLS or time-to-first-byte, and where a 302 went. When the network fails, timings already collected are kept and the frontend notes "timings above were captured before the failure".</p>
+<p>Protocol, remote address, redirect count and the phase timings in the result are not decoration. They let a user see whether a request is slow in DNS, TCP, TLS or time to first byte, and where a redirect went. When the network fails, timings already collected are kept and the frontend says so.</p>
 
-<p>Status text is sliced out of <code>resp.Status</code> after the space; the protocol field records HTTP/1.1 or HTTP/2; headers stay a multi-value map so the frontend can show repeated headers on separate lines instead of merging them.</p>
+<p>Status text is sliced out of the raw status line, the protocol field records HTTP/1.1 or HTTP/2, and headers stay a multi-value map, so the frontend can show repeated headers on separate lines instead of merging them into one.</p>
 
-<h2>Variable interpolation: one pass, three levels of recursion</h2>
+<h2>Variable interpolation: one pass, three levels</h2>
 
-<p>Syntax is <code>{{name}}</code>, matched by <code>\\{\\{\\s*([^{}]*?)\\s*\\}\\}</code>. <code>interp.Resolve</code> recurses at most three levels, replacing matching keys each round; it exits early when a round changes nothing, and placeholders still unresolved after three rounds stay as written. That handles <code>{{baseUrl}}/{{path}}</code> and variables referring to variables without looping forever on <code>a={{b}}</code>, <code>b={{a}}</code>.</p>
+<p>The syntax is a double-brace placeholder, matched by a regular expression that allows whitespace. Resolution recurses at most three levels, replacing matching keys each round. It exits early when a round changes nothing, and placeholders still unresolved after three rounds stay as written.</p>
 
-<p>Variable precedence is explicit: merge all <code>IsGlobal</code> environments first, then override same-name keys from the selected <code>envID</code>. Global variables are the floor, environment variables the override. Disabled rows and empty keys are skipped.</p>
+<p>That handles a placeholder inside a path and a variable that refers to another variable, without looping forever on a pair that refer to each other.</p>
 
-<p>For example with globals <code>baseUrl=https://dev.example.com</code> and <code>token=global-token</code>, and the current environment overriding <code>baseUrl</code> to <code>https://staging.example.com</code>, <code>{{baseUrl}}/users</code> goes to staging while <code>{{token}}</code> still resolves to the global value. When several global environments share a key, the later merged one wins, and that merge order comes from the environment list.</p>
+<p>Precedence is explicit. All global environments merge first, then the selected environment overrides same-name keys. Global variables are the floor and environment variables are the override. Disabled rows and empty keys are skipped.</p>
 
-<p>The three-level boundary matters: <code>a={{b}}</code>, <code>b={{c}}</code>, <code>c=value</code> resolves; a longer chain leaves placeholders from level four onward in the unresolved list rather than expanding forever. It is a hard anti-cycle cap, not "try a few more times".</p>
+<p>For example, with a global base URL and a global token, and the current environment overriding the base URL, a placeholder for the base goes to the environment's host while the token still resolves to the global value. When several global environments share a key, the later merged one wins, and that order follows the environment list.</p>
 
-<p>Resolution only happens on a copy. <code>cloneRequestForResolve</code> copies the slices that may be rewritten — Params, Headers, Body.Form, Body.Files — while URL, body and auth fields are copied by value. Resolution covers URL, parameter keys and values, header values, raw/form/files bodies, Basic username and password, Bearer and API key pairs; enum fields such as method and body type are not interpolated.</p>
+<p>The three-level boundary matters too. A two-step chain resolves. A longer chain leaves placeholders from the fourth level onward in the unresolved list rather than expanding forever. It is a hard anti-cycle cap, not "try a few more times".</p>
 
-<p>Unresolved variables do not fail the request: it is sent as written and the names come back in <code>Result.UnresolvedVars</code>. The frontend shows "these variables were not resolved and were sent as-is" in red. That degradation is deliberate — during debugging you often need to see how the server responds to an unfilled path rather than being blocked client-side.</p>
+<p>Resolution only ever touches a copy. The clone duplicates the slices that may be rewritten, such as parameters, headers, form fields and file fields, while URL, body and auth fields are copied by value. Resolution covers the URL, parameter keys and values, header values, raw and form and file bodies, plus basic username and password, bearer tokens and API key pairs. Enumerated fields such as method and body type are not interpolated.</p>
+
+<p>Unresolved variables do not fail the request. It is sent as written, and the names come back in the result. The frontend shows them in red with a note that they were sent as-is. That degradation is deliberate, because during debugging you often need to see how the server responds to an unfilled path rather than being blocked client-side.</p>
 
 <h2>cURL both ways: lexing, mapping and warnings</h2>
 
-<p>cURL import does not shell out; it ships a small lexer handling single and double quotes, backslash continuations, cmd's <code>^</code> continuation, the <code>$</code> prefix and <code>curl.exe</code>. The lexer emits tokens, which are then parsed against an option table.</p>
+<p>Import does not shell out. It ships a small lexer handling single and double quotes, backslash continuations, cmd's caret continuation, the PowerShell prefix and the explicit <code>curl.exe</code> name. The lexer emits tokens, which are then parsed against an option table.</p>
 
-<p>The supported set covers day-to-day debugging: <code>-X/--request</code>, <code>-H/--header</code>, <code>-d/--data</code>, <code>--data-raw</code>, <code>--data-binary</code>, <code>--json</code>, <code>-F/--form</code>, <code>-u/--user</code>, <code>--oauth2-bearer</code>, <code>-b/--cookie</code>, <code>-A/--user-agent</code>, <code>-e/--referer</code>, <code>-G</code>, <code>-I</code>. Unknown options are never silently dropped; they land in <code>Warnings</code>, shown with the import result.</p>
+<p>The supported set covers day-to-day debugging: request method, header, data, raw data, binary data, JSON, form, user, OAuth bearer, cookie, user agent, referer, GET redirection, and head. Unknown options are never silently dropped; they land in a warnings list shown with the import result.</p>
 
-<p>Method inference follows curl's habits: an explicit <code>-X</code> wins; <code>-I</code> yields HEAD; <code>-F</code> or <code>-d</code> yields POST; <code>-G</code> moves <code>-d</code> content into the query string and returns to GET. <code>--json</code> sets a JSON body and adds <code>Accept: application/json</code>. When an explicit method conflicts with inference, the explicit one wins.</p>
+<p>Method inference follows cURL's habits. An explicit method wins. A head flag yields HEAD. A form or data flag yields POST. A GET flag moves the data into the query string and returns to GET. The JSON flag sets a JSON body and adds an accept header. When an explicit method conflicts with inference, the explicit one wins.</p>
 
-<p>A few key mappings:</p>
+<p>A few mappings deserve detail.</p>
+
 <ul>
-<li><code>-d @file</code> and <code>--data-binary @file</code> read the file, capped at 20 MB and requiring UTF-8; <code>--data-raw @x</code> keeps the literal and does not read a file.</li>
-<li>Multiple <code>-d</code> values join with <code>&amp;</code> into one body, matching curl's form behavior.</li>
-<li>With <code>-F</code> the request becomes multipart; per-file options such as <code>;type=</code> and <code>;filename=</code> are stripped with a warning, because NanoAPI file fields only have a key and a path.</li>
-<li><code>-k/--insecure</code> is not written into the request; it warns "turn off TLS certificate verification in settings" instead.</li>
-<li><code>-x/--proxy</code> warns and is ignored — there is no proxy configuration UI.</li>
-<li><code>-T/--upload-file</code>, <code>-K/--config</code> and client certificates also only warn; the tool never pretends to support them.</li>
+<li>Data and binary data read a file behind an at sign, capped at 20 MB and requiring UTF-8. Raw data keeps the literal and reads nothing.</li>
+<li>Multiple data flags join with ampersands into one body, matching cURL's form behavior.</li>
+<li>With a form flag the request becomes multipart. Per-file options such as type and filename are stripped with a warning, because NanoAPI's file fields hold only a key and a path.</li>
+<li>The insecure flag is not written into the request. It warns that certificate verification lives in settings.</li>
+<li>The proxy flag warns and is ignored, because there is no proxy configuration screen.</li>
+<li>Upload-file, config and client certificates also only warn. The tool never pretends to support them.</li>
 </ul>
 
-<p>Export takes another path but reuses <code>proxy.BuildURL</code> and the same header/auth dedupe rules. Output is Bash-style with single quotes, inner single quotes replaced by <code>'\\''</code>. Basic auth becomes <code>-u</code>; Bearer and header-form API keys become <code>-H</code>; multipart becomes <code>--form-string</code> plus <code>-F key=@path</code>. Dedupe removes <code>Content-Length</code>, <code>Transfer-Encoding</code>, hand-written multipart <code>Content-Type</code>, and duplicate <code>Authorization</code> or API key headers.</p>
+<p>Export takes a different path but reuses the same URL builder and the same dedupe rules. Output is a Bash-style command with single quotes, and inner single quotes are replaced by the usual escape sequence. Basic auth becomes a user flag, bearer and header-form API keys become header flags, and multipart becomes form-string for text fields plus form flags for files.</p>
 
-<p>Multipart text fields deliberately use <code>--form-string</code> so a <code>@</code> or <code>&lt;</code> in the value is not read as a file reference; file fields use <code>-F key=@path</code> with the path handed to shell quoting. HEAD exports as <code>-I</code> rather than <code>-X HEAD</code>, because the latter can leave clients waiting for a body. <code>shellQuote</code> guarantees safety under Bash only, not cmd — output targets Bash, WSL or Git Bash, an explicit platform assumption.</p>
+<p>Dedupe removes content-length, transfer-encoding, a hand-written multipart content type, and any authorization or API key header that duplicates the auth section.</p>
 
-<p>This is not a complete cURL. The goal is "bring the common debugging commands in", not "interpret all of curl syntax", which makes the warning policy important: anything unrecognized is reported instead of quietly producing a request that looks right and behaves differently. For <code>curl.exe -X POST 'https://api.example.com/users' -H 'Content-Type: application/json' -d '{"name":"Sam"}'</code>, the lexer does not treat quotes inside the JSON as command boundaries; an unclosed quote returns an error rather than guessing intent.</p>
+<p>Multipart text fields use form-string deliberately, so an at sign or a less-than in the value is not read as a file reference. File fields use a file form, with the path handed to shell quoting. HEAD exports as a head flag rather than an explicit method, because the explicit form can leave clients waiting for a body that never comes. The quoting helper guarantees safety under Bash only, so export targets Bash, WSL or Git Bash. That is an explicit platform assumption.</p>
 
-<h2>Upload and download: how files get in and out</h2>
+<p>This is not a complete cURL. The goal is to bring the common debugging commands in, not to interpret every part of the cURL language, which makes the warning policy important. Anything unrecognized is reported instead of quietly producing a request that looks right and behaves differently. An unclosed quote returns an error rather than guessing intent.</p>
 
-<p>Uploads assemble multipart on the Go side. Text fields use <code>WriteField</code>; file fields are <code>os.Stat</code>ed first, directories rejected, single files capped at 20 MB and the total at 50 MB, then written via <code>CreateFormFile</code> with <code>filepath.Base(path)</code>. All files are read into memory before assembly, which is exactly why the caps must exist — one huge file would otherwise take the process down. File paths are interpolated too, so <code>{{fixturesDir}}/avatar.png</code> works; resolution happens before sending and a missing path returns a <code>file</code> error.</p>
+<h2>Upload and download</h2>
 
-<p>One crucial step before sending: if the body is multipart, drop any user-written <code>Content-Type</code>. The boundary is generated for this request, so a hand-written one cannot match, and keeping it only makes the server fail to parse. Importing a cURL with both <code>-F</code> and a manual <code>Content-Type</code> removes it with a warning; export skips multipart's Content-Type for the same reason.</p>
+<p>Uploads assemble multipart bodies on the Go side. Text fields are written directly. File fields are stat-checked first, directories are rejected, a single file is capped at 20 MB and the total at 50 MB, and the body uses the file's base name.</p>
 
-<p>Download runs the other way. When saving a response body the filename is picked in order: the name in <code>Content-Disposition</code>, the last segment of the final response URL, then the request name. <code>Content-Disposition</code> supports both plain <code>filename=</code> and RFC 5987's <code>filename*=UTF-8''</code>. The chosen name is reduced to a basename, <code>&lt;&gt;:"/\\|?*</code> and control characters are replaced, trailing dots and spaces trimmed, and the result capped at 120 runes. Both sides have cleaning logic: the frontend for suggestions, the backend as the final guard. Image preview has an extra 8 MB ceiling; beyond it, or when truncated, the view falls back to Base64 to avoid stuffing a huge data URL into the DOM.</p>
+<p>All files are read into memory before assembly, which is exactly why the caps have to exist. One enormous file would otherwise take the process down. File paths are interpolated too, so a placeholder directory works, and resolution happens before sending. A missing path returns a file error.</p>
 
-<p>Binary responses show as Base64 and the backend decodes back to raw bytes on save. Image responses preview directly when untruncated and small; other binaries stay Base64 text. The viewer therefore needs no renderer per format and never feeds binary data into a text highlighter.</p>
+<p>One step before sending is crucial. If the body is multipart, any user-written content type is dropped. The boundary is generated for this request, so a hand-written one cannot match, and keeping it only makes the server fail to parse. Import removes a manual content type when a form flag is present and warns; export skips it for the same reason.</p>
 
-<h2>Storage: reliability design for a single JSON file</h2>
+<p>Download runs the other way. The filename is chosen in order: the name in the content-disposition header, then the last segment of the final response URL, then the request name. The header supports both the plain form and the RFC 5987 UTF-8 form.</p>
 
-<p>The data file is fixed at <code>%APPDATA%\\NanoAPI\\nanoapi.json</code>, derived from <code>os.UserConfigDir()</code>. It holds collections, environments, global variables, settings, history and open tabs. No database, no schema version, no migration framework. If the user config directory is unavailable, <code>NewApp</code> falls back to the system temp directory so the app still starts — with no persistence across restarts.</p>
+<p>The chosen name is reduced to a base name, characters that are illegal on Windows are replaced, trailing dots and spaces are trimmed, and the result is capped at 120 runes. Both sides clean the name: the frontend for the suggestion, the backend as the final guard. Image preview has an extra 8 MB ceiling; beyond it, or when the body was truncated, the view falls back to base64 rather than stuffing a huge data URL into the DOM.</p>
 
-<p>Reads do no whole-file validation, only per-field repair: a timeout of zero or less resets to default, an empty theme resets to default, nil collections/environments/history/tabs become empty slices. One bad field therefore cannot cost the user their chosen theme. If JSON parsing fails, the original file is renamed to <code>nanoapi.json.corrupt-&lt;timestamp&gt;.json</code> and the app starts empty. Nothing is deleted, so manual repair or restoring a backup stays possible.</p>
+<p>Binary responses show as base64, and the backend decodes back to raw bytes when saving. Image responses preview directly when untruncated and small. The viewer therefore needs no renderer per format, and binary data never reaches a text highlighter.</p>
 
-<p>Writes are debounced by 300 ms so typing does not hit the disk. The actual write creates a temp file in the same directory, writes, <code>Sync</code>s, closes, then <code>Rename</code>s over the target — a process exiting mid-write leaves no half-JSON. <code>Snapshot</code> returns slice copies so callers cannot mutate underlying data while it is being serialized. That copy looks fussy and is the core of concurrency safety: while an HTTP request runs in the background, the frontend may be editing collections or environments, and serialization must work from a stable copy.</p>
+<h2>Storage: reliability for a single JSON file</h2>
 
-<p><code>Close</code> only performs a final flush, and closing the window also triggers the frontend's tab save. Both paths use the same atomic write, so there is no "different write logic on close" risk. History caps at 200 entries; bodies and timings never persist. The file usually stays tens of KB, and "you can see the previous response after restart" is explicitly not a capability. To keep a response, save it to a file.</p>
+<p>The data file sits under the user's application data directory, derived from the standard config path. It holds collections, environments, global variables, settings, history and open tabs. There is no database, no schema version and no migration framework.</p>
 
-<h2>Bulk edit and backups: pure frontend logic and merge-on-import</h2>
+<p>If the config directory is unavailable, the application falls back to the system temp directory so it still starts, with no persistence across restarts.</p>
 
-<p>Bulk editing of environment variables is pure frontend logic in <code>envbulk.js</code>. Input is <code>.env</code>-style <code>KEY=value</code> text; parsing skips blank lines and <code>#</code> comments, drops an <code>export</code> prefix, supports single and double quotes, and inside double quotes resolves <code>\\n</code>, <code>\\r</code>, <code>\\t</code>, <code>\\"</code> and <code>\\\\</code>. Duplicate keys take the last line, and invalid lines are counted without blocking. Existing variables keep their <code>enabled</code> and <code>desc</code>, so one bulk paste cannot wipe carefully written notes.</p>
+<p>Reads do no whole-file validation, only per-field repair. A timeout of zero or less resets to the default, an empty theme resets to the default, and nil collections, environments, history and tabs become empty slices. One bad field therefore cannot cost the user their chosen theme.</p>
 
-<p>Formatting is the reverse: values containing newlines, tabs, leading or trailing spaces, or already quoted, get double quotes and escaping. Frontend tests cover parse-format round-trip consistency, which catches quote and escape edge cases that single-line tests miss.</p>
+<p>If JSON parsing fails, the original file is renamed with a corrupt marker and a timestamp, and the app starts empty. Nothing is deleted, so manual repair or restoring a backup stays possible.</p>
 
-<p>For example, given <code>export BASE_URL=https://api.example.com</code>, <code>TOKEN="line1\\nline2"</code>, <code># comment</code> and a line <code>BROKEN</code> with no equals sign, parsing yields two variables and one invalid-line count; the escaped newline in <code>TOKEN</code> becomes a real line break. A repeated <code>KEY</code> overrides the earlier one while preserving its <code>enabled</code> and <code>desc</code>.</p>
+<p>Writes are debounced by 300 ms, so typing does not hit the disk. The actual write creates a temporary file in the same directory, writes, syncs, closes, then renames over the target, so a process exiting mid-write leaves no half-written JSON.</p>
 
-<p>Backups use only the project's own <code>nanoapi-bundle</code> v1, exporting collections and environments, never history, settings or tabs; import caps at 32 MB and also accepts a bare <code>nanoapi.json</code>. Import is not overwrite but append-merge: the collection tree recursively generates new ids so nodes cannot collide; environments get new ids with " (imported)" appended on name clashes and " (imported 2)" after that; global variables exist once only, merging by key with existing values winning, skipping duplicates and reporting a count.</p>
+<p>Snapshots return slice copies so callers cannot mutate underlying data while it is being serialized. That copy looks fussy and is the core of concurrency safety: while a request runs in the background, the frontend may be editing collections or environments, and serialization has to work from a stable copy.</p>
 
-<p>To repeat: this import recognizes no Postman Collection, Bruno, OpenAPI or HAR. No format sniffing, no field mapping. If you hold a Postman export, the correct path is to export cURL and import that, or convert the JSON by hand. That is a product boundary, not a to-do item.</p>
+<p>Close performs a final flush, and closing the window also triggers the frontend's tab save. Both paths use the same atomic write, so there is no separate close-time logic. History keeps 200 entries, and bodies and timings never persist. The file usually stays small, and "you can see the previous response after restart" is explicitly not a capability.</p>
 
-<h2>Problem list 1: four network-semantics traps</h2>
-<h3>Problem 1: the timeout appears to do nothing</h3>
+<h2>Bulk edit and backups</h2>
 
-<p><strong>Symptom.</strong> Set a 200 ms timeout against an endpoint that takes 2 seconds; the client still waits the full 2 seconds and reports something other than a timeout.</p>
+<p>Bulk editing of environment variables is pure frontend logic. Input is dotenv-style key-value text. Parsing skips blank lines and comments, drops an export prefix, supports single and double quotes, and inside double quotes resolves newline, carriage return, tab, escaped quote and escaped backslash.</p>
 
-<p><strong>Cause.</strong> The original code called <code>http.NewRequestWithContext(ctx, ...)</code> first and only then attached <code>WithTimeout</code> and <code>httptrace</code>. <code>http.Request</code> keeps the deadline-free context it was built with; deriving a new context later does not affect a request already constructed, and the timer was never on the executed path.</p>
+<p>Duplicate keys take the last line, and invalid lines are counted without blocking the import. Existing variables keep their enabled flag and their description, so one bulk paste cannot wipe notes someone wrote carefully.</p>
 
-<p><strong>Fix.</strong> Reorder: <code>context.WithTimeout</code>, then <code>httptrace.WithClientTrace</code>, then <code>NewRequestWithContext</code>. Added <code>TestTimeoutIsReported</code>: a 200 ms timeout against an <code>httptest</code> server that sleeps 2 seconds, asserting <code>ErrorKind == timeout</code>.</p>
+<p>Formatting is the reverse. Values containing newlines, tabs, leading or trailing spaces, or already quoted, get double quotes and escaping. Frontend tests cover parse-format round-trip consistency, which catches quote and escape edge cases that single-line tests miss.</p>
 
-<p><strong>Cost.</strong> Every request now creates and cancels a context, which makes the code path wordier; and the timeout is a deadline for the whole request — DNS, connect, TLS, first byte and body read — not a connect timeout. Users who want per-phase limits can only read the timing panel.</p>
+<p>For example, given an export line, a quoted value with an escaped newline, a comment and a line with no equals sign, parsing yields two variables and one invalid count, and the escaped newline becomes a real line break. A repeated key overrides the earlier one while preserving its flags.</p>
 
-<h3>Problem 2: the specific redirect error is swallowed by a generic one</h3>
+<p>Backups use only the project's own format, version 1, exporting collections and environments but never history, settings or tabs. Import caps at 32 MB and also accepts a bare settings file.</p>
 
-<p><strong>Symptom.</strong> Following redirects into an infinite 302 shows "network error" rather than "more than 10 redirects", and the internal <code>ErrorKind</code> becomes <code>network</code>.</p>
+<p>Import is not overwrite but append-merge. The collection tree generates fresh ids recursively, so nodes cannot collide. Environments get fresh ids, with an "imported" suffix on name clashes and a number after that. Global variables exist once only, merging by key with existing values winning, duplicates skipped and a count reported.</p>
 
-<p><strong>Cause.</strong> When <code>CheckRedirect</code> noticed more than 10 hops it wrote <code>res.Error</code> and <code>ErrTooManyRedirects</code> and returned an error. <code>client.Do</code> wrapped that in <code>*url.Error</code>, and the outer handler then overwrote <code>res</code> via <code>translateError</code> and <code>classify</code>. A specific error lost to a vaguer one.</p>
+<p>To repeat: this import recognises no Postman collection, no Bruno, no OpenAPI and no HAR. No format sniffing, no field mapping. If you hold a Postman export, the path is to export cURL and import that, or convert the JSON by hand.</p>
 
-<p><strong>Fix.</strong> In the <code>client.Do</code> error branch, check whether <code>res.ErrorKind</code> is already <code>ErrTooManyRedirects</code> and keep it. Added <code>TestTooManyRedirectsKeepsSpecificError</code> asserting both the kind and the message survive.</p>
+<h2>Problem list one: four network traps</h2>
+<h3>Problem 1: the timeout appeared to do nothing</h3>
 
-<p><strong>Cost.</strong> Error handling now has a branch for one specific kind, coupling <code>CheckRedirect</code> to the outer handler. Any future "write the result inside a callback" error type must remember the same guard.</p>
+<p><strong>Symptom.</strong> Set a 200 ms timeout against an endpoint that takes two seconds. The client still waits two seconds and reports something other than a timeout.</p>
 
-<h3>Problem 3: Windows connection errors do not match the message table</h3>
+<p><strong>Cause.</strong> The original code created the request first and attached the timeout and trace afterwards. The request keeps the deadline-free context it was built with, and deriving a new context later does not affect it. The timer was never on the executed path.</p>
 
-<p><strong>Symptom.</strong> Connecting to a closed port is recognized as "connection refused" on Linux but falls into the generic "network error" on Windows — same error, different text per platform.</p>
+<p><strong>Fix.</strong> Reorder: timeout first, trace second, request third. A test now asserts that a 200 ms timeout against a two-second server reports a timeout error kind.</p>
 
-<p><strong>Cause.</strong> Classification originally matched Linux strings like <code>connection refused</code>. Windows' <code>WSAECONNREFUSED</code> surfaces as <code>actively refused</code> or <code>no connection could be made</code>, so string matching failed; the underlying error is also wrapped by <code>*net.OpError</code> and <code>*url.Error</code>, making the outermost text unreliable.</p>
+<p><strong>Cost.</strong> Every request creates and cancels a context, which makes the code path wordier. And the timeout is a deadline for the whole request, including DNS, connect, TLS, first byte and body read, not a connect timeout. Per-phase limits are not configurable; the timing panel is how you inspect phases.</p>
 
-<p><strong>Fix.</strong> Use <code>errors.As</code> to extract <code>*net.OpError</code>, then try <code>syscall.Errno</code> and compare against <code>ECONNREFUSED</code>, <code>ECONNRESET</code>, <code>ETIMEDOUT</code>; when no errno is available, fall back to lowercase text matching covering <code>actively refused</code> and <code>no connection could be made</code>.</p>
+<h3>Problem 2: a specific redirect error swallowed by a generic one</h3>
 
-<p><strong>Cost.</strong> String fallbacks are inherently fragile across system languages and Go versions, and can misclassify non-network errors containing <code>connection reset</code>. The errno path is primary; strings are insurance.</p>
+<p><strong>Symptom.</strong> Following redirects into an endless loop shows "network error" rather than "more than ten redirects", and the internal error kind becomes the generic network kind.</p>
 
-<h3>Problem 4: self-signed certificate errors look like ordinary network failures</h3>
+<p><strong>Cause.</strong> The redirect check noticed the hop limit, wrote a specific error into the result, and returned an error. The HTTP client wrapped that error, and the outer handler then overwrote the result fields with a translated generic error. A specific error lost to a vaguer one.</p>
 
-<p><strong>Symptom.</strong> Hitting a self-signed HTTPS service shows "network error", leaving no hint that certificate verification can be disabled in settings.</p>
+<p><strong>Fix.</strong> In the error branch, check whether the result already carries the specific redirect kind and keep it. A test asserts both the kind and the message survive.</p>
 
-<p><strong>Cause.</strong> TLS error types vary across Go versions: besides <code>x509.UnknownAuthorityError</code> there are <code>tls.CertificateVerificationError</code> and <code>x509.HostnameError</code>, usually wrapped in <code>url.Error</code>. Checking one type misses most certificate problems.</p>
+<p><strong>Cost.</strong> Error handling now has a branch for one specific kind, coupling the redirect callback to the outer handler. Any future "write the result inside a callback" error type has to remember the same guard.</p>
 
-<p><strong>Fix.</strong> <code>classify</code> matches <code>tls.CertificateVerificationError</code>, <code>x509.HostnameError</code> and <code>x509.UnknownAuthorityError</code> in order via <code>errors.As</code>, then falls back to <code>certificate</code> and <code>tls</code> substrings, all mapping to <code>ErrTLS</code>, which the UI shows as "TLS certificate error".</p>
+<h3>Problem 3: Windows connection errors did not match the message table</h3>
 
-<p><strong>Cost.</strong> Substring fallbacks can misread server errors mentioning <code>tls</code> as certificate problems. The project has no client certificates, CA import or chain inspection, so enterprise mutual TLS means bypassing it or using another tool.</p>
+<p><strong>Symptom.</strong> Connecting to a closed port is recognized as connection refused on Linux and falls into the generic network error on Windows. Same condition, different text per platform.</p>
 
-<h2>Problem list 2: four Windows and cURL traps</h2>
-<h3>Problem 5: the shell lexer eats Windows paths</h3>
+<p><strong>Cause.</strong> Classification originally matched Linux strings. On Windows the same condition surfaces as "actively refused" or "no connection could be made", so string matching failed. The underlying error is also wrapped by operation and URL error types, which makes the outermost text unreliable.</p>
 
-<p><strong>Symptom.</strong> Importing <code>-F "file=@C:\\Users\\me\\a.txt"</code> loses the backslashes and the file is not found.</p>
+<p><strong>Fix.</strong> Extract the operation error, then try the syscall errno and compare against the refused, reset and timed-out codes. When no errno is available, fall back to lowercase text matching covering both Windows phrasings.</p>
 
-<p><strong>Cause.</strong> The lexer treated backslashes as escapes by shell rules. Rules meant for <code>\\</code>, <code>\\"</code> and <code>\\\\\\\\</code> swallow the backslash before characters like <code>\\U</code> or <code>\\m</code>, destroying Windows paths — and Windows users rarely add extra quotes or double backslashes.</p>
+<p><strong>Cost.</strong> String fallbacks are fragile across system languages and Go versions, and can misclassify unrelated errors that happen to contain the phrase. The errno path is primary and strings are insurance.</p>
 
-<p><strong>Fix.</strong> Escape only space, tab, quotes, backslash, <code>$</code> and backtick; keep the backslash for everything else. The non-special branch lives in <code>curl.go</code>, and <code>TestSplitCurlCommandKeepsWindowsPaths</code> pins the behavior.</p>
+<h3>Problem 4: self-signed certificate errors looked like network failures</h3>
 
-<p><strong>Cost.</strong> One lexer serves both POSIX shell and Windows habits, so semantics cannot be identical. An unquoted path containing spaces still splits into tokens, and <code>\\n</code> inside double quotes is still a newline rather than a path fragment.</p>
+<p><strong>Symptom.</strong> Hitting a self-signed HTTPS service shows a network error, with no hint that certificate verification can be turned off in settings.</p>
 
-<h3>Problem 6: cmd's <code>^</code> continuation is not recognized</h3>
+<p><strong>Cause.</strong> TLS error types vary across Go versions. Besides an unknown authority error there are certificate verification and hostname errors, usually wrapped in a URL error. Checking one type misses most certificate problems.</p>
 
-<p><strong>Symptom.</strong> Copying a multi-line cURL from a cmd window (lines ending in <code>^</code>) yields shifted arguments or a parse failure.</p>
+<p><strong>Fix.</strong> Classify by matching the verification, hostname and unknown-authority types in order, then fall back to certificate and TLS substrings, all mapping to one TLS kind that the interface renders as a certificate error.</p>
 
-<p><strong>Cause.</strong> The lexer knew backslash continuations and plain newlines, not cmd's <code>^</code>; and Windows text may carry CRLF, so <code>^\\r\\n</code> was never treated as one continuation.</p>
+<p><strong>Cost.</strong> Substring fallbacks can misread a server error that mentions TLS as a certificate problem. And the project has no client certificates, no CA import and no chain inspection, so enterprise mutual TLS means using something else.</p>
 
-<p><strong>Fix.</strong> The <code>^</code> branch handles both <code>\\n</code> and <code>\\r\\n</code> as continuations, while a standalone <code>^</code> stays a literal. The <code>$</code> prefix and <code>curl.exe</code> are also accepted, covering commands copied from PowerShell.</p>
+<h2>Problem list two: four Windows and cURL traps</h2>
+<h3>Problem 5: the shell lexer ate Windows paths</h3>
 
-<p><strong>Cost.</strong> Only continuation is implemented, not cmd's full escaping: <code>%VAR%</code> expansion, <code>&amp;</code> separation and <code>^</code> escaping of other characters are not simulated, so complex batch commands still warn or parse imperfectly.</p>
+<p><strong>Symptom.</strong> Importing a form field that references a Windows path loses the backslashes, and the file is not found.</p>
+
+<p><strong>Cause.</strong> The lexer treated backslashes as escapes by shell rules. Rules meant for backslash, escaped quote and doubled backslash also swallow the backslash before ordinary letters, which destroys Windows paths, and Windows users rarely add extra quotes.</p>
+
+<p><strong>Fix.</strong> Escape only spaces, tabs, quotes, backslash, dollar signs and backticks. Keep the backslash for every other character. A test pins the behavior with a Windows path.</p>
+
+<p><strong>Cost.</strong> One lexer serves both POSIX shell habits and Windows habits, so the semantics cannot be identical. An unquoted path containing spaces still splits into tokens, and an escaped n inside double quotes is still a newline rather than a path fragment.</p>
+
+<h3>Problem 6: cmd's caret continuation was not recognized</h3>
+
+<p><strong>Symptom.</strong> Copying a multi-line cURL command out of a cmd window, where lines end with a caret, produces shifted arguments or a parse failure.</p>
+
+<p><strong>Cause.</strong> The lexer knew backslash continuations and plain newlines but not the caret. And Windows text can carry CRLF, so a caret followed by CRLF was never treated as one continuation.</p>
+
+<p><strong>Fix.</strong> The caret branch handles both line ending forms as continuations, while a standalone caret stays literal. The PowerShell prefix and the explicit executable name are accepted too, which covers commands copied from PowerShell.</p>
+
+<p><strong>Cost.</strong> Only continuation is implemented, not cmd's full escaping. Variable expansion, command separation and caret-escaping of other characters are not simulated, so complex batch commands still warn or parse imperfectly.</p>
 
 <h3>Problem 7: cURL options that look alike but are not</h3>
 
-<p><strong>Symptom.</strong> Users assume <code>-d @payload.json</code> and <code>--data-raw @payload.json</code> both read a file, then the latter sends the literal <code>@payload.json</code>; or they assume <code>-k</code> disables certificate checks, yet importing leaves settings untouched.</p>
+<p><strong>Symptom.</strong> Users assume that data and raw data both read a file, then the latter sends a literal at sign path. Or they assume the insecure flag disables certificate checks, and importing leaves settings untouched.</p>
 
-<p><strong>Cause.</strong> These differences are curl's own. <code>-d</code> and <code>--data-binary</code> read files behind <code>@</code>, while <code>--data-raw</code> explicitly keeps the literal; <code>-k</code> is a per-run TLS option in curl, whereas certificate verification here is a global setting that one command should not silently change.</p>
+<p><strong>Cause.</strong> These differences belong to cURL. Data and binary data read files behind the at sign, while raw data explicitly keeps the literal. The insecure flag is a per-run TLS option in cURL, whereas certificate verification here is a global setting that one command should not silently change.</p>
 
-<p><strong>Fix.</strong> Dispatch by option name: <code>data</code> and <code>data-binary</code> read files (20 MB, UTF-8), <code>data-raw</code> keeps text, <code>-k/--insecure</code> only warns and points at settings, and <code>--data-urlencode</code> imports verbatim with a warning that no URL encoding was applied.</p>
+<p><strong>Fix.</strong> Dispatch by option name. Data flags read files, capped and UTF-8 validated. Raw data keeps text. The insecure flag only warns and points at settings. The urlencode flag imports verbatim with a warning that no encoding was applied.</p>
 
-<p><strong>Cost.</strong> Option semantics live in a lookup table that must grow with each new option; stdin, <code>-K</code> config files, client certificates and proxies are unsupported. Users may ignore warnings, especially in bulk pastes.</p>
+<p><strong>Cost.</strong> Option semantics live in a lookup table that has to grow with each new option. Standard input, config files, client certificates and proxies are unsupported. And users may ignore warnings, especially when pasting a large command.</p>
 
-<h3>Problem 8: a hand-written multipart boundary conflicts with the server</h3>
+<h3>Problem 8: a hand-written multipart boundary conflicted with the server</h3>
 
-<p><strong>Symptom.</strong> Writing <code>Content-Type: multipart/form-data; boundary=xxx</code> by hand and then choosing multipart upload makes the server fail to parse or receive fields.</p>
+<p><strong>Symptom.</strong> Writing a multipart content type by hand with a boundary, then choosing multipart upload, makes the server fail to parse or receive fields.</p>
 
-<p><strong>Cause.</strong> <code>multipart.NewWriter</code> generates the boundary at send time, so the hand-written one differs from the one actually used. Mismatched header and body are rejected by any strict server.</p>
+<p><strong>Cause.</strong> The writer generates the boundary at send time, so a hand-written one differs from the one actually used. Mismatched header and body are rejected by any strict server.</p>
 
-<p><strong>Fix.</strong> After building the body and before sending, if the body is multipart, delete <code>Content-Type</code> from the header copy and use the automatic value from <code>w.FormDataContentType()</code>. cURL import removes a hand-written Content-Type when <code>-F</code> is present and warns; export skips it too.</p>
+<p><strong>Fix.</strong> After building the body and before sending, if the body is multipart, delete the content type from the header copy and use the generated value. Import removes a manual content type when a form flag is present and warns; export skips it as well.</p>
 
-<p><strong>Cost.</strong> Users lose the ability to customize multipart Content-Type, for example to set <code>charset</code> by hand. That is the intended trade: making a wrong configuration impossible beats preserving a freedom that usually produces errors.</p>
+<p><strong>Cost.</strong> Users lose the ability to customize the multipart content type, for example to set a charset. That is the intended trade: making a wrong configuration impossible beats preserving a freedom that usually produces errors.</p>
 
-<h2>Problem list 3: four desktop-engineering traps</h2>
+<h2>Problem list three: four desktop traps</h2>
 <h3>Problem 9: a per-request transport gives up keep-alive</h3>
 
-<p><strong>Symptom.</strong> Consecutive requests each re-establish a connection, so load runs and batch debugging take longer than expected. Sharing a transport without closing it leaves idle connections hanging until timeout.</p>
+<p><strong>Symptom.</strong> Consecutive requests each re-establish a connection, so load runs and batch debugging take longer than expected. Sharing a transport without closing it, on the other hand, leaves idle connections hanging until timeout.</p>
 
-<p><strong>Cause.</strong> The app must switch <code>InsecureSkipVerify</code> per request, and TLS configuration belongs to the transport, which cannot be safely mutated on a shared one; sharing would also let one request's TLS policy leak into another. Per-request transports mean no connection reuse.</p>
+<p><strong>Cause.</strong> The application must switch certificate verification per request, and TLS configuration belongs to the transport, which cannot be safely mutated on a shared one. Sharing would also let one request's TLS policy leak into another. Per-request transports mean no connection reuse.</p>
 
-<p><strong>Fix.</strong> Clone <code>DefaultTransport</code> per request, set its TLS configuration, and call <code>CloseIdleConnections()</code> in a <code>defer</code>. Connection lifetime is bound to the request, nothing hangs, and TLS policies stay separate.</p>
+<p><strong>Fix.</strong> Clone the default transport per request, set its TLS configuration, and close idle connections when the request finishes. Connection lifetime is bound to the request, nothing hangs, and TLS policies stay separate.</p>
 
-<p><strong>Cost.</strong> No keep-alive reuse: consecutive requests repeat DNS, TCP and TLS. Acceptable for a debugging tool, poor for high-frequency batch calls. Getting both reuse and per-request TLS would need a pool keyed by TLS policy, a clear step up in complexity.</p>
+<p><strong>Cost.</strong> No keep-alive reuse. Consecutive requests repeat DNS, TCP and TLS. That is acceptable for a debugging tool and poor for high-frequency batch calls. Getting both reuse and per-request TLS would need a transport pool keyed by policy, a clear step up in complexity.</p>
 
-<h3>Problem 10: large responses freeze the WebView</h3>
+<h3>Problem 10: large responses froze the webview</h3>
 
-<p><strong>Symptom.</strong> A multi-MB JSON makes the response pane unresponsive and the editor laggy; a large request body triggers JSON validation on every keystroke, which also stutters.</p>
+<p><strong>Symptom.</strong> A multi-megabyte JSON response makes the response pane unresponsive and the editor laggy. A large request body triggers validation on every keystroke and stutters as well.</p>
 
-<p><strong>Cause.</strong> The renderer ran <code>JSON.parse</code>, formatting and highlighting over the entire body, and live validation ran on every input. At scale, string processing and DOM construction dominate the main thread.</p>
+<p><strong>Cause.</strong> The renderer parsed, formatted and highlighted the entire body, and live validation ran on every input. At scale, string processing and DOM construction dominate the main thread.</p>
 
-<p><strong>Fix.</strong> Three thresholds: response reads cap at 20 MB (truncated with a notice), bodies over 1 MB skip prettifying and highlighting and show raw text, and request bodies over 512 KB skip live validation, debounced to 200 ms. Truncation propagates to the save dialog, which says so.</p>
+<p><strong>Fix.</strong> Three thresholds. Response reads cap at 20 MB, truncated with a notice. Bodies over 1 MB skip prettifying and highlighting and show raw text. Request bodies over 512 KB skip live validation, debounced to 200 ms. Truncation propagates to the save dialog, which says so.</p>
 
-<p><strong>Cost.</strong> Responses over 20 MB are never fully available, and saving keeps the truncated part; JSON over 1 MB loses folding and color; request bodies over 512 KB stop reporting syntax errors, which then wait for the server.</p>
+<p><strong>Cost.</strong> Responses over 20 MB are never fully available, and saving keeps the truncated part. JSON over 1 MB loses folding and color. Request bodies over 512 KB stop reporting syntax errors, which then wait for the server.</p>
 
-<h3>Problem 11: an interrupted process leaves half a JSON file</h3>
+<h3>Problem 11: an interrupted process left half a JSON file</h3>
 
-<p><strong>Symptom.</strong> Killing the app mid-write makes <code>nanoapi.json</code> unparsable on restart, and collections and environments vanish.</p>
+<p><strong>Symptom.</strong> Killing the application mid-write makes the data file unparsable on restart, and collections and environments disappear.</p>
 
-<p><strong>Cause.</strong> Overwriting the target in place is not atomic: exiting mid-write leaves invalid JSON, and a reader with no recovery strategy shows empty data.</p>
+<p><strong>Cause.</strong> Overwriting the target in place is not atomic. Exiting mid-write leaves invalid JSON, and a reader with no recovery strategy shows empty data.</p>
 
-<p><strong>Fix.</strong> Write a temp file, <code>Write</code>, <code>Sync</code>, <code>Close</code>, then <code>Rename</code> over the target; on a read failure, rename the original to <code>.corrupt-&lt;timestamp&gt;.json</code> and start empty; fill defaults per field so one bad field cannot sink the configuration. Tests assert every flush leaves valid JSON, no temp files remain, and a corrupt file is backed up and recoverable.</p>
+<p><strong>Fix.</strong> Write a temporary file, sync it, close it, then rename over the target. On a read failure, rename the original with a corrupt marker and start empty. Fill defaults per field, so one bad field cannot sink the whole configuration. Tests assert that every flush leaves valid JSON, that no temporary files remain, and that a corrupt file is backed up and recoverable.</p>
 
-<p><strong>Cost.</strong> No schema version means field upgrades rely on "fill what is missing, ignore what is unknown", with no real migration; corruption recovery is "keep the file, lose the data" and needs manual repair; 300 ms debounce can lose the last few hundred milliseconds of edits, which the forced flush on close only partly compensates.</p>
+<p><strong>Cost.</strong> No schema version means field upgrades rely on filling what is missing and ignoring what is unknown, with no real migration. Corruption recovery is "keep the file, lose the data", which needs manual repair. And a 300 ms debounce can lose the last few hundred milliseconds of edits, which the forced flush on close only partly compensates.</p>
 
-<h3>Problem 12: ids, name clashes and global-variable conflicts after import</h3>
+<h3>Problem 12: ids, name clashes and global variables after import</h3>
 
 <p><strong>Symptom.</strong> Importing a backup twice produces duplicate collection nodes where deleting one affects the other, two identically named environments that cannot be told apart, and global variables overwritten wholesale.</p>
 
-<p><strong>Cause.</strong> Bundle nodes carry their original ids and collide when appended; environment names have no uniqueness constraint; and global variables are supposed to exist exactly once, so appending them as ordinary environments creates a second copy.</p>
+<p><strong>Cause.</strong> Bundle nodes carry their original ids and collide when appended. Environment names have no uniqueness constraint. And global variables are supposed to exist exactly once, so appending them as ordinary environments creates a second copy.</p>
 
-<p><strong>Fix.</strong> Collection nodes get fresh recursive ids, and request nodes gain default method, body type and auth type; environments get fresh ids with " (imported)" and an incrementing suffix; global variables stay single, merging by key with existing values winning, duplicates skipped and counted in a warning.</p>
+<p><strong>Fix.</strong> Collection nodes get fresh recursive ids, and request nodes gain default method, body type and auth type. Environments get fresh ids with an imported suffix and an incrementing number. Global variables stay single, merging by key with existing values winning, duplicates skipped and counted in a warning.</p>
 
-<p><strong>Cost.</strong> Import appends rather than deduplicating, so the same backup imported twice still yields two collection sets — only the ids avoid collision. Renamed environments change what the user sees, and "existing value wins" can silently ignore newer values from the backup, leaving only a count in the warning.</p>
+<p><strong>Cost.</strong> Import appends rather than deduplicating, so the same backup imported twice still yields two collection sets; only the ids avoid collision. Renamed environments change what the user sees, and "existing value wins" can silently ignore newer values from the backup, leaving only a count in the warning.</p>
 
 <h2>Build and release: the cost of one exe</h2>
 
-<p>The build command deliberately bypasses the frontend toolchain:</p>
+<p>The build command deliberately bypasses the frontend toolchain.</p>
 
 <pre><code>wails build -platform windows/amd64 -s -skipbindings -webview2 browser
 </code></pre>
 
-<p><code>-s</code> skips the frontend build, <code>-skipbindings</code> skips generated wailsjs bindings, and the frontend calls through the runtime <code>window.go</code> instead. Frontend files are embedded by <code>go:embed</code>, so the artefact is a single executable with no <code>frontend/dist</code> beside it. The release script then drives Wails' NSIS template and WiX to produce a portable exe, an NSIS installer and an MSI.</p>
+<p>The size flag skips the frontend build, the bindings flag skips generating bindings, and the frontend calls through the runtime global instead. Frontend files are embedded, so the artifact is a single executable with no asset directory beside it.</p>
 
-<p>The script writes the version into <code>wails.json</code>'s <code>info</code> before building and restores it afterwards; the portable exe gets its version through <code>-ldflags -X main.appVersion=...</code>, while installer metadata comes from <code>wails.json</code>. The two version sources must stay in sync or the settings page and file properties disagree. The three artefacts serve three distribution stories: the portable exe for running anywhere, NSIS for Start Menu, desktop shortcuts and WebView2 bootstrapping, MSI for domain deployment and silent installs.</p>
+<p>The release script then drives the NSIS template and WiX to produce a portable executable, an NSIS installer and an MSI. The script writes the version into the Wails config before building and restores it afterwards; the portable executable gets its version through a linker flag, while installer metadata comes from the config. The two version sources must stay in sync, or the settings page and the file properties disagree.</p>
 
-<p>For 0.1.0 the portable exe is 11,341,824 bytes, NSIS about 6.3 MB, MSI about 4.5 MB. Three files solve three distribution scenarios, not three feature levels.</p>
+<p>The three artifacts serve three distribution stories: the portable build for running anywhere, NSIS for Start Menu and desktop shortcuts plus WebView2 bootstrapping, and the MSI for domain deployment and silent installs.</p>
 
-<p>The path also surfaced two classic Windows engineering problems. Line endings: running <code>gofmt -l</code> on a Windows runner fails on CRLF, so commit <code>a16b158</code> added <code>.gitattributes</code> to normalize to LF. MSI shortcuts: WiX enforces ICE43/ICE57 component ownership, and the first definition failed until commit <code>bd8208e</code> reorganized components and shortcuts.</p>
+<p>For version 0.1.0 the portable executable is 11,341,824 bytes, NSIS about 6.3 MB and MSI about 4.5 MB. Three files solve three distribution scenarios, not three feature levels.</p>
 
-<p>The costs extend to distribution reality: there is no code signing, so SmartScreen warns about an unknown publisher; the MSI requires WebView2 to be present while NSIS tries to install it; and the version must be synced between <code>wails.json</code> and the injected <code>appVersion</code>. A single exe buys simplicity for users and more manual constraints in the build chain.</p>
+<p>The path also surfaced two classic Windows engineering problems. Line endings: running the formatter check on a Windows runner fails on CRLF, so a commit added a gitattributes entry to normalize to LF. MSI shortcuts: WiX enforces component ownership rules for shortcuts, and the first definition failed until a later commit reorganized components and shortcuts.</p>
 
-<h2>Known limits and open problems</h2>
+<p>The costs extend to distribution reality. There is no code signing, so SmartScreen warns about an unknown publisher. The MSI requires WebView2 to be present, while NSIS tries to install it. And the version must be synced between the config and the linker flag. A single executable buys simplicity for users and more manual constraints in the build chain.</p>
 
-<p>First, compression is not handled directly. Go's transport only decompresses automatically when it added <code>Accept-Encoding</code> itself; if a user writes <code>Accept-Encoding: gzip</code> by hand, the transport will not decompress on their behalf, and NanoAPI has no br or deflate decoder, so the pane shows raw compressed bytes. It is not "gzip unsupported", it is "do not write that header — let the transport negotiate". That is why the README never advertises gzip: automatic negotiation is safe, manual overrides may return unreadable bytes.</p>
+<h2>Known limits</h2>
 
-<p>Second, sensitive headers across redirects follow <code>net/http</code> defaults. <code>Authorization</code> is dropped on a cross-origin hop; NanoAPI neither replays it nor tells the user "the auth header was removed because the redirect crossed origins". Same-origin hops are usually fine, but cross-origin debugging produces the classic "it worked, then 401 after the redirect".</p>
+<p><strong>Compression is not handled directly.</strong> Go's transport only decompresses automatically when it added the accept-encoding header itself. If a user writes that header by hand, the transport will not decompress on their behalf, and NanoAPI has no brotli or deflate decoder, so the pane shows raw compressed bytes. It is not "gzip unsupported". It is "do not write that header, let the transport negotiate".</p>
 
-<p>Third, proxies are inherited implicitly. Because transports are cloned from <code>DefaultTransport</code>, <code>ProxyFromEnvironment</code> still applies, so <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code> and <code>NO_PROXY</code> affect requests. There is no proxy UI and cURL's <code>-x/--proxy</code> only warns. Anyone with proxy environment variables set may egress from an unexpected place.</p>
+<p><strong>Sensitive headers follow the standard redirect policy.</strong> Authorization is dropped on a cross-origin hop, and the application neither replays it nor tells the user that it was removed. Same-origin hops are usually fine, but cross-origin debugging produces the classic "it worked, then 401 after the redirect".</p>
 
-<p>Fourth, import formats are only <code>nanoapi-bundle</code> v1 and bare <code>nanoapi.json</code>. Postman, Bruno, OpenAPI and HAR are unsupported: no sniffing, no mapping, no migration wizard.</p>
+<p><strong>Proxies are inherited implicitly.</strong> Because transports are cloned from the default one, the environment proxy function still applies, so the usual proxy variables affect requests. There is no proxy screen, and the cURL proxy flag only warns. Anyone with proxy variables set may egress from an unexpected place.</p>
 
-<p>Fifth, there is no schema version. Upgrades rely on per-field defaults and ignoring unknown fields, so the file cannot express "this field became meaningful in version X", and destructive migration is unsafe. A real structural change would need a version and migration mechanism first.</p>
+<p><strong>Import formats are closed.</strong> Only the project bundle, version 1, and a bare settings file. No Postman, Bruno, OpenAPI or HAR, with no sniffing and no migration wizard.</p>
 
-<p>Sixth, the capability boundary also includes: no client certificates or custom CAs; multipart Content-Type cannot be customized; responses over 20 MB are always truncated; history keeps 200 entries and no bodies. These are explicit trade-offs, not hidden defects.</p>
+<p><strong>There is no schema version.</strong> Upgrades rely on per-field defaults and ignoring unknown fields, so the file cannot express when a field became meaningful, and destructive migration is unsafe.</p>
 
-<p>One more easily missed boundary: history stores the original request, so variable placeholders never become plaintext secrets — but a token typed directly into a URL or header still lands in <code>nanoapi.json</code> as plaintext. The tool does no field-level encryption and makes no promise against local readers.</p>
+<p><strong>The capability boundary also includes</strong> no client certificates or custom CAs, no custom multipart content type, a hard 20 MB response cap, and history limited to 200 entries without bodies.</p>
 
-<p>What these leftovers share is that each needs extra infrastructure: decompression needs an encoding library, auth replay needs a custom redirect policy, proxies need a settings UI, format compatibility needs adapters, and schema versioning needs a migration framework. None of them is a one-line change.</p>
+<p>One more boundary is easy to miss. History stores the original request, so placeholders never become plaintext secrets, but a token typed directly into a URL or a header does land in the data file as plaintext. The tool does no field-level encryption and makes no promise against a local reader.</p>
+
+<p>What those leftovers share is that each needs extra infrastructure: decompression needs an encoding library, auth replay needs a custom redirect policy, proxies need a settings screen, format compatibility needs adapters, and schema versioning needs a migration framework. None of them is a one-line change.</p>
 
 <h2>Closing</h2>
 
-<p>NanoAPI compresses into three sentences: rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend stays zero-dependency native ESM. It never tries to replace Postman; it makes the most common debugging path solid — request construction, variables, cURL, upload/download, response inspection, single-file storage.</p>
+<p>NanoAPI compresses into three sentences. Rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend stays dependency-free native modules. It never tries to replace Postman. It makes the most common debugging path solid: request construction, variables, cURL, upload and download, response inspection and single-file storage.</p>
 
-<p>What decides quality is not the feature list but the unglamorous failure paths. A timeout must be attached to the right context; a specific redirect error must not be overwritten by a generic one; Windows connection errors and paths need their own handling; multipart boundaries must not be user-supplied; writes must be atomic and corruption must leave evidence; large responses must be bounded at read, render and validate.</p>
+<p>What decides quality is not the feature list but the unglamorous failure paths. A timeout has to be attached to the right context. A specific redirect error must not be overwritten by a generic one. Windows connection errors and paths need their own handling. Multipart boundaries must not be user-supplied. Writes must be atomic and corruption must leave evidence. Large responses must be bounded at read, render and validate.</p>
 
-<p>Its leftovers are equally explicit: no br/deflate decoding, no auth replay across origins, implicit proxy inheritance from environment variables, a closed import format, and no schema version. Saying so plainly is worth more than pretending everything is supported. A sufficient tool should tell you where it is sufficient and where it is not.</p>
+<p>Its leftovers are equally explicit: no brotli or deflate decoding, no auth replay across origins, proxies inherited from the environment, a closed import format, and no schema version. Saying so plainly is worth more than claiming everything is supported. A sufficient tool should tell you where it is sufficient and where it is not.</p>
 
-<p>None of these conclusions came from guessing at code: timeouts, redirects, paths, storage and import all have unit tests or reproducible mock servers, so breaking any one of them fails the tests first.</p>
+<p>None of these conclusions came from reading code and guessing. Timeouts, redirects, paths, storage and import all have unit tests or reproducible mock servers, so breaking any one of them fails the tests first.</p>
 
 <h2>Further reading</h2>
+
 <ul>
-<li><a href="/en/article/nanobrowser-tauri-webview2/">NanoBrowser: hand-writing an in-process CDP</a> — the same WebView2 shell family, but with the browser protocol and DevTools inside the process; two ways to reuse a system engine.</li>
-<li><a href="/article/file-upload-production-deep-dive/">File upload in production</a> — multipart, boundaries, temp files and object storage: the half this post stops short of.</li>
-<li><a href="/article/websocket-production-deep-dive/">WebSocket in production</a> — if a debugging tool grows from one-shot HTTP to long-lived connections, connection management, heartbeats and reconnects are the next lesson.</li>
-<li><a href="/en/article/micromd-3mb-markdown-reader/">MicroMD: a 3 MB Markdown reader</a> — another desktop project treating "single file, small, no heavy runtime" as a hard constraint.</li>
+<li><a href="/en/article/nanobrowser-tauri-webview2/">NanoBrowser, hand-writing an in-process CDP</a>, the same WebView2 shell family with the browser protocol inside the process.</li>
+<li><a href="/article/file-upload-production-deep-dive/">File upload in production</a>, which covers the multipart and object-storage half this post stops short of.</li>
+<li><a href="/article/websocket-production-deep-dive/">WebSocket in production</a>, the next lesson if a debugging tool grows from one-shot HTTP to long-lived connections.</li>
+<li><a href="/en/article/micromd-3mb-markdown-reader/">MicroMD, a 3 MB Markdown reader</a>, another desktop project treating single-file and small as hard constraints.</li>
 </ul>
 `,
   },
