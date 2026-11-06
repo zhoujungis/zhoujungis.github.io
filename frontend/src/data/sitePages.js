@@ -97,6 +97,7 @@ export const SITE_PAGES = [
         ],
         items: [
           { text: 'Google AdSense：用于展示广告。Google 及其合作伙伴会使用 Cookie（包括 DoubleClick DART Cookie）根据你访问本站和其它网站的记录投放广告；你可以通过 Google 广告设置管理个性化广告，或通过 aboutads.info 了解并退出第三方广告 Cookie。', href: 'https://www.google.com/settings/ads' },
+          { text: 'Google 如何使用信息：Google 在其合作伙伴网站（包括本站）上收集与使用数据的说明见「Google 如何使用来自使用我们服务的网站或应用的信息」。', href: 'https://policies.google.com/technologies/partner-sites' },
           { text: 'Google Analytics：用于统计页面访问量（如浏览量、来源渠道、设备类型）。该服务会设置分析类 Cookie，统计结果为聚合数据，本站不会将其与任何个人身份关联。' },
           { text: '内容分发与图片服务：页面会从 jsdelivr 加载公式渲染脚本、从 Unsplash 加载配图，这些请求会把你的 IP 地址与浏览器标识暴露给对应服务商。' },
         ],
