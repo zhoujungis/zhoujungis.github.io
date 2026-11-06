@@ -1531,76 +1531,83 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
     readingTime: 55,
     html: `
 <blockquote>
-<p>Who this is for: people who want an AI assistant on their own machine without handing chat history and file paths to a cloud; people building desktop agents in Electron and fighting permissions, paths and packaging; people who want to see where a local-first product must compromise.</p>
-<p><strong>TL;DR:</strong> the core of Z Bot is not "plug in a model" but putting the model in a box managed by the main process — database, keys, tool execution and system capabilities all stay there, the renderer gets only a whitelisted API, every side-effecting action needs permission, memory starts with SQLite FTS5 rather than a vector store, and reminders, context and retries all have hard caps.</p>
-<p>Reading time ~55 minutes · Level: advanced</p>
+<p>Who this is for: people who want an AI assistant on their own machine without handing chat history and file paths to a cloud; people building desktop agents in Electron and fighting permissions, paths and packaging; people who want to see where a local-first product has to compromise.</p>
+<p><strong>TL;DR:</strong> the core of Z Bot is not "plug in a model". It is putting the model inside a box the main process controls. The database, keys, tool execution and system capabilities all stay in the main process, and the renderer gets only a whitelisted API. Every action with a side effect asks for permission first. Memory starts with SQLite FTS5 rather than a vector store. Reminders, context and retries all have hard caps.</p>
+<p>Reading time around 55 minutes. Level: advanced.</p>
 </blockquote>
-
-<strong>Contents</strong>
-<ul>
-<li>Why build a local-first personal assistant</li>
-<li>Architecture: the main process and six core packages</li>
-<li>Process boundary: what the renderer can and cannot do</li>
-<li>IPC contract: whitelist, Zod and redaction</li>
-<li>Permissions: declare first, confirm every time</li>
-<li>Path safety: an authorized directory is not a string prefix</li>
-<li>The agent loop: when to answer directly, when to act</li>
-<li>Context budget: how 72k characters get spent</li>
-<li>Model layer: streaming, retries and the fallback boundary</li>
-<li>Memory: no vector store, FTS5 first</li>
-<li>Reminder scheduling: the ceiling of setTimeout</li>
-<li>Proactive checks and task recovery</li>
-<li>Windows integration: notifications, OCR and the tray</li>
-<li>Tests and packaging: after 32 unit tests and 2 E2E</li>
-<li>Closing</li>
-</ul>
-<hr>
 
 <h2>Why build a local-first personal assistant</h2>
 
-<p>Cloud chat products are already strong, but "personal assistant" and "general Q&amp;A" are different products. General Q&amp;A does not need to know your project directories, last week's todos or your writing voice; a personal assistant does, and that information naturally should not leave the machine. Z Bot starts from a plain idea: keep personal context, long-term memory, tasks and reminders in a local SQLite database; let the model do reasoning and generation; and execute file reads, web fetches and reminder creation locally, each with the user's authorization.</p>
+<p>Cloud chat products are already strong, but "personal assistant" and "general question answering" are different products. General Q&amp;A does not need to know your project directories, last week's todos or your writing voice. A personal assistant does, and that information naturally should not leave the machine.</p>
 
-<p>That positioning brings three hard constraints. Data must be explainable, backup-able and deletable — never "the memory lives in some cloud table you cannot see or remove". The model must be swappable: OpenAI, OpenAI-compatible, Anthropic, Google and Ollama all work, so the product cannot lock anyone to one vendor. And the assistant must be resident, able to keep standing by after the window closes, send system notifications and read local files — which makes it a desktop app, not a web page.</p>
+<p>Z Bot starts from a plain idea. Keep personal context, long-term memory, tasks and reminders in a local SQLite database. Let the model handle reasoning and generation. Execute file reads, web fetches and reminder creation on the machine, with the user's authorization each time.</p>
 
-<p>Z Bot is not a coding agent. Its loop is understand, remember, reason, help, act, learn, focused on personal context and daily tasks rather than editing a repository. The README says plainly that complex software work belongs to a specialized agent like NanoHermes, while Z Bot understands the request, dispatches work, receives results and reminds the user. That boundary matters: the moment it sees itself as a general coding agent, the tool set, permission model and context budget all run out of control.</p>
+<p>That positioning brings three hard constraints.</p>
 
-<p>Local-first has costs too. No multi-device sync, no server push; a new machine means reconfiguring models and authorized directories; reminders are reliable only while the process lives, with no catch-up after a full exit; and local OCR is capped by whatever engine Windows ships. Those costs recur throughout this post. Stating the product boundary first is what makes the technical choices defensible.</p>
+<p><strong>Data has to be explainable, backup-able and deletable.</strong> There must be no state where memory lives in some cloud table that the user can neither see nor remove.</p>
 
-<h2>Architecture: the main process and six core packages</h2>
+<p><strong>The model has to be swappable.</strong> OpenAI, OpenAI-compatible endpoints, Anthropic, Google and Ollama all work. The product cannot lock anyone to one vendor.</p>
 
-<p>The stack is Electron 45, React 19 and TypeScript 6, with Node's built-in <code>node:sqlite</code> and FTS5 for search. The repository is a pnpm workspace with six packages — <code>shared</code>, <code>database</code>, <code>model</code>, <code>memory</code>, <code>tools</code>, <code>bot-core</code> — plus <code>apps/desktop</code>. Tests are 32 unit tests plus 2 E2E, covering path guards, memory dedupe, reminder recurrence, provider normalization, the runtime and project-stall reminders.</p>
+<p><strong>The assistant has to be resident.</strong> It has to keep standing by after the window closes, send system notifications and read local files. That makes it a desktop application rather than a web page.</p>
 
-<p>The layering is direct. <code>shared</code> holds types, Zod schemas, IPC channel constants and defaults; <code>database</code> wraps <code>node:sqlite</code>, migrations and stores; <code>model</code> collapses five providers into one streaming event shape; <code>memory</code> owns writing, dedupe, retrieval and prompt formatting; <code>tools</code> is the registry, path guard, web safety policy and concrete tools; <code>bot-core</code> is the runtime, context manager, permission manager, intent router and agent loop. The Electron main process in <code>apps/desktop</code> assembles them and exclusively owns the database, secrets, tool execution and system capabilities.</p>
+<p>Z Bot is not a coding agent. Its loop is understand, remember, reason, help, act, learn, and the focus is personal context and daily tasks rather than editing a repository. The README says plainly that complex software work belongs to a specialized agent such as NanoHermes, while Z Bot understands the request, dispatches work, receives results and reminds the user. That boundary matters. The moment it sees itself as a general coding agent, the tool set, the permission model and the context budget all run out of control.</p>
 
-<p>One conversation flows like this: the renderer calls <code>chat.send</code> through preload; the IPC layer validates with Zod; <code>BotRuntime.startChat</code> immediately writes the user message and an empty assistant message, creates a <code>requestId</code> and an <code>AbortController</code>, then runs asynchronously. Execution first judges intent — direct answers take one model call, multi-step tasks enter the agent loop. Model <code>text-delta</code>, <code>tool-call</code>, <code>finish</code> and <code>error</code> events are normalized into <code>ChatEvent</code> and pushed back via <code>chat.event</code>. Tool calls pass through the permission manager first, results are appended to the message array, and the assistant message is finally persisted.</p>
+<p>Local-first has costs too. There is no multi-device sync and no server push. A new machine means reconfiguring models and authorized directories. Reminders are reliable only while the process is alive, with no catch-up after a full exit. And local OCR is capped by whatever engine Windows ships. Those costs recur throughout this post, so it is worth stating the product boundary before the technical choices.</p>
 
-<p>Two database decisions deserve their own note. <code>node:sqlite</code> avoids native compilation, so the installer never faces <code>node-gyp</code> or ABI issues; the cost is a synchronous API, with every query on the main process's single event loop. Z Bot keeps transactions short, serializes migrations, and on open sets WAL, <code>synchronous=NORMAL</code> and a 5-second busy timeout, runs <code>wal_checkpoint(TRUNCATE)</code> before exit, and copies the whole database before a version upgrade. It did not move the database to a worker, so long queries can still stall the window and IPC.</p>
+<h2>Architecture: the main process and six packages</h2>
+
+<p>The stack is Electron 45, React 19 and TypeScript 6. The database is Node's built-in SQLite module, with FTS5 for search. The repository is a pnpm workspace with six packages: shared, database, model, memory, tools and bot-core. The desktop application sits in <code>apps/desktop</code>. Tests are 32 unit tests plus 2 end-to-end tests, covering path guards, memory deduplication, reminder recurrence, provider normalization, the runtime and project-stall reminders.</p>
+
+<p>The layering is direct.</p>
+
+<ul>
+<li><code>shared</code> holds types, Zod schemas, IPC channel constants and default settings.</li>
+<li><code>database</code> wraps the SQLite module, migrations and individual stores.</li>
+<li><code>model</code> collapses five provider kinds into one streaming event shape.</li>
+<li><code>memory</code> owns writing, deduplication, retrieval and prompt formatting.</li>
+<li><code>tools</code> is the registry, the path guard, the web safety policy and the concrete tools.</li>
+<li><code>bot-core</code> is the runtime, the context manager, the permission manager, intent routing and the agent loop.</li>
+</ul>
+
+<p>The Electron main process in <code>apps/desktop</code> assembles those packages and exclusively owns the database, secrets, tool execution and system capabilities.</p>
+
+<p>One conversation flows like this. The renderer calls <code>chat.send</code> through preload. The IPC layer validates the payload with Zod. The runtime's <code>startChat</code> immediately writes the user message and an empty assistant message, creates a request id and an abort controller, then runs asynchronously. Execution first judges intent. A direct answer takes one model call; a multi-step task enters the agent loop. Model events are normalized into one chat event shape and pushed back over <code>chat.event</code>. Tool calls pass through the permission manager first, results are appended to the message array, and the assistant message is persisted at the end.</p>
+
+<p>Two database decisions deserve their own paragraphs.</p>
+
+<p><strong>Why the built-in SQLite module.</strong> It avoids native compilation, so the installer never faces node-gyp or ABI mismatches. The cost is a synchronous API, which puts every query on the main process's single event loop.</p>
+
+<p>Z Bot manages that in five ways: short transactions, serialized migrations, WAL mode, <code>synchronous=NORMAL</code> and a 5-second busy timeout on open. Before exit it runs a WAL checkpoint. Before a version upgrade it copies the whole database as a backup. It did not move the database to a worker, so a long query can still stall the window and IPC.</p>
 
 <h3>Problem 1: a synchronous database on the main process</h3>
 
-<p><strong>Symptom.</strong> During migrations, bulk queries or checkpoints, window events and IPC responses can be blocked by the same thread, showing brief unresponsiveness.</p>
+<p><strong>Symptom.</strong> During migrations, bulk queries or checkpoints, window events and IPC responses can be blocked by the same thread. The interface looks briefly unresponsive.</p>
 
-<p><strong>Cause.</strong> <code>DatabaseSync</code> in <code>node:sqlite</code> is synchronous, and Z Bot deliberately gives the main process exclusive ownership without a worker or a separate database process.</p>
+<p><strong>Cause.</strong> The database API is synchronous, and Z Bot deliberately gives the main process exclusive ownership without a worker or a separate database process.</p>
 
-<p><strong>Fix.</strong> WAL for read/write concurrency, <code>synchronous=NORMAL</code> to cut per-commit fsync cost, a 5-second busy timeout, <code>BEGIN IMMEDIATE</code> for serialized migrations, <code>wal_checkpoint(TRUNCATE)</code> before exit, and a full backup before upgrades based on <code>user_version</code>.</p>
+<p><strong>Fix.</strong> WAL raises read and write concurrency, <code>synchronous=NORMAL</code> lowers the fsync cost per commit, the busy timeout is set on open, migrations serialize inside an immediate transaction, a checkpoint runs before exit, and upgrades are guarded by the schema version with a full backup taken first.</p>
 
-<p><strong>Cost.</strong> The root problem of a synchronous API does not disappear; it is confined to short transactions. Full exports, index rebuilds or large log searches would need a worker; this version trades simplicity for stability.</p>
+<p><strong>Cost.</strong> The root problem of a synchronous API does not disappear, it is confined to short transactions. A full export, an index rebuild or log searching over a large model history would still need a worker thread. This version chooses simplicity over throughput.</p>
 
 <h2>Process boundary: what the renderer can and cannot do</h2>
 
-<p>The first rule of Electron security is not to hand Node to the page. Z Bot's window uses <code>contextIsolation: true</code>, <code>nodeIntegration: false</code> and <code>sandbox: true</code>; the renderer has no <code>require</code>, no <code>process</code>, no filesystem. CSP narrows loading to <code>self</code> and the custom <code>zbot-media:</code> scheme rather than opening arbitrary <code>https:</code>; all web permission requests are denied by default, so camera, microphone, geolocation and notifications never open because a page asked once.</p>
+<p>The first rule of Electron security is not to hand Node to a page. Z Bot's window uses context isolation, no Node integration and a sandbox. The renderer has no <code>require</code>, no <code>process</code> and no filesystem.</p>
 
-<p>Attachments are capped at 25 MB each and six per message before saving, so one conversation cannot blow up local storage or later requests. Attachment images are read through <code>zbot-media://attachment/&lt;id&gt;</code>: the main process accepts only <code>hostname === 'attachment'</code>, treats the path as an attachment id looked up in the database and attachment directory, returns 404 when missing, and adds a <code>default-src 'none'</code> CSP to the response. The renderer therefore cannot reach arbitrary local paths — only an image already recorded in the attachment table. That is far safer than exposing <code>file://</code>, but it also means attachments must pass through the main process first.</p>
+<p>What the page can load is narrowed by CSP as well: only <code>self</code> and a custom media scheme, not arbitrary HTTPS. All web permission requests are denied by default, so camera, microphone, geolocation and notifications never open just because a page asked once.</p>
 
-<p>Preload is the only bridge. It exposes a <code>ZBotApi</code> via <code>contextBridge.exposeInMainWorld('zbot', api)</code> with roughly 40 methods grouped under <code>app</code>, <code>chat</code>, <code>conversations</code>, <code>memory</code>, <code>settings</code>, <code>providers</code>, <code>webSearch</code>, <code>projects</code>, <code>roots</code>, <code>tasks</code>, <code>todos</code>, <code>reminders</code>, <code>home</code>, <code>permissions</code>, <code>clipboard</code>, <code>screenshot</code> and <code>events</code>. Raw <code>ipcRenderer</code> is never handed over, so the page cannot compose channel names or listen to arbitrary events.</p>
+<p>Attachments are capped before saving: 25 MB each, at most 6 per message. That keeps one conversation from blowing up local storage and later requests. Attachment images are read through a custom protocol of the form <code>zbot-media://attachment/&lt;id&gt;</code>. The main process accepts only the attachment host, treats the path as an attachment id, looks it up in the database and the attachment directory, returns 404 when missing, and adds a restrictive CSP to the response.</p>
 
-<p>Event subscriptions are closed off too. <code>chat.onEvent</code>, <code>events.onNavigate</code>, <code>events.onScreenshot</code> and <code>events.onTheme</code> return an unsubscribe function, wrapping the listener internally before <code>removeListener</code>. That looks cosmetic but actually fixes listener leaks after React unmounts: callers can unsubscribe in <code>useEffect</code> cleanup without remembering which function reference they passed.</p>
+<p>The renderer therefore cannot reach an arbitrary local path. It can only reach an image that is already recorded in the attachment table. That is far safer than exposing file URLs, but it also means attachments must pass through the main process first and cannot be dropped into an image tag from anywhere.</p>
 
-<p>This boundary is not "configure once, safe forever". Add one generic <code>invoke(channel, ...args)</code> to preload and the whitelist is decoration; expose <code>shell.openPath</code> straight to the renderer and the path guard is bypassed. Z Bot keeps every IPC in <code>register.ts</code> behind a uniform <code>handle()</code> wrapper with per-channel schemas — but a few channels slipped through, covered below.</p>
+<p><strong>Preload is the only bridge.</strong> It exposes one API object through the context bridge, with roughly 40 methods grouped under app, chat, conversations, memory, settings, providers, web search, projects, roots, tasks, todos, reminders, home, permissions, clipboard, screenshot and events. Raw IPC is never handed over, so the page cannot compose channel names or listen to arbitrary events.</p>
+
+<p>Event subscriptions are closed off in the same way. The chat event, navigation, screenshot and theme subscriptions all return an unsubscribe function, wrapping the listener internally before removing it. That looks cosmetic and actually fixes listener leaks after React unmounts: callers can unsubscribe in an effect cleanup without remembering which function reference they passed.</p>
+
+<p>This boundary is not "configure once and stay safe". Add one generic invoke method to preload and the whitelist is decoration. Expose a shell open call directly to the renderer and the path guard is bypassed. Z Bot keeps every IPC channel in one registration file behind a uniform wrapper with per-channel schemas, but a few channels slipped through, and they are covered below.</p>
 
 <h2>IPC contract: whitelist, Zod and redaction</h2>
 
-<p>IPC registration goes through one <code>handle</code> wrapper: channel, handler, optional schema. Each call runs <code>schema.parse(raw)</code>; Zod's <code>.strict()</code> rejects extra fields so the renderer cannot smuggle unexpected properties. Parse failures turn <code>ZodError.issues</code> into a readable message; handler throws pass through <code>redactErrorMessage</code> before being returned. Logs record an <code>ipc request failed</code> line without raw keys, tokens or cookies.</p>
+<p>IPC registration goes through one wrapper that takes a channel, a handler and an optional schema. Each call validates the raw payload with Zod. The strict schema mode rejects extra fields, so the renderer cannot smuggle unexpected properties in. A validation failure turns the issue list into a readable message. A handler throw passes through a redaction function before the message goes back to the renderer. Logs record one failure line per channel, without raw keys, tokens or cookies.</p>
 
 <pre><code>ipcMain.handle(channel, async (_event, raw: unknown) =&gt; {
   try {
@@ -1613,71 +1620,75 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 });
 </code></pre>
 
-<p>The value here is safe by default: adding a channel forces an explicit decision about a schema, and a channel without one stays visible in review. There is an obvious gap: the third argument is optional, so <code>app:open-path</code> and <code>web-search:set-key</code> genuinely lack schemas. The first only does a string-containment check for "inside the data directory", the second uses <code>value</code> as a string. They are not the most dangerous channels, but they show that a uniform wrapper is not uniform validation.</p>
+<p>The value here is safe by default. Adding a channel forces an explicit decision about a schema, and a channel without one stays visible in review.</p>
+
+<p>There is also an obvious gap. The third argument is optional, so two channels genuinely have no schema: the open-path channel and the search-key channel. The first only checks that the target string sits inside the data directory, and the second uses the incoming value as a string directly. Neither is the most dangerous channel, but together they show that a uniform wrapper is not uniform validation.</p>
 
 <h3>Problem 2: inconsistent IPC surface and validation</h3>
 
-<p><strong>Symptom.</strong> <code>app:open-path</code> and <code>web-search:set-key</code> have no Zod schema; <code>clipboard:read-text</code> and <code>screenshot:capture</code> execute over IPC without permission confirmation, while tools of the same name go through <code>PermissionManager</code>. Subtler still: the renderer never calls those two IPC channels — they are high-privilege surfaces that exist unused.</p>
+<p><strong>Symptom.</strong> The open-path and search-key channels have no schema. Clipboard read and screenshot capture execute over IPC without a permission prompt, while tools with the same names go through the permission manager. More subtly, the renderer never calls those two channels, so they are high-privilege surfaces that exist unused.</p>
 
-<p><strong>Cause.</strong> IPC is the UI's fast path, tools are the model's controlled path; the two evolved separately and the permission model covers only the latter. Optional schema arguments make omissions easy.</p>
+<p><strong>Cause.</strong> IPC is the UI's fast path and tools are the model's controlled path. The two evolved separately, and the permission model only covers the second. Optional schema arguments make omissions easy.</p>
 
-<p><strong>Fix.</strong> <code>app:open-path</code> uses <code>path.relative</code> instead of naive string comparison; secret-writing IPC accepts only strings and goes through <code>safeStorage</code> in ProviderService; logging and error messages are redacted uniformly. Clipboard and screenshot tools go through full permission confirmation with risk described in the prompt.</p>
+<p><strong>Fix.</strong> The open-path channel compares paths relatively instead of by naive string containment. Secret-writing channels accept only strings and go through the encrypted secret service. Logging and error messages are redacted uniformly. Clipboard and screenshot tools go through full permission confirmation, with the risk written into the prompt.</p>
 
-<p><strong>Cost.</strong> Unused high-privilege IPC stays on the attack surface. The right move is deleting channels nobody needs or giving them schemas and confirmation; the repository keeps them because the UI may need them later. That is an explicit to-do, not a solved problem.</p>
+<p><strong>Cost.</strong> Unused high-privilege IPC stays on the attack surface. The right move is deleting channels nobody needs, or giving them a schema and a confirmation. The repository keeps them because the UI may need them later, so this is an explicit to-do rather than a solved problem.</p>
 
-<h3>Problem 3: secrets on disk and log redaction</h3>
+<h3>Problem 3: secrets on disk and redaction in logs</h3>
 
-<p><strong>Symptom.</strong> Model API keys and web-search keys are sensitive; written in plaintext or leaked into logs, even a local app exposes them.</p>
+<p><strong>Symptom.</strong> Model API keys and web search keys are sensitive. Written in plaintext or leaked into logs, even a local application exposes them.</p>
 
-<p><strong>Cause.</strong> A desktop app must persist keys, but <code>safeStorage</code> is unavailable in some Windows environments; logs, error messages and IPC payloads can all carry configuration objects.</p>
+<p><strong>Cause.</strong> A desktop app has to persist keys, but the OS keychain facility is unavailable in some Windows environments. Logs, error messages and IPC payloads can all carry configuration objects.</p>
 
-<p><strong>Fix.</strong> <code>SecretService.encrypt</code> throws when <code>safeStorage.isEncryptionAvailable()</code> is false, refusing plaintext; the database stores <code>encrypted_api_key</code>; outbound DTOs strip <code>encryptedApiKey</code> and tell the UI only "configured"; pino's redact list hides <code>apiKey</code>, <code>password</code>, <code>cookie</code>, <code>encryptedApiKey</code> and nested variants, with regex redaction on error messages.</p>
+<p><strong>Fix.</strong> The secret service throws when encryption is unavailable instead of saving plaintext. The database stores the encrypted value. Outbound DTOs strip the encrypted field entirely and tell the UI only that a key is configured. The logger redacts key, password, cookie and encrypted-key fields including nested variants, and error messages get a regex pass as well.</p>
 
-<p><strong>Cost.</strong> <code>safeStorage</code> relies on the OS credential service, so keys become unreadable after a machine change or a broken profile and users must re-enter them. Redaction is a double line of defense (field names plus regex) and cannot guarantee that a key concatenated into an arbitrary string is always caught. Acceptable for a local app, not absolute safety.</p>
+<p><strong>Cost.</strong> The OS keystore is tied to the system credential service, so keys cannot be decrypted after a machine change or a broken profile, and the user has to re-enter them. Redaction is a double line of defense, field names plus regex, and it still cannot guarantee that a key concatenated into an arbitrary string is caught. For a local application that is an acceptable compromise, not absolute safety.</p>
 
 <h2>Permissions: declare first, confirm every time</h2>
 
-<p>Registering a tool does not make it runnable. Every tool calls <code>getPermission()</code> before executing, producing a <code>ToolPermissionSpec</code> with title, description, risk level, scope and operation list. <code>PermissionManager.authorize()</code> checks persisted rules first: an <code>allow</code> hit passes, a <code>deny</code> hit rejects; only a miss creates a <code>PermissionRequest</code>, pushes it to the UI via <code>chat.permission</code>, and awaits the user's decision.</p>
+<p>Registering a tool does not make it runnable. Every tool calls its permission declaration before executing, producing a spec with title, description, risk level, scope and operation list. The permission manager checks persisted rules first: an allow hit passes, a deny hit rejects. Only a miss creates a permission request, pushes it to the UI over a chat event, and awaits the user's decision.</p>
 
 <pre><code>tool.run()
   -&gt; getPermission() -&gt; ToolPermissionSpec
   -&gt; PermissionManager.authorize(spec)
        -&gt; rule allow / deny
-       -&gt; miss: chat.permission -&gt; wait for UI
+       -&gt; miss: chat.permission -&gt; wait for the UI
        -&gt; AbortSignal cancel -&gt; cancelForChat
 </code></pre>
 
-<p>Users have four choices: deny, allow once, allow for the scope, or cancel the task. <code>allow_once</code> deliberately is not persisted, so the same action asks again next time; <code>allow_scope</code> persists on "tool name + scope", usually an authorized directory or operation type; <code>deny</code> does not run the tool and returns <code>Permission denied by user. The operation was not executed: ...</code> as the tool result so the model learns the path is blocked instead of the conversation collapsing. Cancellation rejects every pending promise through <code>AbortSignal</code> and <code>cancelForChat</code>, so permission dialogs never hang forever.</p>
+<p>Users have four choices: deny, allow once, allow for the scope, or cancel the task. Allow-once is deliberately not persisted, so the same action asks again next time. Allow-for-scope persists on the pair of tool name and scope, where the scope is usually an authorized directory or an operation type. Deny does not run the tool and returns a tool result saying the operation was not executed, so the model learns the path is blocked and the conversation does not collapse. Cancellation rejects every pending promise through the abort signal, so a permission dialog never hangs forever.</p>
 
-<p>The key idea is that a denial is not an exception. Many agents throw when a tool is refused, leaving the model blind to the reason and retrying the same action next turn. Z Bot makes denial an ordinary tool result: the model can take another route or explain why it did not act. The cost is that the model may ask for the same permission repeatedly; there is no soft "do not ask again in this conversation", only persisted deny rules.</p>
+<p>The key idea is that <strong>a denial is not an exception</strong>. Many agent implementations throw when a tool is refused, which leaves the model blind to the reason and retrying the same action next turn. Z Bot makes denial an ordinary tool result: the model can take another route or explain why it did not act.</p>
 
-<p>Scope granularity is another matter. <code>allow_scope</code> binds tool and scope, not specific arguments; once write access to a directory is allowed, later writes there never prompt. That matches the "reduce interruptions" goal but leaves high-risk tools depending on scopes designed narrowly. Z Bot models write, delete and batch-move separately, sends deletes to the Recycle Bin and shows a preview before batch operations — using tool design to compensate for permission granularity.</p>
+<p>The cost is that the model may ask for the same permission repeatedly. There is no soft "do not ask again in this conversation", only persisted deny rules.</p>
 
-<p>Tasks and permissions interact. If the agent stalls waiting for permission, the task becomes <code>waiting_permission</code>; on app exit, <code>markInterrupted()</code> turns <code>running</code> and <code>pending</code> into <code>paused</code>, and a restart never automatically replays interrupted tasks that may have had side effects. That trades "auto-resume after restart" for "never quietly delete or move files again".</p>
+<p>Scope granularity is a separate question. Allow-for-scope binds a tool and a scope, not specific arguments. Once write access to a directory is allowed, later writes there never prompt. That matches the goal of reducing interruptions, but high-risk tools then depend on scopes designed narrowly enough. Z Bot models write, delete and batch move separately, sends deletes to the Recycle Bin and previews batch operations first, which is using tool design to compensate for permission granularity.</p>
+
+<p>Tasks and permissions also interact. If the agent stalls while waiting for permission, the task state becomes waiting for permission. On application exit, the runtime marks running and pending tasks as paused, so a restart never automatically replays an interrupted task that may already have had side effects. That trades automatic resume for never quietly deleting or moving files again.</p>
 
 <h2>Path safety: an authorized directory is not a string prefix</h2>
 
-<p>The first gate for file tools is <code>resolveAuthorizedPath</code>. It rejects relative paths, drive roots, device paths and UNC shares, caps length at 4096 and refuses NUL bytes; then it canonicalizes the target and checks containment against every authorized root's real path. Writes additionally require <code>allowWrite</code> on that root, <code>mustExist</code> checks read/write access, and <code>expected</code> verifies file versus directory.</p>
+<p>The first gate for every file tool resolves an authorized path. It rejects relative paths, drive roots, device paths and UNC shares, caps the length at 4096 bytes, and refuses embedded NUL bytes. Then it canonicalizes the target and checks containment against every authorized root's real path. Writes additionally require that root to permit writing, and the existence and kind checks verify whether the target is a file or a directory.</p>
 
-<p>Containment must not use <code>startsWith</code>. <code>C:\\Users\\me\\Documents</code> and <code>C:\\Users\\me\\Documents-evil</code> differ by a suffix, and a string prefix misjudges them; Z Bot computes a relative path with <code>path.relative</code>, rejects <code>..</code> and absolute escapes, and lowercases on Windows before comparing. This is easy to miss in cross-platform code, and missing it is a directory traversal bug.</p>
+<p>Containment must not use a string prefix. A directory named <code>Documents</code> and a sibling named <code>Documents-evil</code> differ by a suffix, and a prefix check misjudges them. Z Bot computes a relative path, rejects parent traversal and absolute escapes, and lowercases both sides on Windows before comparing. That detail is easy to miss in cross-platform code, and missing it is a directory traversal bug.</p>
 
-<h3>Problem 4: Windows 8.3 short paths break test assertions</h3>
+<h3>Problem 4: Windows 8.3 short paths broke the test assertions</h3>
 
-<p><strong>Symptom.</strong> A test creates a temp directory with <code>mkdtemp</code>, compares against a <code>realpath</code> result, the two differ and the test fails on Windows. Two commits fixed tests: <code>f4cf8a8</code> and <code>b9b45de</code>.</p>
+<p><strong>Symptom.</strong> A test creates a temporary directory and compares it against a canonicalized path. The two differ, and the test fails on Windows. Two commits fixed tests for exactly this.</p>
 
-<p><strong>Cause.</strong> Windows generates 8.3 short names for long paths, so the temp directory and its real path can come back in different forms. The test compared strings while production code canonicalized with <code>realpath</code>: the test thought the product was wrong when the assertion was not normalized.</p>
+<p><strong>Cause.</strong> Windows generates 8.3 short names for long paths, so the temporary directory and its real path can come back in different forms. The test compared strings while production code canonicalized, so the test concluded the product was wrong when the assertion was not normalized.</p>
 
-<p><strong>Fix.</strong> The test normalizes expectations the same way; production <code>path-guard.ts</code> calls <code>realpath</code> level by level, reattaches the missing segments to the real parent, and lowercases before comparing.</p>
+<p><strong>Fix.</strong> Tests normalize their expectations the same way. Production code resolves path components level by level, reattaches missing segments to the real parent, and lowercases before comparing.</p>
 
-<p><strong>Cost.</strong> Path canonicalization is best effort, not cryptographic equivalence: short names, casing and junctions can make two strings look different or identical. Tests must follow platform behavior rather than assume POSIX semantics.</p>
+<p><strong>Cost.</strong> Path canonicalization is best effort, not cryptographic equivalence. Short names, casing and junctions can make two strings look different or identical. Tests have to follow platform behavior rather than assume POSIX semantics.</p>
 
-<h3>Problem 5: symlink escapes and "the target does not exist yet"</h3>
+<h3>Problem 5: symlink escapes and targets that do not exist yet</h3>
 
-<p><strong>Symptom.</strong> Canonicalizing only the target makes a not-yet-created write path fail with <code>ENOENT</code>; if the target is a junction or symlink pointing outside the authorized directory, <code>realpath</code> lands outside the root. The two failures are opposite: one false positive, one false negative.</p>
+<p><strong>Symptom.</strong> Canonicalizing only the target makes a not-yet-created write path fail with a missing-file error. If the target is a junction or a symlink pointing outside the authorized directory, canonicalization lands outside the root. The two failures are opposite: one false positive, one false negative.</p>
 
-<p><strong>Cause.</strong> Write targets often do not exist and cannot be required to resolve, while symlinks can carry a path outside the authorized range after resolution, so checks are needed before and after.</p>
+<p><strong>Cause.</strong> Write targets often do not exist and cannot be required to resolve, and a symlink can carry a path outside the authorized range after resolution, so checks are needed before and after.</p>
 
-<p><strong>Fix.</strong> <code>canonicalizePotentialPath</code> walks upward from the target to the nearest existing parent, at most 64 levels, collecting missing segments, resolves that parent, then reattaches segments in order; roots are canonicalized too; <code>expected</code> checks reject <code>isSymbolicLink()</code> after <code>lstat</code>. A Windows system-directory blacklist rejects <code>SystemRoot</code>, <code>Program Files</code> and similar.</p>
+<p><strong>Fix.</strong> A helper walks upward from the target to the nearest existing parent, at most 64 levels, collecting missing segments, resolves that parent, then reattaches the segments in order. Roots are canonicalized too. The kind check rejects symbolic links after a link status call. A Windows system-directory blacklist rejects the system root, Program Files and similar locations.</p>
 
 <pre><code>for (let index = 0; index &lt; 64; index += 1) {
   try {
@@ -1692,33 +1703,39 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 }
 </code></pre>
 
-<p><strong>Cost.</strong> A TOCTOU window remains between check and use: an attacker can swap a parent directory for a link after <code>realpath</code> and before the write. The 64-level cap rejects very deep paths, and the system blacklist depends on environment variables that may be missing. The guard stops ordinary mistakes and naive attacks, not a kernel-level sandbox.</p>
+<p><strong>Cost.</strong> A time-of-check to time-of-use window remains. An attacker can swap a parent directory for a link between the check and the write. The 64-level cap rejects very deep paths, and the system blacklist depends on environment variables that may be missing. The guard stops ordinary mistakes and naive attacks, not a kernel-level sandbox.</p>
 
-<h2>The agent loop: when to answer directly, when to act</h2>
+<h2>The agent loop: when to answer, when to act</h2>
 
-<p>The first step of <code>startChat</code> is not calling the model but persisting. It confirms or creates the conversation, writes the user message, updates the title, writes an empty assistant message, then creates <code>requestId</code> and <code>AbortController</code>, emits <code>chat.started</code> and runs asynchronously. That ordering guarantees the user message and a failure placeholder exist even if the model call fails, so the UI never shows "sent but missing from history".</p>
+<p>The first step of starting a chat is not calling the model. It is persisting. The runtime confirms or creates the conversation, writes the user message, updates the title, and writes an empty assistant message. Then it creates the request id and abort controller, emits a started event, and runs asynchronously.</p>
 
-<p>Two shortcuts sit at the entrance. First, an explicit memory regex: sentences starting with "remember" go straight to memory writing without a model call. Second, intent routing: short sentences, greetings and questions take <code>direct</code>, while todos, reminders, files, web and long sentences take <code>agent</code>. Routing is not a semantic classifier but an ordered set of regexes — cheap, testable, no extra model call, and occasionally wrong.</p>
+<p>That ordering guarantees the user message and a failure placeholder exist even if the model call fails, so the interface never shows a message that was sent but is missing from history.</p>
 
-<p>Direct mode calls the model once, suited to "explain this concept" or "write one line of copy". Agent mode loops: the model emits text and tool calls, results are appended, the model is called again, until it stops calling tools or hits a cap. The loop allows at most 20 steps, 30 tool calls and a 5-minute total timeout; usage and retries accumulate on the task record. If a tool result fails its <code>verification</code>, the step is marked failed rather than pretending success.</p>
+<p>Two shortcuts sit at the entrance. The first is an explicit memory pattern: sentences that begin with "remember" go straight to memory writing without a model call. The second is intent routing: short sentences, greetings and questions take the direct path, while todos, reminders, files, web requests and long sentences take the agent path. Routing is not a semantic classifier but an ordered set of regular expressions, which is cheap, testable, needs no extra model call, and is occasionally wrong.</p>
 
-<h3>Problem 6: the boundary of regex intent routing</h3>
+<p>Direct mode calls the model once, which suits "explain this concept" or "write one line of copy". Agent mode loops: the model emits text and tool calls, results are appended to the message array, the model is called again, and the loop ends when there are no more tool calls or a cap is reached.</p>
 
-<p><strong>Symptom.</strong> Routing depends only on keywords and sentence length. A chatty sentence containing "file" can enter the agent, while a long sentence with no keyword that genuinely needs multiple steps can be misrouted.</p>
+<p>The loop allows at most 20 steps, 30 tool calls and a 5-minute total timeout. Usage and retry counts accumulate on the task record. If a tool result fails its own verification, the step is marked failed rather than pretending success.</p>
 
-<p><strong>Cause.</strong> No trained classifier and no model call to judge intent first; regexes plus an 80-character threshold were chosen to save a call and reduce latency.</p>
+<h3>Problem 6: the boundary of regular-expression routing</h3>
 
-<p><strong>Fix.</strong> High-frequency intents are separate regexes matched in order — memory, todo, reminder, web, system, file, recall, image, greeting, question, short sentence; explicit memory and shortcuts short-circuit before routing; long or unclassifiable requests default to the agent, spending an extra loop rather than treating a multi-step task as chat.</p>
+<p><strong>Symptom.</strong> Routing depends only on keywords and sentence length. A chatty sentence containing the word "file" can enter the agent, while a long sentence with no keyword that genuinely needs several steps can be misrouted.</p>
 
-<p><strong>Cost.</strong> Regex maintenance grows with every intent, and mixed Chinese/English or colloquial phrasing slips through; the 80-character threshold is empirical, not semantic. A small local classifier could replace it later; that has not been done.</p>
+<p><strong>Cause.</strong> There is no trained classifier and no model call to judge intent first. Regular expressions plus an 80-character threshold were chosen to save a call and reduce latency.</p>
 
-<h2>Context budget: how 72k characters get spent</h2>
+<p><strong>Fix.</strong> High-frequency intents became separate patterns, matched in a fixed order: memory, todo, reminder, web, system, file, recall, image, greeting, question, short sentence. Explicit memory and shortcuts short-circuit before routing. Long or unclassifiable requests default to the agent, spending one extra tool loop rather than treating a multi-step task as chat.</p>
 
-<p>Z Bot does not stuff all history into the prompt. <code>ContextManager.build()</code> fetches the project, authorized roots and relevant memories, assembles the system prompt, then fills history against a character budget. The total is 72,000 characters; history holds at most 20 messages, newest first, each truncated to 8,000 characters; the current user input is cut at 20,000; OCR text is capped at 24,000 and wrapped in <code>&lt;untrusted_image_text&gt;</code> so the model is told plainly that it is untrusted data, not instructions.</p>
+<p><strong>Cost.</strong> Pattern maintenance grows with every intent, and mixed Chinese and English or colloquial phrasing slips through. The 80-character threshold is empirical, not semantic. A small local classifier could replace this layer later; that has not been done.</p>
 
-<p>Memory retrieval uses the first 500 characters of the current question as the query, takes 8 FTS hits, and if fewer than four arrive, tops up with the four most recent by project and time, deduplicated to at most eight. Ordering is <code>bm25</code> ascending, then <code>importance</code> descending, then <code>updated_at</code> descending. The strategy is conservative: better a few recent memories than answering with none.</p>
+<h2>Context budget: how 72,000 characters get spent</h2>
 
-<p>History loading is short code with a clear boundary:</p>
+<p>Z Bot does not stuff the whole history into the prompt. The context manager loads the project, the authorized roots and the relevant memories, assembles the system prompt, and then fills history against a character budget.</p>
+
+<p>The total budget is 72,000 characters. History holds at most 20 messages, newest first, and any single message is truncated to 8,000 characters. The current user input is cut at 20,000. OCR text is capped at 24,000 characters and wrapped in a tag that tells the model plainly it is untrusted data rather than instructions.</p>
+
+<p>Memory retrieval uses the first 500 characters of the current question as the query and takes 8 full-text hits. If fewer than four arrive, it tops up with the four most recent by project and time, deduplicates, and caps at eight. Ordering is by BM25 ascending, then importance descending, then update time descending. The strategy is conservative: give a few recent memories rather than let the model answer with none.</p>
+
+<p>History loading is short code with a clear boundary.</p>
 
 <pre><code>let remaining = Math.max(0, maxChars - system.length);
 const selectedHistory: LlmMessage[] = [];
@@ -1732,21 +1749,23 @@ for (let index = history.length - 1; index &gt;= 0; index -= 1) {
 
 <h3>Problem 7: one oversized message ends the loop</h3>
 
-<p><strong>Symptom.</strong> When a single historical message exceeds the remaining budget, the loop breaks and no earlier messages load at all. One long old reply truncates the entire history instead of being skipped.</p>
+<p><strong>Symptom.</strong> When a single historical message is longer than the remaining budget, the loop breaks and no older messages load at all. One long old reply truncates the entire history instead of being skipped.</p>
 
-<p><strong>Cause.</strong> The implementation chose "load continuously from newest backwards" so the context is one contiguous run with no holes; the cheapest way to handle a message that does not fit is to stop.</p>
+<p><strong>Cause.</strong> The implementation chose to load continuously from newest backwards, which keeps the context as one contiguous run with no holes. The cheapest way to handle a message that does not fit is to stop.</p>
 
-<p><strong>Fix.</strong> Each message is truncated to 8,000 characters first, reducing the chance; the system prompt and memories are kept inside the budget; the current user message is truncated separately and never competes with history.</p>
+<p><strong>Fix.</strong> Each message is truncated to 8,000 characters first, which lowers the chance of hitting the case at all. The system prompt and memories are kept inside the budget. The current user message is truncated separately and never competes with history.</p>
 
-<p><strong>Cost.</strong> This is a known rough edge. Skipping the oversized message and continuing with older ones would be more reasonable, as would budgeting in tokens rather than characters; neither is done, because contiguous history helps the model and the 8,000-character cut already excludes most cases.</p>
+<p><strong>Cost.</strong> This is a known rough edge. Skipping the oversized message and continuing with older ones would be more reasonable, and budgeting in tokens rather than characters would be more accurate. Neither is done, because contiguous history helps the model and the 8,000-character cut already excludes most cases.</p>
 
-<p>Character budgets carry another error: Chinese, English and code differ in token density, so 72k characters is not 72k tokens. Characters were chosen because they can be estimated cheaply without a tokenizer, at the risk of occasionally exceeding the model window. Provider errors surface as <code>MODEL_*</code> codes in the UI, so users see a failure instead of a silently dropped message.</p>
+<p>Character budgets carry another error. Chinese, English and code have different token densities, so 72,000 characters is not 72,000 tokens. Characters were chosen because they can be estimated cheaply without a tokenizer, at the risk of occasionally exceeding the model window. Provider errors surface in the interface as model error codes, so the user sees the failure rather than a silently dropped message.</p>
 
-<h2>Model layer: streaming, retries and the fallback boundary</h2>
+<h2>The model layer: streaming, retries and the fallback boundary</h2>
 
-<p>The provider layer wraps OpenAI, OpenAI-compatible, Anthropic, Google and Ollama. The first four use official or compatible SDKs; Ollama goes through the OpenAI-compatible interface at <code>http://127.0.0.1:11434/v1</code> by default. The AI SDK's <code>streamText</code> performs the request, and Z Bot normalizes output into its own events: <code>text-delta</code>, <code>tool-call</code>, <code>finish</code>, <code>usage</code>, <code>error</code>, <code>aborted</code>. The agent above never needs to know which provider is in use or how each streams.</p>
+<p>The provider layer wraps OpenAI, OpenAI-compatible endpoints, Anthropic, Google and Ollama. The first four use official or compatible SDKs. Ollama goes through the OpenAI-compatible interface, at the usual local address by default.</p>
 
-<p>Retry policy is at most three attempts per provider with 500 ms, 1000 ms and 2000 ms backoff; the AI SDK's <code>maxRetries</code> is set to 0 to avoid a second layer inside. Only retryable errors retry — configuration failures like <code>MODEL_KEY_MISSING</code> or <code>MODEL_BASE_URL_MISSING</code> fail immediately. The fallback model is used only after every primary attempt fails, and never once text has already been emitted.</p>
+<p>The AI SDK's streaming call performs the request, and Z Bot normalizes its output into its own events: text delta, tool call, finish, usage, error and aborted. The agent above never needs to know which provider is in use or how each one streams.</p>
+
+<p>The retry policy is at most three attempts per provider, with backoff of 500 ms, 1000 ms and 2000 ms. The SDK's own retry is set to zero, so a second layer does not retry underneath. Only retryable errors retry; configuration failures such as a missing key or a missing base URL fail immediately. The fallback model is used only after every primary attempt fails, and never once text has already been emitted.</p>
 
 <pre><code>const retryable = normalized instanceof ModelRequestError ? normalized.retryable : true;
 if (!retryable || attemptNumber &gt;= maxAttempts || textEmittedRef.value) {
@@ -1756,23 +1775,23 @@ retries += 1;
 await delay(500 * 2 ** (retries - 1), signal);
 </code></pre>
 
-<h3>Problem 8: retries duplicate text in the UI</h3>
+<h3>Problem 8: retries duplicated text in the interface</h3>
 
-<p><strong>Symptom.</strong> Streaming already produced a few words, the request fails midway, the retry answers from the beginning, and the UI shows "partial text + complete answer".</p>
+<p><strong>Symptom.</strong> Streaming has already produced a few words, the request fails midway, the retry answers from the beginning, and the interface shows partial text followed by a complete answer.</p>
 
-<p><strong>Cause.</strong> Retry logic cared only about "the request failed", not about whether visible deltas had already been emitted; the SDK could also retry internally and amplify it.</p>
+<p><strong>Cause.</strong> Retry logic cared only about "the request failed" and not about whether visible deltas had already been emitted. The SDK could also retry internally and amplify it.</p>
 
-<p><strong>Fix.</strong> A <code>textEmittedRef</code> records whether this attempt sent any <code>text-delta</code>; once true, the current provider may not retry and fallback is forbidden. The provider sets <code>maxRetries: 0</code>, concentrating retries in <code>streamModel</code>.</p>
+<p><strong>Fix.</strong> A flag records whether this attempt emitted any text delta. Once true, the current provider may not retry and fallback is forbidden. The provider sets its own retry count to zero, concentrating retries in one layer.</p>
 
-<p><strong>Cost.</strong> Emitted partial text is not retracted, so a user may see half a sentence followed by an error; and if the model fails after a tool call, retry is also forbidden and the task fails. This buys "no duplicates" over "always succeed", which matters more for chat.</p>
+<p><strong>Cost.</strong> Emitted partial text is not retracted, so a user may see half a sentence followed by an error. And if the model fails after a tool call, retry is also forbidden and the task simply fails. This buys "no duplicates" over "always succeed", which is the right trade for chat.</p>
 
-<p>The 5-minute overall timeout is a second gate covering the whole conversation, not one request; when it fires, <code>AbortController</code> cancels the running stream, permission waits and tool execution, and the run is marked <code>canceled</code> rather than treated as a successful partial answer.</p>
+<p>The 5-minute overall timeout is a second gate covering the whole conversation rather than one request. When it fires, the abort controller cancels the running stream, permission waits and tool execution, and the run is marked cancelled rather than treated as a successful partial answer.</p>
 
-<h2>Memory: no vector store, FTS5 first</h2>
+<h2>Memory: no vector store, full-text search first</h2>
 
-<p>Memory has five types: <code>user</code>, <code>project</code>, <code>event</code>, <code>task</code>, <code>global</code>. They live in a <code>STRICT</code> <code>memories</code> table with content, type, project id, importance, confidence, expiry and archive time; tags live in <code>memory_tags</code> with cascading foreign keys. Retrieval uses the <code>memories_fts</code> FTS5 virtual table with <code>content='memories'</code> and <code>content_rowid='rowid'</code>, kept in sync by three triggers for insert, update and delete.</p>
+<p>Memory has five kinds: user, project, event, task and global. Rows live in a strict memories table holding content, kind, project id, importance, confidence, expiry and archive time. Tags live in a separate table with cascading deletes. Retrieval uses an FTS5 virtual table, contentless-linked to the memories table, kept in sync by three triggers for insert, update and delete.</p>
 
-<p>Chinese retrieval is the most underrated problem here. FTS5's default <code>unicode61</code> tokenizer does not segment Chinese into meaningful words; a whole sentence often becomes one token, and searching "release process" matches nothing beyond the exact phrase. Z Bot switches to the <code>trigram</code> tokenizer, indexing three-character windows so Chinese phrases can be partially matched; queries shorter than three characters cannot use FTS and degrade to <code>instr(lower(content), lower(query))</code> substring scans.</p>
+<p>Chinese retrieval is the most underrated problem in this area. The default FTS5 tokenizer targets space-separated languages, so a whole Chinese sentence tends to become a single token and a query matches only an exact phrase. Z Bot switches to the trigram tokenizer, indexing three-character windows so phrases can be matched partially. Queries shorter than three characters cannot use FTS, so they degrade to a substring scan.</p>
 
 <pre><code>CREATE VIRTUAL TABLE memories_fts USING fts5(
   content,
@@ -1784,25 +1803,25 @@ await delay(500 * 2 ** (retries - 1), signal);
 
 <h3>Problem 9: the default FTS5 tokenizer does not split Chinese</h3>
 
-<p><strong>Symptom.</strong> English keywords match, whole Chinese sentences do not; after switching the tokenizer to <code>trigram</code>, two-character queries stop matching entirely.</p>
+<p><strong>Symptom.</strong> English keywords match and whole Chinese sentences do not. After switching the tokenizer to trigram, two-character queries stop matching entirely.</p>
 
-<p><strong>Cause.</strong> FTS5's default tokenizer targets space-separated languages and Chinese has no spaces; <code>trigram</code> needs at least three characters to build a window.</p>
+<p><strong>Cause.</strong> The default tokenizer expects spaces, and Chinese has none. The trigram tokenizer needs at least three characters to build a window.</p>
 
-<p><strong>Fix.</strong> Create the table with <code>trigram</code>; queries of three or more characters use <code>MATCH</code> with the query quoted and inner quotes escaped; shorter ones use <code>instr(lower(...))</code>. A test with the two-character word "简洁" covers the degraded path specifically.</p>
+<p><strong>Fix.</strong> The table is created with the trigram tokenizer. Queries of three or more characters use a full-text match with the query quoted and inner quotes escaped. Shorter queries use a case-folded substring scan. A test covers the degraded path specifically with a two-character word.</p>
 
-<p><strong>Cost.</strong> A <code>trigram</code> index is larger than the default and costs more on write; two-character queries become full scans and slow down as memory grows; there are no synonyms, no pinyin and no semantic recall, so "go live" and "release" stay unconnected. v0.1 accepts this and defers a vector store.</p>
+<p><strong>Cost.</strong> A trigram index is larger than the default and costs more on write. Two-character queries become full scans and get slower as memory grows. There are no synonyms, no pinyin and no semantic recall, so "go live" and "release" stay unconnected. Version 0.1 accepts those limits and defers a vector store.</p>
 
-<p>Memory has exactly two write paths: the entry regex recognizing "remember ...", or the model actively calling the <code>remember</code> tool. The latter is gated by <code>memory.autoExtract</code>; with it off, the model cannot write on its own. There is no post-conversation extraction pass, deliberately: that needs extra model calls plus handling for duplicates and hallucination, so v0.1 first makes "the user explicitly said remember" reliable.</p>
+<p>Memory has exactly two write paths. The entry pattern recognizes an explicit "remember" instruction and writes directly, or the model calls the remember tool during a conversation. The second is gated by an auto-extract switch; with it off, the model cannot write on its own. There is no post-conversation extraction pass, deliberately, because that needs extra model calls plus handling for duplicates and hallucination. Version 0.1 first makes "the user explicitly said remember" reliable.</p>
 
-<p>Dedupe is exact equality after normalization: same type, same project, and equal <code>lower(trim(content))</code>. A hit takes the larger of importance and confidence and merges tags. There is no semantic dedupe and no decay scoring; expiry only archives via <code>expiresAt -&gt; archivedAt</code>, with no time-decayed ranking. Retrieval orders by <code>bm25</code>, importance and <code>updated_at</code> — simple, explainable, fast enough.</p>
+<p>Deduplication is exact equality after normalization: same kind, same project, and equal case-folded trimmed content. A hit takes the larger of importance and confidence and merges tags. There is no semantic dedupe and no decay scoring. Expiry only archives rows, with no time-decayed ranking. Retrieval orders by BM25, then importance, then update time, which is simple, explainable and fast enough.</p>
 
-<p>This system is closer to an index than a brain. It does not summarize conversations, and an unused memory never loses weight; its strength is that every item can be seen, edited and deleted in the UI, so users can explain why the model mentioned something. For a personal assistant, explainability beats recall.</p>
+<p>This system is closer to an index than to a brain. It does not summarize conversations, and a memory that went unused never loses weight. Its strength is that every item can be seen, edited and deleted in the interface, so a user can explain why the model mentioned something. For a personal assistant, explainability matters more than recall.</p>
 
-<h2>Reminder scheduling: the ceiling of setTimeout</h2>
+<h2>Reminder scheduling: the ceiling of the timer</h2>
 
-<p>The scheduler is light: one <code>setTimeout</code> per enabled reminder, and <code>refresh()</code> clears every timer and re-plans on start or on any change. A fired reminder writes a <code>reminder.triggered</code> event, sends a Windows notification per settings, then computes the next trigger with <code>nextReminderTrigger</code>; one-off reminders set <code>enabled</code> to 0, recurring ones advance to the next future moment.</p>
+<p>The scheduler is light. Each enabled reminder gets one timer, and a refresh call clears every timer and re-plans when the app starts or a reminder changes. A fired reminder writes an event, sends a Windows notification according to settings, and computes the next trigger. One-off reminders are disabled, and recurring ones advance to the next future moment.</p>
 
-<p>The problem is the <code>setTimeout</code> ceiling. Node's timer delay overflows above 2^31−1 milliseconds (about 24.8 days) and fires immediately. Z Bot clamps to <code>2_147_000_000</code> ms, sleeps that long, then re-reads the reminder and re-plans, forming a chain.</p>
+<p>The problem is the timer ceiling. Node's timer delay overflows above 2^31 minus 1 milliseconds, which is about 24.8 days, and an overflowing delay fires immediately. Z Bot clamps to just under that value, sleeps one segment, then re-reads the reminder and re-plans, forming a chain.</p>
 
 <pre><code>const MAX_TIMEOUT = 2_147_000_000;
 const delay = reminder.triggerAt - Date.now();
@@ -1817,96 +1836,108 @@ if (delay &gt; MAX_TIMEOUT) {
 }
 </code></pre>
 
-<h3>Problem 10: very long reminders overflow the timer</h3>
+<h3>Problem 10: long reminders overflowed the timer</h3>
 
-<p><strong>Symptom.</strong> A reminder a month out fires immediately after startup.</p>
+<p><strong>Symptom.</strong> A reminder set a month out fires immediately after startup.</p>
 
-<p><strong>Cause.</strong> <code>setTimeout</code> takes a 32-bit signed delay; beyond <code>2^31-1</code> ms it wraps negative or to zero and runs at once.</p>
+<p><strong>Cause.</strong> The timer delay is a signed 32-bit value. Past the maximum it wraps to a negative number or zero, and the timer runs at once.</p>
 
-<p><strong>Fix.</strong> Sleep one 24.8-day segment and re-read the reminder in the callback; treat negative delays as 0 so overdue reminders fire once; disable one-off reminders after firing, and advance recurring ones with <code>nextReminderTrigger</code> instead of replaying missed history.</p>
+<p><strong>Fix.</strong> Sleep one segment and re-read the reminder in the callback. Treat a negative delay as zero so an already-overdue reminder fires once. Disable one-off reminders after firing, and advance recurring ones instead of replaying missed occurrences.</p>
 
-<p><strong>Cost.</strong> Chained re-planning requires the process to stay alive; a full exit loses the timers and missed reminders never fire. The README admits this. Windows Task Scheduler is not used, nor is a startup scan for reminders that should have fired in the last 24 hours, because catch-up policy is a product decision — once or every missed occurrence — and v0.1 declines it.</p>
+<p><strong>Cost.</strong> Chained re-planning requires the process to stay alive. A full exit loses the timers and missed reminders never fire, which the README states plainly. It does not use Windows Task Scheduler, and it does not scan at startup for reminders that should have fired in the last 24 hours, because catch-up policy is a product decision, whether to fire once or fire every missed occurrence, and version 0.1 declines to choose.</p>
 
-<p>One more boundary: at startup a negative delay fires immediately. For one-off reminders that surfaces an overdue, never-fired item; for recurring ones it fires the current occurrence and advances to the next future moment without replaying every missed day. The semantics are right, but a user expecting "catch up on everything missed" will feel one is missing.</p>
+<p>There is one more boundary. At startup a negative delay fires immediately. For a one-off reminder that surfaces an overdue item. For a recurring one it fires the current occurrence and advances, without replaying every missed day. The semantics are right, but a user expecting a full catch-up will feel one is missing.</p>
 
 <h2>Proactive checks and task recovery</h2>
 
-<p>The proactive service handles project-stall reminders. It checks 10 seconds after start and every 6 hours after; a <code>running</code> flag prevents re-entry. Each pass reads 400 events, finds the latest <code>project.inactivity</code> per project, skips when that notification is newer than the project's latest activity, and otherwise decides against the threshold. The default threshold is 7 days, and directory <code>mtime</code> counts as activity only when the directory is inside an authorized root.</p>
+<p>The proactive service handles project-stall reminders. It checks ten seconds after start and then every six hours. A running flag prevents re-entry, so a second check cannot stack on the first.</p>
 
-<p>That dedupe solves "notify the same stalled project on every pass". It compares "last notified" with "latest activity": activity after a notification restarts the clock, and silence since then stops repeats. The cost is that the event table must retain enough history; 400 rows is empirical, and a busy event stream can squeeze out old records and cause duplicate notifications.</p>
+<p>Each pass reads 400 events and finds the latest inactivity notification per project. If that notification is newer than the project's latest activity, the project is skipped. Otherwise the threshold decides. The default threshold is seven days, and a directory modification time counts as activity only when the directory is inside an authorized root.</p>
 
-<p>Task recovery is the other half. On exit, <code>markInterrupted()</code> turns <code>running</code> and <code>pending</code> into <code>paused</code>, and nothing auto-resumes. Agent tasks can have side effects — writing files, moving files, deleting to the Recycle Bin, sending notifications; replaying them after a restart could delete or move twice, far worse than a task sitting paused.</p>
+<p>The deduplication solves "notify the same stalled project on every pass". It compares the last notification time with the latest activity time: activity after a notification restarts the clock, and silence since then stops repeats. The cost is that the event table has to retain enough history. Four hundred rows is an empirical cap, and a busy event stream can squeeze out old records and cause a duplicate notification.</p>
+
+<p>Task recovery is the other half. On exit, the runtime marks running and pending tasks as paused, and nothing resumes automatically. Agent tasks can have side effects: writing files, moving files, deleting to the Recycle Bin, sending notifications. Replaying them after a restart could delete or move twice, which is far worse than a task sitting paused.</p>
 
 <h3>Problem 11: side effects replayed after a restart</h3>
 
-<p><strong>Symptom.</strong> The app closes halfway through a task; resuming from the stored state on restart can execute a tool call again.</p>
+<p><strong>Symptom.</strong> The app closes halfway through a task, and resuming from the stored state on restart can execute a tool call a second time.</p>
 
-<p><strong>Cause.</strong> Task state and tool-call records persist, but "which step ran" and "whether the side effect happened" have no transactional link, so the model may replay a tool.</p>
+<p><strong>Cause.</strong> Task state and tool-call records persist, but "which step ran" and "whether the side effect happened" have no transactional link, so the model can replay a tool.</p>
 
-<p><strong>Fix.</strong> Call <code>markInterrupted()</code> at startup, turning <code>running</code> and <code>pending</code> into <code>paused</code>; tasks waiting on permission become <code>waiting_permission</code>; nothing resumes automatically, and the user must confirm and re-issue. Tools add idempotency: writes carry content hashes, moves and deletes preview, deletes go to the Recycle Bin.</p>
+<p><strong>Fix.</strong> On startup the runtime marks interrupted tasks as paused, and tasks waiting on permission become waiting-for-permission. Nothing resumes automatically; the user confirms and re-issues. Tools add idempotency of their own: writes carry content hashes, moves and deletes preview first, and deletes go to the Recycle Bin.</p>
 
-<p><strong>Cost.</strong> Users lose auto-resume, and a long interrupted task must be re-described; paused tasks have no one-click resume. That is safety over completeness.</p>
+<p><strong>Cost.</strong> Users lose automatic resume, and a long interrupted task must be described again. Paused tasks have no one-click resume. That is safety over completeness.</p>
 
-<p>Tray residency, minimize-on-close, single instance and launch-at-login are the foundation of that residency. <code>requestSingleInstanceLock()</code> makes a second launch exit and focus the existing window; closing the window minimizes to the tray and only an explicit quit ends the process. That gives reminders and proactive checks somewhere to run, and makes it easy for users to think the app already exited.</p>
+<p>Tray residency, minimize-on-close, single instance and launch at login are the foundation of that residency. A single-instance lock makes a second launch exit and focus the existing window. Closing the window minimizes to the tray, and only an explicit quit ends the process. That gives reminders and proactive checks somewhere to run, and it makes it easy for a user to think the app already exited.</p>
 
 <h2>Windows integration: notifications, OCR and the tray</h2>
 
-<p>Windows notifications are mandatory for a desktop assistant and the classic "code is correct but nothing appears". Z Bot calls <code>app.setAppUserModelId('com.zbot.desktop')</code> at startup, the prerequisite for Windows notifications; before sending it checks <code>Notification.isSupported()</code> and returns false instead of throwing. Clicks can navigate — a reminder to Home, a stalled project to Memory.</p>
+<p>Windows notifications are mandatory for a desktop assistant, and they are the classic case of correct code that produces no visible result.</p>
 
-<h3>Problem 12: Windows notifications never appear</h3>
+<p>Z Bot sets the app user model id at startup, which is the prerequisite for Windows notifications. Before sending, it checks whether notifications are supported and returns false instead of throwing. A click can navigate, so a reminder opens the home page and a stalled project opens memory.</p>
 
-<p><strong>Symptom.</strong> A reminder fires, the log says <code>reminder fired</code>, and no desktop notification shows.</p>
+<h3>Problem 12: Windows notifications never appeared</h3>
 
-<p><strong>Cause.</strong> Windows needs the right App User Model ID or it cannot attribute the notification; Focus Assist, disabled notification permission or a tray process that is not running also suppress it silently.</p>
+<p><strong>Symptom.</strong> A reminder fires, the log shows it fired, and no desktop notification appears.</p>
 
-<p><strong>Fix.</strong> Set <code>setAppUserModelId</code> in the main process; <code>NotificationService.show</code> checks <code>isSupported()</code> first; the README documents the diagnostic steps — system notification settings, Focus Assist, whether the app runs in the tray.</p>
+<p><strong>Cause.</strong> Windows needs the correct app user model id or it cannot attribute the notification. Focus assist, disabled notification permissions, or a tray process that is not running also suppress it silently.</p>
 
-<p><strong>Cost.</strong> <code>isSupported()</code> reports platform capability, not whether the user muted notifications, and there is no in-app banner fallback, so reminders can be missed. That is a blank spot in this version.</p>
+<p><strong>Fix.</strong> Set the model id in the main process, check support before showing, and document the diagnostic steps: system notification settings, focus assist, and whether the app is running in the tray.</p>
 
-<p>OCR better illustrates how plans change. The repository ends up using Windows' built-in <code>Windows.Media.Ocr</code> through a PowerShell child process: <code>-NoProfile</code>, <code>-NonInteractive</code>, <code>-ExecutionPolicy Bypass</code>, <code>windowsHide</code>, a 30-second timeout and a 1 MB output buffer. Results go to a temp file, are read back and clipped to 20,000 characters; failure returns <code>null</code> so the vision model can take over.</p>
+<p><strong>Cost.</strong> Support checks report platform capability, not whether the user muted notifications. There is no in-app banner fallback, so a reminder can be missed. That is a blank spot in this version.</p>
 
-<h3>Problem 13: migrating OCR from Tesseract to the system engine</h3>
+<p>OCR better illustrates how plans change. The repository ends up using the OCR engine built into Windows, called through a PowerShell child process with no profile, no interaction, a bypassed execution policy and a hidden window. The call has a 30-second timeout and a 1 MB output buffer. Results are written to a temporary file, read back, clipped to 20,000 characters, and a failure returns null so the vision model can take over.</p>
 
-<p><strong>Symptom.</strong> It started with Tesseract, the build config still carries a plugin copying <code>@tesseract.js-data</code>, but runtime code no longer references it.</p>
+<h3>Problem 13: OCR moved from Tesseract to the system engine</h3>
 
-<p><strong>Cause.</strong> Tesseract needs extra language data and native dependencies, with unfavourable size, startup and Chinese accuracy; Windows 10/11 ships an OCR engine with language packs already installed, so calling it is lighter.</p>
+<p><strong>Symptom.</strong> The project started with Tesseract, and the build configuration still carries a plugin that copies the Tesseract data package, while runtime code no longer references it.</p>
 
-<p><strong>Fix.</strong> Move to a PowerShell child process driving <code>Windows.Media.Ocr</code>, packaging the script as a resource; return <code>null</code> on failure so the vision model handles it; hide the window and cap timeout and output so the main process cannot hang.</p>
+<p><strong>Cause.</strong> Tesseract needs extra language data and native dependencies, with unfavourable size, startup time and Chinese accuracy. Windows 10 and 11 ship an OCR engine with language packs already installed, and calling it is lighter.</p>
 
-<p><strong>Cost.</strong> The child process has startup overhead, and 30 seconds may be too short for huge images; it depends on Windows language packs, so Chinese OCR can fail on non-Chinese systems; the leftover Tesseract build config is technical debt — harmless at runtime, misleading to the next reader.</p>
+<p><strong>Fix.</strong> Move to a PowerShell child process driving the system OCR API, packaging the script as a resource. Return null on failure so the vision model handles it. Hide the window and cap the timeout and the output size so the main process cannot hang.</p>
 
-<p>The tray and shortcuts are the last piece. The tray menu offers show, quick ask and quit; <code>Ctrl+Space</code> opens Quick Ask and <code>Ctrl+Shift+Z</code> captures the primary screen into the chat. Single instance and launch-at-login keep those entry points stable, which also means a lifetime longer than a normal window app — quit order must call <code>scheduler.stop()</code>, <code>proactive.stop()</code>, <code>database.close()</code> and <code>wal_checkpoint</code> in sequence.</p>
+<p><strong>Cost.</strong> The child process has startup overhead, and 30 seconds may be too short for very large images. It depends on Windows language packs, so Chinese recognition can fail on a system without them. The leftover Tesseract build configuration is technical debt: harmless at runtime, misleading to the next reader.</p>
 
-<h2>Tests and packaging: after 32 unit tests and 2 E2E</h2>
+<p>The tray and the shortcuts are the last piece. The tray menu offers show, quick ask and quit. One shortcut opens quick ask, another captures the primary screen into the chat. Single instance and launch at login keep those entry points stable, which also means the lifetime is longer than a normal window application. Quit order therefore matters: stop the scheduler, stop the proactive service, close the database, and checkpoint the WAL, in that sequence.</p>
 
-<p>The 32 unit tests cover what is easy to get wrong and hard to notice afterwards: short paths and symlinks in the path guard, exact memory dedupe, reminder recurrence rules, provider event normalization, runtime permission denial, project-stall dedupe. Two E2E tests cover starting a real window and a basic conversation. The suite is small, but each case maps to a real hole, which beats chasing a coverage number.</p>
+<h2>Tests and packaging</h2>
 
-<p>Packaging is another category of trap. Automated releases ship only portable and MSI, because the NSIS uninstaller gets locked by antivirus; unsigned Windows installers trigger SmartScreen, requiring an extra "run anyway". <code>playwright</code> and <code>jsdom</code> sit in runtime dependencies and inflate the installer; the repository has no measured size, so this post states the cost without inventing a number.</p>
+<p>The 32 unit tests cover what is easy to get wrong and hard to notice afterwards: short paths and symlinks in the path guard, exact memory deduplication, reminder recurrence rules, provider event normalization, runtime permission denial, and project-stall deduplication. Two end-to-end tests cover starting a real window and a basic conversation. The suite is small, but each case maps to a real hole, which is worth more than a coverage number.</p>
+
+<p>Packaging is another category of trap. Automated releases ship only the portable build and the MSI, because the NSIS uninstaller gets locked by antivirus during the build. Unsigned Windows installers trigger SmartScreen, which asks the user for one extra click. Playwright and jsdom sit in runtime dependencies and inflate the installer, and the repository has no measured size, so this post states the cost without inventing a number.</p>
 
 <h3>Problem 14: NSIS locked and runtime dependencies bloated</h3>
 
-<p><strong>Symptom.</strong> The NSIS installer never reaches release artefacts, only portable and MSI; the installer is larger than expected.</p>
+<p><strong>Symptom.</strong> The NSIS installer never reaches release artifacts, only the portable build and the MSI. The installer is also larger than expected.</p>
 
-<p><strong>Cause.</strong> The NSIS uninstaller is held or locked by antivirus during build or scan; <code>playwright</code> and <code>jsdom</code>, which belong in tests or tooling, were written into <code>dependencies</code>, so the packager bundles them at runtime.</p>
+<p><strong>Cause.</strong> The NSIS uninstaller is held or locked by antivirus during the build. Playwright and jsdom, which belong in tests or tooling, were written into runtime dependencies, so the packager bundles them.</p>
 
-<p><strong>Fix.</strong> The release script uses <code>electron-builder --win portable msi</code> to bypass NSIS; <code>asar</code> is enabled; the signing gap is documented rather than pretended away; dependency cleanup — moving test dependencies to <code>devDependencies</code> or excluding them in the bundler — is deferred.</p>
+<p><strong>Fix.</strong> The release script builds portable and MSI directly, bypassing NSIS. ASAR packaging is enabled. The signing gap is documented rather than pretended away. Dependency cleanup, meaning moving test-only packages to development dependencies or excluding them in the bundler, is deferred.</p>
 
-<p><strong>Cost.</strong> Without NSIS there is no classic setup wizard or Start Menu uninstall entry, only the portable build or MSI; unsigned builds warn in SmartScreen; no size measurement exists to judge the benefit. All three remain open.</p>
+<p><strong>Cost.</strong> Without NSIS there is no classic setup wizard or Start Menu uninstall entry, only the portable build or the MSI. Unsigned builds warn in SmartScreen. And no size measurement exists to judge the benefit. All three remain open.</p>
 
 <h2>Closing</h2>
 
-<p>Z Bot compresses into four sentences. First, keep dangerous capability in the main process: database, keys, tools and system calls never enter the renderer, and preload exposes only whitelisted methods. Second, make permissions a flow rather than a switch: tools declare a spec, matching rules pass, misses wait for the user, and denial becomes a tool result rather than an exception. Third, write the budgets down: 72k context characters, 20 history messages, 8 memories, 20 agent steps, 30 tool calls, 5 minutes, 24.8-day timers — numbers that can be audited. Fourth, make memory an explainable index: FTS5 with trigram, exact dedupe, archival on expiry, no vector store.</p>
+<p>Z Bot compresses into four sentences.</p>
 
-<p>Its value is not feature count but that every feature has a traceable boundary: which step runs in the main process, which needs authorization, which can fail, and what the user sees when it does. Its rough edges are equally explicit: an oversized history message breaks the loop, some IPC lacks validation, OCR build config is stale, NSIS and signing are unresolved, and reminders do not catch up after a full exit. Writing those down beats pretending they do not exist.</p>
+<ol>
+<li><strong>Keep dangerous capability in the main process.</strong> The database, keys, tools and system calls never enter the renderer, and preload exposes only whitelisted methods.</li>
+<li><strong>Make permissions a flow rather than a switch.</strong> Tools declare a spec, matching rules pass, misses wait for the user, and denial becomes a tool result rather than an exception.</li>
+<li><strong>Write the budgets down.</strong> Seventy-two thousand context characters, 20 history messages, 8 memories, 20 agent steps, 30 tool calls, 5 minutes, and a 24.8-day timer ceiling. Numbers can be audited; intentions cannot.</li>
+<li><strong>Make memory an explainable index.</strong> Full-text search with trigrams, exact deduplication, archival on expiry, and no vector store.</li>
+</ol>
 
-<p>If you are building a desktop agent, copy these three first: main-process exclusivity plus a whitelisted preload, the declare-check-wait permission flow, and realpath normalization in the path guard. Context budgets, memory retrieval and scheduling can be tuned to your product.</p>
+<p>Its value is not the feature count but that every feature has a traceable boundary: which step runs in the main process, which needs authorization, which can fail, and what the user sees when it does. Its rough edges are equally explicit. An oversized history message ends the loop, some IPC lacks validation, OCR build configuration is stale, NSIS and signing are unresolved, and reminders do not catch up after a full exit. Writing those down beats pretending they do not exist.</p>
+
+<p>If you are building a desktop agent, copy these three first: main-process exclusivity with a whitelisted preload, the declare-check-wait permission flow, and canonicalization in the path guard. Context budgets, memory retrieval and scheduling can be tuned to your own product.</p>
 
 <h2>Further reading</h2>
+
 <ul>
-<li><a href="/article/agent-memory-without-vector-db/">Agent memory: long-term recall without a vector database</a></li>
+<li><a href="/article/agent-memory-without-vector-db/">Agent memory without a vector database</a></li>
 <li><a href="/article/agent-prompt-injection-boundary/">Where the prompt-injection boundary sits in an agent</a></li>
 <li><a href="/article/agent-concurrency-without-async/">Agent concurrency without an async runtime</a></li>
-<li><a href="/article/metrics-and-distributed-tracing/">Metrics and distributed tracing: from instrumentation to debugging</a></li>
+<li><a href="/article/metrics-and-distributed-tracing/">Metrics and distributed tracing, from instrumentation to debugging</a></li>
 <li><a href="/en/article/nanohermes-rust-coding-agent/">Writing a coding agent in Rust</a></li>
 </ul>
 `,
