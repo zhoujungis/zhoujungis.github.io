@@ -585,6 +585,289 @@ key = f"{title}|{normalized}"
 </ul>
 `,
   },
+  {
+    slug: 'micromd-3mb-markdown-reader',
+    zhSlug: 'micromd-3mb-markdown-reader',
+    topicSlug: 'projects',
+    title: 'MicroMD: a 3 MB single-file Markdown reader',
+    excerpt:
+      'A 3.17 MiB exe, a zero-dependency HTML interface and a hand-written Markdown parser in one process — and seven problems the author chose to document instead of hide.',
+    date: '2026-11-05',
+    readingTime: 35,
+    html: `
+<blockquote>
+<p>Who this is for: Go and frontend developers building single-file desktop apps on Windows; people evaluating a WebView2 shell or planning to hand-write a Markdown parser; engineers who care about binary size, startup, save semantics and the security boundary.</p>
+<p><strong>Bottom line first:</strong> MicroMD packs a 3.17 MiB exe, a dependency-free HTML interface and a hand-written Markdown parser into one process. What is worth reviewing is not the small size but four trade-offs: using the system WebView2, hosting the UI on <code>file://</code>, connecting native and JS with exactly three bindings, and a two-pass parser that protects both escaping and placeholders. Seven problems remain unsolved, each with its cost spelled out below.</p>
+<p>Reading time ~30 minutes · Level: advanced</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Why build another Markdown reader</li>
+<li>One exe and its native shell</li>
+<li>Why the interface is written to disk first</li>
+<li>Three bindings and the meaning of "save"</li>
+<li>A hand-written parser: two passes and a block state machine</li>
+<li>Problem one: missing WebView2 and the browser fallback</li>
+<li>Problem two: relative image paths resolve against the wrong base</li>
+<li>Problem three: full re-render and large-file throttling</li>
+<li>Problem four: draft quota and an unused MAX_DRAFT</li>
+<li>Problem five: size, icon and startup time</li>
+<li>Problem six: save semantics versus user expectations</li>
+<li>Problem seven: no file watching, no recent files</li>
+<li>Known limits and design trade-offs</li>
+<li>Closing</li>
+</ul>
+<hr>
+
+<h2>Why build another Markdown reader</h2>
+
+<p>A 3 MB single-file Markdown reader sounds like compressing something that was never big. Markdown is not the hard part — a parser for headings, lists and tables can be short. The hard part is the Windows desktop shell: windows, DPI, icons, the WebView2 runtime, file permissions, and the distribution problem behind "double-click and it works".</p>
+
+<p>MicroMD's answer is to externalise as much cost as possible: don't bundle a rendering engine, use the system WebView2; introduce no UI framework, write one HTML file; depend on no Markdown library, hand-write a parser in a couple of hundred lines of JavaScript; keep the native layer to window creation, three bindings and argument parsing. The result is a single exe, unzip and run, writing only to its own app-data directory, installing no service and requiring no network.</p>
+
+<p>But the boundaries first. It is not cross-platform; heavy Win32 usage and the WebView2 dependency pin it to Windows 10 and 11. It is not a complete editor either: no syntax highlighting, no sidebar outline, no file watching, no recent-file list. Those are not "coming later" roadmap items — they are the current state. This post follows the implementation order: shell and disk writes, then the three bindings and the parser, then the seven exposed problems one by one.</p>
+
+<p>Let us also get the size right. The release build after stripping is 3,323,392 bytes, i.e. 3.17 MiB (about 3.32 MB decimal); unstripped it is 4,943,872 bytes, so <code>-s -w</code> saves 32.8%. "3 MB" in the title describes that order of magnitude, not an exact 3.00 MB.</p>
+
+<h2>One exe and its native shell</h2>
+
+<p>What is actually inside? It does not bundle Chromium, so "3 MB" means "3 MB of shell plus the engine already on the system", not "a 3 MB browser". The shell has five layers:</p>
+
+<table>
+<thead><tr><th>Layer</th><th>Implementation</th><th>Verified fact</th></tr></thead>
+<tbody>
+<tr><td>Native shell</td><td>Go + <code>github.com/jchv/go-webview2</code></td><td>Three direct Go modules, all three mislabelled <code>// indirect</code> in <code>go.mod</code></td></tr>
+<tr><td>Interface</td><td>A single <code>web/index.html</code></td><td>29,520 bytes, zero JavaScript libraries</td></tr>
+<tr><td>Rendering engine</td><td>Microsoft Edge WebView2, system-installed</td><td>Not shipped with the exe</td></tr>
+<tr><td>Icon and version resource</td><td><code>.syso</code> produced by <code>go-winres</code></td><td>The <code>.syso</code> is gitignored; skip generating it locally and there is no icon</td></tr>
+<tr><td>Packaging</td><td><code>//go:embed</code></td><td><code>main.go:18</code> compiles the HTML into the binary</td></tr>
+</tbody>
+</table>
+
+<p>The native entry point is short. <code>main.go</code> initialises DPI, computes the app-data directory, writes the embedded HTML to disk, parses command-line arguments, then creates a window and calls <code>Run()</code>. The window comes from <code>webview2.NewWithOptions</code> with only a few parameters: title <code>MicroMD</code>, size from <code>windowSize()</code>, <code>IconId: 1</code>, <code>Center: true</code>, and <code>DataPath</code> pointing at <code>%LOCALAPPDATA%\\MicroMD\\webview</code>. <code>Debug: false</code> disables the default context menu and DevTools — a release configuration, not a development one. Window style comes from <code>go-webview2</code>'s defaults; the comment says <code>WS_OVERLAPPEDWINDOW</code>, meaning no custom title bar and no native menu bar. Appearance is entirely the system's.</p>
+
+<p>That choice saves work and hard-codes limits. Without a custom title bar there is no drag region, no minimise animation, no window shadow to adapt; without a menu bar every action must live in HTML buttons and shortcuts. Pointing <code>DataPath</code> at the app directory means WebView2's cache, cookies and localStorage stay in <code>%LOCALAPPDATA%\\MicroMD\\webview</code>, never polluting the user's other browser profiles, and uninstalling is deleting a directory. The cost is that this directory grows with use and no cleanup logic exists.</p>
+
+<p>One easily missed detail: when <code>NewWithOptions</code> returns <code>nil</code>, <code>main</code> calls <code>openExternal(page)</code> to open the same page in the default browser and returns. That path is the fallback for "no WebView2 runtime" and gets its own section later. Note that not every initialisation failure returns <code>nil</code> — some error paths inside <code>go-webview2</code> call <code>log.Fatal</code> directly — so the fallback covers window creation failure, not all startup failures.</p>
+
+<h2>Why the interface is written to disk first</h2>
+
+<p><code>//go:embed web/index.html</code> compiles the 29,520-byte interface into the binary, and then the code does not use <code>NavigateToString</code>: it writes the file out and navigates with <code>file://</code>. Startup order:</p>
+<ol>
+<li><code>appDataDir()</code> reads <code>LOCALAPPDATA</code> and builds <code>%LOCALAPPDATA%\\MicroMD</code>; on failure it falls back to <code>os.UserCacheDir()</code>, then to the relative path <code>MicroMD</code>.</li>
+<li>Append <code>app\\index.html</code> and <code>os.MkdirAll(appDir, 0o755)</code>.</li>
+<li>Read the existing file and compare it with <code>indexHTML</code>; only on read failure or difference does it <code>os.WriteFile(page, indexHTML, 0o644)</code>.</li>
+<li><code>view.Navigate(fileURL(page))</code>, where <code>fileURL</code> uses <code>net/url</code> for drive letters, slashes and escaping.</li>
+</ol>
+
+<p>Why not navigate from a string? The observable benefits: the page gets a stable <code>file://</code> origin, which is what lets localStorage persist per origin; <code>&lt;input type="file"&gt;</code>, the File System Access API and relative resource resolution all behave like an ordinary page; and there is no custom scheme to register and no local HTTP server. The last point matters most — a local port brings port conflicts, firewall prompts and the "is this thing online?" question, while one of the project's selling points is that rendering is entirely local.</p>
+
+<p>The write policy is "rewrite only when the bytes differ", not every launch. Good: upgrades update the UI, normal launches cost one 29,520-byte read. Bad: if a user hand-edits <code>%LOCALAPPDATA%\\MicroMD\\app\\index.html</code>, the next launch overwrites it. There is no "use an external UI" switch, deliberately.</p>
+
+<p>Two silent failure points sit on this path: <code>MkdirAll</code> failure returns immediately, and so does <code>WriteFile</code> failure. Neither shows a dialog, so the user sees "double-click does nothing". Under normal permissions this almost never happens, but with an antivirus lock, a full disk or an unwritable <code>LOCALAPPDATA</code> there is nothing to diagnose from. That is the direct cost of "single file, no installer": no setup program checks directory permissions for you.</p>
+
+<h2>Three bindings and the meaning of "save"</h2>
+
+<p>Native and JS share exactly three bindings, all plainly named:</p>
+
+<table>
+<thead><tr><th>Binding</th><th>Native behaviour</th><th>Return</th></tr></thead>
+<tbody>
+<tr><td><code>micromdLoad</code></td><td>If a file path was on the command line, read it and <code>json.Marshal</code> into <code>{name, content}</code></td><td>Empty string when there is no file</td></tr>
+<tr><td><code>micromdSave</code></td><td>If <code>docPath</code> is non-empty, <code>os.WriteFile</code> back</td><td><code>ok</code> on success, error <code>no file</code> without a path</td></tr>
+<tr><td><code>micromdOpenExternal</code></td><td>Accept only <code>http://</code>, <code>https://</code>, <code>mailto:</code> prefixes, then <code>ShellExecuteW</code></td><td><code>ok</code> when accepted, empty otherwise</td></tr>
+</tbody>
+</table>
+
+<p><code>micromdLoad</code> is economical: it returns no path, only a filename and content. The frontend sets <code>app.native = true</code> when it receives JSON, so <code>Ctrl+S</code> calls <code>micromdSave</code>. <code>micromdSave</code> takes no path argument and only honours the <code>docPath</code> parsed at startup; when the frontend calls it while there is no native file, the native side rejects it with <code>no file</code> — one layer of defence.</p>
+
+<p>The real semantic fork is in the frontend. <code>native</code> is true in exactly one case: a file path on the command line — or a <code>.md</code> dropped on the exe icon, which Windows also presents as an argument. Every other way of opening goes through <code>setDocument(file, handle)</code>, whose first act is <code>app.native = false</code>. Saving therefore has three paths:</p>
+<ul>
+<li>Native file: <code>micromdSave</code> writes back to the original path and shows "saved to filename".</li>
+<li>File picker: if <code>showOpenFilePicker</code> is available, keep the <code>FileSystemHandle</code> and write through <code>createWritable()</code>; the toast says "saved to handle.name".</li>
+<li>Dropped into the window or the <code>&lt;input type="file"&gt;</code> fallback: neither a native path nor a writable handle, so it degrades to a Blob download and says "exported filename".</li>
+</ul>
+
+<p>The downgrade is explicit in <code>saveFile()</code>:</p>
+
+<pre><code>if (app.native &amp;&amp; typeof window.micromdSave === 'function') {
+  await window.micromdSave(content);
+  return;
+}
+if (app.handle &amp;&amp; app.handle.createWritable) {
+  const writable = await app.handle.createWritable();
+  await writable.write(content);
+  await writable.close();
+  return;
+}
+const link = document.createElement('a');
+link.href = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+link.download = app.name || 'untitled.md';
+link.click();
+</code></pre>
+
+<p>One detail deserves credit: <code>setDocument</code> resets <code>native</code> every time a new file is opened. Open <code>A.md</code> from the command line and the native <code>docPath</code> points at A; then open <code>B.md</code> through the picker. Without the reset, <code>Ctrl+S</code> could write B's content into A. The code ties "can this document be written natively" to "which document this is", avoiding the most dangerous class of mis-write.</p>
+
+<p>The cost is three meanings for one shortcut. The same <code>Ctrl+S</code> means "overwrite the original", "overwrite the picker file" or "download a copy" depending on how the document was opened. The README documents the rules; the UI only distinguishes "saved" from "exported" in a toast, and never warns at open time that this file will not be written back. Not an implementation error — a gap between the safety model and user expectation, expanded below.</p>
+
+<h2>A hand-written parser: two passes and a block state machine</h2>
+
+<p>Between <code>/* md:start */</code> and <code>/* md:end */</code> in <code>web/index.html</code>, roughly lines 166 to 412, sits the parser. No marked, no markdown-it: it implements <code>inline()</code> and <code>blocks()</code> itself. What is worth explaining is <code>inline()</code>'s two-pass design, because it solves two seemingly contradictory problems at once — Markdown syntax must still be recognised, and the source must never inject HTML.</p>
+
+<p>The first pass is not parsing but hiding. Code spans, autolinks and backslash escapes are replaced with placeholders of the form <code>\\u0001</code> + number + <code>\\u0001</code>, with the corresponding HTML pushed into a <code>stash</code> array:</p>
+
+<pre><code>const stash = [];
+const put = (html) =&gt; '\\u0001' + (stash.push(html) - 1) + '\\u0001';
+t = t.replace(/(\`+)([\\s\\S]*?)\\1/g, (m, ticks, code) =&gt;
+  put('&lt;code&gt;' + esc(code.replace(/^ ([\\s\\S]*?) $/, '$1')) + '&lt;/code&gt;'));
+t = t.replace(/&lt;((?:https?:\\/\\/|mailto:)[^\\s&lt;&gt;]+)&gt;/g, (m, url) =&gt;
+  put('&lt;a href="' + esc(url) + '"&gt;' + esc(url) + '&lt;/a&gt;'));
+t = t.replace(/\\\\([\\\\\`*_{}\\[\\]()#+\\-.!&gt;~|])/g, (m, ch) =&gt; put(esc(ch)));
+t = esc(t);
+</code></pre>
+
+<p>The second pass escapes everything: <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code> become entities. The third pass recognises images, links, bare URLs and emphasis on the escaped text, then restores the placeholders. The order is the point: escape first and backticks inside code spans plus brackets inside links get mangled by entities, breaking syntax recognition; recognise first and the <code>&lt;a&gt;</code> and <code>&lt;img&gt;</code> you emitted get escaped as user input. Placeholders move "HTML that must survive" out of the text temporarily, so <code>esc</code> only touches real user text, and put it back afterwards.</p>
+
+<p><code>blocks()</code> is a line-by-line state machine. It normalises newlines and expands tabs to four spaces, then in a <code>while</code> loop dispatches by priority: fenced code, horizontal rule, heading, blockquote, table, list, and finally a paragraph. Each block type has its own boundary rules:</p>
+<ul>
+<li>Fenced code records the number of backticks or tildes; only a closing line of the same character and at least the same length ends it. The body is <code>esc</code>aped wholesale and the language becomes <code>class="language-xxx"</code>.</li>
+<li>Headings match <code>^ {0,3}(#{1,6})</code>; the <code>id</code> strips tags and punctuation, then turns whitespace into hyphens. Repeated headings produce repeated ids.</li>
+<li>Blockquotes strip the <code>&gt;</code> prefix from consecutive lines and recurse into <code>blocks()</code>, so lists and code fences work inside quotes.</li>
+<li>Tables split the header row, read the separator row for alignment, and split body rows on <code>\\|</code> with a negative lookbehind so escaped pipes are not column boundaries.</li>
+<li>Lists record the first item's indent and ordered/unordered type, absorb deeper-indented lines into the current item, and recurse <code>blocks()</code> per item, which is what makes nesting work. Task items are matched by <code>^\\[([ xX])\\][ \\t]+</code> and render a disabled checkbox.</li>
+</ul>
+
+<p>Paragraphs join consecutive non-blank lines with <code>&lt;br&gt;</code> rather than CommonMark's soft-break-to-space. That is a deliberate choice, not a bug: for a local reader, an author's line break usually means they want a visible break. It also means the output is not strictly CommonMark — copy the same Markdown elsewhere and paragraph shapes may differ.</p>
+
+<p>There is no syntax highlighting: <code>class="language-xxx"</code> is left for future or external styles, and no colour rules exist. There is no sidebar outline either; heading ids are generated but nothing scans them into navigation. The block machine is line-oriented with no AST, so complex nesting, cross-line emphasis and extreme list/table combinations are covered by rules, not by automated tests — the repository contains no <code>*_test.go</code>, and parser quality rests on manual samples.</p>
+
+<h3>Security boundary: escape before parsing</h3>
+
+<p>The parse order is the first boundary. <code>&lt;script&gt;</code>, <code>&lt;iframe&gt;</code> and <code>onerror=</code> in the source pass through <code>esc</code> and appear as text instead of entering the DOM. The second is <code>safeUrl()</code>: before building an image or link, it checks for <code>javascript:</code>, <code>vbscript:</code> or <code>data:text/html</code> prefixes and renders the original text escaped on a hit. The third is click interception: ordinary links and bare URLs in the preview carry <code>target="_blank"</code> and <code>rel="noreferrer noopener"</code>, and a capture-phase handler allows only <code>http(s)</code> and <code>mailto</code>, then <code>preventDefault()</code>s and hands off to <code>micromdOpenExternal</code>; the native side applies the prefix allowlist again before <code>ShellExecuteW</code>. <code>Debug: false</code> removes DevTools and the context menu, narrowing the ways to debug the page from inside the app.</p>
+
+<p>These layers block ordinary script injection, with two caveats worth stating. First, remote images are not disabled: an <code>https://</code> image in the Markdown will still be fetched. "Rendering is local, no network" means the app itself needs no network, not that remote resources inside a document never load. Second, <code>safeUrl</code> blocks only three dangerous schemes; other schemes and relative paths pass through, and relative links under <code>file://</code> resolve against the current page's base — which is exactly the image-path problem below. Also note that ordinary links and bare URLs get <code>target</code> and <code>rel</code>, while the angle-bracket autolink branch does not — though it is still intercepted on click, and the real boundary remains the native allowlist.</p>
+
+<h2>Problem one: missing WebView2 and the browser fallback</h2>
+
+<p><strong>Symptom.</strong> On a Windows machine without the WebView2 runtime, double-clicking the exe opens no app window but the default browser, showing what still looks like MicroMD — except "save" becomes a download and native write-back is gone. <code>micromd.bat</code> offers another route: try Edge, then Chrome, then the system default browser with <code>--app</code> on <code>web/index.html</code>.</p>
+
+<p><strong>Cause.</strong> The whole rendering layer depends on the system-installed WebView2 Runtime. Most Windows 10 and 11 installs have it; LTSC, slimmed images and some managed enterprise fleets may not. When window creation inside <code>webview2.NewWithOptions</code> fails it returns <code>nil</code>, leaving <code>main</code> with <code>openExternal(page)</code> as the only fallback; in that mode <code>typeof window.micromdLoad</code> is not a function, <code>micromdSave</code> does not exist, and saving degrades. The batch file also depends on <code>web/index.html</code> in the source tree, while the release ships only an exe — so it helps people who cloned the repository, not end users.</p>
+
+<p><strong>Fix.</strong> The native layer detects <code>nil</code> and opens the already-written page via <code>ShellExecuteW</code>; the README documents "no runtime, open it in a browser"; the batch file tries Edge, Chrome, then the default browser to reuse whatever Chromium exists. The frontend needs no branch for these modes because it already treats native bindings as optional.</p>
+
+<p><strong>Cost and leftovers.</strong> The two modes have different capabilities, and the UI gives almost no indication which one you are in. Browser mode has no native window, no icon, no direct write-back, and draft localStorage depends on the browser's <code>file://</code> policy. The code never says "please install WebView2" and offers no install link. The fallback covers only window creation failure; some initialisation errors call <code>log.Fatal</code> inside the library, so the process exits silently. The essence of the problem: externalising the engine buys size, and the price is a runtime you do not control.</p>
+
+<h2>Problem two: relative image paths resolve against the wrong base</h2>
+
+<p><strong>Symptom.</strong> A document containing <code>![shot](images/shot.png)</code> renders fine elsewhere and shows a broken image in MicroMD. The URL resolves to <code>%LOCALAPPDATA%\\MicroMD\\app\\images\\shot.png</code> instead of <code>images\\shot.png</code> next to the Markdown file.</p>
+
+<p><strong>Cause.</strong> The page is navigated from the app directory over <code>file://</code>, so the browser's relative base is the directory containing <code>app/index.html</code>. The parser puts <code>src</code> into <code>&lt;img&gt;</code> verbatim; no <code>&lt;base href="..."&gt;</code> is injected and no rewrite against the document path happens. The native binding returns only filename and content, never a directory, so the frontend could not rewrite even if it wanted to. In command-line mode the native side knows <code>docPath</code> — it just never passes it to the page.</p>
+
+<p><strong>Fix.</strong> Not fixed in the current version. Workarounds: absolute paths such as <code>file:///C:/docs/images/shot.png</code>, or <code>data:</code> embedded images; both pass <code>safeUrl</code> and load in WebView2. But absolute paths destroy portability and <code>data:</code> balloons the file, so neither is general.</p>
+
+<p><strong>Cost and leftovers.</strong> This is the direct side effect of writing the UI to disk. Fixing it means returning a directory from <code>micromdLoad</code> and rewriting relative <code>src</code> into absolute <code>file://</code> URLs after render, or injecting a <code>&lt;base&gt;</code> computed from the document directory. The first must handle URL encoding, drive letters, <code>..</code> and mixed slashes; the second affects every relative URL on the page, links included. Worse, dropping a file into the window and the file picker never expose a full path for security reasons — only a File object — so the same document behaves differently depending on how it was opened. That is why this is still a known limit rather than a fixed item.</p>
+
+<h2>Problem three: full re-render and large-file throttling</h2>
+
+<p><strong>Symptom.</strong> Typing into a long document keeps the cursor moving while the preview stutters; the longer the document, the more obvious the lag. Scrolling sometimes desynchronises preview and editor.</p>
+
+<p><strong>Cause.</strong> <code>render()</code> has one line of core logic: <code>preview.innerHTML = MD.render(editor.value)</code>. Every keystroke re-parses the entire document and replaces the whole preview tree's HTML string. No incremental parsing, no DOM diff, no Worker. <code>scheduleRender()</code> only merges several keystrokes inside one frame via <code>requestAnimationFrame</code> — it merges call counts, not work; parsing and layout still run on the main thread at full-document scale.</p>
+
+<p><strong>Fix.</strong> There is a threshold, <code>BIG_DOC = 200000</code>. Above 200k characters <code>scheduleRender()</code> drops <code>requestAnimationFrame</code> for a 150 ms <code>setTimeout</code>, roughly six or seven renders per second; below it, everything renders every frame. A very cheap degradation: no Worker, no incrementality, just a coarser cadence.</p>
+
+<p><strong>Cost and leftovers.</strong> The threshold is character-based and does not map cleanly to parse cost. A 199k-character document still renders every frame; at 201k it suddenly slows, so experience is discontinuous across the boundary. 150 ms is fixed and does not adapt to document size or machine speed; on longer documents a single parse can exceed 150 ms, so throttling reduces frequency but not the length of each stall. Replacing <code>innerHTML</code> also loses the preview selection, reloads images and changes scroll height abruptly; scroll sync computes <code>scrollTop</code> proportionally and goes wrong when heights jump. A real fix needs incremental parsing, virtualised lists, or at least a Worker — all of which significantly raise code size and state-management cost, against this project's size goal.</p>
+
+<h2>Problem four: draft quota and an unused MAX_DRAFT</h2>
+
+<p><strong>Symptom.</strong> The README claims "very long drafts are not written to local storage", but <code>MAX_DRAFT = 1000000</code> is declared and referenced nowhere. Actual behaviour: every keystroke tries to write localStorage, failures are swallowed by <code>try/catch</code>, the UI says nothing, and the draft may already be gone when the window closes.</p>
+
+<p><strong>Cause.</strong> <code>saveDraft()</code> runs 400 ms after typing stops and calls <code>store.set('draft', editor.value)</code> and <code>store.set('name', app.name)</code>; <code>store.set</code> is <code>try { localStorage.setItem(...) } catch (e) {}</code>, so quota errors, private-mode restrictions and serialisation failures never surface. <code>MAX_DRAFT</code> was probably intended for a "skip when over the limit" branch that never got wired up. localStorage quota is typically a few MB per origin depending on the browser and its <code>file://</code> policy; writing the whole document as one string repeatedly means <code>setItem</code> throws past the quota and the draft freezes at the last successful version.</p>
+
+<p><strong>Fix.</strong> No real oversize protection exists, only "exceptions are not fatal". Straightforward options: check <code>editor.value.length &gt; MAX_DRAFT</code> in <code>saveDraft()</code>, skip and toast once; move drafts to IndexedDB; or, in native mode, write a draft file into the app directory. All three are more honest than an empty catch.</p>
+
+<p><strong>Cost and leftovers.</strong> Users are promised automatic draft saving and get best-effort saving. The 400 ms debounce resets on every keystroke, so a write only happens after a pause; type for ten minutes and power off, and everything since the last successful write is at risk. When a native file has unsaved changes the draft is the only recovery path, which makes the "opened from the command line, edited, never saved" scenario the most dangerous. That README sentence should be read as a current defect, not a shipped limit.</p>
+
+<h2>Problem five: size, icon and startup time</h2>
+
+<p><strong>Symptom.</strong> The release exe is 3,323,392 bytes; unstripped 4,943,872; an empty <code>windowsgui</code> Go program is 1,214,976; the embedded <code>WebView2Loader.dll</code> is about 134 KB. Window-handle appearance measured 203 ms, 112 ms and 106 ms on this machine. Also: a locally built exe from plain <code>go build</code> has no custom icon.</p>
+
+<p><strong>Cause.</strong> Size has four parts: the Go runtime and link baseline, the code from <code>go-webview2</code> and <code>golang.org/x/sys</code>, the 134 KB WebView2Loader and the 29,520-byte HTML. <code>-H windowsgui</code> removes the console window; <code>-s -w</code> removes the symbol table and debug info; together they take 4.94 MB down to 3.17 MiB, 32.8%. Icons are not something Go code can carry directly: <code>IconId: 1</code> only looks the icon up by resource id at window creation. The actual icon and version info are written by <code>go-winres</code> into <code>rsrc_windows_amd64.syso</code>, and that file is gitignored. CI installs <code>go-winres</code> and generates resources before building; skip that locally and <code>IconId: 1</code> finds nothing, so the window has no expected icon.</p>
+
+<p><strong>Fix.</strong> The build command is fixed at <code>-trimpath -buildvcs=false -ldflags "-H windowsgui -s -w"</code>; the release workflow installs and generates <code>go-winres</code> output before building and fails if <code>rsrc_windows_amd64.syso</code> is missing; <code>windowSize()</code> clamps a 1280×860 scaling to 92% and 88% of the screen so small displays are not overrun; DPI tries <code>SetProcessDpiAwarenessContext(-4)</code> first and falls back to <code>SetProcessDpiAwareness(2)</code>. The icon itself is generated by <code>tools/icon/main.go</code> with a signed distance field and 4× supersampling, emitting 16 to 256 pixel sizes with no external design file.</p>
+
+<p><strong>Cost and leftovers.</strong> <code>-s -w</code> strips symbols from the release binary, making crash diagnosis harder. Local builds gain a toolchain step: forget the <code>.syso</code> and you get "runs, but no icon", with no compile-time error. The startup numbers are "window handle appeared", not first frame, not finished rendering; after the window appears, WebView2 still creates its environment, navigates to <code>file://</code>, runs the boot script and reads the draft or native document. Calling 106 ms "startup complete" is inaccurate — it says the native window is created quickly. Size is the same story: 3.17 MiB is the result of not shipping an engine, not of compressing Chromium to 3 MB.</p>
+
+<h2>Problem six: save semantics versus user expectations</h2>
+
+<p><strong>Symptom.</strong> Drop <code>notes.md</code> into the window, edit a few lines, press <code>Ctrl+S</code>: the toast says "exported notes.md" and the original is untouched; drop it again and you still see the old content. Drop the same file onto the exe icon instead and <code>Ctrl+S</code> writes back to the original. The UI makes the difference hard to see.</p>
+
+<p><strong>Cause.</strong> The browser security model does not allow a page to write to an arbitrary path from a <code>File</code> object, and <code>native</code> is only true when a startup argument exists. Dropping into the window yields a File API <code>File</code> with no writable handle; the picker yields a <code>FileSystemHandle</code> via <code>showOpenFilePicker</code>, but <code>setDocument</code> still sets <code>native = false</code> and saving goes through the handle, not a native path. The code chose "safe by default": without an explicit native path it never guesses which file to overwrite, preferring to export a copy.</p>
+
+<p><strong>Fix.</strong> The three-level degradation covers three capabilities: native path, writable handle, Blob download. <code>setDocument</code> resets <code>native</code> to prevent cross-file writes; <code>micromdSave</code> rejects path-less calls natively; toasts distinguish "saved to" from "exported". The implementation is not wrong — it turns "can we write back" into a capability probe instead of a memory test for the user.</p>
+
+<p><strong>Cost and leftovers.</strong> The probe result is not surfaced in advance: nothing tells you on drop that this document will be saved by export, and you find out at <code>Ctrl+S</code>. There is no native "save as" dialog either; once in the download branch, WebView2's download policy decides the location, usually the Downloads folder, with a duplicate for identical names. The picker branch depends on the File System Access API, whose availability and permission prompts inside WebView2 vary by runtime; when unavailable it silently falls back to <code>&lt;input type="file"&gt;</code> with no handle at all. No extra branch closes this gap — the UI would have to show the save mode at open time, or expose a native "save as".</p>
+
+<h2>Problem seven: no file watching, no recent files</h2>
+
+<p><strong>Symptom.</strong> Edit <code>notes.md</code> in another editor and MicroMD still shows the old content; press <code>Ctrl+S</code> in native mode and the old content overwrites the external change with no conflict prompt. Close and reopen and there is no recent list; you drag the file in again or retype the command.</p>
+
+<p><strong>Cause.</strong> The native layer reads the file once at startup through <code>micromdLoad</code>, then nothing: no <code>ReadDirectoryChangesW</code>, no <code>fsnotify</code>, no mtime polling. Frontend state is <code>app.name</code>, <code>app.saved</code>, <code>app.handle</code>, <code>app.native</code>; localStorage holds only <code>draft</code>, <code>name</code>, <code>theme</code>, <code>view</code>, <code>split</code> — no path history. There is no single-instance lock or IPC either, so a second instance cannot tell the first that the file changed.</p>
+
+<p><strong>Fix.</strong> No auto-reload and no conflict detection in this version. Workarounds are closing and reopening, re-dropping, or reopening through the picker — none of which warn that the on-disk version moved. The minimal addition would be native polling of <code>docPath</code>'s mtime, notifying the page through a binding or <code>Eval</code>, and showing a bar offering "reload / keep current"; the fuller version uses <code>ReadDirectoryChangesW</code> and handles rename, delete and atomic replace.</p>
+
+<p><strong>Cost and leftovers.</strong> Without watching, the boundary between reader and author disappears. As a pure reader that would be acceptable; but the app also edits and writes back, so stale content overwriting newer content is a real data risk. No recent files pushes the cost of opening onto the file system, which sits oddly with "double-click and it works". Watching also introduces decisions — auto-reload loses unsaved edits, a prompt interrupts reading, and save needs an overwrite-versus-copy policy — so adding it carelessly would be more dangerous than not having it.</p>
+
+<h2>Known limits and design trade-offs</h2>
+
+<p>Pulling the scattered limits into one table, to judge whether this fits your use:</p>
+
+<table>
+<thead><tr><th>Limit</th><th>Current state</th><th>Impact</th></tr></thead>
+<tbody>
+<tr><td>Relative image paths</td><td>Base is the app directory; no <code>&lt;base&gt;</code>, no <code>src</code> rewrite</td><td>Images beside the document do not display</td></tr>
+<tr><td>Draft ceiling</td><td><code>MAX_DRAFT</code> declared but unused; quota errors swallowed</td><td>Very long drafts may vanish silently</td></tr>
+<tr><td>Large documents</td><td>Full <code>innerHTML</code> replacement; 150 ms throttle past 200k characters</td><td>Typing lags, scroll sync can drift</td></tr>
+<tr><td>File changes</td><td>No watching, no polling, no conflict prompt</td><td>External edits can be overwritten</td></tr>
+<tr><td>Recent files</td><td>No path history; localStorage stores no path</td><td>Every open requires reselecting</td></tr>
+<tr><td>Syntax highlighting</td><td>Only a <code>language-xxx</code> class, no colouriser</td><td>Code blocks are plain text</td></tr>
+<tr><td>Outline sidebar</td><td>Heading ids exist, no navigation generated</td><td>Long documents require scrolling</td></tr>
+<tr><td>Parser tests</td><td>No <code>*_test.go</code> in the repository</td><td>Edge-case syntax verified by hand</td></tr>
+<tr><td>Local build icon</td><td>Depends on <code>go-winres</code> output, which is gitignored</td><td>Skip generation and there is no icon</td></tr>
+<tr><td>Startup failure message</td><td><code>MkdirAll</code> and <code>WriteFile</code> failures return silently</td><td>Double-click does nothing in extreme environments</td></tr>
+</tbody>
+</table>
+
+<p>Most of these are not oversights but "not done within the size and complexity budget". They group into four trade-offs:</p>
+<ul>
+<li>Externalise the engine for size: no bundled Chromium, accepting a WebView2 dependency and two capability modes.</li>
+<li>One file for engineering simplicity: UI, parser and styles in one HTML file, accepting no module split, no build step, no frontend tests.</li>
+<li>Full render for short code: one <code>innerHTML</code> line works, accepting a performance ceiling on long documents.</li>
+<li>Safe by default: no native path means no write-back, accepting three outcomes from one shortcut.</li>
+</ul>
+
+<p>If work continues, data safety should outrank experience polish: wire up the draft ceiling and handle external-change conflicts first, then consider incremental rendering and image bases. Highlighting and an outline are reading comfort and do not risk data loss, so they come later. That ordering is also why this post spends more words on the seven problems than on the features: features can be added, lost data cannot.</p>
+
+<h2>Closing</h2>
+
+<p>MicroMD compresses into three sentences:</p>
+<ol>
+<li>Size is not one optimisation but a budget split. The 3.17 MiB exe is roughly a 1.21 MB empty <code>windowsgui</code> baseline, three Go modules, a 134 KB WebView2Loader, 29,520 bytes of HTML and link output; the Chromium that was omitted is supplied by the system WebView2.</li>
+<li>Shell complexity concentrates in Windows details. Writing to disk for <code>file://</code>, three bindings, save semantics, DPI fallback, icon resources, runtime-missing fallback — each is small, and each can break "double-click and it works".</li>
+<li>The hand-written parser's key is order, not syntax coverage. Hide code spans, autolinks and escapes in placeholders, escape everything, then restore. The two-pass design solves "syntax must be recognised" and "source must not inject" at once.</li>
+</ol>
+
+<p>It is not a finished product either. Relative images, draft quota, full re-render, file changes, recent files, highlighting, outline, parser tests — all missing or half-done. They are documented as current state because the value of a 3 MB single-file app is not how small it is, but what it cost to get there, and whether those costs are stated honestly.</p>
+
+<h2>Further reading</h2>
+<ul>
+<li><a href="/en/article/nanobrowser-tauri-webview2/">NanoBrowser: hand-writing an in-process CDP</a> — another desktop shell that leans on the system WebView2, but goes deeper into windows, child webviews and the debugging protocol.</li>
+<li><a href="/article/nanoss-windows-ssh-client/">NanoSSH: a Windows SSH client</a> — another single-file delivery wrapping native Windows capability; compare how shell and terminal split the work.</li>
+<li><a href="/article/nanodb/">NanoDB: an embedded document database in Go</a> — likewise single-process, few dependencies, complexity pushed inside.</li>
+<li><a href="/article/search-inverted-index-to-engine/">From inverted index to search engine</a> — if you want a searchable Markdown knowledge base, continue with the indexing and query path there.</li>
+</ul>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
