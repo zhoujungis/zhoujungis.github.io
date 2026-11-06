@@ -21,6 +21,9 @@
     <footer class="en-shell__foot">
       <span>{{ ui.footer.rights }}</span>
       <nav class="en-shell__legal">
+        <a :href="`mailto:${contact.email}`">Email</a>
+        <a :href="contact.github">GitHub</a>
+        <a :href="contact.rss">RSS</a>
         <a :href="path.about">About</a>
         <a :href="path.privacy">Privacy</a>
         <a :href="path.disclaimer">Disclaimer</a>
@@ -32,10 +35,11 @@
 
 <script setup>
 import ThemeToggle from '@/components/ThemeToggle.vue'
-import { EN_UI, enPath } from '@/data/en/site'
+import { EN_CONTACT, EN_UI, enPath } from '@/data/en/site'
 import { rememberLang } from '@/utils/locale'
 
 const ui = EN_UI
+const contact = EN_CONTACT
 const path = enPath
 </script>
 

@@ -7,6 +7,67 @@
  * slugs match, so /en/topics/<slug>/ pairs with /topics/<slug>/.
  */
 import { TOPICS } from '../topics.js'
+import { CONTACT_EMAIL } from '../../utils/siteConfig.js'
+
+/**
+ * Contact channels. Shared with the Chinese site (same address, same account),
+ * so the English edition never drifts into a second inbox nobody reads.
+ */
+export const EN_CONTACT = {
+  email: CONTACT_EMAIL,
+  github: 'https://github.com/zhoujungis',
+  repos: 'https://github.com/zhoujungis?tab=repositories',
+  rss: '/rss.xml',
+}
+
+/** Homepage sections the Chinese home carries and the English one was missing. */
+export const EN_HOME = {
+  summaryTitle: 'What this site covers',
+  summary: [
+    'Stack Frame is a personal engineering blog by ZhouJun. Five threads run through it: algorithms and data structures, Django and backend architecture, database internals (B+ trees, WAL, MVCC), AI agent engineering, and open-source projects built from scratch.',
+    'Most posts come from work actually done and bugs actually hit. Each one tries to state the context, the trade-off and the conclusion instead of restating documentation. Start from a topic below, or open the full post list.',
+  ],
+  projectsTitle: 'Projects',
+  projectsNote: 'Every project below is open source, and each one has a full teardown on this site.',
+  contactTitle: 'Contact',
+  contactNote: 'Corrections, questions about an article, or anything else worth a conversation:',
+  latestNote: (shown, total) =>
+    total > shown
+      ? `Showing the newest ${shown} of ${total} English posts.`
+      : `All ${total} English posts.`,
+}
+
+/**
+ * Three projects worth naming on the English home. Descriptions are written for
+ * this page rather than translated, and each links to its teardown when one
+ * exists in English.
+ */
+export const EN_PROJECTS = [
+  {
+    name: 'Z Bot',
+    url: 'https://github.com/zhoujungis/z-bot',
+    blurb:
+      'A local-first desktop assistant for Windows. Chat, memory, tasks and reminders live in SQLite on your machine; tools run in the main process behind an explicit permission prompt, and nothing is exported to a cloud.',
+    meta: 'Electron 45 · React 19 · TypeScript · SQLite + FTS5',
+    post: '/en/article/z-bot-local-first-ai-assistant/',
+  },
+  {
+    name: 'NanoAPI',
+    url: 'https://github.com/zhoujungis/NanoAPI',
+    blurb:
+      'A 10.8 MiB single-file HTTP client. Go and the system WebView2 do the work: hand-written transport semantics, cURL import and export, multipart upload, and one JSON data file written atomically.',
+    meta: 'Go · Wails v2 · no frontend dependencies',
+    post: '/en/article/nanoapi-wails-http-client/',
+  },
+  {
+    name: 'NanoSSH',
+    url: 'https://github.com/zhoujungis/NanoSSH',
+    blurb:
+      'A Windows SSH client that stays under 14 MB. Byte-exact terminal streaming with ack backpressure, SFTP and port forwarding on one connection, and a host-key model that separates unknown from changed.',
+    meta: 'Go · Wails v2 · xterm.js',
+    post: '/en/article/nanoss-windows-ssh-client/',
+  },
+]
 
 export const EN_UI = {
   brand: 'Stack Frame',

@@ -1,14 +1,14 @@
 <template>
   <div class="comment-list">
     <h3 class="comments-title">
-      评论
+      {{ t.title }}
       <span v-if="comments.length" class="comments-count">({{ comments.length }})</span>
     </h3>
 
     <!-- Load failure: keep whatever we already rendered, offer retry -->
     <div v-if="loadError" class="comments-error">
-      <span>评论加载失败，请稍后重试</span>
-      <button type="button" @click="fetchComments">重试</button>
+      <span>{{ t.loadError }}</span>
+      <button type="button" @click="fetchComments">{{ t.retry }}</button>
     </div>
 
     <!-- Loading skeleton -->
@@ -28,7 +28,7 @@
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
-      <p>暂无评论，来说点什么吧</p>
+      <p>{{ t.empty }}</p>
     </div>
 
     <!-- Comment tree -->
@@ -59,7 +59,7 @@
                 <polyline points="9 17 4 12 9 7"/>
                 <path d="M20 18v-2a4 4 0 0 0-4-4H4"/>
               </svg>
-              回复
+              {{ t.reply }}
             </button>
           </div>
         </div>
@@ -69,6 +69,7 @@
           v-if="replyToId === comment.id"
           :article-slug="articleSlug"
           :parent-id="comment.id"
+          :lang="lang"
           @submitted="onCommentSubmitted"
           @cancel="replyToId = null"
           class="reply-form-wrapper"
@@ -115,7 +116,32 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  // UI language. The thread itself is shared between editions, but the labels
+  // follow whichever page is rendering it.
+  lang: {
+    type: String,
+    default: 'zh',
+  },
 })
+
+const LABELS = {
+  zh: {
+    title: '评论',
+    loadError: '评论加载失败，请稍后重试',
+    retry: '重试',
+    empty: '暂无评论，来说点什么吧',
+    reply: '回复',
+  },
+  en: {
+    title: 'Comments',
+    loadError: 'Could not load comments. Please try again.',
+    retry: 'Retry',
+    empty: 'No comments yet. Say something.',
+    reply: 'Reply',
+  },
+}
+
+const t = computed(() => LABELS[props.lang] || LABELS.zh)
 
 const auth = useAuthStore()
 const { openLogin } = useLoginModal()

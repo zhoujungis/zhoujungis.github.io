@@ -8,6 +8,16 @@
       <h1>{{ article.title }}</h1>
       <p class="post__meta">{{ article.date }} · {{ article.readingTime }} min read · Stack Frame</p>
       <div class="markdown-body" v-html="article.html" />
+
+      <section v-if="article.zhSlug" class="thread">
+        <CommentList :article-slug="article.zhSlug" lang="en" :key="commentKey" />
+        <CommentForm :article-slug="article.zhSlug" lang="en" @submitted="commentKey++" />
+        <p class="thread__note">
+          Comments are shared with the Chinese edition of this post, so both
+          versions discuss in one place.
+        </p>
+      </section>
+
       <nav class="post__foot">
         <a href="/en/articles/">← All English posts</a>
         <a v-if="article.zhSlug" :href="`/article/${article.zhSlug}/`" hreflang="zh-CN">
@@ -23,15 +33,19 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import EnShell from '@/components/en/EnShell.vue'
+import CommentList from '@/components/CommentList.vue'
+import CommentForm from '@/components/CommentForm.vue'
 import { EN_BY_SLUG } from '@/data/en/articles'
 import { enTopic } from '@/data/en/site'
 
 const route = useRoute()
 const article = computed(() => EN_BY_SLUG.get(route.params.slug))
 const topic = computed(() => (article.value?.topicSlug ? enTopic(article.value.topicSlug) : null))
+// Bumping this remounts the list after a comment is posted.
+const commentKey = ref(0)
 </script>
 
 <style lang="scss" scoped>
@@ -76,6 +90,19 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
     font-size: 0.82rem;
 
     a { color: var(--accent); text-decoration: none; }
+  }
+}
+
+.thread {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 3px solid var(--text-primary);
+
+  &__note {
+    margin: 16px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.6;
   }
 }
 

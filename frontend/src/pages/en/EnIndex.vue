@@ -16,6 +16,15 @@
 
     <section class="block">
       <header class="block__head">
+        <h2>{{ home.summaryTitle }}</h2>
+      </header>
+      <div class="summary">
+        <p v-for="(text, i) in home.summary" :key="i">{{ text }}</p>
+      </div>
+    </section>
+
+    <section class="block">
+      <header class="block__head">
         <h2>{{ ui.home.topicsTitle }}</h2>
         <a :href="path.topics">All topics →</a>
       </header>
@@ -33,8 +42,9 @@
         <h2>{{ ui.home.postsTitle }}</h2>
         <a :href="path.articles">All posts →</a>
       </header>
+      <p class="note">{{ home.latestNote(latest.length, EN_ARTICLES.length) }}</p>
       <ul class="posts">
-        <li v-for="article in EN_ARTICLES" :key="article.slug">
+        <li v-for="article in latest" :key="article.slug">
           <a :href="path.article(article.slug)">{{ article.title }}</a>
           <span class="posts__meta">{{ article.date }} · {{ article.readingTime }} min</span>
           <p class="posts__excerpt">{{ article.excerpt }}</p>
@@ -42,17 +52,49 @@
       </ul>
       <p v-if="!EN_ARTICLES.length" class="empty">{{ ui.home.emptyNote }}</p>
     </section>
+
+    <section class="block">
+      <header class="block__head">
+        <h2>{{ home.projectsTitle }}</h2>
+        <a :href="contact.repos">All repositories →</a>
+      </header>
+      <p class="note">{{ home.projectsNote }}</p>
+      <ul class="projects">
+        <li v-for="project in projects" :key="project.name" class="project">
+          <a class="project__name" :href="project.url">{{ project.name }}</a>
+          <span class="project__meta">{{ project.meta }}</span>
+          <p class="project__blurb">{{ project.blurb }}</p>
+          <a v-if="project.post" class="project__post" :href="project.post">Read the teardown →</a>
+        </li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <header class="block__head">
+        <h2>{{ home.contactTitle }}</h2>
+      </header>
+      <p class="note">{{ home.contactNote }}</p>
+      <ul class="contact">
+        <li><span class="contact__k">Email</span><a :href="`mailto:${contact.email}`">{{ contact.email }}</a></li>
+        <li><span class="contact__k">GitHub</span><a :href="contact.github">{{ contact.github.replace('https://', '') }}</a></li>
+        <li><span class="contact__k">RSS</span><a :href="contact.rss">rss.xml</a></li>
+      </ul>
+    </section>
   </EnShell>
 </template>
 
 <script setup>
 import EnShell from '@/components/en/EnShell.vue'
 import { EN_ARTICLES } from '@/data/en/articles'
-import { EN_TOPICS, EN_UI, enPath } from '@/data/en/site'
+import { EN_CONTACT, EN_HOME, EN_PROJECTS, EN_TOPICS, EN_UI, enPath } from '@/data/en/site'
 
 const ui = EN_UI
+const home = EN_HOME
+const contact = EN_CONTACT
+const projects = EN_PROJECTS
 const topics = EN_TOPICS
 const path = enPath
+const latest = EN_ARTICLES.slice(0, 6)
 </script>
 
 <style lang="scss" scoped>
@@ -211,6 +253,98 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
     margin: 8px 0 0;
     color: var(--text-secondary);
     font-size: 0.85rem;
+  }
+}
+
+.summary {
+  max-width: 46em;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+
+  p { margin: 0; }
+  p + p { margin-top: 10px; }
+}
+
+.note {
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 0.7rem;
+}
+
+.projects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.project {
+  padding: 16px 0;
+  border-top: 1px solid var(--glass-border);
+
+  &__name {
+    color: var(--text-primary);
+    font-family: $serif;
+    font-size: 1rem;
+    font-weight: 800;
+    text-decoration: none;
+
+    &:hover { color: var(--accent); }
+  }
+
+  &__meta {
+    margin-left: 10px;
+    color: var(--text-secondary);
+    font-family: $font-mono;
+    font-size: 0.68rem;
+  }
+
+  &__blurb {
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  &__post {
+    display: inline-block;
+    margin-top: 6px;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+}
+
+.contact {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 0.85rem;
+
+  li {
+    display: flex;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--glass-border);
+    align-items: baseline;
+  }
+
+  &__k {
+    min-width: 64px;
+    color: var(--text-secondary);
+    font-family: $font-mono;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-all;
+
+    &:hover { text-decoration: underline; }
   }
 }
 

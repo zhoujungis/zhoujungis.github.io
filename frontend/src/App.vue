@@ -35,7 +35,7 @@ const isEn = computed(() => route.meta.lang === 'en')
   <Live2DWidget v-if="!isAdmin && !isEn" />
   <BackToTop v-if="!isAdmin && !isEn" />
   <ThemeToggle v-if="isAdmin" floating />
-  <LoginModal v-if="!isEn" />
+  <LoginModal v-if="!isAdmin" />
 </template>
 
 <style lang="scss">

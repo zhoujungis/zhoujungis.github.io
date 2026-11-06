@@ -2,15 +2,17 @@
   <div class="comment-form" :class="{ 'reply-form': !!parentId }">
     <!-- 未登录：先登录再评论 -->
     <div v-if="!auth.isLoggedIn" class="login-cta">
-      <h4 class="form-title">{{ parentId ? '回复评论' : '发表评论' }}</h4>
-      <p class="login-cta__hint">登录后即可参与讨论，支持邮箱验证码、Google 与 GitHub</p>
-      <button type="button" class="submit-btn" @click="openLogin()">登录 / 注册</button>
+      <h4 class="form-title">{{ parentId ? t.replyTitle : t.postTitle }}</h4>
+      <p class="login-cta__hint">{{ t.loginHint }}</p>
+      <button type="button" class="submit-btn" @click="openLogin()">{{ t.loginCta }}</button>
     </div>
 
     <template v-else>
       <div class="form-head">
-        <h4 class="form-title">{{ parentId ? '回复评论' : '发表评论' }}</h4>
-        <span class="form-identity">以 <strong>{{ auth.displayName }}</strong> 的身份</span>
+        <h4 class="form-title">{{ parentId ? t.replyTitle : t.postTitle }}</h4>
+        <span class="form-identity">
+          {{ t.identityPrefix }}<strong>{{ auth.displayName }}</strong>{{ t.identitySuffix }}
+        </span>
       </div>
 
       <form @submit.prevent="submitForm" class="form-body">
@@ -22,7 +24,7 @@
         <div class="form-field">
           <textarea
             v-model="form.content"
-            placeholder="说点什么..."
+            :placeholder="t.placeholder"
             rows="4"
             class="form-textarea"
             :class="{ 'input-error': errors.content }"
@@ -32,7 +34,7 @@
         </div>
 
         <p v-if="submitError" class="submit-error">{{ submitError }}</p>
-        <p v-if="submitted" class="submit-success">评论已发布</p>
+        <p v-if="submitted" class="submit-success">{{ t.posted }}</p>
 
         <div class="form-actions">
           <button
@@ -41,11 +43,11 @@
             class="cancel-btn"
             @click="$emit('cancel')"
           >
-            取消回复
+            {{ t.cancelReply }}
           </button>
           <button type="submit" class="submit-btn" :disabled="submitting">
             <span v-if="submitting" class="spinner" />
-            <span v-else>提交</span>
+            <span v-else>{{ t.submit }}</span>
           </button>
         </div>
       </form>
@@ -54,7 +56,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { postComment } from '@/api/comments'
 import { useLoginModal } from '@/composables/useLogin'
 import { useAuthStore } from '@/stores/auth'
@@ -68,7 +70,47 @@ const props = defineProps({
     type: [Number, String],
     default: null,
   },
+  // UI language; the comment itself is stored the same way in both editions.
+  lang: {
+    type: String,
+    default: 'zh',
+  },
 })
+
+const LABELS = {
+  zh: {
+    postTitle: '发表评论',
+    replyTitle: '回复评论',
+    loginHint: '登录后即可参与讨论，支持邮箱验证码、Google 与 GitHub',
+    loginCta: '登录 / 注册',
+    identityPrefix: '以 ',
+    identitySuffix: ' 的身份',
+    placeholder: '说点什么...',
+    posted: '评论已发布',
+    cancelReply: '取消回复',
+    submit: '提交',
+    emptyError: '请输入评论内容',
+    shortError: '评论内容至少 3 个字符',
+    submitFailed: '提交失败，请稍后重试',
+  },
+  en: {
+    postTitle: 'Leave a comment',
+    replyTitle: 'Reply',
+    loginHint: 'Sign in to join the discussion. Email code, Google and GitHub are supported.',
+    loginCta: 'Sign in / Register',
+    identityPrefix: 'Commenting as ',
+    identitySuffix: '',
+    placeholder: 'Write something...',
+    posted: 'Comment posted.',
+    cancelReply: 'Cancel reply',
+    submit: 'Submit',
+    emptyError: 'Please write something first.',
+    shortError: 'A comment needs at least 3 characters.',
+    submitFailed: 'Could not post the comment. Please try again.',
+  },
+}
+
+const t = computed(() => LABELS[props.lang] || LABELS.zh)
 
 const emit = defineEmits(['submitted', 'cancel'])
 
@@ -93,11 +135,11 @@ function validate() {
   const content = form.content.trim()
 
   if (!content) {
-    errors.content = '请输入评论内容'
+    errors.content = t.value.emptyError
     return false
   }
   if (content.length < 3) {
-    errors.content = '评论内容至少 3 个字符'
+    errors.content = t.value.shortError
     return false
   }
   return true
@@ -129,7 +171,7 @@ async function submitForm() {
   } catch (e) {
     if (e?.response?.status === 401) {
       auth.logout()
-      openLogin('登录状态已失效，请重新登录')
+      openLogin(props.lang === 'en' ? 'Your session expired. Please sign in again.' : '登录状态已失效，请重新登录')
       return
     }
     const detail = e?.response?.data
@@ -145,7 +187,7 @@ async function submitForm() {
     } else if (typeof detail === 'string') {
       submitError.value = detail
     } else {
-      submitError.value = e.message || '提交失败，请稍后重试'
+      submitError.value = e.message || t.value.submitFailed
     }
   } finally {
     submitting.value = false
