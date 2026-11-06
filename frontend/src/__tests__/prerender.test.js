@@ -14,6 +14,8 @@ import {
   upsertMeta,
   renderArticlePage,
   renderHomePage,
+  renderEnIndexPage,
+  renderEnArticlePage,
   toSnapshotList,
   findBulkEdits,
   pickLastmod,
@@ -28,6 +30,7 @@ import {
 } from '../../scripts/prerender.mjs'
 import { TAG_PAGE_MIN_ARTICLES, tagPath } from '../utils/siteConfig'
 import { TOPICS, topicPath } from '../data/topics'
+import { EN_ARTICLES } from '../data/en/articles'
 import { FOOTPRINT_CITIES, FOOTPRINT_REGIONS, FOOTPRINT_PROVINCES } from '../data/footprints'
 
 const SHELL = `<!doctype html>
@@ -381,7 +384,9 @@ describe('renderSitemap', () => {
 
   it('lists the home page, every indexable list page, every topic and every article', () => {
     const xml = renderSitemap(articles)
-    expect(count(xml, '<loc>')).toBe(1 + indexable.length + TOPICS.length + 2)
+    expect(count(xml, '<loc>')).toBe(
+      1 + indexable.length + TOPICS.length + EN_ARTICLES.length + 1 + 2,
+    )
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/</loc>`)
     for (const page of indexable) {
       expect(xml).toContain(`<loc>${SITE_ORIGIN}${page.path}</loc>`)
@@ -703,5 +708,24 @@ describe('renderTopicPage', () => {
     expect(html).toContain('"@type":"BreadcrumbList"')
     expect(html).toContain(`"item":"${SITE_ORIGIN}/topics/"`)
     expect(html).toContain('<div id="app"><div class="ns-list">')
+  })
+})
+
+describe('English edition', () => {
+  it('renders an English index with its own lang and canonical', () => {
+    const html = renderEnIndexPage(SHELL)
+    expect(html).toContain('<html lang="en">')
+    expect(html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}/en/" />`)
+    expect(html).toContain('Writing in English')
+  })
+
+  it('pairs the English article with its Chinese original via hreflang', () => {
+    const article = EN_ARTICLES[0]
+    const page = renderEnArticlePage(SHELL, article)
+    expect(page).toContain(`hreflang="en" href="${SITE_ORIGIN}/en/article/${article.slug}/"`)
+    expect(page).toContain(`hreflang="zh-CN" href="${SITE_ORIGIN}/article/${article.zhSlug}/"`)
+
+    const zh = renderArticlePage(SHELL, { ...ARTICLE, slug: article.zhSlug })
+    expect(zh).toContain(`hreflang="en" href="${SITE_ORIGIN}/en/article/${article.slug}/"`)
   })
 })

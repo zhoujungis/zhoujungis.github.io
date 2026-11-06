@@ -17,23 +17,25 @@ const route = useRoute()
 // M24: 60fps canvas + Live2D model load add no value on admin pages —
 // they're CPU heavy and make login/dashboard sluggish, especially on phones.
 const isAdmin = computed(() => route.path.startsWith('/admin'))
+// 英文版自带页头页脚（含中英切换），不套中文站的壳，否则 /en 里会混进中文导航。
+const isEn = computed(() => route.meta.lang === 'en')
 </script>
 
 <template>
-  <ReadingProgress />
-  <AppHeader v-if="!isAdmin" />
-  <main class="main-content" :class="{ 'main-content--admin': isAdmin }">
+  <ReadingProgress v-if="!isEn" />
+  <AppHeader v-if="!isAdmin && !isEn" />
+  <main class="main-content" :class="{ 'main-content--admin': isAdmin, 'main-content--en': isEn }">
     <router-view v-slot="{ Component }">
       <transition name="page" mode="out-in">
         <component :is="Component" />
       </transition>
     </router-view>
   </main>
-  <AppFooter v-if="!isAdmin" />
-  <Live2DWidget v-if="!isAdmin" />
-  <BackToTop v-if="!isAdmin" />
+  <AppFooter v-if="!isAdmin && !isEn" />
+  <Live2DWidget v-if="!isAdmin && !isEn" />
+  <BackToTop v-if="!isAdmin && !isEn" />
   <ThemeToggle v-if="isAdmin" floating />
-  <LoginModal />
+  <LoginModal v-if="!isEn" />
 </template>
 
 <style lang="scss">
@@ -45,6 +47,11 @@ const isAdmin = computed(() => route.path.startsWith('/admin'))
 .main-content--admin {
   padding-top: 0;
   min-height: 100vh;
+}
+
+// 英文版自带页头，不需要给固定的中文页头留出 68px。
+.main-content--en {
+  padding-top: 0;
 }
 
 .page-enter-active,

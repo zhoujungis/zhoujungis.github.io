@@ -10,6 +10,20 @@ import { listPageMeta } from '../utils/siteConfig'
 const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
   { path: '/article/:slug', name: 'ArticleDetail', component: () => import('../pages/ArticleDetail.vue') },
+  // 英文版：独立的 /en 前缀，只收手写英文稿（data/en/articles.js）。
+  // 不套中文站的壳，所以 App.vue 在 /en 下不渲染中文页头页脚。
+  {
+    path: '/en',
+    name: 'EnIndex',
+    meta: { lang: 'en', title: 'Writing in English | Stack Frame' },
+    component: () => import('../pages/en/EnIndex.vue'),
+  },
+  {
+    path: '/en/article/:slug',
+    name: 'EnArticle',
+    meta: { lang: 'en', title: 'Stack Frame' },
+    component: () => import('../pages/en/EnArticle.vue'),
+  },
   { path: '/articles', name: 'Articles', meta: listPageMeta('/articles/'), component: () => import('../pages/Articles.vue') },
   // 专题聚合页。文章 URL 保持不变（/article/:slug），专题页只做「按主题
   // 聚类 + 正文介绍」的 SEO 入口，不迁移任何已收录的旧链接。

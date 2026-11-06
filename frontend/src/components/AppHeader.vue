@@ -100,6 +100,7 @@
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
           </svg>
         </router-link>
+        <a href="/en/" class="lang-switch" title="English edition" hreflang="en">EN</a>
         <ThemeToggle class="desktop-theme" />
         <button
           class="hamburger"
@@ -171,6 +172,7 @@
           <a href="https://github.com/zhoujungis" target="_blank" rel="noopener">GitHub</a>
           <a :href="`mailto:${CONTACT_EMAIL}`">Email</a>
           <a href="https://blog.zhoujun.dev/rss.xml">RSS</a>
+          <a href="/en/" hreflang="en">English</a>
         </div>
       </aside>
     </transition>
@@ -760,6 +762,29 @@ onUnmounted(() => {
 }
 
 .icon-button svg { width: 18px; height: 18px; }
+
+// 中英切换：和图标按钮同高，用等宽字做语言标记，避免和主题按钮抢注意力。
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 9px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  transition: color $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+}
 .hamburger { display: none; flex-direction: column; gap: 4px; }
 .hamburger span {
   display: block;

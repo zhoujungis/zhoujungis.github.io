@@ -76,6 +76,8 @@ import {
 // 首页刊头文案与项目列表：运行时 Home.vue 与首页静态快照共用这一份，
 // 快照里的自述不会和页面上显示的写成两套。
 import { HOME_MASTHEAD, HOME_SUMMARY, HOME_PROJECTS } from '../src/data/home.js'
+// 英文版文章（手写英文稿，不是机翻）。静态页与运行时共用同一份数据。
+import { EN_ARTICLES, EN_BY_SLUG } from '../src/data/en/articles.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../dist')
@@ -525,8 +527,18 @@ function renderArticlePage(
     `<script type="application/json" id="prerender-article">` +
     `${JSON.stringify(previewMeta).replaceAll('<', '\\u003c')}</script>`
 
+  // 双语互指：有英文版时，中文页与英文页互相声明 hreflang，Google 才不会
+  // 把两个语言版本当成重复内容。x-default 指向中文版（默认受众）。
+  const enEdition = EN_BY_SLUG.get(article.slug)
+  const alternates = enEdition
+    ? `    <link rel="alternate" hreflang="zh-CN" href="${url}" />\n` +
+      `    <link rel="alternate" hreflang="en" href="${SITE_ORIGIN}/en/article/${enEdition.slug}/" />\n` +
+      `    <link rel="alternate" hreflang="x-default" href="${url}" />\n`
+    : ''
+
   const headExtras =
     `${NOSCRIPT_STYLE}\n` +
+    alternates +
     `    <meta property="og:type" content="article" />\n` +
     `    ${isoDate ? `<meta property="article:published_time" content="${isoDate}" />\n    ` : ''}` +
     `    ${modifiedDate ? `<meta property="article:modified_time" content="${modifiedDate}" />\n    ` : ''}` +
@@ -765,6 +777,102 @@ function renderHomePage(template, articles) {
   )
 }
 
+// ── 英文版 ────────────────────────────────────────────────────────────────
+// /en/ 与 /en/article/<slug>/：手写英文稿的静态快照。页面不套中文站的壳，
+// 正文复用中文快照的排版类（ns-article / ns-list），无 JS 时也是可读正文。
+function renderEnPage(template, { title, description, url, alternates = '', body }) {
+  let html = template
+  html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
+  html = html.replace(
+    /<link rel="canonical" href="[^"]*" \/>/,
+    literal(`<link rel="canonical" href="${url}" />`),
+  )
+  html = upsertMeta(html, 'name', 'description', description)
+  html = upsertMeta(html, 'property', 'og:title', title)
+  html = upsertMeta(html, 'property', 'og:description', description)
+  html = upsertMeta(html, 'property', 'og:url', url)
+  html = upsertMeta(html, 'property', 'og:locale', 'en_US')
+  html = upsertMeta(html, 'name', 'twitter:title', title)
+  html = upsertMeta(html, 'name', 'twitter:description', description)
+  // 英文页不应被当成中文站的一部分：html lang 与正文语言一致。
+  html = html.replace('<html lang="zh-CN">', '<html lang="en">')
+  html = html.replace('</head>', literal(`${NOSCRIPT_STYLE}\n${alternates}  </head>`))
+  return html.replace('<div id="app"></div>', literal(`<div id="app">${body}</div>`))
+}
+
+const EN_HOME_URL = `${SITE_ORIGIN}/en/`
+
+function enAlternates(article) {
+  if (!article) {
+    return (
+      `    <link rel="alternate" hreflang="zh-CN" href="${SITE_ORIGIN}/" />\n` +
+      `    <link rel="alternate" hreflang="en" href="${EN_HOME_URL}" />\n` +
+      `    <link rel="alternate" hreflang="x-default" href="${SITE_ORIGIN}/" />\n`
+    )
+  }
+  const zhUrl = `${SITE_ORIGIN}/article/${article.zhSlug}/`
+  const enUrl = `${EN_HOME_URL}article/${article.slug}/`
+  return (
+    `    <link rel="alternate" hreflang="zh-CN" href="${zhUrl}" />\n` +
+    `    <link rel="alternate" hreflang="en" href="${enUrl}" />\n` +
+    `    <link rel="alternate" hreflang="x-default" href="${zhUrl}" />\n`
+  )
+}
+
+function renderEnIndexPage(template) {
+  const items = EN_ARTICLES.map(
+    (a) =>
+      `<li><a href="${EN_HOME_URL}article/${a.slug}/">${escapeHtml(a.title)}</a>` +
+      ` <span class="ns-date">${escapeHtml(a.date)} · ${a.readingTime} min</span>` +
+      `<p class="ns-excerpt">${escapeHtml(a.excerpt)}</p></li>`,
+  ).join('\n')
+
+  const body =
+    `<div class="ns-home-list">` +
+    `<h1>Writing in English</h1>` +
+    `<p>Selected posts about the projects on this site — small desktop tools, ` +
+    `embedded databases, AI agents and the trade-offs behind them. The full ` +
+    `archive is in Chinese; these are written for an English audience rather ` +
+    `than machine-translated.</p>` +
+    `<p class="ns-meta">${EN_ARTICLES.length} post(s)</p>\n` +
+    `<h2>Posts</h2>\n<ul>\n${items}\n</ul>\n` +
+    `<nav class="ns-nav"><a href="${SITE_ORIGIN}/">中文版</a>` +
+    `<a href="${SITE_ORIGIN}/articles/">全部文章（中文）</a>` +
+    `<a href="${SITE_ORIGIN}/rss.xml">RSS</a></nav>` +
+    `</div>`
+
+  return renderEnPage(template, {
+    title: 'Writing in English | Stack Frame',
+    description:
+      'Selected English posts about small desktop tools, embedded databases and AI agents.',
+    url: EN_HOME_URL,
+    alternates: enAlternates(null),
+    body,
+  })
+}
+
+function renderEnArticlePage(template, article) {
+  const url = `${EN_HOME_URL}article/${article.slug}/`
+  const zhUrl = `${SITE_ORIGIN}/article/${article.zhSlug}/`
+
+  const body =
+    `<div class="ns-article">` +
+    `<h1>${escapeHtml(article.title)}</h1>` +
+    `<div class="ns-meta">${escapeHtml(article.date)} · ${article.readingTime} min · Stack Frame</div>` +
+    `<div class="markdown-body">${article.html}</div>` +
+    `<nav class="ns-site-nav"><a href="${EN_HOME_URL}">All English posts</a>` +
+    `<a href="${zhUrl}">中文版</a></nav>` +
+    `</div>`
+
+  return renderEnPage(template, {
+    title: `${article.title} | Stack Frame`,
+    description: article.excerpt,
+    url,
+    alternates: enAlternates(article),
+    body,
+  })
+}
+
 // ── Dates & lastmod ───────────────────────────────────────────────────────
 // Article.updated_at is `auto_now=True`: every admin PATCH rewrites it, even
 // when only the title changed. A 33-title batch rewrite therefore stamped 33
@@ -874,6 +982,25 @@ function renderSitemap(articles, { bulkEdits = new Set(), collections } = {}) {
         priority: p.priority || '0.5',
       }),
     ),
+    // 英文版：只在真的有英文稿时列出，避免 sitemap 指向不存在的页面。
+    ...(EN_ARTICLES.length
+      ? [
+          entry({
+            loc: EN_HOME_URL,
+            lastmod: isoOrEmpty(newestIso),
+            changefreq: 'weekly',
+            priority: '0.6',
+          }),
+          ...EN_ARTICLES.map((a) =>
+            entry({
+              loc: `${EN_HOME_URL}article/${a.slug}/`,
+              lastmod: isoOrEmpty(a.date),
+              changefreq: 'monthly',
+              priority: '0.6',
+            }),
+          ),
+        ]
+      : []),
     // 专题聚合页：站点最想被收录的入口，优先级高于单篇文章。
     ...TOPICS.map((topic) =>
       entry({
@@ -1650,6 +1777,25 @@ async function main() {
   }
   console.log(`[prerender] wrote ${written} static article page(s) into dist/article/.`)
 
+  // 英文版：/en/ 首页 + 每篇英文稿。没有英文稿时整块跳过，不留空目录页。
+  if (EN_ARTICLES.length) {
+    let enWritten = 0
+    try {
+      mkdirSync(join(DIST, 'en'), { recursive: true })
+      writeFileSync(join(DIST, 'en', 'index.html'), renderEnIndexPage(template), 'utf8')
+      enWritten += 1
+      for (const article of EN_ARTICLES) {
+        const dir = join(DIST, 'en', 'article', article.slug)
+        mkdirSync(dir, { recursive: true })
+        writeFileSync(join(dir, 'index.html'), renderEnArticlePage(template, article), 'utf8')
+        enWritten += 1
+      }
+      console.log(`[prerender] wrote ${enWritten} English page(s).`)
+    } catch (e) {
+      console.warn(`[prerender] could not write English pages: ${e?.message || e}`)
+    }
+  }
+
   // Static list pages — these are what let /articles & co. answer 200 instead
   // of bouncing through 404.html, and they are the only non-article URLs the
   // sitemap is allowed to list.
@@ -1734,6 +1880,7 @@ async function main() {
           TOPICS.length +
           collections.tags.length +
           collections.categories.length +
+          (EN_ARTICLES.length ? EN_ARTICLES.length + 1 : 0) +
           1
         } URLs).`,
     )
@@ -1794,6 +1941,10 @@ export {
   upsertMeta,
   renderArticlePage,
   renderHomePage,
+  renderEnPage,
+  renderEnIndexPage,
+  renderEnArticlePage,
+  enAlternates,
   toSnapshotList,
   findBulkEdits,
   pickLastmod,

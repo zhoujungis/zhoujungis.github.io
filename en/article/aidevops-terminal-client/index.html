@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="An open-source terminal client that stitches requirements, commits, tests, bugs and releases into one traceable chain — with an LLM layer that can only propose, never act." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/aidevops-terminal-client/" />
+    <meta property="og:title" content="aidevops: an AI DevOps copilot that lives in your terminal | Stack Frame" />
+    <meta property="og:description" content="An open-source terminal client that stitches requirements, commits, tests, bugs and releases into one traceable chain — with an LLM layer that can only propose, never act." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/aidevops-terminal-client/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="aidevops: an AI DevOps copilot that lives in your terminal | Stack Frame" />
+    <meta name="twitter:description" content="An open-source terminal client that stitches requirements, commits, tests, bugs and releases into one traceable chain — with an LLM layer that can only propose, never act." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>aidevops: an AI DevOps copilot that lives in your terminal | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-SRW5_wnW.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-YRtCl6lT.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DV9GcWfF.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/aidevops-terminal-client/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/aidevops-terminal-client/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/aidevops-terminal-client/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>aidevops: an AI DevOps copilot that lives in your terminal</h1><div class="ns-meta">2026-10-16 · 17 min · Stack Frame</div><div class="markdown-body">
+<p>A few days ago I published <strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong> — the terminal client for an AI DevOps / QA copilot — to PyPI: <code>pipx install aidevops</code> and you are done. The source is on <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a> under MIT.</p>
+
+<p>This post walks through what it solves, how the data flows, how the risk score is computed, what the AI actually does (and why it is kept in a cage), how each command is used, and what I deliberately left out.</p>
+
+<ul>
+<li>What problem it solves: the developer-data archipelago</li>
+<li>Architecture: thin client, thick server</li>
+<li>How data gets in: dual cursors and idempotent ingestion</li>
+<li>Module attribution: pinning a commit to a module</li>
+<li><code>explain</code>: the full chain behind one commit</li>
+<li>The risk engine: ten signals, each one explainable</li>
+<li>AI analysis: five agents, evidence validation, full tracing</li>
+<li>Proposals and audit: the AI suggests, a human decides</li>
+<li>Install and a five-minute walkthrough</li>
+<li>Scripting and CI</li>
+<li>Engineering: tests, types, release flow</li>
+<li>Status, limits and roadmap</li>
+</ul>
+
+<h2>The developer-data archipelago</h2>
+
+<p>A team produces a lot of development data every day: requirements live in Jira, commits in GitHub, test results in CI, bugs in a defect tracker, release records in a pipeline. All of it exists — <strong>scattered across systems that do not know each other</strong>.</p>
+
+<p>So every developer does the same manual work: which modules did this change touch? What bugs did those modules have historically? Are they covered by tests? If we ship this release, where is the risk concentrated? The answers are all in the systems, but assembling them means five browser tabs, three exported reports and a memory test.</p>
+
+<p>aidevops exists to <strong>link the chain requirement → code → test → bug → release</strong>, and then answer four concrete questions:</p>
+
+<ul>
+<li>Where is the <strong>risk</strong> in a commit (which module, which signal fired, and why);</li>
+<li><strong>What should be regression-tested</strong> (related historical bugs, candidate test list);</li>
+<li>Where a production incident <strong>most likely originated</strong> (trace back to requirement and release);</li>
+<li>What the AI <strong>suggests</strong> after reading the data (generate tests, flag suspicious spots, propose an investigation path).</li>
+</ul>
+
+<p>The terminal client puts those answers where the developer already is. Nobody should have to switch to a browser to read one risk report.</p>
+
+<h2>Architecture: thin client, thick server</h2>
+
+<p>One sentence: <strong><code>aidevops</code> is a terminal client (CLI + full-screen TUI), not a server.</strong> It contains no business logic; every capability is an HTTP call to a backend (Django + PostgreSQL + Redis, with pgvector for vector search).</p>
+
+<p>The boundary is deliberate, for three reasons:</p>
+
+<ol>
+<li><strong>Data and logic belong on the server.</strong> The correlation engine, the risk model and the agents are compute-heavy and need complete data. Commit history, test ledgers and bug lists run into hundreds of thousands of rows; putting them in a client would turn the product into a toy.</li>
+<li><strong>Credential safety.</strong> Git credentials and model API keys live on the server, encrypted with Fernet. The client only holds its own access token (stored in the user config directory with mode 0600).</li>
+<li><strong>Multiple frontends.</strong> CLI, TUI and any future web UI all consume the same REST API (<code>/api/v1</code>), so logic cannot drift.</li>
+</ol>
+
+<p>If you install the client without a backend, <code>login</code> fails on the first step. That is architecture, not a bug. Two ways to run the backend locally: <code>cp .env.example .env</code> then <code>docker compose up -d --build</code> (Swagger at <code>/api/docs/</code>), or <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> plus <code>make worker</code> / <code>make beat</code> for Celery.</p>
+
+<p>Client stack: <strong>Typer</strong> (CLI), <strong>Textual</strong> (full-screen TUI), <strong>Rich</strong> (tables and output), <strong>httpx</strong> (HTTP). Pure Python, no compiled extensions, Python ≥ 3.11.</p>
+
+<h2>How data gets in: dual cursors and idempotent ingestion</h2>
+
+<p>Without data everything downstream is an empty state. Ingestion is the least glamorous part of the system, and it has three channels:</p>
+
+<p><strong>GitHub REST sync.</strong> An incremental cursor and a backfill cursor are maintained separately — new commits go through the incremental path, the first sync of a repository walks the full history. Rate limits are handled with backoff, because GitHub's limits are a fact of life rather than an exception.</p>
+
+<p><strong>Webhook ingestion.</strong> Push, CI results and issue changes arrive in real time, behind two gates: <strong>HMAC-SHA256 signature verification</strong> (the request really came from GitHub) and <strong><code>delivery_id</code> idempotency</strong> (GitHub redelivers events; the same delivery must not produce two records).</p>
+
+<p><strong>Celery beat reconciliation.</strong> Webhooks get lost — network blips, restarts — so a scheduled job periodically reconciles and guarantees eventual consistency.</p>
+
+<p>Module attribution and test correlation happen asynchronously after ingestion. The trade-off is explicit: <strong>ingestion prefers slow over lost or duplicated</strong>, because every downstream correlation assumes the data is trustworthy.</p>
+
+<h2>Module attribution: pinning a commit to a module</h2>
+
+<p>The first step of correlation is answering "which modules did this commit touch". It sounds trivial and is actually a parsing problem: <code>src/auth/</code> clearly belongs to auth, but who owns <code>utils/date.py</code>? Does a change under <code>tests/</code> count as touching a business module?</p>
+
+<p>The answer is a <strong>three-level attribution strategy</strong>, applied in priority order:</p>
+
+<ol>
+<li><strong>Overrides</strong> (highest): an explicit path → module mapping configured by the repository maintainer;</li>
+<li><strong>Source-root inference</strong>: without an override, infer from language conventions and repository layout (top-level directories under <code>src/</code> or <code>lib/</code>);</li>
+<li><strong>Fallback</strong>: anything else lands in an explicit fallback bucket instead of floating.</li>
+</ol>
+
+<p>The important half is the last sentence: <strong>every attribution carries a citable reason</strong>. "This file belongs to auth because it matched the override <code>src/auth/**</code>" — attribution is not a guess, it can be opened and inspected. Risk scoring and regression candidates are all built on this traceable layer.</p>
+
+<h2><code>explain</code>: the full chain behind one commit</h2>
+
+<p><strong><code>aidevops explain &lt;sha&gt;</code></strong> is the signature command. Give it a commit SHA and it returns the commit's place in the development chain:</p>
+
+<ul>
+<li><strong>Requirement</strong>: which requirement (or requirement cluster) this change serves;</li>
+<li><strong>Module impact</strong>: which modules changed, and how central each one is;</li>
+<li><strong>Regression candidates</strong>: tests and bugs historically entangled with those modules;</li>
+<li><strong>Historical bugs</strong>: what went wrong in the same area before, and in what pattern;</li>
+<li><strong>Release</strong>: which release contains this commit, and when its window is;</li>
+<li><strong>Data gaps</strong>: which of the above <strong>have no data</strong>.</li>
+</ul>
+
+<p>The last point deserves emphasis: <strong><code>data_gaps</code> distinguishes "nothing was found" from "we have no data"</strong>. The fastest way for a tool to lose trust is to dress ignorance as a conclusion — in a repository that never ingested test results, "no regression candidates" must mean "unknown", not "safe". That is the product's honesty floor, and <code>explain</code> makes it a first-class output.</p>
+
+<h2>The risk engine: ten signals, each one explainable</h2>
+
+<p><strong><code>aidevops risk &lt;sha&gt;</code></strong> (and <code>aidevops module-risk &lt;id&gt;</code> for a module view) returns a normalised risk score. It is deliberately <strong>explainable</strong>: the ten signals are listed with their individual contributions, and the contributions sum exactly to the score.</p>
+
+<table>
+<thead><tr><th>Signal</th><th>What it measures</th></tr></thead>
+<tbody>
+<tr><td><code>change_volume</code></td><td>Size of the change (lines, files)</td></tr>
+<tr><td><code>historical_bug_density</code></td><td>Historical bug density of the modules involved</td></tr>
+<tr><td><code>test_failure_rate</code></td><td>Recent failure rate of the related tests</td></tr>
+<tr><td><code>module_centrality</code></td><td>Centrality of the touched modules in the dependency graph</td></tr>
+<tr><td><code>change_frequency</code></td><td>How often this area changes lately (hotspot detection)</td></tr>
+<tr><td><code>coverage_gap</code></td><td>Coverage gap on the changed paths</td></tr>
+<tr><td><code>open_high_severity_bugs</code></td><td>Open high-severity bugs on the modules</td></tr>
+<tr><td><code>test_coverage_gap</code></td><td>Test coverage gap for the module</td></tr>
+<tr><td><code>release_proximity</code></td><td>How close the next release is (risk is more expensive near the cut)</td></tr>
+<tr><td><code>data_freshness_penalty</code></td><td>An honest penalty when the data is too stale to trust</td></tr>
+</tbody>
+</table>
+
+<p>Three engineering decisions worth spelling out:</p>
+
+<ul>
+<li><strong>Weights are configuration, not code.</strong> The ten weights live on the server and can be tuned in Django admin without a redeploy.</li>
+<li><strong>Three-level inheritance</strong>: defaults → organisation override → project override. A latency-sensitive team can raise <code>release_proximity</code>; a team with weak test infrastructure can emphasise <code>coverage_gap</code>.</li>
+<li><strong>Contributions sum to the score.</strong> This is not decoration — it turns "I don't believe this number" into a concrete engineering question: find the largest contributor and inspect its input. A black-box score can never do that.</li>
+</ul>
+
+<h2>AI analysis: five agents, evidence validation, full tracing</h2>
+
+<p>The AI layer answers "given all this data, can something be automated". Its structure is considerably more involved than "call an LLM".</p>
+
+<p><strong>Pluggable providers.</strong> Model credentials are managed per organisation (<code>aidevops providers</code> / <code>provider-add</code> / <code>provider-verify</code>) over an OpenAI-compatible protocol, with presets for DeepSeek, Qwen and Ollama, and credentials encrypted with Fernet. Model keys belong on the server, exactly like Git PATs.</p>
+
+<p><strong>Five built-in agents</strong>, each with an explicit input/output contract:</p>
+
+<table>
+<thead><tr><th>Agent</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td>Code Impact</td><td>Analyses the blast radius of a commit</td></tr>
+<tr><td>Test Generation</td><td>Generates test cases along a scenario matrix (11 categories, not a shotgun blast)</td></tr>
+<tr><td>Bug Investigation</td><td>Builds an evidence chain around one bug</td></tr>
+<tr><td>Root Cause Analysis</td><td>Works backwards from symptoms to plausible root-cause areas</td></tr>
+<tr><td>Requirement Analysis</td><td>Extracts verifiable acceptance points from requirement text</td></tr>
+</tbody>
+</table>
+
+<p>Start one with <code>aidevops analyse -a test-generation --wait</code>; browse history with <code>analyses</code> / <code>job</code>. <strong><code>aidevops trace &lt;id&gt;</code></strong> is the debugging tool: every model call and tool call behind one analysis, with timings. The agent is not a black box.</p>
+
+<p><strong><code>aidevops findings</code> / <code>finding &lt;id&gt;</code> / <code>triage &lt;id&gt; &lt;status&gt;</code></strong> form the workspace for AI findings. Every finding carries <strong>evidence references</strong>: whatever the model says must resolve back to real data (a commit, a bug, a test); unresolvable references never make it into the output. <code>triage</code> makes the disposition (open / confirmed / false positive) an explicit state transition, and that trail becomes team knowledge.</p>
+
+<p><strong><code>aidevops tui</code></strong> is the full-screen dashboard (Textual): commit list, finding stream, suggestion queue — for people who would rather not memorise commands.</p>
+
+<p><strong>Evidence validation</strong> is the hard constraint of this layer: every reference the model emits must resolve to real data, or it is dropped. That mechanically eliminates incidents like "the model hallucinated a bug that never existed".</p>
+
+<p><strong>The tool surface is closed.</strong> The model can call 13 <strong>read-only</strong> tools, all forced through project scoping; no write operation appears in its tool list. The AI can see data but cannot touch state — which is the precondition for the next section.</p>
+
+<h2>Proposals and audit: the AI suggests, a human decides</h2>
+
+<p>Everything the AI produces is a proposal: a batch of generated tests, an investigation conclusion, a remediation suggestion. None of it takes effect by itself.</p>
+
+<pre><code>aidevops proposals                 # pending proposals
+aidevops approve &lt;id&gt;              # approve → executed by a fixed executor
+aidevops reject &lt;id&gt;               # reject → discarded
+</code></pre>
+
+<p>Three hard rules:</p>
+
+<ol>
+<li><strong>Only <code>approve</code> executes.</strong> Execution lives in a hard-coded executor, not in the model. The model can propose; it cannot act.</li>
+<li><strong>No approval means zero writes.</strong> There is no implicit adoption and no "execute by default, undo on objection".</li>
+<li><strong>Everything lands in <code>AuditLog</code>.</strong> Who approved what and when, and what the executor did, is queryable with <code>aidevops audit</code>.</li>
+</ol>
+
+<p>For QA the trade-off is clear: <strong>the trust balance for letting AI mutate state is not there yet</strong>. Tests are a quality line of defence, and you do not put a black box that acts on its own on the line.</p>
+
+<p>Multi-tenant safety follows the same logic: <strong>tenant id comes only from the URL</strong> (never inferred from the request body), non-member access returns 404 (without leaking existence), insufficient role returns 403, and every query goes through the single <code>scoped_queryset</code> entry point — leaving no room for "someone forgot the filter".</p>
+
+<h2>Install and a five-minute walkthrough</h2>
+
+<pre><code>pipx install aidevops        # recommended: isolated venv, command on PATH
+# or
+pip install aidevops
+</code></pre>
+
+<p>Login uses the <strong>GitHub device flow</strong>: type a code in the browser, never paste a password into a terminal. On remote servers and containers use <code>login --no-browser</code>.</p>
+
+<pre><code>aidevops login                       # GitHub device-flow login
+aidevops org-add "My Team"           # first run: create org (creator is admin)
+aidevops projects                    # list projects (* marks the current one)
+aidevops use qa-copilot-platform     # select a project for later commands
+aidevops status                      # current backend / account / project
+</code></pre>
+
+<p><strong>Connecting a repository</strong> is the real entry point; skip it and <code>commits</code> / <code>risk</code> / <code>explain</code> are all empty states:</p>
+
+<pre><code>aidevops connections                              # list Git credentials, note the connection id
+aidevops connection-add -l my-github -t &lt;PAT&gt;     # private repos need repo read access
+aidevops connection-verify &lt;connection-id&gt;        # verify the credential first
+aidevops repo-add -c &lt;connection-id&gt; -f owner/repo  # register the repository
+aidevops sync &lt;repository-id&gt; --wait              # pull history, ready when it returns
+</code></pre>
+
+<p>A <code>connection</code> is an <strong>organisation-level</strong> credential (managed by admins) and can register multiple repositories; <code>repo-update</code> adjusts the sync window and attribution depth.</p>
+
+<p><strong>Upgrading</strong> is <code>aidevops upgrade</code>. The client compares itself against the latest PyPI release on every run and warns in red when behind (result cached for 24 hours; <code>AIDEVOPS_NO_UPDATE_CHECK=1</code> disables it). One guardrail: <code>upgrade</code> <strong>refuses to run</strong> inside a <code>pip install -e</code> development checkout, because that would silently replace your working tree with the released version — it tells you to <code>git pull</code> instead.</p>
+
+<p>Config and tokens live in the user config directory (Windows <code>%LOCALAPPDATA%\aidevops\</code>, Linux <code>~/.config/aidevops/</code>), mode 0600.</p>
+
+<h2>Scripting and CI</h2>
+
+<p><code>--json</code> is a <strong>global</strong> option and goes before the subcommand:</p>
+
+<pre><code>aidevops --json findings | jq '.[] | select(.severity == "critical")'
+</code></pre>
+
+<p>Two details exist for pipelines: in <code>--json</code> mode the upgrade notice goes to <strong>stderr</strong> so stdout stays clean, and <code>AIDEVOPS_JSON=1</code> is equivalent to the global flag. In CI, inject the token with <code>AIDEVOPS_TOKEN</code> (no interactive login) and point <code>AIDEVOPS_BASE_URL</code> at a test backend for integration checks.</p>
+
+<p>A realistic CI flow: run <code>aidevops --json risk $GITHUB_SHA</code> in the pipeline; when the score crosses a threshold, post the regression candidate list as a PR comment. The risk engine and the AI suggestions become first-class citizens of the pipeline.</p>
+
+<h2>Engineering: tests, types, release flow</h2>
+
+<p>The client lives in the repository's <code>cli/</code> directory and the engineering setup is complete:</p>
+
+<pre><code>python -m pytest          # 50 client tests, including Textual pilot TUI tests
+python -m ruff check .
+python -m mypy ai_devops_cli
+</code></pre>
+
+<p>The TUI is tested with Textual's pilot — keystroke flows and panel switches in a full-screen app are covered without manual clicking. The backend has <strong>569 tests</strong> (4 network cases skipped by default), none of which need the internet, so CI stays fast.</p>
+
+<p>Every multi-tenant write path funnels through <code>scoped_queryset</code>, and combined with the URL-derived tenant semantics, tests can assert case by case that "tenant A can never see tenant B's data".</p>
+
+<p>Releases to PyPI go through a <strong>tag-triggered trusted publishing</strong> workflow: push a tag → GitHub Actions builds → OIDC short-lived credentials upload to PyPI. No local packaging, no long-lived tokens.</p>
+
+<h2>Status, limits and roadmap</h2>
+
+<p>It is <strong>Alpha</strong> (Development Status 3), with a few explicit limits:</p>
+
+<ul>
+<li><strong>A backend is required.</strong> The client has no standalone value; trying the full flow means running the server first (docker compose or the local make targets).</li>
+<li><strong>Single organisation, multiple projects</strong> is supported; the cross-organisation permission model is still converging.</li>
+<li><strong>A real-LLM end-to-end smoke test</strong> is on the roadmap (agent tests currently use a stub model — the logic paths are covered, the output contract of real models is not yet verified).</li>
+<li><strong>Module attribution</strong> wants one override configuration per repository; zero-config accuracy depends on the quality of source-root inference.</li>
+</ul>
+
+<p>Roadmap priority: finish the terminal detail views → real-LLM smoke test → production validation of the Celery worker shape.</p>
+
+<p>If you are building a QA platform too, or you are interested in development-data correlation and caged AI agents, issues are welcome at <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/ai_devops</a>. One line to install: <code>pipx install aidevops</code>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">中文版</a></nav></div></div>
+  </body>
+</html>
