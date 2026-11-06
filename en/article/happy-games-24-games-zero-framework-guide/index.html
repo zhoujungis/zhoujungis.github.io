@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-BrHhJOjG.js"></script>
+    <script type="module" crossorigin src="/assets/index-CmfVkwk5.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -162,347 +162,367 @@
   </head>
   <body>
     <div id="app"><div class="ns-article"><h1>Happy Games: 24 browser games with zero frameworks, one deploy</h1><div class="ns-meta">2026-11-05 · 40 min · Stack Frame</div><div class="markdown-body">
-<p>Don't look for a game — just start one. A browser arcade in plain HTML, CSS and JavaScript: 24 games, zero frameworks, zero build step, zero dependencies. AI ranging from pattern scoring to WebAssembly, multiplayer over D1 and polling, narration streamed from an LLM, all deployed to Cloudflare Pages in one command.</p>
+<p>Don't go looking for a game. Just start one. That is the pitch for Happy Games, a browser arcade written in plain HTML, CSS and JavaScript: 24 games, zero frameworks, zero build steps, zero dependencies. The AI ranges from pattern scoring to WebAssembly, multiplayer runs on D1 plus polling, narration streams from a language model, and the whole site deploys to Cloudflare Pages in one command.</p>
 
 <p><strong>Play:</strong> <a href="https://happygames.pages.dev" rel="noopener noreferrer" target="_blank">happygames.pages.dev</a> · <strong>Source:</strong> <a href="https://github.com/zhoujungis/happy_games" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/happy_games</a></p>
 
-<h2>Introduction: why another "mini game collection"</h2>
+<h2>Why another mini-game collection</h2>
 
-<p>The web does not lack game portals; it lacks a <strong>sample project that can be read end to end and reproduced in one click</strong>. Happy Games is positioned explicitly as:</p>
+<p>The web does not lack game portals. It lacks a <strong>sample project that can be read end to end and cloned in one click</strong>. Happy Games is positioned as three things:</p>
+
 <ol>
-<li><strong>A teaching sample</strong> — every folder runs on its own, with no "install 300 MB of node_modules, then understand five layers of abstraction" tax;</li>
-<li><strong>Real technical depth</strong> — under the zero-framework constraint it still does AI (from heuristics to a WASM engine), realtime multiplayer, streamed narration, accounts and end-to-end tests;</li>
-<li><strong>Deployable</strong> — the whole site is static files plus Cloudflare Pages Functions and D1, with no containers and no servers; one <code>wrangler</code> command ships it.</li>
+<li><strong>A teaching sample.</strong> Every folder runs on its own. There is no "install 300 MB of node_modules, then work through five layers of abstraction" tax.</li>
+<li><strong>Real technical depth.</strong> Under the zero-framework constraint it still covers AI from heuristics to a WASM engine, realtime multiplayer, streamed narration, accounts and end-to-end tests.</li>
+<li><strong>Deployable.</strong> The whole site is static files plus Cloudflare Pages Functions and D1. No containers, no servers, one wrangler command.</li>
 </ol>
 
-<p>Read this if you want a starting scaffold for a browser game, a real case of organizing a large front-end without a framework, a minimal full stack on the Cloudflare stack (Pages / Functions / D1), or simply ten minutes of play.</p>
+<p>Read this if you want a starting scaffold for a browser game, a real case of organizing a large frontend without a framework, a minimal full stack on the Cloudflare stack, or simply ten minutes of play.</p>
 
-<h2>1. Thirty-second overview</h2>
+<h2>Thirty-second overview</h2>
 
 <table>
 <thead><tr><th>Dimension</th><th>Key fact</th></tr></thead>
 <tbody>
-<tr><td><strong>Games</strong></td><td><strong>24</strong> across four sections: board games 6 / puzzles 6 / casual 6 / Chinese history 6</td></tr>
-<tr><td><strong>Constraints</strong></td><td>Native HTML / CSS / JS (ES Modules), <strong>no framework, no build, no dependencies</strong>; double-click an HTML file to run locally</td></tr>
-<tr><td><strong>AI</strong></td><td>Pattern scoring (gomoku) → alpha-beta pruning (Chinese chess) → GNU Go compiled to WebAssembly (Go) → three difficulty tiers (jungle chess / reversi)</td></tr>
-<tr><td><strong>Multiplayer</strong></td><td>Aeroplane chess for 2–4 players in real time, rooms with passwords, D1 state, polling sync, AI filling empty seats</td></tr>
-<tr><td><strong>Narration</strong></td><td>Life simulation and the history brawl call OpenRouter; the server proxies SSE to the browser</td></tr>
-<tr><td><strong>Backend</strong></td><td>Cloudflare Pages Functions (file path = route) plus D1 (SQLite in the cloud)</td></tr>
-<tr><td><strong>Tests</strong></td><td><code>node --test</code>: 25 files, 288 cases (pure functions and engines); Playwright smoke tests on desktop and mobile</td></tr>
-<tr><td><strong>Deploy</strong></td><td><code>npm run deploy</code> → <code>wrangler pages deploy .</code>; layered caching configured in <code>_headers</code></td></tr>
-<tr><td><strong>Design rules</strong></td><td>Self-contained folders, pure-function isolation, a data-driven home page, offline-capable</td></tr>
+<tr><td><strong>Games</strong></td><td><strong>24</strong>, across four sections: board games 6, puzzles 6, casual 6, Chinese history 6</td></tr>
+<tr><td><strong>Constraints</strong></td><td>Native HTML, CSS and JavaScript with ES modules. <strong>No framework, no build, no dependencies.</strong> Double-click an HTML file to run it locally</td></tr>
+<tr><td><strong>AI</strong></td><td>Pattern scoring for gomoku, alpha-beta pruning for Chinese chess, GNU Go compiled to WebAssembly for Go, three difficulty tiers for jungle chess and reversi</td></tr>
+<tr><td><strong>Multiplayer</strong></td><td>Aeroplane chess for 2 to 4 players in real time, rooms with passwords, D1 state, polling sync, AI seats for missing players</td></tr>
+<tr><td><strong>Narration</strong></td><td>Life simulation and the history brawl call OpenRouter, with the server proxying server-sent events to the browser</td></tr>
+<tr><td><strong>Backend</strong></td><td>Cloudflare Pages Functions, where the file path is the route, plus D1 as a SQLite database</td></tr>
+<tr><td><strong>Tests</strong></td><td>The Node test runner over 25 files and 288 cases on pure functions and engines, plus Playwright smoke tests on desktop and mobile</td></tr>
+<tr><td><strong>Deploy</strong></td><td>One npm script that runs a Pages deploy of the whole site, with layered caching configured in a headers file</td></tr>
+<tr><td><strong>Design rules</strong></td><td>Self-contained folders, pure-function isolation, a data-driven home page, offline capability</td></tr>
 </tbody>
 </table>
 
 <h3>The four sections</h3>
 
 <table>
-<thead><tr><th>Section</th><th>Theme</th><th>Six games</th></tr></thead>
+<thead><tr><th>Section</th><th>Theme</th><th>The six games</th></tr></thead>
 <tbody>
-<tr><td><strong>Board games</strong></td><td>Strategy on a small board</td><td>Gomoku, <strong>Chinese chess</strong>, <strong>Go (GNU Go WASM)</strong>, jungle chess, reversi, <strong>aeroplane chess (multiplayer)</strong></td></tr>
+<tr><td><strong>Board games</strong></td><td>Strategy on a small board</td><td>Gomoku, <strong>Chinese chess</strong>, <strong>Go (GNU Go in WASM)</strong>, jungle chess, reversi, <strong>aeroplane chess (multiplayer)</strong></td></tr>
 <tr><td><strong>Puzzles</strong></td><td>Logic and deduction</td><td>Rule blocks, light refraction, sudoku, maze escape, echo walker, sokoban</td></tr>
 <tr><td><strong>Casual</strong></td><td>Pick up and play</td><td>Spark survivors, <strong>life simulation (AI narration)</strong>, flappy bird, hiking sim, jump jump, stack tower</td></tr>
-<tr><td><strong>Chinese history</strong></td><td>Historical figures and institutions</td><td>Seven days of decree, Chinese merchant, Tang magistrate, guess the emperor, <strong>history brawl (AI judge)</strong>, imperial exam</td></tr>
+<tr><td><strong>Chinese history</strong></td><td>Figures and institutions</td><td>Seven days of decree, Chinese merchant, Tang magistrate, guess the emperor, <strong>history brawl (AI judge)</strong>, imperial exam</td></tr>
 </tbody>
 </table>
 
-<h2>2. All 24 games at a glance</h2>
+<h2>All 24 games</h2>
 
 <h3>Board games</h3>
+
 <table>
-<thead><tr><th>Game</th><th>One-line rule</th><th>Hard part</th></tr></thead>
+<thead><tr><th>Game</th><th>One line</th><th>The hard part</th></tr></thead>
 <tbody>
-<tr><td><strong>Gomoku</strong></td><td>15×15 against the computer</td><td>AI scores eight pattern weights (five in a row 100000, open four 10000, four-three 1000 …); three difficulties map to different search depths</td></tr>
-<tr><td><strong>Chinese chess</strong></td><td>Human vs machine</td><td>Port of the open-source <a href="https://github.com/itlwei/Chess" rel="noopener noreferrer" target="_blank">itlwei/Chess</a> engine: move generation with piece rules, nine piece-square value tables, alpha-beta search; the server also offers a GLM-4.7-Flash move proxy as a fallback</td></tr>
-<tr><td><strong>Go</strong></td><td>Human vs machine</td><td><strong>GNU Go compiled to WebAssembly (~8.7 MB)</strong>, running in a Web Worker with Komi 7.5; the main thread talks to it over <code>{cmd:'init'/'play'/'genmove'}</code>, with color normalization and a crash move log</td></tr>
-<tr><td><strong>Jungle chess</strong></td><td>River and trap rules</td><td>Elephant beats lion, rat beats elephant, rivers and traps; three AI tiers; animal emoji pieces</td></tr>
+<tr><td><strong>Gomoku</strong></td><td>15 by 15 against the computer</td><td>The AI scores eight pattern weights, with five in a row at 100000, an open four at 10000, a four-three at 1000 and so on. Three difficulties map to different search depths</td></tr>
+<tr><td><strong>Chinese chess</strong></td><td>Human versus machine</td><td>A port of the open-source engine: move generation from piece rules, nine piece-square value tables with values such as horse 3.5, rook 9 and cannon 4.5, and alpha-beta search. The server also offers a model-based move proxy as a fallback</td></tr>
+<tr><td><strong>Go</strong></td><td>Human versus machine</td><td><strong>GNU Go compiled to WebAssembly at about 8.7 MB</strong>, running asynchronously in a web worker with a Komi of 7.5. The main thread talks to it through init, play and generate-move messages, with colour normalization and a crash move log</td></tr>
+<tr><td><strong>Jungle chess</strong></td><td>River and trap rules</td><td>Elephant beats lion, rat beats elephant, rivers and traps, three AI tiers, and animal emoji on the pieces</td></tr>
 <tr><td><strong>Reversi</strong></td><td>Eight-direction flipping</td><td>Three AI tiers plus undo</td></tr>
-<tr><td><strong>Aeroplane chess</strong></td><td>The only multiplayer game</td><td>2–4 players in real time, classic roll/jump/fly rules, AI filling empty seats so a game can start any time</td></tr>
+<tr><td><strong>Aeroplane chess</strong></td><td>The only multiplayer game</td><td>2 to 4 players in real time, classic roll, jump and fly rules, and AI filling empty seats so a table can start at any time</td></tr>
 </tbody>
 </table>
 
 <h3>Puzzles</h3>
+
 <table>
-<thead><tr><th>Game</th><th>One-line rule</th><th>Highlight</th></tr></thead>
+<thead><tr><th>Game</th><th>One line</th><th>Highlight</th></tr></thead>
 <tbody>
-<tr><td><strong>Rule blocks</strong></td><td>Push words to rewrite rules ("wall is stop", "water is sink")</td><td>Inspired by Baba Is You; live rule panel, multiple levels, undo and reset; the goal is to make any "you" meet any "win"</td></tr>
-<tr><td><strong>Light refraction</strong></td><td>Rotate mirrors and splitters to light crystals</td><td>Dark grid, 45° rotation, a physics puzzle built on laser splitting</td></tr>
-<tr><td><strong>Sudoku</strong></td><td>Classic 9×9</td><td>Three difficulties, timed challenge, pencil marks, conflict highlighting</td></tr>
-<tr><td><strong>Maze escape</strong></td><td>Timed traversal of a random maze</td><td>Higher difficulty means larger, twistier mazes; a new map every round</td></tr>
-<tr><td><strong>Echo walker</strong></td><td>Every six steps, your old path becomes an echo chasing you</td><td>Shadow mechanic: collect seals while avoiding your past self; almost no tolerance for a bad route</td></tr>
-<tr><td><strong>Sokoban</strong></td><td>15 hand-made levels</td><td>Gradual difficulty, warm retro floor palette</td></tr>
+<tr><td><strong>Rule blocks</strong></td><td>Push words to rewrite the rules, such as "wall is stop" or "water is sink"</td><td>Inspired by Baba Is You. A live panel shows the rules in effect, with multiple levels plus undo and reset. The goal is to make any "you" meet any "win"</td></tr>
+<tr><td><strong>Light refraction</strong></td><td>Rotate mirrors and splitters to light the crystals</td><td>A dark grid, 45-degree rotation, and a physics puzzle built on laser splitting</td></tr>
+<tr><td><strong>Sudoku</strong></td><td>Classic 9 by 9</td><td>Three difficulties, a timed challenge, pencil marks and conflict highlighting, on an off-white board</td></tr>
+<tr><td><strong>Maze escape</strong></td><td>Cross a random maze against the clock</td><td>Higher difficulty means larger, twistier mazes, and a new map every round</td></tr>
+<tr><td><strong>Echo walker</strong></td><td>Every six steps, your old path becomes an echo that chases you</td><td>A shadow mechanic: collect seals while avoiding your past self. Almost no tolerance for a bad route</td></tr>
+<tr><td><strong>Sokoban</strong></td><td>Fifteen hand-built levels</td><td>Gradual difficulty and a warm retro floor palette</td></tr>
 </tbody>
 </table>
 
 <h3>Casual</h3>
+
 <table>
-<thead><tr><th>Game</th><th>One-line rule</th><th>Highlight</th></tr></thead>
+<thead><tr><th>Game</th><th>One line</th><th>Highlight</th></tr></thead>
 <tbody>
-<tr><td><strong>Spark survivors</strong></td><td>Vampire-Survivors-like</td><td>Auto-firing, experience drops, three-choice upgrades (fire rate, projectiles, armour …); the build decides how many waves you survive</td></tr>
-<tr><td><strong>Life simulation</strong></td><td>Text life sim</td><td>Allocate talents (intellect, physique, fortune …); the AI streams six chapters from childhood to a final verdict, ending with a 0–100 life score</td></tr>
-<tr><td><strong>Flappy bird</strong></td><td>Tap to fly through pipes</td><td>Blue sky, green grass, classic feel</td></tr>
-<tr><td><strong>Hiking sim</strong></td><td>Three real routes: Aotai traverse, Gongga loop, Wusun trail</td><td>Terrain, supplies, altitude and weather — a hiking simulator in the browser</td></tr>
-<tr><td><strong>Jump jump</strong></td><td>Hold to charge, release to jump</td><td>Perfect centre landings give combo bonuses; the subtle physics is the point</td></tr>
-<tr><td><strong>Stack tower</strong></td><td>Drop swinging blocks precisely</td><td>Better alignment means a taller tower; overhang trimming and rising speed</td></tr>
+<tr><td><strong>Spark survivors</strong></td><td>A vampire-survivors-like</td><td>Characters fire automatically, kills drop experience, and a three-choice upgrade offers fire rate, projectiles, armour and more. The build decides how many waves you survive</td></tr>
+<tr><td><strong>Life simulation</strong></td><td>A text life sim</td><td>Allocate talents such as intellect, physique and fortune. The AI streams six chapters from childhood through a final verdict, ending with a life score from 0 to 100</td></tr>
+<tr><td><strong>Flappy bird</strong></td><td>Tap to fly through pipes</td><td>Blue sky, green grass, classic feel, and a longer flight the better you get</td></tr>
+<tr><td><strong>Hiking sim</strong></td><td>Three real routes: the Aotai traverse, the Gongga loop and the Wusun trail</td><td>Terrain, supplies, altitude and weather, all in a browser hiking simulator</td></tr>
+<tr><td><strong>Jump jump</strong></td><td>Hold to charge, release to jump onto the next platform</td><td>A landing dead centre gives a combo bonus, and the subtle physics is the whole point</td></tr>
+<tr><td><strong>Stack tower</strong></td><td>Drop swinging blocks precisely</td><td>Better alignment builds a taller tower, with overhang trimming and rising speed</td></tr>
 </tbody>
 </table>
 
 <h3>Chinese history</h3>
+
 <table>
-<thead><tr><th>Game</th><th>One-line rule</th><th>Highlight</th></tr></thead>
+<thead><tr><th>Game</th><th>One line</th><th>Highlight</th></tr></thead>
 <tbody>
-<tr><td><strong>Seven days of decree</strong></td><td>Complete the imperial decree in seven days</td><td>Three actions per day across seven resources — silver, grain, public support, order, gentry, reputation, intelligence; report after three actions, settle on day seven</td></tr>
-<tr><td><strong>Chinese merchant</strong></td><td>Trade across famous cities</td><td>Compete for wealth with three AI merchants; prices and rival strategies shift</td></tr>
-<tr><td><strong>Tang magistrate</strong></td><td>Run a county for twelve seasons</td><td>Farms, markets and random events; balance tax, support, granary and order</td></tr>
-<tr><td><strong>Guess the emperor</strong></td><td>Identify one of 200+ emperors</td><td>Unlimited guesses; early guesses give conventional clues, from the fifth onward a 50% chance to reveal an attribute comparison</td></tr>
-<tr><td><strong>History brawl</strong></td><td>Two players draft, an AI judges</td><td>Random dynasties, ten posts to fill with historical figures; the AI judges by dynasty fit &gt; role fit &gt; actual ability &gt; lineup synergy, in a storyteller's voice</td></tr>
-<tr><td><strong>Imperial exam</strong></td><td>Seven stages, three multiple-choice questions each</td><td>Classics, history and ancient institutions; one wrong answer ends the run</td></tr>
+<tr><td><strong>Seven days of decree</strong></td><td>Complete an imperial decree in seven days</td><td>Three actions per day across seven resources: silver, grain, public support, order, gentry, reputation and intelligence. Report after three actions, settle on day seven against your record of governance</td></tr>
+<tr><td><strong>Chinese merchant</strong></td><td>Trade across famous cities</td><td>Compete for wealth against three AI merchants, with prices and rival strategies shifting as you go</td></tr>
+<tr><td><strong>Tang magistrate</strong></td><td>Run a county for twelve seasons, three years</td><td>Farms, markets and random events, balancing tax revenue, public support, the granary and public order</td></tr>
+<tr><td><strong>Guess the emperor</strong></td><td>Identify one of more than 200 emperors</td><td>Unlimited guesses. The first few give conventional clues; from the fifth onward there is a 50 percent chance of revealing an attribute comparison directly</td></tr>
+<tr><td><strong>History brawl</strong></td><td>Two players draft, an AI judges</td><td>A random dynasty, ten posts to fill with historical figures, and an AI that judges in the order dynasty fit, then role fit, then actual ability, then lineup synergy, in a storyteller's voice</td></tr>
+<tr><td><strong>Imperial exam</strong></td><td>Seven stages, three multiple-choice questions each</td><td>Classics, history and ancient institutions. One wrong answer ends the run, and placing in the top three is the ultimate romantic ending</td></tr>
 </tbody>
 </table>
 
-<h2>3. The hard parts</h2>
-<h3>3.1 Four levels of AI, from pattern scoring to WebAssembly</h3>
+<h2>The hard parts</h2>
+<h3>Four levels of AI, from pattern scoring to WebAssembly</h3>
 
-<p>The AI here is never "pick a random move"; it spans four technical levels.</p>
+<p>The AI here is never "pick a random move". It spans four technical levels.</p>
 
-<p><strong>(1) Pattern scoring — gomoku</strong></p>
+<p><strong>One: pattern scoring, in gomoku.</strong> Eight directions scan the board shapes, and each shape is scored.</p>
 
-<p>Eight directions scan the shapes and score them:</p>
 <table>
 <thead><tr><th>Pattern</th><th>Score</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td>Five</td><td>100000</td><td>Already won</td></tr>
-<tr><td>Open four</td><td>10000</td><td>Four with both ends open — forced win</td></tr>
-<tr><td>Four / open three</td><td>1000</td><td>Four blocked at one end / three open at both</td></tr>
-<tr><td>Three / open two</td><td>100</td><td>Three blocked at one end / two open</td></tr>
+<tr><td>Five in a row</td><td>100000</td><td>Already won</td></tr>
+<tr><td>Open four</td><td>10000</td><td>Four with both ends open, a forced win</td></tr>
+<tr><td>Blocked four, open three</td><td>1000</td><td>Four blocked at one end, or three open at both</td></tr>
+<tr><td>Blocked three, open two</td><td>100</td><td>Three blocked at one end, or two open</td></tr>
 <tr><td>Two</td><td>10</td><td></td></tr>
-<tr><td>Single</td><td>1</td><td></td></tr>
+<tr><td>Single stone</td><td>1</td><td></td></tr>
 </tbody>
 </table>
 
-<p>Difficulties control search depth: easy looks one move ahead and can slip; hard looks several ahead and prefers blocking your open three over completing its own four. Everything is a pure function, so <code>node --test</code> runs it directly.</p>
+<p>Difficulty controls search depth. The easy level looks one move ahead and can slip; the hard level looks several ahead and prefers blocking your open three over completing its own blocked four. All of it is pure functions, so the test runner exercises it directly.</p>
 
-<p><strong>(2) Alpha-beta pruning — Chinese chess</strong></p>
+<p><strong>Two: alpha-beta pruning, in Chinese chess.</strong> The engine is ported from an MIT-licensed open-source project, keeping the core: move generation per piece rule, including horse legs, elephant eyes and palace diagonals; piece-square value tables capturing what a piece is worth on each square, such as a pawn before and after crossing the river; and alpha-beta search with position evaluation, pruning branches that cannot beat the best line found so far.</p>
 
-<p>Ported from <a href="https://github.com/itlwei/Chess" rel="noopener noreferrer" target="_blank">itlwei/Chess</a> (MIT), keeping the engine core: move generation per piece rule (horse legs, elephant eyes, palace diagonals), piece-square value tables, and alpha-beta search with position evaluation. Board logic (<code>xiangqi/logic.js</code>) is fully separated from the engine (<code>xiangqi/engine.js</code>). A server endpoint <code>/api/xiangqi-ai</code> offers a GLM-4.7-Flash move proxy as a fallback when the local engine cannot produce a move in extreme positions.</p>
+<p>Board logic and the AI engine are fully separated. The server also exposes a model-based move proxy as a fallback, for the extreme positions where the local engine cannot produce a move in time.</p>
 
-<p><strong>(3) GNU Go → WebAssembly — Go</strong></p>
+<p><strong>Three: GNU Go compiled to WebAssembly, for Go.</strong> This is the hardest technical path in the project. The open-source GNU Go engine is compiled to WebAssembly at about 8.7 MB and runs inside a web worker, communicating with the main thread over a small message protocol.</p>
 
-<p>The hardest path in the project: the open-source <strong>GNU Go</strong> engine compiled to WebAssembly (<code>weiqi/gnugo.js</code>, about 8.7 MB), running in a <strong>Web Worker</strong> with a message protocol:</p>
-
-<pre><code>main → worker:  { cmd: 'init', size, seed }    start a game (Komi 7.5)
-main → worker:  { cmd: 'play', i, j }          player move
-main → worker:  { cmd: 'genmove' }             engine move
-worker → main:  { ok, cmd, board, last }       board snapshot (color-normalized)
+<pre><code>main to worker:  { cmd: 'init', size, seed }    start a game with Komi 7.5
+main to worker:  { cmd: 'play', i, j }          the player moves
+main to worker:  { cmd: 'genmove' }             the engine thinks and moves
+worker to main:  { ok, cmd, board, last }       board snapshot, colour-normalized
 </code></pre>
 
-<p>The worker also does three important things: <strong>color normalization</strong> (the player's color maps to 1, the other to 2, independent of GNU Go's internal constants, so rendering is always consistent); a <strong>move log</strong> so a crashed game can be replayed; and <strong>stdout/stderr capture</strong> through <code>Module.print</code> and <code>printErr</code> for diagnosis.</p>
+<p>The worker also does three things that matter. <strong>Colour normalization</strong> makes the player's colour map to one and the opponent to two after the first move, independent of the engine's internal constants, so rendering stays consistent. A <strong>move log</strong> records every coordinate, so a crashed game can be replayed. And standard output and error are captured through the module's print hooks, which makes diagnosis possible.</p>
 
-<p>A world-class board engine running in the browser without blocking the main thread is a complete demonstration that front ends can host heavy AI.</p>
+<p>A world-class board engine running in the browser without blocking the main thread is a complete demonstration that a frontend can host heavy AI.</p>
 
-<p><strong>(4) Three difficulty tiers — jungle chess and reversi</strong></p>
+<p><strong>Four: three difficulty tiers, in jungle chess and reversi.</strong> Both split AI by search depth into three tiers, and reversi adds undo. Same pure-function approach, fully unit-testable.</p>
 
-<p>Both split AI by search depth into three tiers; reversi adds undo. Same pure-function approach, fully unit-testable.</p>
+<h3>Aeroplane chess: realtime multiplayer on D1</h3>
 
-<h3>3.2 Aeroplane chess: realtime multiplayer on D1</h3>
+<p>The only multiplayer game among the 24, and its architecture has three layers.</p>
 
-<p>The only multiplayer game among the 24. Three layers:</p>
-
-<pre><code>create/join  →  state advance (roll/move/start)  →  polling sync
-     │                      │                            │
-     ▼                      ▼                            ▼
-/api/feixingqi/create  /api/feixingqi/roll   client polls every 1.5s (in game)
-/api/feixingqi/join    /api/feixingqi/move   / 2s (lobby); the server runs tick() to
-                       /api/feixingqi/start  advance AI turns before responding
+<pre><code>create or join  →  advance state (roll, move, start)  →  polling sync
+      │                       │                                │
+      ▼                       ▼                                ▼
+create and join          roll and move              the client polls every 1.5s in
+endpoints                and start                  game, every 2s in the lobby;
+                                                    the server runs tick() to advance
+                                                    AI turns before responding
 </code></pre>
 
 <ul>
-<li><strong>Rooms:</strong> <code>POST /api/feixingqi/create</code> creates a password-protected room and <code>POST /api/feixingqi/join</code> joins one; room state serializes to JSON in a single D1 row (<code>code / password / state(JSON) / created_at / updated_at</code>).</li>
-<li><strong>State advance:</strong> every move is validated server-side against cheating, and empty seats are driven by server-side AI, so a table can start with one human.</li>
-<li><strong>Polling:</strong> the client periodically fetches <code>/api/feixingqi/state</code>; before responding the server runs <code>tick()</code> to advance AI turns, so players always see the newest state with everyone else's moves applied.</li>
+<li><strong>Rooms.</strong> One endpoint creates a password-protected room and another joins it. Room state serializes as JSON into a single D1 row holding the code, the password, the state blob and timestamps.</li>
+<li><strong>State advance.</strong> Every move is validated server-side, which stops cheating. Empty seats are driven by server-side AI, so a table can start with one human.</li>
+<li><strong>Polling.</strong> The client periodically fetches state. Before responding, the server runs one tick to advance AI turns, so a player always sees the newest position with everyone else's moves already applied.</li>
 </ul>
 
-<p>D1 is both database and cache here — good enough, and it avoids the operational cost of WebSockets.</p>
+<p>D1 is both database and cache here. It is simple enough, and it avoids the operational cost of WebSockets.</p>
 
-<h3>3.3 Streamed AI narration</h3>
+<h3>Streamed AI narration</h3>
 
-<p>Life simulation and the history brawl bring an LLM into the game, with the server proxying SSE.</p>
+<p>Life simulation and the history brawl bring a language model into the game, with the server proxying server-sent events.</p>
 
-<p><strong>Life simulation (<code>/api/life/narrate</code>)</strong></p>
-<ul>
-<li>After allocating birth attributes the client posts <code>{attributes}</code>;</li>
-<li>the server calls OpenRouter (<code>inclusionai/ling-3.0-flash:free</code>) and forwards the SSE stream verbatim as <code>text/event-stream</code>;</li>
-<li>six chapters — childhood, youth, adulthood, middle age, later life, verdict — generate character by character, like someone telling a story across the table;</li>
-<li>429 rate limits trigger automatic backoff (three attempts, 2.5 s × attempt), and the prompt pins the output shape (130–180 characters per chapter, a final line "Life score: NN").</li>
-</ul>
+<p><strong>Life simulation.</strong> After the player allocates birth attributes, the frontend posts them. The server calls OpenRouter and forwards the event stream verbatim to the browser. Six chapters, childhood through a final verdict, generate character by character, so it reads like someone telling a story on the other side of the screen. A rate limit triggers automatic backoff, up to three attempts with a growing interval, and the prompt pins the output shape: 130 to 180 characters per chapter, and a final line that states a life score.</p>
 
-<p>Prompt constraints:</p>
+<p>The prompt constraints are explicit.</p>
 
-<pre><code>You are the randomiser AI of a Chinese life simulator. Output exactly six headings, one per line:
-[Childhood] [Youth] [Adulthood] [Middle age] [Later life] [Verdict]
-The first five are 130-180 characters each, and must include concrete events, their impact,
-and how they change the next stage. The final section must begin with "Life score: NN." (NN 0-100).
+<pre><code>You are the randomising AI of a Chinese life simulator. Output exactly six headings,
+one per line: childhood, youth, adulthood, middle age, later life, verdict.
+The first five are 130-180 characters each and must include concrete events in that
+stage, their impact, and how they change the next stage. The final section must begin
+with a life score from 0 to 100.
 </code></pre>
 
-<p><strong>History brawl (<code>/api/battle/analyze</code>)</strong></p>
-<ul>
-<li>Two players alternately draft historical figures for ten posts (vanguard, logistics, …), then ask the AI judge;</li>
-<li>the AI scores ten matchups in the order <strong>dynasty fit &gt; role fit &gt; ability &gt; synergy</strong>, with each round precise to 0.1 and summing to exactly 10;</li>
-<li>the voice is a storyteller's ("now then…", "behold…"), also streamed over SSE.</li>
-</ul>
+<p><strong>History brawl.</strong> Two players take turns drafting historical figures for ten posts, such as vanguard or logistics. When drafting finishes, they ask the AI judge. The AI scores ten matchups in the order dynasty fit, then role fit, then actual ability, then lineup synergy, with each round precise to one decimal and every round summing to ten. The voice is a storyteller's, and the answer also streams.</p>
 
 <blockquote>
-<p>Both are lightweight "game + LLM" patterns: the server only authenticates, rate-limits and forwards the stream, never storing model state; the client consumes standard SSE and a failure does not break the game loop.</p>
+<p>Both are lightweight patterns for combining a game with a language model. The server only authenticates, rate-limits and forwards the stream, and never stores model state. The client consumes standard events, and a failure does not block the game loop.</p>
 </blockquote>
 
-<h3>3.4 Accounts and the admin console</h3>
+<h3>Accounts and the admin console</h3>
+
 <ul>
-<li>Register / login / logout: <code>POST /api/register|login|logout</code>; passwords live in the D1 <code>users</code> table, sessions use a random token in the <code>hg_token</code> cookie with a 30-day expiry check;</li>
-<li><code>GET /api/me</code> lets the front end know the login state; home shows "username · logout", and the admin account unlocks a hidden console at <code>/adminPages/</code>;</li>
-<li>middleware in <code>functions/_middleware.js</code>: unauthenticated HTML page requests 302 to <code>/login.html</code>, while static assets and <code>/api/*</code> pass; admin paths additionally require the admin username or return 403;</li>
-<li>admin endpoints: <code>GET /api/admin/users</code> and <code>GET /api/admin/game-stats</code>.</li>
+<li><strong>Register, log in, log out.</strong> Passwords live in a D1 users table holding the username as primary key, the password and a creation timestamp. Sessions use a random token in a cookie with a 30-day expiry check.</li>
+<li><strong>Current user.</strong> One endpoint reports the login state, which the home page uses to show the username and a logout link. The admin account unlocks a hidden console entry point.</li>
+<li><strong>Middleware.</strong> A shared middleware redirects unauthenticated HTML requests to the login page, while static assets and API routes pass through. Admin paths check the username as well and return 403 otherwise.</li>
+<li><strong>Admin endpoints.</strong> A user list and game statistics.</li>
 </ul>
 
-<h3>3.5 Absurdly fast: caching and details</h3>
+<h3>Fast, without trying</h3>
+
 <ul>
-<li><strong>Zero dependencies, zero build:</strong> static assets open instantly, no bundle to wait for;</li>
-<li><strong>Layered caching in <code>_headers</code>:</strong>
-  <ul>
-  <li><code>.css/.js/.mjs</code> → <code>max-age=300, stale-while-revalidate=86400</code>;</li>
-  <li><code>.wasm</code> → <code>max-age=604800, immutable</code> — the GNU Go engine loads once and is cached for a week;</li>
-  <li>images → <code>max-age=86400, stale-while-revalidate=604800</code>;</li>
-  </ul>
-</li>
-<li><strong>Home page:</strong> three random recommendations per visit plus a "play something random" button;</li>
-<li><strong>Responsive:</strong> breakpoints at 850 px and 600 px, playable on phone and desktop, touch and keyboard;</li>
-<li><strong>Runtime:</strong> <code>shared/game-runtime.js</code> owns lifecycle, score and event reporting, and a failure there never blocks the game loop.</li>
+<li><strong>Zero dependencies and zero build.</strong> Static assets open immediately, with no bundle to download first.</li>
+<li><strong>Layered caching</strong> in the headers file. CSS, JavaScript and module files get five minutes of strong caching plus a day of stale-while-revalidate. WebAssembly gets seven days and is marked immutable, so the Go engine loads once and stays cached. Images get a day, with a week of background refresh.</li>
+<li><strong>The home page</strong> picks three random games as recommendations on every visit and offers a "start something random" button, which is a small cure for decision paralysis.</li>
+<li><strong>Responsive layout</strong> with breakpoints at 850 and 600 pixels, touch and keyboard input, and playability on phone and desktop.</li>
+<li><strong>A shared runtime</strong> manages lifecycle, score and event reporting for every game, and a failure there never blocks the game loop.</li>
 </ul>
 
-<h2>4. Stack</h2>
+<h2>Stack</h2>
+
 <table>
 <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td>Frontend</td><td>Native HTML / CSS / JS (ES Modules)</td><td>No framework, no build, no dependencies; <code>shared/theme.css</code> defines the whole visual vocabulary (ink, vermilion, gold, jade)</td></tr>
-<tr><td>Board rendering</td><td>Hand-written SVG / Canvas</td><td>Per game; pure-function previews exported from <code>shared/landing.js</code></td></tr>
-<tr><td>AI</td><td>GNU Go → WebAssembly (worker) / alpha-beta / pattern scoring / minimax</td><td>A world-class engine inside the browser</td></tr>
-<tr><td>Cloud AI</td><td>OpenRouter (streamed narration) / Moark (GLM-4.7-Flash chess proxy)</td><td>SSE passthrough</td></tr>
-<tr><td>Backend</td><td>Cloudflare Pages Functions</td><td>File path becomes the route, no configuration</td></tr>
-<tr><td>Database</td><td>Cloudflare D1</td><td>Seven tables: <code>users / sessions / battle_rooms / feixingqi_rooms / game_sessions / game_events / game_scores</code></td></tr>
-<tr><td>Tests</td><td>Node's built-in runner (25 files, 288 cases) plus Playwright smoke</td><td>Pure functions plus browser E2E</td></tr>
-<tr><td>Deploy</td><td>Cloudflare Pages</td><td><code>wrangler.toml</code> binds Pages and D1</td></tr>
-<tr><td>Caching</td><td><code>_headers</code> plus <code>_routes.json</code></td><td>Fine-grained control, static assets skip Functions</td></tr>
+<tr><td>Frontend</td><td>Native HTML, CSS and JavaScript with ES modules</td><td>No framework, no build, no dependencies. A shared stylesheet defines the whole visual vocabulary: ink, vermilion, gold and jade</td></tr>
+<tr><td>Board rendering</td><td>Hand-written SVG and canvas</td><td>Depends on the game. Pure-function preview images come from the landing module</td></tr>
+<tr><td>AI</td><td>GNU Go in WebAssembly, alpha-beta pruning, pattern scoring, minimax</td><td>A world-class engine inside the browser</td></tr>
+<tr><td>Cloud AI</td><td>OpenRouter for streamed narration, a model provider for the chess move proxy</td><td>Server-sent events, proxied</td></tr>
+<tr><td>Backend</td><td>Cloudflare Pages Functions</td><td>The file path becomes the route, with no configuration</td></tr>
+<tr><td>Database</td><td>Cloudflare D1</td><td>Seven tables: users, sessions, battle rooms, aeroplane rooms, game sessions, game events and game scores</td></tr>
+<tr><td>Tests</td><td>Node's built-in runner plus Playwright</td><td>288 cases on pure functions, plus browser smoke tests</td></tr>
+<tr><td>Deploy</td><td>Cloudflare Pages</td><td>The wrangler config binds Pages and D1</td></tr>
+<tr><td>Caching</td><td>A headers file and a routes file</td><td>Fine-grained control, and static assets skip Functions entirely</td></tr>
 </tbody>
 </table>
 
-<h2>5. Architecture</h2>
-<h3>5.1 Front end: self-contained folders, data-driven home</h3>
+<h2>Architecture</h2>
+<h3>Frontend: self-contained folders and a data-driven home</h3>
 
-<pre><code>index.html          home: section cards + daily picks + random game
-/board /puzzle /fun /history   section pages with that section's cards
-shared/landing.js   ★ single source of truth: sections + game config + SVG previews
-shared/game-runtime.js  lifecycle, score and feedback event queue
-shared/theme.css / cards.css / game.css
+<pre><code>index.html          home: section cards, daily picks, start something random
+board, puzzle, fun, history   section pages with that section's cards
+shared/landing.js   the single source of truth: sections, game config, SVG previews
+shared/game-runtime.js  lifecycle, score and the feedback event queue
+shared/theme.css, cards.css, game.css
 
-each game = one self-contained folder
-&lt;game&gt;/index.html      page shell plus rules dialog
-&lt;game&gt;/&lt;game&gt;.js       interaction and rendering (may include a worker)
+each game is one self-contained folder
+&lt;game&gt;/index.html      page shell and the rules dialog
+&lt;game&gt;/&lt;game&gt;.js       interaction and rendering, may include a worker
 &lt;game&gt;/&lt;game&gt;.css      its own styles
 &lt;game&gt;/ai.js           pure AI, no DOM, unit-testable
-&lt;game&gt;/engine.js       pure logic engine (moves, rules, state machine)
-&lt;game&gt;/logic.js        board rules (captures, liberties)
-&lt;game&gt;/levels.js       level data (e.g. 15 sokoban levels)
+&lt;game&gt;/engine.js       pure logic: moves, rules, state machine
+&lt;game&gt;/logic.js        board rules such as captures and liberties
+&lt;game&gt;/levels.js       level data, such as fifteen sokoban levels
 </code></pre>
 
 <p><strong>Three design rules.</strong></p>
+
 <ol>
-<li><strong>Shared theme.</strong> <code>shared/theme.css</code> defines the CSS variables (<code>--ink</code>, <code>--accent-red</code>, <code>--accent-gold</code>, <code>--border</code>, <code>--surface</code>, <code>--shadow-soft</code> …), <code>shared/cards.css</code> styles the cards, <code>shared/game.css</code> the in-game layout and state feedback. Every game reuses one visual language instead of inventing colors.</li>
-<li><strong>Data-driven home page.</strong> <code>shared/landing.js</code> is the only data source: <code>sections</code> defines four sections × six games with <code>id / name / description / href / accent / previewSvg</code>, <code>renderHome()</code> draws the four entry cards and <code>renderSection(id)</code> draws that section's six cards. Recommendations, the random button and counts all derive from this — <strong>adding a game touches one place</strong>.</li>
-<li><strong>Self-containment.</strong> One folder per game holds page, styles, logic and AI; adding a game touches no other game, and deleting one is deleting a folder.</li>
+<li><strong>A shared theme.</strong> One stylesheet defines the CSS variables for ink, accent red, accent gold, borders, surfaces and soft shadows. A second styles the home and section cards. A third styles the in-game layout and state feedback. Every game reuses one visual language instead of inventing colours.</li>
+<li><strong>A data-driven home page.</strong> The landing module is the only data source. Its sections array defines four sections of six games, each with an id, name, description, href, accent colour and preview SVG. One function renders the home cards, another renders a section's cards. The three recommendations, the random button and the counts all derive from that config, so <strong>adding a game touches one place</strong>.</li>
+<li><strong>Self-containment.</strong> One folder per game holds the page, the styles, the logic and the AI. Adding a game touches no other game, and deleting one is deleting a folder.</li>
 </ol>
 
-<p><strong>Shared runtime (<code>shared/game-runtime.js</code>)</strong> creates a session per game, records key events, syncs score snapshots and submits results on finish or page leave: <code>createGameRuntime({gameId, autoStart})</code> generates a <code>sessionId</code>, <code>start()</code> posts <code>/api/game/sessions</code>, <code>setScore()</code> deduplicates and pushes a <code>score_snapshot</code>, <code>finish(outcome)</code> posts <code>/api/game/finish</code> and flushes. Events batch with <code>MAX_QUEUE=60 / FLUSH_SIZE=6 / FLUSH_DELAY=1600ms</code> and an idempotent <code>eventId</code>; a network failure requeues instead of blocking the loop. A <code>MutationObserver</code> watches <code>#score</code>, <code>[data-score]</code>, <code>.score-value</code> and <code>#status</code> to infer results, custom events (<code>happy-game-score</code>, <code>happy-game-event</code>) let a game report directly, and <code>pagehide</code> uses <code>navigator.sendBeacon</code> so scores are not lost.</p>
+<pre><code>// adding a game to the landing module is one more entry
+{
+  id: 'mygame',
+  name: 'My game',
+  description: 'One-line summary',
+  href: '/mygame/',
+  accent: '#2980b9',
+  previewSvg: `&lt;svg viewBox="0 0 120 120"&gt;…&lt;/svg&gt;`,
+}
+</code></pre>
+
+<p><strong>The shared runtime</strong> creates a session for each game, records key events, syncs score snapshots and submits a result when the game ends or the page is left.</p>
+
+<ul>
+<li>A factory generates a session id, starts the session through an API call, deduplicates score pushes into snapshots, and finishes through another call plus a flush.</li>
+<li>An event queue batches uploads with a maximum queue of 60, a flush size of 6 and a 1600 ms delay. Events carry idempotent ids, and a network failure requeues instead of blocking the game loop.</li>
+<li>A DOM observer watches score and status elements, extracting the score and recognizing win or loss keywords, which triggers a finish.</li>
+<li>Games can also report directly by dispatching custom score and event events.</li>
+<li>A page-hide handler sends the finish beacon, so a score is not lost when the tab closes.</li>
+</ul>
 
 <blockquote>
-<p>The philosophy: <strong>the domain layer must not know about DOM, canvas, network or database</strong>. Pages consume domain snapshots, the runtime owns lifecycle and feedback, and <code>ai.js</code> / <code>engine.js</code> stay pure so Node can test them. <code>docs/architecture.md</code> fixes the boundary: <code>page → shared UI/runtime → game domain → API client → Pages Functions → D1</code>.</p>
+<p>The design philosophy: <strong>the domain layer must not know about the DOM, canvas, network or database</strong>. Pages consume domain snapshots, the runtime owns lifecycle and feedback, and the AI and engine files stay pure so Node can test them. The architecture document fixes the boundary: page, then shared UI and runtime, then game domain, then API client, then Pages Functions, then D1.</p>
 </blockquote>
 
-<h3>5.2 API reference</h3>
+<h3>Backend API</h3>
 
-<p>Everything under <code>functions/api/</code>; the file name is the route.</p>
+<p>Everything lives under the functions directory, and the filename is the route.</p>
 
 <table>
 <thead><tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>/api/register</code></td><td>POST</td><td>Create a user in D1</td></tr>
-<tr><td><code>/api/login</code></td><td>POST</td><td>Sign in, issue the <code>hg_token</code> cookie (30 days)</td></tr>
-<tr><td><code>/api/logout</code></td><td>POST</td><td>Sign out, destroy the session</td></tr>
-<tr><td><code>/api/me</code></td><td>GET</td><td>Current session (<code>{username}</code> or 401)</td></tr>
-<tr><td><code>/api/xiangqi-ai</code></td><td>POST</td><td>Chess move proxy (FEN in, move out, via Moark)</td></tr>
-<tr><td><code>/api/life/narrate</code></td><td>POST</td><td>Streamed life story from attributes (SSE)</td></tr>
-<tr><td><code>/api/battle/create</code> <code>join</code> <code>pick</code> <code>state</code></td><td>POST/GET</td><td>History brawl rooms, drafting and state</td></tr>
-<tr><td><code>/api/battle/analyze</code> <code>analysis</code></td><td>POST/GET</td><td>AI judge, round by round, streamed</td></tr>
-<tr><td><code>/api/feixingqi/create</code> <code>join</code> <code>start</code> <code>roll</code> <code>move</code> <code>state</code></td><td>POST/GET</td><td>Aeroplane chess rooms, rolling, moving, polling</td></tr>
-<tr><td><code>/api/admin/users</code></td><td>GET</td><td>Admin: user list</td></tr>
-<tr><td><code>/api/admin/game-stats</code></td><td>GET</td><td>Admin: sessions and score statistics</td></tr>
-<tr><td><code>/api/game/sessions</code></td><td>POST</td><td>Start a game session</td></tr>
-<tr><td><code>/api/game/events</code></td><td>POST</td><td>Batch key events (idempotent <code>event_id</code>, whitelisted types)</td></tr>
-<tr><td><code>/api/game/finish</code></td><td>POST</td><td>Settle and write the final score</td></tr>
+<tr><td>register</td><td>POST</td><td>Create a user in D1</td></tr>
+<tr><td>login</td><td>POST</td><td>Sign in and issue a cookie valid for 30 days</td></tr>
+<tr><td>logout</td><td>POST</td><td>Sign out and destroy the session</td></tr>
+<tr><td>me</td><td>GET</td><td>Current login state, or 401</td></tr>
+<tr><td>chess move proxy</td><td>POST</td><td>Takes a position, returns a move, through the model provider</td></tr>
+<tr><td>life narration</td><td>POST</td><td>Streams a life story from birth attributes</td></tr>
+<tr><td>battle create, join, pick, state</td><td>POST and GET</td><td>History brawl rooms, drafting and state</td></tr>
+<tr><td>battle analyse and analysis</td><td>POST and GET</td><td>The AI judge, round by round, streamed</td></tr>
+<tr><td>aeroplane create, join, start, roll, move, state</td><td>POST and GET</td><td>Rooms, starting, rolling, moving and polling</td></tr>
+<tr><td>admin users and game stats</td><td>GET</td><td>The console's user list and statistics</td></tr>
+<tr><td>game sessions</td><td>POST</td><td>Start a game session</td></tr>
+<tr><td>game events</td><td>POST</td><td>Batch key events with idempotent ids and a type allowlist</td></tr>
+<tr><td>game finish</td><td>POST</td><td>Settle a game and write the final score</td></tr>
 </tbody>
 </table>
 
-<p>Shared helpers live in <code>functions/api/feixingqi/_shared.js</code> (<code>json()</code>, <code>parseCookie()</code>, <code>whoami()</code>, <code>loadRoom()</code>, <code>saveRoom()</code>) and <code>functions/api/game/_shared.js</code>. Business logic sits in <code>functions/services/game-service.js</code>, D1 access in <code>functions/repositories/game-repository.js</code> — <strong>Functions are transport adapters, services own the workflow, repositories own the SQL</strong>.</p>
+<p>Shared helpers live in per-feature shared files, for JSON responses, cookie parsing, identity, loading and saving rooms. Business logic sits in a service module and database access in a repository module, so <strong>Functions are transport adapters, services own the workflow, and repositories own the SQL</strong>.</p>
 
-<h3>5.3 Database</h3>
+<h3>Database</h3>
 
-<p><code>schema.sql</code> defines seven tables; incremental changes live in <code>migrations/</code>. New databases run the whole schema; existing ones apply migrations in order.</p>
+<p>A schema file defines seven tables, incremental changes live in a migrations directory, new databases run the whole schema and existing ones apply migrations in order.</p>
 
-<pre><code>users            -- username PK, password, created_at
-sessions         -- token PK, username, expires_at (idx_sessions_username)
-battle_rooms     -- brawl rooms: code PK / password / state(JSON) / timestamps
-feixingqi_rooms  -- aeroplane rooms: same shape, state holds seats/pieces/turn/dice/log
-game_sessions    -- one row per run: id, game_id, username, anonymous_id, started_at,
-                 --   ended_at, status, score, duration_ms, metadata(JSON)
-game_events      -- whitelisted events: event_id UNIQUE, session_id, type, score, payload
-game_scores      -- final scores: session_id PK, game_id, username, score, outcome, duration
+<pre><code>users            -- username primary key, password, created_at
+sessions         -- token primary key, username, expiry, indexed by username
+battle_rooms     -- code primary key, password, state JSON, timestamps
+feixingqi_rooms  -- same shape, state holds seats, pieces, turn, dice and log
+game_sessions    -- id, game_id, username, anonymous_id, started_at, ended_at,
+                 --   status, score, duration_ms, metadata JSON
+game_events      -- event_id unique, session_id, game_id, type, score, payload, client time
+game_scores      -- session_id primary key, game_id, username, score, outcome, duration
 </code></pre>
 
-<p>Room state is one JSON row (simple enough), multiplayer uses client polling plus a server state machine, and D1 is both database and cache. Indexes cover the hot queries: <code>game_sessions(game_id, started_at)</code>, <code>game_events(session_id, created_at)</code>, <code>game_scores(game_id, score DESC)</code>.</p>
+<p>Room state is a single JSON row, which is simple enough for this size. Multiplayer uses client polling plus a server state machine, with D1 acting as both database and cache.</p>
 
-<h2>6. Quick start</h2>
+<p>Indexes cover the hot queries: sessions by game and start time, events by session and creation time, and scores by game with descending score.</p>
 
-<p><strong>Requires</strong> Node.js 18+ (both wrangler and <code>node --test</code> need it).</p>
+<h2>Quick start</h2>
 
-<pre><code>git clone https://github.com/zhoujungis/happy_games.git
+<p><strong>Requires</strong> Node.js 18 or newer, because both the wrangler CLI and the test runner need it.</p>
+
+<pre><code># 1. clone
+git clone https://github.com/zhoujungis/happy_games.git
 cd happy_games
-npm install          # only wrangler and playwright, no frontend dependencies
-npm run dev          # static assets plus Pages Functions
+
+# 2. install, only wrangler and playwright, no frontend dependencies
+npm install
+
+# 3. run locally, serving static assets and Functions together
+npm run dev
 # open http://localhost:8788
 </code></pre>
 
 <blockquote>
-<p><code>wrangler pages dev .</code> reads the D1 binding from <code>wrangler.toml</code>. Local D1 must be created or synced first:</p>
-<pre><code>npx wrangler d1 create happy-games-db   # put the database_id into wrangler.toml
+<p>The dev server reads the D1 binding from the wrangler config. <strong>Local D1</strong> has to be created or synced first.</p>
+
+<pre><code># local database, recommended while developing
+npx wrangler d1 create happy-games-db   # put the database_id into wrangler.toml
 npx wrangler d1 execute happy-games-db --local --file=schema.sql
-# or, for a remote database you already created in the dashboard:
+# or connect to a remote database you already created in the dashboard
 npx wrangler d1 execute happy-games-db --remote --file=schema.sql
 </code></pre>
 </blockquote>
 
 <h3>Tests</h3>
-<pre><code>npm test          # Node's test runner over tests/*.test.js (25 files, 288 cases)
-npm run check     # tools/check.mjs: JS syntax plus HTML charset/viewport checks
+
+<pre><code>npm test          # Node's runner over 25 files and 288 cases
+npm run check     # JS syntax plus HTML charset and viewport checks
 npm run test:e2e  # Playwright smoke: desktop and mobile home, canvas games, overflow
 </code></pre>
 
-<p>Testing in Node works because every AI and engine is a <strong>DOM-free pure function</strong> (<code>gomoku/ai.js</code>, <code>xiangqi/engine.js</code>, <code>weiqi/logic.js</code>, <code>feixingqi/engine.js</code> …): importing is enough to assert.</p>
+<p>Testing in Node works because every AI and engine is <strong>a DOM-free pure function</strong>: gomoku, Chinese chess, Go logic, aeroplane chess and the rest. Importing a module is enough to assert on it.</p>
 
-<h2>7. Deploying from zero</h2>
+<h2>Deploying to Cloudflare Pages</h2>
 
-<p>The site is published directly to Cloudflare Pages (<code>pages_build_output_dir = "."</code>) with no build step.</p>
+<p>The site publishes directly, with no build step, because the wrangler config points the output directory at the repository root.</p>
 
-<p><strong>Step 1: create the D1 database.</strong> In the Cloudflare dashboard → Workers &amp; Pages → D1 SQL Database → Create database, name it <code>happy-games-db</code>, then put the id into <code>wrangler.toml</code>:</p>
+<h3>Step 1: create the D1 database</h3>
 
-<pre><code>name = "happy-games"
+<p>In the Cloudflare dashboard, open Workers and Pages, then D1 SQL Database, and create a database named <code>happy-games-db</code>. Put the returned id into the wrangler config.</p>
+
+<pre><code># wrangler.toml
+name = "happy-games"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "."
 
@@ -512,22 +532,36 @@ database_name = "happy-games-db"
 database_id = "your-database-id"
 </code></pre>
 
-<p>Then create the tables and verify:</p>
+<p>Then create the tables, apply any migrations in order, and verify.</p>
 
 <pre><code>npx wrangler d1 execute happy-games-db --remote --file=schema.sql
+# if a migrations directory exists, apply each file in order
 for f in migrations/*.sql; do npx wrangler d1 execute happy-games-db --remote --file="$f"; done
+# verify
 npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqlite_master WHERE type='table';"
 </code></pre>
 
-<p><strong>Step 2: environment variables.</strong> In the Pages project → Settings → Variables and Secrets, add <code>OPENROUTER_KEY</code> if you want the life-simulation narration; without it that feature returns 503 and nothing else is affected. A separate key is needed if you use the Moark chess proxy (see the comment at the top of <code>functions/api/xiangqi-ai.js</code>).</p>
+<h3>Step 2: environment variables</h3>
 
-<p><strong>Step 3: deploy.</strong></p>
+<p>In the Pages project settings, under variables and secrets, add the OpenRouter key if you want the life-simulation narration. Without it that one feature returns 503 and nothing else is affected.</p>
+
+<blockquote>
+<p>The chess move proxy needs its own provider key if you use it. The comment at the top of that function explains the configuration.</p>
+</blockquote>
+
+<h3>Step 3: publish</h3>
 
 <pre><code>npm run deploy
 # equivalent to npx wrangler pages deploy .
 </code></pre>
 
-<p>The first run creates the <code>happy-games</code> Pages project; later runs publish incrementally, with Cloudflare handling the domain and HTTPS. Caching comes from <code>_headers</code>, and <code>_routes.json</code> keeps static assets out of Functions so only <code>/api/*</code> and HTML hit the worker:</p>
+<ul>
+<li>The first run creates the Pages project.</li>
+<li>Later runs publish incrementally, and Cloudflare handles the domain and HTTPS.</li>
+<li>After that, visit the Pages URL or a bound custom domain.</li>
+</ul>
+
+<p><strong>Caching and routing.</strong> Layered caching is already configured in the headers file. The routes file excludes static assets from Functions, so only API routes and HTML reach the worker, which saves invocations.</p>
 
 <pre><code>{
   "version": 1,
@@ -536,74 +570,63 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 }
 </code></pre>
 
+<p><strong>Custom domains</strong> are configured in the dashboard, and Cloudflare issues the certificate automatically.</p>
+
 <p><strong>Common traps</strong></p>
+
 <table>
 <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
 <tbody>
-<tr><td><code>/api/me</code> 401 while signed in</td><td>The <code>hg_token</code> cookie is not sent</td><td>Check <code>credentials: 'same-origin'</code> and that you are on the Pages domain, not <code>file://</code></td></tr>
-<tr><td>Life simulation 503</td><td><code>OPENROUTER_KEY</code> missing</td><td>Add the variable, then retry the deployment</td></tr>
-<tr><td>D1 "no such table"</td><td><code>schema.sql</code> never ran remotely</td><td>Run <code>wrangler d1 execute --remote --file=schema.sql</code> again</td></tr>
-<tr><td>Slow <code>.wasm</code> load</td><td>Cache miss</td><td>Confirm <code>_headers</code> marks <code>.wasm</code> immutable; a second visit should come from cache</td></tr>
+<tr><td>The current-user endpoint returns 401 while signed in</td><td>The auth cookie is not being sent</td><td>Check the fetch credentials mode and confirm you are on the Pages domain, not a local file</td></tr>
+<tr><td>Life simulation returns 503</td><td>The OpenRouter key is missing</td><td>Add the variable, then retry the deployment</td></tr>
+<tr><td>D1 reports no such table</td><td>The schema never ran remotely</td><td>Run the schema again against the remote database</td></tr>
+<tr><td>WebAssembly loads slowly</td><td>A cache miss</td><td>Confirm the headers mark it immutable; a second visit should come from cache</td></tr>
 </tbody>
 </table>
 
-<h2>8. Adding a game: change two places, the whole site follows</h2>
+<h2>Adding a game: two places, and the whole site follows</h2>
 
 <p>Thanks to the data-driven design, adding a game takes two steps.</p>
 
-<p><strong>1. Create the folder</strong> (mirroring <code>gomoku/</code>):</p>
+<p><strong>1. Create the folder</strong>, following an existing game's structure.</p>
 
 <pre><code>&lt;game&gt;/
-├── index.html     # shell: header + board/canvas + rules dialog, imports shared CSS
+├── index.html     # shell: header, board or canvas, rules dialog, shared CSS
 ├── &lt;game&gt;.css     # game-specific styles
-├── &lt;game&gt;.js      # interaction and rendering (may include a worker)
-└── ai.js          # pure AI, testable with node --test
+├── &lt;game&gt;.js      # interaction and rendering, may include a worker
+└── ai.js          # pure AI, testable with the Node runner
 </code></pre>
 
-<p>The HTML needs <code>&lt;meta charset&gt;</code>, <code>&lt;meta viewport&gt;</code>, a board container, score and status elements (<code>#score</code>, <code>#status</code> for the runtime's auto-snapshot), and a rules dialog; a module script imports <code>&lt;game&gt;.js</code> and calls <code>createGameRuntime()</code>.</p>
+<p>The HTML needs a charset declaration, a viewport declaration, a board container, score and status elements for the runtime's automatic snapshot, and a rules dialog. A module script at the bottom imports the game and creates the runtime.</p>
 
-<p><strong>2. Register it</strong> in the matching section's <code>games</code> array in <code>shared/landing.js</code>:</p>
+<p><strong>2. Register it</strong> by adding one entry to the matching section's games array in the landing module, with an id that matches the folder, a name, a description, the href, an accent colour and a preview SVG.</p>
 
-<pre><code>{
-  id: 'mygame',            // folder name and path segment
-  name: 'My game',
-  description: 'One-line summary',
-  href: '/mygame/',
-  accent: '#2980b9',
-  previewSvg: `&lt;svg viewBox="0 0 120 120"&gt;…&lt;/svg&gt;`,
-}
-</code></pre>
+<p><strong>Optional 3: a backend endpoint</strong>, if the game needs one. The filename becomes the route.</p>
 
-<p>That is all: the home section cards, section pages, daily picks and the random button all include the new game without touching another file. That is what a single source of truth buys.</p>
+<p>That is all. Home section cards, section pages, daily picks and the random button all pick up the new game without touching another file. That is what a single source of truth buys.</p>
 
 <blockquote>
-<p>Constraints from <code>docs/architecture.md</code>: keep existing URLs and static deployment stable; migrate a representative game before batch migration; keep pure-logic tests green; add browser coverage for lifecycle, score, offline and responsive behavior.</p>
+<p>Constraints from the architecture document: keep existing URLs and static deployment behavior stable, migrate a representative game before batch migration, keep the pure-logic tests green, and add browser coverage for lifecycle, score, offline and responsive behavior.</p>
 </blockquote>
 
-<h2>9. Project layout</h2>
+<h2>Project structure</h2>
 
-<pre><code>├── index.html                  home: sections + daily picks + random game
+<pre><code>├── index.html                  home: section entries, daily picks, random game
 ├── login.html                  login and registration
-├── adminPages/                 admin console (owner only)
-├── board/ puzzle/ fun/ history/   section pages
+├── adminPages/                 admin console, owner only
+├── board|puzzle|fun|history/   section pages
 ├── shared/
 │   ├── theme.css               global variables and base styles
 │   ├── cards.css               card styles
-│   ├── game.css                in-game shared styles
-│   ├── game-runtime.js         ★ lifecycle, score and events
-│   └── landing.js              ★ the single data source
+│   ├── game.css                shared in-game styles
+│   ├── game-runtime.js         lifecycle, score and event reporting
+│   └── landing.js              the single data source
 ├── functions/
 │   ├── _middleware.js          login guard and admin auth
-│   ├── services/               game-service.js
-│   ├── repositories/           game-repository.js
-│   └── api/
-│       ├── register.js login.js logout.js me.js
-│       ├── xiangqi-ai.js
-│       ├── life/narrate.js
-│       ├── battle/*.js         brawl rooms and AI judge
-│       ├── feixingqi/*.js      multiplayer aeroplane chess
-│       ├── game/*.js           sessions, events, settlement
-│       └── admin/              admin endpoints and statistics
+│   ├── services/               business services
+│   ├── repositories/           D1 access
+│   └── api/                    register, login, logout, me, chess proxy,
+│                               life narration, battle, feixingqi, game, admin
 ├── &lt;game&gt;/                     24 self-contained game folders
 ├── schema.sql                  seven tables
 ├── migrations/                 incremental D1 migrations
@@ -613,34 +636,35 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 ├── wrangler.toml               Pages and D1 configuration
 ├── _headers                    layered cache policy
 ├── _routes.json                static assets skip Functions
-├── assets/                     README preview images exported from landing.js
+├── assets/                     README preview images exported from the landing module
 └── docs/architecture.md        boundaries and migration rules
 </code></pre>
 
-<h2>10. Why insist on zero frameworks</h2>
+<h2>Why zero frameworks</h2>
 
-<p>Not nostalgia — a trade-off:</p>
+<p>This is not nostalgia. It is a trade made after weighing the alternatives.</p>
+
 <ol>
-<li><strong>Readability first.</strong> Twenty-four games with completely different logic gain little from React or Vue abstractions, which add "understand the framework before the game". Native code lets a newcomer follow one game end to end in ten minutes.</li>
-<li><strong>Portability.</strong> <code>ai.js</code> and <code>engine.js</code> depend on nothing; Node imports them directly, and moving to a mini-program, Electron or a server would only require rewriting the rendering layer.</li>
-<li><strong>Performance and offline.</strong> No framework means no runtime cost, no hydration and no bundle. Apart from narration and multiplayer, every game works without network, and <code>_headers</code> caching makes repeat visits nearly offline.</li>
-<li><strong>Teaching value.</strong> This is a front-end project that can be read completely: no black-box bundler, no two thousand lines of config — just HTML files that run once uploaded to Cloudflare Pages.</li>
+<li><strong>Readability first.</strong> Twenty-four games with completely different logic gain little from the abstractions a framework offers, and those abstractions add a "understand the framework before the game" step. Native code lets a newcomer follow one game end to end in ten minutes.</li>
+<li><strong>Portability.</strong> The AI and engine files depend on nothing. Node imports them directly, and moving to a mini-program, an Electron shell or a server would only mean rewriting the rendering layer.</li>
+<li><strong>Performance and offline.</strong> No framework means no runtime overhead, no hydration and no bundle. Apart from narration and multiplayer, every game works without a network, and the cache policy makes repeat visits nearly offline.</li>
+<li><strong>Teaching value.</strong> This is a frontend project that can be read completely. No black-box bundler, no two thousand lines of configuration, just HTML files that run once uploaded. <strong>Put the complexity in the game logic and keep the engineering simple.</strong></li>
 </ol>
 
-<p>Zero frameworks does not mean zero conventions. The variable system in <code>shared/theme.css</code>, the single data source in <code>landing.js</code>, the lifecycle contract in <code>game-runtime.js</code> and the layering in <code>functions/services</code> form an invisible framework — agreed upon, not depended upon.</p>
+<p>Zero frameworks does not mean zero conventions. The variable system in the theme stylesheet, the single data source in the landing module, the lifecycle contract in the runtime and the layering in the functions directory together form an invisible framework. They are agreed upon rather than depended upon.</p>
 
 <h2>Closing</h2>
 
-<p>Happy Games tries to prove that even in the age of heavy front-end frameworks, native technology can still deliver a complete, maintainable, deployable full-stack product — as long as the boundaries are drawn (domain separate from rendering, data-driven home, layered backend), AI is written as pure functions, multiplayer as a state machine, and deployment handed to Cloudflare.</p>
+<p>Happy Games tries to prove one thing: that in the age of heavy frontend frameworks, native technology can still deliver a complete, maintainable, deployable full-stack product, as long as the boundaries are drawn clearly, the AI is written as pure functions, multiplayer becomes a state machine, and deployment is handed to a platform that already exists.</p>
 
-<p>Each of the 24 games is its own small world: strategist on a board, escapee in a maze, merchant on a trade route, courtier under a seven-day decree, scholar in an imperial exam. Don't look for a game — start one.</p>
+<p>Each of the 24 games is its own small world. You can be the strategist on a board, the escapee in a maze, the merchant on a trade route, the courtier under a seven-day decree, or the scholar in an imperial exam. Don't look for a game. Start one.</p>
 
 <blockquote>
-<p><strong>Further reading:</strong> <a href="https://github.com/zhoujungis/happy_games" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/happy_games</a> · <a href="https://happygames.pages.dev" rel="noopener noreferrer" target="_blank">happygames.pages.dev</a> · <a href="https://www.gnu.org/software/gnugo/" rel="noopener noreferrer" target="_blank">GNU Go</a> · <a href="https://developers.cloudflare.com/pages/" rel="noopener noreferrer" target="_blank">Cloudflare Pages</a> · <a href="https://developers.cloudflare.com/d1/" rel="noopener noreferrer" target="_blank">Cloudflare D1</a></p>
-<p><em>Written against the <code>master</code> branch of <code>happy_games</code> as of September 2026; endpoints and tables follow <code>schema.sql</code> and <code>wrangler.toml</code> and may drift with later versions.</em></p>
+<p><strong>Further reading.</strong> Source and play: <a href="https://github.com/zhoujungis/happy_games" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/happy_games</a> and <a href="https://happygames.pages.dev" rel="noopener noreferrer" target="_blank">happygames.pages.dev</a>. GNU Go: <a href="https://www.gnu.org/software/gnugo/" rel="noopener noreferrer" target="_blank">gnu.org/software/gnugo</a>. Cloudflare Pages Functions and D1: <a href="https://developers.cloudflare.com/pages/" rel="noopener noreferrer" target="_blank">Pages</a> and <a href="https://developers.cloudflare.com/d1/" rel="noopener noreferrer" target="_blank">D1</a>.</p>
+<p><em>Written against the project's current main branch as of September 2026. Endpoints and tables follow the schema file and the wrangler config, and may drift with later versions.</em></p>
 </blockquote>
 
-<p>Along the same chain: <a href="/en/article/nanobrowser-tauri-webview2/">NanoBrowser: hand-writing an in-process CDP</a> and <a href="/en/article/halo-music-square-architecture/">Halo Music: a multi-source music app</a>.</p>
+<p>Along the same chain: <a href="/en/article/nanobrowser-tauri-webview2/">NanoBrowser, hand-writing an in-process CDP</a> and <a href="/en/article/halo-music-square-architecture/">Halo Music, a multi-source music app</a>.</p>
 </div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">中文版</a></nav></div></div>
   </body>
 </html>
