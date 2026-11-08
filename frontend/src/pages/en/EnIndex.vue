@@ -55,22 +55,6 @@
 
     <section class="block">
       <header class="block__head">
-        <h2>{{ home.projectsTitle }}</h2>
-        <a :href="contact.repos">All repositories →</a>
-      </header>
-      <p class="note">{{ home.projectsNote }}</p>
-      <ul class="projects">
-        <li v-for="project in projects" :key="project.name" class="project">
-          <a class="project__name" :href="project.url">{{ project.name }}</a>
-          <span class="project__meta">{{ project.meta }}</span>
-          <p class="project__blurb">{{ project.blurb }}</p>
-          <a v-if="project.post" class="project__post" :href="project.post">Read the teardown →</a>
-        </li>
-      </ul>
-    </section>
-
-    <section class="block">
-      <header class="block__head">
         <h2>{{ home.contactTitle }}</h2>
       </header>
       <p class="note">{{ home.contactNote }}</p>
@@ -86,12 +70,11 @@
 <script setup>
 import EnShell from '@/components/en/EnShell.vue'
 import { EN_ARTICLES } from '@/data/en/articles'
-import { EN_CONTACT, EN_HOME, EN_PROJECTS, EN_TOPICS, EN_UI, enPath } from '@/data/en/site'
+import { EN_CONTACT, EN_HOME, EN_TOPICS, EN_UI, enPath } from '@/data/en/site'
 
 const ui = EN_UI
 const home = EN_HOME
 const contact = EN_CONTACT
-const projects = EN_PROJECTS
 const topics = EN_TOPICS
 const path = enPath
 const latest = EN_ARTICLES.slice(0, 6)
@@ -103,7 +86,7 @@ const latest = EN_ARTICLES.slice(0, 6)
 $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
 
 .hero {
-  margin-top: 36px;
+  margin-top: 26px;
 
   &__kicker {
     margin: 0 0 10px;
@@ -270,50 +253,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
   color: var(--text-secondary);
   font-family: $font-mono;
   font-size: 0.7rem;
-}
-
-.projects {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.project {
-  padding: 16px 0;
-  border-top: 1px solid var(--glass-border);
-
-  &__name {
-    color: var(--text-primary);
-    font-family: $serif;
-    font-size: 1rem;
-    font-weight: 800;
-    text-decoration: none;
-
-    &:hover { color: var(--accent); }
-  }
-
-  &__meta {
-    margin-left: 10px;
-    color: var(--text-secondary);
-    font-family: $font-mono;
-    font-size: 0.68rem;
-  }
-
-  &__blurb {
-    margin: 8px 0 0;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    line-height: 1.6;
-  }
-
-  &__post {
-    display: inline-block;
-    margin-top: 6px;
-    color: var(--accent);
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-decoration: none;
-  }
 }
 
 .contact {

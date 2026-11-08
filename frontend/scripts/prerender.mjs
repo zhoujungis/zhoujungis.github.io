@@ -79,7 +79,7 @@ import { HOME_MASTHEAD, HOME_SUMMARY, HOME_PROJECTS } from '../src/data/home.js'
 // 英文版文章（手写英文稿，不是机翻）。静态页与运行时共用同一份数据。
 import { EN_ARTICLES, EN_BY_SLUG } from '../src/data/en/articles.js'
 // 英文站导航与专题文案：与 pages/en/* 同源，静态快照不会和界面写成两套。
-import { EN_UI, EN_TOPICS, EN_HOME, EN_PROJECTS, EN_CONTACT } from '../src/data/en/site.js'
+import { EN_UI, EN_TOPICS, EN_HOME, EN_CONTACT } from '../src/data/en/site.js'
 // 英文版合规页正文：与 pages/en/EnPage.vue 同源。
 import { EN_PAGES } from '../src/data/en/pages.js'
 
@@ -904,17 +904,6 @@ function renderEnIndexPage(template) {
   ).join('\n')
 
   const latest = EN_ARTICLES.slice(0, 6)
-  const projects = EN_PROJECTS.map(
-    (p) =>
-      `<li><a href="${escapeHtml(p.url)}">${escapeHtml(p.name)}</a>` +
-      ` <span class="ns-date">${escapeHtml(p.meta)}</span>` +
-      `<p class="ns-excerpt">${escapeHtml(p.blurb)}</p>` +
-      (p.post
-        ? `<a class="ns-more" href="${SITE_ORIGIN}${escapeHtml(p.post)}">Read the teardown</a>`
-        : '') +
-      `</li>`,
-  ).join('\n')
-
   const body =
     `<div class="ns-home-list">` +
     `<h1>${escapeHtml(EN_UI.home.title)}</h1>` +
@@ -928,8 +917,7 @@ function renderEnIndexPage(template) {
     `<section><h2>${escapeHtml(EN_UI.home.postsTitle)}</h2>` +
     `<p class="ns-more">${escapeHtml(EN_HOME.latestNote(latest.length, EN_ARTICLES.length))}</p>` +
     `${enPostItems(latest)}</section>` +
-    `<section><h2>${escapeHtml(EN_HOME.projectsTitle)}</h2>` +
-    `<p class="ns-more">${escapeHtml(EN_HOME.projectsNote)}</p><ul>\n${projects}\n</ul></section>` +
+
     `<section><h2>${escapeHtml(EN_HOME.contactTitle)}</h2>` +
     `<p>${escapeHtml(EN_HOME.contactNote)}</p><ul>` +
     `<li>Email: <a href="mailto:${escapeHtml(EN_CONTACT.email)}">${escapeHtml(EN_CONTACT.email)}</a></li>` +

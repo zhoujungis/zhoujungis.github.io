@@ -7,6 +7,7 @@ import BackToTop from './components/BackToTop.vue'
 import ReadingProgress from './components/ReadingProgress.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import LoginModal from './components/LoginModal.vue'
+import { isEnglishPath } from './utils/locale'
 
 // Split out of the main bundle. The widget is pure decoration that only mounts
 // on wide screens, and it drags a vendored Cubism engine behind it — no reason
@@ -18,7 +19,14 @@ const route = useRoute()
 // they're CPU heavy and make login/dashboard sluggish, especially on phones.
 const isAdmin = computed(() => route.path.startsWith('/admin'))
 // 英文版自带页头页脚（含中英切换），不套中文站的壳，否则 /en 里会混进中文导航。
-const isEn = computed(() => route.meta.lang === 'en')
+// 判断必须同时看路径：首帧时路由组件还在异步加载，route.meta.lang 还是空的，
+// 只看 meta 会让中文页头先渲染一帧再被换掉 —— 每次整页跳转都闪一下。
+const isEn = computed(() => {
+  // 路由还没解析出任何匹配（首帧、组件 chunk 未到）时用地址栏兜底，
+  // 解析完成后一律以 route.path 为准，避免 SPA 内部跳到中文页仍套英文壳。
+  const path = route.matched.length ? route.path : window.location.pathname
+  return route.meta.lang === 'en' || isEnglishPath(path)
+})
 </script>
 
 <template>

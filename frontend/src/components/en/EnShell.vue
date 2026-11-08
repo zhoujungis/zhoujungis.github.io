@@ -1,15 +1,14 @@
 <template>
   <div class="en-shell">
     <header class="en-shell__bar">
-      <a class="en-brand" :href="path.home">
+      <router-link class="en-brand" :to="path.home">
         <span class="en-brand__name">{{ ui.brand }}</span>
-        <span class="en-brand__sub">{{ ui.tagline }}</span>
-      </a>
+      </router-link>
       <nav class="en-nav" aria-label="Primary">
-        <a :href="path.home">{{ ui.nav.home }}</a>
-        <a :href="path.articles">{{ ui.nav.articles }}</a>
-        <a :href="path.topics">{{ ui.nav.topics }}</a>
-        <a :href="path.about">{{ ui.nav.about }}</a>
+        <router-link :to="path.home">{{ ui.nav.home }}</router-link>
+        <router-link :to="path.articles">{{ ui.nav.articles }}</router-link>
+        <router-link :to="path.topics">{{ ui.nav.topics }}</router-link>
+        <router-link :to="path.about">{{ ui.nav.about }}</router-link>
         <a href="/rss.xml">{{ ui.nav.rss }}</a>
         <a href="/" hreflang="zh-CN" @click="rememberLang('zh')">{{ ui.nav.zh }}</a>
         <ThemeToggle />
@@ -51,7 +50,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
 .en-shell {
   width: min(100% - 48px, 900px);
   margin-inline: auto;
-  padding: 40px 0 48px;
+  padding: 28px 0 48px;
   color: var(--text-primary);
   line-height: 1.8;
 }
@@ -60,15 +59,13 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 16px 24px;
+  gap: 8px 24px;
   flex-wrap: wrap;
-  padding-bottom: 12px;
+  padding-bottom: 6px;
   border-bottom: 3px solid var(--text-primary);
 }
 
 .en-brand {
-  display: flex;
-  flex-direction: column;
   color: inherit;
   text-decoration: none;
 
@@ -78,14 +75,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
     font-weight: 900;
     line-height: 1.1;
   }
-
-  &__sub {
-    color: var(--text-secondary);
-    font-family: $font-mono;
-    font-size: 0.62rem;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-  }
 }
 
 .en-nav {
@@ -93,6 +82,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+  line-height: 1.2;
 
   a {
     color: var(--text-secondary);
