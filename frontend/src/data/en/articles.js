@@ -11176,6 +11176,561 @@ assert!(!outside.join("c").exists());
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a>.</p>
 `,
   },
+  {
+    slug: 'agent-multiagent-subagents-board-and-gate',
+    zhSlug: 'agent-multiagent-subagents-board-and-gate',
+    topicSlug: 'aiagent',
+    title: 'Multi-agent: sub-agents, the task board and the gate',
+    excerpt:
+      'Three shared objects and three individual ones. The hard part was never parallelism, it is the boundary of responsibility, and the places where the cut was not clean enough leave a deadlock, a lost interrupt and a leaked board.',
+    date: '2026-11-04',
+    readingTime: 36,
+    html: `
+<blockquote>
+<p>Who this is for: people whose single agent works and who now want it to work in parallel; people who have been burned by four sub-agents editing the same file; people who want to know who should own the task board and the rate gate.</p>
+<p><strong>TL;DR:</strong> the hard part of multi-agent is never parallelism, it is <strong>responsibility</strong>. The task board, the gate and the tool context are shared; prompts, message histories and model choice are per agent. NanoHermes cuts those two groups cleanly, and leaves three holes: nesting prevention filters the tool list but not execution, the gate checks neither interrupts nor reentrancy, and the board never clears across sessions.</p>
+<p>Reading time around 36 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Multi-agent is not the main loop copied four times</li>
+<li>Three shared objects and their boundaries</li>
+<li>What a sub-agent is</li>
+<li>Configuration as contract</li>
+<li>Lookup by name, and no discoverability</li>
+<li>How the sub-agent tool list is trimmed</li>
+<li>Nesting prevention blocks advertising, not execution</li>
+<li>Why sub-agents are serial inside</li>
+<li>What <code>sub_cfg</code> inherits</li>
+<li>No memory injection, no memory distillation</li>
+<li>Shared <code>Ctx</code>: three neglected side effects</li>
+<li>The board is append-only</li>
+<li>Task ids are <code>agent-N</code></li>
+<li>Result preview at 500, on the board but not in the model</li>
+<li>What <code>duration</code> actually measures</li>
+<li>The gate: four details</li>
+<li>Queued jobs report as running</li>
+<li>The gate ignores interrupts</li>
+<li>The gate is not reentrant</li>
+<li>Rate limiting bounds concurrency, not request rate</li>
+<li>Retry storms without jitter</li>
+<li>Fallback is silent</li>
+<li>Why four</li>
+<li>Will the model actually use <code>agent_list</code></li>
+<li>Sub-agent work is invisible in the terminal</li>
+<li>Hooks cannot tell parent from child</li>
+<li>What permission modes mean here</li>
+<li>Seven failure modes</li>
+<li>How to test multi-agent behaviour</li>
+<li>Seven places to harden</li>
+</ul>
+
+<h2>Multi-agent is not the main loop copied four times</h2>
+
+<p>The intuition is: one loop works, so run four. That is easy to code, four threads each with a message history, calling tools, then collecting results. It runs into three problems immediately.</p>
+
+<ul>
+<li>Four sub-agents each call <code>edit_file</code> on the same file. Whose change counts?</li>
+<li>Each wants to print progress, and the output interleaves into garbage.</li>
+<li>If each sub-agent can spawn another, what stops exponential growth?</li>
+</ul>
+
+<p>None of those is a parallelism problem. They are distribution problems: which things should be shared and which must stay individual. The file conflict shares a filesystem. The garbled output shares stdout. The explosion shares the ability to delegate without sharing a quota.</p>
+
+<p>NanoHermes splits multi-agent into three pieces: the sub-agent definition, which is a configuration contract; the task board, which is shared observability state; and the gate, which is a resource quota. The first two together are under two hundred lines and the third is thirty. This post walks individual, then shared, then quota, and then takes apart the three places where the cut was not clean.</p>
+
+<h2>Three shared objects and their boundaries</h2>
+
+<table>
+<thead><tr><th>Level</th><th>Object</th><th>Owner</th><th>Available to a sub-agent</th></tr></thead>
+<tbody>
+<tr><td>Individual</td><td>System prompt</td><td><code>def.prompt</code>, one per sub-agent</td><td>Its own</td></tr>
+<tr><td>Individual</td><td>Message history</td><td>A local vector starting empty</td><td>Only the task description</td></tr>
+<tr><td>Individual</td><td>Model and sampling</td><td><code>sub_cfg</code>, overridable by <code>def.model</code></td><td>May differ</td></tr>
+<tr><td>Shared</td><td>Task board</td><td><code>Ctx</code>, held by the parent</td><td>Read and write, registers itself</td></tr>
+<tr><td>Shared</td><td>Gate</td><td><code>Ctx</code>, held by the parent</td><td>Must acquire a permit</td></tr>
+<tr><td>Shared</td><td>Tool context</td><td>Root, approval, sandbox, todos, tasks, memory</td><td>All of it</td></tr>
+</tbody>
+</table>
+
+<p>Sharing itself is right. Independent todo lists would show the user five unrelated plans, and independent task tables would turn <code>task_kill</code> into a lottery. The price of sharing is that <strong>a sub-agent can damage state, not just files</strong>.</p>
+
+<p>A simple test for whether a multi-agent design is healthy: can a sub-agent corrupt the parent's state? If yes, that state should split into read-only shared and writable individual, or at minimum carry an owner marker.</p>
+
+<h2>What a sub-agent is</h2>
+
+<pre><code>pub struct SubAgentDef {
+    pub name: String,
+    pub prompt: String,
+    /// If non-empty, only these tools are available to the sub-agent.
+    pub allowed_tools: Vec&lt;String&gt;,
+    /// Optional model override for this sub-agent.
+    pub model: Option&lt;String&gt;,
+}
+</code></pre>
+
+<p>Restrained: a sub-agent gets no independent iteration cap, permission mode, approval policy or sandbox setting. All inherited. The benefit is simple configuration; the cost is that the abstraction is much weaker than it looks. A sub-agent is the same Agent with a different prompt, a different tool list and possibly a different model. It is not a new role under independent constraints.</p>
+
+<p><code>allowed_tools</code> deserves precision. The comment says only those tools are available, and the implementation applies it to <strong>the tool list shown to the model</strong>, not to the execution-time permission check.</p>
+
+<p><code>model</code> deserves the same precision. It changes the model name sent to the API and nothing else: not <code>max_tokens</code>, not <code>temperature</code>, not the timeout. So "run sub-agents on a cheap model to save money" holds, and "use a small model to cap a sub-agent's output length" does not, since that would need <code>max_tokens</code>, which is not exposed.</p>
+
+<h2>Configuration as contract</h2>
+
+<pre><code>{
+  "subagents": {
+    "reviewer": {
+      "prompt": "You review Rust code for correctness and security. Read the diff, then list concrete defects with file:line.",
+      "allowed_tools": ["read_file", "list_dir", "grep", "glob", "git_diff"],
+      "model": "gpt-4o"
+    },
+    "verifier": {
+      "prompt": "You run the test suite and report failures. Never modify source files.",
+      "allowed_tools": ["run_command", "read_file"]
+    }
+  }
+}
+</code></pre>
+
+<p><strong><code>prompt</code> is required</strong>, and a missing one fails the whole load.</p>
+
+<p><strong><code>allowed_tools</code> omitted means everything is granted.</strong> The empty vector is interpreted at the trimming step as "no restriction", so a definition with only a prompt arrives with the parent's full capability. Same direction as the empty allow list in the security post: safe in the fail-closed sense, surprising in every other sense.</p>
+
+<p><strong>A load failure only warns.</strong> A stray comma in the JSON means "no sub-agents" rather than "startup failed". Since <code>build_tools</code> then hides the <code>subagent</code> tool when the list is empty, the model never sees it and the user concludes the agent does not delegate, while the real cause appears once in a stderr line nobody reads.</p>
+
+<h2>Lookup by name, and no discoverability</h2>
+
+<pre><code>let def = self
+    .cfg
+    .subagents
+    .iter()
+    .find(|s| s.name == name)
+    .ok_or_else(|| format!("unknown sub-agent \`{name}\`"))?;
+</code></pre>
+
+<p>The failure path is useful: the error lands on the board as <code>failed</code> with the message as a preview, so the model can discover its own mistake.</p>
+
+<p>But there is a blind spot: <strong>no discoverability input</strong>. In the tool schema, <code>name</code> is a plain string with no enum and no examples, and the system prompt never lists sub-agent names, since <code>prompt.rs</code> only assembles mode notes, persona and <code>AGENTS.md</code>. The names are invisible to the model.</p>
+
+<p>In practice the user has to hard-code the roster in their persona, or the model guesses, and a wrong guess costs a full round trip before it learns.</p>
+
+<h2>How the sub-agent tool list is trimmed</h2>
+
+<pre><code>// 1. start from the parent's full list, already filtered by mode and lists
+let all_tools = self.build_tools();
+// 2. if the definition declares a whitelist, filter by name
+let tool_list: Vec&lt;Value&gt; = if !def.allowed_tools.is_empty() {
+    all_tools.as_array().cloned().unwrap_or_default()
+        .into_iter()
+        .filter(|t| {
+            let tname = /* ... name ... */;
+            def.allowed_tools.iter().any(|a| a == tname)
+        })
+        .collect()
+} else {
+    all_tools.as_array().cloned().unwrap_or_default()
+};
+// 3. remove \`subagent\` itself, to prevent unbounded nesting
+let tool_list: Vec&lt;Value&gt; = tool_list.into_iter()
+    .filter(|t| /* name */ != Some("subagent"))
+    .collect();
+</code></pre>
+
+<p>Step one is the important one: <strong>a sub-agent's tool list is a subset of the parent's</strong>. The five gates from the security post still apply, so a sub-agent under plan mode cannot write either. That is much safer than giving sub-agents independent permissions, because it guarantees a sub-agent cannot be more capable than its parent.</p>
+
+<p>Step two is exact string matching with no wildcards. <code>"read_*"</code> matches nothing. That contrasts with the hook matcher, which does support wildcards, in the same configuration system.</p>
+
+<p>Step three removes <code>subagent</code> by name, which works for its stated goal and only for that goal.</p>
+
+<p>One easily missed point: <code>agent_list</code> is <strong>not</strong> removed. A sub-agent can read every job on the board, including the parent's and its siblings' result previews. Good for shared context, bad for isolation: a review sub-agent limited to <code>read_file</code> can still read another sub-agent's 500 character result summary, so <code>allowed_tools</code> has an unadvertised side door.</p>
+
+<h2>Nesting prevention blocks advertising, not execution</h2>
+
+<p>The comment on that filter is explicit about preventing unbounded nesting, and it does prevent the common path: a sub-agent cannot see the tool, so it does not call it.</p>
+
+<pre><code>if let Err(reason) = self.cfg.check_tool(&amp;call.name) { return format!("ERROR: {reason}"); }
+</code></pre>
+
+<p><code>check_tool</code> looks at the mode list, the deny list and a non-empty allow list. <code>subagent</code> appears in none of them, so <strong>nothing rejects it at execution time</strong>. Rejection only ever happened at "the model cannot see it".</p>
+
+<p>So one tool call naming <code>subagent</code> opens the path, because the dispatch branch is a plain string comparison.</p>
+
+<p>Where would such a call come from? A hallucinated name is possible, since the parent's context taught the model the name. A restored session that contains earlier <code>subagent</code> calls is more plausible: <code>replace_messages</code> can load a history where the model has used the tool before. Explicit instructions to call unlisted tools do not work, models do not follow them.</p>
+
+<p>So the accurate statement is that nesting prevention is a <strong>filter on advertising</strong>, not a gate at execution. Making it a gate means adding a rule in <code>check_tool</code> for sub-agent contexts, or adding a depth counter to <code>Ctx</code> and asserting it at the entry. The second is stronger, since it also bounds depth rather than forbidding it outright.</p>
+
+<h2>Why sub-agents are serial inside</h2>
+
+<pre><code>for _ in 0..sub_cfg.max_iterations {
+    let turn = llm::chat(&amp;sub_cfg, &amp;messages, &amp;tools, |_| {})?;
+    result = turn.content.clone();
+    messages.push(assistant_message(&amp;turn));
+    if turn.tool_calls.is_empty() { break; }
+    // Execute sub-agent tool calls sequentially (sub-agents are bounded).
+    for call in &amp;turn.tool_calls {
+        let out = self.execute(call);
+        messages.push(json!({ "role": "tool", "tool_call_id": call.id, "content": out }));
+    }
+}
+</code></pre>
+
+<p>The stated reason is that the count is already bounded at four, and adding inner parallelism would raise the real concurrency to four times N, which distorts what the gate means.</p>
+
+<p>But it conflicts with something from the concurrency post: the parent parallelizes tool calls with a scope, the sub-agent is serial, so <strong>the same <code>execute</code> runs under two different orchestration strategies</strong>. The same-file lost-update defect disappears inside a sub-agent, since serial code cannot conflict with itself, and remains between four parallel sub-agents that each run serially and finally write the same file.</p>
+
+<p>Serial only removes conflicts within one layer, never across layers. What is needed is a file lock, or a scheduling rule that forbids two sub-agents writing one file.</p>
+
+<p>A subtler difference: the sub-agent loop never calls <code>compact()</code>. The parent compacts after every turn; a sub-agent can run all 40 iterations without compacting. Forty rounds times up to 20,000 characters of tool result is close to 800,000 characters in a local vector whose budget is meant to be 120,000. The sub-agent has no budget of its own and does not borrow the parent's.</p>
+
+<h2>What sub_cfg inherits</h2>
+
+<pre><code>let mut sub_cfg = self.cfg.clone();
+if let Some(m) = &amp;def.model { sub_cfg.model = m.clone(); }
+// Sub-agents never stream (we want the full response to return).
+sub_cfg.stream = false;
+</code></pre>
+
+<table>
+<thead><tr><th>Setting</th><th>Sub-agent value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>model</code></td><td><code>def.model</code> or the parent's</td><td>The only capability difference</td></tr>
+<tr><td><code>stream</code></td><td>Forced false</td><td>The full response is wanted</td></tr>
+<tr><td><code>max_iterations</code></td><td>The parent's, default 40</td><td>A sub-agent can burn all 40</td></tr>
+<tr><td><code>temperature</code></td><td>The parent's, default 0.0</td><td>Not adjustable per sub-agent</td></tr>
+<tr><td><code>max_tokens</code></td><td>The parent's, default 4096</td><td>Same</td></tr>
+<tr><td><code>timeout_secs</code></td><td>The parent's, default 120</td><td>Per request</td></tr>
+<tr><td><code>max_retries</code></td><td>The parent's, default 2</td><td>Same</td></tr>
+<tr><td><code>permission_mode</code></td><td>The parent's</td><td>A sub-agent is never looser</td></tr>
+<tr><td><code>allowed_tools</code></td><td>The parent's, <strong>not</strong> <code>def.allowed_tools</code></td><td>The key difference</td></tr>
+<tr><td><code>hooks</code></td><td>The parent's</td><td>Hooks do apply</td></tr>
+</tbody>
+</table>
+
+<p><strong>Execution-time permission checks use <code>self.cfg</code>, not <code>sub_cfg</code>.</strong> If the parent has an allow list of <code>read_file</code> and <code>grep</code>, every sub-agent call is judged against it, including tools the definition explicitly granted. Inversely, if the parent's list is empty, which is the default, <code>def.allowed_tools</code> takes no part in execution checks at all.</p>
+
+<p>So the definition's list is advertising, and the parent's list is what binds. The combined effect is an intersection that only tightens when the parent is tightened. To make a sub-agent read-only in practice, you rely on it not seeing write tools. To guarantee it cannot write, you have to tighten <code>check_tool</code> itself.</p>
+
+<h2>No memory injection, no memory distillation</h2>
+
+<pre><code>let mut messages: Vec&lt;Value&gt; = vec![
+    json!({ "role": "system", "content": def.prompt }),
+    json!({ "role": "user", "content": task }),
+];
+</code></pre>
+
+<p>Two hand-built messages. The parent re-retrieves memory every turn and replaces the injected block; a sub-agent never does. Its whole world is its prompt, the task description and its own tool results. It does not know the user's preferences or the repository's conventions.</p>
+
+<p>Two consequences. <strong>The task description must be self-contained</strong>, because "do it the way we discussed" means nothing to an agent with no "discussed". And the task string itself has no length check, since <code>clamp</code> applies to tool output, not inputs. A 10,000 character task goes into the first request verbatim.</p>
+
+<p><strong>And sub-agent work never becomes memory.</strong> Distillation runs only at the end of the parent's <code>run()</code>. That is right, because four sub-agents would otherwise write four near-duplicate records that the 12-byte dedupe threshold cannot merge. The cost is that if a sub-agent is the only one that saw a key conclusion, it exists only in the text it returned, and the parent may lose details while paraphrasing.</p>
+
+<h2>Shared Ctx: three neglected side effects</h2>
+
+<p>Everything in <code>Ctx</code> is shared, because sub-agents execute through <code>self.execute</code> and there is one <code>self.ctx</code>. Three side effects follow.</p>
+
+<p><strong>Todos are overwritten.</strong> <code>todo_write</code> replaces the whole list, so a sub-agent writing its own three-step plan erases the parent's five-step plan. The 50 item cap does not help, since it governs replacement, not appending. Letting sub-agents plan is unsafe without an owner field and per-owner filtering.</p>
+
+<p><strong>Background tasks can be killed.</strong> The task manager is one field in <code>Ctx</code>, so a sub-agent's <code>task_kill</code> can stop a service the parent started, and <code>task_list</code> shows it jobs it never spawned. The security post noted that a tool name is not a capability boundary; here is the multi-agent version: "who started this task" is not recorded, so no layer can enforce it.</p>
+
+<p><strong>The memory directory is shared.</strong> A sub-agent can write into the parent's memory store, and if its prompt says to save important facts, it will, with nothing recording which sub-agent wrote it. Facts are retrievable across sessions, so one wrong fact from a sub-agent pollutes every later conversation.</p>
+
+<p>All three have the same fix: <strong>give shared state an owner</strong>, then filter by the current role at the tool layer. Small change, but it requires admitting that sharing has a price.</p>
+
+<h2>The board is append-only</h2>
+
+<pre><code>pub struct Board {
+    jobs: Mutex&lt;Vec&lt;Job&gt;&gt;,
+    seq: Mutex&lt;u64&gt;,
+}
+</code></pre>
+
+<p>A job carries id, name, task, status, result, duration and a private start instant. Three design points.</p>
+
+<p><strong>The start instant is private and the duration is public.</strong> External readers know how long something ran and not when. That avoids clock confusion and also means the board cannot answer "did these two overlap": there is ordering and duration, but no intervals.</p>
+
+<p><strong>Three statuses only</strong>: running, done, failed. No cancelled, no queued, no timed out. The absence of queued is a real problem, since a job waiting for a permit is displayed as running.</p>
+
+<p><strong>Append only.</strong> No remove, no clear, no capacity. The vector grows and the sequence grows.</p>
+
+<p><code>finish</code> looks up by id and returns silently when not found, which is safe only because ids come from <code>start</code> and cannot appear from nowhere. Add board cleanup later and that silence becomes "jobs stuck at running forever". Append-only and silent-finish are a pair that must stay true together.</p>
+
+<h2>Task ids are agent-N</h2>
+
+<pre><code>pub fn start(&amp;self, name: &amp;str, task: &amp;str) -&gt; String {
+    let mut seq = self.seq.lock().unwrap();
+    *seq += 1;
+    let id = format!("agent-{seq}");
+    self.jobs.lock().unwrap().push(Job { id: id.clone(), /* ... */ });
+    id
+}
+</code></pre>
+
+<p>Sequence then jobs, always in that order, so no deadlock. One lock could cover both, but splitting means <code>list()</code> does not wait behind numbering, which pays off when reads dominate.</p>
+
+<p>The ids are readable: <code>agent-1</code>, <code>agent-2</code>. Better than UUIDs for humans, worse in one way: unique only within one board instance.</p>
+
+<p>Which matters in daemon mode, where <strong>one agent serves every session</strong>. <code>replace_messages</code> swaps only the message vector; the board, todos and tasks stay. So session A creates <code>agent-1</code> through <code>agent-3</code>, session B's first sub-agent becomes <code>agent-4</code>, and B's <code>agent_list</code> shows six jobs including A's.</p>
+
+<p>Yet the tool description says it lists delegations started in this session. <strong>That sentence is false in daemon mode.</strong> An observability tool whose semantics differ between two run modes, described as if only one exists. The fix is a session field on jobs, filtered at render time, or clearing the board on session switch. The first preserves cross-session audit, which suits a board treated as observability rather than as a log.</p>
+
+<h2>Result preview at 500, on the board but not in the model</h2>
+
+<pre><code>const RESULT_PREVIEW: usize = 500;
+
+fn preview(text: &amp;str) -&gt; String {
+    let flat = text.replace('\n', " ");
+    if flat.len() &lt;= RESULT_PREVIEW { return flat; }
+    let mut end = RESULT_PREVIEW;
+    while end &gt; 0 &amp;&amp; !flat.is_char_boundary(end) { end -= 1; }
+    format!("{}…", &amp;flat[..end])
+}
+</code></pre>
+
+<p>All three details are right: compare by bytes but retreat to a character boundary, flatten newlines so each preview is one line, only add the ellipsis when truncated.</p>
+
+<p>Note the asymmetry: <strong>the board holds a 500 unit excerpt while the model holds the full result</strong>. That is correct, the model needs the whole thing, but it means the board is not an audit log. To see what a sub-agent actually said you go back to session history, and history gets compacted. A completed sub-agent's full output may survive only as one sentence of summary while the board keeps the first 500 units.</p>
+
+<p>And those units are bytes, since <code>len()</code> and <code>is_char_boundary</code> both count bytes, so 500 bytes is about 166 Chinese characters. The constant name does not say which, the same ambiguity as the clamp comment in the tool post.</p>
+
+<h2>What duration actually measures</h2>
+
+<pre><code>job.duration = Some(job.started.elapsed());
+</code></pre>
+
+<p>The start instant is set in <code>start</code>, and <code>start</code> happens before <code>acquire</code>. So duration is queue time plus execution time. A user reading <code>agent-7 [done] reviewer (12.3s)</code> assumes the review took 12.3 seconds, when 8 of them may have been spent waiting for a permit.</p>
+
+<p>Record two timestamps, queued and started, or register after acquiring. The second has a cost: queued work becomes invisible until it starts, so the board shows nothing and then four jobs appear at once. The complete fix keeps registration where it is and splits the status into queued and running, which means the gate has to notify the board once a permit is granted.</p>
+
+<h2>The gate: four details</h2>
+
+<pre><code>pub struct Gate {
+    active: Mutex&lt;usize&gt;,
+    cv: Condvar,
+    max: usize,
+}
+
+impl Gate {
+    pub fn new(max: usize) -&gt; Self {
+        Gate { active: Mutex::new(0), cv: Condvar::new(), max: max.max(1) }
+    }
+
+    pub fn acquire(&amp;self) -&gt; GateGuard&lt;'_&gt; {
+        let mut active = self.active.lock().unwrap();
+        while *active &gt;= self.max {
+            active = self.cv.wait(active).unwrap();
+        }
+        *active += 1;
+        GateGuard { gate: self }
+    }
+}
+</code></pre>
+
+<p><strong><code>max.max(1)</code></strong> prevents a zero quota from blocking forever. Correct, and only correct under the assumption that the quota comes from configuration. If it ever arrives from an environment variable or a server, clamping silently converts a configuration error into a looser policy than intended. Returning a <code>Result</code> and rejecting zero would be more honest.</p>
+
+<p><strong><code>while</code> rather than <code>if</code></strong> is the standard requirement, since the predicate may be false again on wake.</p>
+
+<p><strong><code>notify_one</code></strong> frees one slot and wakes one waiter. Waking all produces a thundering herd where all but one go back to sleep.</p>
+
+<p><strong>Counting in <code>Drop</code></strong> means an early return releases the permit. The same RAII pattern as the interrupt guard, which suggests the author was thinking about it.</p>
+
+<p>One implicit assumption: <code>notify_one</code> plus <code>saturating_sub</code> assumes there is no second release path. A double release will not be noticed, it just quietly admits one fewer sub-agent, and nothing asserts that the counter matches reality.</p>
+
+<p>The existing test asserts the peak never exceeds the limit and that the counter returns to zero. The second assertion is the valuable one, and it deserves to be an <code>available()</code> method so callers can check for leaks too.</p>
+
+<h2>Queued jobs report as running</h2>
+
+<pre><code>fn run_subagent(&amp;self, name: &amp;str, task: &amp;str) -&gt; Result&lt;String, String&gt; {
+    let id = self.ctx.board.start(name, task);   // status = Running
+    let _permit = self.ctx.gate.acquire();       // may block here a long time
+    // ...
+}
+</code></pre>
+
+<p>The fifth job appears as running while it waits, and renders as <code>agent-5 [running] verifier (...) - run the tests</code>. The user experience is five jobs running when four are. Over a four-way gate with two-minute jobs, the lie lasts minutes.</p>
+
+<p>How much it matters depends on who reads the board. For a human it is cosmetic. For the model, which has the tool, it changes decisions: it may stop delegating because it believes there is no capacity, or delegate again because it sees activity.</p>
+
+<h2>The gate ignores interrupts</h2>
+
+<pre><code>while *active &gt;= self.max {
+    active = self.cv.wait(active).unwrap();
+}
+</code></pre>
+
+<p>No exit condition other than a free slot.</p>
+
+<p><strong>The interrupt flag has no effect here.</strong> The parent checks at step boundaries, but the main thread is blocked inside <code>execute</code> into <code>run_subagent</code> into <code>acquire</code>, where the flag is invisible. It takes effect only after some sub-agent finishes and the loop comes around. A sub-agent can run 40 rounds of a 120 second timeout, which is 80 minutes in the worst case.</p>
+
+<p><strong>And the wait is not cancellable</strong>, since a condition variable wait does not report interrupts. What is needed is a timed wait with a poll, checking the flag every 200 ms. At four slots the extra wakeups cost nothing.</p>
+
+<p>This is the same class of bug as sub-agents not checking interrupts, in a second location: an interrupt has to be checked <strong>at every place that can block for a long time</strong>, and checking in one place is the same as not checking.</p>
+
+<h2>The gate is not reentrant</h2>
+
+<p>This is the only finding in the post that causes a permanent hang. Its precondition is that nesting prevention is only advertising: if the model emits a <code>subagent</code> call, nesting happens, and nesting re-enters <code>run_subagent</code>.</p>
+
+<p>The outer sub-agent already holds a permit and holds it for the entire inner loop, because the guard lives to the end of the function. With four slots taken by four outer sub-agents, each calling a nested sub-agent, four inner threads wait for a permit that only the outer threads could release, and the outer threads are waiting for the inner ones. The cycle closes.</p>
+
+<p>The condition variable has no timeout, so this is not a pause, it is until the process dies. And Ctrl-C sets a flag that nobody in that wait ever reads.</p>
+
+<p>Two fixes, and they should both land: add a depth counter and refuse at the entry point, which also makes future two-level nesting an explicit number rather than a rewrite; and make the gate reentrant, either passing a permit through on the same execution chain or not acquiring again when nested. The current implementation is the only combination that deadlocks: nesting is neither forbidden nor reentrant.</p>
+
+<h2>Rate limiting bounds concurrency, not request rate</h2>
+
+<p>The gate bounds how many sub-agents run at once. It does not bound requests per second, total requests, or rounds per sub-agent. Four slots at 40 rounds each is 160 model requests per turn, plus the parent's own 40, all fired within a few minutes against an API that meters tokens or requests per minute.</p>
+
+<p>That is a semantic mismatch: <strong>local concurrency control cannot solve remote rate limiting</strong>. No matter how good the gate is, a 429 still means backing off.</p>
+
+<p>What is needed is a budget: not "how many at once" but "how many in total". It matters more here because a sub-agent's round count is unpredictable; it runs until the model stops calling tools.</p>
+
+<p>A pragmatic version puts a shared counter in <code>Ctx</code> that both parent and sub-agents draw from, and after it is exhausted a sub-agent returns "budget exhausted" instead of continuing. That turns "what can one turn cost" from four times forty times the per-call price into a configurable number.</p>
+
+<h2>Retry storms without jitter</h2>
+
+<pre><code>fn backoff_ms(base_ms: u64, attempt: u32) -&gt; u64 {
+    base_ms
+        .saturating_mul(2u64.saturating_pow(attempt.saturating_sub(1)))
+        .min(30_000)
+}
+</code></pre>
+
+<p>Pure exponential, defaults of two retries and a 500 ms base, so waits of 500 then 1,000 ms. Retryability is decided by <strong>string matching</strong> on the error message containing "HTTP 429", not by parsing a status code. Change the error format and retries silently stop happening, the same interface-shaped-like-a-message problem noted for the clamp unit.</p>
+
+<p>Back to multi-agent: four backoff curves with no randomization. If the API returns 429 to all four at the same moment, they retry in lockstep, all at 500 ms, then all at 1,000. It is the textbook thundering herd at a smaller scale.</p>
+
+<p>The standard three fixes: add jitter, honor the Retry-After header, and back off at the shared layer so that one sub-agent being throttled pauses its siblings. The third matters most here, because only a shared layer knows that four sub-agents are using one key.</p>
+
+<p>Worth noting the retry sleep is blocking. Four sub-agents sleeping does not affect other threads, but the parent's own retry blocks the turn for up to 30 seconds.</p>
+
+<h2>Fallback is silent</h2>
+
+<p>After retries are exhausted, a configured fallback model gets one attempt, for both 429 and 5xx. Errors that retries cannot fix, such as a 401, go straight back, which is right because switching models does not fix authentication.</p>
+
+<p>The visibility is the problem. One stderr note is the only signal, and in JSON or daemon mode it is buried. Worse, <strong>a sub-agent's fallback is invisible to the parent</strong>: two model calls may have degraded, and the parent receives only the final text with no idea which model produced it.</p>
+
+<p>That matters for cost accounting. Usage totals record requests, prompt tokens and completion tokens, with no model dimension, so a turn where four sub-agents all fell back is recorded as a count without attribution.</p>
+
+<h2>Why four</h2>
+
+<pre><code>const MAX_PARALLEL_SUBAGENTS: usize = 4;
+</code></pre>
+
+<p>Hard-coded and not configurable. The justification is plausible: code work rarely needs more than four concurrent subtasks, four concurrent model requests are safe on most plans, and four parallel commands do not saturate a laptop.</p>
+
+<p>Three costs. <strong>It is also the concurrency limit for the parent's parallel tool calls</strong>, so eight <code>subagent</code> calls mean four running and four parked, each parked thread occupying a tool thread. Tool threads are unbounded, so nothing breaks, but four threads idle for nothing.</p>
+
+<p><strong>Not configurable means not adjustable</strong> to the machine or the plan. Four is wasteful on 64 cores and constantly throttled on a two-concurrency plan.</p>
+
+<p><strong>And it is independent of how many sub-agents one turn may spawn.</strong> Nothing in the schema limits that, so the model can dispatch twenty, all of which register as running, four executing and sixteen queued.</p>
+
+<p>The deeper problem is placement: the constant lives in <code>agent.rs</code> as a module constant, which reads like a behaviour parameter of the main loop, when it is really a resource quota belonging to <code>Ctx</code> or the config layer. Move it and configurability and testability follow.</p>
+
+<h2>Will the model actually use agent_list</h2>
+
+<p>The tool takes no arguments and returns one line per job plus an indented result line. The workflow it was meant to serve runs into a fact: <strong><code>subagent</code> is synchronous and blocking</strong>. The parent calls it and waits. So a model cannot "dispatch four and then check progress". Four calls in one turn do overlap, but only because the parent's scope runs the tool calls in parallel.</p>
+
+<p>Which leaves <code>agent_list</code> as retrospective: what did I dispatch, why did something fail, what came back. Its value would be much higher in an asynchronous design. Here it is an observability backstop.</p>
+
+<h2>Sub-agent work is invisible in the terminal</h2>
+
+<p>The parent prints every tool call through the style layer, including the summarized arguments and result. The sub-agent loop calls <code>execute</code> directly and never calls the style method.</p>
+
+<p>So every tool a sub-agent runs is silent: the user sees a delegation, waits two minutes, and gets a paragraph. The <code>read_file</code>, the <code>run_command</code> and its output all happened off screen. In daemon mode it is worse, because the UI sink streams the parent's calls but sub-agent calls never reach it.</p>
+
+<p>Printing with a role prefix is the obvious fix and produces interleaved nonsense without attribution, so what is actually needed is a style layer that can say who is speaking. The same gap the concurrency post hit when two approvals shared one stdin.</p>
+
+<h2>Hooks cannot tell parent from child</h2>
+
+<p>Sub-agent tool calls go through <code>execute</code>, so PreToolUse hooks apply, which is good news: the user-defined veto survives into multi-agent work.</p>
+
+<p>But the environment passed to a hook names the tool and the event, never the caller. A hook cannot apply different rules to a sub-agent, and cannot count how many files a given sub-agent changed. Adding <code>NANOHERMES_AGENT</code> and an agent id would enable exactly the granularity multi-agent work needs, and as a bonus the hook's output, which returns to the model, could say who triggered the refusal.</p>
+
+<h2>What permission modes mean here</h2>
+
+<table>
+<thead><tr><th>Mode</th><th>Can the parent delegate</th><th>What a sub-agent may do</th></tr></thead>
+<tbody>
+<tr><td><code>default</code></td><td>Yes</td><td>The same as the parent</td></tr>
+<tr><td><code>accept-edits</code></td><td>Yes</td><td>Edits unasked, commands still asked</td></tr>
+<tr><td><code>plan</code></td><td>Yes</td><td>Dispatch allowed, writes and commands blocked</td></tr>
+<tr><td><code>goal</code></td><td>Yes</td><td>Everything, with nobody to ask</td></tr>
+<tr><td><code>debug</code></td><td>Yes</td><td>Commands yes, writes no</td></tr>
+</tbody>
+</table>
+
+<p><strong>Plan mode allows delegation</strong>, since <code>subagent</code> is not in its blocked list, and the sub-agent inherits plan mode so it cannot write either. No security problem, but four round trips to learn "I cannot do this". Delegation should probably be removed from the tool list in plan mode, since pure analysis does not need it.</p>
+
+<p><strong>Goal mode plus sub-agents is the most dangerous combination</strong>: four parallel agents, each able to run commands, with nobody asked. The risk surface multiplies rather than adds, and the configuration documentation should say so.</p>
+
+<p>There is a subtler point: a permission mode expresses the intent of the turn, and a sub-agent is a role inside that turn. Inheriting it verbatim assumes the intent applies to every role. Usually true, with debug as the counterexample: the parent in debug mode cannot edit files, and a fix-it sub-agent may need to.</p>
+
+<h2>Seven failure modes</h2>
+
+<table>
+<thead><tr><th>Severity</th><th>Failure</th><th>Cause</th><th>Fixable</th></tr></thead>
+<tbody>
+<tr><td>Fatal</td><td>Nested sub-agents plus a non-reentrant gate deadlock permanently</td><td>Nesting prevention only filters the tool list</td><td>Yes, assert depth at the entry</td></tr>
+<tr><td>High</td><td>Interrupts do not reach the gate wait, up to 80 minutes</td><td>Checked only at step boundaries</td><td>Yes, timed wait with polling</td></tr>
+<tr><td>High</td><td>A shared todo list is overwritten by a sub-agent</td><td><code>todo_write</code> replaces</td><td>Yes, add an owner</td></tr>
+<tr><td>High</td><td>Shared background tasks can be killed</td><td>No ownership on tasks</td><td>Yes, add an owner</td></tr>
+<tr><td>Medium</td><td>Sub-agents read other jobs' result previews</td><td><code>agent_list</code> is not filtered by role</td><td>Yes, filter by role</td></tr>
+<tr><td>Medium</td><td>Duration includes queue time</td><td>Registration precedes acquisition</td><td>Yes, split the timestamps</td></tr>
+<tr><td>Medium</td><td>Queued jobs show as running</td><td>No queued state</td><td>Yes, add the enum value</td></tr>
+</tbody>
+</table>
+
+<p>Severity is graded by whether the consequence is recoverable. A deadlock is not; the rest are.</p>
+
+<p>One item is deliberately absent: <code>def.allowed_tools</code> not participating in execution checks. It never produces an error, it just makes the isolation stricter in the user's imagination than in reality. That belongs in a security review, not in a failure list.</p>
+
+<h2>How to test multi-agent behaviour</h2>
+
+<p>Four tests worth writing directly.</p>
+
+<p><strong>The gate's limit holds.</strong> N threads for M slots, record the peak, assert it never exceeds M, then assert the counter is back to zero. The second assertion is the one that proves nothing leaked.</p>
+
+<p><strong>The board's transitions are complete.</strong> Running to done and running to failed are covered; what is missing is finishing the same id twice, which should be idempotent, and finishing an unknown id, which should be silent.</p>
+
+<p><strong>Nesting is refused.</strong> Trivial to write, and its value is not coverage but turning an implicit design, "prevention lives in the tool list", into an explicit contract. Write the test and the depth field gets added.</p>
+
+<p><strong>An interrupt breaks the wait.</strong> One thread holds a permit, another sets the flag and calls acquire, and the assertion is that it returns nothing within 200 ms. This test currently fails, which is exactly its value.</p>
+
+<p>One harder question is how to verify the absence of deadlock. The classic answer is stress: far more threads than slots, thousands of acquire and release cycles, and a lock-order bug will hang at some point. Since a hang means the test never finishes, it needs a watchdog, and note that stress covers lock ordering and leaks but not the nested deadlock, because that one requires the model to cooperate. Which is why the nesting test has to be a unit test.</p>
+
+<h2>Seven places to harden</h2>
+
+<p><strong>One. A depth counter on <code>Ctx</code>, asserted at the sub-agent entry.</strong> Three lines, and it removes the only fatal failure mode, while turning "support two levels later" into a number rather than a rewrite.</p>
+
+<p><strong>Two. Make <code>acquire</code> interruptible and timed.</strong> Poll every 200 ms and check the flag. It fixes both the Ctrl-C hang and the unrecoverable deadlock, because an interrupt can break a deadlock even after it happens.</p>
+
+<p><strong>Three. Add a queued state and split duration</strong> into queue time and run time. Two files change and the observability becomes accurate.</p>
+
+<p><strong>Four. Add <code>max_iterations</code> to the sub-agent definition.</strong> Inheriting 40 is a dangerous default; a "run the tests and report" agent should not have 40 rounds. Default it low, around ten.</p>
+
+<p><strong>Five. Move the parallel limit into configuration</strong>, with a CLI flag and a JSON field. The real value is giving the concept of quota a correct home in the code.</p>
+
+<p><strong>Six. Give shared state an owner.</strong> Todos, tasks and memories each gain an owner field, filtered at the tool layer. The largest change in the list and the only one that root-fixes corruption of parent state.</p>
+
+<p><strong>Seven. Enforce <code>def.allowed_tools</code> at execution</strong>, by intersecting the parent's allow list with the sub-agent's inside the sub-agent execution path.</p>
+
+<p>The first three are small and clearly worth doing today. Four and five are configuration layer, six and seven are permission layer, and both need the semantics settled first, starting with what identifies an owner.</p>
+
+<h2>Closing</h2>
+
+<p>The abstraction is weaker than it looks. Four fields, and a sub-agent is the same Agent with a different prompt, a different tool list and possibly a different model. Things you assume are isolated are not: the todo list, the background tasks, the memory directory and hook visibility are all shared.</p>
+
+<p>Sharing is not the defect; unowned sharing is. The board, the gate and <code>Ctx</code> all should be shared, or the user sees five unrelated plans and <code>task_kill</code> becomes a lottery. The problem is that shared objects carry no "whose is this" field, so any role can change any state.</p>
+
+<p>And the three unclean cuts share one shape: <strong>advertising filters passed off as execution gates</strong>. Nesting prevention by tool list, sub-agent tool restrictions by tool list, available sub-agent names by system prompt. All three make things invisible rather than making calls invalid. That distinction is harmless with one agent, since an invisible tool is never called, and it compounds into deadlocks, overreach and information leaks once there are several.</p>
+
+<p>What deserves credit is the gate's internals: RAII release, the re-check loop, single notification, and a test asserting all permits are returned. The author clearly knows the traps of a hand-written semaphore. The problem is not the implementation, it is the semantic boundary: the gate answers "how many at once", when multi-agent work needs "whose budget, whose quota, whose visibility".</p>
+
+<p>The next post is observability: keeping a ledger for every turn. This one covered what happens during one delegation; that one covers how to record it, price it and read it, and how the cost of a turn should be attributed to whoever started it.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
