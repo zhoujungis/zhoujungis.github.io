@@ -13548,6 +13548,642 @@ jq '.cases[] | select(.flaky) | .id' report.json
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a>.</p>
 `,
   },
+  {
+    slug: 'agent-token-economics',
+    zhSlug: 'agent-token-economics',
+    topicSlug: 'aiagent',
+    title: 'Token economics: a tenfold spread on the same task',
+    excerpt:
+      'Cost is not price times tokens, it is context strategy times request count. Prefix stability, compaction and turn count explain the order of magnitude, and three constants called characters all count bytes.',
+    date: '2026-11-08',
+    readingTime: 34,
+    html: `
+<blockquote>
+<p>Who this is for: people whose agent bills arrived and hurt; people who think cost equals unit price times tokens; people who want the bill down without changing models.</p>
+<p><strong>TL;DR:</strong> agent cost is not price times usage, it is context strategy times request count. A tenfold spread on one task comes from three levers: whether the prefix is stable, whether context gets compacted, and how many requests a task actually makes. Of the five budget constants in NanoHermes, three count bytes while their names say characters, and the memory block rewrites the system message every turn, which shortens exactly the part that should never change.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Two bills for the same task</li>
+<li>Three levers, one counterintuitive</li>
+<li>Writing the cost formula down</li>
+<li>Four units: bytes, characters, tokens, dollars</li>
+<li>A forty turn worked example</li>
+<li>The full byte bill of one request</li>
+<li>What compaction really does</li>
+<li>The five budget constants</li>
+<li><code>CONTEXT_CHAR_BUDGET</code> does not mean what its name says</li>
+<li>What 120,000 bytes is in Chinese</li>
+<li>Compaction fires on three conditions</li>
+<li>A floor of ten messages</li>
+<li>Three ceilings on context</li>
+<li>The compaction request has no per-message cap</li>
+<li>Is compaction an investment or a loss</li>
+<li>Three alternatives to summarization</li>
+<li>The first segment of the stable prefix</li>
+<li>The tool list is part of the prefix</li>
+<li>Project docs at 20,000 characters</li>
+<li>The memory block rewrites the cache every turn</li>
+<li>Why the variable segment sits at the end</li>
+<li>Tool output caps also count bytes</li>
+<li>Two layers of truncation</li>
+<li>A tiering strategy for tool output</li>
+<li>Images: base64 is a third larger and uncapped</li>
+<li>Images are resent every turn</li>
+<li>The hidden double cost of a small output budget</li>
+<li>Retries resend the whole prompt</li>
+<li>Forty iterations and eight parallel calls</li>
+<li>The cost model of a sub-agent</li>
+<li>Measuring the cache hit rate</li>
+<li>Five preconditions for caching</li>
+<li>Why output costs more and is charged twice</li>
+<li>Three counterintuitive conclusions</li>
+<li>Five common estimation errors</li>
+<li>A cost profile for one task</li>
+<li>One optimization, fourteen turns to nine</li>
+<li>Five ways to look cheap and cost more</li>
+<li>A ranked tuning list</li>
+<li>Three experiments you can run in a day</li>
+<li>Where budget constants come from</li>
+<li>What to save and what not to</li>
+<li>Making cost a regression metric</li>
+</ul>
+
+<h2>Two bills for the same task</h2>
+
+<p>Same repository, same request, fix three error handling sites in a Go service, same model. The two bills differ by an order of magnitude. The difference is not the model or the prompt. It is three things.</p>
+
+<ul>
+<li>The first run used a client that rebuilt the system prompt on every request; the second kept the system prefix unchanged.</li>
+<li>The first took 37 turns, the second took 14.</li>
+<li>The first pasted <code>go.mod</code> and two 800 line files into the context; the second pasted only the three sites being changed.</li>
+</ul>
+
+<p>If you decompose cost as price times tokens, you can only explain the price difference. Decomposed as prefix stability times context size times request count, you can explain ten times.</p>
+
+<h2>Three levers, one counterintuitive</h2>
+
+<table>
+<thead><tr><th>Lever</th><th>Mechanism</th><th>Order of magnitude</th></tr></thead>
+<tbody>
+<tr><td>Prefix stability</td><td>The provider's prompt cache matches token by token from the front; change one byte and everything after it misses</td><td>3 to 20 times</td></tr>
+<tr><td>Context compaction</td><td>Pushes history back from linear growth to a constant, cutting the quadratic term</td><td>2 to 5 times</td></tr>
+<tr><td>Request count</td><td>Every turn resends the entire context, so turns are a multiplier</td><td>Proportional to turns</td></tr>
+</tbody>
+</table>
+
+<p>The counterintuitive one: <strong>prefix stability affects the bill more than model choice does.</strong> A model three times the price with a stable prefix usually costs less than a cheap model that rewrites the system message every turn. Price is a linear factor; the cache is a discount applied to all of history, and history is what compounds.</p>
+
+<p>That holds only if the provider really supports prefix caching, which the major ones do with different conditions: minimum prefix length, cache lifetime, and whether identical bytes are required. This post only covers the side you control, which is not putting anything volatile in the prefix.</p>
+
+<h2>Writing the cost formula down</h2>
+
+<pre><code>cost ≈ Σ_t [ P_in × (S + H_t) + P_out × O_t ]
+</code></pre>
+
+<p>Where S is the stable prefix, system prompt plus tool schemas plus project docs. H is history at the start of turn t. O is output. Three things deserve attention.</p>
+
+<p>S is resent every turn. Forty turns means forty copies. At 30,000 tokens of prefix that is 1.2 million tokens on prefix alone.</p>
+
+<p>H accumulates. Turn one has one user message, turn forty has dozens. That is the source of the quadratic term.</p>
+
+<p>O is charged once as output, and then becomes part of H, so it is charged again on every later turn.</p>
+
+<pre><code>total_in ≈ N × S + d × N × (N - 1) / 2
+</code></pre>
+
+<p>The second term is quadratic in N, which is why a long task is not slightly more expensive but wildly more expensive.</p>
+
+<h2>Four units: bytes, characters, tokens, dollars</h2>
+
+<table>
+<thead><tr><th>Unit</th><th>Used by</th><th>Conversion</th><th>Error source</th></tr></thead>
+<tbody>
+<tr><td>Byte</td><td><code>String::len()</code>, request bodies</td><td>One Chinese character is three bytes</td><td>JSON escaping, base64</td></tr>
+<tr><td>Character</td><td>Humans, <code>chars().count()</code>, truncation notes</td><td>One Chinese character is one character</td><td>Full-width punctuation, emoji</td></tr>
+<tr><td>Token</td><td>Provider billing</td><td>Chinese is roughly one to one and a half characters per token</td><td>Tokenizer, model</td></tr>
+<tr><td>Dollar</td><td>The invoice</td><td>Unit price times tokens</td><td>Cache discounts, batching</td></tr>
+</tbody>
+</table>
+
+<p>There is no linear formula from bytes to tokens, but the ranges are stable: English about four characters per token, Chinese about one character per token, code about two characters per token. Enough for an order of magnitude, not for a budget.</p>
+
+<p>Bytes to characters is simpler and more treacherous. JSON serialization turns a newline into two bytes and a quote into two bytes, so a serialized message is slightly larger than the original text, typically five to fifteen percent for a code file.</p>
+
+<p>Which explains something important: <strong>the same number means different things at different layers.</strong> 120,000 is bytes in the context budget, bytes in the project docs cap, characters in the fetch parameter, tokens in the output limit. Four ceilings, four units, and three of the names imply a different one than they use.</p>
+
+<h2>A forty turn worked example</h2>
+
+<table>
+<thead><tr><th>Term</th><th>Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>S</td><td>3,000 tokens</td><td>About 1,200 of system, 1,800 of tool schemas</td></tr>
+<tr><td>d</td><td>1,200 tokens</td><td>Average added per turn</td></tr>
+<tr><td>N</td><td>40 turns</td><td>The default iteration cap</td></tr>
+<tr><td>O</td><td>400 tokens</td><td>Charged separately at the output price</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Case</th><th>Calculation</th><th>Input tokens</th></tr></thead>
+<tbody>
+<tr><td>No cache</td><td>40 × 3,000 + 1,200 × 780</td><td>1,056,000</td></tr>
+<tr><td>No cache, one compaction at turn 20</td><td>40 × 3,000 + 1,200 × (190 + 190)</td><td>576,000</td></tr>
+<tr><td>Full prefix hit</td><td>3,000 + 40 × 1,200</td><td>51,000</td></tr>
+</tbody>
+</table>
+
+<p>The first and third rows differ by about twenty times, which is where the tenfold spread comes from. Look at the second: compaction did nothing to the 120,000 of prefix, it changed the slope of history. History restarts at turn 20, so one triangle of 780 becomes two triangles of 190, and the quadratic term halves. <strong>Compaction saves history, never prefix.</strong></p>
+
+<p>If cached input costs a tenth of normal input, the third row is worth about 48,300 full-price tokens against 1,056,000, roughly twenty-two times. That number is large enough to warrant the disclaimer: it is arithmetic, not an invoice. Real multiples get pulled down by cache minimums, cache expiry and the output share, but the direction holds.</p>
+
+<h2>The full byte bill of one request</h2>
+
+<table>
+<thead><tr><th>Component</th><th>Size</th><th>Repeated</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>System prompt text</td><td>1,200 bytes</td><td>Every turn</td><td>Fixed</td></tr>
+<tr><td>Mode, persona, project docs</td><td>20,000 bytes</td><td>Every turn</td><td>The project docs cap</td></tr>
+<tr><td>Skill list</td><td>1,000 bytes</td><td>Every turn</td><td>Enabled skills</td></tr>
+<tr><td>Tool schemas</td><td>7,000 bytes</td><td>Every turn</td><td>Twenty-odd built-ins</td></tr>
+<tr><td>Memory block</td><td>2,400 bytes</td><td>Changes every turn</td><td>Re-retrieved</td></tr>
+<tr><td>History</td><td>240,000 bytes</td><td>Accumulates</td><td>About 20 × 12,000 at turn 20</td></tr>
+<tr><td>This turn's user message</td><td>300 bytes</td><td>Once</td><td>Becomes history afterwards</td></tr>
+</tbody>
+</table>
+
+<p>About 272,000 bytes, of which under 3,000 is genuinely new. The other 269,000 bytes are repetition.</p>
+
+<p>Three conclusions. The stable prefix here is about 29,200 bytes, an order of magnitude below history at turn twenty, while in turns one through five it dominates, so prefix and history optimizations cross over somewhere around turn five to ten. Tool schemas are pure fixed overhead that never changes with the task and is paid every turn, so an agent with thirty MCP tools can spend more on schemas than on its system prompt. And history is 88% of the request, which is why invalidating history every turn is the most expensive mistake available: it pushes 88% of the content from cached price back to full price.</p>
+
+<h2>What compaction really does</h2>
+
+<p>Cutting the quadratic term. Without compaction the forty turn sum of history is 936,000. Compact once at turn twenty and it becomes two triangles of 190, so 456,000, almost half. Compact more often and the quadratic term shrinks further, but each compaction costs money, so there is an optimum.</p>
+
+<p>Quantified: with compaction cost C, saving h per remaining turn, and k turns left, it pays when k × h &gt; C. For a forty turn task that almost always holds; for a three turn task compaction is pure waste. Which means "when to compact" should depend on remaining turns, and NanoHermes does not look at that.</p>
+
+<h2>The five budget constants</h2>
+
+<table>
+<thead><tr><th>Constant</th><th>Value</th><th>Where</th><th>What it measures</th></tr></thead>
+<tbody>
+<tr><td><code>CONTEXT_CHAR_BUDGET</code></td><td>120,000</td><td><code>agent.rs</code></td><td>Says characters, is bytes</td></tr>
+<tr><td><code>KEEP_RECENT</code></td><td>10</td><td><code>agent.rs</code></td><td>Messages kept after compaction</td></tr>
+<tr><td><code>max_output</code></td><td>20,000</td><td><code>agent.rs</code></td><td>Per tool result, bytes</td></tr>
+<tr><td><code>MAX_ATTACHED_IMAGES</code></td><td>4</td><td><code>agent.rs</code></td><td>Images per message</td></tr>
+<tr><td><code>MAX_PROJECT_DOCS</code></td><td>20,000</td><td><code>prompt.rs</code></td><td>Project docs, characters by name</td></tr>
+</tbody>
+</table>
+
+<p>Plus three defaults: an output limit of 4,096, temperature 0, forty iterations. Those eight numbers decide how expensive a task can get.</p>
+
+<h2>CONTEXT_CHAR_BUDGET does not mean what its name says</h2>
+
+<pre><code>let size: usize = self.messages.iter().map(|m| m.to_string().len()).sum();
+</code></pre>
+
+<p>Serialization, then <code>len()</code>, which is UTF-8 bytes. The constant is named for characters.</p>
+
+<p>In pure ASCII English the two are near enough that the name does no harm. In Chinese a character is three bytes, and serialization escapes newlines and quotes, so a budget of 120,000 "characters" actually holds about 40,000 Chinese characters.</p>
+
+<p>That is not a naming nit, it is an observable cost bias. You think you compact at 120,000 characters and you compact at 40,000; and if you estimate tokens from "120,000 characters" you overestimate by three times and every cost projection is wrong.</p>
+
+<p>Worse, it colludes with the tool output cap, which also uses <code>len()</code>. Three ceilings, all named characters, all counting bytes.</p>
+
+<h2>What 120,000 bytes is in Chinese</h2>
+
+<table>
+<thead><tr><th>Content</th><th>Bytes</th><th>Approximate characters</th><th>Rough tokens</th></tr></thead>
+<tbody>
+<tr><td>English code</td><td>120,000</td><td>120,000</td><td>30,000 to 35,000</td></tr>
+<tr><td>Mixed English and Chinese</td><td>120,000</td><td>70,000 to 80,000</td><td>40,000 to 50,000</td></tr>
+<tr><td>Pure Chinese</td><td>120,000</td><td>40,000</td><td>30,000 to 40,000</td></tr>
+</tbody>
+</table>
+
+<p>Note the code row: code has higher token density than prose, since symbol-heavy fragments often run one token per character. So the same byte budget runs out of tokens sooner in code-heavy work.</p>
+
+<p>The practical rule: never convert a character budget into a token estimate. Use per-content-type rates instead.</p>
+
+<h2>Compaction fires on three conditions</h2>
+
+<pre><code>if !force &amp;&amp; (size &lt;= CONTEXT_CHAR_BUDGET || self.messages.len() &lt;= KEEP_RECENT + 1) {
+    return 0;
+}
+</code></pre>
+
+<p>Total bytes over 120,000, more than eleven messages, and not a forced compaction. The third condition is why manual compaction matters in practice: automatic compaction happens once when the threshold is crossed, then history grows again until it crosses again. A task oscillating around 100,000 bytes might never trigger, or might trigger repeatedly.</p>
+
+<pre><code>let mut start = self.messages.len().saturating_sub(KEEP_RECENT);
+while start &lt; self.messages.len() &amp;&amp; self.messages[start]["role"] == "tool" {
+    start += 1;
+}
+</code></pre>
+
+<p>The loop skips tool messages so it never splits a call from its result, which would make the next request illegal. The cost is that the cut point moves forward, so the amount actually dropped can be far less than expected. A turn with eight parallel calls produces nine messages, all of which must be kept, so "keep ten" can mean "keep less than one turn".</p>
+
+<h2>A floor of ten messages</h2>
+
+<pre><code>[0] system with the memory block
+[1] system with the summary
+[2..] the last ten messages in full
+</code></pre>
+
+<p>If several of those ten are multi-kilobyte tool results, compaction barely changes the total: you dropped old history and kept the most expensive part. Which produces a counterintuitive conclusion: <strong>compaction does almost nothing for tool-heavy tasks</strong>, because the heavy part is inside the floor. To make compaction effective, either make tool output lighter or make the floor count bytes instead of messages.</p>
+
+<p>Counting messages has another problem: ten short messages and ten long ones differ by tens of times. The same constant means two very different budgets.</p>
+
+<h2>Three ceilings on context</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Set by</th><th>Value here</th><th>When exceeded</th></tr></thead>
+<tbody>
+<tr><td>Window</td><td>The model</td><td>Provider-dependent</td><td>The request fails with 400</td></tr>
+<tr><td>Budget</td><td>The client</td><td>120,000 bytes</td><td>Compaction fires</td></tr>
+<tr><td>Wallet</td><td>Your tolerance</td><td>Nothing</td><td>The bill surprises you, silently</td></tr>
+</tbody>
+</table>
+
+<p>Window is largest, budget next, wallet smallest. A healthy design keeps the budget well under the window to absorb one huge tool result, and gives the wallet a soft cap with a warning before it is exceeded.</p>
+
+<p>NanoHermes has the first two and not the third, which means a runaway task can burn a day's quota with no warning. The fix is twenty lines: a session token cap checked at the top of each turn, interrupting with a message. Controlled failure beats an uncontrolled invoice.</p>
+
+<h2>The compaction request has no per-message cap</h2>
+
+<pre><code>excerpt.push_str(&amp;format!("{role}: {}\n", content));
+</code></pre>
+
+<p>Everything dropped goes in, unbounded per message, and the summary is asked for three hundred words, roughly four to five hundred tokens. So the trade is tens of thousands of input tokens for a few hundred output tokens, buying smaller requests afterwards.</p>
+
+<p>Profitable on long tasks, pure loss on short ones. The only criterion used is context size, never remaining turns, so a task that crosses the threshold on its final turn pays for a compaction it will never use.</p>
+
+<h2>Is compaction an investment or a loss</h2>
+
+<pre><code>k × h &gt; C
+</code></pre>
+
+<p>With C the compaction cost, h the tokens saved per later turn, k the turns left. Drop 80,000 tokens of history, summarize into 500, and h is about 79,500 while C is about 80,500, so it pays from k of two onward.</p>
+
+<p>Drop only 8,000 tokens, which happens when you compact the moment you cross the threshold, and k has to exceed eleven. Which is exactly the common case, because the trigger is "just crossed the threshold".</p>
+
+<p>The inequality also shows a design opportunity: the threshold should be a function of remaining turns, not a constant.</p>
+
+<h2>Three alternatives to summarization</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Method</th><th>Cost</th><th>Information loss</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Summarize</td><td>Model summarizes the dropped history</td><td>One large request</td><td>Medium</td><td>Long conversations, decisions to preserve</td></tr>
+<tr><td>Hard cut</td><td>Drop old messages outright</td><td>Zero</td><td>High</td><td>Clear task boundaries, genuinely stale context</td></tr>
+<tr><td>Structured state</td><td>Write progress into a todo list or task board</td><td>One tool call</td><td>Low, the state is explicit</td><td>Multi-step tasks with a checklist</td></tr>
+</tbody>
+</table>
+
+<p>The third is the most underrated. NanoHermes already has a todo tool and a task board. If each turn writes done, pending and blocked into a structured list, old messages can simply be cut, because the list is the compressed state and is more accurate than a model's summary. A todo call costs a few hundred tokens, a summary costs tens of thousands.</p>
+
+<p>The catch is architectural: state has to be separated from history. In practice, hard cut for short tasks, summarize for long ones, structured state for multi-step ones. NanoHermes has only summarization, and does not look at task type.</p>
+
+<h2>The first segment of the stable prefix</h2>
+
+<p>The system prompt is assembled in a fixed order, from most stable to least: identity, operating rules, workspace root, mode guidance, user persona, project guidance. Within one process that whole block never changes, which is friendly to prefix caching.</p>
+
+<p>Two more segments are appended after it, the project context file and the skill list, both read once at startup. So up to that point the prefix is stable. The problem is the next section.</p>
+
+<h2>The tool list is part of the prefix</h2>
+
+<p>Tool schemas travel with every request, so the provider bills them as input. A built-in set runs 1,500 to 2,000 tokens, and MCP can double it.</p>
+
+<p>What matters is order stability. Permission filtering removes some tools, MCP tools are appended in connection order, and as long as that order holds within a process the schema section is part of the stable prefix. Jitter, such as an MCP reconnect changing order, invalidates the cache from the jitter point onward.</p>
+
+<p>Which makes "sort the tool list before sending" the most overlooked free optimization. Sorting by name does not change capability and makes the prefix identical across sessions, which is what cross-process cache sharing depends on.</p>
+
+<h2>Project docs at 20,000 characters</h2>
+
+<p>The loader reads the global file, then every ancestor directory down to the workspace, concatenating in that order. More specific rules come later, which is the right semantics for overriding. Truncation retreats to a character boundary, which is correct and necessary for UTF-8.</p>
+
+<p>But the cap counts bytes, so a Chinese <code>AGENTS.md</code> injects about 6,600 characters. And the real cost is that those 20,000 bytes appear in every request: over forty turns that is 800,000 bytes of project documentation. An <code>AGENTS.md</code> that size contributes to the bill about as much as twenty extra turns. A nice cost counterexample to the intuition that more documentation is always better.</p>
+
+<h2>The memory block rewrites the cache every turn</h2>
+
+<pre><code>let user_text = memory::content_text(&amp;content);
+if let Some(dir) = self.ctx.memory_dir.clone() {
+    let block = memory::retrieve_block(&amp;dir, &amp;user_text);
+    self.set_memory_block(&amp;block);
+}
+</code></pre>
+
+<p>Retrieval depends on this turn's input, so the block can differ every turn, and it is written into the first message. So before every request, the head of the context changes.</p>
+
+<p>Inside the block replacement the implementation is fine: delete the old marked range, append the new one, no accumulation. For prefix caching it is the worst possible layout. The cache matches from the front, so a change at the end of the system message means the stable part still hits, and <strong>everything from the memory block onward, including the summary and all prior conversation, becomes new tokens</strong>.</p>
+
+<p>In other words, re-retrieving memory every turn re-bills the entire history every turn, and history is the quadratic term. Trading 2,400 characters of memory for invalidating all history is a net loss on long tasks.</p>
+
+<p>The right move places the variable segment just before the last user message, as its own message, leaving the first message byte-identical. The model sees a slightly weaker instruction position, and history hits the cache.</p>
+
+<p>It is a clean example of local correctness producing global damage: the replacement function is right, the retrieval is right, and re-retrieving each turn is right, and three correct decisions combine into losing the most valuable optimization available.</p>
+
+<h2>Why the variable segment sits at the end</h2>
+
+<p>The placement is what matters, not the wording. Variable content at the tail of the system message invalidates everything after it; the same content in a separate message before the user turn leaves the prefix intact.</p>
+
+<h2>Tool output caps also count bytes</h2>
+
+<pre><code>if s.len() &lt;= max {
+    return s;
+}
+</code></pre>
+
+<p>Three observations. <code>s.len()</code> is bytes, and the cap is bytes, so a Chinese file hits the ceiling at about 6,600 characters. The note says characters omitted while the arithmetic is bytes, so it overstates by three times for Chinese. And the cap is applied at the dispatch layer, shared by every tool, which is reasonable for search and brutal for file reads: an 800 line file gets cut mid-way, and the model reads again.</p>
+
+<p>Which is the cost: one truncation produces one extra request, and that request resends the entire context.</p>
+
+<h2>Two layers of truncation</h2>
+
+<pre><code>let max_chars = args
+    .get("max_chars")
+    .and_then(|v| v.as_u64())
+    .unwrap_or(20_000)
+    .clamp(500, 200_000) as usize;
+</code></pre>
+
+<p>So the fetch tool can return up to 200,000 characters, which dispatch then cuts to 20,000 bytes. Two ceilings, two units, and both defaults happen to be 20,000, which is not a coincidence but the same habit growing independently in two modules. The practical consequence is that asking for more than 20,000 bytes has no effect at all: the parameter exists and is overridden.</p>
+
+<h2>A tiering strategy for tool output</h2>
+
+<table>
+<thead><tr><th>Tier</th><th>Tools</th><th>Sensible cap</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Small</td><td>Writes, todos, patches</td><td>A few hundred bytes</td><td>Only success and a summary are needed</td></tr>
+<tr><td>Medium</td><td>Search, glob, web search</td><td>2,000 to 5,000 bytes</td><td>List results become unreadable beyond that</td></tr>
+<tr><td>Large</td><td>File read, shell, fetch</td><td>Paginate rather than cut</td><td>The content is the material</td></tr>
+</tbody>
+</table>
+
+<p>The third tier needs the most design. File reads already have an offset and a line limit, so pagination exists at the parameter layer. The problem is the interaction with byte truncation: reading a Chinese file usually hits the byte ceiling before the line limit, and the tail note saying how many lines remain is generated before the cut, so it gets truncated too. The model cannot see how much is left and guesses an offset, and one truncation becomes one extra request.</p>
+
+<p>The fix is to compute the safe line count from the byte budget and return an explicit next offset, so the model never guesses.</p>
+
+<h2>Images: base64 is a third larger and uncapped</h2>
+
+<p>Attachment encoding reads the file and base64-encodes it with no size check. A five megabyte screenshot becomes about 6.7 megabytes of string, which enters the messages and is then sent on turn one, turn two, and every turn until compaction drops it. Over a twenty turn visual task that is around 134 megabytes uploaded.</p>
+
+<p>The image count limit bounds the number, not the size. Four five-megabyte images is a 27 megabyte request, past the ten megabyte body limit most gateways enforce, which produces a 413 that the ledger does not record.</p>
+
+<p>A reasonable implementation checks the file size, scales rather than refuses, and records the bytes after scaling. The hard part is the first step: realizing that a count limit is not a cost limit.</p>
+
+<h2>Images are resent every turn</h2>
+
+<p>The real cost of any tool result is not one request, it is one request times how many turns it survives. A 20,000 byte result living twenty turns is 400,000 bytes of input, twenty times its original size. Which is why output caps are not only about drowning the model, they are about stopping compounding.</p>
+
+<p>A useful corollary: <strong>large results that arrive early are the expensive ones.</strong> A file read on turn one is billed for forty turns; the same read on turn 39 is billed once. Overview first, then close reading, is a cost strategy as much as a cognitive one.</p>
+
+<h2>The hidden double cost of a small output budget</h2>
+
+<table>
+<thead><tr><th>Where truncation lands</th><th>Symptom</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Tool arguments cut mid-JSON</td><td>Parse error, invalid arguments</td><td>The model resends the whole call</td></tr>
+<tr><td>Answer cut mid-sentence</td><td>The user sees half a reply</td><td>Another turn to finish</td></tr>
+<tr><td>Patch diff incomplete</td><td>Context cannot be found</td><td>A regenerated diff</td></tr>
+</tbody>
+</table>
+
+<p>Failure happens on the output side and the retry resends the input side, so the saved output tokens are eaten by resent input, usually at a loss. The counterintuitive tuning advice: for tool-heavy tasks, raise the output budget rather than lowering it, because a patch can be hundreds of lines and one truncation costs far more than the headroom.</p>
+
+<h2>Retries resend the whole prompt</h2>
+
+<p>The retry loop rebuilds the request body each attempt, including the full message array, so one 503 costs about as much as another turn. With two retries the worst case is three times the input for that turn. A 429 is usually not billed; whether a 503 is, the client should not assume.</p>
+
+<p>And fallback: a cheaper model is good for money, unless it is less capable, in which case the task takes more turns. Cheap price times more turns can end up more expensive.</p>
+
+<h2>Forty iterations and eight parallel calls</h2>
+
+<table>
+<thead><tr><th>Limit</th><th>Value</th><th>Cost meaning</th></tr></thead>
+<tbody>
+<tr><td><code>max_iterations</code></td><td>40</td><td>Up to forty requests per user message</td></tr>
+<tr><td><code>MAX_PARALLEL_TOOL_CALLS</code></td><td>8</td><td>Up to eight results entering context in one turn</td></tr>
+<tr><td><code>MAX_PARALLEL_SUBAGENTS</code></td><td>4</td><td>Up to four sub-agents burning tokens at once</td></tr>
+</tbody>
+</table>
+
+<p>The worst case: forty turns of eight results at 20,000 bytes is 6.4 megabytes of theoretical context, unreachable because compaction fires at 120,000 bytes. But the turn before compaction can hold 120,000 plus eight times 20,000, about 280,000 bytes, because compaction runs between turns and not between tool results.</p>
+
+<p>That is a real spike: one parallel tool turn can push the context to twice the budget, and every later turn pays for it.</p>
+
+<p>Sub-agents are worse, since four of them at forty turns each resend their own full context, up to 160 requests that never enter the main account. A parallel investigation can cost ten times the main task while the cost command shows a fraction of it.</p>
+
+<h2>The cost model of a sub-agent</h2>
+
+<pre><code>m × S + d × m × (m - 1) / 2
+</code></pre>
+
+<p>Each sub-agent carries its own system prompt close to the parent's S, and starts history from zero. With m of 15, S of 3,000 and d of 1,000, each sub-agent costs about 150,000 tokens, four of them 600,000, against 150,000 for the parent over the same period. The parent's own cost report shows only that last number.</p>
+
+<p>The shape matters more than the numbers: sub-agent cost grows with delegations times turns squared. Letting four sub-agents run forty turns each is not a parallel optimization, it is a fortyfold invoice. A per-sub-agent iteration limit, around twelve, is worth more than any cache tuning because it cuts the quadratic term.</p>
+
+<h2>Measuring the cache hit rate</h2>
+
+<pre><code>hit_rate = cached_tokens / prompt_tokens
+</code></pre>
+
+<p>NanoHermes does not read the cached token field, so the measured rate is zero, which means "unknown" rather than "no hits", and that difference is fatal during optimization: you conclude caching does not work and give up on it.</p>
+
+<p>Without the field there is a proxy: hash the serialized message array per request and count how often the prefix is identical. That is an upper bound on the hit rate.</p>
+
+<table>
+<thead><tr><th>Metric</th><th>Meaning</th><th>Healthy value</th></tr></thead>
+<tbody>
+<tr><td>Prefix stability</td><td>Share of adjacent turns whose prefix is byte-identical</td><td>Near 100%</td></tr>
+<tr><td>Average history length</td><td>Sum of history over turns</td><td>Linear growth means no compaction</td></tr>
+<tr><td>Compaction frequency</td><td>Triggers per ten turns</td><td>One or two</td></tr>
+</tbody>
+</table>
+
+<p>If the first is low, something volatile is in the prefix. Start by looking at the tail of the system message.</p>
+
+<h2>Five preconditions for caching</h2>
+
+<table>
+<thead><tr><th>Precondition</th><th>Typical requirement</th><th>If violated</th></tr></thead>
+<tbody>
+<tr><td>Prefix long enough</td><td>A minimum token count, hundreds to thousands</td><td>Short prompts are not cached, silently</td></tr>
+<tr><td>Byte-identical</td><td>Same spaces, newlines, field order</td><td>One extra space invalidates everything</td></tr>
+<tr><td>Same model</td><td>Same model id</td><td>A different model is a different cache pool</td></tr>
+<tr><td>Within the window</td><td>Minutes to hours</td><td>An overnight session starts cold</td></tr>
+<tr><td>Same account or org</td><td>Caches do not cross tenants</td><td>A new API key loses the cache</td></tr>
+</tbody>
+</table>
+
+<p>Which explains "cached locally, not in production": locally you run back to back with identical prompts and one model; in production there is concurrency, long gaps and occasional model switches.</p>
+
+<p>The third and fifth are easy to trip. Switching model once loses the whole prefix cache, and so does falling back. So the true cost of a model switch includes the cache you discard.</p>
+
+<h2>Why output costs more and is charged twice</h2>
+
+<pre><code>Σ_t [ P_out × O_t + P_in × O_t × (N - t) ]
+</code></pre>
+
+<p>Output is generated token by token, so each one costs a forward pass, while input can be processed in parallel, which is why output runs three to five times the input price. For an agent it is amplified: a 400 token reply is charged once at the output price, then becomes history and is charged again at the input price on every later turn.</p>
+
+<p>The second term dominates. A 400 token reply on turn five is resent thirty-five times. At four times the input price, the effective cost is 15,600 input tokens, thirty-nine times its sticker price.</p>
+
+<p>So verbose intermediate narration costs far more than a verbose final answer. The instruction not to over-narrate is a cost control, not a style preference.</p>
+
+<h2>Three counterintuitive conclusions</h2>
+
+<p><strong>A cheap model can be more expensive.</strong> Cheaper models follow instructions and format tool calls less reliably, which shows up as extra turns and repeated reads. Price down five times and turns up three is a small saving; turns up six is a loss. Judge by total tokens per completed task, not by unit price.</p>
+
+<p><strong>Longer context is not necessarily more expensive</strong> when caching works. Repeated history is billed at the cached rate, often a tenth. What is genuinely expensive is changing one byte per turn.</p>
+
+<p><strong>Retry can cost more than the failure.</strong> One 503 costs about another turn, and two retries make the worst case three times. Retry count is a cost parameter as much as a reliability parameter.</p>
+
+<h2>Five common estimation errors</h2>
+
+<p>Estimating per conversation rather than per turn, which badly underestimates long tasks. Treating context size as input tokens, which is off by two times from the start. Forgetting that output is re-billed as history, which is the dominant term on long tasks. Assuming retries are free, when only some error classes are. And ignoring sub-agents, which can be four times the main task.</p>
+
+<h2>A cost profile for one task</h2>
+
+<pre><code>{
+  "task": "fix three error handling sites",
+  "turns": 14,
+  "by_who": {
+    "main":    { "requests": 12, "input": 186000, "output": 9400 },
+    "agent-3": { "requests": 18, "input": 271000, "output": 7100 },
+    "compact": { "requests": 1,  "input": 78000,  "output": 480 }
+  },
+  "cache": { "reported": true, "hit_rate": 0.71 },
+  "top_tools": [
+    { "name": "read_file", "calls": 19, "avg_input": 11200 },
+    { "name": "grep",      "calls": 12, "avg_input": 1300 }
+  ]
+}
+</code></pre>
+
+<p>Four questions such a profile answers: who spent it, on what kind of action, whether the cache worked, and which tool is most expensive. The last is the most actionable: if file reads average 11,200 bytes over nineteen calls, pagination is the first optimization target, and the order of work comes from the profile rather than from instinct.</p>
+
+<h2>One optimization, fourteen turns to nine</h2>
+
+<p>Start from a bug fix task: fourteen turns, 186,000 input tokens on the main agent, nineteen file reads, twelve searches. File reads averaged 11,200 bytes, 212,800 bytes total, more than the entire input. The cause: large reads were clamped, the truncated result carried no next offset, and the model guessed another offset.</p>
+
+<p>The change was one thing: compute a safe line count from the byte budget and return an explicit next offset. No model change, no prompt change.</p>
+
+<table>
+<thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>Turns</td><td>14</td><td>9</td><td>down 36%</td></tr>
+<tr><td>File reads</td><td>19</td><td>7</td><td>down 63%</td></tr>
+<tr><td>Main input tokens</td><td>186,000</td><td>101,000</td><td>down 46%</td></tr>
+<tr><td>Cache hit rate</td><td>0.71</td><td>0.78</td><td>up 7 points</td></tr>
+</tbody>
+</table>
+
+<p>Three metrics moved together and caused each other: fewer turns, shorter history, better hit rate. Then check that capability did not drop, by rerunning the same batch and comparing the final diff. Saving money while shipping worse code is not saving.</p>
+
+<p>The lesson is plain: most cost problems are not "using something expensive", they are "using too much". Nineteen reads of one file is not a dumb model, it is a tool that forced it. Tool granularity sets turn count, and turn count sets the bill. So the first place to optimize is not the billing dashboard, it is the tool description.</p>
+
+<h2>Five ways to look cheap and cost more</h2>
+
+<table>
+<thead><tr><th>Change</th><th>Looks like</th><th>Why it costs more</th></tr></thead>
+<tbody>
+<tr><td>Lower the output limit to 512</td><td>Cheaper output</td><td>Arguments get truncated and the turn restarts</td></tr>
+<tr><td>Lower the tool cap to 2,000</td><td>Smaller results</td><td>The model cannot see enough and reads again</td></tr>
+<tr><td>Compact every turn</td><td>Small context</td><td>Compaction itself is expensive and short tasks lose</td></tr>
+<tr><td>Cheap model, more turns</td><td>Lower price</td><td>Turns multiply and history is quadratic</td></tr>
+<tr><td>Disable memory to save 2,400 bytes</td><td>Shorter prefix</td><td>The model re-asks what it already knew</td></tr>
+</tbody>
+</table>
+
+<p>The last one deserves attention. The memory block does take 2,400 characters, and what it saves is the model re-asking what your project is and how far the last bug got. One repeated question is one turn, and one turn is tens of thousands of bytes of input. Swapping 2,400 for tens of thousands is a good trade every time, provided it is not placed where it breaks the cache.</p>
+
+<h2>A ranked tuning list</h2>
+
+<table>
+<thead><tr><th>Priority</th><th>Change</th><th>Expected gain</th><th>Risk</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Move the memory block out of the first message</td><td>History hits the cache, 3 to 10 times on long tasks</td><td>Weaker instruction position</td></tr>
+<tr><td>2</td><td>Sort the tool list before sending</td><td>Identical prefixes across sessions</td><td>None</td></tr>
+<tr><td>3</td><td>Fix the context budget's unit</td><td>Accurate predictions, sane compaction timing</td><td>Retuning thresholds</td></tr>
+<tr><td>4</td><td>Make the clamp count characters, or rename the note</td><td>Chinese caps become intuitive</td><td>None</td></tr>
+<tr><td>5</td><td>Add a byte cap and scaling to images</td><td>No more 27 megabyte requests</td><td>Needs an image library</td></tr>
+<tr><td>6</td><td>Add remaining turns to the compaction trigger</td><td>No wasted compaction on short tasks</td><td>Needs a task estimate</td></tr>
+<tr><td>7</td><td>Make the recent floor count bytes</td><td>Compaction works on tool-heavy tasks</td><td>Recompute the cut point</td></tr>
+<tr><td>8</td><td>Read and record cached tokens</td><td>The hit rate becomes measurable</td><td>Depends on the ledger work</td></tr>
+</tbody>
+</table>
+
+<h2>Three experiments you can run in a day</h2>
+
+<p><strong>Freeze the system message and watch the request bytes.</strong> Comment out the memory injection, run the same ten turn task twice, and record bytes per request. The bytes barely change, since memory is 2,400, but if you can read cached tokens the hit count jumps. Which shows the cost difference lives in the cache, not in request size.</p>
+
+<p><strong>Change file reads to a byte budget.</strong> Ask for a 1,500 line Chinese file with the current default line limit and it hits the byte clamp first, with no next offset, so the model blind-reads again. After the change, two targeted 8,000 byte reads replace one truncation plus one blind read. Expect 20 to 30 percent fewer bytes and one fewer turn. Which shows truncation is deferred payment, not saving.</p>
+
+<p><strong>Raise the output limit and watch the failure rate.</strong> Run ten tasks with large patches and count invalid argument errors. At 4,096 expect one or two truncations, at 8,192 expect none, with total output essentially unchanged. Which shows lowering the output limit is a false optimization.</p>
+
+<p>All three need only byte counts and turn counts from recorded request bodies, available locally, faster and more reliable than waiting for an invoice.</p>
+
+<h2>Where budget constants come from</h2>
+
+<table>
+<thead><tr><th>Measurement</th><th>How</th><th>Typical value</th></tr></thead>
+<tbody>
+<tr><td>Tool result p50 and p95</td><td>Run twenty real tasks, record bytes before the clamp</td><td>3,000 and 18,000</td></tr>
+<tr><td>Added bytes per turn</td><td>Total bytes divided by turns</td><td>8,000 to 15,000</td></tr>
+<tr><td>Stable prefix bytes</td><td>Serialize the first message plus tool schemas</td><td>25,000 to 30,000</td></tr>
+</tbody>
+</table>
+
+<p>From those, the caps follow. A tool result cap just above p95 is 20,000, which matches observation. The recent floor should hold at least a full turn, one assistant plus eight results, so ten is right. The context budget should leave several times the room in the model window. And the image count limit is meaningless without a per-image byte limit, which is the gap in the derivation: <strong>a count without a size is not a limit</strong>.</p>
+
+<p>The method transfers to any agent. Every cap should answer which observation it corresponds to; a cap that cannot answer that is a guess, and guesses eventually meet a real task.</p>
+
+<h2>What to save and what not to</h2>
+
+<table>
+<thead><tr><th>Target</th><th>Saves</th><th>Costs</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>System prompt</td><td>Hundreds to thousands of tokens</td><td>Instruction following, tool rules</td><td>Do not cut, it is the cheapest capability you buy</td></tr>
+<tr><td>Project docs</td><td>Up to 20,000 bytes</td><td>Conventions, naming</td><td>Can cut, but load on demand rather than delete</td></tr>
+<tr><td>Tool schemas</td><td>Hundreds of tokens per tool</td><td>The capability disappears</td><td>Do not cut, removing a tool removes a limb</td></tr>
+<tr><td>History</td><td>Accumulating</td><td>Continuity, decisions already made</td><td>Can cut, prefer structured state</td></tr>
+<tr><td>Tool output</td><td>20,000 bytes per turn</td><td>Completeness</td><td>Careful, truncation causes rereads</td></tr>
+<tr><td>Output length</td><td>Hundreds of tokens per turn</td><td>Explanatory quality</td><td>Can cut, intermediate narration first</td></tr>
+<tr><td>Memory injection</td><td>2,400 bytes</td><td>Preferences, past lessons</td><td>Do not cut, it is what saves turns</td></tr>
+</tbody>
+</table>
+
+<p>Read the third column: <strong>if cutting something destroys a capability, do not cut it; if it only means one more turn, cut it.</strong> Tool schemas and the system prompt are the first kind, history and narration the second. Cutting cost at the memory block is the most common wrong optimization.</p>
+
+<h2>Making cost a regression metric</h2>
+
+<pre><code>#[test]
+fn a_fixed_task_costs_no_more_than_the_baseline() {
+    let (agent, requests) = run_scripted_task();
+    assert!(agent.usage().requests &lt;= 6, "turn inflation");
+    assert!(requests.iter().map(|r| r.len()).sum::&lt;usize&gt;() &lt;= 180_000, "context inflation");
+}
+</code></pre>
+
+<p>Bytes rather than tokens, since there is no real provider, and bytes correlate strongly enough. Add a prefix assertion: run two turns on one agent and require the first message to be byte-identical between them.</p>
+
+<p>That test fails immediately, because the memory block is rewritten every turn. It should fail, and failing early is the point: it is exactly the cost defect we want exposed.</p>
+
+<h2>Closing</h2>
+
+<p>Cost is prefix times history times turns, not price times tokens. Price is linear, history is quadratic, and a forty turn task is roughly N times the prefix plus d times N squared over two.</p>
+
+<p>Compaction cuts the quadratic curve into smaller segments. It is not about fitting, it is about turning one big N squared into several smaller ones, which means the optimal frequency comes from compaction cost against remaining turns, not from a threshold.</p>
+
+<p>Prefix caching is the largest single optimization and the thing most easily destroyed by one changed byte per turn. Putting the re-retrieved memory block at the end of the first message invalidates the entire history every turn, which is the single most valuable fix available here and a textbook case of three correct decisions combining into one wrong one.</p>
+
+<p>And three ceilings named for characters all count bytes, so in Chinese they are all three times smaller than the name promises. Nothing crashes; every cost estimate and every truncation just drifts from intuition, and the first requirement of observability is that numbers mean what you think they mean.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
