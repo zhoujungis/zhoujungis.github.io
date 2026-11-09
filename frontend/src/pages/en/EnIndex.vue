@@ -114,7 +114,6 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
   }
 
   &__lede {
-    max-width: 44em;
     margin-top: 18px;
     padding-left: 16px;
     border-left: 3px solid var(--accent-secondary);
@@ -240,7 +239,7 @@ $serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
 }
 
 .summary {
-  max-width: 46em;
+  margin-top: 16px;
   color: var(--text-secondary);
   font-size: 0.88rem;
 
