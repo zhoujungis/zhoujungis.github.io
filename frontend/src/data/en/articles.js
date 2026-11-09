@@ -19940,6 +19940,411 @@ def call_with_limit(dep, fn, *args, **kwargs):
 `,
   },
 
+  {
+    slug: 'graceful-shutdown-in-practice',
+    zhSlug: 'graceful-shutdown-in-practice',
+    topicSlug: 'backend',
+    title: 'Graceful shutdown: do not lose requests at the SIGTERM',
+    excerpt:
+      'Three outages, three lost batches of data, one missing idea: a process exit is a sequence, not an instant. Drain traffic, stop accepting, close idle sockets, wait, then leave.',
+    date: '2026-11-04',
+    readingTime: 22,
+    html: `
+<blockquote>
+<p>Who this is for: engineers who have seen a 502 spike on deploy without being able to say who returned it; anyone moving a service to Kubernetes and finding that rolling updates lose a few messages; anyone who has watched a scheduled job run twice.</p>
+<p><strong>TL;DR:</strong> graceful shutdown is not a flag but a draining sequence with a fixed order. Let the scheduler take traffic away, stop accepting new connections, close idle keep-alives, wait for in-flight requests, then exit. Miss any step and SIGTERM is only an early notice that you are about to drop requests.</p>
+<p>Reading time around 22 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>Three shutdowns, three lost batches</h2>
+
+<p><strong>A 502 spike on a rolling update.</strong> Five replicas restarted one by one, and the error rate lifted a little at each restart for a dozen seconds. Each process received SIGTERM and exited straight away, taking a few dozen in-flight requests with it. There was no stack trace, because the process never had time to write one.</p>
+
+<p><strong>A consumer that acked half a message.</strong> An image worker received SIGTERM and exited while the message it was processing had already been taken from the queue and acknowledged. That upload stayed in "processing" forever, and queue monitoring reported no backlog, because from the queue's point of view the message had been consumed.</p>
+
+<p><strong>A job that ran twice.</strong> During a deploy the old and new replicas overlapped, both schedulers fired the same reconciliation at two in the morning, and the same orders settled twice. The task was not idempotent, and nothing guaranteed only one instance was running.</p>
+
+<p>The common factor is not a coding mistake. Nobody told the process to stop, and to stop in order. Exit was treated as an instant when it is a sequence of seconds or tens of seconds, with distinct stages and different rules at each.</p>
+
+<h2>What the signals actually mean</h2>
+
+<table>
+<thead><tr><th>Signal</th><th>Number</th><th>Catchable</th><th>Default</th><th>Typical source</th></tr></thead>
+<tbody>
+<tr><td>SIGTERM</td><td>15</td><td>Yes</td><td>Terminate</td><td>docker stop, kubectl delete, systemd, scripts</td></tr>
+<tr><td>SIGINT</td><td>2</td><td>Yes</td><td>Terminate</td><td>Ctrl+C in a terminal</td></tr>
+<tr><td>SIGKILL</td><td>9</td><td>No</td><td>Kill immediately</td><td>kill -9, a grace period expiring, the OOM killer</td></tr>
+</tbody>
+</table>
+
+<p>SIGTERM is a request and SIGKILL is a verdict. The first hands you a handler, where you can clean up, wait and flush; ignoring it is a bad idea because the sender will follow up with a kill after the grace period. The second is executed by the kernel, leaving no chance to flush buffers, commit transactions, acknowledge messages or even write a log line. It does not run at-exit hooks.</p>
+
+<p>That yields the first engineering rule: any logic that depends on cleaning up at exit must finish inside the grace period, because the timeout is the kill. Cleanup that runs longer than the window may as well not exist.</p>
+
+<p>SIGINT and SIGTERM are semantically almost identical, differing only in origin, and mapping both to one path is reasonable. In a container SIGINT rarely appears, since nobody presses Ctrl+C, so SIGTERM is the one to handle.</p>
+
+<p>One more fact that is easy to forget: signals are asynchronous and a handler can run at any bytecode boundary. So a handler must not do anything complex, no large allocations, no locks that may already be held, no non-reentrant calls. The correct handler sets a flag and lets the main loop act.</p>
+
+<pre><code>import signal
+import threading
+
+shutdown_event = threading.Event()
+
+def on_signal(signum, frame):
+    # one job only: set the flag; the real work happens in the main loop
+    shutdown_event.set()
+
+signal.signal(signal.SIGTERM, on_signal)
+signal.signal(signal.SIGINT, on_signal)
+</code></pre>
+
+<p>Cleaning up inside the handler blocks the response to later signals, parks the main thread at an unpredictable point, and turns any exception into a traceback from a confusing frame. Keep handlers minimal in every language.</p>
+
+<h2>PID 1, exec form and signal forwarding</h2>
+
+<p>The kernel makes an exception for the first process: it applies no default action to a signal that PID 1 has not installed a handler for. An ordinary process terminates on SIGTERM; PID 1 ignores it silently unless it handles it. So a container either drains properly or waits out the grace period and gets killed, and nothing in between.</p>
+
+<p>The third outcome is more common: the application is not PID 1, because a shell is in the way.</p>
+
+<pre><code># shell form: /bin/sh -c "gunicorn app:app" becomes PID 1
+CMD gunicorn app:app
+
+# exec form: gunicorn becomes PID 1 directly
+CMD ["gunicorn", "app:app"]
+</code></pre>
+
+<p>Under shell form the shell receives the signal, and whether it forwards depends on the implementation. Some exec a single command and stop existing, which is fine by accident; others fork and wait, and forward nothing. The result is a SIGTERM that stops at the shell while the application never learns it should stop. Kubernetes adds another layer, kubelet to runtime to PID 1, and no layer walks the process tree.</p>
+
+<p>Process groups explain a local illusion: a shell puts children in one group and \`kill -TERM -<pgid>\` reaches all of them, while docker stop and kubelet signal only PID 1. Ctrl+C in a terminal hits the whole foreground group, which is why everything seems to exit locally and only half of it exits in a container.</p>
+
+<ul>
+<li>Use exec form so the application is PID 1.</li>
+<li>If a shell is unavoidable, exec explicitly: <code>CMD ["sh", "-c", "exec gunicorn app:app"]</code>.</li>
+<li>If the application is PID 1 but does not handle signals, add a tiny init such as tini, which forwards signals and reaps zombies. <code>docker run --init</code> enables it.</li>
+</ul>
+
+<p>Reaping matters too: worker processes that outlive their parent become zombies unless someone waits on them, and an init process solves forwarding and reaping together, which is why it is recommended in containers.</p>
+
+<pre><code>docker exec -it &lt;container&gt; ps -o pid,ppid,cmd -p 1
+kubectl exec -it &lt;pod&gt; -- cat /proc/1/comm
+</code></pre>
+
+<p>If that is not your application, the signal is probably not reaching it.</p>
+
+<h2>The right order for an HTTP service</h2>
+
+<ol>
+<li>Remove traffic: fail readiness so the load balancer drops this instance.</li>
+<li>Stop accepting new connections: close the listening socket or exit the accept loop.</li>
+<li>Close idle keep-alive connections, which carry no in-flight request but still sit in client pools.</li>
+<li>Wait for in-flight requests to finish and their responses to be written.</li>
+<li>Exit on a timeout rather than waiting to be killed.</li>
+</ol>
+
+<p>The first step must come first because it is the only one that depends on another system and needs time to propagate. Between failing readiness and the endpoints, proxies and client pools updating, seconds pass, and requests keep arriving. Stopping the listener first turns those into connection failures, which is exactly where the 502 comes from.</p>
+
+<p>The third step gets skipped because keep-alive decouples connections from requests. A connection that just finished a request sits idle and looks usable to the client, so the next request travels down it; exiting without closing it produces a reset, a client retry and a visible blip. Either close idle connections with a closing response header, or send that header on every response once draining begins, so clients retire their connections themselves.</p>
+
+<p>The wait must be bounded. Unbounded waiting hands control to the client, and one stuck request keeps the process alive until it is killed along with everything else. The bound must be below the external grace period, leaving room for the final cleanup.</p>
+
+<pre><code>class HttpServer:
+    def __init__(self, app):
+        self.app = app
+        self.draining = False
+        self.inflight = 0
+        self.idle = asyncio.Event()
+        self.idle.set()
+
+    async def handle(self, reader, writer):
+        if self.draining:
+            writer.write(b"HTTP/1.1 503 Service Unavailable\\r\\nConnection: close\\r\\n\\r\\n")
+            await writer.drain()
+            writer.close()
+            return
+        self.inflight += 1
+        self.idle.clear()
+        try:
+            await self.serve_one(reader, writer)
+        finally:
+            self.inflight -= 1
+            if self.inflight == 0:
+                self.idle.set()
+
+    async def drain(self, timeout: float):
+        self.draining = True
+        await self.close_listener()
+        try:
+            await asyncio.wait_for(self.idle.wait(), timeout)
+        except asyncio.TimeoutError:
+            pass
+</code></pre>
+
+<p>The order matches the five steps, and the draining check sits at the top of the handler, which also catches clients that connected but have not sent a request yet.</p>
+
+<h2>Gunicorn and uvicorn: three time settings</h2>
+
+<p><strong>The worker timeout</strong> is how long a worker may stay silent before being killed, thirty seconds by default, and it applies during normal operation. A sync worker handling a forty second request is considered stuck and killed, which is why long requests always seem to die at thirty seconds.</p>
+
+<p><strong>The graceful timeout</strong> is the shutdown setting: the master sends SIGTERM and waits this long before killing. It bounds the draining phase.</p>
+
+<p><strong>The request limits</strong> control periodic worker replacement, and each replacement is a small graceful shutdown, so the graceful timeout applies there too. The jitter staggers them so workers do not all drain at once.</p>
+
+<pre><code># gunicorn.conf.py
+timeout = 120            # must exceed your slowest normal request
+graceful_timeout = 30    # drain window, below the external grace period
+keepalive = 5            # how long idle keep-alive connections live
+max_requests = 2000
+max_requests_jitter = 200
+workers = 4
+</code></pre>
+
+<pre><code>slowest request &lt; timeout
+graceful_timeout &lt; terminationGracePeriodSeconds
+keepalive &lt; graceful_timeout
+</code></pre>
+
+<p>The third line is the one people miss. With a keep-alive of five seconds and a drain window of thirty, idle connections retire on their own during draining. Inverted, with a keep-alive of seventy-five and a drain of thirty, those connections are still alive when the process exits and get cut.</p>
+
+<p>uvicorn's equivalent is a shutdown timeout with no upper bound by default, which is dangerous in a container because a stuck connection prevents exit until the kill. Set it explicitly and keep it under the Kubernetes grace period. Its order matches the five steps, and for WebSockets it waits for the client to close, so a long-lived socket needs you to send a close frame yourself.</p>
+
+<p>Do not rely on framework hooks for cleanup. A startup hook is not a shutdown hook, and the ASGI lifespan shutdown callback has been unreliable in Django for a long time. Use a signal handler as the one entry point that is always called, make cleanup idempotent so the handler, lifespan and at-exit paths can all call it, and close pools explicitly rather than assuming the framework will.</p>
+
+<h2>Kubernetes: the termination window and preStop</h2>
+
+<ol>
+<li>The pod is marked terminating.</li>
+<li>Removal from service endpoints begins, asynchronously.</li>
+<li>The preStop hook runs, if configured, before SIGTERM and blocks.</li>
+<li>SIGTERM goes to PID 1.</li>
+<li>The grace period counts down from the start of termination, including preStop.</li>
+<li>SIGKILL on expiry.</li>
+</ol>
+
+<p>Two facts dominate: the grace period is the whole window, not a post-signal wait, so a twenty second preStop sleep out of thirty leaves ten for draining. And endpoint removal and SIGTERM start together but propagate differently, so rules and client pools may still be stale.</p>
+
+<p>That is the origin of the sleep in preStop, often mocked as papering over a problem. It covers a real skew: give the scheduler time to remove your address before you start refusing requests.</p>
+
+<pre><code>spec:
+  terminationGracePeriodSeconds: 45
+  containers:
+    - name: api
+      image: registry.example.com/article-api:2026.11.04
+      lifecycle:
+        preStop:
+          exec:
+            command: ["sh", "-c", "sleep 10"]
+      readinessProbe:
+        httpGet:
+          path: /healthz/ready
+          port: 8000
+        periodSeconds: 5
+        failureThreshold: 2
+</code></pre>
+
+<pre><code>preStop sleep + drain time &lt;= terminationGracePeriodSeconds
+terminationGracePeriodSeconds &lt;= gateway connection timeout + retry window
+</code></pre>
+
+<p>The probe also has to fail before the endpoint is removed, and with a ten second period and three failures that takes thirty seconds, longer than many grace periods. Tighten the probe or cover the skew with the sleep.</p>
+
+<p>A more direct approach is to fail readiness yourself on SIGTERM while continuing to serve, so one probe cycle is enough even without preStop. And do not set the grace period to minutes: it only decides how long a pod lingers, and a stuck rollout will hang for that long. Size it to the slowest request plus a drain margin, usually thirty to sixty seconds.</p>
+
+<h2>Gateways, load balancers and long connections</h2>
+
+<p>The connection the client sees usually ends at the gateway, not at your process, so its draining matters as much as yours: remove the target, stop forwarding, wait for in-flight work, close.</p>
+
+<ul>
+<li>Nginx upstreams have no built-in graceful removal, so it is a config change and a reload, with keep-alive timeouts letting idle connections expire.</li>
+<li>AWS load balancers have a deregistration delay during which established connections continue to be served.</li>
+<li>Kubernetes services depend on endpoint propagation, which follows the proxy sync interval and the ingress watch.</li>
+</ul>
+
+<pre><code>upstream article_api {
+    server 10.0.1.11:8000;
+    server 10.0.1.12:8000;
+    keepalive 32;
+    keepalive_timeout 60s;
+}
+
+server {
+    location /api/ {
+        proxy_pass http://article_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_read_timeout 60s;
+    }
+}
+</code></pre>
+
+<p>The keep-alive pool size and timeout decide whether the gateway still holds sockets to an instance that has stopped listening. If they exceed the drain window, the gateway will reuse dead sockets, get resets, and return 502. Keep them shorter than draining, or send a closing header from the application.</p>
+
+<p>WebSockets need their own handling because they are long-lived rather than in flight. Stop accepting upgrades, send a close frame with the going-away code, wait for the client's close or a short timeout, and let the client reconnect elsewhere. Abruptly cutting TCP looks like a network fault to most clients and sends them into an uncertain retry state; a close frame tells them to move.</p>
+
+<p>Long polling is in flight but far slower than normal. Either answer it immediately with a retry hint at shutdown, or include it in the drain budget, otherwise it consumes the whole window.</p>
+
+<h2>Background workers: warm shutdown and acks</h2>
+
+<p>A worker has no client to report completion, so its state lives in the queue and the ack timing defines the semantics. In Celery, SIGTERM means warm shutdown, finishing current tasks and stopping; a second termination signal means cold shutdown, killing them.</p>
+
+<pre><code>app.conf.task_acks_late = True
+app.conf.task_reject_on_worker_lost = True
+app.conf.worker_prefetch_multiplier = 1
+</code></pre>
+
+<ul>
+<li>With early acks, the message is acknowledged on receipt, so a killed worker takes the in-progress message with it.</li>
+<li>With late acks, the message is acknowledged on completion, so a killed worker leaves it unacknowledged and the broker redelivers. The cost is at-least-once delivery: the same task may run twice.</li>
+<li>A prefetch of one keeps the worker from hoarding unstarted messages that delay redelivery.</li>
+</ul>
+
+<pre><code>acks_late = True              no message loss
+task idempotent               redelivery has no side effects
+warm shutdown long enough     fewer redeliveries
+</code></pre>
+
+<p>The first two belong together. Late acks without idempotency trades lost messages for duplicate execution, which for charges, coupons and emails is worse.</p>
+
+<p>With Redis as a broker there is also a visibility timeout: a message taken and not acknowledged within it is redelivered, so a task running longer than the timeout executes in two workers at once. Keep task duration below that timeout or raise it.</p>
+
+<pre><code>warm shutdown window &gt;= longest task
+container grace period &gt;= warm shutdown window + cleanup
+</code></pre>
+
+<p>A five minute task against a thirty second grace period cannot finish warm, so the answer is smaller tasks or checkpointed ones, not a longer wait. Shutdown timing should not constrain task granularity.</p>
+
+<h2>Databases: pools, transactions and migrations</h2>
+
+<p>Three things in order: stop starting new transactions, wait for in-flight ones to commit, then close the pool. Reversed, a transaction's connection is severed, the server sees an abnormal disconnect, and uncommitted work rolls back while the user is told the operation failed and the data never changed.</p>
+
+<pre><code>async def close_database(pool, timeout: float):
+    pool.stop_accepting()        # 1. no new borrows
+    await pool.wait_idle(timeout) # 2. wait for returns
+    await pool.close()            # 3. close, close_all() in Django
+</code></pre>
+
+<p>Django's connection age controls reuse, not shutdown; close explicitly, or the server discovers the loss at TCP timeout while the slots stay occupied.</p>
+
+<p>Mark transaction boundaries so shutdown cannot leave a request half applied. Multiple atomic blocks inside a request mean a stop between two of them is possible, with the first committed and the second not started. Shutdown gives no extra transactional guarantee; it only makes partial completion more likely.</p>
+
+<p>Migrations follow separate rules that cooperate with, but do not belong to, graceful shutdown. A migration must run before the new code and must be backward compatible. Old and new versions must coexist against one schema, which means expand first and contract later. Destructive changes wait for the next cycle, once the old code is gone. And migrations run as their own job before the rollout, never during it.</p>
+
+<p>Any schema change must hold for both versions at once, because that is what a rolling update is. A long transaction during shutdown also drags the drain out, so statement and idle-in-transaction timeouts act as the backstop.</p>
+
+<h2>Scheduled jobs: locks, leases and double runs</h2>
+
+<p>The problem is not shutdown but overlap: two replicas alive for tens of seconds, both schedulers firing.</p>
+
+<p><strong>Idempotency</strong> is the baseline and needs no coordination. A reconciliation keyed on date and batch simply skips or overwrites the second run. It cannot fix double side effects; it fixes double writes of the same result.</p>
+
+<p><strong>A distributed lock</strong> is the common answer, with three details that cannot be skipped: an expiry so a crashed holder does not lock forever; a token check on release performed atomically so you never delete someone else's lock; and an expiry longer than the task, with renewal if the task can overrun.</p>
+
+<pre><code>import redis, uuid
+
+def acquire_lock(conn, name, ttl_ms):
+    token = uuid.uuid4().hex
+    ok = conn.set(f"lock:{name}", token, nx=True, px=ttl_ms)
+    return token if ok else None
+</code></pre>
+
+<p>The inherent limit is that the lock depends on Redis, which can lose it during failover. Anything that absolutely must not run twice needs a database constraint or state machine as the last line.</p>
+
+<p><strong>A lease</strong> keeps the claim in a table and takes it with a conditional update, which has the advantage of sharing a transaction with the business data and no extra component, at the cost of handling renewal and clock skew yourself.</p>
+
+<pre><code>UPDATE task_lease
+SET owner = 'pod-a', expires_at = NOW() + INTERVAL '5 minutes'
+WHERE task_name = 'daily_reconcile'
+  AND expires_at &lt; NOW()
+RETURNING owner;
+</code></pre>
+
+<p>Kubernetes CronJobs offer a concurrency policy that forbids overlapping runs of the same job, skipping rather than queueing. It does not help schedulers that live inside application replicas, and it does not stop two different sources firing at once.</p>
+
+<p>"Enable the schedule on one replica via an environment variable" works until that replica restarts onto another machine or the replica count changes, and during a rollout both versions may believe they are the one. Use a lock, not a static assumption about who is primary.</p>
+
+<h2>A Python skeleton</h2>
+
+<pre><code>class GracefulShutdown:
+    def __init__(self, app, drain_timeout: float = 20.0, hard_timeout: float = 25.0):
+        self.app = app
+        self.drain_timeout = drain_timeout
+        self.hard_timeout = hard_timeout
+        self.stop = asyncio.Event()
+
+    def install(self):
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, self.stop.set)
+
+    async def run(self):
+        self.install()
+        server = await self.app.start()
+        await self.stop.wait()
+        log.info("shutdown requested, draining")
+
+        self.app.readiness = False
+        await server.stop_accepting()
+        await asyncio.sleep(0)   # give accepting connections a boundary
+
+        try:
+            await asyncio.wait_for(server.wait_idle(), self.drain_timeout)
+        except asyncio.TimeoutError:
+            log.warning("drain timeout, %d requests still in flight", server.inflight)
+
+        await self.app.close_resources()
+
+    def force_exit_after(self):
+        loop = asyncio.get_running_loop()
+        loop.call_later(self.hard_timeout, self._hard_exit)
+
+    def _hard_exit(self):
+        log.error("hard timeout reached, exiting now")
+        logging.shutdown()
+        os._exit(1)
+</code></pre>
+
+<p>The loop signal handler is better than a plain one under asyncio, because the callback is scheduled on the loop where it can set an event; the plain handler runs on the interpreter's path and cannot touch loop objects. It is Unix only, so Windows falls back to a signal handler plus a thread-safe call. The hard exit deliberately skips at-exit hooks and buffers, which is the right choice when cleanup has already overrun, but never on the normal path, hence flushing logging first. Do not raise an exit exception from a handler: it only works on the main thread and unwinds from a random frame, possibly skipping cleanup. Keep the resource close idempotent, since several paths may call it. And set readiness first, so clients see an explicit 503 with a retry hint rather than a connection failure.</p>
+
+<h2>How to verify</h2>
+
+<p>Shutdown logic is dangerous precisely because it looks right: it runs for thirty seconds per deploy and, when wrong, fails a small slice of requests.</p>
+
+<pre><code>async def slow_request_then_sigterm(pid: int):
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        task = asyncio.create_task(client.get("http://127.0.0.1:8000/slow?seconds=8"))
+        await asyncio.sleep(1.0)          # make sure it is in flight
+        os.kill(pid, signal.SIGTERM)      # signal mid-request
+        resp = await task
+        assert resp.status_code == 200, resp.status_code
+        assert resp.text.endswith("done"), resp.text[-64:]
+</code></pre>
+
+<p>Three assertions: a 200 rather than a reset, a complete body rather than a truncated one, and an elapsed time near eight seconds so you know it was waited for rather than failed fast. Add a fourth: immediately after shutdown, a new request must be refused or routed elsewhere, which proves the listener really closed.</p>
+
+<p>Measure 502s at the gateway, not in the application, since a request already abandoned leaves no trace in application logs: compare the upstream status counters before and after a deploy. For consumers, assert that every produced message was eventually processed and none was processed halfway, which needs an idempotency key or status field to detect a task that wrote "started" and never wrote "finished". For scheduled jobs, set the lock TTL shorter than the task and watch whether a second instance takes over, not to prove the lock works but to learn what happens when it expires.</p>
+
+<p>All four create the condition that matters: shutdown arriving in the middle of work. The useless version, sending a signal and watching the process exit, proves delivery and nothing else.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Stage</th><th>Do</th><th>Cost of getting it wrong</th></tr></thead>
+<tbody>
+<tr><td>Signal delivery</td><td>Exec form, handler on PID 1, an init if needed</td><td>Ignored, then killed at the end of the grace period</td></tr>
+<tr><td>Remove traffic</td><td>Fail readiness first, let preStop cover propagation</td><td>Requests still arrive, 502 spike</td></tr>
+<tr><td>Stop accepting</td><td>Close the listener</td><td>Connections refused, clients see resets</td></tr>
+<tr><td>Close idle sockets</td><td>Closing header, keep-alive shorter than draining</td><td>Reused connections, scattered 5xx</td></tr>
+<tr><td>Wait in flight</td><td>A bounded wait, below the grace period</td><td>One stuck request takes the process with it</td></tr>
+<tr><td>Close resources</td><td>Wait for transactions, close pools, stop consumers</td><td>Rolled-back transactions, lost messages</td></tr>
+<tr><td>Scheduled jobs</td><td>Lock or lease plus idempotency</td><td>The same job twice</td></tr>
+</tbody>
+</table>
+
+<p>Five takeaways. SIGTERM is a request and SIGKILL is a verdict, so cleanup must fit the window. PID 1 applies no default action, so check who it is. Remove traffic before stopping service, or all the draining is wasted. Late acknowledgement requires idempotency. And verification must put the shutdown in the middle of work.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
