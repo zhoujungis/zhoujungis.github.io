@@ -11731,6 +11731,615 @@ impl Gate {
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a>.</p>
 `,
   },
+  {
+    slug: 'agent-observability-turn-ledger',
+    zhSlug: 'agent-observability-turn-ledger',
+    topicSlug: 'aiagent',
+    title: 'Agent observability: keeping a ledger for every turn',
+    excerpt:
+      'Logs are a stream of events, a ledger is a table. Who spent it, on what, how much, when. Three ways an account goes wrong, three tables that fix it, and the series close.',
+    date: '2026-11-06',
+    readingTime: 34,
+    html: `
+<blockquote>
+<p>Who this is for: people who have run an agent for a few days and started asking what a task actually cost; people who have been fooled by "restart, and the cost is zero"; people who built multi-agent setups and found sub-agent spending untraceable.</p>
+<p><strong>TL;DR:</strong> observability is not scattering log lines through the code. It is making every unit of consumption land in one auditable row: who started it, what it did, how much it cost, when. NanoHermes has the parts, usage totals, a usage event and a duration on the board, but no ledger. Usage lives in process memory, three internal model calls are never counted, and sub-agent spending has nowhere to sit in the data structures.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>You have logs, so why can you not say what it cost</li>
+<li>A ledger needs four fields, and accounts go wrong three ways</li>
+<li>The full observability surface today</li>
+<li><code>UsageTotals</code>: three fields and one interface</li>
+<li>What <code>Copy</code> costs</li>
+<li>Usage is scraped out of responses</li>
+<li>Only two fields are read, so caching and reasoning are free</li>
+<li>Streamed usage depends on one frame</li>
+<li>A stream that breaks mid-way loses the whole turn's usage</li>
+<li>The accounting line sits after the error return</li>
+<li>Retries and fallback hide N requests behind one success</li>
+<li>There is no model dimension</li>
+<li>Three internal calls never enter the books</li>
+<li>The cost of compaction</li>
+<li>The cost of distillation</li>
+<li>Why sub-agent cost cannot be recorded structurally</li>
+<li>The board has time, not money</li>
+<li>Duration includes queue time</li>
+<li>Tool calls are empty in the ledger</li>
+<li>Two consumers, one drifting meaning</li>
+<li>Daemon accounting by difference</li>
+<li>Where failed turns' tokens go</li>
+<li>Streaming gives deltas and no total</li>
+<li>Session files carry no ledger</li>
+<li>/status and /cost are a process dashboard</li>
+<li>The only exportable ledger</li>
+<li>Observability today is <code>eprintln!</code></li>
+<li>A delegation cannot be traced through the logs</li>
+<li>Hooks are observation points that are not observed</li>
+<li>Five kinds of bad accounting</li>
+<li>The right model: three tables</li>
+<li>Five definitions to settle first</li>
+<li>A sixty-line ledger</li>
+<li>Three invariants to test</li>
+<li>Seven places to harden</li>
+<li>Closing, and what the eight posts describe</li>
+</ul>
+
+<h2>You have logs, so why can you not say what it cost</h2>
+
+<p>An agent that can finish tasks acquires three kinds of log quickly: banners for tool calls, error messages, and status notes like "context compacted". All of them prove that something happened. None answers three basic questions.</p>
+
+<ul>
+<li>How many model requests did this task make, and how many of those were retries?</li>
+<li>Of the tokens it burned, how many did sub-agents burn?</li>
+<li>That forty minute task yesterday afternoon, which session is it billed to?</li>
+</ul>
+
+<p>All three point at the same thing: <strong>a log is a stream of events, a ledger is a table</strong>. Each line of a stream describes one moment. A stream does not accumulate, does not attribute, and does not survive the process. To keep books you have to decide the table first.</p>
+
+<p>NanoHermes is a typical example. It has the parts and no ledger. Usage totals have three fields, the usage event has one delta semantics, the board records time without money, and the three internal calls that burn most of the tokens, compaction, distillation and sub-agents, do not record a thing. Not an oversight: each part is sufficient on its own, and nobody made them share a data model.</p>
+
+<h2>A ledger needs four fields, and accounts go wrong three ways</h2>
+
+<table>
+<thead><tr><th>Field</th><th>Meaning</th><th>Today</th></tr></thead>
+<tbody>
+<tr><td>who</td><td>Who started this consumption</td><td>Only the main agent exists; sub-agents cannot be recorded</td></tr>
+<tr><td>what</td><td>Model request, tool, compaction, distillation</td><td>Only model requests are counted</td></tr>
+<tr><td>how much</td><td>Tokens, requests, elapsed time</td><td>Tokens yes; time only for sub-agents and background tasks</td></tr>
+<tr><td>when</td><td>Which session, which turn</td><td>No timestamp, no turn id</td></tr>
+</tbody>
+</table>
+
+<p>Missing fields do not make data ugly, they produce three specific failures.</p>
+
+<p><strong>Missing entries.</strong> Spent but not recorded: retried requests, failed requests, the summarization call inside compaction, the distillation call, every call inside a sub-agent.</p>
+
+<p><strong>Misattributed entries.</strong> Booked to the wrong account. The daemon runs one agent for several sessions, so usage accumulates per process and gets sliced per request by taking a difference. If a failed turn sits inside that slice, its tokens belong to neither the previous nor the next request.</p>
+
+<p><strong>Fuzzy entries.</strong> Recorded, but the definition is unclear. Does <code>requests</code> mean HTTP requests or successful model turns? Does <code>prompt_tokens</code> include cache hits? Do sub-agent tokens count toward the task? Undefined, two people can compute two answers from one number.</p>
+
+<p>Of the three, missing entries are the easiest to fix and fuzzy entries the hardest, because the last one is a definition problem rather than a code problem.</p>
+
+<h2>The full observability surface today</h2>
+
+<table>
+<thead><tr><th>Surface</th><th>Carrier</th><th>Granularity</th><th>Unit inside</th><th>Survives the process</th></tr></thead>
+<tbody>
+<tr><td>Session usage</td><td><code>Agent::usage</code></td><td>Process total</td><td>Tokens, requests</td><td>No</td></tr>
+<tr><td>Per-request usage</td><td><code>UiEvent::Usage</code></td><td>One request</td><td>A delta</td><td>Delivered immediately</td></tr>
+<tr><td>Conversation</td><td>The messages vector</td><td>One message</td><td>Role and content</td><td>Yes, session file</td></tr>
+<tr><td>Sub-agent jobs</td><td><code>Board::jobs</code></td><td>One delegation</td><td>Status, duration, preview</td><td>No</td></tr>
+<tr><td>Background commands</td><td><code>TaskManager</code></td><td>One process</td><td>Status, start time, output</td><td>No</td></tr>
+<tr><td>Errors and notes</td><td><code>eprintln!</code></td><td>One line</td><td>No structure</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>The telling comparison is the last two columns: <strong>the only thing that survives a process is the conversation, and it is plain text</strong>. <code>save_session_file</code> writes the message array, and <code>assistant_message</code> stores three things: role, content, tool calls. No timestamp, no usage, no turn id.</p>
+
+<p>So persistence and observability are two disjoint paths. What survives carries no books, and what carries books does not survive.</p>
+
+<h2>UsageTotals: three fields and one interface</h2>
+
+<pre><code>/// Cumulative token usage across every model request in the session.
+#[derive(Default, Clone, Copy, Debug)]
+pub struct UsageTotals {
+    pub requests: u64,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+}
+
+impl UsageTotals {
+    pub fn total_tokens(&self) -&gt; u64 {
+        self.prompt_tokens + self.completion_tokens
+    }
+}
+</code></pre>
+
+<p>Three fields, one derived method, two ways to read: a getter that returns a copy for <code>/cost</code>, JSON output and the daemon difference, and an event emitted once per completed request for the GUI and the streaming daemon.</p>
+
+<p><code>total_tokens</code> looks harmless and hides a definition question: when the provider counts part of the prompt as a cache hit, the local sum and the provider's total may not agree.</p>
+
+<h2>What Copy costs</h2>
+
+<p>Deriving <code>Copy</code> is comfortable for single-threaded accounting, and it also decides the shape of the ledger: <strong>no shared handle means no second writer</strong>.</p>
+
+<p><code>run()</code> takes <code>&amp;mut self</code> so it can write usage. But <code>run_subagent</code> takes <code>&amp;self</code>, and a shared reference cannot touch <code>self.usage</code>. A sub-agent runs one to forty model requests whose tokens go nowhere.</p>
+
+<p>This is the dividing line between this post and the earlier ones. Every shared structure before now existed for <strong>cooperation</strong>: todos, the board, the gate. A ledger is shared for <strong>attribution</strong>. The earlier ones ask who may change something; this one asks whose name goes on the change.</p>
+
+<h2>Usage is scraped out of responses</h2>
+
+<pre><code>pub fn usage_from_value(v: &amp;Value) -&gt; Usage {
+    let u = v.get("usage");
+    let get = |k: &amp;str| {
+        u.and_then(|u| u.get(k))
+            .and_then(|x| x.as_u64())
+            .unwrap_or(0)
+    };
+    Usage {
+        prompt_tokens: get("prompt_tokens"),
+        completion_tokens: get("completion_tokens"),
+    }
+}
+</code></pre>
+
+<p>"Missing means zero" is the most consequential decision in this section. It keeps a missing field from breaking a turn, which matters when talking to a range of OpenAI-compatible endpoints. It also means <strong>the ledger cannot tell "genuinely zero tokens" from "the provider did not tell us"</strong>.</p>
+
+<p>A system that can be reconciled needs three states here: some zero, some n, and unknown. Unknown should be counted separately, so "usage for this task is unknown" becomes a visible fact instead of silently becoming zero.</p>
+
+<h2>Only two fields are read, so caching and reasoning are free</h2>
+
+<table>
+<thead><tr><th>Response field</th><th>Meaning</th><th>Cost of dropping it</th></tr></thead>
+<tbody>
+<tr><td><code>total_tokens</code></td><td>The provider's own total</td><td>No way to check local addition against it</td></tr>
+<tr><td><code>cached_tokens</code></td><td>Prompt tokens served from the prefix cache</td><td>Cache savings are invisible</td></tr>
+<tr><td><code>reasoning_tokens</code></td><td>Tokens spent on the chain of thought</td><td>A cost increase after enabling thinking cannot be explained</td></tr>
+</tbody>
+</table>
+
+<p>The third matters because the flag exists: enabling extended thinking raises completion tokens noticeably, and nothing in the ledger says how much of the increase was reasoning. The user sees a bigger number and guesses whether the model got worse, the context got longer, or the reasoning got expensive. Observability exists to turn that guess into a fact.</p>
+
+<p>One fair caveat: cached tokens live in a nested details object that not every compatible endpoint returns. Read it as "record if present, unknown otherwise", never as <code>unwrap_or(0)</code>, which dresses unsupported up as a cache miss and misleads more than recording nothing.</p>
+
+<h2>Streamed usage depends on one frame</h2>
+
+<pre><code>if cfg.stream {
+    // Ask for a trailing usage frame so token counts work while streaming.
+    body["stream_options"] = json!({ "include_usage": true });
+}
+</code></pre>
+
+<p>And in the reader, a frame carrying usage overwrites the turn's usage rather than adding to it. Correct, since there is one frame, and it assumes exactly one. A provider that reports usage across two frames would lose half of it. The safer form records each usage frame as a span and sums at the ledger layer.</p>
+
+<h2>A stream that breaks mid-way loses the whole turn's usage</h2>
+
+<pre><code>let l = match l {
+    Ok(l) =&gt; l,
+    Err(e) =&gt; return Err(format!("stream read error: {e}")),
+};
+</code></pre>
+
+<p>The turn is a local variable, and returning an error discards it. If the stream read 900 chunks and the provider already counted 30,000 prompt tokens, and the connection dropped before the final frame, that usage vanishes. Not just from the ledger: the fact that a failed request cost money does not appear anywhere either.</p>
+
+<p>It is the classic shape of an error path that carries no data. The return type is a result with a string error, and a string cannot hold an accumulated turn. Either the error variant carries the partial turn, or the turn is passed in mutably so the caller can still see what accumulated.</p>
+
+<p>The same file truncates error detail to 800 bytes, which is right for a terminal and wrong for a ledger: a long provider error survives only as its beginning, and the interesting part of a strange 400 is usually the end.</p>
+
+<h2>The accounting line sits after the error return</h2>
+
+<pre><code>let turn = match self.complete() {
+    Ok(turn) =&gt; turn,
+    Err(e) =&gt; {
+        self.persist();
+        return Err(e);
+    }
+};
+self.usage.requests += 1;
+self.usage.prompt_tokens += turn.usage.prompt_tokens;
+self.usage.completion_tokens += turn.usage.completion_tokens;
+</code></pre>
+
+<p>The error branch comes first, so the four accounting lines never run on failure. The ledger's real definition is therefore <strong>successful model requests</strong>, not requests that happened.</p>
+
+<p>With one user and a stable network the difference is small. In real use failures are ordinary: timeouts, 429s, 5xx, broken streams, wrong JSON shapes. Most of those are not billed, so "not counted" is defensible for money and indefensible for reliability: you cannot see that a task needed seven retries, or that an endpoint fails thirty percent of the time.</p>
+
+<p>A healthy ledger records failed requests and failed turns separately. A failed request inside a successful turn is a retry; a failed turn is a loss. Both need rows, differing in an outcome field.</p>
+
+<h2>Retries and fallback hide N requests behind one success</h2>
+
+<p>The retry loop returns the last successful turn, which carries the usage of that final attempt only. The earlier failures, their elapsed time, and the fallback attempt never appear in the return value.</p>
+
+<p>So the main loop always sees one request, and the ledger never learns that three 503s and a degradation happened. The only trace is an <code>eprintln!</code>, which scrolls past in a terminal and goes to the server log in a daemon, with nothing reaching the client.</p>
+
+<p>Fallback is worse, because <strong>the ledger has no model dimension</strong>. A request served by the primary model or by a much cheaper fallback may differ in price by an order of magnitude, and usage totals hold only token counts. To price anything, each row needs a model field.</p>
+
+<h2>There is no model dimension</h2>
+
+<p>The model can be switched mid-session, and a sub-agent can override it. One usage total can therefore mix tokens from two or three models behind a single number. It is like adding yuan, dollars and euros and reporting a total: the arithmetic is right and the meaning is wrong.</p>
+
+<p>The fix is either a map from model to usage, or one row per request carrying its model, aggregated later. The first makes queries fast, the second makes audits strong. For a system that must answer "what did this month cost", the second is right, because price tables change and historical rows must carry the model that was actually used.</p>
+
+<h2>Three internal calls never enter the books</h2>
+
+<table>
+<thead><tr><th>Call</th><th>Entry point</th><th>Trigger</th><th>Recorded</th></tr></thead>
+<tbody>
+<tr><td>Context compaction</td><td><code>summarize_messages</code></td><td>Over 120,000 characters</td><td>No</td></tr>
+<tr><td>Memory distillation</td><td><code>distill_memories</code></td><td>End of a turn that passes the gate</td><td>No</td></tr>
+<tr><td>Sub-agents</td><td><code>run_subagent_inner</code></td><td>The model calls the sub-agent tool</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>All three call the model directly, take <code>.content</code>, and drop the usage where it stands. It is not forgetting to record, it is having nowhere to put it: none of them holds a mutable agent, and the totals are a value type. Recording would require promoting the ledger to an object passed down the call chain.</p>
+
+<h2>The cost of compaction</h2>
+
+<p>Compaction joins the dropped messages into an excerpt with no per-message clipping and asks for a summary of at most 300 words. That request's prompt can be tens of thousands of tokens, because it is half a context.</p>
+
+<p>A forty-turn task may compact several times, each a real, large request, and the ledger gains only a note line with no tokens on it.</p>
+
+<p>The subtler part is the invisible payoff. After compaction every subsequent request has a smaller prompt, so compaction spends once and saves repeatedly. Without a ledger you cannot tell whether the investment paid off: 30,000 tokens spent to save 20,000 over the rest of the task is a loss. That judgment depends entirely on the ledger that is missing.</p>
+
+<h2>The cost of distillation</h2>
+
+<pre><code>pub fn worth_distilling(user_text: &amp;str, had_tools: bool) -&gt; bool {
+    if had_tools {
+        return true;
+    }
+    ...
+    text.chars().count() &gt;= 24
+}
+</code></pre>
+
+<p>Any turn that used a tool is distilled, which is most real work. That call is unrecorded too, so the real request count per turn looks like this.</p>
+
+<table>
+<thead><tr><th>Source</th><th>Per turn</th><th>Counted in <code>requests</code></th></tr></thead>
+<tbody>
+<tr><td>Main loop</td><td>1 to 40</td><td>Yes</td></tr>
+<tr><td>Distillation</td><td>1, whenever a tool ran</td><td>No</td></tr>
+<tr><td>Compaction</td><td>0 or more</td><td>No</td></tr>
+<tr><td>Sub-agents</td><td>0 to 4, each 1 to 40</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>The number <code>/cost</code> prints can be half the truth. Not by a rounding error, by an order of magnitude.</p>
+
+<h2>Why sub-agent cost cannot be recorded structurally</h2>
+
+<pre><code>let mut result = String::new();
+for _ in 0..sub_cfg.max_iterations {
+    let turn = llm::chat(&amp;sub_cfg, &amp;messages, &amp;tools, |_| {})?;
+    result = turn.content.clone();
+    messages.push(assistant_message(&amp;turn));
+    if turn.tool_calls.is_empty() {
+        break;
+    }
+    ...
+}
+Ok(result)
+</code></pre>
+
+<p>Three things. A sub-agent can run up to forty iterations, cloned from the parent config, so one tool call hides up to forty model requests. The usage on each turn is dropped in place. And structurally, the path returns a string, so the only channel for cost is to write "used N tokens" into the text, which demotes a ledger to a comment.</p>
+
+<p>The right shape returns a structure: text, usage, request count, elapsed time. The parent then records one row attributed to that sub-agent, and the board can answer which sub-agent was most expensive rather than only which was slowest.</p>
+
+<h2>The board has time, not money</h2>
+
+<p>A job carries id, name, task, status, result, duration and a private start instant. Of the seven, only duration is a quantity, and the result is a 500 unit preview. There is no usage, no request count, no model.</p>
+
+<pre><code>Sub-agent jobs:
+- agent-1 [done] reviewer (12.3s) — review auth.rs
+  result: looks fine
+- agent-2 [running] explorer (…) — map the repo
+</code></pre>
+
+<p>Adequate for who is doing what, useless for where the money went. The board is an event table with a duration column: event tables restore order, they do not sum.</p>
+
+<h2>Duration includes queue time</h2>
+
+<p>The start instant is set at registration, registration happens before acquiring a permit, and so the duration includes queueing. A delegation that waited twenty seconds and ran three seconds records twenty-three. Used to judge whether sub-agents are slow, that number is wrong, because it folds rate-gate waiting into sub-agent work.</p>
+
+<p>For a ledger this is more than display. <strong>Queue time is evidence of being held back by a quota.</strong> If the average wait is fifteen seconds, four slots are not enough, and that is a different problem from the model being slow. They have to be recorded separately to be diagnosed separately.</p>
+
+<h2>Tool calls are empty in the ledger</h2>
+
+<p>Execution takes no timestamps. What survives into the ledger is a name, a summarized argument list and the result text: no start, no duration, no output size. Yet tools are the least controllable part of an agent. A command may run to its two minute timeout, a fetch may stall on the network, a search may walk hundreds of thousands of files.</p>
+
+<p>Timestamps exist in the code, but only for timeouts, and a timeout decision needs to know whether the deadline passed, not how long something actually took.</p>
+
+<table>
+<thead><tr><th>Field</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>name</td><td>Which tool</td></tr>
+<tr><td>start, end</td><td>When, and for how long</td></tr>
+<tr><td>argument bytes</td><td>How large the request was</td></tr>
+<tr><td>result bytes, truncated</td><td>How large the answer was, and whether it was clipped</td></tr>
+<tr><td>exit code</td><td>Success or failure for commands</td></tr>
+<tr><td>tool call id</td><td>Pairs with the message history</td></tr>
+</tbody>
+</table>
+
+<p>The truncated flag is worth having. If a tool's output is clipped ten times in a row, its output granularity is wrong and the tool should change, not the budget.</p>
+
+<h2>Two consumers, one drifting meaning</h2>
+
+<p>The usage event's comment opens by calling it cumulative and finishes by telling clients to sum what they receive, which is a delta. The sender hard-codes one request per emission, so <strong>the implementation is a delta and the first line of the comment is wrong</strong>.</p>
+
+<p>With one consumer that drift never hurts. It plants a fuzzy entry: the next consumer reads cumulative, treats the last value as a total, reports a number that is too small, and cannot see why.</p>
+
+<p>In a terminal the handler prints nothing at all, since there is no sink. The stated reason is that <code>/cost</code> exists, which is true and means <strong>real-time observability in the terminal is zero</strong>: a twenty minute turn gives no usage feedback until it ends.</p>
+
+<h2>Daemon accounting by difference</h2>
+
+<pre><code>let before = agent.usage();
+let result = agent.run(user_content(&amp;prompt, &amp;images));
+let after = agent.usage();
+</code></pre>
+
+<p>Because usage accumulates per process, one request's cost is the difference between two snapshots. Saturating subtraction is a thoughtful touch: a wrapped or reset counter cannot produce an absurd invoice. Under serial service the method is correct, since nothing else writes between the snapshots.</p>
+
+<p>Its precondition is that all growth between the snapshots belongs to this request. That stays true when internal calls start recording, since they do belong to this request. It breaks the day the daemon handles requests concurrently, at which point the difference bills someone else's work to you.</p>
+
+<h2>Where failed turns' tokens go</h2>
+
+<p>The error branch returns an error and a session id, <strong>with no usage field</strong>. But usage already grew before the failure, since every successful request in that turn was added. So the growth is not in this response, not in the next one, because the next request's baseline snapshot is taken after it. It exists only in the process total, and nothing can query the process total per session.</p>
+
+<p>Failed turns therefore burn tokens into an unowned account. Two fixes: include usage in error responses, which is minimal and leaves clients handling the combination of usage and error, or record a row per turn so every outcome has a line, which is a rebuild and gives you questions like "how many failures did this session have, and what did they cost".</p>
+
+<h2>Streaming gives deltas and no total</h2>
+
+<p>The streaming path writes a usage line per update and one done line at the end. The done line carries no accumulated usage, so every client has to sum the deltas itself. That matches what the event comment promises, so it is not wrong, but three clients write the sum three times and two of them get it wrong.</p>
+
+<p>Worse is the error path, which writes an error line and nothing else. A task that fails on the fifth round leaves the client with five usage lines and an error. A client that books on done loses all five; a client that books as it goes records a partial amount with no way to know it is partial.</p>
+
+<p>A sturdier protocol puts <code>total_usage</code> on both terminal lines, so a client reads one field from the last event and treats the intermediate lines as progress. <strong>The terminal line is the only anchor for reconciliation</strong>, and that belongs in any agent's protocol design.</p>
+
+<h2>Session files carry no ledger</h2>
+
+<p>Persistence writes the pretty JSON of the message array, with no header, no metadata, no usage. And construction starts usage at zero. So loading yesterday's conversation and asking <code>/cost</code> reports the usage of this process, not of this session. Run the same task across three days with a restart each day and the books are cleared three times.</p>
+
+<p>Invisible when one person uses one process, broken by resume, by daemon multi-session and by a GUI that continues a previous task.</p>
+
+<p>The fix upgrades the session file from an array to an object with a version, messages and usage, and the loader has to accept both forms, treating a bare array as version one with no books. Accept only the new form and every old session fails to load, which looks to the user like history was lost.</p>
+
+<h2>/status and /cost are a process dashboard</h2>
+
+<pre><code>&gt; /cost
+  requests:          18
+  prompt tokens:     214,033
+  completion tokens: 12,880
+  total tokens:      226,913
+</code></pre>
+
+<p>Not one line of <code>/status</code> is a quantity, and <code>/cost</code> is pure counting: no time, no split by model, no split by source. Together they answer "what state am I in" and "how big are these numbers", not "where did the money go". That is the difference between a dashboard and a ledger.</p>
+
+<h2>The only exportable ledger</h2>
+
+<p>JSON output at the end of a run is the one structured, pipeable, storable account. It has three limits: one shot rather than per turn, three raw counters with no source, model or time, and it exists only in the JSON and stream-JSON formats, with plain text having nothing.</p>
+
+<p>The direction is right: <strong>make the account data rather than printing</strong>. The next step does not need new concepts, only turning the scalar usage into rows, while keeping the outer usage object so existing scripts and jq pipelines do not break.</p>
+
+<h2>Observability today is eprintln!</h2>
+
+<p>About thirty calls across the crate, twenty-eight of them in the main file, in four categories: startup configuration, retry notes, session read and write warnings, and daemon errors. All of them write to stderr with no level, no timestamp, no trace id and no JSON form.</p>
+
+<p>So a failure rate over the last hour means grepping text; associating an error with a request means guessing from ordering; and showing a retry in the GUI is impossible, because stderr never reaches the sink. That last one is a shame, since the style layer already has an event channel that both warnings and notes can use, and the HTTP layer simply does not hold it.</p>
+
+<h2>A delegation cannot be traced through the logs</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Exists</th><th>Missing</th></tr></thead>
+<tbody>
+<tr><td>Session</td><td>A session id, daemon only</td><td></td></tr>
+<tr><td>Turn</td><td>Nothing</td><td>A turn id</td></tr>
+<tr><td>Delegation</td><td><code>agent-7</code>, inside the board only</td><td>Reaching the logs</td></tr>
+<tr><td>Request</td><td>Nothing</td><td>A request id</td></tr>
+<tr><td>Tool</td><td>A tool call id, in history only</td><td>Reaching the logs</td></tr>
+</tbody>
+</table>
+
+<p>The tool call id exists and is passed into execution, and it never appears in a log line. The data is there; the step that carries it out is missing.</p>
+
+<h2>Hooks are observation points that are not observed</h2>
+
+<pre><code>pub struct HookOutcome {
+    /// Process exit code (-1 if killed by a signal, -2 if we timed it out).
+    pub code: i32,
+    /// Combined stdout + stderr, trimmed.
+    pub output: String,
+}
+</code></pre>
+
+<p>Callers check whether it passed and append the output to a tool result. That is all. So a hook that runs five hundred times a day and times out two hundred of them is invisible; a thirty second hook delay contributes to nothing; and a blocked tool call, which is a real event, enters no metric.</p>
+
+<p>The thirty second cap is itself a signal: one hook can slow a turn by thirty seconds, and with forty iterations that is twenty minutes of pure hook time in the worst case. A design that treats hooks as observation points should record the hook as a span too.</p>
+
+<h2>Five kinds of bad accounting</h2>
+
+<table>
+<thead><tr><th>Kind</th><th>Symptom</th><th>Cause</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Missing, failures</td><td>Failed requests uncounted</td><td>Accounting after the error return</td><td>Failure and retry rates are invisible</td></tr>
+<tr><td>Missing, internal</td><td>Compaction, distillation, sub-agents uncounted</td><td>Direct model calls with no ledger handle</td><td><code>requests</code> is half the truth</td></tr>
+<tr><td>Missing, streams</td><td>A stream that breaks loses its usage</td><td>Errors carry only a string</td><td>A large request's cost disappears</td></tr>
+<tr><td>Misattributed</td><td>Failed turns' tokens unowned</td><td>Process accumulation plus differencing</td><td>Cost hangs in the air permanently</td></tr>
+<tr><td>Fuzzy, definition</td><td>The comment says cumulative, the code sends deltas</td><td>Documentation drift</td><td>Clients under-report</td></tr>
+<tr><td>Fuzzy, dimension</td><td>Several models in one total</td><td>Three scalars</td><td>Tokens without prices</td></tr>
+<tr><td>Fuzzy, timing</td><td>Queue time counted as work</td><td>Registration before acquisition</td><td>Sub-agents look slow</td></tr>
+</tbody>
+</table>
+
+<p>Four of the seven have no structural place to record, two are undefined definitions, and one is an error path that carries no data. The three fix differently: structural problems need a ledger object and change the data flow; definition problems need documentation and tests; error path problems change function signatures. Classifying first beats adding logs, because logs fix none of the last two.</p>
+
+<h2>The right model: three tables</h2>
+
+<p><strong>Turn table</strong>, one row per run: turn id, session, who (main, sub-agent with id, compaction, distillation), start and end, requests issued, retries, usage with prompt, completion, cached and reasoning, and an outcome of ok, interrupted, iteration limit or error.</p>
+
+<p><strong>Span table</strong>, one row per external interaction: span id, the turn it belongs to, an optional parent so a sub-agent's spans hang under the tool call that started it, a kind of model, tool or hook, name, model, start and end, optional usage including what accumulated before a failure, and a status that records failures rather than dropping them.</p>
+
+<p><strong>Totals</strong>, which is not a table but an aggregation of the first two: by who, by model, by kind.</p>
+
+<p>The relationship is one turn to many spans, isomorphic to trace and span in distributed tracing. Two layers exist because the semantics differ: a turn is one operation the user perceives, a span is one external dependency. Users ask turn questions, operators ask span questions.</p>
+
+<p>Whether the ledger hits disk depends on the question. Surviving a restart means appending next to the session file, at the cost of write amplification and rotation. Cross-session statistics mean SQLite, at the cost of a dependency. NanoHermes chooses memory only, which fits its low-dependency philosophy. The point of this post is not that it needs a database, it is that the in-memory ledger does not even record the rows memory could hold.</p>
+
+<h2>Five definitions to settle first</h2>
+
+<ol>
+<li><strong>Does <code>requests</code> mean HTTP requests or successful turns?</strong> Split it: requests issued, including failures and retries, plus successful separately. Otherwise retries have nowhere to live.</li>
+<li><strong>Does prompt usage include cache hits?</strong> Split prompt and cached, and let cached be unknown. Do not guess on the provider's behalf.</li>
+<li><strong>Do sub-agent tokens count toward the task?</strong> Yes, and separately. A parent turn equals its own usage plus its children, and each child has its own row. That gives additivity that always holds.</li>
+<li><strong>Do failed retries count?</strong> Yes, marked unbilled. Most 429s are not charged, but the client should not assume that.</li>
+<li><strong>Does time include queueing?</strong> No. Record queue time on its own field.</li>
+</ol>
+
+<p>Four of the five concern tokens and one concerns time, which is not a coincidence: tokens are the billing unit, time is the experience unit, and both are needed without sharing a field.</p>
+
+<h2>A sixty-line ledger</h2>
+
+<pre><code>use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Usage {
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    /// None means the provider did not report it, rather than zero.
+    pub cached_tokens: Option&lt;u64&gt;,
+}
+
+#[derive(Clone, Debug)]
+pub enum Who {
+    Main,
+    SubAgent(String), // agent-7
+    Compact,
+    Distill,
+}
+
+#[derive(Clone, Debug)]
+pub struct TurnRecord {
+    pub turn_id: u64,
+    pub who: Who,
+    pub model: String,
+    pub requests: u32,
+    pub retries: u32,
+    pub usage: Usage,
+    pub elapsed: Duration,
+    pub outcome: String, // ok / interrupted / iteration-limit / error:...
+}
+
+/// Append only; every execution path shares one Arc&lt;Ledger&gt;.
+#[derive(Default)]
+pub struct Ledger {
+    inner: Mutex&lt;Vec&lt;TurnRecord&gt;&gt;,
+}
+
+impl Ledger {
+    pub fn record(&amp;self, rec: TurnRecord) {
+        self.inner.lock().unwrap().push(rec);
+    }
+
+    pub fn snapshot(&self) -&gt; Vec&lt;TurnRecord&gt; {
+        self.inner.lock().unwrap().clone()
+    }
+
+    /// Parent equals self plus children; the test asserts this invariant.
+    pub fn totals(&amp;self) -&gt; Usage {
+        let all = self.inner.lock().unwrap();
+        Usage {
+            prompt_tokens: all.iter().map(|r| r.usage.prompt_tokens).sum(),
+            completion_tokens: all.iter().map(|r| r.usage.completion_tokens).sum(),
+            cached_tokens: if all.iter().all(|r| r.usage.cached_tokens.is_some()) {
+                Some(all.iter().filter_map(|r| r.usage.cached_tokens).sum())
+            } else {
+                None
+            },
+        }
+    }
+}
+</code></pre>
+
+<p>Three things matter: cached tokens are optional so unknown is distinct from zero; the identity of a spender is an enum, so a sub-agent's account is not anonymous; and recording is append only, with no update path, so failed rows stay.</p>
+
+<p>Wiring it in takes four changes: one row per completed request in the loop, one each for summarization and distillation, one at the end of a sub-agent, and serialization into the session file. Under forty lines. The work is not the code, it is passing the ledger everywhere a <code>&amp;self</code> method needs it, which means an <code>Arc</code> with a mutex inside, the same pattern the board and the gate already use.</p>
+
+<h2>Three invariants to test</h2>
+
+<p><strong>One. The sum is consistent.</strong> All span usage adds up to the totals. This catches recording without aggregating, and aggregating while missing a category.</p>
+
+<p><strong>Two. Parent equals self plus children.</strong> This catches sub-agent cost that is recorded but never attached to the parent.</p>
+
+<p><strong>Three. Failures have rows.</strong> Point at a mock endpoint that returns 500, then assert there is a row with an error outcome and a non-zero request count. This is the most valuable of the three, because it forces the failed path to carry its usage out, which is the signature change described earlier. Test first, and the structure has to become correct.</p>
+
+<p>None of these needs a real API. A local mock returning fixed JSON is enough, and the repository already has that infrastructure.</p>
+
+<h2>Seven places to harden</h2>
+
+<p><strong>One. Move accounting before the error return.</strong> Record that a request was issued, then add tokens on success. Three lines, and the most basic missing entry is gone, with requests meaning requests issued and successful counted separately.</p>
+
+<p><strong>Two. Give usage optional cached and reasoning fields.</strong> Two optional fields and two more lines in the parser, and cache savings and reasoning costs become queryable.</p>
+
+<p><strong>Three. Collect the usage from summarization, distillation and sub-agents.</strong> One line each, once a ledger exists. This is the only fix for the "requests is half the truth" gap.</p>
+
+<p><strong>Four. Return a structure from a delegation</strong> rather than a string, and add usage to the board's job, so the board can name the most expensive sub-agent.</p>
+
+<p><strong>Five. Upgrade the session file to an object with metadata</strong>, accepting bare arrays as version one on load. This is what stops <code>/cost</code> from being zero after a resume.</p>
+
+<p><strong>Six. Move retries and fallback out of stderr into the event channel</strong>, so the terminal and the GUI see the same information and retries can enter the ledger.</p>
+
+<p><strong>Seven. Put total usage on both terminal events.</strong> One protocol change, and no streaming client has to sum, and no failure loses partial usage.</p>
+
+<p>The first three plug leaks, four and five build structure, six and seven unify definitions. If only one is possible, do the first. If three are possible, do one, five and seven, which cover a missing entry, a misattribution and a fuzzy definition respectively.</p>
+
+<h2>Closing, and what the eight posts describe</h2>
+
+<p>Logs and ledgers are different things. A log is a stream that answers what happened; a ledger is a table that answers who spent how much. NanoHermes has the first and not the second, and its three scalars live in process memory and reset on restart.</p>
+
+<p>Missing entries are not carelessness, they are a structural absence of place. Compaction, distillation and sub-agents all call the model directly, none holds a mutable agent, and the totals are a copyable value. Before they can be recorded, the ledger has to be promoted from a field to a shared object. That is the same lesson as the previous post from the other side: shared state needs an owner, and the owner needs somewhere to be written.</p>
+
+<p>And the value of observability is reconciliation, not printing. A system that can answer what this task cost, where it went and why it failed needs no fancy interface, only a row per unit of consumption with who, what, how much and when, and rows that outlive the process.</p>
+
+<p>Writing this series, I kept returning to one criterion: <strong>the engineering quality of an agent depends on which things it treats as first-class citizens</strong>. The loop is one. The context budget is one. Memory writes and retrieval are one. Output caps are one. Threads and quotas are one. Permission gates are one. Responsibility boundaries are one. And this post argues that <strong>the ledger should be one too</strong>, not a log bolted on afterwards but a structure that participates in the data flow from day one.</p>
+
+<table>
+<thead><tr><th>#</th><th>Post</th><th>Takes apart</th><th>Criterion it leaves behind</th></tr></thead>
+<tbody>
+<tr><td>01</td><td>The agent loop</td><td>Main loop, message state, concurrency, interrupt</td><td>There is no second system outside the loop</td></tr>
+<tr><td>02</td><td>Agent context</td><td>Compaction, summaries, output caps</td><td>Context is a working set, not a warehouse</td></tr>
+<tr><td>03</td><td>Agent memory</td><td>Local retrieval, injection, distillation</td><td>Memory is an index, not storage</td></tr>
+<tr><td>04</td><td>Tool design</td><td>Schemas, error semantics, truncation</td><td>The tool boundary is the agent boundary</td></tr>
+<tr><td>05</td><td>Agent concurrency</td><td>Scoped threads, gates</td><td>Concurrency is a budget question, not a syntax one</td></tr>
+<tr><td>06</td><td>Agent security</td><td>Approval, sandbox, hooks</td><td>Gates belong at execution, not in the list</td></tr>
+<tr><td>07</td><td>Multi-agent</td><td>Delegation, gates, the board</td><td>Sharing requires ownership</td></tr>
+<tr><td>08</td><td>Observability</td><td>Usage, logs, instrumentation</td><td>The end of observability is reconciliation</td></tr>
+</tbody>
+</table>
+
+<p>Compressed one more time: a reliable agent is a system that makes explicit trade-offs in eight directions, the loop, context, memory, tools, concurrency, security, multi-agent behaviour and observability. Each direction has a default that will hurt you: no compaction by default, trusting tool output by default, shared state by default, logs instead of a ledger by default. What is valuable about NanoHermes is not that it gets all eight right, but that its trade-offs are <strong>legible</strong>: two hundred lines of main loop, one JSON memory file, a thirty line gate, a three scalar ledger. Each can be read in half an hour, and then you can say where it breaks.</p>
+
+<p>Which is why almost every post in this series ends with a list of places to harden. Not so readers will patch NanoHermes, but to make one point: <strong>the most effective way to understand a system is to find the conditions under which it fails.</strong> Being able to list the failure modes is what reading it properly looks like.</p>
+
+<h2>References</h2>
+
+<ul>
+<li><code>agent/src/agent.rs</code>: usage totals, <code>run</code>, <code>complete</code>, sub-agent entry and loop, compaction, summarization, distillation, persistence</li>
+<li><code>agent/src/llm.rs</code>: usage parsing, the assistant turn, chat, streaming reader, truncation, summarize</li>
+<li><code>agent/src/ui.rs</code>: the usage event, the sink, style helpers</li>
+<li><code>agent/src/main.rs</code>: the status and cost commands, daemon handling, streaming turn, session save</li>
+<li><code>agent/src/board.rs</code>: jobs, statuses, registration, completion, the gate</li>
+<li><code>agent/src/memory.rs</code>: distillation, excerpts, the gate</li>
+<li><code>agent/src/hooks.rs</code>: hook outcomes and timeout</li>
+<li><code>agent/src/tools/mod.rs</code>: clamp, board rendering, the tool context</li>
+</ul>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
