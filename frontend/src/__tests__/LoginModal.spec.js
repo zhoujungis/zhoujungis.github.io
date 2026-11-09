@@ -123,6 +123,8 @@ describe('LoginModal', () => {
     expect(verifyEmailCode).toHaveBeenCalledWith('reader@example.com', '123456')
     expect(auth.isLoggedIn).toBe(true)
     expect(auth.displayName).toBe('reader')
-    expect($('.login-card')).toBeNull()
+    // 关闭走的是 <Transition>：jsdom 不跑 CSS 过渡，元素要等 leave 的两帧 rAF
+    // 落地后才从 DOM 摘掉，flushPromises 只清微任务，所以这里等到真的消失。
+    await vi.waitFor(() => expect($('.login-card')).toBeNull())
   })
 })
