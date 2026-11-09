@@ -15638,6 +15638,400 @@ SELECT * FROM performance_schema.events_transactions_current;
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a>.</p>
 `,
   },
+  {
+    slug: 'mysql-composite-index-leftmost-prefix',
+    zhSlug: 'mysql-composite-index-leftmost-prefix',
+    topicSlug: 'database',
+    title: 'Why an index on (a, b) cannot answer a query on b',
+    excerpt:
+      'A composite index is one tree sorted by column order, not two trees glued together. The leftmost prefix rule is not an optimiser quirk, it is the physical layout, and it decides which parts of a query can seek.',
+    date: '2026-11-04',
+    readingTime: 14,
+    html: `
+<blockquote>
+<p>Who this is for: people who built an index on two columns and watched a query on the second one do a full scan; people confused by the length column in a query plan; people wondering what order composite index columns should be in.</p>
+<p><strong>TL;DR:</strong> an index on (a, b) is not two trees, it is one tree sorted by a and then by b. To use b, you must first narrow the scan with a. That is the leftmost prefix rule, and it comes from the B+ tree's physical order, not from an optimiser limitation.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>A slow query with an index that should have worked</h2>
+
+<pre><code>SELECT id, uid, kind, ts
+FROM events
+WHERE kind = 2 AND ts &gt;= '2026-01-01';
+</code></pre>
+
+<p>The table has an index on (uid, kind, ts), and the plan says a full table scan with no index chosen. The first instinct is that the index is not being used or the statistics are stale.</p>
+
+<p>The real reason is simpler: the query does not mention <code>uid</code>, which is the first sort key of that index. Without it the scan cannot be narrowed to a contiguous range, so the optimiser falls back to a full scan.</p>
+
+<h2>What a composite index looks like on disk</h2>
+
+<pre><code>CREATE TABLE events (
+    id      BIGINT PRIMARY KEY AUTO_INCREMENT,
+    uid     BIGINT NOT NULL,
+    kind    TINYINT NOT NULL,
+    ts      DATETIME NOT NULL,
+    payload JSON,
+    KEY idx_uid_kind_ts (uid, kind, ts)
+) ENGINE=InnoDB;
+</code></pre>
+
+<p>A leaf entry is not three separate keys. It concatenates the three values in declaration order into one composite key, and sorts by that key lexicographically: compare uid, then kind, then ts.</p>
+
+<pre><code>(uid=1, kind=1, ts=10:00) -&gt; (uid=1, kind=1, ts=10:05)
+-&gt; (uid=1, kind=2, ts=09:00) -&gt; (uid=1, kind=2, ts=09:30)
+-&gt; (uid=2, kind=1, ts=08:00) -&gt; (uid=2, kind=3, ts=11:00)
+</code></pre>
+
+<p>Look at the third entry: kind 2 with an earlier timestamp comes after kind 1 with a later one. Sorting looks at kind first, so all kind 2 entries follow all kind 1 entries regardless of time.</p>
+
+<p>That picture is the entire source of the rule. Given <code>uid</code>, the matching records are contiguous and can be found by binary search. Given only <code>kind</code>, the records are scattered across every uid block. Given <code>uid</code> and <code>ts</code> while skipping <code>kind</code>, <code>ts</code> is only ordered within each kind block, so it cannot be located either.</p>
+
+<h2>The strict definition</h2>
+
+<p>The rule is not "you must use the first column", it is: starting from the first index column, match a consecutive run of columns; once you skip one, no later column can be used for seeking.</p>
+
+<p>Two distinct actions are worth separating. Seeking narrows the scan start to a leaf range using the tree's branch decisions. Filtering tests conditions on records already read. The leftmost prefix constrains seeking, not filtering. A skipped column can still filter, it just cannot save you page reads.</p>
+
+<table>
+<thead><tr><th>WHERE clause</th><th>Columns usable for seeking</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>a = 1</code></td><td>a</td><td>Seeks the contiguous a block</td></tr>
+<tr><td><code>a = 1 AND b = 2</code></td><td>a, b</td><td>Seeks the (1,2) block</td></tr>
+<tr><td><code>a = 1 AND b = 2 AND c = 3</code></td><td>a, b, c</td><td>Exact seek</td></tr>
+<tr><td><code>a = 1 AND c = 3</code></td><td>a</td><td>c can only filter, because b breaks the run</td></tr>
+<tr><td><code>b = 2</code></td><td>none</td><td>Full scan, or a different index</td></tr>
+<tr><td><code>a = 1 AND b &gt; 2 AND c = 3</code></td><td>a, b</td><td>After a range, c is unordered within the scan</td></tr>
+</tbody>
+</table>
+
+<h2>Six shapes, checked one by one</h2>
+
+<p><strong>All equality.</strong> All three columns seek, the index length is the full key, and the access type is usually a reference or a constant lookup if the combination is unique.</p>
+
+<p><strong>Prefix equality.</strong> Two columns seek the (uid, kind) block, and the key length stops after kind.</p>
+
+<p><strong>First column only.</strong> Seeks the uid block; kind and ts cannot be used for seeking.</p>
+
+<p><strong>Skipping the middle column.</strong> Only uid seeks. The third column may appear as an index condition, meaning it was pushed down to the index layer to reduce table lookups, but <strong>the whole uid block still has to be scanned</strong>. Many people misread that note as "the third column used the index", when it only filtered.</p>
+
+<p><strong>Range conditions.</strong> Equality on the first column plus a range on the second seeks the start of the range and scans to the end of the block. Adding equality on the third column cannot seek, because once the second column is a range the output is no longer ordered by the third.</p>
+
+<p><strong>IN and OR.</strong> An IN list is expanded into several equality ranges and still uses both columns. An OR on the same column merges into a range. An OR across different columns cannot be satisfied by one composite index, and the optimiser may choose an index merge, which in practice is usually less stable than a purpose-built composite index.</p>
+
+<h2>Why a range breaks the chain</h2>
+
+<p>It is the same sorting argument. For an index on (a, b, c), b is ordered across the whole scan range only after a is pinned to a single value, and c is ordered only after b is too.</p>
+
+<p>Once b becomes a range, the scan produces several values of b, and c is not globally ordered across them. The tree cannot binary search on c and has to compare row by row.</p>
+
+<p>Which produces the column-ordering rule: <strong>equality columns first, range columns last.</strong></p>
+
+<p>If equality on the last column is also common, consider swapping the order. Whichever query shape is more frequent gets the more precise index, and trying to serve both perfectly with one index usually degrades both.</p>
+
+<h2>Reading the key length as evidence</h2>
+
+<p>The key length in a plan is how many bytes of the index were actually used. Combined with column types, it reveals how many columns were involved.</p>
+
+<table>
+<thead><tr><th>Type</th><th>Bytes</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>TINYINT</td><td>1</td><td></td></tr>
+<tr><td>SMALLINT</td><td>2</td><td></td></tr>
+<tr><td>INT</td><td>4</td><td></td></tr>
+<tr><td>BIGINT</td><td>8</td><td></td></tr>
+<tr><td>DATETIME</td><td>5</td><td>Plus one byte per one or two fractional digits</td></tr>
+<tr><td>VARCHAR(4n) in utf8mb4</td><td>4n + 2</td><td>Two bytes for the length; a nullable column adds one more</td></tr>
+<tr><td>Any nullable column</td><td>+1</td><td>NULL flag</td></tr>
+</tbody>
+</table>
+
+<p>For an index of BIGINT, TINYINT and DATETIME, all non-null: one column is 8, two are 9, three are 14. A key length smaller than expected usually means the extra columns are not in the WHERE clause, the order violates the prefix rule, or a range appears in the middle.</p>
+
+<p>One trap: the key length counts index key bytes and excludes the primary key suffix. Do not use it to infer the total size of a secondary index entry.</p>
+
+<h2>Ordering, grouping and distinct</h2>
+
+<p>An index is already sorted, so sorting, grouping and deduplication can sometimes avoid extra work.</p>
+
+<p>For ordering, the same rule applies: the ORDER BY columns must continue the index prefix, and the preceding columns must be equality conditions. If the plan says it is sorting files, the index did not help.</p>
+
+<p>Direction matters too. Ascending on both columns can use a forward scan, descending on both can use a backward scan, and mixed directions need a descending index, available from MySQL 8.0.</p>
+
+<p>For grouping, if the column order matches the index, the optimiser can use a loose or tight index scan instead of building a temporary table. The same holds for distinct, which is grouping in disguise.</p>
+
+<h2>Pushdown, covering and the prefix rule</h2>
+
+<table>
+<thead><tr><th>Mechanism</th><th>Problem it solves</th><th>Still needs the table?</th></tr></thead>
+<tbody>
+<tr><td>Leftmost prefix</td><td>Whether the index can seek at all</td><td>Depends on covering</td></tr>
+<tr><td>Index condition pushdown</td><td>Filters at the index layer, fewer table lookups</td><td>Yes</td></tr>
+<tr><td>Covering index</td><td>Every needed column is in the index</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>Note that covering does not require the leftmost prefix. Even a query whose WHERE clause cannot seek may still report a covering scan, because the optimiser chose to scan the whole, smaller index. That is a scan, not a seek, and the performance is a different story.</p>
+
+<h2>Choosing column order in four steps</h2>
+
+<ol>
+<li>Put equality columns first: the ones nearly every query carries and that have high selectivity, such as tenant, user or status.</li>
+<li>Then add ordering columns: a stable ORDER BY belongs after the equality columns and before any range.</li>
+<li>Put range columns last: timestamps, thresholds, prefix matches.</li>
+<li>Finally consider covering columns: append the few columns a frequent SELECT needs, to earn a covering scan.</li>
+</ol>
+
+<p>Selectivity is not the first priority. However selective a column is, it is useless if it cannot be part of the seek. Satisfy the query shape first, then prefer higher selectivity among equals.</p>
+
+<p>The cardinality shown by the index listing is the optimiser's estimate, not an exact count. After a bulk import, refresh statistics before trusting it.</p>
+
+<h2>Prefix and functional indexes</h2>
+
+<p>A prefix index builds only the first characters of a long string column. It can still seek for equality and prefix matching, but it cannot cover, because the full value is not in the index, and ordering by the full value may not use the index, since prefix order is not value order. Choose the length by comparing prefix selectivity against full selectivity.</p>
+
+<p>Functional indexes, available from 8.0.13, let a query filter on an expression without wrapping the column in a function in the WHERE clause. The expression must match the query text exactly, or the index is not used.</p>
+
+<h2>Skip scan, the 8.0 exception</h2>
+
+<p>MySQL 8.0.13 added skip scan for the case where a composite index's first column does not appear in the condition. The idea: if the first column has few distinct values, treat each one as a virtual prefix and seek the second column under each.</p>
+
+<p>Its limits matter. The first column must have low cardinality, or the number of virtual prefixes explodes. The first column must not already carry an equality or range condition. The switch must be on, which it is by default. And it only makes an unusable index barely usable; a purpose-built index on the second column is usually better. Know it exists, do not treat it as a safety net.</p>
+
+<h2>One composite index or several single-column ones</h2>
+
+<table>
+<thead><tr><th>Option</th><th>Strength</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Two single-column indexes</td><td>Each query is precise</td><td>More indexes, more write amplification, possible index merge</td></tr>
+<tr><td>One composite index</td><td>Best for the combined query, still serves the first column</td><td>The second column alone cannot use it</td></tr>
+</tbody>
+</table>
+
+<p>The decision depends on the distribution of query shapes, not on a preference for fewer indexes. If the two forms are equally frequent, two single-column indexes may be right; if the combined form dominates, one composite index is cheaper.</p>
+
+<p>Index merge appears in plans as an intersection, a union, or a sorted union. It is frequently mis-chosen, and while you can disable it for comparison, doing so globally in production is not a good long-term plan.</p>
+
+<h2>Indexes are not free</h2>
+
+<p>Every secondary index is its own tree, maintained on every write: inserts add an entry to each, updates delete and re-insert when indexed columns change, deletes mark entries, and page splits, buffer pool pressure and log volume are all multiplied. The right approach is not one index per query, it is: find the genuinely slow statements, check whether they lack seeking, covering or ordering, index only the frequent and well-understood ones, and periodically look for indexes that have never been read.</p>
+
+<h2>From a slow query to an index, in five steps</h2>
+
+<p>Confirm the current plan shows no index and a full scan. Classify the shape: equality on one column, range on another, and a missing leading column. Design the candidate with equality first and the range last. Verify that the plan now reports a range access with the expected key length and a plausible row estimate. Then, if the query is frequent and the column list is small, append the extra columns to make it covering, accepting a bigger index and slower writes in exchange for faster reads.</p>
+
+<h2>Five misconceptions</h2>
+
+<p><strong>An index on (a, b) serves a query on b.</strong> It does not. Build (b, a) or a single-column index on b.</p>
+
+<p><strong>The most selective column should always lead.</strong> Selectivity decides how many rows survive, but if the prefix rule is violated the index cannot seek at all.</p>
+
+<p><strong>Functions on an indexed column still use the index.</strong> Wrapping the column in a function defeats an ordinary index; rewrite as a range or build a functional index.</p>
+
+<p><strong>Implicit conversion only affects performance, not correctness.</strong> Comparing a string column against a number converts the column and drops the index, and some boundary values can match unexpectedly. Align types explicitly.</p>
+
+<p><strong>An index condition in the plan means every index column was used.</strong> It only means some conditions were pushed down; the prefix may still be broken.</p>
+
+<h2>Summary</h2>
+
+<ul>
+<li>A composite index is one tree sorted by column order, and the prefix rule follows from that order.</li>
+<li>Columns after a range cannot seek, only filter.</li>
+<li>Column order goes equality, then ordering, then range, then covering.</li>
+<li>The key length is direct evidence of how many columns were used, remembering variable-length overhead and nullable flags.</li>
+<li>Verify with plans and instrumentation rather than intuition.</li>
+</ul>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a>.</p>
+`,
+  },
+  {
+    slug: 'mysql-clustered-index-vs-secondary-index',
+    zhSlug: 'mysql-clustered-index-vs-secondary-index',
+    topicSlug: 'database',
+    title: 'Clustered and secondary indexes: where the second lookup actually costs',
+    excerpt:
+      'InnoDB tables are a tree, and its leaves hold whole rows. Secondary index leaves hold indexed columns plus the primary key. Reading the row is one more tree lookup, and usually a random page.',
+    date: '2026-11-04',
+    readingTime: 14,
+    html: `
+<blockquote>
+<p>Who this is for: people who have read a query plan, seen a covering-index note and cannot say what it saved; people burned once by "I added an index and it got slower"; people deciding between an auto-increment key and a UUID.</p>
+<p><strong>TL;DR:</strong> an InnoDB table is itself a clustered index whose leaves hold entire rows. A secondary index's leaves hold the indexed columns plus the primary key. The extra lookup means fetching the primary key from the secondary index and then finding the row in the clustered index: one more tree search, usually a random page access. Covering indexes are fast because they delete that lookup entirely.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Two nearly identical selects</h2>
+
+<pre><code>SELECT id, user_id FROM orders WHERE user_id = 42;
+SELECT id, user_id, amount FROM orders WHERE user_id = 42;
+</code></pre>
+
+<p>Both use the same index, both hit a few dozen rows, and the only difference is one extra column. Yet the second does an implicit lookup back to the table, and under concurrency it can be an order of magnitude slower.</p>
+
+<p>This is not the optimiser misbehaving. The second query needs a column that is not in the index, so the engine takes the primary key and fetches the row again. That action has a precise physical cost and a precise way to remove it.</p>
+
+<h2>How many trees does one table have</h2>
+
+<pre><code>CREATE TABLE orders (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT NOT NULL,
+    status      TINYINT NOT NULL,
+    amount      INT NOT NULL,
+    created_at  DATETIME NOT NULL,
+    KEY idx_user (user_id),
+    KEY idx_status (status)
+) ENGINE=InnoDB;
+</code></pre>
+
+<table>
+<thead><tr><th>Index</th><th>Leaf contents</th><th>Serves</th></tr></thead>
+<tbody>
+<tr><td>Clustered index</td><td>The whole row</td><td>Primary key lookups, and the table fetch</td></tr>
+<tr><td>Secondary on user_id</td><td>user_id plus the primary key</td><td><code>WHERE user_id = ?</code></td></tr>
+<tr><td>Secondary on status</td><td>status plus the primary key</td><td><code>WHERE status = ?</code></td></tr>
+</tbody>
+</table>
+
+<p>All three share the same page structure: 16 KB pages, interior pages holding a child's smallest key and page number, leaf pages holding records and linked to each other. Only the leaf contents differ. Which also explains why table size and index size cannot simply be added into "total data": the clustered index leaves <em>are</em> the data, and the secondary indexes are additional copies carrying only indexed columns and keys.</p>
+
+<h2>What the clustered index leaf really holds</h2>
+
+<p>"The whole row" is too coarse. A record is several segments: a five byte record header with flags, owned count, heap number, record type and a pointer to the next record; six bytes of transaction id for MVCC visibility; seven bytes of roll pointer into the undo log; the column data with the primary key first; a NULL bitmap for nullable columns; and a length array for variable-length columns.</p>
+
+<p>So the clustered leaf carries transaction and rollback information besides business data, which is why clustered pages are heavier than secondary pages: same 16 KB, fewer records.</p>
+
+<p>Without an explicit primary key, InnoDB picks the clustered key in order: the declared primary key, otherwise the first unique index whose columns are all non-null, otherwise a generated six byte hidden row id. That third case matters: a table without a primary key does not lack a clustered index, it has one on a column you cannot see, which appears inside every secondary index leaf, cannot be queried, and whose generation order you cannot control.</p>
+
+<h2>Why a secondary leaf must carry the primary key</h2>
+
+<p>Because index columns can repeat. A single user id may correspond to hundreds of rows, and the tree needs the primary key appended to make each entry strictly ordered. Internally this is the count of fields that make an index record unique, which for a secondary index equals the indexed columns plus the primary key.</p>
+
+<pre><code>compare user_id, then compare id when user_id ties
+</code></pre>
+
+<p>Two consequences follow. Selecting only the primary key from a secondary index is already a covering query, and the longer the primary key, the larger every secondary index entry becomes.</p>
+
+<h2>Why not store a row address, as MyISAM does</h2>
+
+<p>MyISAM's secondary leaves hold a file offset, making the table fetch a pointer dereference. InnoDB cannot, because <strong>rows move</strong>: page splits relocate records, rebuilds reorder pages, online DDL and tablespace reclamation change where records live, and a row that grows may overflow or force an in-page reorganise.</p>
+
+<p>With physical addresses, every one of those moves would require updating every secondary index, turning a single row change into an index-wide rewrite. The primary key is a logical identifier: wherever the row moves, the key does not change. The price is that the table fetch cannot be a pointer hop and has to walk a tree again. InnoDB trades read amplification for much less write amplification, which is the right trade for OLTP.</p>
+
+<h2>The full journey of a table fetch</h2>
+
+<ol>
+<li>Start at the secondary index root, branch on the value, descend.</li>
+<li>At the leaf, scan along the leaf chain collecting matching entries.</li>
+<li>Each entry carries the primary key.</li>
+<li>Take that key to the clustered index root.</li>
+<li>Branch again and descend to the right leaf.</li>
+<li>Locate the record there and read the missing column.</li>
+<li>Repeat steps four to six for the next key.</li>
+</ol>
+
+<p>A hundred matching rows means steps four to six run a hundred times. Each is an independent tree search, not a continuation of the previous read.</p>
+
+<p>Worse, those hundred primary keys are usually not contiguous in the clustered index. The secondary index is ordered by user id and the clustered index by primary key, and the two orders are unrelated, so the fetches jump around. Each miss in the buffer pool is a random disk read.</p>
+
+<h2>Where the cost shows up: three bills</h2>
+
+<p><strong>Random page access.</strong> One tree lookup costs about one page access per level; with three levels and a warm cache, three memory reads, otherwise some number of disk reads. The table fetch turns one lookup into one plus N, where N is the number of matching rows. A sequential scan costs pages times per-page cost, while random fetches cost rows times per-lookup cost, so once the matching fraction is high enough, the optimiser abandons the index and scans. That is arithmetic, not a mood swing.</p>
+
+<p><strong>Buffer pool pollution.</strong> The cache is finite and hot. Fetches pull clustered pages in, pages that may be read once and never again, evicting genuinely hot ones. Once the hit rate drops, every later query slows down, way beyond the statement that caused it. Which is how a one-off export query takes production down: not CPU, but a rinse through the buffer pool.</p>
+
+<p><strong>CPU and locks.</strong> Every fetch re-walks branches, compares keys and decodes headers. Cheap once, and not negligible across hundreds of thousands of rows. And for locking reads or updates, the fetch also takes locks on clustered index records, changing lock granularity and order, and raising the chance of deadlock.</p>
+
+<h2>How primary key length amplifies every secondary index</h2>
+
+<p>Every secondary leaf entry carries the primary key. Going from an 8 byte integer to a 36 byte UUID adds 28 bytes per entry, multiplied by the number of secondary indexes, the number of rows, and the number of index pages maintained per write. The result is not "28 more bytes", it is every secondary index swelling, fewer entries per 16 KB page, possibly one more level in the tree, and one more page access per lookup.</p>
+
+<p>There is a subtler problem too: a random UUID inserts at arbitrary positions, continuously triggering splits, lowering fill, and inflating the tablespace, while an auto-increment key always appends at the rightmost leaf.</p>
+
+<p>If a UUID is genuinely required, two compromises exist: reorder the time bits to the front so the binary value is roughly ordered, or keep an auto-increment primary key and demote the UUID to an ordinary unique index.</p>
+
+<h2>Covering indexes: deleting the second lookup</h2>
+
+<pre><code>SELECT id, user_id FROM orders WHERE user_id = 42;
+</code></pre>
+
+<p>Both columns live in the secondary leaf, so the engine returns the result from the index alone and the plan reports a covering scan. A simple test: list every column appearing in the select, where, order by and group by, and check whether they all live in one index. The primary key comes free, since InnoDB appends it.</p>
+
+<p>Counting rows is also covering, because it needs no business columns; the optimiser will usually pick a small secondary index and report the same note. The one that is often misread is the middle case: adding one column that is not in the index turns a covering query into a fetching one.</p>
+
+<h2>An index condition is not a covering index</h2>
+
+<table>
+<thead><tr><th>Plan note</th><th>Meaning</th><th>Still fetches the table</th></tr></thead>
+<tbody>
+<tr><td>Covering index</td><td>Every needed column is in the index</td><td>No</td></tr>
+<tr><td>Index condition pushdown</td><td>Some filters moved down to the engine layer</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<p>Pushdown reduces fetches, it does not remove them. With an index on the first column only, a filter on a second column is evaluated at the index layer, and only passing rows are fetched. If a plan shows only a pushed-down condition and no covering note, it is still fetching, just fewer times.</p>
+
+<h2>What a covering index costs</h2>
+
+<ul>
+<li>The index grows, so more pages and more buffer pool pressure.</li>
+<li>Writes slow down, since each insert and update maintains one more column.</li>
+<li>Schema changes get heavier, because altering a column rebuilds the whole index.</li>
+<li>With too many indexes, the optimiser has more chances to choose badly.</li>
+</ul>
+
+<p>So the order is: confirm with a plan that the fetch is the bottleneck, then consider adding columns. Do not stuff every column in to make it "look covering". Maintaining a wide index can cost more than the fetches it saves.</p>
+
+<h2>When to keep the fetch</h2>
+
+<p>Sometimes the extra lookup is correct: when the matching fraction is high, a sequential scan beats scanning an index and fetching row by row; when a query runs once, as in a report or an export, the fetch is affordable and a wide index is not; when a column is rarely queried, maintaining a permanent index for it has negative value; and when writes dominate reads, index maintenance outweighs the read benefit. The goal is not to eliminate every fetch, it is to make expensive fetches rare and to let cheap sequential scans happen.</p>
+
+<h2>Four kinds of evidence</h2>
+
+<p><strong>The plan.</strong> Check which index was chosen, how many rows are expected, and whether the covering note appears. A covering note means no fetch; a pushed-down condition or a residual filter means a fetch.</p>
+
+<p><strong>Handler counters.</strong> Reset session status, run the query, and read the handler counters. Key reads far above the number of returned rows indicates fetching, and the session-scoped counters are ideal for before-and-after comparisons.</p>
+
+<p><strong>Buffer pool hit rate.</strong> The ratio of logical read requests to physical reads is the hit rate. When fetches lower it, physical reads rise. Take the difference between two samples rather than reading the absolute cumulative value.</p>
+
+<p><strong>Per-index usage.</strong> The performance schema reports how many times each index has been read. An index at zero for months is pure maintenance cost; hiding it first and watching is safer than dropping it immediately.</p>
+
+<h2>A decision table and three misconceptions</h2>
+
+<table>
+<thead><tr><th>Situation</th><th>Advice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Frequent query, few columns</td><td>Build a covering composite index</td><td>Removes the fetch</td></tr>
+<tr><td>Occasional report</td><td>Allow fetches or even a full scan</td><td>Index maintenance costs more</td></tr>
+<tr><td>High matching fraction</td><td>Let the optimiser scan</td><td>Sequential beats many random fetches</td></tr>
+<tr><td>Long UUID primary key</td><td>Use an ordered key, or reorder the bits</td><td>The key amplifies every secondary index</td></tr>
+<tr><td><code>SELECT *</code> on a wide table</td><td>List the columns explicitly</td><td>Fewer unnecessary fetches</td></tr>
+</tbody>
+</table>
+
+<p><strong>An index always makes things faster.</strong> It replaces a table scan with an index scan plus N fetches, and a large N is slower.</p>
+
+<p><strong>The primary key must be added to a composite index manually.</strong> It does not; InnoDB appends it to every secondary index.</p>
+
+<p><strong>A pushed-down index condition means the query is covered.</strong> It only means filtering moved down; the fetch remains.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>What is a table fetch</td><td>Take the primary key from a secondary index, then read the row from the clustered index</td></tr>
+<tr><td>Why is it expensive</td><td>One more tree lookup, usually a random page</td></tr>
+<tr><td>How to avoid it</td><td>Covering indexes, sensible composites, explicit column lists, short primary keys</td></tr>
+<tr><td>How to confirm it</td><td>Look for a covering note in the plan</td></tr>
+<tr><td>When not to avoid it</td><td>High matching fraction, rare queries, write-heavy workloads</td></tr>
+</tbody>
+</table>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

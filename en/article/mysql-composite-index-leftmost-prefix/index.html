@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A composite index is one tree sorted by column order, not two trees glued together. The leftmost prefix rule is not an optimiser quirk, it is the physical layout, and it decides which parts of a query can seek." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/mysql-composite-index-leftmost-prefix/" />
+    <meta property="og:title" content="Why an index on (a, b) cannot answer a query on b | Stack Frame" />
+    <meta property="og:description" content="A composite index is one tree sorted by column order, not two trees glued together. The leftmost prefix rule is not an optimiser quirk, it is the physical layout, and it decides which parts of a query can seek." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/mysql-composite-index-leftmost-prefix/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Why an index on (a, b) cannot answer a query on b | Stack Frame" />
+    <meta name="twitter:description" content="A composite index is one tree sorted by column order, not two trees glued together. The leftmost prefix rule is not an optimiser quirk, it is the physical layout, and it decides which parts of a query can seek." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Why an index on (a, b) cannot answer a query on b | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-D0OlkhTN.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/mysql-composite-index-leftmost-prefix/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Why an index on (a, b) cannot answer a query on b</h1><div class="ns-meta">2026-11-04 · 14 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who built an index on two columns and watched a query on the second one do a full scan; people confused by the length column in a query plan; people wondering what order composite index columns should be in.</p>
+<p><strong>TL;DR:</strong> an index on (a, b) is not two trees, it is one tree sorted by a and then by b. To use b, you must first narrow the scan with a. That is the leftmost prefix rule, and it comes from the B+ tree's physical order, not from an optimiser limitation.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>A slow query with an index that should have worked</h2>
+
+<pre><code>SELECT id, uid, kind, ts
+FROM events
+WHERE kind = 2 AND ts &gt;= '2026-01-01';
+</code></pre>
+
+<p>The table has an index on (uid, kind, ts), and the plan says a full table scan with no index chosen. The first instinct is that the index is not being used or the statistics are stale.</p>
+
+<p>The real reason is simpler: the query does not mention <code>uid</code>, which is the first sort key of that index. Without it the scan cannot be narrowed to a contiguous range, so the optimiser falls back to a full scan.</p>
+
+<h2>What a composite index looks like on disk</h2>
+
+<pre><code>CREATE TABLE events (
+    id      BIGINT PRIMARY KEY AUTO_INCREMENT,
+    uid     BIGINT NOT NULL,
+    kind    TINYINT NOT NULL,
+    ts      DATETIME NOT NULL,
+    payload JSON,
+    KEY idx_uid_kind_ts (uid, kind, ts)
+) ENGINE=InnoDB;
+</code></pre>
+
+<p>A leaf entry is not three separate keys. It concatenates the three values in declaration order into one composite key, and sorts by that key lexicographically: compare uid, then kind, then ts.</p>
+
+<pre><code>(uid=1, kind=1, ts=10:00) -&gt; (uid=1, kind=1, ts=10:05)
+-&gt; (uid=1, kind=2, ts=09:00) -&gt; (uid=1, kind=2, ts=09:30)
+-&gt; (uid=2, kind=1, ts=08:00) -&gt; (uid=2, kind=3, ts=11:00)
+</code></pre>
+
+<p>Look at the third entry: kind 2 with an earlier timestamp comes after kind 1 with a later one. Sorting looks at kind first, so all kind 2 entries follow all kind 1 entries regardless of time.</p>
+
+<p>That picture is the entire source of the rule. Given <code>uid</code>, the matching records are contiguous and can be found by binary search. Given only <code>kind</code>, the records are scattered across every uid block. Given <code>uid</code> and <code>ts</code> while skipping <code>kind</code>, <code>ts</code> is only ordered within each kind block, so it cannot be located either.</p>
+
+<h2>The strict definition</h2>
+
+<p>The rule is not "you must use the first column", it is: starting from the first index column, match a consecutive run of columns; once you skip one, no later column can be used for seeking.</p>
+
+<p>Two distinct actions are worth separating. Seeking narrows the scan start to a leaf range using the tree's branch decisions. Filtering tests conditions on records already read. The leftmost prefix constrains seeking, not filtering. A skipped column can still filter, it just cannot save you page reads.</p>
+
+<table>
+<thead><tr><th>WHERE clause</th><th>Columns usable for seeking</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>a = 1</code></td><td>a</td><td>Seeks the contiguous a block</td></tr>
+<tr><td><code>a = 1 AND b = 2</code></td><td>a, b</td><td>Seeks the (1,2) block</td></tr>
+<tr><td><code>a = 1 AND b = 2 AND c = 3</code></td><td>a, b, c</td><td>Exact seek</td></tr>
+<tr><td><code>a = 1 AND c = 3</code></td><td>a</td><td>c can only filter, because b breaks the run</td></tr>
+<tr><td><code>b = 2</code></td><td>none</td><td>Full scan, or a different index</td></tr>
+<tr><td><code>a = 1 AND b &gt; 2 AND c = 3</code></td><td>a, b</td><td>After a range, c is unordered within the scan</td></tr>
+</tbody>
+</table>
+
+<h2>Six shapes, checked one by one</h2>
+
+<p><strong>All equality.</strong> All three columns seek, the index length is the full key, and the access type is usually a reference or a constant lookup if the combination is unique.</p>
+
+<p><strong>Prefix equality.</strong> Two columns seek the (uid, kind) block, and the key length stops after kind.</p>
+
+<p><strong>First column only.</strong> Seeks the uid block; kind and ts cannot be used for seeking.</p>
+
+<p><strong>Skipping the middle column.</strong> Only uid seeks. The third column may appear as an index condition, meaning it was pushed down to the index layer to reduce table lookups, but <strong>the whole uid block still has to be scanned</strong>. Many people misread that note as "the third column used the index", when it only filtered.</p>
+
+<p><strong>Range conditions.</strong> Equality on the first column plus a range on the second seeks the start of the range and scans to the end of the block. Adding equality on the third column cannot seek, because once the second column is a range the output is no longer ordered by the third.</p>
+
+<p><strong>IN and OR.</strong> An IN list is expanded into several equality ranges and still uses both columns. An OR on the same column merges into a range. An OR across different columns cannot be satisfied by one composite index, and the optimiser may choose an index merge, which in practice is usually less stable than a purpose-built composite index.</p>
+
+<h2>Why a range breaks the chain</h2>
+
+<p>It is the same sorting argument. For an index on (a, b, c), b is ordered across the whole scan range only after a is pinned to a single value, and c is ordered only after b is too.</p>
+
+<p>Once b becomes a range, the scan produces several values of b, and c is not globally ordered across them. The tree cannot binary search on c and has to compare row by row.</p>
+
+<p>Which produces the column-ordering rule: <strong>equality columns first, range columns last.</strong></p>
+
+<p>If equality on the last column is also common, consider swapping the order. Whichever query shape is more frequent gets the more precise index, and trying to serve both perfectly with one index usually degrades both.</p>
+
+<h2>Reading the key length as evidence</h2>
+
+<p>The key length in a plan is how many bytes of the index were actually used. Combined with column types, it reveals how many columns were involved.</p>
+
+<table>
+<thead><tr><th>Type</th><th>Bytes</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>TINYINT</td><td>1</td><td></td></tr>
+<tr><td>SMALLINT</td><td>2</td><td></td></tr>
+<tr><td>INT</td><td>4</td><td></td></tr>
+<tr><td>BIGINT</td><td>8</td><td></td></tr>
+<tr><td>DATETIME</td><td>5</td><td>Plus one byte per one or two fractional digits</td></tr>
+<tr><td>VARCHAR(4n) in utf8mb4</td><td>4n + 2</td><td>Two bytes for the length; a nullable column adds one more</td></tr>
+<tr><td>Any nullable column</td><td>+1</td><td>NULL flag</td></tr>
+</tbody>
+</table>
+
+<p>For an index of BIGINT, TINYINT and DATETIME, all non-null: one column is 8, two are 9, three are 14. A key length smaller than expected usually means the extra columns are not in the WHERE clause, the order violates the prefix rule, or a range appears in the middle.</p>
+
+<p>One trap: the key length counts index key bytes and excludes the primary key suffix. Do not use it to infer the total size of a secondary index entry.</p>
+
+<h2>Ordering, grouping and distinct</h2>
+
+<p>An index is already sorted, so sorting, grouping and deduplication can sometimes avoid extra work.</p>
+
+<p>For ordering, the same rule applies: the ORDER BY columns must continue the index prefix, and the preceding columns must be equality conditions. If the plan says it is sorting files, the index did not help.</p>
+
+<p>Direction matters too. Ascending on both columns can use a forward scan, descending on both can use a backward scan, and mixed directions need a descending index, available from MySQL 8.0.</p>
+
+<p>For grouping, if the column order matches the index, the optimiser can use a loose or tight index scan instead of building a temporary table. The same holds for distinct, which is grouping in disguise.</p>
+
+<h2>Pushdown, covering and the prefix rule</h2>
+
+<table>
+<thead><tr><th>Mechanism</th><th>Problem it solves</th><th>Still needs the table?</th></tr></thead>
+<tbody>
+<tr><td>Leftmost prefix</td><td>Whether the index can seek at all</td><td>Depends on covering</td></tr>
+<tr><td>Index condition pushdown</td><td>Filters at the index layer, fewer table lookups</td><td>Yes</td></tr>
+<tr><td>Covering index</td><td>Every needed column is in the index</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>Note that covering does not require the leftmost prefix. Even a query whose WHERE clause cannot seek may still report a covering scan, because the optimiser chose to scan the whole, smaller index. That is a scan, not a seek, and the performance is a different story.</p>
+
+<h2>Choosing column order in four steps</h2>
+
+<ol>
+<li>Put equality columns first: the ones nearly every query carries and that have high selectivity, such as tenant, user or status.</li>
+<li>Then add ordering columns: a stable ORDER BY belongs after the equality columns and before any range.</li>
+<li>Put range columns last: timestamps, thresholds, prefix matches.</li>
+<li>Finally consider covering columns: append the few columns a frequent SELECT needs, to earn a covering scan.</li>
+</ol>
+
+<p>Selectivity is not the first priority. However selective a column is, it is useless if it cannot be part of the seek. Satisfy the query shape first, then prefer higher selectivity among equals.</p>
+
+<p>The cardinality shown by the index listing is the optimiser's estimate, not an exact count. After a bulk import, refresh statistics before trusting it.</p>
+
+<h2>Prefix and functional indexes</h2>
+
+<p>A prefix index builds only the first characters of a long string column. It can still seek for equality and prefix matching, but it cannot cover, because the full value is not in the index, and ordering by the full value may not use the index, since prefix order is not value order. Choose the length by comparing prefix selectivity against full selectivity.</p>
+
+<p>Functional indexes, available from 8.0.13, let a query filter on an expression without wrapping the column in a function in the WHERE clause. The expression must match the query text exactly, or the index is not used.</p>
+
+<h2>Skip scan, the 8.0 exception</h2>
+
+<p>MySQL 8.0.13 added skip scan for the case where a composite index's first column does not appear in the condition. The idea: if the first column has few distinct values, treat each one as a virtual prefix and seek the second column under each.</p>
+
+<p>Its limits matter. The first column must have low cardinality, or the number of virtual prefixes explodes. The first column must not already carry an equality or range condition. The switch must be on, which it is by default. And it only makes an unusable index barely usable; a purpose-built index on the second column is usually better. Know it exists, do not treat it as a safety net.</p>
+
+<h2>One composite index or several single-column ones</h2>
+
+<table>
+<thead><tr><th>Option</th><th>Strength</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Two single-column indexes</td><td>Each query is precise</td><td>More indexes, more write amplification, possible index merge</td></tr>
+<tr><td>One composite index</td><td>Best for the combined query, still serves the first column</td><td>The second column alone cannot use it</td></tr>
+</tbody>
+</table>
+
+<p>The decision depends on the distribution of query shapes, not on a preference for fewer indexes. If the two forms are equally frequent, two single-column indexes may be right; if the combined form dominates, one composite index is cheaper.</p>
+
+<p>Index merge appears in plans as an intersection, a union, or a sorted union. It is frequently mis-chosen, and while you can disable it for comparison, doing so globally in production is not a good long-term plan.</p>
+
+<h2>Indexes are not free</h2>
+
+<p>Every secondary index is its own tree, maintained on every write: inserts add an entry to each, updates delete and re-insert when indexed columns change, deletes mark entries, and page splits, buffer pool pressure and log volume are all multiplied. The right approach is not one index per query, it is: find the genuinely slow statements, check whether they lack seeking, covering or ordering, index only the frequent and well-understood ones, and periodically look for indexes that have never been read.</p>
+
+<h2>From a slow query to an index, in five steps</h2>
+
+<p>Confirm the current plan shows no index and a full scan. Classify the shape: equality on one column, range on another, and a missing leading column. Design the candidate with equality first and the range last. Verify that the plan now reports a range access with the expected key length and a plausible row estimate. Then, if the query is frequent and the column list is small, append the extra columns to make it covering, accepting a bigger index and slower writes in exchange for faster reads.</p>
+
+<h2>Five misconceptions</h2>
+
+<p><strong>An index on (a, b) serves a query on b.</strong> It does not. Build (b, a) or a single-column index on b.</p>
+
+<p><strong>The most selective column should always lead.</strong> Selectivity decides how many rows survive, but if the prefix rule is violated the index cannot seek at all.</p>
+
+<p><strong>Functions on an indexed column still use the index.</strong> Wrapping the column in a function defeats an ordinary index; rewrite as a range or build a functional index.</p>
+
+<p><strong>Implicit conversion only affects performance, not correctness.</strong> Comparing a string column against a number converts the column and drops the index, and some boundary values can match unexpectedly. Align types explicitly.</p>
+
+<p><strong>An index condition in the plan means every index column was used.</strong> It only means some conditions were pushed down; the prefix may still be broken.</p>
+
+<h2>Summary</h2>
+
+<ul>
+<li>A composite index is one tree sorted by column order, and the prefix rule follows from that order.</li>
+<li>Columns after a range cannot seek, only filter.</li>
+<li>Column order goes equality, then ordering, then range, then covering.</li>
+<li>The key length is direct evidence of how many columns were used, remembering variable-length overhead and nullable flags.</li>
+<li>Verify with plans and instrumentation rather than intuition.</li>
+</ul>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>

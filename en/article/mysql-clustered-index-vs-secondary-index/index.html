@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="InnoDB tables are a tree, and its leaves hold whole rows. Secondary index leaves hold indexed columns plus the primary key. Reading the row is one more tree lookup, and usually a random page." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/mysql-clustered-index-vs-secondary-index/" />
+    <meta property="og:title" content="Clustered and secondary indexes: where the second lookup actually costs | Stack Frame" />
+    <meta property="og:description" content="InnoDB tables are a tree, and its leaves hold whole rows. Secondary index leaves hold indexed columns plus the primary key. Reading the row is one more tree lookup, and usually a random page." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/mysql-clustered-index-vs-secondary-index/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Clustered and secondary indexes: where the second lookup actually costs | Stack Frame" />
+    <meta name="twitter:description" content="InnoDB tables are a tree, and its leaves hold whole rows. Secondary index leaves hold indexed columns plus the primary key. Reading the row is one more tree lookup, and usually a random page." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Clustered and secondary indexes: where the second lookup actually costs | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-D0OlkhTN.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/mysql-clustered-index-vs-secondary-index/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Clustered and secondary indexes: where the second lookup actually costs</h1><div class="ns-meta">2026-11-04 · 14 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who have read a query plan, seen a covering-index note and cannot say what it saved; people burned once by "I added an index and it got slower"; people deciding between an auto-increment key and a UUID.</p>
+<p><strong>TL;DR:</strong> an InnoDB table is itself a clustered index whose leaves hold entire rows. A secondary index's leaves hold the indexed columns plus the primary key. The extra lookup means fetching the primary key from the secondary index and then finding the row in the clustered index: one more tree search, usually a random page access. Covering indexes are fast because they delete that lookup entirely.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Two nearly identical selects</h2>
+
+<pre><code>SELECT id, user_id FROM orders WHERE user_id = 42;
+SELECT id, user_id, amount FROM orders WHERE user_id = 42;
+</code></pre>
+
+<p>Both use the same index, both hit a few dozen rows, and the only difference is one extra column. Yet the second does an implicit lookup back to the table, and under concurrency it can be an order of magnitude slower.</p>
+
+<p>This is not the optimiser misbehaving. The second query needs a column that is not in the index, so the engine takes the primary key and fetches the row again. That action has a precise physical cost and a precise way to remove it.</p>
+
+<h2>How many trees does one table have</h2>
+
+<pre><code>CREATE TABLE orders (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT NOT NULL,
+    status      TINYINT NOT NULL,
+    amount      INT NOT NULL,
+    created_at  DATETIME NOT NULL,
+    KEY idx_user (user_id),
+    KEY idx_status (status)
+) ENGINE=InnoDB;
+</code></pre>
+
+<table>
+<thead><tr><th>Index</th><th>Leaf contents</th><th>Serves</th></tr></thead>
+<tbody>
+<tr><td>Clustered index</td><td>The whole row</td><td>Primary key lookups, and the table fetch</td></tr>
+<tr><td>Secondary on user_id</td><td>user_id plus the primary key</td><td><code>WHERE user_id = ?</code></td></tr>
+<tr><td>Secondary on status</td><td>status plus the primary key</td><td><code>WHERE status = ?</code></td></tr>
+</tbody>
+</table>
+
+<p>All three share the same page structure: 16 KB pages, interior pages holding a child's smallest key and page number, leaf pages holding records and linked to each other. Only the leaf contents differ. Which also explains why table size and index size cannot simply be added into "total data": the clustered index leaves <em>are</em> the data, and the secondary indexes are additional copies carrying only indexed columns and keys.</p>
+
+<h2>What the clustered index leaf really holds</h2>
+
+<p>"The whole row" is too coarse. A record is several segments: a five byte record header with flags, owned count, heap number, record type and a pointer to the next record; six bytes of transaction id for MVCC visibility; seven bytes of roll pointer into the undo log; the column data with the primary key first; a NULL bitmap for nullable columns; and a length array for variable-length columns.</p>
+
+<p>So the clustered leaf carries transaction and rollback information besides business data, which is why clustered pages are heavier than secondary pages: same 16 KB, fewer records.</p>
+
+<p>Without an explicit primary key, InnoDB picks the clustered key in order: the declared primary key, otherwise the first unique index whose columns are all non-null, otherwise a generated six byte hidden row id. That third case matters: a table without a primary key does not lack a clustered index, it has one on a column you cannot see, which appears inside every secondary index leaf, cannot be queried, and whose generation order you cannot control.</p>
+
+<h2>Why a secondary leaf must carry the primary key</h2>
+
+<p>Because index columns can repeat. A single user id may correspond to hundreds of rows, and the tree needs the primary key appended to make each entry strictly ordered. Internally this is the count of fields that make an index record unique, which for a secondary index equals the indexed columns plus the primary key.</p>
+
+<pre><code>compare user_id, then compare id when user_id ties
+</code></pre>
+
+<p>Two consequences follow. Selecting only the primary key from a secondary index is already a covering query, and the longer the primary key, the larger every secondary index entry becomes.</p>
+
+<h2>Why not store a row address, as MyISAM does</h2>
+
+<p>MyISAM's secondary leaves hold a file offset, making the table fetch a pointer dereference. InnoDB cannot, because <strong>rows move</strong>: page splits relocate records, rebuilds reorder pages, online DDL and tablespace reclamation change where records live, and a row that grows may overflow or force an in-page reorganise.</p>
+
+<p>With physical addresses, every one of those moves would require updating every secondary index, turning a single row change into an index-wide rewrite. The primary key is a logical identifier: wherever the row moves, the key does not change. The price is that the table fetch cannot be a pointer hop and has to walk a tree again. InnoDB trades read amplification for much less write amplification, which is the right trade for OLTP.</p>
+
+<h2>The full journey of a table fetch</h2>
+
+<ol>
+<li>Start at the secondary index root, branch on the value, descend.</li>
+<li>At the leaf, scan along the leaf chain collecting matching entries.</li>
+<li>Each entry carries the primary key.</li>
+<li>Take that key to the clustered index root.</li>
+<li>Branch again and descend to the right leaf.</li>
+<li>Locate the record there and read the missing column.</li>
+<li>Repeat steps four to six for the next key.</li>
+</ol>
+
+<p>A hundred matching rows means steps four to six run a hundred times. Each is an independent tree search, not a continuation of the previous read.</p>
+
+<p>Worse, those hundred primary keys are usually not contiguous in the clustered index. The secondary index is ordered by user id and the clustered index by primary key, and the two orders are unrelated, so the fetches jump around. Each miss in the buffer pool is a random disk read.</p>
+
+<h2>Where the cost shows up: three bills</h2>
+
+<p><strong>Random page access.</strong> One tree lookup costs about one page access per level; with three levels and a warm cache, three memory reads, otherwise some number of disk reads. The table fetch turns one lookup into one plus N, where N is the number of matching rows. A sequential scan costs pages times per-page cost, while random fetches cost rows times per-lookup cost, so once the matching fraction is high enough, the optimiser abandons the index and scans. That is arithmetic, not a mood swing.</p>
+
+<p><strong>Buffer pool pollution.</strong> The cache is finite and hot. Fetches pull clustered pages in, pages that may be read once and never again, evicting genuinely hot ones. Once the hit rate drops, every later query slows down, way beyond the statement that caused it. Which is how a one-off export query takes production down: not CPU, but a rinse through the buffer pool.</p>
+
+<p><strong>CPU and locks.</strong> Every fetch re-walks branches, compares keys and decodes headers. Cheap once, and not negligible across hundreds of thousands of rows. And for locking reads or updates, the fetch also takes locks on clustered index records, changing lock granularity and order, and raising the chance of deadlock.</p>
+
+<h2>How primary key length amplifies every secondary index</h2>
+
+<p>Every secondary leaf entry carries the primary key. Going from an 8 byte integer to a 36 byte UUID adds 28 bytes per entry, multiplied by the number of secondary indexes, the number of rows, and the number of index pages maintained per write. The result is not "28 more bytes", it is every secondary index swelling, fewer entries per 16 KB page, possibly one more level in the tree, and one more page access per lookup.</p>
+
+<p>There is a subtler problem too: a random UUID inserts at arbitrary positions, continuously triggering splits, lowering fill, and inflating the tablespace, while an auto-increment key always appends at the rightmost leaf.</p>
+
+<p>If a UUID is genuinely required, two compromises exist: reorder the time bits to the front so the binary value is roughly ordered, or keep an auto-increment primary key and demote the UUID to an ordinary unique index.</p>
+
+<h2>Covering indexes: deleting the second lookup</h2>
+
+<pre><code>SELECT id, user_id FROM orders WHERE user_id = 42;
+</code></pre>
+
+<p>Both columns live in the secondary leaf, so the engine returns the result from the index alone and the plan reports a covering scan. A simple test: list every column appearing in the select, where, order by and group by, and check whether they all live in one index. The primary key comes free, since InnoDB appends it.</p>
+
+<p>Counting rows is also covering, because it needs no business columns; the optimiser will usually pick a small secondary index and report the same note. The one that is often misread is the middle case: adding one column that is not in the index turns a covering query into a fetching one.</p>
+
+<h2>An index condition is not a covering index</h2>
+
+<table>
+<thead><tr><th>Plan note</th><th>Meaning</th><th>Still fetches the table</th></tr></thead>
+<tbody>
+<tr><td>Covering index</td><td>Every needed column is in the index</td><td>No</td></tr>
+<tr><td>Index condition pushdown</td><td>Some filters moved down to the engine layer</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<p>Pushdown reduces fetches, it does not remove them. With an index on the first column only, a filter on a second column is evaluated at the index layer, and only passing rows are fetched. If a plan shows only a pushed-down condition and no covering note, it is still fetching, just fewer times.</p>
+
+<h2>What a covering index costs</h2>
+
+<ul>
+<li>The index grows, so more pages and more buffer pool pressure.</li>
+<li>Writes slow down, since each insert and update maintains one more column.</li>
+<li>Schema changes get heavier, because altering a column rebuilds the whole index.</li>
+<li>With too many indexes, the optimiser has more chances to choose badly.</li>
+</ul>
+
+<p>So the order is: confirm with a plan that the fetch is the bottleneck, then consider adding columns. Do not stuff every column in to make it "look covering". Maintaining a wide index can cost more than the fetches it saves.</p>
+
+<h2>When to keep the fetch</h2>
+
+<p>Sometimes the extra lookup is correct: when the matching fraction is high, a sequential scan beats scanning an index and fetching row by row; when a query runs once, as in a report or an export, the fetch is affordable and a wide index is not; when a column is rarely queried, maintaining a permanent index for it has negative value; and when writes dominate reads, index maintenance outweighs the read benefit. The goal is not to eliminate every fetch, it is to make expensive fetches rare and to let cheap sequential scans happen.</p>
+
+<h2>Four kinds of evidence</h2>
+
+<p><strong>The plan.</strong> Check which index was chosen, how many rows are expected, and whether the covering note appears. A covering note means no fetch; a pushed-down condition or a residual filter means a fetch.</p>
+
+<p><strong>Handler counters.</strong> Reset session status, run the query, and read the handler counters. Key reads far above the number of returned rows indicates fetching, and the session-scoped counters are ideal for before-and-after comparisons.</p>
+
+<p><strong>Buffer pool hit rate.</strong> The ratio of logical read requests to physical reads is the hit rate. When fetches lower it, physical reads rise. Take the difference between two samples rather than reading the absolute cumulative value.</p>
+
+<p><strong>Per-index usage.</strong> The performance schema reports how many times each index has been read. An index at zero for months is pure maintenance cost; hiding it first and watching is safer than dropping it immediately.</p>
+
+<h2>A decision table and three misconceptions</h2>
+
+<table>
+<thead><tr><th>Situation</th><th>Advice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Frequent query, few columns</td><td>Build a covering composite index</td><td>Removes the fetch</td></tr>
+<tr><td>Occasional report</td><td>Allow fetches or even a full scan</td><td>Index maintenance costs more</td></tr>
+<tr><td>High matching fraction</td><td>Let the optimiser scan</td><td>Sequential beats many random fetches</td></tr>
+<tr><td>Long UUID primary key</td><td>Use an ordered key, or reorder the bits</td><td>The key amplifies every secondary index</td></tr>
+<tr><td><code>SELECT *</code> on a wide table</td><td>List the columns explicitly</td><td>Fewer unnecessary fetches</td></tr>
+</tbody>
+</table>
+
+<p><strong>An index always makes things faster.</strong> It replaces a table scan with an index scan plus N fetches, and a large N is slower.</p>
+
+<p><strong>The primary key must be added to a composite index manually.</strong> It does not; InnoDB appends it to every secondary index.</p>
+
+<p><strong>A pushed-down index condition means the query is covered.</strong> It only means filtering moved down; the fetch remains.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>What is a table fetch</td><td>Take the primary key from a secondary index, then read the row from the clustered index</td></tr>
+<tr><td>Why is it expensive</td><td>One more tree lookup, usually a random page</td></tr>
+<tr><td>How to avoid it</td><td>Covering indexes, sensible composites, explicit column lists, short primary keys</td></tr>
+<tr><td>How to confirm it</td><td>Look for a covering note in the plan</td></tr>
+<tr><td>When not to avoid it</td><td>High matching fraction, rare queries, write-heavy workloads</td></tr>
+</tbody>
+</table>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
