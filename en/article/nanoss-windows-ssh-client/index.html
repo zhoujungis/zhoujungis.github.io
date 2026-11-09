@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7iriVN.js"></script>
+    <script type="module" crossorigin src="/assets/index-T21q48Et.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -164,7 +164,7 @@
     <div id="app"><div class="ns-article"><h1>NanoSSH: a 13 MB Windows SSH client, and the twelve boundaries that shaped it</h1><div class="ns-meta">2026-11-05 · 41 min · Stack Frame</div><div class="markdown-body">
 <blockquote>
 <p>Who this is for: developers building lightweight desktop tools with Go and a webview, or anyone working with terminal byte streams and SSH protocol details.</p>
-<p><strong>TL;DR:</strong> the interesting part of this project is not the feature count but a handful of boundaries that are easy to get wrong: how IPC serializes, how terminal backpressure works, PTY parameter order, the host-key trust model, and Windows platform details.</p>
+<p><strong>TL;DR:</strong> the interesting part of this project isn't the feature count but a handful of boundaries that are easy to get wrong: how IPC serializes, how terminal backpressure works, PTY parameter order, the host-key trust model, and Windows platform details.</p>
 <p>Reading time around 30 minutes. Level: advanced.</p>
 </blockquote>
 
@@ -203,15 +203,15 @@
 
 <p>The artifact is a single executable, 13.23 MB on x64, with no external runtime. The build script sets 14 MB as a hard ceiling and fails the build when the binary goes past it. Five direct Go dependencies, twenty-seven indirect.</p>
 
-<p>Those numbers are not marketing. They constrain a lot of later decisions: no SQLite, a hand-written tray, no third-party systray library, and as few new modules as possible.</p>
+<p>Those numbers aren't marketing. They constrain a lot of later decisions: no SQLite, a hand-written tray, no third-party systray library, and as few new modules as possible.</p>
 
 <p>Because the constraints are hard, the problems in this project are concrete. Not "should we support feature X", but "why did this Chinese character turn into a question mark", "why does clicking the tray icon do nothing", "why does vim open misaligned". Each problem below has a symptom, a cause, a fix and a cost.</p>
 
 <h2>Architecture: put the risk in the replaceable layer</h2>
 
-<p>The most important architectural decision is separating SSH protocol logic from the UI shell completely. <code>sshcore</code> does not know that Wails, WebView2 or xterm exist. It exposes connections, sessions, SFTP, forwarding and key parsing. <code>shell</code> translates those capabilities into callable bindings and moves byte streams into event channels. The frontend reaches the backend through two layers, an API module and a transport module.</p>
+<p>The most important architectural decision is separating SSH protocol logic from the UI shell completely. <code>sshcore</code> doesn't know that Wails, WebView2 or xterm exist. It exposes connections, sessions, SFTP, forwarding and key parsing. <code>shell</code> translates those capabilities into callable bindings and moves byte streams into event channels. The frontend reaches the backend through two layers, an API module and a transport module.</p>
 
-<p>The benefit is that risk sits in the replaceable layer. Wails is the shell. Replacing it with bare WebView2 or another window container means changing <code>main.go</code>, the bindings in <code>internal/shell</code> and two frontend files. <code>sshcore</code> does not move.</p>
+<p>The benefit is that risk sits in the replaceable layer. Wails is the shell. Replacing it with bare WebView2 or another window container means changing <code>main.go</code>, the bindings in <code>internal/shell</code> and two frontend files. <code>sshcore</code> doesn't move.</p>
 
 <p>The reverse holds too. Protocol tests need no window, because an in-process test SSH server exercises connections, PTYs, SFTP and forwarding directly.</p>
 
@@ -224,7 +224,7 @@
 
 <p>Persistence follows the same narrow rule. <code>servers.json</code> is the only database, versioned at 1. Reads run a pure-function migration, saves write a backup first and then go through a temporary file, an fsync and a rename. <code>known_hosts</code> uses standard OpenSSH format, so it can be exchanged with the system file. Private keys are standard OpenSSH keys. Logs live in their own directory. The data root defaults to <code>%APPDATA%\\NanoSSH</code>, overridden by an environment variable for tests and portable mode. There are no hidden binary formats; when something goes wrong, everything opens in a text editor.</p>
 
-<p>The window layer has a few pieces of plumbing that are not business logic but do shape the experience. The frameless title bar is drawn by the frontend, while Wails keeps resize hot zones and shadow. A single-instance lock focuses the existing window rather than starting a second process. The Mica background reads the Windows build number from the registry and enables translucency only from build 22621 onward, falling back to opaque on older systems, which prevents a transparent window with no background. The frontend asks whether Mica is enabled and decides whether the title bar and sidebar become translucent surfaces.</p>
+<p>The window layer has a few pieces of plumbing that aren't business logic but do shape the experience. The frameless title bar is drawn by the frontend, while Wails keeps resize hot zones and shadow. A single-instance lock focuses the existing window rather than starting a second process. The Mica background reads the Windows build number from the registry and enables translucency only from build 22621 onward, falling back to opaque on older systems, which prevents a transparent window with no background. The frontend asks whether Mica is enabled and decides whether the title bar and sidebar become translucent surfaces.</p>
 
 <p>The frontend has one deliberate seam as well. Views, terminal and components never touch the global Wails object. Every binding call and event subscription goes through the API module. Byte transport lives alone in the transport module, the only frontend file strongly tied to the shell, so replacing Wails later rewrites a bounded area.</p>
 
@@ -254,15 +254,15 @@ ctx.onmessage = (e: MessageEvent&lt;string&gt;) =&gt; {
 
 <p><strong>Cost.</strong> Base64 inflates byte volume by roughly a third, so a 16 KiB terminal chunk becomes a string of about 21.8 KiB. Go also serializes JSON and the webview decodes base64.</p>
 
-<p>What that buys is not having to maintain a WebSocket service, no connection authentication to design, and no extra port outside Wails. For a local SSH client that is an acceptable trade, but the README was inaccurate. The correct fix was to document "Wails event bridge plus base64 decoding" instead of keeping a faster-sounding noun. Engineering documents should describe the implementation, not the wish.</p>
+<p>What that buys isn't having to maintain a WebSocket service, no connection authentication to design, and no extra port outside Wails. For a local SSH client that is an acceptable trade, but the README was inaccurate. The correct fix was to document "Wails event bridge plus base64 decoding" instead of keeping a faster-sounding noun. Engineering documents should describe the implementation, not the wish.</p>
 
-<p>If the project ever did move back to binary WebSocket, it would lose single-instance behavior, same-origin event dispatch and the no-extra-port property, and it would have to solve local authentication and a new attack surface. That is why the implementation was not changed to match the document.</p>
+<p>If the project ever did move back to binary WebSocket, it would lose single-instance behavior, same-origin event dispatch and the no-extra-port property, and it would have to solve local authentication and a new attack surface. That's why the implementation wasn't changed to match the document.</p>
 
 <p>When a worker is unavailable, in some restricted webview environments, the decoder falls back to synchronous base64 decoding on the main thread. Decoding then occupies the render thread and long output stutters more, but nothing is functionally missing. Each terminal session owns a worker, kept across tab switches and terminated only when the session closes, at the cost of a few more worker instances in memory.</p>
 
 <h2>Problem 2: multi-byte characters split across chunks</h2>
 
-<p><strong>Symptom.</strong> An echo containing Chinese, Korean or emoji occasionally shows a replacement character in the middle of the output. It is intermittent, and more likely with longer output or a slower machine.</p>
+<p><strong>Symptom.</strong> An echo containing Chinese, Korean or emoji occasionally shows a replacement character in the middle of the output. It's intermittent, and more likely with longer output or a slower machine.</p>
 
 <p><strong>Cause.</strong> The backend originally converted each read to a string and split it into lines before sending. SSH channel read boundaries have nothing to do with character boundaries: a three-byte character can straddle two reads. Converting half a character to a string forces Go to emit a replacement character, and once a UTF-8 decode has happened the pieces can never be rejoined.</p>
 
@@ -316,7 +316,7 @@ for {
 }
 </code></pre>
 
-<p>The frontend chains write and ack through a promise, so slow rendering cannot reorder acks.</p>
+<p>The frontend chains write and ack through a promise, so slow rendering can't reorder acks.</p>
 
 <pre><code>this.chain = this.chain
   .then(() =&gt; this.handlers.onData(bytes))
@@ -334,7 +334,7 @@ for {
 
 <p>One detail inside flush is easy to miss. If the chunk channel is drained while waiting for an ack, the timer may already have fired, so the next loop iteration has to stop the timer and drain it, or a second flush happens immediately.</p>
 
-<p>The 8 ms batch is not about reducing event count. It is about sending small packets, such as keystroke echoes, promptly. Batching only at 16 KiB makes interaction feel sluggish.</p>
+<p>The 8 ms batch isn't about reducing event count. It's about sending small packets, such as keystroke echoes, promptly. Batching only at 16 KiB makes interaction feel sluggish.</p>
 
 <p>In tests, the collector acks synchronously inside the event callback, which is equivalent to the fastest possible "already rendered". A real browser also goes through worker decoding, a buffer transfer and xterm rendering, so production chunk intervals are longer.</p>
 
@@ -342,7 +342,7 @@ for {
 
 <h2>Problem 4: PTY width and height order</h2>
 
-<p><strong>Symptom.</strong> vim opens fine locally but the whole screen misaligns through NanoSSH, and htop columns do not line up. Resizing the window sometimes makes it accidentally correct. The first suspicion was xterm's fit calculation, and the bug turned out to be in the backend.</p>
+<p><strong>Symptom.</strong> vim opens fine locally but the whole screen misaligns through NanoSSH, and htop columns don't line up. Resizing the window sometimes makes it accidentally correct. The first suspicion was xterm's fit calculation, and the bug turned out to be in the backend.</p>
 
 <p><strong>Cause.</strong> Two contradictory naming conventions. RFC 4254 encodes the PTY request and window change with width first and height second, meaning columns then rows. The Go crypto SSH library's request and change calls take height first and width second. Following the RFC field order into the library swaps the two values, so vim receives 80 rows and 24 columns.</p>
 
@@ -356,7 +356,7 @@ for {
 
 <p>Note that the error text still reads columns by rows, because that is for humans, while the actual argument order is rows then columns. Both perspectives have to coexist, or readers get confused.</p>
 
-<p>There are defaults as well. A rows or columns value of zero or less falls back to 24 by 80, so a frontend that has not laid out yet cannot send zeros. Resize rejects invalid sizes and never writes a zero-sized terminal to the remote. The frontend's fit call can throw before layout, so the wrapper swallows it and returns the current terminal size, deferring to the next resize observation.</p>
+<p>There are defaults as well. A rows or columns value of zero or less falls back to 24 by 80, so a frontend that has not laid out yet can't send zeros. Resize rejects invalid sizes and never writes a zero-sized terminal to the remote. The frontend's fit call can throw before layout, so the wrapper swallows it and returns the current terminal size, deferring to the next resize observation.</p>
 
 <p><strong>Cost.</strong> The fit call returns rows and columns, and callers must pass them in that order, which the comments repeat more than once. The window-change message is fire-and-forget with no reply, so a successful return only means the bytes were written, not that the remote applied them, which means tests must poll the server's record. Dragging a window produces many resize requests, debounced at 150 ms, at the cost of a slightly delayed remote size.</p>
 
@@ -364,7 +364,7 @@ for {
 
 <p><strong>Symptom.</strong> The first connection to an unknown host should show a fingerprint card. A changed host key should block clearly rather than offer an "ignore once" button that people click reflexively. In practice the error types returned by the known-hosts helper get lumped together, mixing unknown hosts with changed fingerprints.</p>
 
-<p><strong>Cause.</strong> In the key error returned by the helper, an empty wanted-key list means there is no record for that host, and a non-empty one means a record exists but the presented key does not match. The first is trust on first use; the second may signal a man in the middle. There is a third case as well, a distinct revoked error for hosts marked revoked in the file, which must block unconditionally. Mixing the three produces the classic "fingerprint changed, allow once" vulnerability.</p>
+<p><strong>Cause.</strong> In the key error returned by the helper, an empty wanted-key list means there is no record for that host, and a non-empty one means a record exists but the presented key doesn't match. The first is trust on first use; the second may signal a man in the middle. There is a third case as well, a distinct revoked error for hosts marked revoked in the file, which must block unconditionally. Mixing the three produces the classic "fingerprint changed, allow once" vulnerability.</p>
 
 <p><strong>Fix.</strong> Handle the revoked error first and return immediately. Then check whether the wanted-key list is non-empty. Unknown hosts offer three choices: this time only, trust and save, or cancel. A changed key accepts only an explicit replacement; both accept-once and refusal produce a rejected error. Replacement matches the old entry by address and writes a new public-key line. The write is atomic, with a temporary file, an fsync and a rename, at mode 0600.</p>
 
@@ -387,19 +387,19 @@ for {
 }
 </code></pre>
 
-<p>Tests cover three behaviours: prompting and saving on first contact, not prompting the second time, and blocking after the server rotates its key while the callback still receives the old fingerprint. Another test confirms that "this time only" is not persisted and that both connections prompt again.</p>
+<p>Tests cover three behaviours: prompting and saving on first contact, not prompting the second time, and blocking after the server rotates its key while the callback still receives the old fingerprint. Another test confirms that "this time only" isn't persisted and that both connections prompt again.</p>
 
-<p><strong>Cost.</strong> The known-hosts format supports hashed hostnames, and the replacement logic cannot reverse a hash. Such lines are skipped and a new line is appended, so the old hashed record stays in the file and later connections may keep reporting a change until the user cleans it by hand. That is a documented boundary, with a comment saying hashed forms are treated as misses and preserved. On Windows, mode 0600 is only an intention; the actual access control comes from ACLs inherited from the application data directory.</p>
+<p><strong>Cost.</strong> The known-hosts format supports hashed hostnames, and the replacement logic can't reverse a hash. Such lines are skipped and a new line is appended, so the old hashed record stays in the file and later connections may keep reporting a change until the user cleans it by hand. That's a documented boundary, with a comment saying hashed forms are treated as misses and preserved. On Windows, mode 0600 is only an intention; the actual access control comes from ACLs inherited from the application data directory.</p>
 
 <h2>Problem 6: the Windows ssh-agent named pipe</h2>
 
 <p><strong>Symptom.</strong> Windows OpenSSH is installed and <code>ssh-add</code> lists keys, but agent authentication in NanoSSH always fails. With Git Bash installed as well, the agent socket environment variable exists, yet dialling it also fails.</p>
 
-<p><strong>Cause.</strong> Windows has no Unix domain sockets. The Windows OpenSSH agent listens on a fixed named pipe. The agent socket environment variable, even when present, may hold a Cygwin or MSYS private format that Go's Unix dial cannot reach.</p>
+<p><strong>Cause.</strong> Windows has no Unix domain sockets. The Windows OpenSSH agent listens on a fixed named pipe. The agent socket environment variable, even when present, may hold a Cygwin or MSYS private format that Go's Unix dial can't reach.</p>
 
 <p>There is a second problem. When the pipe exists but all instances are busy, opening it returns a pipe-busy error, and reporting that directly tells the user the agent is unavailable.</p>
 
-<p><strong>Fix.</strong> Hand-written file opening plus wait-for-pipe logic, with no extra dependency. The pipe name is fixed, the deadline is three seconds, and a busy pipe retries every 50 ms. On success the handle is wrapped in an agent client, and the key list is fetched once before authenticating. An empty list produces a clear "run ssh-add first" message instead of the library's "no supported methods remain". The auth methods return a closer, which is closed on handshake failure and otherwise attached to the connection so it closes with it, so a failed handshake cannot leak the pipe.</p>
+<p><strong>Fix.</strong> Hand-written file opening plus wait-for-pipe logic, with no extra dependency. The pipe name is fixed, the deadline is three seconds, and a busy pipe retries every 50 ms. On success the handle is wrapped in an agent client, and the key list is fetched once before authenticating. An empty list produces a clear "run ssh-add first" message instead of the library's "no supported methods remain". The auth methods return a closer, which is closed on handshake failure and otherwise attached to the connection so it closes with it, so a failed handshake can't leak the pipe.</p>
 
 <pre><code>deadline := time.Now().Add(agentDialTimeout)
 for {
@@ -419,13 +419,13 @@ for {
 
 <p>A Windows-only test asserts that the path really reaches the pipe namespace. With no agent running, the error must be file-not-found or pipe-busy, never invalid-name. If Go or the syscall bindings ever change device path handling, that test fails first, rather than a user reporting that agent authentication never works.</p>
 
-<p><strong>Cost.</strong> Only the Windows OpenSSH agent is supported. PuTTY's agent is not, and no third-party protocol is pulled in to support it. Three seconds is a hard cap: better a clear error than a spinner that never resolves. Multiple SSH clients contend for the pipe, so failures inside the retry window are normal, and only past three seconds is it genuinely unavailable. Three seconds is shorter than the 15-second TCP connect timeout because the agent is a local resource that should answer in milliseconds.</p>
+<p><strong>Cost.</strong> Only the Windows OpenSSH agent is supported. PuTTY's agent isn't, and no third-party protocol is pulled in to support it. Three seconds is a hard cap: better a clear error than a spinner that never resolves. Multiple SSH clients contend for the pipe, so failures inside the retry window are normal, and only past three seconds is it genuinely unavailable. Three seconds is shorter than the 15-second TCP connect timeout because the agent is a local resource that should answer in milliseconds.</p>
 
 <h2>Problem 7: the tray icon ignores clicks</h2>
 
 <p><strong>Symptom.</strong> After closing the window the app minimizes to the tray. The icon is visible, but double-clicking does nothing and the context menu never opens. The log shows no errors and the process is alive.</p>
 
-<p><strong>Cause.</strong> Win32 window messages are delivered per thread, so the message window and the message loop must live on the same OS thread. Go goroutines can migrate between OS threads around blocking calls. Create the window on one thread and pump messages on another, and messages never arrive. The symptom looks exactly like "the icon did not attach", when the message loop is simply not receiving callbacks.</p>
+<p><strong>Cause.</strong> Win32 window messages are delivered per thread, so the message window and the message loop must live on the same OS thread. Go goroutines can migrate between OS threads around blocking calls. Create the window on one thread and pump messages on another, and messages never arrive. The symptom looks exactly like "the icon didn't attach", when the message loop is simply not receiving callbacks.</p>
 
 <p><strong>Fix.</strong> The tray thread locks itself to its OS thread on entry and unlocks on exit. Both creating the message window and entering the message loop happen on that locked thread. The window is a message-only window, so it takes no screen space, and callbacks, balloons and the context menu are delivered through custom messages.</p>
 
@@ -441,7 +441,7 @@ for {
 
 <p>The tray is created lazily. It takes no notification-area slot while the window is open; the icon appears only when the app actually minimizes. That also means a failed tray creation still lets the user exit, instead of being trapped in a background process with no way out.</p>
 
-<p>The first balloon shows once, guarded by a flag, so it does not nag. The context menu returns the chosen command directly instead of routing window messages. Quitting destroys the icon through a custom message and ends the message loop.</p>
+<p>The first balloon shows once, guarded by a flag, so it doesn't nag. The context menu returns the chosen command directly instead of routing window messages. Quitting destroys the icon through a custom message and ends the message loop.</p>
 
 <p><strong>Cost.</strong> One OS thread is locked for the tray's lifetime and must not block. Callbacks only post messages and flip state, with heavy work pushed back to the business layer. The window procedure defends every branch against panics, menu commands travel over a channel, and the tray thread never touches the database or the network. Only one tray icon is supported, so the window procedure is bound through a package-level variable rather than a window property. The handwritten Win32 code is about two hundred lines, less maintainable than a library, in exchange for zero new dependencies and a smaller binary.</p>
 
@@ -449,7 +449,7 @@ for {
 
 <p><strong>Symptom.</strong> As features accumulated, the artifact grew past 13.23 MB, leaving under 0.8 MB before the 14 MB limit. At that point any casual "just add a library" decision can fail the build.</p>
 
-<p><strong>Cause.</strong> The Wails runtime is not small, and the SSH implementation from the crypto package, the WebView2 loader and the frontend bundle all live inside. The dependency graph also carries a batch of transitive Wails dependencies, such as an HTTP framework, a WebSocket library, and string and template helpers. Not all of them are reachable, but all of them are in the module graph. Add SQLite or a third-party tray library, and size runs away.</p>
+<p><strong>Cause.</strong> The Wails runtime isn't small, and the SSH implementation from the crypto package, the WebView2 loader and the frontend bundle all live inside. The dependency graph also carries a batch of transitive Wails dependencies, such as an HTTP framework, a WebSocket library, and string and template helpers. Not all of them are reachable, but all of them are in the module graph. Add SQLite or a third-party tray library, and size runs away.</p>
 
 <p><strong>Fix.</strong> Turn size from a verbal agreement into a build assertion. The build script fixes the architecture and disables cgo, builds with stripped symbols and debug info, verifies that the executable's machine field matches x64, and then rounds the size and throws when it exceeds the threshold.</p>
 
@@ -488,7 +488,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>The window declares per-monitor DPI awareness in its manifest, otherwise WebView2 is bitmap-stretched across displays and text blurs. Light and dark follow the system, and Mica enables only on recent builds, with older systems staying opaque so a transparent window never lacks a background.</p>
 
-<p><strong>Cost.</strong> The two debounces stack, so the remote PTY receives the final size a moment after dragging ends, which is perceptible but not painful. Skipping tiny sizes avoids the zero-sized case but also means a very small layout change does not recompute. The WebGL downgrade is silent, so users only notice that scrolling got slower, a trade made to keep the main flow undisturbed.</p>
+<p><strong>Cost.</strong> The two debounces stack, so the remote PTY receives the final size a moment after dragging ends, which is perceptible but not painful. Skipping tiny sizes avoids the zero-sized case but also means a very small layout change doesn't recompute. The WebGL downgrade is silent, so users only notice that scrolling got slower, a trade made to keep the main flow undisturbed.</p>
 
 <h2>Problem 10: SFTP and forwarding share a connection, not a lifetime</h2>
 
@@ -512,9 +512,9 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>Several smaller details matter. Rename prefers the POSIX rename and falls back to the standard one. A symlink triggers an extra stat only when the entry is a link and not a directory, avoiding a round trip per entry in large directories. Delete removes only empty directories, never recursively, because a wrong path in a recursive delete is irreversible. Forwarding binds loopback only, so exposing a service to the local network is an explicit decision, and a port conflict is an error rather than a half-written rule.</p>
 
-<p>Transfer progress is rate-limited to 120 ms, so every 32 KiB does not flood the webview with events. Cancellation travels through a context, the copy loop checks it before each block, and the terminal state is cancelled rather than done. Forwarding statistics share the same interval and only push when a value changes, so idle rules emit nothing.</p>
+<p>Transfer progress is rate-limited to 120 ms, so every 32 KiB doesn't flood the webview with events. Cancellation travels through a context, the copy loop checks it before each block, and the terminal state is cancelled rather than done. Forwarding statistics share the same interval and only push when a value changes, so idle rules emit nothing.</p>
 
-<p><strong>Cost.</strong> All channels share one TCP connection, so terminal, SFTP and forwarding contend for the same bandwidth and connection-level resources; a single large transfer can slow terminal echo. Remote forwarding and dynamic forwarding are not implemented, only local. A download opens the remote file once to learn its size and reopens it for the transfer, which costs a round trip but avoids holding two handles for a long time. Recursive upload and recursive delete are explicitly unsupported.</p>
+<p><strong>Cost.</strong> All channels share one TCP connection, so terminal, SFTP and forwarding contend for the same bandwidth and connection-level resources; a single large transfer can slow terminal echo. Remote forwarding and dynamic forwarding aren't implemented, only local. A download opens the remote file once to learn its size and reopens it for the transfer, which costs a round trip but avoids holding two handles for a long time. Recursive upload and recursive delete are explicitly unsupported.</p>
 
 <h2>Problem 11: passwords, stale passwords and credential self-healing</h2>
 
@@ -522,9 +522,9 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p><strong>Cause.</strong> If "the user typed a password" and "save the password" are the same call, a failed authentication still persists it. If a stale saved password is never removed, the frontend sees that a password exists, never prompts, and the user is stuck in a corner where clicking connect always fails. Deleting a server while leaving its credential behind also orphans a password pointing at a host that no longer exists.</p>
 
-<p><strong>Fix.</strong> Save only after successful authentication. If authentication fails and no password was supplied this time, delete the saved one so the next attempt prompts. Deleting a server deletes its credential. The password-exists check answers only whether one is stored, never returns the secret itself, and drives whether the frontend connects directly or prompts first. Clearing a password is idempotent, so repeating it is not an error.</p>
+<p><strong>Fix.</strong> Save only after successful authentication. If authentication fails and no password was supplied this time, delete the saved one so the next attempt prompts. Deleting a server deletes its credential. The password-exists check answers only whether one is stored, never returns the secret itself, and drives whether the frontend connects directly or prompts first. Clearing a password is idempotent, so repeating it isn't an error.</p>
 
-<p>The frontend asks whether a password exists before connecting, and only prompts when it does not, so normal use is not interrupted every time. Key passphrases work the same way: on failure with a stored passphrase, delete it, then prompt again with a retry marker, up to three times.</p>
+<p>The frontend asks whether a password exists before connecting, and only prompts when it doesn't, so normal use isn't interrupted every time. Key passphrases work the same way: on failure with a stored passphrase, delete it, then prompt again with a retry marker, up to three times.</p>
 
 <pre><code>if srv.Auth == sshcore.AuthPassword &amp;&amp; req.Password != "" {
     if serr := a.secrets.Set(store.PasswordTarget(srv.ID), req.Password); serr != nil {
@@ -533,17 +533,17 @@ if ($sizeMB -gt $MaxSizeMB) {
 }
 </code></pre>
 
-<p>Credentials live in Windows Credential Manager as generic credentials scoped to the local machine, with targets such as a server password or a key passphrase. There is no bespoke encrypted file, because that is the classic roll-your-own-crypto trap. The credential manager uses the platform data protection API bound to the current user, and it does not travel with the data directory.</p>
+<p>Credentials live in Windows Credential Manager as generic credentials scoped to the local machine, with targets such as a server password or a key passphrase. There is no bespoke encrypted file, because that is the classic roll-your-own-crypto trap. The credential manager uses the platform data protection API bound to the current user, and it doesn't travel with the data directory.</p>
 
-<p><strong>Cost.</strong> Self-healing depends on matching the library's authentication error text, which is a string comparison against a message that could change. Detecting a typed authentication error would be sturdier, but the simpler path was chosen. Credentials bound to the Windows account cannot be decrypted on another machine, which is correct behaviour, so copying the server list and keys to a new machine means re-entering passwords.</p>
+<p><strong>Cost.</strong> Self-healing depends on matching the library's authentication error text, which is a string comparison against a message that could change. Detecting a typed authentication error would be sturdier, but the simpler path was chosen. Credentials bound to the Windows account can't be decrypted on another machine, which is correct behaviour, so copying the server list and keys to a new machine means re-entering passwords.</p>
 
-<p>Passwords are still plaintext in process memory. There is no master password and no memory encryption, which is the usual boundary for a desktop SSH client. Credentials are also not invisible to other programs running as the same user: anything running as that user can enumerate the targets and read them. That is a property of the Windows credential model rather than something NanoSSH can fix on its own. What it does guarantee is that secrets are never in a plaintext JSON file and never travel with the data directory.</p>
+<p>Passwords are still plaintext in process memory. There is no master password and no memory encryption, which is the usual boundary for a desktop SSH client. Credentials are also not invisible to other programs running as the same user: anything running as that user can enumerate the targets and read them. That's a property of the Windows credential model rather than something NanoSSH can fix on its own. What it does guarantee is that secrets are never in a plaintext JSON file and never travel with the data directory.</p>
 
 <h2>Problem 12: three edges of key management</h2>
 
 <p><strong>Symptom.</strong> Importing a FIDO security key reports that the private key could not be parsed, which looks like file corruption. Generating an RSA key defaults to 2048 bits, which the baseline rejects. Deleting a key that a server still references can quietly change that server's authentication and break the next connection.</p>
 
-<p><strong>Cause.</strong> A FIDO key's private handle never leaves the hardware, and Go's SSH library does not support it, so the user has to be told the algorithm is unsupported rather than that the file is broken. RSA 2048 is no longer enough, and 4096-bit generation takes seconds, which is too slow for an interactive flow. Deleting a referenced key creates a dangling reference, and silently rewriting server configuration is harder to diagnose than an error.</p>
+<p><strong>Cause.</strong> A FIDO key's private handle never leaves the hardware, and Go's SSH library doesn't support it, so the user has to be told the algorithm is unsupported rather than that the file is broken. RSA 2048 is no longer enough, and 4096-bit generation takes seconds, which is too slow for an interactive flow. Deleting a referenced key creates a dangling reference, and silently rewriting server configuration is harder to diagnose than an error.</p>
 
 <p><strong>Fix.</strong> Only three algorithms are supported: ed25519, RSA 3072 and ECDSA P256, generated in the native OpenSSH format, with public lines that paste straight into an authorized-keys file and fingerprints that match the standard tool. FIDO detection has to inspect the decoded payload, because OpenSSH private keys store the algorithm name as a plain string inside the binary body; searching the visible text for the FIDO prefix finds nothing.</p>
 
@@ -557,7 +557,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>Key files are named by a generated identifier rather than by whatever the user typed. That rules out collisions and path traversal, and lets a key be renamed freely. Import parses before writing, so success proves the key is usable and yields the exact public key and fingerprint; failure leaves no half-record with an empty fingerprint.</p>
 
-<p>Three failure paths are distinguished on purpose: a needed passphrase returns a specific error, a hardware key returns its own error, and everything else means the file itself is wrong. Without a name, import uses the source filename without its extension. A passphrase-protected import stores the passphrase, so the first connection does not ask again.</p>
+<p>Three failure paths are distinguished on purpose: a needed passphrase returns a specific error, a hardware key returns its own error, and everything else means the file itself is wrong. Without a name, import uses the source filename without its extension. A passphrase-protected import stores the passphrase, so the first connection doesn't ask again.</p>
 
 <p>Deleting a key scans the server list first and refuses while the key is referenced, naming the servers in the error. The order is record first and file second, so there is never a record pointing at a file that no longer exists.</p>
 
@@ -565,13 +565,13 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <h2>Closing</h2>
 
-<p>The value of NanoSSH is not how many features it has. It is that a few boundaries that are easy to get wrong are pinned down.</p>
+<p>The value of NanoSSH isn't how many features it has. It's that a few boundaries that are easy to get wrong are pinned down.</p>
 
 <p>IPC chose the Wails base64 event bridge, accepted the size inflation, and offset it with worker decoding and buffer transfer. Terminal bytes stay byte slices end to end with no line splitting or decoding, using 16 KiB chunks, 8 ms batching and an ack loop to keep latency at the renderer. PTY parameters are uniformly rows then columns, with a test preventing the RFC and library orders from swapping again. Host keys distinguish unknown, changed and revoked, and a changed key allows only explicit replacement. The Windows details land in the named pipe, the locked tray thread, resize debouncing and the 14 MB build assertion.</p>
 
-<p>Every decision has a cost. Throughput is bound to rendering, hashed known-hosts entries cannot be replaced automatically, JSON cannot be queried, handwritten Win32 costs maintenance, and stale-password healing depends on error text. None of that is hidden; it lives in comments, tests and error messages.</p>
+<p>Every decision has a cost. Throughput is bound to rendering, hashed known-hosts entries can't be replaced automatically, JSON can't be queried, handwritten Win32 costs maintenance, and stale-password healing depends on error text. None of that is hidden; it lives in comments, tests and error messages.</p>
 
-<p>Testing is part of the architecture rather than something added afterwards. An in-process test server provides a real SSH server. An event collector replaces the event outlet and acks immediately on receipt. The credential backend is swapped for an in-memory implementation, so tests never write to the real credential store. Conclusions such as "terminal bytes are never lost", "PTY order is correct", "forwarding reuses one connection" and "closing a session releases the port" can all be verified repeatably without a window. What transfers to similar tools is not a particular function but the order of work: write the boundaries down first, then choose the implementation.</p>
+<p>Testing is part of the architecture rather than something added afterwards. An in-process test server provides a real SSH server. An event collector replaces the event outlet and acks immediately on receipt. The credential backend is swapped for an in-memory implementation, so tests never write to the real credential store. Conclusions such as "terminal bytes are never lost", "PTY order is correct", "forwarding reuses one connection" and "closing a session releases the port" can all be verified repeatably without a window. What transfers to similar tools isn't a particular function but the order of work: write the boundaries down first, then choose the implementation.</p>
 
 <h2>Further reading</h2>
 

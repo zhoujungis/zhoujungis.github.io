@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7iriVN.js"></script>
+    <script type="module" crossorigin src="/assets/index-T21q48Et.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -172,7 +172,7 @@
 
 <p>The result is two binaries. The visible GUI browser, <code>nanobrowser.exe</code>, is about <strong>4.52 MB</strong>. The headless automation browser, <code>nanoagent.exe</code>, is about <strong>4.24 MB</strong>. Both share one library crate and one in-process DevTools protocol bridge.</p>
 
-<p>This post does not sell concepts. It takes the implementation apart. The technical density is concentrated in four places: <strong>three kinds of sibling window inside one window</strong>, <strong>speaking CDP with no debugging port</strong>, <strong>hand-writing a SHA-1 handshake and a frame codec</strong>, and <strong>loading the official DevTools frontend into a child webview with a draggable docked panel</strong>. Each of those has a detail you only learn by trying it.</p>
+<p>This post doesn't sell concepts. It takes the implementation apart. The technical density is concentrated in four places: <strong>three kinds of sibling window inside one window</strong>, <strong>speaking CDP with no debugging port</strong>, <strong>hand-writing a SHA-1 handshake and a frame codec</strong>, and <strong>loading the official DevTools frontend into a child webview with a draggable docked panel</strong>. Each of those has a detail you only learn by trying it.</p>
 
 <p>This is part one of two. Part two covers the tab engine, the headless agent, the five security layers and the fourteen pitfalls.</p>
 
@@ -193,12 +193,12 @@
 <ul>
 <li><strong>A Chrome-style tab strip.</strong> Drag to reorder with FLIP animation, pin and unpin, middle-click to close, a per-tab context menu, overflow handling, and <code>Ctrl+Shift+T</code> to reopen the last closed tab.</li>
 <li><strong>A complete shell.</strong> An omnibox with a suggestion dropdown, a bookmarks bar, find in page, a download manager, history, zoom, three-state theming (light, dark, follow system), and native window buttons.</li>
-<li><strong>Docked DevTools.</strong> The <strong>real</strong> official DevTools frontend loaded into a child webview of the same window, dockable to the <strong>bottom</strong> or the <strong>right</strong>, with a draggable splitter that resizes it. It is not a popup.</li>
+<li><strong>Docked DevTools.</strong> The <strong>real</strong> official DevTools frontend loaded into a child webview of the same window, dockable to the <strong>bottom</strong> or the <strong>right</strong>, with a draggable splitter that resizes it. It isn't a popup.</li>
 <li><strong>Internal pages</strong> under the <code>nano://</code> scheme: new tab, history, bookmarks, downloads, settings and about.</li>
 <li><strong>A headless agent.</strong> One-shot CLI commands and an MCP server over stdio, with redacted traffic capture, trusted input synthesis and screenshots.</li>
 </ul>
 
-<p>One thing is worth noting up front. The entire frontend is <strong>hand-written HTML, CSS and JavaScript with no bundler</strong>. No npm, no Vite, no framework. That is not novelty for its own sake. It is a deliberate trade of size and complexity, and the costs show up later in this post.</p>
+<p>One thing is worth noting up front. The entire frontend is <strong>hand-written HTML, CSS and JavaScript with no bundler</strong>. No npm, no Vite, no framework. That's not novelty for its own sake. It's a deliberate trade of size and complexity, and the costs show up later in this post.</p>
 
 <h2>Three decisions that go against instinct</h2>
 
@@ -230,7 +230,7 @@
 <pre><code>tauri = { version = "2", features = ["unstable", "devtools"] }
 </code></pre>
 
-<p><code>unstable</code> gates the whole child webview API: adding a child, getting a webview, and per-webview <code>devtools(false)</code>. Without it the core topology of this project does not exist. <code>devtools</code> exposes the <code>ICoreWebView2</code> interop that the protocol bridge needs.</p>
+<p><code>unstable</code> gates the whole child webview API: adding a child, getting a webview, and per-webview <code>devtools(false)</code>. Without it the core topology of this project doesn't exist. <code>devtools</code> exposes the <code>ICoreWebView2</code> interop that the protocol bridge needs.</p>
 
 <p>The release profile is tuned item by item for size.</p>
 
@@ -242,7 +242,7 @@ strip = true       # drop symbols
 panic = "abort"    # drop unwinding tables
 </code></pre>
 
-<p>Those lines together are what keeps a Rust and Tauri application at the 4 MB mark. Note the side effect of aborting on panic: <strong>there is no catch-unwind safety net</strong>, so any panic terminates the process. That is why the code prefers returning an option or an error at boundaries rather than writing first and worrying afterwards.</p>
+<p>Those lines together are what keeps a Rust and Tauri application at the 4 MB mark. Note the side effect of aborting on panic: <strong>there is no catch-unwind safety net</strong>, so any panic terminates the process. That's why the code prefers returning an option or an error at boundaries rather than writing first and worrying afterwards.</p>
 
 <p>Crate sources go through a mirror configured in <code>.cargo/config.toml</code>.</p>
 
@@ -287,7 +287,7 @@ panic = "abort"    # drop unwinding tables
 
 <p>Two signals in that structure are worth attention.</p>
 
-<p>First, <strong><code>cdp.rs</code> is exported as a library</strong>, and both the GUI <code>main.rs</code> and <code>bin/nanoagent/main.rs</code> depend on it. That is where "one core, two entry points" becomes physical: the two binaries share one protocol bridge implementation instead of each writing its own.</p>
+<p>First, <strong><code>cdp.rs</code> is exported as a library</strong>, and both the GUI <code>main.rs</code> and <code>bin/nanoagent/main.rs</code> depend on it. That's where "one core, two entry points" becomes physical: the two binaries share one protocol bridge implementation instead of each writing its own.</p>
 
 <p>Second, <strong><code>devtools.rs</code> is called out as the most complex module</strong>, and the README gives its design a chapter of its own. Core 4 below expands on it.</p>
 
@@ -353,7 +353,7 @@ panic = "abort"    # drop unwinding tables
 
 <p>A tab carries its id, label, URL, title, loading state, pin state, icon, an internal flag, a <code>live</code> flag, the zoom index, back and forward availability, navigation counters and pending navigation. It also carries an <strong>opaque per-tab token</strong>, which is central to the security model in part two.</p>
 
-<p>The <code>live</code> flag deserves a note. It says whether the tab's real webview has been created yet. A tab can exist logically while its webview does not, which is exactly how session restore paints a window full of tabs immediately.</p>
+<p>The <code>live</code> flag deserves a note. It says whether the tab's real webview has been created yet. A tab can exist logically while its webview doesn't, which is exactly how session restore paints a window full of tabs immediately.</p>
 
 <h3>The IPC surface</h3>
 
@@ -383,7 +383,7 @@ panic = "abort"    # drop unwinding tables
 
 <ol>
 <li>Any shell UI that overflows the chrome region, such as the main menu, the omnibox dropdown or a tab context menu, is clipped by the page webview.</li>
-<li>A child webview <strong>cannot see pointer movement outside its own bounds</strong>, which makes drag-resizing the DevTools panel genuinely awkward.</li>
+<li>A child webview <strong>can't see pointer movement outside its own bounds</strong>, which makes drag-resizing the DevTools panel genuinely awkward.</li>
 </ol>
 
 <p>Those two consequences map to Core 5 and Core 4 below.</p>
@@ -401,7 +401,7 @@ panic = "abort"    # drop unwinding tables
 
 <p><code>CallDevToolsProtocolMethod</code> has <strong>no such layer</strong>. You pass a method name and parameters, and its completion callback receives <strong>that method's own result object</strong>. No id, no envelope.</p>
 
-<p>Replies therefore cannot be matched by id. The project's solution is to give each call an <strong>incrementing sequence number</strong>, allocated from an atomic counter, and <strong>bake that number into the callback closure</strong> created for that specific call. When the callback fires, the result is dispatched to the matching waiter.</p>
+<p>Replies therefore can't be matched by id. The project's solution is to give each call an <strong>incrementing sequence number</strong>, allocated from an atomic counter, and <strong>bake that number into the callback closure</strong> created for that specific call. When the callback fires, the result is dispatched to the matching waiter.</p>
 
 <h3>Property two: callbacks run on the UI thread</h3>
 
@@ -427,7 +427,7 @@ panic = "abort"    # drop unwinding tables
 </tbody>
 </table>
 
-<p>That split is not a matter of taste. It is a hard constraint. The DevTools bridge service loop runs on its own thread, and if it blocked while issuing a CDP request it would deadlock against its own replies to the panel.</p>
+<p>That split isn't a matter of taste. It's a hard constraint. The DevTools bridge service loop runs on its own thread, and if it blocked while issuing a CDP request it would deadlock against its own replies to the panel.</p>
 
 <p>The default timeout is 30 seconds, and the error message is fixed.</p>
 
@@ -439,7 +439,7 @@ panic = "abort"    # drop unwinding tables
 <h3>Other details that matter</h3>
 
 <ul>
-<li><strong>Empty replies become <code>null</code>.</strong> Some CDP methods return nothing, so the callback receives an empty value. It is normalized to null rather than an empty string or undefined.</li>
+<li><strong>Empty replies become <code>null</code>.</strong> Some CDP methods return nothing, so the callback receives an empty value. It's normalized to null rather than an empty string or undefined.</li>
 <li><strong><code>on_event</code></strong> subscribes through <code>GetDevToolsProtocolEventReceiver</code>. The important point: <strong>once registered, the subscription belongs to WebView2</strong>, so the callback lives as long as the webview does. There is no unsubscribe; the webview must go away.</li>
 <li><strong><code>with_webview</code> must be called off the main thread.</strong> That thread constraint is easy to trip over.</li>
 <li><strong><code>Cdp::webview()</code> is the single entry point.</strong> It resolves child webviews by label and also resolves a <code>WebviewWindow</code>. One implementation serves the GUI's three child webviews and the agent's main window, which is how "one core, two entry points" is cashed out in code.</li>
@@ -466,7 +466,7 @@ panic = "abort"    # drop unwinding tables
 
 <ul>
 <li><strong>Receiving</strong> handles masking, the length extensions for one, two and four byte lengths, and <strong>fragmentation</strong>, where one logical message spans several reads.</li>
-<li><strong>Sending</strong> picks the length encoding by payload size. <strong>Server frames are not masked</strong>, as the RFC requires.</li>
+<li><strong>Sending</strong> picks the length encoding by payload size. <strong>Server frames aren't masked</strong>, as the RFC requires.</li>
 <li>Text, pong and close are supported.</li>
 </ul>
 
@@ -477,11 +477,11 @@ panic = "abort"    # drop unwinding tables
 <pre><code>s.set_read_timeout(25ms)
 </code></pre>
 
-<p>That is not a failure timeout. <strong>It is the service loop's tick.</strong> The loop polls the socket: a zero-byte read means the panel left, and a would-block or timed-out result means no data yet, detected by an idle check. One thread therefore handles both panel messages and CDP events, with no need for select or epoll.</p>
+<p>That isn't a failure timeout. <strong>It is the service loop's tick.</strong> The loop polls the socket: a zero-byte read means the panel left, and a would-block or timed-out result means no data yet, detected by an idle check. One thread therefore handles both panel messages and CDP events, with no need for select or epoll.</p>
 
 <h3>Tests</h3>
 
-<p><code>tests/ws_bridge.rs</code> validates the server with an <strong>independently implemented client encoder</strong>, deliberately not round-tripping the decoder against its own inverse. Coverage includes a completed handshake reporting its session path with the exact status and accept value; <strong>a connection without a session key receiving no headers and no bytes at all</strong>, which is the assertion that this port is not a public debugging port; <strong>a 70 KB payload reassembled across several reads</strong>; ping answered with pong; and close answered with an empty-payload close frame.</p>
+<p><code>tests/ws_bridge.rs</code> validates the server with an <strong>independently implemented client encoder</strong>, deliberately not round-tripping the decoder against its own inverse. Coverage includes a completed handshake reporting its session path with the exact status and accept value; <strong>a connection without a session key receiving no headers and no bytes at all</strong>, which is the assertion that this port isn't a public debugging port; <strong>a 70 KB payload reassembled across several reads</strong>; ping answered with pong; and close answered with an empty-payload close frame.</p>
 
 <h2>Core 4: the docked DevTools panel</h2>
 
@@ -494,7 +494,7 @@ panic = "abort"    # drop unwinding tables
 <p>Two easier routes were rejected.</p>
 
 <ul>
-<li><strong><code>--remote-debugging-port</code></strong> is not viable, because with that port open <strong>only the shell webview becomes a CDP target</strong>, and the official frontend cannot attach to a page webview.</li>
+<li><strong><code>--remote-debugging-port</code></strong> isn't viable, because with that port open <strong>only the shell webview becomes a CDP target</strong>, and the official frontend can't attach to a page webview.</li>
 <li><strong>Writing a minimal custom panel</strong> was rejected because it loses the complete Elements, Console, Network and Sources experience.</li>
 </ul>
 
@@ -508,18 +508,18 @@ panic = "abort"    # drop unwinding tables
 <ul>
 <li><code>devtools://devtools/bundled/</code> is the DevTools bundle WebView2 already ships, so the frontend needs no packaging of its own.</li>
 <li>It speaks CDP over a <strong>loopback WebSocket served by this process</strong>.</li>
-<li>The dock side lives in the <strong>fragment</strong>, and <strong>cannot go into the query string</strong>.</li>
+<li>The dock side lives in the <strong>fragment</strong>, and <strong>can't go into the query string</strong>.</li>
 </ul>
 
 <p>That last line is the most valuable non-obvious constraint in the project.</p>
 
 <blockquote>
-<p><strong>Appending a second query key after <code>?ws=</code>, for example <code>&amp;nanoSide=right</code>, makes WebView2's <code>devtools://</code> handler fail the entire load</strong>, and the page shows Chromium's "this page cannot be reached" error. A fragment is parsed by the browser before that handler sees it, so it is safe.</p>
+<p><strong>Appending a second query key after <code>?ws=</code>, for example <code>&amp;nanoSide=right</code>, makes WebView2's <code>devtools://</code> handler fail the entire load</strong>, and the page shows Chromium's "this page can't be reached" error. A fragment is parsed by the browser before that handler sees it, so it is safe.</p>
 </blockquote>
 
-<p>The trap has a nastier follow-up. <strong>While debugging it, <code>webview.url()</code> cannot be trusted</strong>, because the error page still reports the URL you asked for. The reliable signals are whether the bridge received a client, and how many domains it registered.</p>
+<p>The trap has a nastier follow-up. <strong>While debugging it, <code>webview.url()</code> can't be trusted</strong>, because the error page still reports the URL you asked for. The reliable signals are whether the bridge received a client, and how many domains it registered.</p>
 
-<h3>Admission: this is not a debugging port</h3>
+<h3>Admission: this isn't a debugging port</h3>
 
 <p>The loopback WebSocket has three constraints.</p>
 
@@ -529,11 +529,11 @@ panic = "abort"    # drop unwinding tables
 <li>Every CDP request is <strong>forwarded to a page webview</strong> through <code>CallDevToolsProtocolMethod</code>.</li>
 </ol>
 
-<p>Why that is not a debugging port: a page scanning localhost finds a listener that answers nothing without the id, and the id exists only while the panel does. <strong>Nothing outside the process can attach to either browser.</strong> Combined with never passing the debugging-port flag, this is the "no debugging socket" layer of the security model.</p>
+<p>Why that isn't a debugging port: a page scanning localhost finds a listener that answers nothing without the id, and the id exists only while the panel does. <strong>Nothing outside the process can attach to either browser.</strong> Combined with never passing the debugging-port flag, this is the "no debugging socket" layer of the security model.</p>
 
 <h3>Events: a static table plus lazy subscription</h3>
 
-<p>There is a very typical gap in the protocol here. <code>Schema.getDomains</code> <strong>reports 35 domains and returns no event names at all</strong>, so events cannot be discovered dynamically.</p>
+<p>There is a very typical gap in the protocol here. <code>Schema.getDomains</code> <strong>reports 35 domains and returns no event names at all</strong>, so events can't be discovered dynamically.</p>
 
 <p>The solution is a <strong>static table of event names</strong> plus <strong>lazy subscription per domain</strong>: only the domains the frontend actually enabled get subscriptions. The table covers the common domains, such as runtime console calls, exceptions and execution contexts; debugger script parsed, paused and resumed; profiler start and finish; heap snapshot chunks and progress; console messages; and page lifecycle events including navigation, dialogs, screencast frames and downloads.</p>
 
@@ -541,7 +541,7 @@ panic = "abort"    # drop unwinding tables
 
 <ul>
 <li><strong>A single failed subscription is skipped</strong> rather than abandoning the whole domain.</li>
-<li><strong><code>Page.startScreencast</code> is not implemented on WebView2</strong>, which matters for the agent's screenshots. Calls like that come back to the frontend as <strong>CDP errors</strong> instead of breaking the bridge.</li>
+<li><strong><code>Page.startScreencast</code> isn't implemented on WebView2</strong>, which matters for the agent's screenshots. Calls like that come back to the frontend as <strong>CDP errors</strong> instead of breaking the bridge.</li>
 </ul>
 
 <p>The bridge loop also normalizes empty replies to an empty object, because the panel expects one; wraps errors as JSON-RPC errors; extracts the domain from the method name and deduplicates subscriptions per tab and domain; and fills empty parameters before pushing an event to the panel.</p>
@@ -566,11 +566,11 @@ panic = "abort"    # drop unwinding tables
 
 <p>A clamp keeps both sides above their minimums, so a small window never squeezes the page out or the panel out.</p>
 
-<p>There is also a timing detail. Opening computes the window layout <strong>before</strong> making the panel visible, so it does not flash at the previous session's geometry for one frame.</p>
+<p>There is also a timing detail. Opening computes the window layout <strong>before</strong> making the panel visible, so it doesn't flash at the previous session's geometry for one frame.</p>
 
-<h3>Dragging the splitter when a child webview cannot see outside itself</h3>
+<h3>Dragging the splitter when a child webview can't see outside itself</h3>
 
-<p>The panel edge has a grip. It runs into a physical limit: <strong>a child webview cannot see pointer movement outside its own bounds</strong>. The panel is only so tall or so wide, and once the pointer leaves it, the panel no longer receives pointer events.</p>
+<p>The panel edge has a grip. It runs into a physical limit: <strong>a child webview can't see pointer movement outside its own bounds</strong>. The panel is only so tall or so wide, and once the pointer leaves it, the panel no longer receives pointer events.</p>
 
 <p>The fix routes the pointer through the shell.</p>
 
@@ -592,14 +592,14 @@ right:   devtools_w = clamp(window_w - clientX)
 
 <h3>Signalling between the panel and native code</h3>
 
-<p>This is the prettiest trick in the project. The panel is a <code>devtools://</code> document, and in that environment <strong>Tauri's IPC does not exist</strong>, and <strong>WebView2's host object on the window does not exist either</strong>.</p>
+<p>This is the prettiest trick in the project. The panel is a <code>devtools://</code> document, and in that environment <strong>Tauri's IPC doesn't exist</strong>, and <strong>WebView2's host object on the window doesn't exist either</strong>.</p>
 
 <p>Both normal channels are cut. So the panel talks to Rust like this.</p>
 
 <pre><code>window.open('https://nano-dt.invalid/&lt;action&gt;', '_blank');
 </code></pre>
 
-<p><code>nano-dt.invalid</code> is a domain that <strong>cannot exist</strong>, so it is never actually visited. Rust sees the popup request in its new-window handler, reads the action from the path, and returns a deny response.</p>
+<p><code>nano-dt.invalid</code> is a domain that <strong>can't exist</strong>, so it is never actually visited. Rust sees the popup request in its new-window handler, reads the action from the path, and returns a deny response.</p>
 
 <pre><code>NewWindowResponse::Deny
 </code></pre>
@@ -617,7 +617,7 @@ right:   devtools_w = clamp(window_w - clientX)
 <li>Every webview, including the shell, the page tabs <strong>and the panel itself</strong>, calls <code>.devtools(false)</code>.</li>
 </ul>
 
-<p>That last line needs spelling out. <code>.devtools(false)</code> turns off the <strong>native DevTools popup</strong>, but it <strong>does not affect <code>CallDevToolsProtocolMethod</code></strong>. So the project can kill the native popup and keep full CDP at the same time. That is one of the pitfalls the README lists, and it is the precondition for the whole docking approach.</p>
+<p>That last line needs spelling out. <code>.devtools(false)</code> turns off the <strong>native DevTools popup</strong>, but it <strong>doesn't affect <code>CallDevToolsProtocolMethod</code></strong>. So the project can kill the native popup and keep full CDP at the same time. That's one of the pitfalls the README lists, and it is the precondition for the whole docking approach.</p>
 
 <h2>Core 5: z-order and the overlay trick</h2>
 

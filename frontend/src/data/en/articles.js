@@ -31,7 +31,7 @@ export const EN_ARTICLES = [
 <p>Reading time around 17 minutes. Level: intermediate.</p>
 </blockquote>
 
-<p>A few days ago I put <strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong> on PyPI. It is the terminal client for an AI DevOps and QA copilot, and <code>pipx install aidevops</code> is the whole installation. The source is on <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a> under MIT, and the project is fully open source.</p>
+<p>A few days ago I put <strong><a href="https://pypi.org/project/aidevops/" rel="noopener noreferrer" target="_blank">aidevops</a></strong> on PyPI. It's the terminal client for an AI DevOps and QA copilot, and <code>pipx install aidevops</code> is the whole installation. The source is on <a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">GitHub</a> under MIT, and the project is fully open source.</p>
 
 <p>This post covers what problem it solves, how data moves through it, how the risk score is computed, what the model is allowed to do and why it is kept in a cage, how each command works, and what I chose not to build.</p>
 
@@ -70,7 +70,7 @@ export const EN_ARTICLES = [
 
 <h2>Architecture: a thin client over a thick server</h2>
 
-<p><code>aidevops</code> is a client. It is a CLI with a full-screen TUI, and it holds no business logic. Every capability is an HTTP call to a Django service backed by PostgreSQL, Redis and pgvector.</p>
+<p><code>aidevops</code> is a client. It's a CLI with a full-screen TUI, and it holds no business logic. Every capability is an HTTP call to a Django service backed by PostgreSQL, Redis and pgvector.</p>
 
 <p>That boundary is deliberate, for three reasons.</p>
 
@@ -78,9 +78,9 @@ export const EN_ARTICLES = [
 
 <p><strong>Credentials stay on the server.</strong> Git tokens and model API keys are encrypted with Fernet and stored server-side. The client holds exactly one access token, in its own config directory, with mode 0600.</p>
 
-<p><strong>There is one set of rules.</strong> The CLI, the TUI and any future web UI read the same REST API under <code>/api/v1</code>. Logic cannot drift between surfaces, because there is no second copy of it.</p>
+<p><strong>There is one set of rules.</strong> The CLI, the TUI and any future web UI read the same REST API under <code>/api/v1</code>. Logic can't drift between surfaces, because there is no second copy of it.</p>
 
-<p>This is why installing the client alone gets you a login failure on the first step. That is the architecture, not a bug. To run the backend locally, copy <code>.env.example</code> to <code>.env</code> and run <code>docker compose up -d --build</code>, with Swagger at <code>/api/docs/</code>. Or run <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> and start Celery with <code>make worker</code> and <code>make beat</code>.</p>
+<p>This is why installing the client alone gets you a login failure on the first step. That's the architecture, not a bug. To run the backend locally, copy <code>.env.example</code> to <code>.env</code> and run <code>docker compose up -d --build</code>, with Swagger at <code>/api/docs/</code>. Or run <code>make install &amp;&amp; make migrate &amp;&amp; make run</code> and start Celery with <code>make worker</code> and <code>make beat</code>.</p>
 
 <p>The client stack is Typer for the command line, Textual for the TUI, Rich for output and httpx for HTTP. Pure Python, no compiled extensions, Python 3.11 and up.</p>
 
@@ -90,7 +90,7 @@ export const EN_ARTICLES = [
 
 <p><strong>GitHub sync.</strong> Two cursors are maintained separately: one for new commits, one for the initial history backfill. Rate limits are handled with backoff, because hitting them is normal rather than exceptional.</p>
 
-<p><strong>Webhooks.</strong> Pushes, CI results and issue changes arrive in real time. Two checks guard the door. An HMAC-SHA256 signature proves the request actually came from GitHub, and idempotency on the delivery id means a redelivered event cannot create a second record.</p>
+<p><strong>Webhooks.</strong> Pushes, CI results and issue changes arrive in real time. Two checks guard the door. An HMAC-SHA256 signature proves the request actually came from GitHub, and idempotency on the delivery id means a redelivered event can't create a second record.</p>
 
 <p><strong>Scheduled reconciliation.</strong> Webhooks get lost when the network hiccups or the service restarts, so a Celery beat job periodically reconciles and guarantees eventual consistency.</p>
 
@@ -98,7 +98,7 @@ export const EN_ARTICLES = [
 
 <h2>Pinning a commit to a module</h2>
 
-<p>Correlation starts with a question that sounds trivial: which modules did this commit touch? It is a parsing problem in disguise. <code>src/auth/</code> clearly belongs to auth, but who owns <code>utils/date.py</code>? Should a change under <code>tests/</code> count against a business module?</p>
+<p>Correlation starts with a question that sounds trivial: which modules did this commit touch? It's a parsing problem in disguise. <code>src/auth/</code> clearly belongs to auth, but who owns <code>utils/date.py</code>? Should a change under <code>tests/</code> count against a business module?</p>
 
 <p>Attribution runs in three levels, in priority order.</p>
 
@@ -108,7 +108,7 @@ export const EN_ARTICLES = [
 <li><strong>Fallback.</strong> Everything else lands in an explicit bucket rather than floating unassigned.</li>
 </ol>
 
-<p>The important half is the last sentence of the design: every attribution carries a reason you can read. "This file belongs to auth because it matched the override <code>src/auth/**</code>." Attribution is not a guess. Risk scores and regression candidates are built on that traceable layer.</p>
+<p>The important half is the last sentence of the design: every attribution carries a reason you can read. "This file belongs to auth because it matched the override <code>src/auth/**</code>." Attribution isn't a guess. Risk scores and regression candidates are built on that traceable layer.</p>
 
 <h2><code>explain</code>: everything behind one commit</h2>
 
@@ -151,7 +151,7 @@ export const EN_ARTICLES = [
 
 <p><strong>Weights inherit in three levels</strong>: defaults, then organization, then project. A team that ships constantly can raise the weight on release proximity. A team with weak test infrastructure can emphasize coverage gaps.</p>
 
-<p><strong>Contributions sum to the score.</strong> That is not decoration. It turns "I do not believe this number" into a concrete question: find the largest contributor and inspect its input. A black-box score gives you nowhere to look.</p>
+<p><strong>Contributions sum to the score.</strong> That isn't decoration. It turns "I don't believe this number" into a concrete question: find the largest contributor and inspect its input. A black-box score gives you nowhere to look.</p>
 
 <h2>The model layer: five agents, evidence checks, full tracing</h2>
 
@@ -176,7 +176,7 @@ export const EN_ARTICLES = [
 
 <p><strong>Findings carry citations.</strong> Anything the model says has to resolve back to real data: a commit, a bug, a test. Unresolvable references are dropped rather than shown. Triage moves each finding from open to confirmed or false positive, and that trail becomes team knowledge.</p>
 
-<p><strong>The tool surface is closed on purpose.</strong> The model can call thirteen read-only tools, all scoped to the project. No write operation appears in its tool list. It can see the data and cannot change it, which is the precondition for the next section.</p>
+<p><strong>The tool surface is closed on purpose.</strong> The model can call thirteen read-only tools, all scoped to the project. No write operation appears in its tool list. It can see the data and can't change it, which is the precondition for the next section.</p>
 
 <h2>Proposals and audit: the model suggests, a person approves</h2>
 
@@ -189,7 +189,7 @@ aidevops reject &lt;id&gt;               # reject and discard
 
 <p>Three rules make that real. Only approval executes, and the executor is code rather than a model decision. No approval means no writes, with no implicit adoption and no "run by default, undo on objection". Everything lands in the audit log, queryable from the same client.</p>
 
-<p>For QA the trade-off is easy to state. Tests are a line of defense, and you do not put something that acts on its own on a line of defense.</p>
+<p>For QA the trade-off is easy to state. Tests are a line of defense, and you don't put something that acts on its own on a line of defense.</p>
 
 <p>Multi-tenancy follows the same logic. The tenant id comes from the URL and never from the request body. Non-member access returns 404 without leaking existence, an insufficient role returns 403, and every query goes through one scoped entry point, so there is nowhere to forget the filter.</p>
 
@@ -244,7 +244,7 @@ python -m mypy ai_devops_cli
 
 <p>The TUI is tested with Textual's pilot, so keystroke flows and panel switches are covered without manual clicking. The backend has 569 tests, with four network cases skipped by default, and none of them needs the internet, so CI stays fast.</p>
 
-<p>Every multi-tenant write path funnels through one scoped query helper, which lets tests assert case by case that tenant A cannot see tenant B's data.</p>
+<p>Every multi-tenant write path funnels through one scoped query helper, which lets tests assert case by case that tenant A can't see tenant B's data.</p>
 
 <p>Releases use tag-triggered trusted publishing. Push a tag, GitHub Actions builds, and short-lived OIDC credentials upload to PyPI. No local packaging, no long-lived token.</p>
 
@@ -255,7 +255,7 @@ python -m mypy ai_devops_cli
 <ul>
 <li><strong>It needs its own backend.</strong> The client has no standalone value; trying the full flow means running the server first, either through compose or through the local make targets.</li>
 <li><strong>Single organization with multiple projects</strong> works. The cross-organization permission model is still settling.</li>
-<li><strong>End-to-end testing against a real model</strong> is on the roadmap. Agent tests currently use a stub model, so the logic paths are covered and the output contract of real models is not.</li>
+<li><strong>End-to-end testing against a real model</strong> is on the roadmap. Agent tests currently use a stub model, so the logic paths are covered and the output contract of real models isn't.</li>
 <li><strong>Attribution wants one override per repository.</strong> Zero-configuration accuracy depends on how well source-root inference guesses.</li>
 </ul>
 
@@ -302,11 +302,11 @@ python -m mypy ai_devops_cli
 
 <h2>Origin: turning scattered interview reports into a queryable dataset</h2>
 
-<p>Interview reports have a short half-life. A report from the autumn 2026 hiring season is down to its process skeleton by spring, because the questions and the interviewers' style have already turned over. They are also scattered across systems that do not talk to each other: Nowcoder's forums, Juejin's columns, Mianshiya's question banks. Each has its own search, its own login wall, and site search that only answers "contains this keyword", never "what did this company ask this role recently".</p>
+<p>Interview reports have a short half-life. A report from the autumn 2026 hiring season is down to its process skeleton by spring, because the questions and the interviewers' style have already turned over. They are also scattered across systems that don't talk to each other: Nowcoder's forums, Juejin's columns, Mianshiya's question banks. Each has its own search, its own login wall, and site search that only answers "contains this keyword", never "what did this company ask this role recently".</p>
 
 <p>InterviewAtlas is an attempt at that aggregation problem. Crawl three sites daily, normalize company and role, dedupe and merge by URL, render a README plus per-company-per-role Markdown, then use a model to summarize each group into four sections: interview process, high-frequency topics, representative questions, preparation advice. Everything runs on GitHub Actions. No server, no database, and model calls go through GitHub Models' free quota.</p>
 
-<p>At the time of writing the repository holds 41,771 records, 157 companies and 1,634 company-role files. <code>data/interviews</code> contains 158 <code>.json.gz</code> files (35.9 MB) and <code>interviews/</code> holds 1,791 Markdown files (92.3 MB). The source is 22 Python files with exactly four runtime dependencies: <code>requests</code>, <code>bs4</code>, <code>lxml</code>, <code>PyYAML</code>. What follows is not a feature list. It is the design reasoning and the holes I actually fell into.</p>
+<p>At the time of writing the repository holds 41,771 records, 157 companies and 1,634 company-role files. <code>data/interviews</code> contains 158 <code>.json.gz</code> files (35.9 MB) and <code>interviews/</code> holds 1,791 Markdown files (92.3 MB). The source is 22 Python files with exactly four runtime dependencies: <code>requests</code>, <code>bs4</code>, <code>lxml</code>, <code>PyYAML</code>. What follows isn't a feature list. It's the design reasoning and the holes I actually fell into.</p>
 
 <h2>Architecture: one collection chain, one analysis chain</h2>
 
@@ -332,7 +332,7 @@ src/analyze.py              separate process: reads stored data, calls GitHub Mo
 
 <p>Skipping the database comes from the same reasoning. Actions runners are ephemeral, so the only durable state is git, and 41,771 records read fully into memory are nowhere near needing an index. The price of that choice is the write amplification discussed below.</p>
 
-<p>The orchestration layer also does something easy to overlook: it prints each source's duration separately. The daily log shows record counts and seconds for Nowcoder, Mianshiya and Juejin. That is performance telemetry and a failure signal at once. Mianshiya finishing in one second while the other two take a dozen minutes is jarring, and the contrast is itself the anomaly. With only a total runtime, a missing ten minutes hides inside thirty.</p>
+<p>The orchestration layer also does something easy to overlook: it prints each source's duration separately. The daily log shows record counts and seconds for Nowcoder, Mianshiya and Juejin. That's performance telemetry and a failure signal at once. Mianshiya finishing in one second while the other two take a dozen minutes is jarring, and the contrast is itself the anomaly. With only a total runtime, a missing ten minutes hides inside thirty.</p>
 
 <h2>Data model: one record, three layers of normalization</h2>
 
@@ -359,7 +359,7 @@ src/analyze.py              separate process: reads stored data, calls GitHub Mo
 
 <p><strong>Role detection</strong> in a fixed order: backend, frontend, algorithms, testing, product, falling back to "other role".</p>
 
-<p><strong>The fallback layer.</strong> Unknown companies and roles both land in "other", and those are excluded from LLM analysis because they cannot support a meaningful summary. The final 157 companies and 1,634 company-role pairs are what survives all three.</p>
+<p><strong>The fallback layer.</strong> Unknown companies and roles both land in "other", and those are excluded from LLM analysis because they can't support a meaningful summary. The final 157 companies and 1,634 company-role pairs are what survives all three.</p>
 
 <p>The alias table looks dumb and is the precondition for the dataset being usable at all. ByteDance appears as 字节, 字节跳动 and "bytedance" depending on the site. Without normalization you get three thin sets of statistics. Yet Alibaba Cloud and Alibaba have to stay separate, or the cloud unit's roles get diluted by group-level reports. Longest-match-first solves exactly this containment problem: try the long alias, stop on a hit, and let short aliases fire only when nothing else matched.</p>
 
@@ -376,13 +376,13 @@ src/analyze.py              separate process: reads stored data, calls GitHub Mo
 </tbody>
 </table>
 
-<p><strong>Nowcoder</strong> coverage comes from a keyword matrix: ten generic terms plus 157 companies times two templates ("company interview report", "company interview experience"). That is well over three hundred queries, each capped at three pages. It necessarily produces duplicates, but the search API offers no stable full-scan cursor, so cross-coverage through keywords is the only option. Search returns truncated bodies, so every unseen record gets one more detail request before storage. Details run on six threads with a 0.2-second per-thread interval, which keeps total runtime down without hammering the site.</p>
+<p><strong>Nowcoder</strong> coverage comes from a keyword matrix: ten generic terms plus 157 companies times two templates ("company interview report", "company interview experience"). That's well over three hundred queries, each capped at three pages. It necessarily produces duplicates, but the search API offers no stable full-scan cursor, so cross-coverage through keywords is the only option. Search returns truncated bodies, so every unseen record gets one more detail request before storage. Details run on six threads with a 0.2-second per-thread interval, which keeps total runtime down without hammering the site.</p>
 
-<p><strong>Juejin</strong> supports cursor pagination, so paging is not the bottleneck. Body formatting is. The search API's <code>web_html_content</code> is an escaped string: quotes, newlines and backslashes each carry an extra layer, and standard JSON decoding does not yield usable HTML. The code contains a hand-written unescape routine that restores the string segment by segment, then hands it to the shared cleaner. No library helps here, because the payload's escaping sits on top of JSON's own escaping, and decoding twice eats legitimate backslashes in the body. It is code you only dare write once you know exactly what the platform emits.</p>
+<p><strong>Juejin</strong> supports cursor pagination, so paging isn't the bottleneck. Body formatting is. The search API's <code>web_html_content</code> is an escaped string: quotes, newlines and backslashes each carry an extra layer, and standard JSON decoding doesn't yield usable HTML. The code contains a hand-written unescape routine that restores the string segment by segment, then hands it to the shared cleaner. No library helps here, because the payload's escaping sits on top of JSON's own escaping, and decoding twice eats legitimate backslashes in the body. It's code you only dare write once you know exactly what the platform emits.</p>
 
-<p><strong>Mianshiya</strong> is a third shape: walk the bank list, then expand each bank into questions. The question endpoint has a hard limit of five pages per query. To get more data, the collector runs three variants per bank: no filter, <code>difficulty:1</code> and <code>difficulty:3</code>. That turns "five pages per query" into "three groups of five pages". The cost is triple the requests, with overlap between groups that needs local dedupe by question id. And it only relieves the ceiling. It does not remove it.</p>
+<p><strong>Mianshiya</strong> is a third shape: walk the bank list, then expand each bank into questions. The question endpoint has a hard limit of five pages per query. To get more data, the collector runs three variants per bank: no filter, <code>difficulty:1</code> and <code>difficulty:3</code>. That turns "five pages per query" into "three groups of five pages". The cost is triple the requests, with overlap between groups that needs local dedupe by question id. And it only relieves the ceiling. It doesn't remove it.</p>
 
-<p>Anti-bot handling is uniform across all three: a Chrome/124 User-Agent, a per-site Referer, <code>Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 5xx])</code>, and a global 0.5-second request interval. No browser automation and no login handling, so only publicly visible content is covered. That is the capability boundary, and the reason the sites do not block us.</p>
+<p>Anti-bot handling is uniform across all three: a Chrome/124 User-Agent, a per-site Referer, <code>Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 5xx])</code>, and a global 0.5-second request interval. No browser automation and no login handling, so only publicly visible content is covered. That's the capability boundary, and the reason the sites don't block us.</p>
 
 <h2>Incremental crawling: saving requests before deduplication</h2>
 
@@ -431,15 +431,15 @@ if path.exists() and path.read_bytes() == data:
 
 <p>The catch is that the README is fully re-sorted daily. One new record can change company ordering, role counts and the update time, so the whole page is rewritten. The measured daily README diff is about 3,404 lines, far more than the data increment itself.</p>
 
-<p>Write amplification is the most expensive hidden cost of this design. A daily commit is 53,614 insertions and 41,513 deletions. The weekly run with <code>--full</code> reaches 541,773 insertions and 372,746 deletions, and the initial commit was 2.03 million lines. The repository is 348 MB while the current snapshot is about 128 MB, and the difference is mostly blobs from whole-file rewrites throughout history. Git compresses. Git does not forget.</p>
+<p>Write amplification is the most expensive hidden cost of this design. A daily commit is 53,614 insertions and 41,513 deletions. The weekly run with <code>--full</code> reaches 541,773 insertions and 372,746 deletions, and the initial commit was 2.03 million lines. The repository is 348 MB while the current snapshot is about 128 MB, and the difference is mostly blobs from whole-file rewrites throughout history. Git compresses. Git doesn't forget.</p>
 
-<p>It is worth stressing how little new information those diffs contain. A few hundred new reports per day may be a few hundred lines. The remaining fifty-something thousand lines are whole sections moving because a sort position, a count or a timestamp changed. Git's diff algorithm records that as deletions plus insertions, and history grows. Idempotency can guarantee "do not write when nothing changed". It cannot prevent "one thing changed, the page reshuffled".</p>
+<p>It is worth stressing how little new information those diffs contain. A few hundred new reports per day may be a few hundred lines. The remaining fifty-something thousand lines are whole sections moving because a sort position, a count or a timestamp changed. Git's diff algorithm records that as deletions plus insertions, and history grows. Idempotency can guarantee "don't write when nothing changed". It can't prevent "one thing changed, the page reshuffled".</p>
 
 <h2>LLM summarization: a two-stage map-reduce</h2>
 
-<p>Analysis has a threshold, <code>min_records: 20</code>. A company-role pair needs at least twenty reports to be worth summarizing, otherwise the model can only invent. Groups that qualify get a group-level report first, then group reports roll up into a role-level report. That is textbook map-reduce.</p>
+<p>Analysis has a threshold, <code>min_records: 20</code>. A company-role pair needs at least twenty reports to be worth summarizing, otherwise the model can only invent. Groups that qualify get a group-level report first, then group reports roll up into a role-level report. That's textbook map-reduce.</p>
 
-<p>I deliberately did not take the easy route of stuffing every report into one prompt. 41,771 bodies far exceed any context window, and even if they fit, cost and latency would be uncontrollable. Map-reduce splits the problem into "eight reports per company-role" and "sixteen companies per role", and both inputs stay budgetable. The cost is information loss across two truncation layers: anything the group report omitted is gone at role level.</p>
+<p>I deliberately didn't take the easy route of stuffing every report into one prompt. 41,771 bodies far exceed any context window, and even if they fit, cost and latency would be uncontrollable. Map-reduce splits the problem into "eight reports per company-role" and "sixteen companies per role", and both inputs stay budgetable. The cost is information loss across two truncation layers: anything the group report omitted is gone at role level.</p>
 
 <p>The group prompt's input is selective: company, role, total count, sample time span, and at most eight samples. Half the samples are the longest bodies for high information density, half the newest for the closest match to the current process. Each is clipped to 1,200 characters and the whole block to 16,000. The prompt mandates four headings and asks the model to write "insufficient sample" rather than invent process steps, salaries or rounds.</p>
 
@@ -455,15 +455,15 @@ if path.exists() and path.read_bytes() == data:
 
 <p>Role level is the second stage: collect each company's group reports for a role, clip each to 700 characters, allow at most sixteen companies, and skip the role entirely below three. It never looks at raw reports, only at summaries already produced. That bounds the input and avoids reading the same originals twice.</p>
 
-<p>Sample selection has one more fallback. After taking the longest half and the newest half, if there are still fewer than eight, it keeps adding from the remaining longest records up to the cap. Small groups therefore do not end up with two or three samples just because the newest half is all short posts, and length still prioritizes information density. The three caps, eight samples, 1,200 characters and 16,000 characters, are not arbitrary. Together they fix the per-prompt token budget, which fixes how many groups 100 calls can cover.</p>
+<p>Sample selection has one more fallback. After taking the longest half and the newest half, if there are still fewer than eight, it keeps adding from the remaining longest records up to the cap. Small groups therefore don't end up with two or three samples just because the newest half is all short posts, and length still prioritizes information density. The three caps, eight samples, 1,200 characters and 16,000 characters, aren't arbitrary. Together they fix the per-prompt token budget, which fixes how many groups 100 calls can cover.</p>
 
 <h2>Cache, budget and invalidation</h2>
 
-<p>Analysis is not recomputed every run. <code>analysis/manifest.json</code> records <code>PROMPT_VERSION</code>, the model name, and per-group counts and generation time. <code>PROMPT_VERSION</code> is currently <code>2026-10-29.1</code>. If either the prompt version or the model name changes, the whole cache is invalidated and everything is recomputed. That is blunt but correct: once the prompt changes, old reports no longer represent the current standard, and partial reuse would leave two standards in the repository.</p>
+<p>Analysis isn't recomputed every run. <code>analysis/manifest.json</code> records <code>PROMPT_VERSION</code>, the model name, and per-group counts and generation time. <code>PROMPT_VERSION</code> is currently <code>2026-10-29.1</code>. If either the prompt version or the model name changes, the whole cache is invalidated and everything is recomputed. That's blunt but correct: once the prompt changes, old reports no longer represent the current standard, and partial reuse would leave two standards in the repository.</p>
 
 <p>A single group is recomputed after <code>refresh_after_days: 30</code>, or once its count grows by <code>max(5, 10%)</code>. The first prevents stale material. The second ensures a re-call only happens when enough new samples justify it, because for one or two new reports the benefit is below the cost.</p>
 
-<p>Budget is the other hard constraint. The free tier is about 15 RPM, so the config is conservatively <code>rpm: 12</code>, <code>workers: 2</code> and <code>max_calls_per_run: 100</code>. A hundred calls means one day covers only part of the groups, and the rest rolls to tomorrow. Hence the budget split: <code>reserve = min(roles, max_calls // 6)</code> calls are held for role-level summaries before company groups get anything, so groups cannot starve the rollups forever.</p>
+<p>Budget is the other hard constraint. The free tier is about 15 RPM, so the config is conservatively <code>rpm: 12</code>, <code>workers: 2</code> and <code>max_calls_per_run: 100</code>. A hundred calls means one day covers only part of the groups, and the rest rolls to tomorrow. Hence the budget split: <code>reserve = min(roles, max_calls // 6)</code> calls are held for role-level summaries before company groups get anything, so groups can't starve the rollups forever.</p>
 
 <p>Failures are routed by status code.</p>
 
@@ -473,13 +473,13 @@ if path.exists() and path.read_bytes() == data:
 <li><strong>5xx</strong> gets exponential backoff and three attempts.</li>
 </ul>
 
-<p>The point of routing is to separate "waiting will help" from "do not try again today".</p>
+<p>The point of routing is to separate "waiting will help" from "don't try again today".</p>
 
-<p>Cache decisions happen before the call, in this order. Read the manifest and compare prompt version and model name. Then per group compare count and generation date. Only when both pass is the group skipped. That order ensures a changed version cannot accidentally reuse an old report just because the count did not move. The manifest doubles as an observability surface: which groups were analyzed, with which model, when. No need to dig through Actions logs.</p>
+<p>Cache decisions happen before the call, in this order. Read the manifest and compare prompt version and model name. Then per group compare count and generation date. Only when both pass is the group skipped. That order ensures a changed version can't accidentally reuse an old report just because the count didn't move. The manifest doubles as an observability surface: which groups were analyzed, with which model, when. No need to dig through Actions logs.</p>
 
 <h2>GitHub Actions: an unattended pipeline</h2>
 
-<p>Two workflows, one daily and one weekly. <code>daily.yml</code> runs on cron <code>0 1 * * *</code>, which is 09:00 Beijing time, with <code>timeout-minutes: 60</code>. <code>weekly-full.yml</code> runs Sunday at 10:00 with <code>--full --limit 150</code> and a 180-minute timeout. <code>--full</code> enables more pagination and more company query templates, and <code>--limit</code> caps detail completion per source so the weekly run does not drain the quota in one go.</p>
+<p>Two workflows, one daily and one weekly. <code>daily.yml</code> runs on cron <code>0 1 * * *</code>, which is 09:00 Beijing time, with <code>timeout-minutes: 60</code>. <code>weekly-full.yml</code> runs Sunday at 10:00 with <code>--full --limit 150</code> and a 180-minute timeout. <code>--full</code> enables more pagination and more company query templates, and <code>--limit</code> caps detail completion per source so the weekly run doesn't drain the quota in one go.</p>
 
 <p>Permissions are only two: <code>contents: write</code> for commits and <code>models: read</code> for GitHub Models. Credentials come from the repository's own <code>GITHUB_TOKEN</code>, with no extra secret, so forks and pull requests never get write access. Concurrency uses <code>group: interview-crawl</code> with <code>cancel-in-progress: false</code>. When daily and weekly collide they queue rather than cancel each other, because collection is idempotent but a mid-flight cancellation leaves half a dataset.</p>
 
@@ -504,7 +504,7 @@ concurrency:
 
 <p>More confusingly, the whole pipeline was green. No failed step, no alert, the README updated as usual, and Mianshiya still showed 1,962 records in the source statistics.</p>
 
-<p>The investigation started from "this does not look right". A full bank traversal cannot finish in one second, and the daily run was still thirty minutes, so the other two sources were fine and only Mianshiya was spinning idle. Scrolling back through logs showed the same two lines repeating after a specific commit. Following that commit hash landed inside the Mianshiya changes. Reading the code path, the chain was complete: request, exception, catch, <code>break</code>, return empty list. Nothing in it could ever fail the job.</p>
+<p>The investigation started from "this doesn't look right". A full bank traversal can't finish in one second, and the daily run was still thirty minutes, so the other two sources were fine and only Mianshiya was spinning idle. Scrolling back through logs showed the same two lines repeating after a specific commit. Following that commit hash landed inside the Mianshiya changes. Reading the code path, the chain was complete: request, exception, catch, <code>break</code>, return empty list. Nothing in it could ever fail the job.</p>
 
 <h3>Cause</h3>
 
@@ -516,7 +516,7 @@ concurrency:
 
 <h3>Fix and current state</h3>
 
-<p>As recorded, the API side has not recovered and the silent <code>break</code> is still there. So the state is: Mianshiya returns zero every day, historical data stays, and the README numbers look unchanged. This is not fixed. It is a documented, unfixed defect.</p>
+<p>As recorded, the API side has not recovered and the silent <code>break</code> is still there. So the state is: Mianshiya returns zero every day, historical data stays, and the README numbers look unchanged. This isn't fixed. It's a documented, unfixed defect.</p>
 
 <p>Three changes should land.</p>
 
@@ -528,7 +528,7 @@ concurrency:
 
 <h3>Cost</h3>
 
-<p>Data missed while the source was down does not come back by itself. Only a <code>--full</code> rerun recovers it, at far higher request volume and runtime than a daily run. The more expensive cost is trust. A pipeline that is green every day with unchanging numbers convinces both maintainer and reader that everything is fine. The later such a silent failure is found, the higher the backfill cost, and every statistic produced in between carries a known gap.</p>
+<p>Data missed while the source was down doesn't come back by itself. Only a <code>--full</code> rerun recovers it, at far higher request volume and runtime than a daily run. The more expensive cost is trust. A pipeline that is green every day with unchanging numbers convinces both maintainer and reader that everything is fine. The later such a silent failure is found, the higher the backfill cost, and every statistic produced in between carries a known gap.</p>
 
 <h2>Postmortem two: analysis stuck at 0/237</h2>
 <h3>Symptom</h3>
@@ -558,13 +558,13 @@ concurrency:
 key = f"{title}|{normalized}"
 </code></pre>
 
-<p>But that one line is not enough. The intent of <code>continue-on-error</code>, which is not losing data when the model is down, should stay. What must change is that failure cannot disappear as "0 seconds, success".</p>
+<p>But that one line isn't enough. The intent of <code>continue-on-error</code>, which isn't losing data when the model is down, should stay. What must change is that failure can't disappear as "0 seconds, success".</p>
 
-<p>A sturdier shape is to split analysis into its own job, commit collected data regardless, and mark the job red with the reason in the summary. Or read <code>steps.analyze.outcome</code> in the same job and emit an annotation on failure. The rule: failure is allowed, invisibility is not.</p>
+<p>A sturdier shape is to split analysis into its own job, commit collected data regardless, and mark the job red with the reason in the summary. Or read <code>steps.analyze.outcome</code> in the same job and emit an annotation on failure. The rule: failure is allowed, invisibility isn't.</p>
 
 <h3>Cost</h3>
 
-<p>Not a single call for 237 groups was sent, so no quota was consumed. But the core "LLM summary" feature effectively did not exist, and the README showing 0 made readers think the data did not meet the threshold.</p>
+<p>Not a single call for 237 groups was sent, so no quota was consumed. But the core "LLM summary" feature effectively didn't exist, and the README showing 0 made readers think the data didn't meet the threshold.</p>
 
 <p>The subtler cost is debugging time. Zero seconds, no logs and no artifacts all point at "there was no work to do", while the truth was one layer down: the code never loaded. When a step is wrapped in <code>continue-on-error</code>, the failure signal decays in exactly the direction you least want.</p>
 
@@ -577,7 +577,7 @@ key = f"{title}|{normalized}"
 
 <p><strong>Fix.</strong> For unseen records, make one detail request and decide after fetching the full body. For records already seen, the content set skips them, so there is no repeat request. The mechanism is live: the daily run makes 2,900+ detail requests in 18 minutes 46 seconds, and that is where most of the time goes.</p>
 
-<p><strong>Cost.</strong> "Short but complete" content may still be dropped, with no separate counter. It is an invisible loss.</p>
+<p><strong>Cost.</strong> "Short but complete" content may still be dropped, with no separate counter. It's an invisible loss.</p>
 
 <h3>The same post collected three times</h3>
 
@@ -628,27 +628,27 @@ key = f"{title}|{normalized}"
 
 <p><strong>Fix.</strong> <code>prachub: enabled: false</code> plus <code>exclude_sources: [prachub]</code>, and the next run drops its history per the dropped list.</p>
 
-<p><strong>Cost.</strong> Irreversibility. Once deleted, re-enabling means crawling from scratch, and old links may already be dead. It is a straight trade between data assets and running cost, with no both-ways option.</p>
+<p><strong>Cost.</strong> Irreversibility. Once deleted, re-enabling means crawling from scratch, and old links may already be dead. It's a straight trade between data assets and running cost, with no both-ways option.</p>
 
 <h3>Three things still unresolved</h3>
 
-<p>First, there is no robots.txt check. Collection covers only public content and is rate-limited, but "are we allowed to crawl this" was never verified in code. That is an explicit compliance gap.</p>
+<p>First, there is no robots.txt check. Collection covers only public content and is rate-limited, but "are we allowed to crawl this" was never verified in code. That's an explicit compliance gap.</p>
 
 <p>Second, Juejin requests carry no signature parameters. They work today, but the day the API requires signing they will fail again, and that failure will very likely present as "0 records", re-enacting Mianshiya's silent failure.</p>
 
-<p>Third, the README derives its last-update time from file mtime, and Actions always checks out fresh, so unchanged files all get the same timestamp. The "updated at" readers see is not real. All three are open items, not decorations on a to-do list.</p>
+<p>Third, the README derives its last-update time from file mtime, and Actions always checks out fresh, so unchanged files all get the same timestamp. The "updated at" readers see isn't real. All three are open items, not decorations on a to-do list.</p>
 
 <h2>Measured numbers and known limits</h2>
 
 <p>A daily run measures 30 minutes 08 seconds. Nowcoder takes 18:46 for 12,945 records and 2,900+ details. Mianshiya takes 1 second, the zero described above. Juejin takes 10:46 for 3,924 search results and 3,333 bodies. The weekly run takes 24:48, shorter than daily, mainly because <code>--limit 150</code> caps detail completion. Timeouts are 60 and 180 minutes, so both have more than double the headroom they need. The real risk is API change and quota, not duration.</p>
 
-<p>The breakdown shows the bottleneck. Nowcoder accounts for over 60% of runtime, almost all of it those 2,900+ detail requests. Juejin fetched 3,333 bodies in just over ten minutes because its search API returns full text, so far fewer detail calls are needed. That is exactly why the incremental design must prioritize saving detail requests: search paging is a fixed cost, and details scale linearly with new records.</p>
+<p>The breakdown shows the bottleneck. Nowcoder accounts for over 60% of runtime, almost all of it those 2,900+ detail requests. Juejin fetched 3,333 bodies in just over ten minutes because its search API returns full text, so far fewer detail calls are needed. That's exactly why the incremental design must prioritize saving detail requests: search paging is a fixed cost, and details scale linearly with new records.</p>
 
 <p>Three judgments.</p>
 
 <p>First, the architecture holds under its constraints of zero server, free quota and one run a day. Incremental checks eliminate most detail requests, idempotent writes avoid meaningless commits, and the two-stage analysis turns an unfinishable job into a resumable one.</p>
 
-<p>Second, its weakest point is not anti-bot defense but the way failure is expressed. A dead source or a compile failure can both leave the pipeline green.</p>
+<p>Second, its weakest point isn't anti-bot defense but the way failure is expressed. A dead source or a compile failure can both leave the pipeline green.</p>
 
 <p>Third, the repository will keep growing. The full README re-sort and the history of whole-file rewrites are the main sources, so either accept it or make rendering incremental.</p>
 
@@ -658,17 +658,17 @@ key = f"{title}|{normalized}"
 
 <p>InterviewAtlas is a long-running data pipeline held up by four dependencies, two workflows and one git repository. Its design compresses into four sentences: decide what is new before sending the request; dedupe in three layers at three different stages; pin the gzip timestamp to buy idempotency; version the manifest and budget the calls to buy control.</p>
 
-<p>The holes it fell into are worth more than the features. Mianshiya's zero shows that "empty result" cannot mean both success and failure. The 0/237 shows a compile-time error can be dressed up as normal operation by <code>continue-on-error</code>. Truncation, duplicates and dirty characters show every cleaning heuristic has collateral damage. Write amplification shows the storage cost of a git repository lives in history, not in the snapshot.</p>
+<p>The holes it fell into are worth more than the features. Mianshiya's zero shows that "empty result" can't mean both success and failure. The 0/237 shows a compile-time error can be dressed up as normal operation by <code>continue-on-error</code>. Truncation, duplicates and dirty characters show every cleaning heuristic has collateral damage. Write amplification shows the storage cost of a git repository lives in history, not in the snapshot.</p>
 
-<p>Neither of the two worst problems is fixed. Mianshiya's API has not recovered and the silent <code>break</code> remains. The f-string-and-3.11 combination remains, and 0/237 will not become 237/237 on its own. Writing the fix down plainly is more honest than claiming it is solved.</p>
+<p>Neither of the two worst problems is fixed. Mianshiya's API has not recovered and the silent <code>break</code> remains. The f-string-and-3.11 combination remains, and 0/237 won't become 237/237 on its own. Writing the fix down plainly is more honest than claiming it is solved.</p>
 
-<p>If I started again, I would write "failure is visible" before writing collection. Every source needs three distinct states: success, failure, zero output. And every background step's exit code must reach the summary instead of being flattened by <code>continue-on-error</code>. Most pipeline incidents are not "we could not fetch". They are "we could not fetch and nobody knew".</p>
+<p>If I started again, I would write "failure is visible" before writing collection. Every source needs three distinct states: success, failure, zero output. And every background step's exit code must reach the summary instead of being flattened by <code>continue-on-error</code>. Most pipeline incidents aren't "we could not fetch". They are "we could not fetch and nobody knew".</p>
 
 <h2>Further reading</h2>
 <ul>
 <li><a href="/en/article/nanohermes-rust-coding-agent/">NanoHermes: a Rust agent with zero runtime</a>, another "minimal dependencies, bounded output" trade-off worth comparing with this post's budget and clipping design.</li>
 <li><a href="/article/agent-loop-two-hundred-lines/">The essence of an agent: a two-hundred-line loop</a>, a different kind of loop, starting from the smallest implementation.</li>
-<li><a href="/article/agent-evaluation-not-a-benchmark/">Agent evaluation: a single run is not a test</a>, useful when generated reports themselves need a quality judgment.</li>
+<li><a href="/article/agent-evaluation-not-a-benchmark/">Agent evaluation: a single run isn't a test</a>, useful when generated reports themselves need a quality judgment.</li>
 </ul>
 `,
   },
@@ -684,7 +684,7 @@ key = f"{title}|{normalized}"
     html: `
 <blockquote>
 <p>Who this is for: Go and frontend developers building single-file Windows desktop apps; anyone weighing a WebView2 shell or planning to hand-write a Markdown parser; engineers who care about binary size, startup time, save semantics and the security boundary.</p>
-<p><strong>TL;DR:</strong> MicroMD fits a 3.17 MiB exe, a dependency-free HTML interface and a hand-written Markdown parser into one process. The small size is not the interesting part. Four trade-offs are: leaning on the system WebView2, hosting the UI on <code>file://</code>, connecting native and JavaScript with exactly three bindings, and a two-pass parser that protects both escaping and placeholders. Seven problems remain open, each with its cost spelled out below.</p>
+<p><strong>TL;DR:</strong> MicroMD fits a 3.17 MiB exe, a dependency-free HTML interface and a hand-written Markdown parser into one process. The small size isn't the interesting part. Four trade-offs are: leaning on the system WebView2, hosting the UI on <code>file://</code>, connecting native and JavaScript with exactly three bindings, and a two-pass parser that protects both escaping and placeholders. Seven problems remain open, each with its cost spelled out below.</p>
 <p>Reading time around 30 minutes. Level: advanced.</p>
 </blockquote>
 
@@ -709,11 +709,11 @@ key = f"{title}|{normalized}"
 
 <h2>Why build another Markdown reader</h2>
 
-<p>A 3 MB single-file Markdown reader sounds like compressing something that was never big. Markdown is not the hard part. A parser for headings, lists and tables can be short. The hard part is the Windows desktop shell: windows, DPI, icons, the WebView2 runtime, file permissions, and the distribution problem behind "double-click and it works".</p>
+<p>A 3 MB single-file Markdown reader sounds like compressing something that was never big. Markdown isn't the hard part. A parser for headings, lists and tables can be short. The hard part is the Windows desktop shell: windows, DPI, icons, the WebView2 runtime, file permissions, and the distribution problem behind "double-click and it works".</p>
 
 <p>MicroMD answers by externalizing as much cost as possible. No bundled rendering engine, just the system WebView2. No UI framework, just one HTML file. No Markdown library, just a hand-written parser of a couple hundred lines of JavaScript. The native layer stays down to window creation, three bindings and argument parsing. The result is one exe, unzip and run, writing only to its own app-data directory, installing no service and needing no network.</p>
 
-<p>Boundaries first, though. It is not cross-platform. Heavy Win32 usage and the WebView2 dependency pin it to Windows 10 and 11. It is not a complete editor either: no syntax highlighting, no sidebar outline, no file watching, no recent-file list. Those are not roadmap items. They are the current state.</p>
+<p>Boundaries first, though. It isn't cross-platform. Heavy Win32 usage and the WebView2 dependency pin it to Windows 10 and 11. It isn't a complete editor either: no syntax highlighting, no sidebar outline, no file watching, no recent-file list. Those aren't roadmap items. They are the current state.</p>
 
 <p>Get the size right too. The stripped release build is 3,323,392 bytes, meaning 3.17 MiB or about 3.32 MB decimal. Unstripped, it is 4,943,872 bytes, so <code>-s -w</code> saves 32.8%. "3 MB" in the title describes an order of magnitude, not an exact 3.00 MB.</p>
 
@@ -721,7 +721,7 @@ key = f"{title}|{normalized}"
 
 <h2>One exe and its native shell</h2>
 
-<p>What is actually inside? No Chromium is bundled, so "3 MB" means 3 MB of shell plus an engine that is already on the system. It does not mean a 3 MB browser. The shell has five layers.</p>
+<p>What is actually inside? No Chromium is bundled, so "3 MB" means 3 MB of shell plus an engine that is already on the system. It doesn't mean a 3 MB browser. The shell has five layers.</p>
 
 <table>
 <thead><tr><th>Layer</th><th>Implementation</th><th>Verified fact</th></tr></thead>
@@ -742,7 +742,7 @@ key = f"{title}|{normalized}"
 
 <h2>Why the interface is written to disk first</h2>
 
-<p><code>//go:embed web/index.html</code> compiles the 29,520-byte interface into the binary. The code then does not call <code>NavigateToString</code>. It writes the file out and navigates with <code>file://</code>. Startup order:</p>
+<p><code>//go:embed web/index.html</code> compiles the 29,520-byte interface into the binary. The code then doesn't call <code>NavigateToString</code>. It writes the file out and navigates with <code>file://</code>. Startup order:</p>
 <ol>
 <li><code>appDataDir()</code> reads <code>LOCALAPPDATA</code> and builds <code>%LOCALAPPDATA%\\\\MicroMD</code>. On failure it falls back to <code>os.UserCacheDir()</code>, then to the relative path <code>MicroMD</code>.</li>
 <li>Append <code>app\\\\index.html</code> and call <code>os.MkdirAll(appDir, 0o755)</code>.</li>
@@ -756,7 +756,7 @@ key = f"{title}|{normalized}"
 
 <p>The write policy is "rewrite only when the bytes differ", not every launch. The good part: upgrades update the UI, and a normal launch costs one 29,520-byte read. The bad part: if a user hand-edits <code>%LOCALAPPDATA%\\\\MicroMD\\\\app\\\\index.html</code>, the next launch overwrites it. There is no "use an external UI" switch, deliberately.</p>
 
-<p>Two silent failure points sit on this path. A <code>MkdirAll</code> failure returns immediately, and so does a <code>WriteFile</code> failure. Neither shows a dialog, so the user sees "double-click does nothing". Under normal permissions this almost never happens. With an antivirus lock, a full disk or an unwritable <code>LOCALAPPDATA</code>, there is nothing to diagnose from. That is the direct cost of one file and no installer: no setup program checks directory permissions for you.</p>
+<p>Two silent failure points sit on this path. A <code>MkdirAll</code> failure returns immediately, and so does a <code>WriteFile</code> failure. Neither shows a dialog, so the user sees "double-click does nothing". Under normal permissions this almost never happens. With an antivirus lock, a full disk or an unwritable <code>LOCALAPPDATA</code>, there is nothing to diagnose from. That's the direct cost of one file and no installer: no setup program checks directory permissions for you.</p>
 
 <h2>Three bindings and the meaning of "save"</h2>
 
@@ -800,13 +800,13 @@ link.click();
 
 <p>One detail deserves credit. <code>setDocument</code> resets <code>native</code> every time a new file is opened. Open <code>A.md</code> from the command line and the native <code>docPath</code> points at A. Then open <code>B.md</code> through the picker. Without the reset, <code>Ctrl+S</code> could write B's content into A. The code ties "can this document be written natively" to "which document this is", which avoids the most dangerous class of mis-write.</p>
 
-<p>The cost is three meanings for one shortcut. The same <code>Ctrl+S</code> means "overwrite the original", "overwrite the picker file" or "download a copy", depending on how the document was opened. The README documents the rules. The UI distinguishes only "saved" from "exported" in a toast, and never warns at open time that this file will not be written back. That is not an implementation error but a gap between the safety model and user expectation, covered below.</p>
+<p>The cost is three meanings for one shortcut. The same <code>Ctrl+S</code> means "overwrite the original", "overwrite the picker file" or "download a copy", depending on how the document was opened. The README documents the rules. The UI distinguishes only "saved" from "exported" in a toast, and never warns at open time that this file won't be written back. That's not an implementation error but a gap between the safety model and user expectation, covered below.</p>
 
 <h2>A hand-written parser: two passes and a block state machine</h2>
 
 <p>The parser sits between <code>/* md:start */</code> and <code>/* md:end */</code> in <code>web/index.html</code>, roughly lines 166 to 412. No marked, no markdown-it. It implements <code>inline()</code> and <code>blocks()</code> itself. The interesting part is <code>inline()</code>'s two-pass design, because it solves two seemingly contradictory problems at once: Markdown syntax must still be recognized, and the source must never inject HTML.</p>
 
-<p>The first pass is not parsing but hiding. Code spans, autolinks and backslash escapes are replaced with placeholders of the form <code>\\\\u0001</code> plus a number plus <code>\\\\u0001</code>, and the matching HTML goes into a <code>stash</code> array.</p>
+<p>The first pass isn't parsing but hiding. Code spans, autolinks and backslash escapes are replaced with placeholders of the form <code>\\\\u0001</code> plus a number plus <code>\\\\u0001</code>, and the matching HTML goes into a <code>stash</code> array.</p>
 
 <pre><code>const stash = [];
 const put = (html) =&gt; '\\\\u0001' + (stash.push(html) - 1) + '\\\\u0001';
@@ -827,11 +827,11 @@ t = esc(t);
 <li>Fenced code records the number of backticks or tildes. Only a closing line with the same character and at least the same length ends it. The body gets <code>esc</code>aped wholesale, and the language becomes <code>class="language-xxx"</code>.</li>
 <li>Headings match <code>^ {0,3}(#{1,6})</code>. The <code>id</code> strips tags and punctuation, then turns whitespace into hyphens. Repeated headings produce repeated ids.</li>
 <li>Blockquotes strip the <code>&gt;</code> prefix from consecutive lines and recurse into <code>blocks()</code>, so lists and code fences work inside quotes.</li>
-<li>Tables split the header row, read the separator row for alignment, and split body rows on <code>\\\\|</code> with a negative lookbehind, so escaped pipes are not column boundaries.</li>
+<li>Tables split the header row, read the separator row for alignment, and split body rows on <code>\\\\|</code> with a negative lookbehind, so escaped pipes aren't column boundaries.</li>
 <li>Lists record the first item's indent and ordered or unordered type, absorb deeper-indented lines into the current item, and recurse <code>blocks()</code> per item, which is what makes nesting work. Task items match <code>^\\\\[([ xX])\\\\][ \\\\t]+</code> and render a disabled checkbox.</li>
 </ul>
 
-<p>Paragraphs join consecutive non-blank lines with <code>&lt;br&gt;</code> rather than CommonMark's soft-break-to-space. That is a deliberate choice, not a bug. In a local reader, an author's line break usually means they want a visible break. It also means the output is not strictly CommonMark, so the same Markdown copied elsewhere may have different paragraph shapes.</p>
+<p>Paragraphs join consecutive non-blank lines with <code>&lt;br&gt;</code> rather than CommonMark's soft-break-to-space. That's a deliberate choice, not a bug. In a local reader, an author's line break usually means they want a visible break. It also means the output isn't strictly CommonMark, so the same Markdown copied elsewhere may have different paragraph shapes.</p>
 
 <p>There is no syntax highlighting. <code>class="language-xxx"</code> is left for future or external styles, and no color rules exist. There is no sidebar outline either. Heading ids are generated, but nothing scans them into navigation. The block machine is line-oriented with no AST, so complex nesting, cross-line emphasis and extreme list and table combinations are covered by rules rather than automated tests. The repository contains no <code>*_test.go</code>, so parser quality rests on manual samples.</p>
 
@@ -841,17 +841,17 @@ t = esc(t);
 
 <p>The third is click interception. Ordinary links and bare URLs in the preview carry <code>target="_blank"</code> and <code>rel="noreferrer noopener"</code>. A capture-phase handler allows only <code>http(s)</code> and <code>mailto</code>, calls <code>preventDefault()</code>, then hands off to <code>micromdOpenExternal</code>. The native side applies the prefix allowlist again before <code>ShellExecuteW</code>. <code>Debug: false</code> removes DevTools and the context menu, which narrows the ways to poke at the page from inside the app.</p>
 
-<p>These layers block ordinary script injection, with two caveats worth stating. First, remote images are not disabled. An <code>https://</code> image in the Markdown will still be fetched. "Rendering is local, no network" means the app itself needs no network, not that remote resources inside a document never load. Second, <code>safeUrl</code> blocks only three dangerous schemes. Other schemes and relative paths pass through, and relative links under <code>file://</code> resolve against the current page's base, which is exactly the image-path problem below. Note also that ordinary links and bare URLs get <code>target</code> and <code>rel</code>, while the angle-bracket autolink branch does not. It is still intercepted on click, and the real boundary remains the native allowlist.</p>
+<p>These layers block ordinary script injection, with two caveats worth stating. First, remote images aren't disabled. An <code>https://</code> image in the Markdown will still be fetched. "Rendering is local, no network" means the app itself needs no network, not that remote resources inside a document never load. Second, <code>safeUrl</code> blocks only three dangerous schemes. Other schemes and relative paths pass through, and relative links under <code>file://</code> resolve against the current page's base, which is exactly the image-path problem below. Note also that ordinary links and bare URLs get <code>target</code> and <code>rel</code>, while the angle-bracket autolink branch doesn't. It's still intercepted on click, and the real boundary remains the native allowlist.</p>
 
 <h2>Problem one: missing WebView2 and the browser fallback</h2>
 
 <p><strong>Symptom.</strong> On a Windows machine without the WebView2 runtime, double-clicking the exe opens no app window. Instead the default browser opens showing what still looks like MicroMD, except "save" becomes a download and native write-back is gone. <code>micromd.bat</code> offers another route: try Edge, then Chrome, then the system default browser with <code>--app</code> on <code>web/index.html</code>.</p>
 
-<p><strong>Cause.</strong> The whole rendering layer depends on the system-installed WebView2 Runtime. Most Windows 10 and 11 installs have it. LTSC, slimmed images and some managed enterprise fleets may not. When window creation inside <code>webview2.NewWithOptions</code> fails, it returns <code>nil</code> and leaves <code>main</code> with <code>openExternal(page)</code> as the only fallback. In that mode <code>typeof window.micromdLoad</code> is not a function, <code>micromdSave</code> does not exist, and saving degrades. The batch file also depends on <code>web/index.html</code> in the source tree, while the release ships only an exe, so it helps people who cloned the repository and not end users.</p>
+<p><strong>Cause.</strong> The whole rendering layer depends on the system-installed WebView2 Runtime. Most Windows 10 and 11 installs have it. LTSC, slimmed images and some managed enterprise fleets may not. When window creation inside <code>webview2.NewWithOptions</code> fails, it returns <code>nil</code> and leaves <code>main</code> with <code>openExternal(page)</code> as the only fallback. In that mode <code>typeof window.micromdLoad</code> isn't a function, <code>micromdSave</code> doesn't exist, and saving degrades. The batch file also depends on <code>web/index.html</code> in the source tree, while the release ships only an exe, so it helps people who cloned the repository and not end users.</p>
 
 <p><strong>Fix.</strong> The native layer detects <code>nil</code> and opens the already-written page through <code>ShellExecuteW</code>. The README documents "no runtime, open it in a browser". The batch file tries Edge, Chrome, then the default browser to reuse whatever Chromium exists. The frontend needs no branch for these modes, because it already treats native bindings as optional.</p>
 
-<p><strong>Cost and leftovers.</strong> The two modes have different capabilities, and the UI gives almost no indication which one you are in. Browser mode has no native window, no icon, no direct write-back, and draft localStorage depends on the browser's <code>file://</code> policy. The code never says "please install WebView2" and offers no install link. The fallback covers only window creation failure. Some initialization errors call <code>log.Fatal</code> inside the library, so the process exits silently. The essence of the problem: externalizing the engine buys size, and the price is a runtime you do not control.</p>
+<p><strong>Cost and leftovers.</strong> The two modes have different capabilities, and the UI gives almost no indication which one you are in. Browser mode has no native window, no icon, no direct write-back, and draft localStorage depends on the browser's <code>file://</code> policy. The code never says "please install WebView2" and offers no install link. The fallback covers only window creation failure. Some initialization errors call <code>log.Fatal</code> inside the library, so the process exits silently. The essence of the problem: externalizing the engine buys size, and the price is a runtime you don't control.</p>
 
 <h2>Problem two: relative image paths resolve against the wrong base</h2>
 
@@ -863,7 +863,7 @@ t = esc(t);
 
 <p><strong>Cost and leftovers.</strong> This is the direct side effect of writing the UI to disk. Fixing it means returning a directory from <code>micromdLoad</code> and rewriting relative <code>src</code> into absolute <code>file://</code> URLs after render, or injecting a <code>&lt;base&gt;</code> computed from the document directory. The first has to handle URL encoding, drive letters, <code>..</code> and mixed slashes. The second affects every relative URL on the page, links included.</p>
 
-<p>Worse, dropping a file into the window and the file picker never expose a full path for security reasons, only a File object. The same document therefore behaves differently depending on how it was opened. That is why this stays a known limit rather than a fixed item.</p>
+<p>Worse, dropping a file into the window and the file picker never expose a full path for security reasons, only a File object. The same document therefore behaves differently depending on how it was opened. That's why this stays a known limit rather than a fixed item.</p>
 
 <h2>Problem three: full re-render and large-file throttling</h2>
 
@@ -871,21 +871,21 @@ t = esc(t);
 
 <p><strong>Cause.</strong> <code>render()</code> has one line of core logic: <code>preview.innerHTML = MD.render(editor.value)</code>. Every keystroke re-parses the entire document and replaces the whole preview tree's HTML string. No incremental parsing, no DOM diff, no worker. <code>scheduleRender()</code> only merges several keystrokes inside one frame via <code>requestAnimationFrame</code>. It merges call counts, not work. Parsing and layout still run on the main thread at full-document scale.</p>
 
-<p><strong>Fix.</strong> There is a threshold, <code>BIG_DOC = 200000</code>. Above 200k characters, <code>scheduleRender()</code> drops <code>requestAnimationFrame</code> for a 150 ms <code>setTimeout</code>, roughly six or seven renders per second. Below it, everything renders every frame. That is a very cheap degradation: no worker, no incrementality, just a coarser cadence.</p>
+<p><strong>Fix.</strong> There is a threshold, <code>BIG_DOC = 200000</code>. Above 200k characters, <code>scheduleRender()</code> drops <code>requestAnimationFrame</code> for a 150 ms <code>setTimeout</code>, roughly six or seven renders per second. Below it, everything renders every frame. That's a very cheap degradation: no worker, no incrementality, just a coarser cadence.</p>
 
-<p><strong>Cost and leftovers.</strong> The threshold is character-based and does not map cleanly to parse cost. A 199k-character document still renders every frame. At 201k it suddenly slows, so the experience is discontinuous across the boundary. The 150 ms is fixed and does not adapt to document size or machine speed. On longer documents a single parse can exceed 150 ms, so throttling reduces frequency but not the length of each stall.</p>
+<p><strong>Cost and leftovers.</strong> The threshold is character-based and doesn't map cleanly to parse cost. A 199k-character document still renders every frame. At 201k it suddenly slows, so the experience is discontinuous across the boundary. The 150 ms is fixed and doesn't adapt to document size or machine speed. On longer documents a single parse can exceed 150 ms, so throttling reduces frequency but not the length of each stall.</p>
 
 <p>Replacing <code>innerHTML</code> also loses the preview selection, reloads images and changes scroll height abruptly. Scroll sync computes <code>scrollTop</code> proportionally and goes wrong when heights jump. A real fix needs incremental parsing, virtualized lists or at least a worker, and all of those raise code size and state-management cost, against the project's size goal.</p>
 
 <h2>Problem four: draft quota and an unused MAX_DRAFT</h2>
 
-<p><strong>Symptom.</strong> The README claims "very long drafts are not written to local storage", but <code>MAX_DRAFT = 1000000</code> is declared and referenced nowhere. Actual behavior: every keystroke tries to write localStorage, failures are swallowed by <code>try/catch</code>, the UI says nothing, and the draft may already be gone when the window closes.</p>
+<p><strong>Symptom.</strong> The README claims "very long drafts aren't written to local storage", but <code>MAX_DRAFT = 1000000</code> is declared and referenced nowhere. Actual behavior: every keystroke tries to write localStorage, failures are swallowed by <code>try/catch</code>, the UI says nothing, and the draft may already be gone when the window closes.</p>
 
 <p><strong>Cause.</strong> <code>saveDraft()</code> runs 400 ms after typing stops and calls <code>store.set('draft', editor.value)</code> and <code>store.set('name', app.name)</code>. <code>store.set</code> is <code>try { localStorage.setItem(...) } catch (e) {}</code>, so quota errors, private-mode restrictions and serialization failures never surface. <code>MAX_DRAFT</code> was probably meant for a "skip when over the limit" branch that never got wired up.</p>
 
 <p>localStorage quota is typically a few MB per origin depending on the browser and its <code>file://</code> policy. Writing the whole document as one string over and over means <code>setItem</code> throws past the quota, and the draft freezes at the last successful version.</p>
 
-<p><strong>Fix.</strong> No real oversize protection exists, only "exceptions are not fatal". Straightforward options: check <code>editor.value.length &gt; MAX_DRAFT</code> in <code>saveDraft()</code>, skip and toast once; move drafts to IndexedDB; or, in native mode, write a draft file into the app directory. All three are more honest than an empty catch.</p>
+<p><strong>Fix.</strong> No real oversize protection exists, only "exceptions aren't fatal". Straightforward options: check <code>editor.value.length &gt; MAX_DRAFT</code> in <code>saveDraft()</code>, skip and toast once; move drafts to IndexedDB; or, in native mode, write a draft file into the app directory. All three are more honest than an empty catch.</p>
 
 <p><strong>Cost and leftovers.</strong> Users are promised automatic draft saving and get best-effort saving. The 400 ms debounce resets on every keystroke, so a write happens only after a pause. Type for ten minutes and lose power, and everything since the last successful write is at risk. When a native file has unsaved changes, the draft is the only recovery path, which makes "opened from the command line, edited, never saved" the most dangerous scenario. That README sentence should be read as a current defect, not a shipped limit.</p>
 
@@ -895,9 +895,9 @@ t = esc(t);
 
 <p><strong>Cause.</strong> Size has four parts: the Go runtime and link baseline, the code from <code>go-webview2</code> and <code>golang.org/x/sys</code>, the 134 KB WebView2Loader, and the 29,520-byte HTML. <code>-H windowsgui</code> removes the console window and <code>-s -w</code> removes the symbol table and debug info. Together they take 4.94 MB down to 3.17 MiB, a 32.8% saving.</p>
 
-<p>Icons are not something Go code can carry directly. <code>IconId: 1</code> only looks the icon up by resource id at window creation. The actual icon and version info are written by <code>go-winres</code> into <code>rsrc_windows_amd64.syso</code>, and that file is gitignored. CI installs <code>go-winres</code> and generates resources before building. Skip that locally and <code>IconId: 1</code> finds nothing, so the window is missing its icon.</p>
+<p>Icons aren't something Go code can carry directly. <code>IconId: 1</code> only looks the icon up by resource id at window creation. The actual icon and version info are written by <code>go-winres</code> into <code>rsrc_windows_amd64.syso</code>, and that file is gitignored. CI installs <code>go-winres</code> and generates resources before building. Skip that locally and <code>IconId: 1</code> finds nothing, so the window is missing its icon.</p>
 
-<p><strong>Fix.</strong> The build command is fixed at <code>-trimpath -buildvcs=false -ldflags "-H windowsgui -s -w"</code>. The release workflow installs and generates <code>go-winres</code> output before building and fails if <code>rsrc_windows_amd64.syso</code> is missing. <code>windowSize()</code> clamps a 1280 by 860 request to 92% and 88% of the screen so small displays are not overrun. DPI tries <code>SetProcessDpiAwarenessContext(-4)</code> first and falls back to <code>SetProcessDpiAwareness(2)</code>. The icon itself is generated by <code>tools/icon/main.go</code> with a signed distance field and 4x supersampling, emitting sizes from 16 to 256 pixels with no external design file.</p>
+<p><strong>Fix.</strong> The build command is fixed at <code>-trimpath -buildvcs=false -ldflags "-H windowsgui -s -w"</code>. The release workflow installs and generates <code>go-winres</code> output before building and fails if <code>rsrc_windows_amd64.syso</code> is missing. <code>windowSize()</code> clamps a 1280 by 860 request to 92% and 88% of the screen so small displays aren't overrun. DPI tries <code>SetProcessDpiAwarenessContext(-4)</code> first and falls back to <code>SetProcessDpiAwareness(2)</code>. The icon itself is generated by <code>tools/icon/main.go</code> with a signed distance field and 4x supersampling, emitting sizes from 16 to 256 pixels with no external design file.</p>
 
 <p><strong>Cost and leftovers.</strong> <code>-s -w</code> strips symbols from the release binary, which makes crash diagnosis harder. Local builds gain a toolchain step: forget the <code>.syso</code> and you get "runs, but no icon", with no compile-time error.</p>
 
@@ -909,11 +909,11 @@ t = esc(t);
 
 <p><strong>Symptom.</strong> Drop <code>notes.md</code> into the window, edit a few lines, press <code>Ctrl+S</code>. The toast says "exported notes.md" and the original is untouched. Drop it again and you still see the old content. Drop the same file onto the exe icon instead and <code>Ctrl+S</code> writes back to the original. The UI makes the difference hard to see.</p>
 
-<p><strong>Cause.</strong> The browser security model does not let a page write to an arbitrary path from a <code>File</code> object, and <code>native</code> is true only when a startup argument exists. Dropping into the window yields a File API <code>File</code> with no writable handle. The picker yields a <code>FileSystemHandle</code> through <code>showOpenFilePicker</code>, but <code>setDocument</code> still sets <code>native = false</code> and saving goes through the handle, not a native path. The code chose "safe by default": without an explicit native path it never guesses which file to overwrite, preferring to export a copy.</p>
+<p><strong>Cause.</strong> The browser security model doesn't let a page write to an arbitrary path from a <code>File</code> object, and <code>native</code> is true only when a startup argument exists. Dropping into the window yields a File API <code>File</code> with no writable handle. The picker yields a <code>FileSystemHandle</code> through <code>showOpenFilePicker</code>, but <code>setDocument</code> still sets <code>native = false</code> and saving goes through the handle, not a native path. The code chose "safe by default": without an explicit native path it never guesses which file to overwrite, preferring to export a copy.</p>
 
-<p><strong>Fix.</strong> The three-level degradation covers three capabilities: native path, writable handle, Blob download. <code>setDocument</code> resets <code>native</code> to prevent cross-file writes, <code>micromdSave</code> rejects path-less calls natively, and toasts distinguish "saved to" from "exported". The implementation is not wrong. It turns "can we write back" into a capability probe instead of a memory test for the user.</p>
+<p><strong>Fix.</strong> The three-level degradation covers three capabilities: native path, writable handle, Blob download. <code>setDocument</code> resets <code>native</code> to prevent cross-file writes, <code>micromdSave</code> rejects path-less calls natively, and toasts distinguish "saved to" from "exported". The implementation isn't wrong. It turns "can we write back" into a capability probe instead of a memory test for the user.</p>
 
-<p><strong>Cost and leftovers.</strong> The probe result is not surfaced in advance. Nothing tells you on drop that this document will be saved by export, and you find out at <code>Ctrl+S</code>. There is no native "save as" dialog either. Once in the download branch, WebView2's download policy decides the location, usually the Downloads folder, with a duplicate for identical names.</p>
+<p><strong>Cost and leftovers.</strong> The probe result isn't surfaced in advance. Nothing tells you on drop that this document will be saved by export, and you find out at <code>Ctrl+S</code>. There is no native "save as" dialog either. Once in the download branch, WebView2's download policy decides the location, usually the Downloads folder, with a duplicate for identical names.</p>
 
 <p>The picker branch depends on the File System Access API, whose availability and permission prompts inside WebView2 vary by runtime. When it is unavailable, the app silently falls back to <code>&lt;input type="file"&gt;</code> with no handle at all. No extra branch closes this gap. The UI would have to show the save mode at open time, or expose a native "save as".</p>
 
@@ -921,7 +921,7 @@ t = esc(t);
 
 <p><strong>Symptom.</strong> Edit <code>notes.md</code> in another editor and MicroMD still shows the old content. Press <code>Ctrl+S</code> in native mode and the old content overwrites the external change with no conflict prompt. Close and reopen and there is no recent list, so you drag the file in again or retype the command.</p>
 
-<p><strong>Cause.</strong> The native layer reads the file once at startup through <code>micromdLoad</code> and then does nothing. No <code>ReadDirectoryChangesW</code>, no <code>fsnotify</code>, no mtime polling. Frontend state is <code>app.name</code>, <code>app.saved</code>, <code>app.handle</code> and <code>app.native</code>. localStorage holds only <code>draft</code>, <code>name</code>, <code>theme</code>, <code>view</code> and <code>split</code>, with no path history. There is no single-instance lock and no IPC either, so a second instance cannot tell the first that the file changed.</p>
+<p><strong>Cause.</strong> The native layer reads the file once at startup through <code>micromdLoad</code> and then does nothing. No <code>ReadDirectoryChangesW</code>, no <code>fsnotify</code>, no mtime polling. Frontend state is <code>app.name</code>, <code>app.saved</code>, <code>app.handle</code> and <code>app.native</code>. localStorage holds only <code>draft</code>, <code>name</code>, <code>theme</code>, <code>view</code> and <code>split</code>, with no path history. There is no single-instance lock and no IPC either, so a second instance can't tell the first that the file changed.</p>
 
 <p><strong>Fix.</strong> No auto-reload and no conflict detection in this version. Workarounds are closing and reopening, re-dropping, or reopening through the picker. None of them warn that the on-disk version moved. The minimal addition would be native polling of <code>docPath</code>'s mtime, notifying the page through a binding or <code>Eval</code>, and showing a bar offering "reload / keep current". The fuller version uses <code>ReadDirectoryChangesW</code> and handles rename, delete and atomic replace.</p>
 
@@ -936,7 +936,7 @@ t = esc(t);
 <table>
 <thead><tr><th>Limit</th><th>Current state</th><th>Impact</th></tr></thead>
 <tbody>
-<tr><td>Relative image paths</td><td>Base is the app directory; no <code>&lt;base&gt;</code>, no <code>src</code> rewrite</td><td>Images beside the document do not display</td></tr>
+<tr><td>Relative image paths</td><td>Base is the app directory; no <code>&lt;base&gt;</code>, no <code>src</code> rewrite</td><td>Images beside the document don't display</td></tr>
 <tr><td>Draft ceiling</td><td><code>MAX_DRAFT</code> declared but unused; quota errors swallowed</td><td>Very long drafts may vanish silently</td></tr>
 <tr><td>Large documents</td><td>Full <code>innerHTML</code> replacement; 150 ms throttle past 200k characters</td><td>Typing lags, scroll sync can drift</td></tr>
 <tr><td>File changes</td><td>No watching, no polling, no conflict prompt</td><td>External edits can be overwritten</td></tr>
@@ -949,7 +949,7 @@ t = esc(t);
 </tbody>
 </table>
 
-<p>Most of these are not oversights but "not done within the size and complexity budget". They group into four trade-offs.</p>
+<p>Most of these aren't oversights but "not done within the size and complexity budget". They group into four trade-offs.</p>
 <ul>
 <li><strong>Externalize the engine for size.</strong> No bundled Chromium, accepting a WebView2 dependency and two capability modes.</li>
 <li><strong>One file for engineering simplicity.</strong> UI, parser and styles in one HTML file, accepting no module split, no build step and no frontend tests.</li>
@@ -957,18 +957,18 @@ t = esc(t);
 <li><strong>Safe by default.</strong> No native path means no write-back, accepting three outcomes from one shortcut.</li>
 </ul>
 
-<p>If work continues, data safety should outrank experience polish. Wire up the draft ceiling and handle external-change conflicts first, then consider incremental rendering and image bases. Highlighting and an outline are reading comfort and do not risk data loss, so they come later. That ordering is also why this post spends more words on the seven problems than on the features. Features can be added. Lost data cannot.</p>
+<p>If work continues, data safety should outrank experience polish. Wire up the draft ceiling and handle external-change conflicts first, then consider incremental rendering and image bases. Highlighting and an outline are reading comfort and don't risk data loss, so they come later. That ordering is also why this post spends more words on the seven problems than on the features. Features can be added. Lost data can't.</p>
 
 <h2>Closing</h2>
 
 <p>MicroMD compresses into three sentences.</p>
 <ol>
-<li>Size is not one optimization but a budget split. The 3.17 MiB exe is roughly a 1.21 MB empty <code>windowsgui</code> baseline, three Go modules, a 134 KB WebView2Loader, 29,520 bytes of HTML and link output. The Chromium that was omitted is supplied by the system WebView2.</li>
+<li>Size isn't one optimization but a budget split. The 3.17 MiB exe is roughly a 1.21 MB empty <code>windowsgui</code> baseline, three Go modules, a 134 KB WebView2Loader, 29,520 bytes of HTML and link output. The Chromium that was omitted is supplied by the system WebView2.</li>
 <li>Shell complexity concentrates in Windows details. Writing to disk for <code>file://</code>, three bindings, save semantics, DPI fallback, icon resources and the runtime-missing fallback are each small, and each can break "double-click and it works".</li>
 <li>The hand-written parser's key is order, not syntax coverage. Hide code spans, autolinks and escapes in placeholders, escape everything, then restore. The two-pass design solves "syntax must be recognized" and "source must not inject" at once.</li>
 </ol>
 
-<p>It is not a finished product either. Relative images, draft quota, full re-render, file changes, recent files, highlighting, outline and parser tests are all missing or half-done. They are documented as current state because the value of a 3 MB single-file app is not how small it is. It is what it cost to get there, and whether those costs are stated honestly.</p>
+<p>It isn't a finished product either. Relative images, draft quota, full re-render, file changes, recent files, highlighting, outline and parser tests are all missing or half-done. They are documented as current state because the value of a 3 MB single-file app isn't how small it is. It's what it cost to get there, and whether those costs are stated honestly.</p>
 
 <h2>Further reading</h2>
 <ul>
@@ -1070,9 +1070,9 @@ const groups = results.map((item) =&gt;
 return interleave(groups)
 </code></pre>
 
-<p><code>Promise.allSettled</code> is deliberate. When one source is temporarily down, the other two still show up. <code>interleave</code> alternates platforms so the first half of the list is not all from one place. <code>dedupeTracks</code> filters on platform id plus a normalized "title + artist" key, and normalization strips spaces, hyphens and brackets so the same recording does not appear three times.</p>
+<p><code>Promise.allSettled</code> is deliberate. When one source is temporarily down, the other two still show up. <code>interleave</code> alternates platforms so the first half of the list isn't all from one place. <code>dedupeTracks</code> filters on platform id plus a normalized "title + artist" key, and normalization strips spaces, hyphens and brackets so the same recording doesn't appear three times.</p>
 
-<p>Server-side adapters also cover QQ, Kuwo and JOOX, meaning the cases that need proxying or a fallback resolver. Playlist import additionally accepts public Netease, Qishui and QQ links. That lets search indexing and audio URL resolution evolve separately. One platform changing its API cannot take every feature down with it.</p>
+<p>Server-side adapters also cover QQ, Kuwo and JOOX, meaning the cases that need proxying or a fallback resolver. Playlist import additionally accepts public Netease, Qishui and QQ links. That lets search indexing and audio URL resolution evolve separately. One platform changing its API can't take every feature down with it.</p>
 
 <h3>2.3 Lazy detail loading, audio resolved only on play</h3>
 
@@ -1092,7 +1092,7 @@ return interleave(groups)
 
 <h3>2.4 One clock for LRC lyrics and the player timeline</h3>
 
-<p>Lyric sync does not start another timer. It listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both the <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms.</p>
+<p>Lyric sync doesn't start another timer. It listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both the <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms.</p>
 
 <pre><code>function parseLrc(text) {
   const lines = []
@@ -1111,7 +1111,7 @@ return interleave(groups)
 
 <p>Rendering walks backwards to the last line with <code>line.time &lt;= audio.currentTime</code> and marks it active. Clicking a lyric line sets <code>audio.currentTime</code> to that timestamp. Progress bar, lyric highlight and current track therefore stay consistent by construction, not by coordination.</p>
 
-<h3>2.5 Responsive layout is not just shrinking</h3>
+<h3>2.5 Responsive layout isn't just shrinking</h3>
 
 <p>Desktop is a three-column workspace: search, then player and lyrics, then queue. Mobile switches to bottom navigation between search, lyrics and library. Layout uses CSS Grid, media queries and independent scroll containers, so lyrics and queue never push the page past the viewport. Theme, favourites and playlists sit in <code>localStorage</code>, which means search and local organization work before you ever sign in.</p>
 
@@ -1153,7 +1153,7 @@ return interleave(groups)
 </tbody>
 </table>
 
-<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts, so one misbehaving platform cannot occupy the whole Function invocation.</p>
+<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts, so one misbehaving platform can't occupy the whole Function invocation.</p>
 
 <h3>4.2 Caching and verifying resolved addresses</h3>
 
@@ -1191,7 +1191,7 @@ return interleave(groups)
 
 <p>Favourites and playlists are "write localStorage first, sync to D1 asynchronously". Signed out, the data belongs to that browser. Signed in, the page submits the library to <code>/api/library</code>, and a weak connection still leaves local data usable.</p>
 
-<p>The cloud library is stored as JSON. That is simple and appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
+<p>The cloud library is stored as JSON. That's simple and appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
 
 <h2>6. How does the Electron app keep accounts safe?</h2>
 
@@ -1246,7 +1246,7 @@ npm run desktop:portable
 
 <h2>8. What the project taught me</h2>
 
-<p>What is worth recording is not any single platform API but several reusable engineering decisions.</p>
+<p>What is worth recording isn't any single platform API but several reusable engineering decisions.</p>
 <ol>
 <li><strong>Unify the domain model before adding sources.</strong> HALO Track keeps platform differences inside adapters, so the player and playlist logic never learn upstream field names.</li>
 <li><strong>Separate search from playback resolution.</strong> Search optimizes for parallelism and tolerance. Resolution optimizes for validation, caching and retry. Their performance goals differ, so their code should too.</li>
@@ -1303,21 +1303,21 @@ npm run desktop:portable
 
 <p>NanoAPI compresses the goal into one sentence: a sufficient HTTP debugging client, one executable, double-click to run, data stays local.</p>
 
-<p>"Sufficient" is not an adjective here. It is a checkable set of constraints. The module file has exactly one direct dependency, the Wails runtime. The frontend has no npm dependencies and no build step, and native ES modules are embedded straight into the binary. The release executable is 11,341,824 bytes, about 10.8 MiB. The NSIS installer for the same version is about 6.3 MB and the MSI about 4.5 MB. An Electron application's installer usually starts in the hundreds of megabytes.</p>
+<p>"Sufficient" isn't an adjective here. It's a checkable set of constraints. The module file has exactly one direct dependency, the Wails runtime. The frontend has no npm dependencies and no build step, and native ES modules are embedded straight into the binary. The release executable is 11,341,824 bytes, about 10.8 MiB. The NSIS installer for the same version is about 6.3 MB and the MSI about 4.5 MB. An Electron application's installer usually starts in the hundreds of megabytes.</p>
 
-<p>Those numbers do not come from cutting features. They come from choices: rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend keeps only the DOM plus a little glue. So there is no Chromium copy, no Node runtime, no third-party HTTP client and no database. There is not even auto-update or crash reporting.</p>
+<p>Those numbers don't come from cutting features. They come from choices: rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend keeps only the DOM plus a little glue. So there is no Chromium copy, no Node runtime, no third-party HTTP client and no database. There isn't even auto-update or crash reporting.</p>
 
-<p>What "sufficient" leaves out is worth naming, because the omissions are structural rather than temporary. There are no team workspaces, no shared collections, no OAuth 2.0 browser flows that call back to a local port, no mock servers, no monitors running on a schedule, and no generated client code. Those features all assume a server, an account or a background scheduler. Adding any one of them would put a boundary this project deliberately keeps clean, so they stay out. If your daily work depends on them, another tool is the right answer and this one is not.</p>
+<p>What "sufficient" leaves out is worth naming, because the omissions are structural rather than temporary. There are no team workspaces, no shared collections, no OAuth 2.0 browser flows that call back to a local port, no mock servers, no monitors running on a schedule, and no generated client code. Those features all assume a server, an account or a background scheduler. Adding any one of them would put a boundary this project deliberately keeps clean, so they stay out. If your daily work depends on them, another tool is the right answer and this one isn't.</p>
 
 <p>What is left is a workflow that covers whole categories of debugging: verify an API contract while reading someone else's documentation, reproduce a failing request from a bug report, paste a cURL command out of a browser's network tab, hit a local development server without fighting CORS, or save a request collection next to the project it belongs to. Those tasks are frequent and short, and a large client charges startup cost for every one of them.</p>
 
-<p>The boundary has to be stated too. NanoAPI supports its own bundle format, version 1, plus a bare settings file. It does not import Postman collections, Bruno, OpenAPI or HAR, and the repository contains no parser for any of them. That is scope control rather than an oversight. A format adapter layer turns "a project one person can maintain on weekends" into "a compatibility layer that is never finished". For migration, users go through cURL, the universal channel, or tidy the JSON by hand.</p>
+<p>The boundary has to be stated too. NanoAPI supports its own bundle format, version 1, plus a bare settings file. It doesn't import Postman collections, Bruno, OpenAPI or HAR, and the repository contains no parser for any of them. That's scope control rather than an oversight. A format adapter layer turns "a project one person can maintain on weekends" into "a compatibility layer that is never finished". For migration, users go through cURL, the universal channel, or tidy the JSON by hand.</p>
 
 <h2>Architecture: edit in the frontend, execute in the backend</h2>
 
 <p>This is a two-layer Wails v2 application. <code>main.go</code> owns the window and the embedded assets, and <code>app.go</code> binds the application struct to the frontend. The internal packages split by responsibility into proxy, interp, curl, store, bundle and model. The frontend lives in a dist directory as one HTML file plus a set of ES modules, with no <code>node_modules</code> and no Vite.</p>
 
-<p>At runtime Wails exposes bound methods on a global object. A small bridge module wraps calls in promises so a synchronous throw becomes a rejection and callers cannot forget to catch it.</p>
+<p>At runtime Wails exposes bound methods on a global object. A small bridge module wraps calls in promises so a synchronous throw becomes a rejection and callers can't forget to catch it.</p>
 
 <pre><code>function call(method, ...args) {
   try {
@@ -1336,7 +1336,7 @@ npm run desktop:portable
 
 <p>Frontend state lives in tab objects, each owning its own request and response. Response bodies stay in memory and tab state, never in the data file. A restart restores tabs and unsaved edits, but not the last response. That keeps the data file small and stable, and avoids repeatedly serializing potentially large bodies.</p>
 
-<p>Startup checks whether the backend global exists. If the backend is not ready the app shows an error page rather than a blank window. A failed initial load raises a toast but initialization continues, so one read error cannot block the whole application.</p>
+<p>Startup checks whether the backend global exists. If the backend isn't ready the app shows an error page rather than a blank window. A failed initial load raises a toast but initialization continues, so one read error can't block the whole application.</p>
 
 <p>The package map is short enough to hold in your head, which matters when you are debugging a request at odd hours.</p>
 
@@ -1351,11 +1351,11 @@ internal/model   request, response, environment, tab types
 frontend/dist    index.html plus ES modules: bridge, api, render, state
 </code></pre>
 
-<p>One consequence of the split is that the frontend cannot cheat. There is no second code path where the renderer opens a socket, and no hidden fetch call in a component. If a feature needs the network, it has to go through a bound method, which means it inherits variable resolution, permission-free file access and consistent error shapes. That constraint is why an editor change cannot accidentally invent a second set of transport rules three months later.</p>
+<p>One consequence of the split is that the frontend can't cheat. There is no second code path where the renderer opens a socket, and no hidden fetch call in a component. If a feature needs the network, it has to go through a bound method, which means it inherits variable resolution, permission-free file access and consistent error shapes. That constraint is why an editor change can't accidentally invent a second set of transport rules three months later.</p>
 
 <h2>The full path of one request</h2>
 
-<p>The send button lives in the frontend. It guards against re-entry, records the originating tab key, and after the await finds that tab again and writes the result back to the caller. Switching tabs while waiting therefore cannot leak a result into the wrong tab.</p>
+<p>The send button lives in the frontend. It guards against re-entry, records the originating tab key, and after the await finds that tab again and writes the result back to the caller. Switching tabs while waiting therefore can't leak a result into the wrong tab.</p>
 
 <pre><code>async function send() {
   if (state.sending) return;
@@ -1377,17 +1377,17 @@ frontend/dist    index.html plus ES modules: bridge, api, render, state
 
 <p>The backend handler is a one-way pipeline. It takes a snapshot of the store, builds the variable table, resolves the request on a copy, builds the body and its content type, assembles transport options, and sends.</p>
 
-<p>Network failures are not returned as Go errors. They land in a result object with an error kind, so the frontend can distinguish "the request failed" from "the program is broken". Only program state, such as an unavailable store, travels as a Go error.</p>
+<p>Network failures aren't returned as Go errors. They land in a result object with an error kind, so the frontend can distinguish "the request failed" from "the program is broken". Only program state, such as an unavailable store, travels as a Go error.</p>
 
-<p>Request options use pointer booleans to distinguish "the frontend did not specify, use global settings" from "explicitly off". Timeout, redirect following and TLS skipping all resolve through settings then defaults, so a single request can override settings without rewriting them.</p>
+<p>Request options use pointer booleans to distinguish "the frontend didn't specify, use global settings" from "explicitly off". Timeout, redirect following and TLS skipping all resolve through settings then defaults, so a single request can override settings without rewriting them.</p>
 
 <p>If building the body fails to read a file, that is also not a Go error. It produces a result with a file error kind and records history as usual, so the frontend shows "file read failed" instead of an unhandled exception. The model holds across the chain: once a request has been attempted, failure comes back as a result.</p>
 
-<p>History stores the original request, never the resolved one, so it keeps placeholders rather than resolved secrets. Response bodies, timings and headers are not persisted, only status code, size, time and an error summary. History caps at 200 entries, dropping from the tail. Success and failure both record, so history contains 200s as well as timeouts and DNS failures.</p>
+<p>History stores the original request, never the resolved one, so it keeps placeholders rather than resolved secrets. Response bodies, timings and headers aren't persisted, only status code, size, time and an error summary. History caps at 200 entries, dropping from the tail. Success and failure both record, so history contains 200s as well as timeouts and DNS failures.</p>
 
 <p>Each history entry carries the whole request that produced it: method, URL, parameter rows including disabled ones, header rows, body type and body text, auth type and its fields, and the environment id that was selected at the time. That makes "send this again" faithful. It also makes "send it again in a different environment" possible, which is how you compare a staging response with a production one without retyping anything.</p>
 
-<p>Cancellation is part of the same contract. A running request can be aborted from the interface, which cancels the context and ends the read loop. The result then comes back with an aborted kind rather than a network error, so the interface can stay quiet instead of showing a scary message for something the user did on purpose. The same abort path runs when the window closes, so a request in flight does not hold the process open.</p>
+<p>Cancellation is part of the same contract. A running request can be aborted from the interface, which cancels the context and ends the read loop. The result then comes back with an aborted kind rather than a network error, so the interface can stay quiet instead of showing a scary message for something the user did on purpose. The same abort path runs when the window closes, so a request in flight doesn't hold the process open.</p>
 
 <h2>The HTTP engine: written, not wrapped</h2>
 
@@ -1395,7 +1395,7 @@ frontend/dist    index.html plus ES modules: bridge, api, render, state
 
 <p><strong>Layer one is URL merging.</strong> A bare domain gets its scheme filled in, then the original query string is parsed and the parameter table is merged in. Same-name keys overwrite, the rest keep their order, and query-form API keys append at the end.</p>
 
-<p>One detail is easy to miss: a bare flag parameter with no equals sign has to keep its valueless state and must not become an empty assignment. The implementation records that with an explicit has-value flag, and the same function is shared by sending and by cURL export, so the two cannot drift apart.</p>
+<p>One detail is easy to miss: a bare flag parameter with no equals sign has to keep its valueless state and must not become an empty assignment. The implementation records that with an explicit has-value flag, and the same function is shared by sending and by cURL export, so the two can't drift apart.</p>
 
 <p>Concretely, with the original query string holding a page and a flag, and a parameter table adding a size while overriding the page, the final query keeps the flag bare, applies the override, and appends the new key. Spaces become plus signs and non-ASCII text is percent-encoded.</p>
 
@@ -1413,9 +1413,9 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Layer four is reading the response.</strong> A limited reader takes 20 MB plus one byte. Past that, the body is cut and marked truncated, so memory stays bounded and "exactly 20 MB" is distinguishable from "truncated". Content type, UTF-8 validity and NUL bytes decide whether the body is binary; binary becomes base64, text passes through. Cookies live in a shared jar, and clearing swaps in a new jar rather than deleting entries one by one.</p>
 
-<p>One special case in header writing: the host header is assigned to the request's host field rather than the header map, because the map does not participate in host selection. Authentication is applied after headers. Basic auth uses the standard helper, bearer writes the authorization header, and API keys go to a header or a query parameter depending on their placement setting.</p>
+<p>One special case in header writing: the host header is assigned to the request's host field rather than the header map, because the map doesn't participate in host selection. Authentication is applied after headers. Basic auth uses the standard helper, bearer writes the authorization header, and API keys go to a header or a query parameter depending on their placement setting.</p>
 
-<p>Protocol, remote address, redirect count and the phase timings in the result are not decoration. They let a user see whether a request is slow in DNS, TCP, TLS or time to first byte, and where a redirect went. When the network fails, timings already collected are kept and the frontend says so.</p>
+<p>Protocol, remote address, redirect count and the phase timings in the result aren't decoration. They let a user see whether a request is slow in DNS, TCP, TLS or time to first byte, and where a redirect went. When the network fails, timings already collected are kept and the frontend says so.</p>
 
 <p>Status text is sliced out of the raw status line, the protocol field records HTTP/1.1 or HTTP/2, and headers stay a multi-value map, so the frontend can show repeated headers on separate lines instead of merging them into one.</p>
 
@@ -1439,15 +1439,15 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>For example, with a global base URL and a global token, and the current environment overriding the base URL, a placeholder for the base goes to the environment's host while the token still resolves to the global value. When several global environments share a key, the later merged one wins, and that order follows the environment list.</p>
 
-<p>The three-level boundary matters too. A two-step chain resolves. A longer chain leaves placeholders from the fourth level onward in the unresolved list rather than expanding forever. It is a hard anti-cycle cap, not "try a few more times".</p>
+<p>The three-level boundary matters too. A two-step chain resolves. A longer chain leaves placeholders from the fourth level onward in the unresolved list rather than expanding forever. It's a hard anti-cycle cap, not "try a few more times".</p>
 
-<p>Resolution only ever touches a copy. The clone duplicates the slices that may be rewritten, such as parameters, headers, form fields and file fields, while URL, body and auth fields are copied by value. Resolution covers the URL, parameter keys and values, header values, raw and form and file bodies, plus basic username and password, bearer tokens and API key pairs. Enumerated fields such as method and body type are not interpolated.</p>
+<p>Resolution only ever touches a copy. The clone duplicates the slices that may be rewritten, such as parameters, headers, form fields and file fields, while URL, body and auth fields are copied by value. Resolution covers the URL, parameter keys and values, header values, raw and form and file bodies, plus basic username and password, bearer tokens and API key pairs. Enumerated fields such as method and body type aren't interpolated.</p>
 
-<p>Unresolved variables do not fail the request. It is sent as written, and the names come back in the result. The frontend shows them in red with a note that they were sent as-is. That degradation is deliberate, because during debugging you often need to see how the server responds to an unfilled path rather than being blocked client-side.</p>
+<p>Unresolved variables don't fail the request. It's sent as written, and the names come back in the result. The frontend shows them in red with a note that they were sent as-is. That degradation is deliberate, because during debugging you often need to see how the server responds to an unfilled path rather than being blocked client-side.</p>
 
 <h2>cURL both ways: lexing, mapping and warnings</h2>
 
-<p>Import does not shell out. It ships a small lexer handling single and double quotes, backslash continuations, cmd's caret continuation, the PowerShell prefix and the explicit <code>curl.exe</code> name. The lexer emits tokens, which are then parsed against an option table.</p>
+<p>Import doesn't shell out. It ships a small lexer handling single and double quotes, backslash continuations, cmd's caret continuation, the PowerShell prefix and the explicit <code>curl.exe</code> name. The lexer emits tokens, which are then parsed against an option table.</p>
 
 <p>The supported set covers day-to-day debugging: request method, header, data, raw data, binary data, JSON, form, user, OAuth bearer, cookie, user agent, referer, GET redirection, and head. Unknown options are never silently dropped; they land in a warnings list shown with the import result.</p>
 
@@ -1459,7 +1459,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 <li>Data and binary data read a file behind an at sign, capped at 20 MB and requiring UTF-8. Raw data keeps the literal and reads nothing.</li>
 <li>Multiple data flags join with ampersands into one body, matching cURL's form behavior.</li>
 <li>With a form flag the request becomes multipart. Per-file options such as type and filename are stripped with a warning, because NanoAPI's file fields hold only a key and a path.</li>
-<li>The insecure flag is not written into the request. It warns that certificate verification lives in settings.</li>
+<li>The insecure flag isn't written into the request. It warns that certificate verification lives in settings.</li>
 <li>The proxy flag warns and is ignored, because there is no proxy configuration screen.</li>
 <li>Upload-file, config and client certificates also only warn. The tool never pretends to support them.</li>
 </ul>
@@ -1488,11 +1488,11 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 </tbody>
 </table>
 
-<p>Export reuses the same table in reverse, which is the whole reason the two directions cannot drift. A change to how a header row is written during import shows up in export the same day, because it is one function and not two.</p>
+<p>Export reuses the same table in reverse, which is the whole reason the two directions can't drift. A change to how a header row is written during import shows up in export the same day, because it is one function and not two.</p>
 
-<p>Multipart text fields use form-string deliberately, so an at sign or a less-than in the value is not read as a file reference. File fields use a file form, with the path handed to shell quoting. HEAD exports as a head flag rather than an explicit method, because the explicit form can leave clients waiting for a body that never comes. The quoting helper guarantees safety under Bash only, so export targets Bash, WSL or Git Bash. That is an explicit platform assumption.</p>
+<p>Multipart text fields use form-string deliberately, so an at sign or a less-than in the value isn't read as a file reference. File fields use a file form, with the path handed to shell quoting. HEAD exports as a head flag rather than an explicit method, because the explicit form can leave clients waiting for a body that never comes. The quoting helper guarantees safety under Bash only, so export targets Bash, WSL or Git Bash. That's an explicit platform assumption.</p>
 
-<p>This is not a complete cURL. The goal is to bring the common debugging commands in, not to interpret every part of the cURL language, which makes the warning policy important. Anything unrecognized is reported instead of quietly producing a request that looks right and behaves differently. An unclosed quote returns an error rather than guessing intent.</p>
+<p>This isn't a complete cURL. The goal is to bring the common debugging commands in, not to interpret every part of the cURL language, which makes the warning policy important. Anything unrecognized is reported instead of quietly producing a request that looks right and behaves differently. An unclosed quote returns an error rather than guessing intent.</p>
 
 <h2>Upload and download</h2>
 
@@ -1500,7 +1500,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>All files are read into memory before assembly, which is exactly why the caps have to exist. One enormous file would otherwise take the process down. File paths are interpolated too, so a placeholder directory works, and resolution happens before sending. A missing path returns a file error.</p>
 
-<p>One step before sending is crucial. If the body is multipart, any user-written content type is dropped. The boundary is generated for this request, so a hand-written one cannot match, and keeping it only makes the server fail to parse. Import removes a manual content type when a form flag is present and warns; export skips it for the same reason.</p>
+<p>One step before sending is crucial. If the body is multipart, any user-written content type is dropped. The boundary is generated for this request, so a hand-written one can't match, and keeping it only makes the server fail to parse. Import removes a manual content type when a form flag is present and warns; export skips it for the same reason.</p>
 
 <p>Download runs the other way. The filename is chosen in order: the name in the content-disposition header, then the last segment of the final response URL, then the request name. The header supports both the plain form and the RFC 5987 UTF-8 form.</p>
 
@@ -1508,9 +1508,9 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>Binary responses show as base64, and the backend decodes back to raw bytes when saving. Image responses preview directly when untruncated and small. The viewer therefore needs no renderer per format, and binary data never reaches a text highlighter.</p>
 
-<p>The three caps are not arbitrary round numbers. Twenty megabytes for a single file keeps one attachment from dominating memory while still covering screenshots, PDFs and small datasets. Fifty megabytes for the total bounds a request body that has to be held in memory and then copied into the transport. Twenty megabytes for a response bounds the string that crosses the binding boundary, which is the step that actually hurts when it gets large. Raising any of them is easy. Raising them without measuring the copy cost is how a debugging tool starts swapping.</p>
+<p>The three caps aren't arbitrary round numbers. Twenty megabytes for a single file keeps one attachment from dominating memory while still covering screenshots, PDFs and small datasets. Fifty megabytes for the total bounds a request body that has to be held in memory and then copied into the transport. Twenty megabytes for a response bounds the string that crosses the binding boundary, which is the step that actually hurts when it gets large. Raising any of them is easy. Raising them without measuring the copy cost is how a debugging tool starts swapping.</p>
 
-<p>Filename sanitation is the kind of code that never gets written until it bites. The backend reduces to a base name so a header cannot write outside the chosen directory, replaces the characters Windows rejects, trims trailing dots and spaces that Windows silently drops, and caps the length so a long title plus a quota cannot produce a path the filesystem refuses. The frontend runs the same cleanup to suggest a name in the save dialog. Duplicated logic usually means two places to fix a bug, and here it is deliberate: the frontend version exists for convenience, the backend version exists for safety, and only the second one is trusted.</p>
+<p>Filename sanitation is the kind of code that never gets written until it bites. The backend reduces to a base name so a header can't write outside the chosen directory, replaces the characters Windows rejects, trims trailing dots and spaces that Windows silently drops, and caps the length so a long title plus a quota can't produce a path the filesystem refuses. The frontend runs the same cleanup to suggest a name in the save dialog. Duplicated logic usually means two places to fix a bug, and here it is deliberate: the frontend version exists for convenience, the backend version exists for safety, and only the second one is trusted.</p>
 
 <h2>Storage: reliability for a single JSON file</h2>
 
@@ -1518,15 +1518,15 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>If the config directory is unavailable, the application falls back to the system temp directory so it still starts, with no persistence across restarts.</p>
 
-<p>Reads do no whole-file validation, only per-field repair. A timeout of zero or less resets to the default, an empty theme resets to the default, and nil collections, environments, history and tabs become empty slices. One bad field therefore cannot cost the user their chosen theme.</p>
+<p>Reads do no whole-file validation, only per-field repair. A timeout of zero or less resets to the default, an empty theme resets to the default, and nil collections, environments, history and tabs become empty slices. One bad field therefore can't cost the user their chosen theme.</p>
 
 <p>The repair pass is deliberately short, and each rule exists because a specific value would break the interface downstream. A negative timeout would make every request fail instantly with an aborted kind that looks like a network fault. An unknown theme name would render the app with no colors at all. Nil slices would turn every list render into a null check spread across the frontend. Repairing four things is cheaper than defending against them at twenty call sites.</p>
 
 <p>If JSON parsing fails, the original file is renamed with a corrupt marker and a timestamp, and the app starts empty. Nothing is deleted, so manual repair or restoring a backup stays possible.</p>
 
-<p>Writes are debounced by 300 ms, so typing does not hit the disk. The actual write creates a temporary file in the same directory, writes, syncs, closes, then renames over the target, so a process exiting mid-write leaves no half-written JSON.</p>
+<p>Writes are debounced by 300 ms, so typing doesn't hit the disk. The actual write creates a temporary file in the same directory, writes, syncs, closes, then renames over the target, so a process exiting mid-write leaves no half-written JSON.</p>
 
-<p>Snapshots return slice copies so callers cannot mutate underlying data while it is being serialized. That copy looks fussy and is the core of concurrency safety: while a request runs in the background, the frontend may be editing collections or environments, and serialization has to work from a stable copy.</p>
+<p>Snapshots return slice copies so callers can't mutate underlying data while it is being serialized. That copy looks fussy and is the core of concurrency safety: while a request runs in the background, the frontend may be editing collections or environments, and serialization has to work from a stable copy.</p>
 
 <p>Close performs a final flush, and closing the window also triggers the frontend's tab save. Both paths use the same atomic write, so there is no separate close-time logic. History keeps 200 entries, and bodies and timings never persist. The file usually stays small, and "you can see the previous response after restart" is explicitly not a capability.</p>
 
@@ -1534,7 +1534,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>Bulk editing of environment variables is pure frontend logic. Input is dotenv-style key-value text. Parsing skips blank lines and comments, drops an export prefix, supports single and double quotes, and inside double quotes resolves newline, carriage return, tab, escaped quote and escaped backslash.</p>
 
-<p>Duplicate keys take the last line, and invalid lines are counted without blocking the import. Existing variables keep their enabled flag and their description, so one bulk paste cannot wipe notes someone wrote carefully.</p>
+<p>Duplicate keys take the last line, and invalid lines are counted without blocking the import. Existing variables keep their enabled flag and their description, so one bulk paste can't wipe notes someone wrote carefully.</p>
 
 <p>Formatting is the reverse. Values containing newlines, tabs, leading or trailing spaces, or already quoted, get double quotes and escaping. Frontend tests cover parse-format round-trip consistency, which catches quote and escape edge cases that single-line tests miss.</p>
 
@@ -1542,7 +1542,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>Backups use only the project's own format, version 1, exporting collections and environments but never history, settings or tabs. Import caps at 32 MB and also accepts a bare settings file.</p>
 
-<p>Import is not overwrite but append-merge. The collection tree generates fresh ids recursively, so nodes cannot collide. Environments get fresh ids, with an "imported" suffix on name clashes and a number after that. Global variables exist once only, merging by key with existing values winning, duplicates skipped and a count reported.</p>
+<p>Import isn't overwrite but append-merge. The collection tree generates fresh ids recursively, so nodes can't collide. Environments get fresh ids, with an "imported" suffix on name clashes and a number after that. Global variables exist once only, merging by key with existing values winning, duplicates skipped and a count reported.</p>
 
 <p>To repeat: this import recognises no Postman collection, no Bruno, no OpenAPI and no HAR. No format sniffing, no field mapping. If you hold a Postman export, the path is to export cURL and import that, or convert the JSON by hand.</p>
 
@@ -1551,11 +1551,11 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Symptom.</strong> Set a 200 ms timeout against an endpoint that takes two seconds. The client still waits two seconds and reports something other than a timeout.</p>
 
-<p><strong>Cause.</strong> The original code created the request first and attached the timeout and trace afterwards. The request keeps the deadline-free context it was built with, and deriving a new context later does not affect it. The timer was never on the executed path.</p>
+<p><strong>Cause.</strong> The original code created the request first and attached the timeout and trace afterwards. The request keeps the deadline-free context it was built with, and deriving a new context later doesn't affect it. The timer was never on the executed path.</p>
 
 <p><strong>Fix.</strong> Reorder: timeout first, trace second, request third. A test now asserts that a 200 ms timeout against a two-second server reports a timeout error kind.</p>
 
-<p><strong>Cost.</strong> Every request creates and cancels a context, which makes the code path wordier. And the timeout is a deadline for the whole request, including DNS, connect, TLS, first byte and body read, not a connect timeout. Per-phase limits are not configurable; the timing panel is how you inspect phases.</p>
+<p><strong>Cost.</strong> Every request creates and cancels a context, which makes the code path wordier. And the timeout is a deadline for the whole request, including DNS, connect, TLS, first byte and body read, not a connect timeout. Per-phase limits aren't configurable; the timing panel is how you inspect phases.</p>
 
 <h3>Problem 2: a specific redirect error swallowed by a generic one</h3>
 
@@ -1567,7 +1567,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Cost.</strong> Error handling now has a branch for one specific kind, coupling the redirect callback to the outer handler. Any future "write the result inside a callback" error type has to remember the same guard.</p>
 
-<h3>Problem 3: Windows connection errors did not match the message table</h3>
+<h3>Problem 3: Windows connection errors didn't match the message table</h3>
 
 <p><strong>Symptom.</strong> Connecting to a closed port is recognized as connection refused on Linux and falls into the generic network error on Windows. Same condition, different text per platform.</p>
 
@@ -1590,15 +1590,15 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 <h2>Problem list two: four Windows and cURL traps</h2>
 <h3>Problem 5: the shell lexer ate Windows paths</h3>
 
-<p><strong>Symptom.</strong> Importing a form field that references a Windows path loses the backslashes, and the file is not found.</p>
+<p><strong>Symptom.</strong> Importing a form field that references a Windows path loses the backslashes, and the file isn't found.</p>
 
 <p><strong>Cause.</strong> The lexer treated backslashes as escapes by shell rules. Rules meant for backslash, escaped quote and doubled backslash also swallow the backslash before ordinary letters, which destroys Windows paths, and Windows users rarely add extra quotes.</p>
 
 <p><strong>Fix.</strong> Escape only spaces, tabs, quotes, backslash, dollar signs and backticks. Keep the backslash for every other character. A test pins the behavior with a Windows path.</p>
 
-<p><strong>Cost.</strong> One lexer serves both POSIX shell habits and Windows habits, so the semantics cannot be identical. An unquoted path containing spaces still splits into tokens, and an escaped n inside double quotes is still a newline rather than a path fragment.</p>
+<p><strong>Cost.</strong> One lexer serves both POSIX shell habits and Windows habits, so the semantics can't be identical. An unquoted path containing spaces still splits into tokens, and an escaped n inside double quotes is still a newline rather than a path fragment.</p>
 
-<h3>Problem 6: cmd's caret continuation was not recognized</h3>
+<h3>Problem 6: cmd's caret continuation wasn't recognized</h3>
 
 <p><strong>Symptom.</strong> Copying a multi-line cURL command out of a cmd window, where lines end with a caret, produces shifted arguments or a parse failure.</p>
 
@@ -1606,9 +1606,9 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Fix.</strong> The caret branch handles both line ending forms as continuations, while a standalone caret stays literal. The PowerShell prefix and the explicit executable name are accepted too, which covers commands copied from PowerShell.</p>
 
-<p><strong>Cost.</strong> Only continuation is implemented, not cmd's full escaping. Variable expansion, command separation and caret-escaping of other characters are not simulated, so complex batch commands still warn or parse imperfectly.</p>
+<p><strong>Cost.</strong> Only continuation is implemented, not cmd's full escaping. Variable expansion, command separation and caret-escaping of other characters aren't simulated, so complex batch commands still warn or parse imperfectly.</p>
 
-<h3>Problem 7: cURL options that look alike but are not</h3>
+<h3>Problem 7: cURL options that look alike but aren't</h3>
 
 <p><strong>Symptom.</strong> Users assume that data and raw data both read a file, then the latter sends a literal at sign path. Or they assume the insecure flag disables certificate checks, and importing leaves settings untouched.</p>
 
@@ -1626,18 +1626,18 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Fix.</strong> After building the body and before sending, if the body is multipart, delete the content type from the header copy and use the generated value. Import removes a manual content type when a form flag is present and warns; export skips it as well.</p>
 
-<p><strong>Cost.</strong> Users lose the ability to customize the multipart content type, for example to set a charset. That is the intended trade: making a wrong configuration impossible beats preserving a freedom that usually produces errors.</p>
+<p><strong>Cost.</strong> Users lose the ability to customize the multipart content type, for example to set a charset. That's the intended trade: making a wrong configuration impossible beats preserving a freedom that usually produces errors.</p>
 
 <h2>Problem list three: four desktop traps</h2>
 <h3>Problem 9: a per-request transport gives up keep-alive</h3>
 
 <p><strong>Symptom.</strong> Consecutive requests each re-establish a connection, so load runs and batch debugging take longer than expected. Sharing a transport without closing it, on the other hand, leaves idle connections hanging until timeout.</p>
 
-<p><strong>Cause.</strong> The application must switch certificate verification per request, and TLS configuration belongs to the transport, which cannot be safely mutated on a shared one. Sharing would also let one request's TLS policy leak into another. Per-request transports mean no connection reuse.</p>
+<p><strong>Cause.</strong> The application must switch certificate verification per request, and TLS configuration belongs to the transport, which can't be safely mutated on a shared one. Sharing would also let one request's TLS policy leak into another. Per-request transports mean no connection reuse.</p>
 
 <p><strong>Fix.</strong> Clone the default transport per request, set its TLS configuration, and close idle connections when the request finishes. Connection lifetime is bound to the request, nothing hangs, and TLS policies stay separate.</p>
 
-<p><strong>Cost.</strong> No keep-alive reuse. Consecutive requests repeat DNS, TCP and TLS. That is acceptable for a debugging tool and poor for high-frequency batch calls. Getting both reuse and per-request TLS would need a transport pool keyed by policy, a clear step up in complexity.</p>
+<p><strong>Cost.</strong> No keep-alive reuse. Consecutive requests repeat DNS, TCP and TLS. That's acceptable for a debugging tool and poor for high-frequency batch calls. Getting both reuse and per-request TLS would need a transport pool keyed by policy, a clear step up in complexity.</p>
 
 <h3>Problem 10: large responses froze the webview</h3>
 
@@ -1653,15 +1653,15 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Symptom.</strong> Killing the application mid-write makes the data file unparsable on restart, and collections and environments disappear.</p>
 
-<p><strong>Cause.</strong> Overwriting the target in place is not atomic. Exiting mid-write leaves invalid JSON, and a reader with no recovery strategy shows empty data.</p>
+<p><strong>Cause.</strong> Overwriting the target in place isn't atomic. Exiting mid-write leaves invalid JSON, and a reader with no recovery strategy shows empty data.</p>
 
-<p><strong>Fix.</strong> Write a temporary file, sync it, close it, then rename over the target. On a read failure, rename the original with a corrupt marker and start empty. Fill defaults per field, so one bad field cannot sink the whole configuration. Tests assert that every flush leaves valid JSON, that no temporary files remain, and that a corrupt file is backed up and recoverable.</p>
+<p><strong>Fix.</strong> Write a temporary file, sync it, close it, then rename over the target. On a read failure, rename the original with a corrupt marker and start empty. Fill defaults per field, so one bad field can't sink the whole configuration. Tests assert that every flush leaves valid JSON, that no temporary files remain, and that a corrupt file is backed up and recoverable.</p>
 
 <p><strong>Cost.</strong> No schema version means field upgrades rely on filling what is missing and ignoring what is unknown, with no real migration. Corruption recovery is "keep the file, lose the data", which needs manual repair. And a 300 ms debounce can lose the last few hundred milliseconds of edits, which the forced flush on close only partly compensates.</p>
 
 <h3>Problem 12: ids, name clashes and global variables after import</h3>
 
-<p><strong>Symptom.</strong> Importing a backup twice produces duplicate collection nodes where deleting one affects the other, two identically named environments that cannot be told apart, and global variables overwritten wholesale.</p>
+<p><strong>Symptom.</strong> Importing a backup twice produces duplicate collection nodes where deleting one affects the other, two identically named environments that can't be told apart, and global variables overwritten wholesale.</p>
 
 <p><strong>Cause.</strong> Bundle nodes carry their original ids and collide when appended. Environment names have no uniqueness constraint. And global variables are supposed to exist exactly once, so appending them as ordinary environments creates a second copy.</p>
 
@@ -1690,7 +1690,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <h2>Known limits</h2>
 
-<p><strong>Compression is not handled directly.</strong> Go's transport only decompresses automatically when it added the accept-encoding header itself. If a user writes that header by hand, the transport will not decompress on their behalf, and NanoAPI has no brotli or deflate decoder, so the pane shows raw compressed bytes. It is not "gzip unsupported". It is "do not write that header, let the transport negotiate".</p>
+<p><strong>Compression isn't handled directly.</strong> Go's transport only decompresses automatically when it added the accept-encoding header itself. If a user writes that header by hand, the transport won't decompress on their behalf, and NanoAPI has no brotli or deflate decoder, so the pane shows raw compressed bytes. It isn't "gzip unsupported". It's "don't write that header, let the transport negotiate".</p>
 
 <p><strong>Sensitive headers follow the standard redirect policy.</strong> Authorization is dropped on a cross-origin hop, and the application neither replays it nor tells the user that it was removed. Same-origin hops are usually fine, but cross-origin debugging produces the classic "it worked, then 401 after the redirect".</p>
 
@@ -1698,7 +1698,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Import formats are closed.</strong> Only the project bundle, version 1, and a bare settings file. No Postman, Bruno, OpenAPI or HAR, with no sniffing and no migration wizard.</p>
 
-<p><strong>There is no schema version.</strong> Upgrades rely on per-field defaults and ignoring unknown fields, so the file cannot express when a field became meaningful, and destructive migration is unsafe.</p>
+<p><strong>There is no schema version.</strong> Upgrades rely on per-field defaults and ignoring unknown fields, so the file can't express when a field became meaningful, and destructive migration is unsafe.</p>
 
 <p><strong>The capability boundary also includes</strong> no client certificates or custom CAs, no custom multipart content type, a hard 20 MB response cap, and history limited to 200 entries without bodies.</p>
 
@@ -1707,7 +1707,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 <table>
 <thead><tr><th>Limit</th><th>What you can do instead</th><th>What it costs</th></tr></thead>
 <tbody>
-<tr><td>No brotli or deflate decoding</td><td>Leave accept-encoding unset and let the transport negotiate</td><td>You cannot test a server that only answers brotli</td></tr>
+<tr><td>No brotli or deflate decoding</td><td>Leave accept-encoding unset and let the transport negotiate</td><td>You can't test a server that only answers brotli</td></tr>
 <tr><td>Authorization dropped cross-origin</td><td>Re-add the header manually on the redirected host</td><td>Two requests instead of one, and the first 401 stays in history</td></tr>
 <tr><td>Proxy inherited from the environment</td><td>Clear the proxy variables for that process</td><td>Other tools in the same shell lose their proxy too</td></tr>
 <tr><td>No Postman import</td><td>Export cURL from Postman, import that</td><td>Collection structure is lost, only the requests survive</td></tr>
@@ -1725,9 +1725,9 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>NanoAPI compresses into three sentences. Rendering belongs to the system WebView2, network and files belong to the Go standard library, and the frontend stays dependency-free native modules. It never tries to replace Postman. It makes the most common debugging path solid: request construction, variables, cURL, upload and download, response inspection and single-file storage.</p>
 
-<p>What decides quality is not the feature list but the unglamorous failure paths. A timeout has to be attached to the right context. A specific redirect error must not be overwritten by a generic one. Windows connection errors and paths need their own handling. Multipart boundaries must not be user-supplied. Writes must be atomic and corruption must leave evidence. Large responses must be bounded at read, render and validate.</p>
+<p>What decides quality isn't the feature list but the unglamorous failure paths. A timeout has to be attached to the right context. A specific redirect error must not be overwritten by a generic one. Windows connection errors and paths need their own handling. Multipart boundaries must not be user-supplied. Writes must be atomic and corruption must leave evidence. Large responses must be bounded at read, render and validate.</p>
 
-<p>Its leftovers are equally explicit: no brotli or deflate decoding, no auth replay across origins, proxies inherited from the environment, a closed import format, and no schema version. Saying so plainly is worth more than claiming everything is supported. A sufficient tool should tell you where it is sufficient and where it is not.</p>
+<p>Its leftovers are equally explicit: no brotli or deflate decoding, no auth replay across origins, proxies inherited from the environment, a closed import format, and no schema version. Saying so plainly is worth more than claiming everything is supported. A sufficient tool should tell you where it is sufficient and where it isn't.</p>
 
 <p>None of these conclusions came from reading code and guessing. Timeouts, redirects, paths, storage and import all have unit tests or reproducible mock servers, so breaking any one of them fails the tests first.</p>
 
@@ -1753,13 +1753,13 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
     html: `
 <blockquote>
 <p>Who this is for: people who want an AI assistant on their own machine without handing chat history and file paths to a cloud; people building desktop agents in Electron and fighting permissions, paths and packaging; people who want to see where a local-first product has to compromise.</p>
-<p><strong>TL;DR:</strong> the core of Z Bot is not "plug in a model". It is putting the model inside a box the main process controls. The database, keys, tool execution and system capabilities all stay in the main process, and the renderer gets only a whitelisted API. Every action with a side effect asks for permission first. Memory starts with SQLite FTS5 rather than a vector store. Reminders, context and retries all have hard caps.</p>
+<p><strong>TL;DR:</strong> the core of Z Bot isn't "plug in a model". It's putting the model inside a box the main process controls. The database, keys, tool execution and system capabilities all stay in the main process, and the renderer gets only a whitelisted API. Every action with a side effect asks for permission first. Memory starts with SQLite FTS5 rather than a vector store. Reminders, context and retries all have hard caps.</p>
 <p>Reading time around 55 minutes. Level: advanced.</p>
 </blockquote>
 
 <h2>Why build a local-first personal assistant</h2>
 
-<p>Cloud chat products are already strong, but "personal assistant" and "general question answering" are different products. General Q&amp;A does not need to know your project directories, last week's todos or your writing voice. A personal assistant does, and that information naturally should not leave the machine.</p>
+<p>Cloud chat products are already strong, but "personal assistant" and "general question answering" are different products. General Q&amp;A doesn't need to know your project directories, last week's todos or your writing voice. A personal assistant does, and that information naturally should not leave the machine.</p>
 
 <p>Z Bot starts from a plain idea. Keep personal context, long-term memory, tasks and reminders in a local SQLite database. Let the model handle reasoning and generation. Execute file reads, web fetches and reminder creation on the machine, with the user's authorization each time.</p>
 
@@ -1767,11 +1767,11 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Data has to be explainable, backup-able and deletable.</strong> There must be no state where memory lives in some cloud table that the user can neither see nor remove.</p>
 
-<p><strong>The model has to be swappable.</strong> OpenAI, OpenAI-compatible endpoints, Anthropic, Google and Ollama all work. The product cannot lock anyone to one vendor.</p>
+<p><strong>The model has to be swappable.</strong> OpenAI, OpenAI-compatible endpoints, Anthropic, Google and Ollama all work. The product can't lock anyone to one vendor.</p>
 
 <p><strong>The assistant has to be resident.</strong> It has to keep standing by after the window closes, send system notifications and read local files. That makes it a desktop application rather than a web page.</p>
 
-<p>Z Bot is not a coding agent. Its loop is understand, remember, reason, help, act, learn, and the focus is personal context and daily tasks rather than editing a repository. The README says plainly that complex software work belongs to a specialized agent such as NanoHermes, while Z Bot understands the request, dispatches work, receives results and reminds the user. That boundary matters. The moment it sees itself as a general coding agent, the tool set, the permission model and the context budget all run out of control.</p>
+<p>Z Bot isn't a coding agent. Its loop is understand, remember, reason, help, act, learn, and the focus is personal context and daily tasks rather than editing a repository. The README says plainly that complex software work belongs to a specialized agent such as NanoHermes, while Z Bot understands the request, dispatches work, receives results and reminds the user. That boundary matters. The moment it sees itself as a general coding agent, the tool set, the permission model and the context budget all run out of control.</p>
 
 <p>Local-first has costs too. There is no multi-device sync and no server push. A new machine means reconfiguring models and authorized directories. Reminders are reliable only while the process is alive, with no catch-up after a full exit. And local OCR is capped by whatever engine Windows ships. Those costs recur throughout this post, so it is worth stating the product boundary before the technical choices.</p>
 
@@ -1798,7 +1798,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Why the built-in SQLite module.</strong> It avoids native compilation, so the installer never faces node-gyp or ABI mismatches. The cost is a synchronous API, which puts every query on the main process's single event loop.</p>
 
-<p>Z Bot manages that in five ways: short transactions, serialized migrations, WAL mode, <code>synchronous=NORMAL</code> and a 5-second busy timeout on open. Before exit it runs a WAL checkpoint. Before a version upgrade it copies the whole database as a backup. It did not move the database to a worker, so a long query can still stall the window and IPC.</p>
+<p>Z Bot manages that in five ways: short transactions, serialized migrations, WAL mode, <code>synchronous=NORMAL</code> and a 5-second busy timeout on open. Before exit it runs a WAL checkpoint. Before a version upgrade it copies the whole database as a backup. It didn't move the database to a worker, so a long query can still stall the window and IPC.</p>
 
 <h3>Problem 1: a synchronous database on the main process</h3>
 
@@ -1808,27 +1808,27 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Fix.</strong> WAL raises read and write concurrency, <code>synchronous=NORMAL</code> lowers the fsync cost per commit, the busy timeout is set on open, migrations serialize inside an immediate transaction, a checkpoint runs before exit, and upgrades are guarded by the schema version with a full backup taken first.</p>
 
-<p><strong>Cost.</strong> The root problem of a synchronous API does not disappear, it is confined to short transactions. A full export, an index rebuild or log searching over a large model history would still need a worker thread. This version chooses simplicity over throughput.</p>
+<p><strong>Cost.</strong> The root problem of a synchronous API doesn't disappear, it is confined to short transactions. A full export, an index rebuild or log searching over a large model history would still need a worker thread. This version chooses simplicity over throughput.</p>
 
-<h2>Process boundary: what the renderer can and cannot do</h2>
+<h2>Process boundary: what the renderer can and can't do</h2>
 
-<p>The first rule of Electron security is not to hand Node to a page. Z Bot's window uses context isolation, no Node integration and a sandbox. The renderer has no <code>require</code>, no <code>process</code> and no filesystem.</p>
+<p>The first rule of Electron security isn't to hand Node to a page. Z Bot's window uses context isolation, no Node integration and a sandbox. The renderer has no <code>require</code>, no <code>process</code> and no filesystem.</p>
 
 <p>What the page can load is narrowed by CSP as well: only <code>self</code> and a custom media scheme, not arbitrary HTTPS. All web permission requests are denied by default, so camera, microphone, geolocation and notifications never open just because a page asked once.</p>
 
 <p>Attachments are capped before saving: 25 MB each, at most 6 per message. That keeps one conversation from blowing up local storage and later requests. Attachment images are read through a custom protocol of the form <code>zbot-media://attachment/&lt;id&gt;</code>. The main process accepts only the attachment host, treats the path as an attachment id, looks it up in the database and the attachment directory, returns 404 when missing, and adds a restrictive CSP to the response.</p>
 
-<p>The renderer therefore cannot reach an arbitrary local path. It can only reach an image that is already recorded in the attachment table. That is far safer than exposing file URLs, but it also means attachments must pass through the main process first and cannot be dropped into an image tag from anywhere.</p>
+<p>The renderer therefore can't reach an arbitrary local path. It can only reach an image that is already recorded in the attachment table. That's far safer than exposing file URLs, but it also means attachments must pass through the main process first and can't be dropped into an image tag from anywhere.</p>
 
-<p><strong>Preload is the only bridge.</strong> It exposes one API object through the context bridge, with roughly 40 methods grouped under app, chat, conversations, memory, settings, providers, web search, projects, roots, tasks, todos, reminders, home, permissions, clipboard, screenshot and events. Raw IPC is never handed over, so the page cannot compose channel names or listen to arbitrary events.</p>
+<p><strong>Preload is the only bridge.</strong> It exposes one API object through the context bridge, with roughly 40 methods grouped under app, chat, conversations, memory, settings, providers, web search, projects, roots, tasks, todos, reminders, home, permissions, clipboard, screenshot and events. Raw IPC is never handed over, so the page can't compose channel names or listen to arbitrary events.</p>
 
 <p>Event subscriptions are closed off in the same way. The chat event, navigation, screenshot and theme subscriptions all return an unsubscribe function, wrapping the listener internally before removing it. That looks cosmetic and actually fixes listener leaks after React unmounts: callers can unsubscribe in an effect cleanup without remembering which function reference they passed.</p>
 
-<p>This boundary is not "configure once and stay safe". Add one generic invoke method to preload and the whitelist is decoration. Expose a shell open call directly to the renderer and the path guard is bypassed. Z Bot keeps every IPC channel in one registration file behind a uniform wrapper with per-channel schemas, but a few channels slipped through, and they are covered below.</p>
+<p>This boundary isn't "configure once and stay safe". Add one generic invoke method to preload and the whitelist is decoration. Expose a shell open call directly to the renderer and the path guard is bypassed. Z Bot keeps every IPC channel in one registration file behind a uniform wrapper with per-channel schemas, but a few channels slipped through, and they are covered below.</p>
 
 <h2>IPC contract: whitelist, Zod and redaction</h2>
 
-<p>IPC registration goes through one wrapper that takes a channel, a handler and an optional schema. Each call validates the raw payload with Zod. The strict schema mode rejects extra fields, so the renderer cannot smuggle unexpected properties in. A validation failure turns the issue list into a readable message. A handler throw passes through a redaction function before the message goes back to the renderer. Logs record one failure line per channel, without raw keys, tokens or cookies.</p>
+<p>IPC registration goes through one wrapper that takes a channel, a handler and an optional schema. Each call validates the raw payload with Zod. The strict schema mode rejects extra fields, so the renderer can't smuggle unexpected properties in. A validation failure turns the issue list into a readable message. A handler throw passes through a redaction function before the message goes back to the renderer. Logs record one failure line per channel, without raw keys, tokens or cookies.</p>
 
 <pre><code>ipcMain.handle(channel, async (_event, raw: unknown) =&gt; {
   try {
@@ -1843,7 +1843,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p>The value here is safe by default. Adding a channel forces an explicit decision about a schema, and a channel without one stays visible in review.</p>
 
-<p>There is also an obvious gap. The third argument is optional, so two channels genuinely have no schema: the open-path channel and the search-key channel. The first only checks that the target string sits inside the data directory, and the second uses the incoming value as a string directly. Neither is the most dangerous channel, but together they show that a uniform wrapper is not uniform validation.</p>
+<p>There is also an obvious gap. The third argument is optional, so two channels genuinely have no schema: the open-path channel and the search-key channel. The first only checks that the target string sits inside the data directory, and the second uses the incoming value as a string directly. Neither is the most dangerous channel, but together they show that a uniform wrapper isn't uniform validation.</p>
 
 <h3>Problem 2: inconsistent IPC surface and validation</h3>
 
@@ -1863,11 +1863,11 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Fix.</strong> The secret service throws when encryption is unavailable instead of saving plaintext. The database stores the encrypted value. Outbound DTOs strip the encrypted field entirely and tell the UI only that a key is configured. The logger redacts key, password, cookie and encrypted-key fields including nested variants, and error messages get a regex pass as well.</p>
 
-<p><strong>Cost.</strong> The OS keystore is tied to the system credential service, so keys cannot be decrypted after a machine change or a broken profile, and the user has to re-enter them. Redaction is a double line of defense, field names plus regex, and it still cannot guarantee that a key concatenated into an arbitrary string is caught. For a local application that is an acceptable compromise, not absolute safety.</p>
+<p><strong>Cost.</strong> The OS keystore is tied to the system credential service, so keys can't be decrypted after a machine change or a broken profile, and the user has to re-enter them. Redaction is a double line of defense, field names plus regex, and it still can't guarantee that a key concatenated into an arbitrary string is caught. For a local application that is an acceptable compromise, not absolute safety.</p>
 
 <h2>Permissions: declare first, confirm every time</h2>
 
-<p>Registering a tool does not make it runnable. Every tool calls its permission declaration before executing, producing a spec with title, description, risk level, scope and operation list. The permission manager checks persisted rules first: an allow hit passes, a deny hit rejects. Only a miss creates a permission request, pushes it to the UI over a chat event, and awaits the user's decision.</p>
+<p>Registering a tool doesn't make it runnable. Every tool calls its permission declaration before executing, producing a spec with title, description, risk level, scope and operation list. The permission manager checks persisted rules first: an allow hit passes, a deny hit rejects. Only a miss creates a permission request, pushes it to the UI over a chat event, and awaits the user's decision.</p>
 
 <pre><code>tool.run()
   -&gt; getPermission() -&gt; ToolPermissionSpec
@@ -1877,17 +1877,17 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
        -&gt; AbortSignal cancel -&gt; cancelForChat
 </code></pre>
 
-<p>Users have four choices: deny, allow once, allow for the scope, or cancel the task. Allow-once is deliberately not persisted, so the same action asks again next time. Allow-for-scope persists on the pair of tool name and scope, where the scope is usually an authorized directory or an operation type. Deny does not run the tool and returns a tool result saying the operation was not executed, so the model learns the path is blocked and the conversation does not collapse. Cancellation rejects every pending promise through the abort signal, so a permission dialog never hangs forever.</p>
+<p>Users have four choices: deny, allow once, allow for the scope, or cancel the task. Allow-once is deliberately not persisted, so the same action asks again next time. Allow-for-scope persists on the pair of tool name and scope, where the scope is usually an authorized directory or an operation type. Deny doesn't run the tool and returns a tool result saying the operation wasn't executed, so the model learns the path is blocked and the conversation doesn't collapse. Cancellation rejects every pending promise through the abort signal, so a permission dialog never hangs forever.</p>
 
-<p>The key idea is that <strong>a denial is not an exception</strong>. Many agent implementations throw when a tool is refused, which leaves the model blind to the reason and retrying the same action next turn. Z Bot makes denial an ordinary tool result: the model can take another route or explain why it did not act.</p>
+<p>The key idea is that <strong>a denial isn't an exception</strong>. Many agent implementations throw when a tool is refused, which leaves the model blind to the reason and retrying the same action next turn. Z Bot makes denial an ordinary tool result: the model can take another route or explain why it didn't act.</p>
 
-<p>The cost is that the model may ask for the same permission repeatedly. There is no soft "do not ask again in this conversation", only persisted deny rules.</p>
+<p>The cost is that the model may ask for the same permission repeatedly. There is no soft "don't ask again in this conversation", only persisted deny rules.</p>
 
 <p>Scope granularity is a separate question. Allow-for-scope binds a tool and a scope, not specific arguments. Once write access to a directory is allowed, later writes there never prompt. That matches the goal of reducing interruptions, but high-risk tools then depend on scopes designed narrowly enough. Z Bot models write, delete and batch move separately, sends deletes to the Recycle Bin and previews batch operations first, which is using tool design to compensate for permission granularity.</p>
 
 <p>Tasks and permissions also interact. If the agent stalls while waiting for permission, the task state becomes waiting for permission. On application exit, the runtime marks running and pending tasks as paused, so a restart never automatically replays an interrupted task that may already have had side effects. That trades automatic resume for never quietly deleting or moving files again.</p>
 
-<h2>Path safety: an authorized directory is not a string prefix</h2>
+<h2>Path safety: an authorized directory isn't a string prefix</h2>
 
 <p>The first gate for every file tool resolves an authorized path. It rejects relative paths, drive roots, device paths and UNC shares, caps the length at 4096 bytes, and refuses embedded NUL bytes. Then it canonicalizes the target and checks containment against every authorized root's real path. Writes additionally require that root to permit writing, and the existence and kind checks verify whether the target is a file or a directory.</p>
 
@@ -1897,17 +1897,17 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <p><strong>Symptom.</strong> A test creates a temporary directory and compares it against a canonicalized path. The two differ, and the test fails on Windows. Two commits fixed tests for exactly this.</p>
 
-<p><strong>Cause.</strong> Windows generates 8.3 short names for long paths, so the temporary directory and its real path can come back in different forms. The test compared strings while production code canonicalized, so the test concluded the product was wrong when the assertion was not normalized.</p>
+<p><strong>Cause.</strong> Windows generates 8.3 short names for long paths, so the temporary directory and its real path can come back in different forms. The test compared strings while production code canonicalized, so the test concluded the product was wrong when the assertion wasn't normalized.</p>
 
 <p><strong>Fix.</strong> Tests normalize their expectations the same way. Production code resolves path components level by level, reattaches missing segments to the real parent, and lowercases before comparing.</p>
 
 <p><strong>Cost.</strong> Path canonicalization is best effort, not cryptographic equivalence. Short names, casing and junctions can make two strings look different or identical. Tests have to follow platform behavior rather than assume POSIX semantics.</p>
 
-<h3>Problem 5: symlink escapes and targets that do not exist yet</h3>
+<h3>Problem 5: symlink escapes and targets that don't exist yet</h3>
 
 <p><strong>Symptom.</strong> Canonicalizing only the target makes a not-yet-created write path fail with a missing-file error. If the target is a junction or a symlink pointing outside the authorized directory, canonicalization lands outside the root. The two failures are opposite: one false positive, one false negative.</p>
 
-<p><strong>Cause.</strong> Write targets often do not exist and cannot be required to resolve, and a symlink can carry a path outside the authorized range after resolution, so checks are needed before and after.</p>
+<p><strong>Cause.</strong> Write targets often don't exist and can't be required to resolve, and a symlink can carry a path outside the authorized range after resolution, so checks are needed before and after.</p>
 
 <p><strong>Fix.</strong> A helper walks upward from the target to the nearest existing parent, at most 64 levels, collecting missing segments, resolves that parent, then reattaches the segments in order. Roots are canonicalized too. The kind check rejects symbolic links after a link status call. A Windows system-directory blacklist rejects the system root, Program Files and similar locations.</p>
 
@@ -1928,11 +1928,11 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <h2>The agent loop: when to answer, when to act</h2>
 
-<p>The first step of starting a chat is not calling the model. It is persisting. The runtime confirms or creates the conversation, writes the user message, updates the title, and writes an empty assistant message. Then it creates the request id and abort controller, emits a started event, and runs asynchronously.</p>
+<p>The first step of starting a chat isn't calling the model. It's persisting. The runtime confirms or creates the conversation, writes the user message, updates the title, and writes an empty assistant message. Then it creates the request id and abort controller, emits a started event, and runs asynchronously.</p>
 
 <p>That ordering guarantees the user message and a failure placeholder exist even if the model call fails, so the interface never shows a message that was sent but is missing from history.</p>
 
-<p>Two shortcuts sit at the entrance. The first is an explicit memory pattern: sentences that begin with "remember" go straight to memory writing without a model call. The second is intent routing: short sentences, greetings and questions take the direct path, while todos, reminders, files, web requests and long sentences take the agent path. Routing is not a semantic classifier but an ordered set of regular expressions, which is cheap, testable, needs no extra model call, and is occasionally wrong.</p>
+<p>Two shortcuts sit at the entrance. The first is an explicit memory pattern: sentences that begin with "remember" go straight to memory writing without a model call. The second is intent routing: short sentences, greetings and questions take the direct path, while todos, reminders, files, web requests and long sentences take the agent path. Routing isn't a semantic classifier but an ordered set of regular expressions, which is cheap, testable, needs no extra model call, and is occasionally wrong.</p>
 
 <p>Direct mode calls the model once, which suits "explain this concept" or "write one line of copy". Agent mode loops: the model emits text and tool calls, results are appended to the message array, the model is called again, and the loop ends when there are no more tool calls or a cap is reached.</p>
 
@@ -1950,7 +1950,7 @@ req, err := http.NewRequestWithContext(ctx, method, finalURL, bodyReader)
 
 <h2>Context budget: how 72,000 characters get spent</h2>
 
-<p>Z Bot does not stuff the whole history into the prompt. The context manager loads the project, the authorized roots and the relevant memories, assembles the system prompt, and then fills history against a character budget.</p>
+<p>Z Bot doesn't stuff the whole history into the prompt. The context manager loads the project, the authorized roots and the relevant memories, assembles the system prompt, and then fills history against a character budget.</p>
 
 <p>The total budget is 72,000 characters. History holds at most 20 messages, newest first, and any single message is truncated to 8,000 characters. The current user input is cut at 20,000. OCR text is capped at 24,000 characters and wrapped in a tag that tells the model plainly it is untrusted data rather than instructions.</p>
 
@@ -1972,13 +1972,13 @@ for (let index = history.length - 1; index &gt;= 0; index -= 1) {
 
 <p><strong>Symptom.</strong> When a single historical message is longer than the remaining budget, the loop breaks and no older messages load at all. One long old reply truncates the entire history instead of being skipped.</p>
 
-<p><strong>Cause.</strong> The implementation chose to load continuously from newest backwards, which keeps the context as one contiguous run with no holes. The cheapest way to handle a message that does not fit is to stop.</p>
+<p><strong>Cause.</strong> The implementation chose to load continuously from newest backwards, which keeps the context as one contiguous run with no holes. The cheapest way to handle a message that doesn't fit is to stop.</p>
 
 <p><strong>Fix.</strong> Each message is truncated to 8,000 characters first, which lowers the chance of hitting the case at all. The system prompt and memories are kept inside the budget. The current user message is truncated separately and never competes with history.</p>
 
 <p><strong>Cost.</strong> This is a known rough edge. Skipping the oversized message and continuing with older ones would be more reasonable, and budgeting in tokens rather than characters would be more accurate. Neither is done, because contiguous history helps the model and the 8,000-character cut already excludes most cases.</p>
 
-<p>Character budgets carry another error. Chinese, English and code have different token densities, so 72,000 characters is not 72,000 tokens. Characters were chosen because they can be estimated cheaply without a tokenizer, at the risk of occasionally exceeding the model window. Provider errors surface in the interface as model error codes, so the user sees the failure rather than a silently dropped message.</p>
+<p>Character budgets carry another error. Chinese, English and code have different token densities, so 72,000 characters isn't 72,000 tokens. Characters were chosen because they can be estimated cheaply without a tokenizer, at the risk of occasionally exceeding the model window. Provider errors surface in the interface as model error codes, so the user sees the failure rather than a silently dropped message.</p>
 
 <h2>The model layer: streaming, retries and the fallback boundary</h2>
 
@@ -1986,7 +1986,7 @@ for (let index = history.length - 1; index &gt;= 0; index -= 1) {
 
 <p>The AI SDK's streaming call performs the request, and Z Bot normalizes its output into its own events: text delta, tool call, finish, usage, error and aborted. The agent above never needs to know which provider is in use or how each one streams.</p>
 
-<p>The retry policy is at most three attempts per provider, with backoff of 500 ms, 1000 ms and 2000 ms. The SDK's own retry is set to zero, so a second layer does not retry underneath. Only retryable errors retry; configuration failures such as a missing key or a missing base URL fail immediately. The fallback model is used only after every primary attempt fails, and never once text has already been emitted.</p>
+<p>The retry policy is at most three attempts per provider, with backoff of 500 ms, 1000 ms and 2000 ms. The SDK's own retry is set to zero, so a second layer doesn't retry underneath. Only retryable errors retry; configuration failures such as a missing key or a missing base URL fail immediately. The fallback model is used only after every primary attempt fails, and never once text has already been emitted.</p>
 
 <pre><code>const retryable = normalized instanceof ModelRequestError ? normalized.retryable : true;
 if (!retryable || attemptNumber &gt;= maxAttempts || textEmittedRef.value) {
@@ -2004,7 +2004,7 @@ await delay(500 * 2 ** (retries - 1), signal);
 
 <p><strong>Fix.</strong> A flag records whether this attempt emitted any text delta. Once true, the current provider may not retry and fallback is forbidden. The provider sets its own retry count to zero, concentrating retries in one layer.</p>
 
-<p><strong>Cost.</strong> Emitted partial text is not retracted, so a user may see half a sentence followed by an error. And if the model fails after a tool call, retry is also forbidden and the task simply fails. This buys "no duplicates" over "always succeed", which is the right trade for chat.</p>
+<p><strong>Cost.</strong> Emitted partial text isn't retracted, so a user may see half a sentence followed by an error. And if the model fails after a tool call, retry is also forbidden and the task simply fails. This buys "no duplicates" over "always succeed", which is the right trade for chat.</p>
 
 <p>The 5-minute overall timeout is a second gate covering the whole conversation rather than one request. When it fires, the abort controller cancels the running stream, permission waits and tool execution, and the run is marked cancelled rather than treated as a successful partial answer.</p>
 
@@ -2012,7 +2012,7 @@ await delay(500 * 2 ** (retries - 1), signal);
 
 <p>Memory has five kinds: user, project, event, task and global. Rows live in a strict memories table holding content, kind, project id, importance, confidence, expiry and archive time. Tags live in a separate table with cascading deletes. Retrieval uses an FTS5 virtual table, contentless-linked to the memories table, kept in sync by three triggers for insert, update and delete.</p>
 
-<p>Chinese retrieval is the most underrated problem in this area. The default FTS5 tokenizer targets space-separated languages, so a whole Chinese sentence tends to become a single token and a query matches only an exact phrase. Z Bot switches to the trigram tokenizer, indexing three-character windows so phrases can be matched partially. Queries shorter than three characters cannot use FTS, so they degrade to a substring scan.</p>
+<p>Chinese retrieval is the most underrated problem in this area. The default FTS5 tokenizer targets space-separated languages, so a whole Chinese sentence tends to become a single token and a query matches only an exact phrase. Z Bot switches to the trigram tokenizer, indexing three-character windows so phrases can be matched partially. Queries shorter than three characters can't use FTS, so they degrade to a substring scan.</p>
 
 <pre><code>CREATE VIRTUAL TABLE memories_fts USING fts5(
   content,
@@ -2022,9 +2022,9 @@ await delay(500 * 2 ** (retries - 1), signal);
 );
 </code></pre>
 
-<h3>Problem 9: the default FTS5 tokenizer does not split Chinese</h3>
+<h3>Problem 9: the default FTS5 tokenizer doesn't split Chinese</h3>
 
-<p><strong>Symptom.</strong> English keywords match and whole Chinese sentences do not. After switching the tokenizer to trigram, two-character queries stop matching entirely.</p>
+<p><strong>Symptom.</strong> English keywords match and whole Chinese sentences don't. After switching the tokenizer to trigram, two-character queries stop matching entirely.</p>
 
 <p><strong>Cause.</strong> The default tokenizer expects spaces, and Chinese has none. The trigram tokenizer needs at least three characters to build a window.</p>
 
@@ -2032,11 +2032,11 @@ await delay(500 * 2 ** (retries - 1), signal);
 
 <p><strong>Cost.</strong> A trigram index is larger than the default and costs more on write. Two-character queries become full scans and get slower as memory grows. There are no synonyms, no pinyin and no semantic recall, so "go live" and "release" stay unconnected. Version 0.1 accepts those limits and defers a vector store.</p>
 
-<p>Memory has exactly two write paths. The entry pattern recognizes an explicit "remember" instruction and writes directly, or the model calls the remember tool during a conversation. The second is gated by an auto-extract switch; with it off, the model cannot write on its own. There is no post-conversation extraction pass, deliberately, because that needs extra model calls plus handling for duplicates and hallucination. Version 0.1 first makes "the user explicitly said remember" reliable.</p>
+<p>Memory has exactly two write paths. The entry pattern recognizes an explicit "remember" instruction and writes directly, or the model calls the remember tool during a conversation. The second is gated by an auto-extract switch; with it off, the model can't write on its own. There is no post-conversation extraction pass, deliberately, because that needs extra model calls plus handling for duplicates and hallucination. Version 0.1 first makes "the user explicitly said remember" reliable.</p>
 
 <p>Deduplication is exact equality after normalization: same kind, same project, and equal case-folded trimmed content. A hit takes the larger of importance and confidence and merges tags. There is no semantic dedupe and no decay scoring. Expiry only archives rows, with no time-decayed ranking. Retrieval orders by BM25, then importance, then update time, which is simple, explainable and fast enough.</p>
 
-<p>This system is closer to an index than to a brain. It does not summarize conversations, and a memory that went unused never loses weight. Its strength is that every item can be seen, edited and deleted in the interface, so a user can explain why the model mentioned something. For a personal assistant, explainability matters more than recall.</p>
+<p>This system is closer to an index than to a brain. It doesn't summarize conversations, and a memory that went unused never loses weight. Its strength is that every item can be seen, edited and deleted in the interface, so a user can explain why the model mentioned something. For a personal assistant, explainability matters more than recall.</p>
 
 <h2>Reminder scheduling: the ceiling of the timer</h2>
 
@@ -2065,13 +2065,13 @@ if (delay &gt; MAX_TIMEOUT) {
 
 <p><strong>Fix.</strong> Sleep one segment and re-read the reminder in the callback. Treat a negative delay as zero so an already-overdue reminder fires once. Disable one-off reminders after firing, and advance recurring ones instead of replaying missed occurrences.</p>
 
-<p><strong>Cost.</strong> Chained re-planning requires the process to stay alive. A full exit loses the timers and missed reminders never fire, which the README states plainly. It does not use Windows Task Scheduler, and it does not scan at startup for reminders that should have fired in the last 24 hours, because catch-up policy is a product decision, whether to fire once or fire every missed occurrence, and version 0.1 declines to choose.</p>
+<p><strong>Cost.</strong> Chained re-planning requires the process to stay alive. A full exit loses the timers and missed reminders never fire, which the README states plainly. It doesn't use Windows Task Scheduler, and it doesn't scan at startup for reminders that should have fired in the last 24 hours, because catch-up policy is a product decision, whether to fire once or fire every missed occurrence, and version 0.1 declines to choose.</p>
 
 <p>There is one more boundary. At startup a negative delay fires immediately. For a one-off reminder that surfaces an overdue item. For a recurring one it fires the current occurrence and advances, without replaying every missed day. The semantics are right, but a user expecting a full catch-up will feel one is missing.</p>
 
 <h2>Proactive checks and task recovery</h2>
 
-<p>The proactive service handles project-stall reminders. It checks ten seconds after start and then every six hours. A running flag prevents re-entry, so a second check cannot stack on the first.</p>
+<p>The proactive service handles project-stall reminders. It checks ten seconds after start and then every six hours. A running flag prevents re-entry, so a second check can't stack on the first.</p>
 
 <p>Each pass reads 400 events and finds the latest inactivity notification per project. If that notification is newer than the project's latest activity, the project is skipped. Otherwise the threshold decides. The default threshold is seven days, and a directory modification time counts as activity only when the directory is inside an authorized root.</p>
 
@@ -2087,7 +2087,7 @@ if (delay &gt; MAX_TIMEOUT) {
 
 <p><strong>Fix.</strong> On startup the runtime marks interrupted tasks as paused, and tasks waiting on permission become waiting-for-permission. Nothing resumes automatically; the user confirms and re-issues. Tools add idempotency of their own: writes carry content hashes, moves and deletes preview first, and deletes go to the Recycle Bin.</p>
 
-<p><strong>Cost.</strong> Users lose automatic resume, and a long interrupted task must be described again. Paused tasks have no one-click resume. That is safety over completeness.</p>
+<p><strong>Cost.</strong> Users lose automatic resume, and a long interrupted task must be described again. Paused tasks have no one-click resume. That's safety over completeness.</p>
 
 <p>Tray residency, minimize-on-close, single instance and launch at login are the foundation of that residency. A single-instance lock makes a second launch exit and focus the existing window. Closing the window minimizes to the tray, and only an explicit quit ends the process. That gives reminders and proactive checks somewhere to run, and it makes it easy for a user to think the app already exited.</p>
 
@@ -2101,11 +2101,11 @@ if (delay &gt; MAX_TIMEOUT) {
 
 <p><strong>Symptom.</strong> A reminder fires, the log shows it fired, and no desktop notification appears.</p>
 
-<p><strong>Cause.</strong> Windows needs the correct app user model id or it cannot attribute the notification. Focus assist, disabled notification permissions, or a tray process that is not running also suppress it silently.</p>
+<p><strong>Cause.</strong> Windows needs the correct app user model id or it can't attribute the notification. Focus assist, disabled notification permissions, or a tray process that isn't running also suppress it silently.</p>
 
 <p><strong>Fix.</strong> Set the model id in the main process, check support before showing, and document the diagnostic steps: system notification settings, focus assist, and whether the app is running in the tray.</p>
 
-<p><strong>Cost.</strong> Support checks report platform capability, not whether the user muted notifications. There is no in-app banner fallback, so a reminder can be missed. That is a blank spot in this version.</p>
+<p><strong>Cost.</strong> Support checks report platform capability, not whether the user muted notifications. There is no in-app banner fallback, so a reminder can be missed. That's a blank spot in this version.</p>
 
 <p>OCR better illustrates how plans change. The repository ends up using the OCR engine built into Windows, called through a PowerShell child process with no profile, no interaction, a bypassed execution policy and a hidden window. The call has a 30-second timeout and a 1 MB output buffer. Results are written to a temporary file, read back, clipped to 20,000 characters, and a failure returns null so the vision model can take over.</p>
 
@@ -2115,7 +2115,7 @@ if (delay &gt; MAX_TIMEOUT) {
 
 <p><strong>Cause.</strong> Tesseract needs extra language data and native dependencies, with unfavourable size, startup time and Chinese accuracy. Windows 10 and 11 ship an OCR engine with language packs already installed, and calling it is lighter.</p>
 
-<p><strong>Fix.</strong> Move to a PowerShell child process driving the system OCR API, packaging the script as a resource. Return null on failure so the vision model handles it. Hide the window and cap the timeout and the output size so the main process cannot hang.</p>
+<p><strong>Fix.</strong> Move to a PowerShell child process driving the system OCR API, packaging the script as a resource. Return null on failure so the vision model handles it. Hide the window and cap the timeout and the output size so the main process can't hang.</p>
 
 <p><strong>Cost.</strong> The child process has startup overhead, and 30 seconds may be too short for very large images. It depends on Windows language packs, so Chinese recognition can fail on a system without them. The leftover Tesseract build configuration is technical debt: harmless at runtime, misleading to the next reader.</p>
 
@@ -2144,11 +2144,11 @@ if (delay &gt; MAX_TIMEOUT) {
 <ol>
 <li><strong>Keep dangerous capability in the main process.</strong> The database, keys, tools and system calls never enter the renderer, and preload exposes only whitelisted methods.</li>
 <li><strong>Make permissions a flow rather than a switch.</strong> Tools declare a spec, matching rules pass, misses wait for the user, and denial becomes a tool result rather than an exception.</li>
-<li><strong>Write the budgets down.</strong> Seventy-two thousand context characters, 20 history messages, 8 memories, 20 agent steps, 30 tool calls, 5 minutes, and a 24.8-day timer ceiling. Numbers can be audited; intentions cannot.</li>
+<li><strong>Write the budgets down.</strong> Seventy-two thousand context characters, 20 history messages, 8 memories, 20 agent steps, 30 tool calls, 5 minutes, and a 24.8-day timer ceiling. Numbers can be audited; intentions can't.</li>
 <li><strong>Make memory an explainable index.</strong> Full-text search with trigrams, exact deduplication, archival on expiry, and no vector store.</li>
 </ol>
 
-<p>Its value is not the feature count but that every feature has a traceable boundary: which step runs in the main process, which needs authorization, which can fail, and what the user sees when it does. Its rough edges are equally explicit. An oversized history message ends the loop, some IPC lacks validation, OCR build configuration is stale, NSIS and signing are unresolved, and reminders do not catch up after a full exit. Writing those down beats pretending they do not exist.</p>
+<p>Its value isn't the feature count but that every feature has a traceable boundary: which step runs in the main process, which needs authorization, which can fail, and what the user sees when it does. Its rough edges are equally explicit. An oversized history message ends the loop, some IPC lacks validation, OCR build configuration is stale, NSIS and signing are unresolved, and reminders don't catch up after a full exit. Writing those down beats pretending they don't exist.</p>
 
 <p>If you are building a desktop agent, copy these three first: main-process exclusivity with a whitelisted preload, the declare-check-wait permission flow, and canonicalization in the path guard. Context budgets, memory retrieval and scheduling can be tuned to your own product.</p>
 
@@ -2173,13 +2173,13 @@ if (delay &gt; MAX_TIMEOUT) {
     date: '2026-11-05',
     readingTime: 40,
     html: `
-<p>Don't go looking for a game. Just start one. That is the pitch for Happy Games, a browser arcade written in plain HTML, CSS and JavaScript: 24 games, zero frameworks, zero build steps, zero dependencies. The AI ranges from pattern scoring to WebAssembly, multiplayer runs on D1 plus polling, narration streams from a language model, and the whole site deploys to Cloudflare Pages in one command.</p>
+<p>Don't go looking for a game. Just start one. That's the pitch for Happy Games, a browser arcade written in plain HTML, CSS and JavaScript: 24 games, zero frameworks, zero build steps, zero dependencies. The AI ranges from pattern scoring to WebAssembly, multiplayer runs on D1 plus polling, narration streams from a language model, and the whole site deploys to Cloudflare Pages in one command.</p>
 
 <p><strong>Play:</strong> <a href="https://happygames.pages.dev" rel="noopener noreferrer" target="_blank">happygames.pages.dev</a> · <strong>Source:</strong> <a href="https://github.com/zhoujungis/happy_games" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/happy_games</a></p>
 
 <h2>Why another mini-game collection</h2>
 
-<p>The web does not lack game portals. It lacks a <strong>sample project that can be read end to end and cloned in one click</strong>. Happy Games is positioned as three things:</p>
+<p>The web doesn't lack game portals. It lacks a <strong>sample project that can be read end to end and cloned in one click</strong>. Happy Games is positioned as three things:</p>
 
 <ol>
 <li><strong>A teaching sample.</strong> Every folder runs on its own. There is no "install 300 MB of node_modules, then work through five layers of abstraction" tax.</li>
@@ -2297,9 +2297,9 @@ if (delay &gt; MAX_TIMEOUT) {
 
 <p>Difficulty controls search depth. The easy level looks one move ahead and can slip; the hard level looks several ahead and prefers blocking your open three over completing its own blocked four. All of it is pure functions, so the test runner exercises it directly.</p>
 
-<p><strong>Two: alpha-beta pruning, in Chinese chess.</strong> The engine is ported from an MIT-licensed open-source project, keeping the core: move generation per piece rule, including horse legs, elephant eyes and palace diagonals; piece-square value tables capturing what a piece is worth on each square, such as a pawn before and after crossing the river; and alpha-beta search with position evaluation, pruning branches that cannot beat the best line found so far.</p>
+<p><strong>Two: alpha-beta pruning, in Chinese chess.</strong> The engine is ported from an MIT-licensed open-source project, keeping the core: move generation per piece rule, including horse legs, elephant eyes and palace diagonals; piece-square value tables capturing what a piece is worth on each square, such as a pawn before and after crossing the river; and alpha-beta search with position evaluation, pruning branches that can't beat the best line found so far.</p>
 
-<p>Board logic and the AI engine are fully separated. The server also exposes a model-based move proxy as a fallback, for the extreme positions where the local engine cannot produce a move in time.</p>
+<p>Board logic and the AI engine are fully separated. The server also exposes a model-based move proxy as a fallback, for the extreme positions where the local engine can't produce a move in time.</p>
 
 <p><strong>Three: GNU Go compiled to WebAssembly, for Go.</strong> This is the hardest technical path in the project. The open-source GNU Go engine is compiled to WebAssembly at about 8.7 MB and runs inside a web worker, communicating with the main thread over a small message protocol.</p>
 
@@ -2334,7 +2334,7 @@ endpoints                and start                  game, every 2s in the lobby;
 <li><strong>Polling.</strong> The client periodically fetches state. Before responding, the server runs one tick to advance AI turns, so a player always sees the newest position with everyone else's moves already applied.</li>
 </ul>
 
-<p>D1 is both database and cache here. It is simple enough, and it avoids the operational cost of WebSockets.</p>
+<p>D1 is both database and cache here. It's simple enough, and it avoids the operational cost of WebSockets.</p>
 
 <h3>Streamed AI narration</h3>
 
@@ -2354,7 +2354,7 @@ with a life score from 0 to 100.
 <p><strong>History brawl.</strong> Two players take turns drafting historical figures for ten posts, such as vanguard or logistics. When drafting finishes, they ask the AI judge. The AI scores ten matchups in the order dynasty fit, then role fit, then actual ability, then lineup synergy, with each round precise to one decimal and every round summing to ten. The voice is a storyteller's, and the answer also streams.</p>
 
 <blockquote>
-<p>Both are lightweight patterns for combining a game with a language model. The server only authenticates, rate-limits and forwards the stream, and never stores model state. The client consumes standard events, and a failure does not block the game loop.</p>
+<p>Both are lightweight patterns for combining a game with a language model. The server only authenticates, rate-limits and forwards the stream, and never stores model state. The client consumes standard events, and a failure doesn't block the game loop.</p>
 </blockquote>
 
 <h3>Accounts and the admin console</h3>
@@ -2438,7 +2438,7 @@ each game is one self-contained folder
 <li>An event queue batches uploads with a maximum queue of 60, a flush size of 6 and a 1600 ms delay. Events carry idempotent ids, and a network failure requeues instead of blocking the game loop.</li>
 <li>A DOM observer watches score and status elements, extracting the score and recognizing win or loss keywords, which triggers a finish.</li>
 <li>Games can also report directly by dispatching custom score and event events.</li>
-<li>A page-hide handler sends the finish beacon, so a score is not lost when the tab closes.</li>
+<li>A page-hide handler sends the finish beacon, so a score isn't lost when the tab closes.</li>
 </ul>
 
 <blockquote>
@@ -2588,7 +2588,7 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 <table>
 <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
 <tbody>
-<tr><td>The current-user endpoint returns 401 while signed in</td><td>The auth cookie is not being sent</td><td>Check the fetch credentials mode and confirm you are on the Pages domain, not a local file</td></tr>
+<tr><td>The current-user endpoint returns 401 while signed in</td><td>The auth cookie isn't being sent</td><td>Check the fetch credentials mode and confirm you are on the Pages domain, not a local file</td></tr>
 <tr><td>Life simulation returns 503</td><td>The OpenRouter key is missing</td><td>Add the variable, then retry the deployment</td></tr>
 <tr><td>D1 reports no such table</td><td>The schema never ran remotely</td><td>Run the schema again against the remote database</td></tr>
 <tr><td>WebAssembly loads slowly</td><td>A cache miss</td><td>Confirm the headers mark it immutable; a second visit should come from cache</td></tr>
@@ -2614,7 +2614,7 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 
 <p><strong>Optional 3: a backend endpoint</strong>, if the game needs one. The filename becomes the route.</p>
 
-<p>That is all. Home section cards, section pages, daily picks and the random button all pick up the new game without touching another file. That is what a single source of truth buys.</p>
+<p>That is all. Home section cards, section pages, daily picks and the random button all pick up the new game without touching another file. That's what a single source of truth buys.</p>
 
 <blockquote>
 <p>Constraints from the architecture document: keep existing URLs and static deployment behavior stable, migrate a representative game before batch migration, keep the pure-logic tests green, and add browser coverage for lifecycle, score, offline and responsive behavior.</p>
@@ -2653,7 +2653,7 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 
 <h2>Why zero frameworks</h2>
 
-<p>This is not nostalgia. It is a trade made after weighing the alternatives.</p>
+<p>This isn't nostalgia. It's a trade made after weighing the alternatives.</p>
 
 <ol>
 <li><strong>Readability first.</strong> Twenty-four games with completely different logic gain little from the abstractions a framework offers, and those abstractions add a "understand the framework before the game" step. Native code lets a newcomer follow one game end to end in ten minutes.</li>
@@ -2662,7 +2662,7 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 <li><strong>Teaching value.</strong> This is a frontend project that can be read completely. No black-box bundler, no two thousand lines of configuration, just HTML files that run once uploaded. <strong>Put the complexity in the game logic and keep the engineering simple.</strong></li>
 </ol>
 
-<p>Zero frameworks does not mean zero conventions. The variable system in the theme stylesheet, the single data source in the landing module, the lifecycle contract in the runtime and the layering in the functions directory together form an invisible framework. They are agreed upon rather than depended upon.</p>
+<p>Zero frameworks doesn't mean zero conventions. The variable system in the theme stylesheet, the single data source in the landing module, the lifecycle contract in the runtime and the layering in the functions directory together form an invisible framework. They are agreed upon rather than depended upon.</p>
 
 <h2>Closing</h2>
 
@@ -2690,7 +2690,7 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
     html: `
 <blockquote>
 <p>Who this is for: developers building lightweight desktop tools with Go and a webview, or anyone working with terminal byte streams and SSH protocol details.</p>
-<p><strong>TL;DR:</strong> the interesting part of this project is not the feature count but a handful of boundaries that are easy to get wrong: how IPC serializes, how terminal backpressure works, PTY parameter order, the host-key trust model, and Windows platform details.</p>
+<p><strong>TL;DR:</strong> the interesting part of this project isn't the feature count but a handful of boundaries that are easy to get wrong: how IPC serializes, how terminal backpressure works, PTY parameter order, the host-key trust model, and Windows platform details.</p>
 <p>Reading time around 30 minutes. Level: advanced.</p>
 </blockquote>
 
@@ -2729,15 +2729,15 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 
 <p>The artifact is a single executable, 13.23 MB on x64, with no external runtime. The build script sets 14 MB as a hard ceiling and fails the build when the binary goes past it. Five direct Go dependencies, twenty-seven indirect.</p>
 
-<p>Those numbers are not marketing. They constrain a lot of later decisions: no SQLite, a hand-written tray, no third-party systray library, and as few new modules as possible.</p>
+<p>Those numbers aren't marketing. They constrain a lot of later decisions: no SQLite, a hand-written tray, no third-party systray library, and as few new modules as possible.</p>
 
 <p>Because the constraints are hard, the problems in this project are concrete. Not "should we support feature X", but "why did this Chinese character turn into a question mark", "why does clicking the tray icon do nothing", "why does vim open misaligned". Each problem below has a symptom, a cause, a fix and a cost.</p>
 
 <h2>Architecture: put the risk in the replaceable layer</h2>
 
-<p>The most important architectural decision is separating SSH protocol logic from the UI shell completely. <code>sshcore</code> does not know that Wails, WebView2 or xterm exist. It exposes connections, sessions, SFTP, forwarding and key parsing. <code>shell</code> translates those capabilities into callable bindings and moves byte streams into event channels. The frontend reaches the backend through two layers, an API module and a transport module.</p>
+<p>The most important architectural decision is separating SSH protocol logic from the UI shell completely. <code>sshcore</code> doesn't know that Wails, WebView2 or xterm exist. It exposes connections, sessions, SFTP, forwarding and key parsing. <code>shell</code> translates those capabilities into callable bindings and moves byte streams into event channels. The frontend reaches the backend through two layers, an API module and a transport module.</p>
 
-<p>The benefit is that risk sits in the replaceable layer. Wails is the shell. Replacing it with bare WebView2 or another window container means changing <code>main.go</code>, the bindings in <code>internal/shell</code> and two frontend files. <code>sshcore</code> does not move.</p>
+<p>The benefit is that risk sits in the replaceable layer. Wails is the shell. Replacing it with bare WebView2 or another window container means changing <code>main.go</code>, the bindings in <code>internal/shell</code> and two frontend files. <code>sshcore</code> doesn't move.</p>
 
 <p>The reverse holds too. Protocol tests need no window, because an in-process test SSH server exercises connections, PTYs, SFTP and forwarding directly.</p>
 
@@ -2750,7 +2750,7 @@ npx wrangler d1 execute happy-games-db --remote --command "SELECT name FROM sqli
 
 <p>Persistence follows the same narrow rule. <code>servers.json</code> is the only database, versioned at 1. Reads run a pure-function migration, saves write a backup first and then go through a temporary file, an fsync and a rename. <code>known_hosts</code> uses standard OpenSSH format, so it can be exchanged with the system file. Private keys are standard OpenSSH keys. Logs live in their own directory. The data root defaults to <code>%APPDATA%\\\\NanoSSH</code>, overridden by an environment variable for tests and portable mode. There are no hidden binary formats; when something goes wrong, everything opens in a text editor.</p>
 
-<p>The window layer has a few pieces of plumbing that are not business logic but do shape the experience. The frameless title bar is drawn by the frontend, while Wails keeps resize hot zones and shadow. A single-instance lock focuses the existing window rather than starting a second process. The Mica background reads the Windows build number from the registry and enables translucency only from build 22621 onward, falling back to opaque on older systems, which prevents a transparent window with no background. The frontend asks whether Mica is enabled and decides whether the title bar and sidebar become translucent surfaces.</p>
+<p>The window layer has a few pieces of plumbing that aren't business logic but do shape the experience. The frameless title bar is drawn by the frontend, while Wails keeps resize hot zones and shadow. A single-instance lock focuses the existing window rather than starting a second process. The Mica background reads the Windows build number from the registry and enables translucency only from build 22621 onward, falling back to opaque on older systems, which prevents a transparent window with no background. The frontend asks whether Mica is enabled and decides whether the title bar and sidebar become translucent surfaces.</p>
 
 <p>The frontend has one deliberate seam as well. Views, terminal and components never touch the global Wails object. Every binding call and event subscription goes through the API module. Byte transport lives alone in the transport module, the only frontend file strongly tied to the shell, so replacing Wails later rewrites a bounded area.</p>
 
@@ -2780,15 +2780,15 @@ ctx.onmessage = (e: MessageEvent&lt;string&gt;) =&gt; {
 
 <p><strong>Cost.</strong> Base64 inflates byte volume by roughly a third, so a 16 KiB terminal chunk becomes a string of about 21.8 KiB. Go also serializes JSON and the webview decodes base64.</p>
 
-<p>What that buys is not having to maintain a WebSocket service, no connection authentication to design, and no extra port outside Wails. For a local SSH client that is an acceptable trade, but the README was inaccurate. The correct fix was to document "Wails event bridge plus base64 decoding" instead of keeping a faster-sounding noun. Engineering documents should describe the implementation, not the wish.</p>
+<p>What that buys isn't having to maintain a WebSocket service, no connection authentication to design, and no extra port outside Wails. For a local SSH client that is an acceptable trade, but the README was inaccurate. The correct fix was to document "Wails event bridge plus base64 decoding" instead of keeping a faster-sounding noun. Engineering documents should describe the implementation, not the wish.</p>
 
-<p>If the project ever did move back to binary WebSocket, it would lose single-instance behavior, same-origin event dispatch and the no-extra-port property, and it would have to solve local authentication and a new attack surface. That is why the implementation was not changed to match the document.</p>
+<p>If the project ever did move back to binary WebSocket, it would lose single-instance behavior, same-origin event dispatch and the no-extra-port property, and it would have to solve local authentication and a new attack surface. That's why the implementation wasn't changed to match the document.</p>
 
 <p>When a worker is unavailable, in some restricted webview environments, the decoder falls back to synchronous base64 decoding on the main thread. Decoding then occupies the render thread and long output stutters more, but nothing is functionally missing. Each terminal session owns a worker, kept across tab switches and terminated only when the session closes, at the cost of a few more worker instances in memory.</p>
 
 <h2>Problem 2: multi-byte characters split across chunks</h2>
 
-<p><strong>Symptom.</strong> An echo containing Chinese, Korean or emoji occasionally shows a replacement character in the middle of the output. It is intermittent, and more likely with longer output or a slower machine.</p>
+<p><strong>Symptom.</strong> An echo containing Chinese, Korean or emoji occasionally shows a replacement character in the middle of the output. It's intermittent, and more likely with longer output or a slower machine.</p>
 
 <p><strong>Cause.</strong> The backend originally converted each read to a string and split it into lines before sending. SSH channel read boundaries have nothing to do with character boundaries: a three-byte character can straddle two reads. Converting half a character to a string forces Go to emit a replacement character, and once a UTF-8 decode has happened the pieces can never be rejoined.</p>
 
@@ -2842,7 +2842,7 @@ for {
 }
 </code></pre>
 
-<p>The frontend chains write and ack through a promise, so slow rendering cannot reorder acks.</p>
+<p>The frontend chains write and ack through a promise, so slow rendering can't reorder acks.</p>
 
 <pre><code>this.chain = this.chain
   .then(() =&gt; this.handlers.onData(bytes))
@@ -2860,7 +2860,7 @@ for {
 
 <p>One detail inside flush is easy to miss. If the chunk channel is drained while waiting for an ack, the timer may already have fired, so the next loop iteration has to stop the timer and drain it, or a second flush happens immediately.</p>
 
-<p>The 8 ms batch is not about reducing event count. It is about sending small packets, such as keystroke echoes, promptly. Batching only at 16 KiB makes interaction feel sluggish.</p>
+<p>The 8 ms batch isn't about reducing event count. It's about sending small packets, such as keystroke echoes, promptly. Batching only at 16 KiB makes interaction feel sluggish.</p>
 
 <p>In tests, the collector acks synchronously inside the event callback, which is equivalent to the fastest possible "already rendered". A real browser also goes through worker decoding, a buffer transfer and xterm rendering, so production chunk intervals are longer.</p>
 
@@ -2868,7 +2868,7 @@ for {
 
 <h2>Problem 4: PTY width and height order</h2>
 
-<p><strong>Symptom.</strong> vim opens fine locally but the whole screen misaligns through NanoSSH, and htop columns do not line up. Resizing the window sometimes makes it accidentally correct. The first suspicion was xterm's fit calculation, and the bug turned out to be in the backend.</p>
+<p><strong>Symptom.</strong> vim opens fine locally but the whole screen misaligns through NanoSSH, and htop columns don't line up. Resizing the window sometimes makes it accidentally correct. The first suspicion was xterm's fit calculation, and the bug turned out to be in the backend.</p>
 
 <p><strong>Cause.</strong> Two contradictory naming conventions. RFC 4254 encodes the PTY request and window change with width first and height second, meaning columns then rows. The Go crypto SSH library's request and change calls take height first and width second. Following the RFC field order into the library swaps the two values, so vim receives 80 rows and 24 columns.</p>
 
@@ -2882,7 +2882,7 @@ for {
 
 <p>Note that the error text still reads columns by rows, because that is for humans, while the actual argument order is rows then columns. Both perspectives have to coexist, or readers get confused.</p>
 
-<p>There are defaults as well. A rows or columns value of zero or less falls back to 24 by 80, so a frontend that has not laid out yet cannot send zeros. Resize rejects invalid sizes and never writes a zero-sized terminal to the remote. The frontend's fit call can throw before layout, so the wrapper swallows it and returns the current terminal size, deferring to the next resize observation.</p>
+<p>There are defaults as well. A rows or columns value of zero or less falls back to 24 by 80, so a frontend that has not laid out yet can't send zeros. Resize rejects invalid sizes and never writes a zero-sized terminal to the remote. The frontend's fit call can throw before layout, so the wrapper swallows it and returns the current terminal size, deferring to the next resize observation.</p>
 
 <p><strong>Cost.</strong> The fit call returns rows and columns, and callers must pass them in that order, which the comments repeat more than once. The window-change message is fire-and-forget with no reply, so a successful return only means the bytes were written, not that the remote applied them, which means tests must poll the server's record. Dragging a window produces many resize requests, debounced at 150 ms, at the cost of a slightly delayed remote size.</p>
 
@@ -2890,7 +2890,7 @@ for {
 
 <p><strong>Symptom.</strong> The first connection to an unknown host should show a fingerprint card. A changed host key should block clearly rather than offer an "ignore once" button that people click reflexively. In practice the error types returned by the known-hosts helper get lumped together, mixing unknown hosts with changed fingerprints.</p>
 
-<p><strong>Cause.</strong> In the key error returned by the helper, an empty wanted-key list means there is no record for that host, and a non-empty one means a record exists but the presented key does not match. The first is trust on first use; the second may signal a man in the middle. There is a third case as well, a distinct revoked error for hosts marked revoked in the file, which must block unconditionally. Mixing the three produces the classic "fingerprint changed, allow once" vulnerability.</p>
+<p><strong>Cause.</strong> In the key error returned by the helper, an empty wanted-key list means there is no record for that host, and a non-empty one means a record exists but the presented key doesn't match. The first is trust on first use; the second may signal a man in the middle. There is a third case as well, a distinct revoked error for hosts marked revoked in the file, which must block unconditionally. Mixing the three produces the classic "fingerprint changed, allow once" vulnerability.</p>
 
 <p><strong>Fix.</strong> Handle the revoked error first and return immediately. Then check whether the wanted-key list is non-empty. Unknown hosts offer three choices: this time only, trust and save, or cancel. A changed key accepts only an explicit replacement; both accept-once and refusal produce a rejected error. Replacement matches the old entry by address and writes a new public-key line. The write is atomic, with a temporary file, an fsync and a rename, at mode 0600.</p>
 
@@ -2913,19 +2913,19 @@ for {
 }
 </code></pre>
 
-<p>Tests cover three behaviours: prompting and saving on first contact, not prompting the second time, and blocking after the server rotates its key while the callback still receives the old fingerprint. Another test confirms that "this time only" is not persisted and that both connections prompt again.</p>
+<p>Tests cover three behaviours: prompting and saving on first contact, not prompting the second time, and blocking after the server rotates its key while the callback still receives the old fingerprint. Another test confirms that "this time only" isn't persisted and that both connections prompt again.</p>
 
-<p><strong>Cost.</strong> The known-hosts format supports hashed hostnames, and the replacement logic cannot reverse a hash. Such lines are skipped and a new line is appended, so the old hashed record stays in the file and later connections may keep reporting a change until the user cleans it by hand. That is a documented boundary, with a comment saying hashed forms are treated as misses and preserved. On Windows, mode 0600 is only an intention; the actual access control comes from ACLs inherited from the application data directory.</p>
+<p><strong>Cost.</strong> The known-hosts format supports hashed hostnames, and the replacement logic can't reverse a hash. Such lines are skipped and a new line is appended, so the old hashed record stays in the file and later connections may keep reporting a change until the user cleans it by hand. That's a documented boundary, with a comment saying hashed forms are treated as misses and preserved. On Windows, mode 0600 is only an intention; the actual access control comes from ACLs inherited from the application data directory.</p>
 
 <h2>Problem 6: the Windows ssh-agent named pipe</h2>
 
 <p><strong>Symptom.</strong> Windows OpenSSH is installed and <code>ssh-add</code> lists keys, but agent authentication in NanoSSH always fails. With Git Bash installed as well, the agent socket environment variable exists, yet dialling it also fails.</p>
 
-<p><strong>Cause.</strong> Windows has no Unix domain sockets. The Windows OpenSSH agent listens on a fixed named pipe. The agent socket environment variable, even when present, may hold a Cygwin or MSYS private format that Go's Unix dial cannot reach.</p>
+<p><strong>Cause.</strong> Windows has no Unix domain sockets. The Windows OpenSSH agent listens on a fixed named pipe. The agent socket environment variable, even when present, may hold a Cygwin or MSYS private format that Go's Unix dial can't reach.</p>
 
 <p>There is a second problem. When the pipe exists but all instances are busy, opening it returns a pipe-busy error, and reporting that directly tells the user the agent is unavailable.</p>
 
-<p><strong>Fix.</strong> Hand-written file opening plus wait-for-pipe logic, with no extra dependency. The pipe name is fixed, the deadline is three seconds, and a busy pipe retries every 50 ms. On success the handle is wrapped in an agent client, and the key list is fetched once before authenticating. An empty list produces a clear "run ssh-add first" message instead of the library's "no supported methods remain". The auth methods return a closer, which is closed on handshake failure and otherwise attached to the connection so it closes with it, so a failed handshake cannot leak the pipe.</p>
+<p><strong>Fix.</strong> Hand-written file opening plus wait-for-pipe logic, with no extra dependency. The pipe name is fixed, the deadline is three seconds, and a busy pipe retries every 50 ms. On success the handle is wrapped in an agent client, and the key list is fetched once before authenticating. An empty list produces a clear "run ssh-add first" message instead of the library's "no supported methods remain". The auth methods return a closer, which is closed on handshake failure and otherwise attached to the connection so it closes with it, so a failed handshake can't leak the pipe.</p>
 
 <pre><code>deadline := time.Now().Add(agentDialTimeout)
 for {
@@ -2945,13 +2945,13 @@ for {
 
 <p>A Windows-only test asserts that the path really reaches the pipe namespace. With no agent running, the error must be file-not-found or pipe-busy, never invalid-name. If Go or the syscall bindings ever change device path handling, that test fails first, rather than a user reporting that agent authentication never works.</p>
 
-<p><strong>Cost.</strong> Only the Windows OpenSSH agent is supported. PuTTY's agent is not, and no third-party protocol is pulled in to support it. Three seconds is a hard cap: better a clear error than a spinner that never resolves. Multiple SSH clients contend for the pipe, so failures inside the retry window are normal, and only past three seconds is it genuinely unavailable. Three seconds is shorter than the 15-second TCP connect timeout because the agent is a local resource that should answer in milliseconds.</p>
+<p><strong>Cost.</strong> Only the Windows OpenSSH agent is supported. PuTTY's agent isn't, and no third-party protocol is pulled in to support it. Three seconds is a hard cap: better a clear error than a spinner that never resolves. Multiple SSH clients contend for the pipe, so failures inside the retry window are normal, and only past three seconds is it genuinely unavailable. Three seconds is shorter than the 15-second TCP connect timeout because the agent is a local resource that should answer in milliseconds.</p>
 
 <h2>Problem 7: the tray icon ignores clicks</h2>
 
 <p><strong>Symptom.</strong> After closing the window the app minimizes to the tray. The icon is visible, but double-clicking does nothing and the context menu never opens. The log shows no errors and the process is alive.</p>
 
-<p><strong>Cause.</strong> Win32 window messages are delivered per thread, so the message window and the message loop must live on the same OS thread. Go goroutines can migrate between OS threads around blocking calls. Create the window on one thread and pump messages on another, and messages never arrive. The symptom looks exactly like "the icon did not attach", when the message loop is simply not receiving callbacks.</p>
+<p><strong>Cause.</strong> Win32 window messages are delivered per thread, so the message window and the message loop must live on the same OS thread. Go goroutines can migrate between OS threads around blocking calls. Create the window on one thread and pump messages on another, and messages never arrive. The symptom looks exactly like "the icon didn't attach", when the message loop is simply not receiving callbacks.</p>
 
 <p><strong>Fix.</strong> The tray thread locks itself to its OS thread on entry and unlocks on exit. Both creating the message window and entering the message loop happen on that locked thread. The window is a message-only window, so it takes no screen space, and callbacks, balloons and the context menu are delivered through custom messages.</p>
 
@@ -2967,7 +2967,7 @@ for {
 
 <p>The tray is created lazily. It takes no notification-area slot while the window is open; the icon appears only when the app actually minimizes. That also means a failed tray creation still lets the user exit, instead of being trapped in a background process with no way out.</p>
 
-<p>The first balloon shows once, guarded by a flag, so it does not nag. The context menu returns the chosen command directly instead of routing window messages. Quitting destroys the icon through a custom message and ends the message loop.</p>
+<p>The first balloon shows once, guarded by a flag, so it doesn't nag. The context menu returns the chosen command directly instead of routing window messages. Quitting destroys the icon through a custom message and ends the message loop.</p>
 
 <p><strong>Cost.</strong> One OS thread is locked for the tray's lifetime and must not block. Callbacks only post messages and flip state, with heavy work pushed back to the business layer. The window procedure defends every branch against panics, menu commands travel over a channel, and the tray thread never touches the database or the network. Only one tray icon is supported, so the window procedure is bound through a package-level variable rather than a window property. The handwritten Win32 code is about two hundred lines, less maintainable than a library, in exchange for zero new dependencies and a smaller binary.</p>
 
@@ -2975,7 +2975,7 @@ for {
 
 <p><strong>Symptom.</strong> As features accumulated, the artifact grew past 13.23 MB, leaving under 0.8 MB before the 14 MB limit. At that point any casual "just add a library" decision can fail the build.</p>
 
-<p><strong>Cause.</strong> The Wails runtime is not small, and the SSH implementation from the crypto package, the WebView2 loader and the frontend bundle all live inside. The dependency graph also carries a batch of transitive Wails dependencies, such as an HTTP framework, a WebSocket library, and string and template helpers. Not all of them are reachable, but all of them are in the module graph. Add SQLite or a third-party tray library, and size runs away.</p>
+<p><strong>Cause.</strong> The Wails runtime isn't small, and the SSH implementation from the crypto package, the WebView2 loader and the frontend bundle all live inside. The dependency graph also carries a batch of transitive Wails dependencies, such as an HTTP framework, a WebSocket library, and string and template helpers. Not all of them are reachable, but all of them are in the module graph. Add SQLite or a third-party tray library, and size runs away.</p>
 
 <p><strong>Fix.</strong> Turn size from a verbal agreement into a build assertion. The build script fixes the architecture and disables cgo, builds with stripped symbols and debug info, verifies that the executable's machine field matches x64, and then rounds the size and throws when it exceeds the threshold.</p>
 
@@ -3014,7 +3014,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>The window declares per-monitor DPI awareness in its manifest, otherwise WebView2 is bitmap-stretched across displays and text blurs. Light and dark follow the system, and Mica enables only on recent builds, with older systems staying opaque so a transparent window never lacks a background.</p>
 
-<p><strong>Cost.</strong> The two debounces stack, so the remote PTY receives the final size a moment after dragging ends, which is perceptible but not painful. Skipping tiny sizes avoids the zero-sized case but also means a very small layout change does not recompute. The WebGL downgrade is silent, so users only notice that scrolling got slower, a trade made to keep the main flow undisturbed.</p>
+<p><strong>Cost.</strong> The two debounces stack, so the remote PTY receives the final size a moment after dragging ends, which is perceptible but not painful. Skipping tiny sizes avoids the zero-sized case but also means a very small layout change doesn't recompute. The WebGL downgrade is silent, so users only notice that scrolling got slower, a trade made to keep the main flow undisturbed.</p>
 
 <h2>Problem 10: SFTP and forwarding share a connection, not a lifetime</h2>
 
@@ -3038,9 +3038,9 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>Several smaller details matter. Rename prefers the POSIX rename and falls back to the standard one. A symlink triggers an extra stat only when the entry is a link and not a directory, avoiding a round trip per entry in large directories. Delete removes only empty directories, never recursively, because a wrong path in a recursive delete is irreversible. Forwarding binds loopback only, so exposing a service to the local network is an explicit decision, and a port conflict is an error rather than a half-written rule.</p>
 
-<p>Transfer progress is rate-limited to 120 ms, so every 32 KiB does not flood the webview with events. Cancellation travels through a context, the copy loop checks it before each block, and the terminal state is cancelled rather than done. Forwarding statistics share the same interval and only push when a value changes, so idle rules emit nothing.</p>
+<p>Transfer progress is rate-limited to 120 ms, so every 32 KiB doesn't flood the webview with events. Cancellation travels through a context, the copy loop checks it before each block, and the terminal state is cancelled rather than done. Forwarding statistics share the same interval and only push when a value changes, so idle rules emit nothing.</p>
 
-<p><strong>Cost.</strong> All channels share one TCP connection, so terminal, SFTP and forwarding contend for the same bandwidth and connection-level resources; a single large transfer can slow terminal echo. Remote forwarding and dynamic forwarding are not implemented, only local. A download opens the remote file once to learn its size and reopens it for the transfer, which costs a round trip but avoids holding two handles for a long time. Recursive upload and recursive delete are explicitly unsupported.</p>
+<p><strong>Cost.</strong> All channels share one TCP connection, so terminal, SFTP and forwarding contend for the same bandwidth and connection-level resources; a single large transfer can slow terminal echo. Remote forwarding and dynamic forwarding aren't implemented, only local. A download opens the remote file once to learn its size and reopens it for the transfer, which costs a round trip but avoids holding two handles for a long time. Recursive upload and recursive delete are explicitly unsupported.</p>
 
 <h2>Problem 11: passwords, stale passwords and credential self-healing</h2>
 
@@ -3048,9 +3048,9 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p><strong>Cause.</strong> If "the user typed a password" and "save the password" are the same call, a failed authentication still persists it. If a stale saved password is never removed, the frontend sees that a password exists, never prompts, and the user is stuck in a corner where clicking connect always fails. Deleting a server while leaving its credential behind also orphans a password pointing at a host that no longer exists.</p>
 
-<p><strong>Fix.</strong> Save only after successful authentication. If authentication fails and no password was supplied this time, delete the saved one so the next attempt prompts. Deleting a server deletes its credential. The password-exists check answers only whether one is stored, never returns the secret itself, and drives whether the frontend connects directly or prompts first. Clearing a password is idempotent, so repeating it is not an error.</p>
+<p><strong>Fix.</strong> Save only after successful authentication. If authentication fails and no password was supplied this time, delete the saved one so the next attempt prompts. Deleting a server deletes its credential. The password-exists check answers only whether one is stored, never returns the secret itself, and drives whether the frontend connects directly or prompts first. Clearing a password is idempotent, so repeating it isn't an error.</p>
 
-<p>The frontend asks whether a password exists before connecting, and only prompts when it does not, so normal use is not interrupted every time. Key passphrases work the same way: on failure with a stored passphrase, delete it, then prompt again with a retry marker, up to three times.</p>
+<p>The frontend asks whether a password exists before connecting, and only prompts when it doesn't, so normal use isn't interrupted every time. Key passphrases work the same way: on failure with a stored passphrase, delete it, then prompt again with a retry marker, up to three times.</p>
 
 <pre><code>if srv.Auth == sshcore.AuthPassword &amp;&amp; req.Password != "" {
     if serr := a.secrets.Set(store.PasswordTarget(srv.ID), req.Password); serr != nil {
@@ -3059,17 +3059,17 @@ if ($sizeMB -gt $MaxSizeMB) {
 }
 </code></pre>
 
-<p>Credentials live in Windows Credential Manager as generic credentials scoped to the local machine, with targets such as a server password or a key passphrase. There is no bespoke encrypted file, because that is the classic roll-your-own-crypto trap. The credential manager uses the platform data protection API bound to the current user, and it does not travel with the data directory.</p>
+<p>Credentials live in Windows Credential Manager as generic credentials scoped to the local machine, with targets such as a server password or a key passphrase. There is no bespoke encrypted file, because that is the classic roll-your-own-crypto trap. The credential manager uses the platform data protection API bound to the current user, and it doesn't travel with the data directory.</p>
 
-<p><strong>Cost.</strong> Self-healing depends on matching the library's authentication error text, which is a string comparison against a message that could change. Detecting a typed authentication error would be sturdier, but the simpler path was chosen. Credentials bound to the Windows account cannot be decrypted on another machine, which is correct behaviour, so copying the server list and keys to a new machine means re-entering passwords.</p>
+<p><strong>Cost.</strong> Self-healing depends on matching the library's authentication error text, which is a string comparison against a message that could change. Detecting a typed authentication error would be sturdier, but the simpler path was chosen. Credentials bound to the Windows account can't be decrypted on another machine, which is correct behaviour, so copying the server list and keys to a new machine means re-entering passwords.</p>
 
-<p>Passwords are still plaintext in process memory. There is no master password and no memory encryption, which is the usual boundary for a desktop SSH client. Credentials are also not invisible to other programs running as the same user: anything running as that user can enumerate the targets and read them. That is a property of the Windows credential model rather than something NanoSSH can fix on its own. What it does guarantee is that secrets are never in a plaintext JSON file and never travel with the data directory.</p>
+<p>Passwords are still plaintext in process memory. There is no master password and no memory encryption, which is the usual boundary for a desktop SSH client. Credentials are also not invisible to other programs running as the same user: anything running as that user can enumerate the targets and read them. That's a property of the Windows credential model rather than something NanoSSH can fix on its own. What it does guarantee is that secrets are never in a plaintext JSON file and never travel with the data directory.</p>
 
 <h2>Problem 12: three edges of key management</h2>
 
 <p><strong>Symptom.</strong> Importing a FIDO security key reports that the private key could not be parsed, which looks like file corruption. Generating an RSA key defaults to 2048 bits, which the baseline rejects. Deleting a key that a server still references can quietly change that server's authentication and break the next connection.</p>
 
-<p><strong>Cause.</strong> A FIDO key's private handle never leaves the hardware, and Go's SSH library does not support it, so the user has to be told the algorithm is unsupported rather than that the file is broken. RSA 2048 is no longer enough, and 4096-bit generation takes seconds, which is too slow for an interactive flow. Deleting a referenced key creates a dangling reference, and silently rewriting server configuration is harder to diagnose than an error.</p>
+<p><strong>Cause.</strong> A FIDO key's private handle never leaves the hardware, and Go's SSH library doesn't support it, so the user has to be told the algorithm is unsupported rather than that the file is broken. RSA 2048 is no longer enough, and 4096-bit generation takes seconds, which is too slow for an interactive flow. Deleting a referenced key creates a dangling reference, and silently rewriting server configuration is harder to diagnose than an error.</p>
 
 <p><strong>Fix.</strong> Only three algorithms are supported: ed25519, RSA 3072 and ECDSA P256, generated in the native OpenSSH format, with public lines that paste straight into an authorized-keys file and fingerprints that match the standard tool. FIDO detection has to inspect the decoded payload, because OpenSSH private keys store the algorithm name as a plain string inside the binary body; searching the visible text for the FIDO prefix finds nothing.</p>
 
@@ -3083,7 +3083,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>Key files are named by a generated identifier rather than by whatever the user typed. That rules out collisions and path traversal, and lets a key be renamed freely. Import parses before writing, so success proves the key is usable and yields the exact public key and fingerprint; failure leaves no half-record with an empty fingerprint.</p>
 
-<p>Three failure paths are distinguished on purpose: a needed passphrase returns a specific error, a hardware key returns its own error, and everything else means the file itself is wrong. Without a name, import uses the source filename without its extension. A passphrase-protected import stores the passphrase, so the first connection does not ask again.</p>
+<p>Three failure paths are distinguished on purpose: a needed passphrase returns a specific error, a hardware key returns its own error, and everything else means the file itself is wrong. Without a name, import uses the source filename without its extension. A passphrase-protected import stores the passphrase, so the first connection doesn't ask again.</p>
 
 <p>Deleting a key scans the server list first and refuses while the key is referenced, naming the servers in the error. The order is record first and file second, so there is never a record pointing at a file that no longer exists.</p>
 
@@ -3091,13 +3091,13 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <h2>Closing</h2>
 
-<p>The value of NanoSSH is not how many features it has. It is that a few boundaries that are easy to get wrong are pinned down.</p>
+<p>The value of NanoSSH isn't how many features it has. It's that a few boundaries that are easy to get wrong are pinned down.</p>
 
 <p>IPC chose the Wails base64 event bridge, accepted the size inflation, and offset it with worker decoding and buffer transfer. Terminal bytes stay byte slices end to end with no line splitting or decoding, using 16 KiB chunks, 8 ms batching and an ack loop to keep latency at the renderer. PTY parameters are uniformly rows then columns, with a test preventing the RFC and library orders from swapping again. Host keys distinguish unknown, changed and revoked, and a changed key allows only explicit replacement. The Windows details land in the named pipe, the locked tray thread, resize debouncing and the 14 MB build assertion.</p>
 
-<p>Every decision has a cost. Throughput is bound to rendering, hashed known-hosts entries cannot be replaced automatically, JSON cannot be queried, handwritten Win32 costs maintenance, and stale-password healing depends on error text. None of that is hidden; it lives in comments, tests and error messages.</p>
+<p>Every decision has a cost. Throughput is bound to rendering, hashed known-hosts entries can't be replaced automatically, JSON can't be queried, handwritten Win32 costs maintenance, and stale-password healing depends on error text. None of that is hidden; it lives in comments, tests and error messages.</p>
 
-<p>Testing is part of the architecture rather than something added afterwards. An in-process test server provides a real SSH server. An event collector replaces the event outlet and acks immediately on receipt. The credential backend is swapped for an in-memory implementation, so tests never write to the real credential store. Conclusions such as "terminal bytes are never lost", "PTY order is correct", "forwarding reuses one connection" and "closing a session releases the port" can all be verified repeatably without a window. What transfers to similar tools is not a particular function but the order of work: write the boundaries down first, then choose the implementation.</p>
+<p>Testing is part of the architecture rather than something added afterwards. An in-process test server provides a real SSH server. An event collector replaces the event outlet and acks immediately on receipt. The credential backend is swapped for an in-memory implementation, so tests never write to the real credential store. Conclusions such as "terminal bytes are never lost", "PTY order is correct", "forwarding reuses one connection" and "closing a session releases the port" can all be verified repeatably without a window. What transfers to similar tools isn't a particular function but the order of work: write the boundaries down first, then choose the implementation.</p>
 
 <h2>Further reading</h2>
 
@@ -3119,7 +3119,7 @@ if ($sizeMB -gt $MaxSizeMB) {
     date: '2026-10-22',
     readingTime: 38,
     html: `
-<p>Coding agents are not scarce in 2026. Claude Code, Codex, Trae and Cursor each own a niche, and open-source clones appear every week. What they share is weight: a Node or Python runtime, hundreds of transitive dependencies, a tokio or asyncio event loop, installers hundreds of megabytes wide, and idle processes that sit on hundreds of megabytes of memory.</p>
+<p>Coding agents aren't scarce in 2026. Claude Code, Codex, Trae and Cursor each own a niche, and open-source clones appear every week. What they share is weight: a Node or Python runtime, hundreds of transitive dependencies, a tokio or asyncio event loop, installers hundreds of megabytes wide, and idle processes that sit on hundreds of megabytes of memory.</p>
 
 <p>NanoHermes asks a much smaller engineering question.</p>
 
@@ -3127,7 +3127,7 @@ if ($sizeMB -gt $MaxSizeMB) {
 
 <p>The answer is a set of trade-offs. One binary, with a design target around 2 MB. Resident memory that depends on context length and nothing else. Three dependency crates. No async runtime. Not even <code>libc</code>. And it still runs as a resident HTTP service on a 1 GB Debian VPS.</p>
 
-<p>This post does not sell concepts. It takes the implementation apart. The technical density is in five places: how an agent loop is organized without async, which primitive concurrency uses, how Landlock and signal handling work without <code>libc</code>, how long-term memory does Chinese retrieval with no embedding service, and how every layer of context gets a ceiling. Each of those has details you cannot guess from outside.</p>
+<p>This post doesn't sell concepts. It takes the implementation apart. The technical density is in five places: how an agent loop is organized without async, which primitive concurrency uses, how Landlock and signal handling work without <code>libc</code>, how long-term memory does Chinese retrieval with no embedding service, and how every layer of context gets a ceiling. Each of those has details you can't guess from outside.</p>
 
 <h2>What it is in one minute</h2>
 
@@ -3268,7 +3268,7 @@ ureq = { version = "2", features = ["json", "tls"] }
 
 <p><strong>Token usage reports the delta, not the running total.</strong> A daemon serving many sessions would make a cumulative total useless to the client. Deltas let the client compute a per-task total, and locally they sum to the same number anyway.</p>
 
-<p><strong>Distillation has a hard gate.</strong> It runs only when the turn completed normally, not when it was interrupted and not when it hit the iteration cap. A half conversation never becomes a lesson. A failed distillation degrades silently and does not affect the answer.</p>
+<p><strong>Distillation has a hard gate.</strong> It runs only when the turn completed normally, not when it was interrupted and not when it hit the iteration cap. A half conversation never becomes a lesson. A failed distillation degrades silently and doesn't affect the answer.</p>
 
 <p>One model round trip is wrapped in <code>complete</code>, which lands in <code>llm::chat</code>. It builds the request body, attaches tools and tool choice when needed, sets <code>reasoning_effort: "high"</code> when thinking is enabled, adds <code>stream_options.include_usage</code> so token counts arrive inside the stream, and then enters the retry loop.</p>
 
@@ -3306,16 +3306,16 @@ ureq = { version = "2", features = ["json", "tls"] }
 
 <ul>
 <li><strong>A single call takes the direct path.</strong> Threads are spawned only when there is more than one call, and most turns call one tool.</li>
-<li><strong>Results are collected in call order.</strong> <code>join</code> runs in the same order as <code>tool_calls</code>, so the completion order cannot mismatch a result with its <code>tool_call_id</code>.</li>
+<li><strong>Results are collected in call order.</strong> <code>join</code> runs in the same order as <code>tool_calls</code>, so the completion order can't mismatch a result with its <code>tool_call_id</code>.</li>
 <li><strong><code>Agent</code> must be <code>Sync</code>.</strong> That is the precondition for the whole scheme. On the MCP side, each server's child process and reader handle sit inside a <code>Mutex&lt;Server&gt;</code>, which makes the manager and therefore the agent <code>Sync</code>.</li>
-<li><strong>A panicking thread does not take down the turn.</strong> <code>join</code> returns an error, which becomes a string that looks like a tool error. The model sees a failed call and carries on.</li>
+<li><strong>A panicking thread doesn't take down the turn.</strong> <code>join</code> returns an error, which becomes a string that looks like a tool error. The model sees a failed call and carries on.</li>
 </ul>
 
 <p>MCP concurrency has a finer grain. Calls to the same server serialize on its stdin lock, because the protocol is request and response over a single connection. Different servers run in parallel.</p>
 
 <h2>Core 3: not even libc</h2>
 
-<p>Both <code>sandbox.rs</code> and <code>interrupt.rs</code> need syscalls that the Rust standard library does not expose: the Landlock family, and <code>rt_sigaction</code>. The usual answer is the <code>libc</code> crate. Here it is <code>agent/src/sys.rs</code>.</p>
+<p>Both <code>sandbox.rs</code> and <code>interrupt.rs</code> need syscalls that the Rust standard library doesn't expose: the Landlock family, and <code>rt_sigaction</code>. The usual answer is the <code>libc</code> crate. Here it is <code>agent/src/sys.rs</code>.</p>
 
 <pre><code>#[cfg(target_arch = "x86_64")]
 pub mod nr {
@@ -3389,7 +3389,7 @@ const KEEP_RECENT: usize = 10;
 <p>Three details prevent the usual accidents.</p>
 
 <ul>
-<li><strong>It never cuts inside a tool-call chain.</strong> If the starting point lands on a <code>role == "tool"</code> message, it moves forward until it does not. Otherwise the summary would drop an assistant tool call while the tool result stayed behind.</li>
+<li><strong>It never cuts inside a tool-call chain.</strong> If the starting point lands on a <code>role == "tool"</code> message, it moves forward until it doesn't. Otherwise the summary would drop an assistant tool call while the tool result stayed behind.</li>
 <li><strong>A failed summary still loses nothing.</strong> The span is replaced by a single line saying earlier conversation was omitted, rather than an error or silent loss.</li>
 <li><strong>It can be triggered by hand.</strong> <code>/compact</code> forces one compaction regardless of size.</li>
 </ul>
@@ -3415,13 +3415,13 @@ score += idf * (f * (k1 + 1.0))
        / (f + k1 * (1.0 - b + b * len / avg_len.max(1.0)));
 </code></pre>
 
-<p>Two details go beyond the textbook. <strong>Category words participate in matching.</strong> Every memory has a kind, and that kind's labels are added to the document bag, so a question about what was corrected earlier hits correction entries directly. And <strong>zero-score entries are filtered before ranking</strong>, so an unrelated memory cannot crowd out a relevant one.</p>
+<p>Two details go beyond the textbook. <strong>Category words participate in matching.</strong> Every memory has a kind, and that kind's labels are added to the document bag, so a question about what was corrected earlier hits correction entries directly. And <strong>zero-score entries are filtered before ranking</strong>, so an unrelated memory can't crowd out a relevant one.</p>
 
 <p>Because the number of entries is small, scoring is linear with no inverted index. One vector and one hash map are enough. Retrieval is recomputed every turn and injected by the same marker mechanism as the memory block.</p>
 
 <p>Writing has two gates. <code>memory_save</code> skips text that already exists, and automatic distillation only runs on completed turns. Small talk and half conversations never pollute the store.</p>
 
-<p>The system is closer to an index than to a brain. It does not summarize conversations, and it does not decay the weight of a memory that went unused. What it does guarantee is that every entry can be seen, edited and deleted in the UI, so a user can explain why the model mentioned something. For a personal assistant, that is worth more than recall.</p>
+<p>The system is closer to an index than to a brain. It doesn't summarize conversations, and it doesn't decay the weight of a memory that went unused. What it does guarantee is that every entry can be seen, edited and deleted in the UI, so a user can explain why the model mentioned something. For a personal assistant, that is worth more than recall.</p>
 
 <h2>Core 7: the MCP client</h2>
 
@@ -3450,7 +3450,7 @@ score += idf * (f * (k1 + 1.0))
 /// the frontmatter.
 </code></pre>
 
-<p>Startup parses only the frontmatter. The system prompt lists each skill's name and description. When the model needs a body, it calls the skill tool and the body arrives, capped at 20 KB. That is progressive disclosure: <strong>the library can be large while the base prompt stays small.</strong></p>
+<p>Startup parses only the frontmatter. The system prompt lists each skill's name and description. When the model needs a body, it calls the skill tool and the body arrives, capped at 20 KB. That's progressive disclosure: <strong>the library can be large while the base prompt stays small.</strong></p>
 
 <p>Missing frontmatter falls back to the directory name and the first line of the body.</p>
 
@@ -3478,7 +3478,7 @@ score += idf * (f * (k1 + 1.0))
 <pre><code>let payload = json!({ "tool": tool, "event": event, "arguments": args }).to_string();
 </code></pre>
 
-<p>Two environment variables are exported as well, so a hook does not have to parse stdin just to branch on the event.</p>
+<p>Two environment variables are exported as well, so a hook doesn't have to parse stdin just to branch on the event.</p>
 
 <p>Two implementation details are worth copying.</p>
 
@@ -3499,7 +3499,7 @@ score += idf * (f * (k1 + 1.0))
 <thead><tr><th>Policy</th><th>Behaviour</th></tr></thead>
 <tbody>
 <tr><td><code>never</code></td><td>Never ask, for any command. This is the default, and what the yes flag selects.</td></tr>
-<tr><td><code>on-request</code></td><td>Ask only for commands that are not recognized as read-only.</td></tr>
+<tr><td><code>on-request</code></td><td>Ask only for commands that aren't recognized as read-only.</td></tr>
 <tr><td><code>untrusted</code></td><td>Ask for everything, read-only commands included.</td></tr>
 </tbody>
 </table>
@@ -3526,13 +3526,13 @@ score += idf * (f * (k1 + 1.0))
 </tbody>
 </table>
 
-<p>The most interesting part of the implementation is that <strong>it refuses to degrade</strong>. Landlock is installed between fork and exec, so the restriction covers every child the command spawns. If the kernel does not expose Landlock, or an outer sandbox blocks it, NanoHermes <strong>refuses to run the command</strong> rather than quietly running it unsandboxed. The comment makes the argument: a security mechanism that always falls back gracefully is not a mechanism.</p>
+<p>The most interesting part of the implementation is that <strong>it refuses to degrade</strong>. Landlock is installed between fork and exec, so the restriction covers every child the command spawns. If the kernel doesn't expose Landlock, or an outer sandbox blocks it, NanoHermes <strong>refuses to run the command</strong> rather than quietly running it unsandboxed. The comment makes the argument: a security mechanism that always falls back gracefully isn't a mechanism.</p>
 
 <p>All of this still goes through the hand-written syscall shim, with no external crate.</p>
 
-<h2>Core 12: Ctrl-C that does not kill, and undo</h2>
+<h2>Core 12: Ctrl-C that doesn't kill, and undo</h2>
 
-<p>In interactive use, Ctrl-C is redefined. It does not kill the process. It flips a flag, and the current turn exits cleanly at the next step boundary with the conversation intact.</p>
+<p>In interactive use, Ctrl-C is redefined. It doesn't kill the process. It flips a flag, and the current turn exits cleanly at the next step boundary with the conversation intact.</p>
 
 <p>The implementation depends on a piece of timing.</p>
 
@@ -3544,7 +3544,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>Reference counting keeps nested turns sharing one handler, and the outermost exit restores the default action. <strong>Ctrl-C while idle still quits.</strong> Only while busy does it mean "stop this turn". One signal, two meanings, decided by when the handler is installed rather than by inspecting a flag.</p>
 
-<p>One more engineering detail. On x86_64, the kernel refuses to deliver a caught signal unless the caller supplies a restorer that executes <code>rt_sigreturn</code>. That is the only hand-written assembly in the project beyond the syscall instruction itself: a few lines, hidden from the symbol table, that issue syscall 15.</p>
+<p>One more engineering detail. On x86_64, the kernel refuses to deliver a caught signal unless the caller supplies a restorer that executes <code>rt_sigreturn</code>. That's the only hand-written assembly in the project beyond the syscall instruction itself: a few lines, hidden from the symbol table, that issue syscall 15.</p>
 
 <pre><code>core::arch::global_asm!(
     ".globl nanohermes_sigrestorer",
@@ -3557,7 +3557,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>The desktop has no signal to send, so a request function flips the same flag directly. The GUI stop button and the terminal Ctrl-C take one path, and the loop never learns who asked.</p>
 
-<p>Paired with it is <code>/undo [n]</code>, which deletes the last n complete user turns, including everything that followed each one, and persists the result. Interrupt preserves, undo erases, and both are needed, because "it went sideways and I want to correct it" and "it went sideways and I want to pretend it did not happen" are different intentions.</p>
+<p>Paired with it is <code>/undo [n]</code>, which deletes the last n complete user turns, including everything that followed each one, and persists the result. Interrupt preserves, undo erases, and both are needed, because "it went sideways and I want to correct it" and "it went sideways and I want to pretend it didn't happen" are different intentions.</p>
 
 <h2>The desktop shell</h2>
 
@@ -3591,8 +3591,8 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 <p>Desktop performance notes come from four hard-won conclusions.</p>
 
 <ul>
-<li><strong>No blocking Tauri commands.</strong> A synchronous command runs on the window's main thread, so any disk or network work freezes the whole UI for that turn. Everything touching the filesystem, processes or HTTP is async and handed to the blocking pool. Only two memory-only commands stay synchronous. Settings writes are also serialized behind a static mutex so two flushes cannot land out of order.</li>
-<li><strong>Streaming text stays out of the global store.</strong> Deltas go through a dedicated subscription that only the bubble being written listens to, and each stage, such as a tool call or the end of a turn, commits once to the transcript. A long answer therefore does not re-render the sidebar, the results panel and the title bar. Events batch on dedicated channels at 40 ms intervals.</li>
+<li><strong>No blocking Tauri commands.</strong> A synchronous command runs on the window's main thread, so any disk or network work freezes the whole UI for that turn. Everything touching the filesystem, processes or HTTP is async and handed to the blocking pool. Only two memory-only commands stay synchronous. Settings writes are also serialized behind a static mutex so two flushes can't land out of order.</li>
+<li><strong>Streaming text stays out of the global store.</strong> Deltas go through a dedicated subscription that only the bubble being written listens to, and each stage, such as a tool call or the end of a turn, commits once to the transcript. A long answer therefore doesn't re-render the sidebar, the results panel and the title bar. Events batch on dedicated channels at 40 ms intervals.</li>
 <li><strong>The transcript is virtualized.</strong> Only messages in or near the viewport mount, height measurement is skipped while the last bubble is still growing, and follow-scroll is driven by the stream rather than by React.</li>
 <li><strong>Markdown is incremental.</strong> During streaming the text is split into blocks on blank lines outside code fences. Stable blocks render once and stay, an unterminated fence only updates its own code text node, and syntax highlighting runs per block after the turn instead of over the whole answer.</li>
 </ul>
@@ -3613,7 +3613,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>Sessions are isolated by a request header. Supplying a session id selects that session, different ids never share context, and omitting it uses the default. Each session persists to its own JSON file.</p>
 
-<p>The desktop connects cloud tasks this way, each with its own session id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost is that cloud configuration is fixed at daemon startup, meaning model, persona, temperature and permission mode all come from flags, and that <strong>a cloud turn cannot be cancelled midway</strong> because the request is held by the daemon.</p>
+<p>The desktop connects cloud tasks this way, each with its own session id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost is that cloud configuration is fixed at daemon startup, meaning model, persona, temperature and permission mode all come from flags, and that <strong>a cloud turn can't be cancelled midway</strong> because the request is held by the daemon.</p>
 
 <p>The deployment script does the whole job.</p>
 
@@ -3634,7 +3634,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <h2>Sessions and multimodal input</h2>
 
-<p>A session file is a JSON array of OpenAI-style messages, written atomically: a temporary sibling file is written and then renamed over the target. A crash mid-write therefore cannot truncate history. Saves happen after each completed turn and after clearing; a failed read at startup falls back to a fresh conversation with a warning rather than refusing to start.</p>
+<p>A session file is a JSON array of OpenAI-style messages, written atomically: a temporary sibling file is written and then renamed over the target. A crash mid-write therefore can't truncate history. Saves happen after each completed turn and after clearing; a failed read at startup falls back to a fresh conversation with a warning rather than refusing to start.</p>
 
 <p>Multimodal input is available for vision models: a flag for one-shot use, a command in the REPL, and paste, drag or picker on the desktop. Limits are four images per turn, a long edge scaled to 1024 pixels, and rejection with a reason for undecodable or oversized files. Transfer is by data URL, so the model must support vision.</p>
 
@@ -3652,15 +3652,15 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <ul>
 <li><strong>Sandboxing and SIGINT handling are Linux-only.</strong> Both rest on raw syscalls and disappear on Windows and macOS, so the Windows desktop runs without a sandbox and with default signal handling.</li>
-<li><strong>Cloud turns cannot be cancelled.</strong> The request is held by the daemon and the desktop can only wait. Only local tasks stop at step boundaries.</li>
+<li><strong>Cloud turns can't be cancelled.</strong> The request is held by the daemon and the desktop can only wait. Only local tasks stop at step boundaries.</li>
 <li><strong>The daemon runs as root, and the token is the only credential.</strong> Anyone holding it can read, write and execute inside the workspace, which is exactly why the documentation insists on not exposing the port.</li>
-<li><strong>No async has real costs.</strong> A stuck HTTP request occupies a thread until its timeout, 120 seconds by default. That is fine for a CLI and a desktop app, and wrong for a high-concurrency gateway.</li>
+<li><strong>No async has real costs.</strong> A stuck HTTP request occupies a thread until its timeout, 120 seconds by default. That's fine for a CLI and a desktop app, and wrong for a high-concurrency gateway.</li>
 <li><strong>The Windows installer is unsigned</strong>, so the first run trips SmartScreen.</li>
 </ul>
 
 <h2>Verdict</h2>
 
-<p>What is worth reading in NanoHermes is not the feature list but the discipline. Coding agents converge on similar feature sets. Holding four constraints all the way through is what produced these implementations: no async runtime, three crates, no <code>libc</code>, and a ceiling on every output.</p>
+<p>What is worth reading in NanoHermes isn't the feature list but the discipline. Coding agents converge on similar feature sets. Holding four constraints all the way through is what produced these implementations: no async runtime, three crates, no <code>libc</code>, and a ceiling on every output.</p>
 
 <p>Those constraints buy a single binary with a design target around 2 MB, memory that tracks context length rather than framework overhead, and one codebase that is simultaneously a CLI, a desktop application and a systemd service on a small VPS.</p>
 
@@ -3710,7 +3710,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <h2>What it is</h2>
 
-<p>NanoDB is a lightweight <strong>embedded document database</strong> written in Go, currently version 0.1.0. Embedded means there is no daemon and no wire protocol. It is a library inside your process, with a CLI, an interactive shell and a REST service wrapped around it.</p>
+<p>NanoDB is a lightweight <strong>embedded document database</strong> written in Go, currently version 0.1.0. Embedded means there is no daemon and no wire protocol. It's a library inside your process, with a CLI, an interactive shell and a REST service wrapped around it.</p>
 
 <table>
 <thead><tr><th>Dimension</th><th>Detail</th></tr></thead>
@@ -3770,7 +3770,7 @@ transaction committed
 curl -H 'X-NanoDB-Token: secret' localhost:8080/v1/users
 </code></pre>
 
-<p>All three entry points share one engine rather than being three implementations. <code>cmd/nanodb/main.go</code> at 722 lines only dispatches arguments. <code>server/server.go</code> at 764 lines only routes and authenticates. The logic sits in <code>engine/</code>. That is the first architectural decision worth copying: <strong>thin entry points, one engine.</strong></p>
+<p>All three entry points share one engine rather than being three implementations. <code>cmd/nanodb/main.go</code> at 722 lines only dispatches arguments. <code>server/server.go</code> at 764 lines only routes and authenticates. The logic sits in <code>engine/</code>. That's the first architectural decision worth copying: <strong>thin entry points, one engine.</strong></p>
 
 <h3>Go embedding, which is the real usage</h3>
 
@@ -3852,10 +3852,10 @@ fmt.Println(len(docs))
 <p>The hierarchy is collection to document. A collection resembles a table with no fixed schema. The rules are few, and each one is deliberate.</p>
 
 <ul>
-<li>A document must be a JSON object. Its <code>_id</code> must be a non-empty string, and when absent it is generated as <strong>a 13-hex-digit millisecond timestamp plus 12 random characters</strong>. The time prefix keeps generated ids roughly ordered, so an insert does not scatter the index.</li>
-<li>Writes deep-copy, so mutating your object afterwards cannot affect the database, and reads return copies as well. That rule eliminates a whole class of concurrency bug where a shared map is edited somewhere else, at the price of one copy per operation. For memory-resident data of moderate size, it is cheap insurance.</li>
+<li>A document must be a JSON object. Its <code>_id</code> must be a non-empty string, and when absent it is generated as <strong>a 13-hex-digit millisecond timestamp plus 12 random characters</strong>. The time prefix keeps generated ids roughly ordered, so an insert doesn't scatter the index.</li>
+<li>Writes deep-copy, so mutating your object afterwards can't affect the database, and reads return copies as well. That rule eliminates a whole class of concurrency bug where a shared map is edited somewhere else, at the price of one copy per operation. For memory-resident data of moderate size, it is cheap insurance.</li>
 <li>Field names accept dotted paths for filters, sorts, projections and indexes, while documents themselves stay freely nested.</li>
-<li>Field names beginning with <code>$</code> are treated as operators. That is a MongoDB compatibility constraint, and the README warns against using <code>$</code> for ordinary field names.</li>
+<li>Field names beginning with <code>$</code> are treated as operators. That's a MongoDB compatibility constraint, and the README warns against using <code>$</code> for ordinary field names.</li>
 <li>Numbers written through the CLI or HTTP decode as <code>float64</code>, numbers passed through Go keep their type, and comparisons are numeric either way. Cross-entry type behaviour is defined rather than left to be discovered.</li>
 </ul>
 
@@ -3890,7 +3890,7 @@ fmt.Println(len(docs))
 
 <p>There are seven operation types: put, delete, drop, batch, tx, index creation and index drop. Updates are written as overwriting puts. Batches and transactions are one parent record with children in an ops array, which is what keeps "all of it or none of it" atomic during recovery too.</p>
 
-<p>JSON Lines is a blunt trade. It is readable, greppable, one full record per line, and it costs more space and parse time than a binary format. For a database aimed at moderate data that is a fair exchange, and it reduces crash recovery to "parse line by line, truncate the bad tail".</p>
+<p>JSON Lines is a blunt trade. It's readable, greppable, one full record per line, and it costs more space and parse time than a binary format. For a database aimed at moderate data that is a fair exchange, and it reduces crash recovery to "parse line by line, truncate the bad tail".</p>
 
 <h3>Layer one: truncating a torn record</h3>
 
@@ -3918,7 +3918,7 @@ func (db *DB) replay(data []byte) (int, error) {
 
 <h3>Layer two: the writer rolls back its own damage</h3>
 
-<p>Recovery alone is not enough. The writer must not leave half a record behind for the next recovery to find, and one function handles it with a comment worth reading in full.</p>
+<p>Recovery alone isn't enough. The writer must not leave half a record behind for the next recovery to find, and one function handles it with a comment worth reading in full.</p>
 
 <pre><code>n, err := db.wal.Write(data)
 if err != nil || n != len(data) {
@@ -3955,7 +3955,7 @@ if rec.Gen &lt; db.walGen {
 }
 </code></pre>
 
-<p>Whichever step compaction crashed on, the result is self-consistent: either the old-generation records are skipped, or the snapshot is still the old generation and replays normally. One <code>uint64</code> and one comparison is all it takes. That is the line between designed correctness and luck.</p>
+<p>Whichever step compaction crashed on, the result is self-consistent: either the old-generation records are skipped, or the snapshot is still the old generation and replays normally. One <code>uint64</code> and one comparison is all it takes. That's the line between designed correctness and luck.</p>
 
 <p>Compaction order matters too: <strong>write a temporary snapshot, fsync it, rename it into place, then clear the WAL.</strong> At any moment a complete old or new snapshot exists on disk. The compaction check is also called from points where the in-memory state has been fully applied, such as after a transaction commit or a completed batch. Compacting inside the write path could snapshot a state that is ahead of the data, missing a pending delete or index creation.</p>
 
@@ -3996,7 +3996,7 @@ func (c *collection) planCandidates(filter map[string]any) map[string]struct{} {
 
 <p>No cost model, no statistics, no histograms. Every usable index is asked for a candidate set, and the smallest one wins. For a single-machine in-memory database that is the best planner per line of code, because an index lookup is logarithmic and asking three or four is far cheaper than choosing badly and scanning.</p>
 
-<p>The rule in <code>collectConditions</code> matters more than the cleverness. It gathers top-level conditions and those inside <code>$and</code>. A union of branches under <code>$or</code> cannot be narrowed safely, because a candidate set that is too small silently drops documents, so the planner declines to use an index rather than risk it. The most important quality of a planner is <strong>knowing when not to be clever</strong>. The chosen set is also only a pre-filter: the full match still runs afterwards as a second safety net.</p>
+<p>The rule in <code>collectConditions</code> matters more than the cleverness. It gathers top-level conditions and those inside <code>$and</code>. A union of branches under <code>$or</code> can't be narrowed safely, because a candidate set that is too small silently drops documents, so the planner declines to use an index rather than risk it. The most important quality of a planner is <strong>knowing when not to be clever</strong>. The chosen set is also only a pre-filter: the full match still runs afterwards as a second safety net.</p>
 
 <h3>Step two: compile the filter once</h3>
 
@@ -4037,9 +4037,9 @@ func compileFilter(filter map[string]any) []filterClause { ... }
 func (ix *index) spanFor(op string, val any) (entrySpan, bool)
 </code></pre>
 
-<p>That makes a range query logarithmic plus the number of hits instead of a full walk. It is where the measured gap between 3.1 ms indexed and 27.3 ms scanned comes from.</p>
+<p>That makes a range query logarithmic plus the number of hits instead of a full walk. It's where the measured gap between 3.1 ms indexed and 27.3 ms scanned comes from.</p>
 
-<p>Compound indexes have one honest limitation. A document containing an array field cannot enter a compound index under tuple semantics, so the index is marked incomplete, and lookups against an incomplete index return nil, which means unusable. The planner then falls back to a scan. <strong>Slow is better than wrong.</strong> A partially visible index treated as complete would silently drop documents, which is far worse than one order of magnitude of latency.</p>
+<p>Compound indexes have one honest limitation. A document containing an array field can't enter a compound index under tuple semantics, so the index is marked incomplete, and lookups against an incomplete index return nil, which means unusable. The planner then falls back to a scan. <strong>Slow is better than wrong.</strong> A partially visible index treated as complete would silently drop documents, which is far worse than one order of magnitude of latency.</p>
 
 <h3>Text indexes: Chinese search without a dictionary</h3>
 
@@ -4063,7 +4063,7 @@ func tokenizeText(s string) []string {
 
 <p>Bigrams are a classic dictionary-free approach. A phrase becomes overlapping pairs, a query is sliced the same way, and every term must match. No segmentation dictionary is needed anywhere in the pipeline.</p>
 
-<p>The limits are stated plainly in the README: no stop words, no stemming, no synonyms, no relevance score, multi-term queries are pure AND, and results come back unordered. It is <strong>usable retrieval, not a search engine</strong>. For an embedded database that is the right scope, because most cases only need the documents containing these words.</p>
+<p>The limits are stated plainly in the README: no stop words, no stemming, no synonyms, no relevance score, multi-term queries are pure AND, and results come back unordered. It's <strong>usable retrieval, not a search engine</strong>. For an embedded database that is the right scope, because most cases only need the documents containing these words.</p>
 
 <h3>Geo indexes: longitude order plus haversine</h3>
 
@@ -4073,7 +4073,7 @@ func tokenizeText(s string) []string {
 func haversineMeters(lon1, lat1, lon2, lat2 float64) float64
 </code></pre>
 
-<p>A box narrows candidates through the ordered structure first, and only then does the circle test run, so the expensive trigonometry is limited to a small set. The limits are equally explicit: no polygons and no GeoJSON geometry, no handling of the 180th meridian, and results are not distance-ordered.</p>
+<p>A box narrows candidates through the ordered structure first, and only then does the circle test run, so the expensive trigonometry is limited to a small set. The limits are equally explicit: no polygons and no GeoJSON geometry, no handling of the 180th meridian, and results aren't distance-ordered.</p>
 
 <h2>Transactions</h2>
 
@@ -4113,7 +4113,7 @@ for name, ver := range tx.versions {
 <p>Four consequences follow from that design.</p>
 
 <ul>
-<li><strong>Conflict granularity is the collection.</strong> If anyone touched any collection you read, even a different document, the commit fails. That is the acknowledged false conflict. A single version comparison is far cheaper than per-document tracking, which is the right trade for low-conflict workloads and a poor one for hot collections under heavy writes.</li>
+<li><strong>Conflict granularity is the collection.</strong> If anyone touched any collection you read, even a different document, the commit fails. That's the acknowledged false conflict. A single version comparison is far cheaper than per-document tracking, which is the right trade for low-conflict workloads and a poor one for hot collections under heavy writes.</li>
 <li><strong>There are no deadlocks.</strong> Nothing waits on a lock. The only synchronization point is the brief commit, and conflicts return an error rather than queueing. Between begin and commit the database stays fully writable.</li>
 <li><strong>Read-only transactions still call commit.</strong> That is what certifies a consistent cross-collection view.</li>
 <li><strong>Transaction methods are goroutine-safe</strong> behind one mutex. After the transaction ends every method returns a done error, and deferred rollback is idempotent.</li>
@@ -4148,7 +4148,7 @@ if err := tx.Commit(); err != nil {
 <ul>
 <li>Every write in the batch runs against clones of the affected collections. Any failure, whether a duplicate id, a unique index conflict, an invalid update expression or a missing target, discards the whole batch with the real data never touched.</li>
 <li>On success the whole change set is written as one batch record, which is <strong>one</strong> WAL entry, replayed atomically, so there is no half-commit.</li>
-<li>Batches span collections. Updating a missing target is an error; deleting a missing target is not, and the result reports that nothing was deleted. Both directions follow what the caller most likely meant.</li>
+<li>Batches span collections. Updating a missing target is an error; deleting a missing target isn't, and the result reports that nothing was deleted. Both directions follow what the caller most likely meant.</li>
 </ul>
 
 <p>Cloning costs peak memory during the batch and buys <strong>atomicity without rollback logic</strong>. A failing path throws the clone away, and there is no code that has to undo half-applied index maintenance, which is the hardest code in a database to get right. The mechanism is the same snapshot family as transactions.</p>
@@ -4161,7 +4161,7 @@ if err := tx.Commit(); err != nil {
 
 <p><code>engine/sql.go</code> at 624 lines is a hand-written read-only subset: lex, parse, execute. It supports select with from, where, order by and limit or offset, plus count star.</p>
 
-<p>The important property is that it <strong>brings no execution engine of its own</strong>. The parse result is translated into the same query structure the REST and CLI paths use, with filter, sort, limit, skip and fields, and then runs through the same filter compiler, the same index planning and the same Top-N sort. SQL and find performing identically is not a coincidence. They are one pipeline with two front doors.</p>
+<p>The important property is that it <strong>brings no execution engine of its own</strong>. The parse result is translated into the same query structure the REST and CLI paths use, with filter, sort, limit, skip and fields, and then runs through the same filter compiler, the same index planning and the same Top-N sort. SQL and find performing identically isn't a coincidence. They are one pipeline with two front doors.</p>
 
 <p>The boundary is explicit, and the cost of that simplicity is stated too: no joins, no group by, no having, no distinct, no subqueries, no union and no column aliases; aggregation supports only count star; and like is case-sensitive. For query convenience on an embedded store, that subset covers most of "pull data out for a script".</p>
 
@@ -4169,7 +4169,7 @@ if err := tx.Commit(); err != nil {
 
 <p>Eight stages: match, group, sort, skip, limit, project, unwind and count. Accumulators are sum, average, minimum, maximum, first, last and push, named to match MongoDB so people who know it need no learning time.</p>
 
-<p>The limits are honest in the same way: no lookup, no facet, no window functions, no out or merge, and <strong>aggregation does not use indexes</strong>. A match at the head of a pipeline can still benefit from the caller pushing filters down, but the pipeline itself does no index planning.</p>
+<p>The limits are honest in the same way: no lookup, no facet, no window functions, no out or merge, and <strong>aggregation doesn't use indexes</strong>. A match at the head of a pipeline can still benefit from the caller pushing filters down, but the pipeline itself does no index planning.</p>
 
 <h2>HTTP service</h2>
 
@@ -4178,7 +4178,7 @@ if err := tx.Commit(); err != nil {
 <ul>
 <li><strong>Routes.</strong> Health, CRUD under a versioned collection path with filter, sort, limit, skip, fields and count carried in query parameters, and admin endpoints such as compaction.</li>
 <li><strong>Auth.</strong> An empty token disables authentication. Otherwise requests carry a token header. The shared token is the admin credential, and per-user tokens can be limited to admin, write or read with an exact-match collection allowlist.</li>
-<li><strong>HTTP transactions.</strong> A post opens a transaction and returns an id, operations run under that id, and the caller commits or rolls back. Sessions live <strong>in server memory</strong>, roll back after thirty idle minutes, and roll back at shutdown, so a forgotten transaction cannot pin snapshot memory indefinitely.</li>
+<li><strong>HTTP transactions.</strong> A post opens a transaction and returns an id, operations run under that id, and the caller commits or rolls back. Sessions live <strong>in server memory</strong>, roll back after thirty idle minutes, and roll back at shutdown, so a forgotten transaction can't pin snapshot memory indefinitely.</li>
 <li><strong>Defensive details.</strong> An 8 MiB request body cap, with large imports pushed to the CLI; parameter validation; consistent error codes; and request parsing that never leaves a connection half-open.</li>
 </ul>
 
@@ -4258,7 +4258,7 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 
 <p><strong>Against the LevelDB family:</strong> those are key-value engines with no query language and no index abstraction. Using one for documents means writing the whole layer above it, which is exactly what NanoDB ships.</p>
 
-<p><strong>Against MongoDB:</strong> Mongo is a network protocol, replica sets and sharding, with an operational cost in a different category. NanoDB has no distributed ambition. It is a data directory inside your process.</p>
+<p><strong>Against MongoDB:</strong> Mongo is a network protocol, replica sets and sharding, with an operational cost in a different category. NanoDB has no distributed ambition. It's a data directory inside your process.</p>
 
 <h2>Known limits</h2>
 
@@ -4269,17 +4269,17 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 <li><strong>No distribution.</strong> No replicas, no sharding, no clustering, one process per directory at a time.</li>
 <li><strong>Transaction boundaries.</strong> Isolation is fixed and not configurable. Conflict granularity is the collection, so false conflicts happen. No savepoints, no DDL inside a transaction, no cross-process transactions.</li>
 <li><strong>Text search is approximate.</strong> Bigram tokenization, no stop words, no stemming, no synonyms, no relevance scoring, multi-term queries are AND, and the indexed field is fixed.</li>
-<li><strong>Geo is limited.</strong> Box and circle only, no polygons or GeoJSON geometry, no 180th meridian, and results are not distance-ordered.</li>
+<li><strong>Geo is limited.</strong> Box and circle only, no polygons or GeoJSON geometry, no 180th meridian, and results aren't distance-ordered.</li>
 <li><strong>SQL is read-only and partial.</strong> No joins, group by, having, distinct, subqueries or union. Aggregation is count star.</li>
 <li><strong>Aggregation skips indexes.</strong> No lookup, no facet, no window functions, no out or merge.</li>
 <li><strong>Compound indexes fall back on arrays.</strong> A document containing an array field never enters a compound index, and planning falls back to a scan.</li>
 <li><strong>Coarse permissions.</strong> Collection allowlists are exact match, with no wildcards or field-level rights, and the HTTP body cap is 8 MiB.</li>
-<li><strong>Array inserts are not atomic.</strong> Use a batch or a transaction when atomicity matters.</li>
+<li><strong>Array inserts aren't atomic.</strong> Use a batch or a transaction when atomicity matters.</li>
 </ul>
 
 <h2>When to use it, and when not to</h2>
 
-<p><strong>A good fit:</strong> local storage inside Go tools and services, such as configuration, task queues, crawler state or desktop application data, where you do not want to run a database service to store tens of thousands of JSON rows. Read-heavy workloads whose data fits in memory, where indexes and Top-N give millisecond responses. Teaching and forking, because ten thousand dependency-free lines with every part present make an excellent starting point for changing the WAL format, adding an index kind or practising transactions. And edge or single-machine deployment, where one binary with no cgo and no external service is the entire story.</p>
+<p><strong>A good fit:</strong> local storage inside Go tools and services, such as configuration, task queues, crawler state or desktop application data, where you don't want to run a database service to store tens of thousands of JSON rows. Read-heavy workloads whose data fits in memory, where indexes and Top-N give millisecond responses. Teaching and forking, because ten thousand dependency-free lines with every part present make an excellent starting point for changing the WAL format, adding an index kind or practising transactions. And edge or single-machine deployment, where one binary with no cgo and no external service is the entire story.</p>
 
 <p><strong>A poor fit:</strong> data larger than memory, or terabyte-scale durability, which belongs to SQLite and the LSM family. Multi-process writes to one directory, or multi-node high availability, which the project explicitly gives up. Transaction-heavy writes on hot collections, where collection-level optimistic conflicts cause large numbers of retries. And production requirements around relevance-ranked search, complex SQL analytics or precise geospatial computation.</p>
 
@@ -4289,13 +4289,13 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 
 <p><strong>How short is the shortest path to a transactional database?</strong> A transaction struct plus a version-check loop. The whole file is "collection snapshot plus read-set validation at commit". No lock manager, no undo log, and it still provides repeatable read, protection against lost updates, and an explicit conflict error for the caller to retry.</p>
 
-<p><strong>How many lines is "committed data survives a crash"?</strong> Three layers: replay finds the valid prefix and truncates a torn record, the writer rolls back a failed write to the previous complete record, and a generation number makes a crash inside the compaction window self-resolve. Under a hundred lines of core. The hard part is not the code, it is thinking through the state at every crash point.</p>
+<p><strong>How many lines is "committed data survives a crash"?</strong> Three layers: replay finds the valid prefix and truncates a torn record, the writer rolls back a failed write to the previous complete record, and a generation number makes a crash inside the compaction window self-resolve. Under a hundred lines of core. The hard part isn't the code, it is thinking through the state at every crash point.</p>
 
 <p><strong>How do documents, indexes and concurrency fit together?</strong> Every write goes through one entry point that maintains all four index kinds synchronously. Transactions carry those indexes inside the cloned snapshot. And planning only chooses the smallest candidate set, with the full match as the backstop.</p>
 
-<p>NanoDB will not replace SQLite, and has no intention of replacing MongoDB. Its value is putting the black box on the table: <strong>the WAL is newline-delimited JSON, a transaction is a version comparison, and query planning is picking the smallest candidate set.</strong> The mechanisms are plain enough to memorise, and that plainness is exactly why they can be trusted.</p>
+<p>NanoDB won't replace SQLite, and has no intention of replacing MongoDB. Its value is putting the black box on the table: <strong>the WAL is newline-delimited JSON, a transaction is a version comparison, and query planning is picking the smallest candidate set.</strong> The mechanisms are plain enough to memorise, and that plainness is exactly why they can be trusted.</p>
 
-<p>If you have ever thought about writing a database, the answer here is yes, and it does not take many lines. The next step is not reading more papers. Clone it and break replay, commit and planning one at a time, then check whether the tests still pass. That is a faster introduction than any article.</p>
+<p>If you have ever thought about writing a database, the answer here is yes, and it doesn't take many lines. The next step isn't reading more papers. Clone it and break replay, commit and planning one at a time, then check whether the tests still pass. That's a faster introduction than any article.</p>
 `,
   },
   {
@@ -4318,7 +4318,7 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 
 <p>The result is two binaries. The visible GUI browser, <code>nanobrowser.exe</code>, is about <strong>4.52 MB</strong>. The headless automation browser, <code>nanoagent.exe</code>, is about <strong>4.24 MB</strong>. Both share one library crate and one in-process DevTools protocol bridge.</p>
 
-<p>This post does not sell concepts. It takes the implementation apart. The technical density is concentrated in four places: <strong>three kinds of sibling window inside one window</strong>, <strong>speaking CDP with no debugging port</strong>, <strong>hand-writing a SHA-1 handshake and a frame codec</strong>, and <strong>loading the official DevTools frontend into a child webview with a draggable docked panel</strong>. Each of those has a detail you only learn by trying it.</p>
+<p>This post doesn't sell concepts. It takes the implementation apart. The technical density is concentrated in four places: <strong>three kinds of sibling window inside one window</strong>, <strong>speaking CDP with no debugging port</strong>, <strong>hand-writing a SHA-1 handshake and a frame codec</strong>, and <strong>loading the official DevTools frontend into a child webview with a draggable docked panel</strong>. Each of those has a detail you only learn by trying it.</p>
 
 <p>This is part one of two. Part two covers the tab engine, the headless agent, the five security layers and the fourteen pitfalls.</p>
 
@@ -4339,12 +4339,12 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 <ul>
 <li><strong>A Chrome-style tab strip.</strong> Drag to reorder with FLIP animation, pin and unpin, middle-click to close, a per-tab context menu, overflow handling, and <code>Ctrl+Shift+T</code> to reopen the last closed tab.</li>
 <li><strong>A complete shell.</strong> An omnibox with a suggestion dropdown, a bookmarks bar, find in page, a download manager, history, zoom, three-state theming (light, dark, follow system), and native window buttons.</li>
-<li><strong>Docked DevTools.</strong> The <strong>real</strong> official DevTools frontend loaded into a child webview of the same window, dockable to the <strong>bottom</strong> or the <strong>right</strong>, with a draggable splitter that resizes it. It is not a popup.</li>
+<li><strong>Docked DevTools.</strong> The <strong>real</strong> official DevTools frontend loaded into a child webview of the same window, dockable to the <strong>bottom</strong> or the <strong>right</strong>, with a draggable splitter that resizes it. It isn't a popup.</li>
 <li><strong>Internal pages</strong> under the <code>nano://</code> scheme: new tab, history, bookmarks, downloads, settings and about.</li>
 <li><strong>A headless agent.</strong> One-shot CLI commands and an MCP server over stdio, with redacted traffic capture, trusted input synthesis and screenshots.</li>
 </ul>
 
-<p>One thing is worth noting up front. The entire frontend is <strong>hand-written HTML, CSS and JavaScript with no bundler</strong>. No npm, no Vite, no framework. That is not novelty for its own sake. It is a deliberate trade of size and complexity, and the costs show up later in this post.</p>
+<p>One thing is worth noting up front. The entire frontend is <strong>hand-written HTML, CSS and JavaScript with no bundler</strong>. No npm, no Vite, no framework. That's not novelty for its own sake. It's a deliberate trade of size and complexity, and the costs show up later in this post.</p>
 
 <h2>Three decisions that go against instinct</h2>
 
@@ -4376,7 +4376,7 @@ go test ./engine -run '^$' -bench Benchmark -benchmem
 <pre><code>tauri = { version = "2", features = ["unstable", "devtools"] }
 </code></pre>
 
-<p><code>unstable</code> gates the whole child webview API: adding a child, getting a webview, and per-webview <code>devtools(false)</code>. Without it the core topology of this project does not exist. <code>devtools</code> exposes the <code>ICoreWebView2</code> interop that the protocol bridge needs.</p>
+<p><code>unstable</code> gates the whole child webview API: adding a child, getting a webview, and per-webview <code>devtools(false)</code>. Without it the core topology of this project doesn't exist. <code>devtools</code> exposes the <code>ICoreWebView2</code> interop that the protocol bridge needs.</p>
 
 <p>The release profile is tuned item by item for size.</p>
 
@@ -4388,7 +4388,7 @@ strip = true       # drop symbols
 panic = "abort"    # drop unwinding tables
 </code></pre>
 
-<p>Those lines together are what keeps a Rust and Tauri application at the 4 MB mark. Note the side effect of aborting on panic: <strong>there is no catch-unwind safety net</strong>, so any panic terminates the process. That is why the code prefers returning an option or an error at boundaries rather than writing first and worrying afterwards.</p>
+<p>Those lines together are what keeps a Rust and Tauri application at the 4 MB mark. Note the side effect of aborting on panic: <strong>there is no catch-unwind safety net</strong>, so any panic terminates the process. That's why the code prefers returning an option or an error at boundaries rather than writing first and worrying afterwards.</p>
 
 <p>Crate sources go through a mirror configured in <code>.cargo/config.toml</code>.</p>
 
@@ -4433,7 +4433,7 @@ panic = "abort"    # drop unwinding tables
 
 <p>Two signals in that structure are worth attention.</p>
 
-<p>First, <strong><code>cdp.rs</code> is exported as a library</strong>, and both the GUI <code>main.rs</code> and <code>bin/nanoagent/main.rs</code> depend on it. That is where "one core, two entry points" becomes physical: the two binaries share one protocol bridge implementation instead of each writing its own.</p>
+<p>First, <strong><code>cdp.rs</code> is exported as a library</strong>, and both the GUI <code>main.rs</code> and <code>bin/nanoagent/main.rs</code> depend on it. That's where "one core, two entry points" becomes physical: the two binaries share one protocol bridge implementation instead of each writing its own.</p>
 
 <p>Second, <strong><code>devtools.rs</code> is called out as the most complex module</strong>, and the README gives its design a chapter of its own. Core 4 below expands on it.</p>
 
@@ -4499,7 +4499,7 @@ panic = "abort"    # drop unwinding tables
 
 <p>A tab carries its id, label, URL, title, loading state, pin state, icon, an internal flag, a <code>live</code> flag, the zoom index, back and forward availability, navigation counters and pending navigation. It also carries an <strong>opaque per-tab token</strong>, which is central to the security model in part two.</p>
 
-<p>The <code>live</code> flag deserves a note. It says whether the tab's real webview has been created yet. A tab can exist logically while its webview does not, which is exactly how session restore paints a window full of tabs immediately.</p>
+<p>The <code>live</code> flag deserves a note. It says whether the tab's real webview has been created yet. A tab can exist logically while its webview doesn't, which is exactly how session restore paints a window full of tabs immediately.</p>
 
 <h3>The IPC surface</h3>
 
@@ -4529,7 +4529,7 @@ panic = "abort"    # drop unwinding tables
 
 <ol>
 <li>Any shell UI that overflows the chrome region, such as the main menu, the omnibox dropdown or a tab context menu, is clipped by the page webview.</li>
-<li>A child webview <strong>cannot see pointer movement outside its own bounds</strong>, which makes drag-resizing the DevTools panel genuinely awkward.</li>
+<li>A child webview <strong>can't see pointer movement outside its own bounds</strong>, which makes drag-resizing the DevTools panel genuinely awkward.</li>
 </ol>
 
 <p>Those two consequences map to Core 5 and Core 4 below.</p>
@@ -4547,7 +4547,7 @@ panic = "abort"    # drop unwinding tables
 
 <p><code>CallDevToolsProtocolMethod</code> has <strong>no such layer</strong>. You pass a method name and parameters, and its completion callback receives <strong>that method's own result object</strong>. No id, no envelope.</p>
 
-<p>Replies therefore cannot be matched by id. The project's solution is to give each call an <strong>incrementing sequence number</strong>, allocated from an atomic counter, and <strong>bake that number into the callback closure</strong> created for that specific call. When the callback fires, the result is dispatched to the matching waiter.</p>
+<p>Replies therefore can't be matched by id. The project's solution is to give each call an <strong>incrementing sequence number</strong>, allocated from an atomic counter, and <strong>bake that number into the callback closure</strong> created for that specific call. When the callback fires, the result is dispatched to the matching waiter.</p>
 
 <h3>Property two: callbacks run on the UI thread</h3>
 
@@ -4573,7 +4573,7 @@ panic = "abort"    # drop unwinding tables
 </tbody>
 </table>
 
-<p>That split is not a matter of taste. It is a hard constraint. The DevTools bridge service loop runs on its own thread, and if it blocked while issuing a CDP request it would deadlock against its own replies to the panel.</p>
+<p>That split isn't a matter of taste. It's a hard constraint. The DevTools bridge service loop runs on its own thread, and if it blocked while issuing a CDP request it would deadlock against its own replies to the panel.</p>
 
 <p>The default timeout is 30 seconds, and the error message is fixed.</p>
 
@@ -4585,7 +4585,7 @@ panic = "abort"    # drop unwinding tables
 <h3>Other details that matter</h3>
 
 <ul>
-<li><strong>Empty replies become <code>null</code>.</strong> Some CDP methods return nothing, so the callback receives an empty value. It is normalized to null rather than an empty string or undefined.</li>
+<li><strong>Empty replies become <code>null</code>.</strong> Some CDP methods return nothing, so the callback receives an empty value. It's normalized to null rather than an empty string or undefined.</li>
 <li><strong><code>on_event</code></strong> subscribes through <code>GetDevToolsProtocolEventReceiver</code>. The important point: <strong>once registered, the subscription belongs to WebView2</strong>, so the callback lives as long as the webview does. There is no unsubscribe; the webview must go away.</li>
 <li><strong><code>with_webview</code> must be called off the main thread.</strong> That thread constraint is easy to trip over.</li>
 <li><strong><code>Cdp::webview()</code> is the single entry point.</strong> It resolves child webviews by label and also resolves a <code>WebviewWindow</code>. One implementation serves the GUI's three child webviews and the agent's main window, which is how "one core, two entry points" is cashed out in code.</li>
@@ -4612,7 +4612,7 @@ panic = "abort"    # drop unwinding tables
 
 <ul>
 <li><strong>Receiving</strong> handles masking, the length extensions for one, two and four byte lengths, and <strong>fragmentation</strong>, where one logical message spans several reads.</li>
-<li><strong>Sending</strong> picks the length encoding by payload size. <strong>Server frames are not masked</strong>, as the RFC requires.</li>
+<li><strong>Sending</strong> picks the length encoding by payload size. <strong>Server frames aren't masked</strong>, as the RFC requires.</li>
 <li>Text, pong and close are supported.</li>
 </ul>
 
@@ -4623,11 +4623,11 @@ panic = "abort"    # drop unwinding tables
 <pre><code>s.set_read_timeout(25ms)
 </code></pre>
 
-<p>That is not a failure timeout. <strong>It is the service loop's tick.</strong> The loop polls the socket: a zero-byte read means the panel left, and a would-block or timed-out result means no data yet, detected by an idle check. One thread therefore handles both panel messages and CDP events, with no need for select or epoll.</p>
+<p>That isn't a failure timeout. <strong>It is the service loop's tick.</strong> The loop polls the socket: a zero-byte read means the panel left, and a would-block or timed-out result means no data yet, detected by an idle check. One thread therefore handles both panel messages and CDP events, with no need for select or epoll.</p>
 
 <h3>Tests</h3>
 
-<p><code>tests/ws_bridge.rs</code> validates the server with an <strong>independently implemented client encoder</strong>, deliberately not round-tripping the decoder against its own inverse. Coverage includes a completed handshake reporting its session path with the exact status and accept value; <strong>a connection without a session key receiving no headers and no bytes at all</strong>, which is the assertion that this port is not a public debugging port; <strong>a 70 KB payload reassembled across several reads</strong>; ping answered with pong; and close answered with an empty-payload close frame.</p>
+<p><code>tests/ws_bridge.rs</code> validates the server with an <strong>independently implemented client encoder</strong>, deliberately not round-tripping the decoder against its own inverse. Coverage includes a completed handshake reporting its session path with the exact status and accept value; <strong>a connection without a session key receiving no headers and no bytes at all</strong>, which is the assertion that this port isn't a public debugging port; <strong>a 70 KB payload reassembled across several reads</strong>; ping answered with pong; and close answered with an empty-payload close frame.</p>
 
 <h2>Core 4: the docked DevTools panel</h2>
 
@@ -4640,7 +4640,7 @@ panic = "abort"    # drop unwinding tables
 <p>Two easier routes were rejected.</p>
 
 <ul>
-<li><strong><code>--remote-debugging-port</code></strong> is not viable, because with that port open <strong>only the shell webview becomes a CDP target</strong>, and the official frontend cannot attach to a page webview.</li>
+<li><strong><code>--remote-debugging-port</code></strong> isn't viable, because with that port open <strong>only the shell webview becomes a CDP target</strong>, and the official frontend can't attach to a page webview.</li>
 <li><strong>Writing a minimal custom panel</strong> was rejected because it loses the complete Elements, Console, Network and Sources experience.</li>
 </ul>
 
@@ -4654,18 +4654,18 @@ panic = "abort"    # drop unwinding tables
 <ul>
 <li><code>devtools://devtools/bundled/</code> is the DevTools bundle WebView2 already ships, so the frontend needs no packaging of its own.</li>
 <li>It speaks CDP over a <strong>loopback WebSocket served by this process</strong>.</li>
-<li>The dock side lives in the <strong>fragment</strong>, and <strong>cannot go into the query string</strong>.</li>
+<li>The dock side lives in the <strong>fragment</strong>, and <strong>can't go into the query string</strong>.</li>
 </ul>
 
 <p>That last line is the most valuable non-obvious constraint in the project.</p>
 
 <blockquote>
-<p><strong>Appending a second query key after <code>?ws=</code>, for example <code>&amp;nanoSide=right</code>, makes WebView2's <code>devtools://</code> handler fail the entire load</strong>, and the page shows Chromium's "this page cannot be reached" error. A fragment is parsed by the browser before that handler sees it, so it is safe.</p>
+<p><strong>Appending a second query key after <code>?ws=</code>, for example <code>&amp;nanoSide=right</code>, makes WebView2's <code>devtools://</code> handler fail the entire load</strong>, and the page shows Chromium's "this page can't be reached" error. A fragment is parsed by the browser before that handler sees it, so it is safe.</p>
 </blockquote>
 
-<p>The trap has a nastier follow-up. <strong>While debugging it, <code>webview.url()</code> cannot be trusted</strong>, because the error page still reports the URL you asked for. The reliable signals are whether the bridge received a client, and how many domains it registered.</p>
+<p>The trap has a nastier follow-up. <strong>While debugging it, <code>webview.url()</code> can't be trusted</strong>, because the error page still reports the URL you asked for. The reliable signals are whether the bridge received a client, and how many domains it registered.</p>
 
-<h3>Admission: this is not a debugging port</h3>
+<h3>Admission: this isn't a debugging port</h3>
 
 <p>The loopback WebSocket has three constraints.</p>
 
@@ -4675,11 +4675,11 @@ panic = "abort"    # drop unwinding tables
 <li>Every CDP request is <strong>forwarded to a page webview</strong> through <code>CallDevToolsProtocolMethod</code>.</li>
 </ol>
 
-<p>Why that is not a debugging port: a page scanning localhost finds a listener that answers nothing without the id, and the id exists only while the panel does. <strong>Nothing outside the process can attach to either browser.</strong> Combined with never passing the debugging-port flag, this is the "no debugging socket" layer of the security model.</p>
+<p>Why that isn't a debugging port: a page scanning localhost finds a listener that answers nothing without the id, and the id exists only while the panel does. <strong>Nothing outside the process can attach to either browser.</strong> Combined with never passing the debugging-port flag, this is the "no debugging socket" layer of the security model.</p>
 
 <h3>Events: a static table plus lazy subscription</h3>
 
-<p>There is a very typical gap in the protocol here. <code>Schema.getDomains</code> <strong>reports 35 domains and returns no event names at all</strong>, so events cannot be discovered dynamically.</p>
+<p>There is a very typical gap in the protocol here. <code>Schema.getDomains</code> <strong>reports 35 domains and returns no event names at all</strong>, so events can't be discovered dynamically.</p>
 
 <p>The solution is a <strong>static table of event names</strong> plus <strong>lazy subscription per domain</strong>: only the domains the frontend actually enabled get subscriptions. The table covers the common domains, such as runtime console calls, exceptions and execution contexts; debugger script parsed, paused and resumed; profiler start and finish; heap snapshot chunks and progress; console messages; and page lifecycle events including navigation, dialogs, screencast frames and downloads.</p>
 
@@ -4687,7 +4687,7 @@ panic = "abort"    # drop unwinding tables
 
 <ul>
 <li><strong>A single failed subscription is skipped</strong> rather than abandoning the whole domain.</li>
-<li><strong><code>Page.startScreencast</code> is not implemented on WebView2</strong>, which matters for the agent's screenshots. Calls like that come back to the frontend as <strong>CDP errors</strong> instead of breaking the bridge.</li>
+<li><strong><code>Page.startScreencast</code> isn't implemented on WebView2</strong>, which matters for the agent's screenshots. Calls like that come back to the frontend as <strong>CDP errors</strong> instead of breaking the bridge.</li>
 </ul>
 
 <p>The bridge loop also normalizes empty replies to an empty object, because the panel expects one; wraps errors as JSON-RPC errors; extracts the domain from the method name and deduplicates subscriptions per tab and domain; and fills empty parameters before pushing an event to the panel.</p>
@@ -4712,11 +4712,11 @@ panic = "abort"    # drop unwinding tables
 
 <p>A clamp keeps both sides above their minimums, so a small window never squeezes the page out or the panel out.</p>
 
-<p>There is also a timing detail. Opening computes the window layout <strong>before</strong> making the panel visible, so it does not flash at the previous session's geometry for one frame.</p>
+<p>There is also a timing detail. Opening computes the window layout <strong>before</strong> making the panel visible, so it doesn't flash at the previous session's geometry for one frame.</p>
 
-<h3>Dragging the splitter when a child webview cannot see outside itself</h3>
+<h3>Dragging the splitter when a child webview can't see outside itself</h3>
 
-<p>The panel edge has a grip. It runs into a physical limit: <strong>a child webview cannot see pointer movement outside its own bounds</strong>. The panel is only so tall or so wide, and once the pointer leaves it, the panel no longer receives pointer events.</p>
+<p>The panel edge has a grip. It runs into a physical limit: <strong>a child webview can't see pointer movement outside its own bounds</strong>. The panel is only so tall or so wide, and once the pointer leaves it, the panel no longer receives pointer events.</p>
 
 <p>The fix routes the pointer through the shell.</p>
 
@@ -4738,14 +4738,14 @@ right:   devtools_w = clamp(window_w - clientX)
 
 <h3>Signalling between the panel and native code</h3>
 
-<p>This is the prettiest trick in the project. The panel is a <code>devtools://</code> document, and in that environment <strong>Tauri's IPC does not exist</strong>, and <strong>WebView2's host object on the window does not exist either</strong>.</p>
+<p>This is the prettiest trick in the project. The panel is a <code>devtools://</code> document, and in that environment <strong>Tauri's IPC doesn't exist</strong>, and <strong>WebView2's host object on the window doesn't exist either</strong>.</p>
 
 <p>Both normal channels are cut. So the panel talks to Rust like this.</p>
 
 <pre><code>window.open('https://nano-dt.invalid/&lt;action&gt;', '_blank');
 </code></pre>
 
-<p><code>nano-dt.invalid</code> is a domain that <strong>cannot exist</strong>, so it is never actually visited. Rust sees the popup request in its new-window handler, reads the action from the path, and returns a deny response.</p>
+<p><code>nano-dt.invalid</code> is a domain that <strong>can't exist</strong>, so it is never actually visited. Rust sees the popup request in its new-window handler, reads the action from the path, and returns a deny response.</p>
 
 <pre><code>NewWindowResponse::Deny
 </code></pre>
@@ -4763,7 +4763,7 @@ right:   devtools_w = clamp(window_w - clientX)
 <li>Every webview, including the shell, the page tabs <strong>and the panel itself</strong>, calls <code>.devtools(false)</code>.</li>
 </ul>
 
-<p>That last line needs spelling out. <code>.devtools(false)</code> turns off the <strong>native DevTools popup</strong>, but it <strong>does not affect <code>CallDevToolsProtocolMethod</code></strong>. So the project can kill the native popup and keep full CDP at the same time. That is one of the pitfalls the README lists, and it is the precondition for the whole docking approach.</p>
+<p>That last line needs spelling out. <code>.devtools(false)</code> turns off the <strong>native DevTools popup</strong>, but it <strong>doesn't affect <code>CallDevToolsProtocolMethod</code></strong>. So the project can kill the native popup and keep full CDP at the same time. That's one of the pitfalls the README lists, and it is the precondition for the whole docking approach.</p>
 
 <h2>Core 5: z-order and the overlay trick</h2>
 
@@ -4820,7 +4820,7 @@ right:   devtools_w = clamp(window_w - clientX)
 
 <ul>
 <li>An explicit <code>http://</code> or <code>https://</code> prefix must also survive URL parsing.</li>
-<li>A string containing spaces, or an empty string, is <strong>not</strong> a URL. That is a strong signal the user wants to search.</li>
+<li>A string containing spaces, or an empty string, is <strong>not</strong> a URL. That's a strong signal the user wants to search.</li>
 <li>Otherwise the candidate gets <code>https://</code> and must then satisfy one of: the host is <code>localhost</code>, the host parses as an IP address, or the host has at least two dot-separated segments.</li>
 <li>And the first character must be an ASCII letter or digit.</li>
 </ul>
@@ -4829,7 +4829,7 @@ right:   devtools_w = clamp(window_w - clientX)
 
 <h3>Downloads: race-safe naming</h3>
 
-<p>Same-name files do not overwrite. They become <code>report (1).pdf</code>, <code>report (2).pdf</code> and so on. That sounds simple until two downloads start at once: both can decide the path is free, and both write the same file.</p>
+<p>Same-name files don't overwrite. They become <code>report (1).pdf</code>, <code>report (2).pdf</code> and so on. That sounds simple until two downloads start at once: both can decide the path is free, and both write the same file.</p>
 
 <p>The project removes the race with an <strong>atomic reservation</strong>. It claims the path by creating the file exclusively, and only the winner proceeds, so ownership is decided by the filesystem rather than by a check in memory. WebView2 fills in the content afterwards. The naming helper tries up to a thousand candidates, and the reservation is that exclusive create.</p>
 
@@ -4844,14 +4844,14 @@ right:   devtools_w = clamp(window_w - clientX)
 <pre><code>scheme://host:port/favicon.ico
 </code></pre>
 
-<p><strong>The port must be included.</strong> A site running on a non-default port would otherwise point at a different origin's icon. Guessing wrong there is not just ugly, it is semantically wrong.</p>
+<p><strong>The port must be included.</strong> A site running on a non-default port would otherwise point at a different origin's icon. Guessing wrong there isn't just ugly, it is semantically wrong.</p>
 
 <h3>Zoom: a fixed fifteen-step ladder</h3>
 
 <pre><code>0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0
 </code></pre>
 
-<p>The index is clamped against the array length before use, so an out-of-range value written into an old profile cannot panic. In a build that aborts on panic that matters: one out-of-bounds read is the whole process. A test pins the behaviour, with index 999 still yielding 3.0.</p>
+<p>The index is clamped against the array length before use, so an out-of-range value written into an old profile can't panic. In a build that aborts on panic that matters: one out-of-bounds read is the whole process. A test pins the behaviour, with index 999 still yielding 3.0.</p>
 
 <h3>Shortcuts: split across two worlds</h3>
 
@@ -4881,7 +4881,7 @@ right:   devtools_w = clamp(window_w - clientX)
 </tbody>
 </table>
 
-<p>One act of <strong>restraint</strong> is worth noticing. Editing keys, <code>Ctrl+R</code>, <code>Ctrl+P</code> and the <code>Ctrl+Shift</code> number combinations are <strong>deliberately left to the engine</strong> and not intercepted. The worst thing a browser shell can do is cleverly swallow a key the page needs. Under the same rule, <code>F5</code> is not intercepted either.</p>
+<p>One act of <strong>restraint</strong> is worth noticing. Editing keys, <code>Ctrl+R</code>, <code>Ctrl+P</code> and the <code>Ctrl+Shift</code> number combinations are <strong>deliberately left to the engine</strong> and not intercepted. The worst thing a browser shell can do is cleverly swallow a key the page needs. Under the same rule, <code>F5</code> isn't intercepted either.</p>
 
 <h2>Core 7: the zero-framework frontend</h2>
 
@@ -4895,7 +4895,7 @@ right:   devtools_w = clamp(window_w - clientX)
 <li>The interface to Rust is trivial: with the global API enabled, the page calls those 40 commands directly through it.</li>
 </ul>
 
-<p>Two things get worse. There is <strong>no component reuse and no type checking</strong>, and state plus DOM are managed by hand. That is why <code>shell.js</code> spends so much effort on interactions that are manual but deterministic.</p>
+<p>Two things get worse. There is <strong>no component reuse and no type checking</strong>, and state plus DOM are managed by hand. That's why <code>shell.js</code> spends so much effort on interactions that are manual but deterministic.</p>
 
 <h3>Tab dragging: FLIP plus one deterministic click suppression</h3>
 
@@ -4904,7 +4904,7 @@ right:   devtools_w = clamp(window_w - clientX)
 <ul>
 <li>Pointer move, up and cancel drive it. The dragged tab follows the cursor while its siblings slide aside with FLIP transitions, so the strip <strong>always previews where the drop will land</strong>.</li>
 <li>On release, a command tells Rust to reorder for real.</li>
-<li>One detail decides whether it feels broken. <strong>The browser still fires a click after a drag</strong>, so without care you drag a tab and accidentally select it. The project sets a suppression flag and <strong>clears it on the next pointer down</strong>, rather than waiting a tick. It is <strong>deterministic</strong> and does not depend on task-queue timing.</li>
+<li>One detail decides whether it feels broken. <strong>The browser still fires a click after a drag</strong>, so without care you drag a tab and accidentally select it. The project sets a suppression flag and <strong>clears it on the next pointer down</strong>, rather than waiting a tick. It's <strong>deterministic</strong> and doesn't depend on task-queue timing.</li>
 </ul>
 
 <h3>Other frontend notes</h3>
@@ -4945,7 +4945,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 
 <p><strong>First, trusted input.</strong> A click dispatches mouse events in sequence, and filling inserts text through the input domain. The combined effect is that <strong>the page sees real user input rather than a scripted assignment to a DOM property</strong>. That matters against pages which detect automation through the trusted-input flag.</p>
 
-<p><strong>Second, screenshots go around the missing API.</strong> WebView2 <strong>does not implement <code>Page.captureScreenshot</code></strong>. A hidden window, however, <strong>still composites</strong>, so the agent subscribes to the screencast stream and caches frames. The README leaves a fallback on record: if hidden windows ever stop compositing, move the window off-screen instead of hiding it.</p>
+<p><strong>Second, screenshots go around the missing API.</strong> WebView2 <strong>doesn't implement <code>Page.captureScreenshot</code></strong>. A hidden window, however, <strong>still composites</strong>, so the agent subscribes to the screencast stream and caches frames. The README leaves a fallback on record: if hidden windows ever stop compositing, move the window off-screen instead of hiding it.</p>
 
 <p><strong>Third, readiness and thread discipline.</strong> The worker polls a readiness check <strong>up to 600 times at 50 ms intervals</strong>, because <strong>a webview must have a running event loop before it answers CDP</strong>. And while waiting for a reply it <strong>must never block the UI thread</strong>, which would deadlock. The reply lands in shared state and the worker waits on a condition variable. Those two rules are exactly what the <code>cdp.rs</code> design buys in the agent scenario.</p>
 
@@ -4968,7 +4968,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 </tbody>
 </table>
 
-<p>The loop is simple and typical: read stdin line by line, parse method, params and id, dispatch initialize, list or call, and write the reply to stdout. It is pure stdio, with no network and no port, which makes it a natural child process for a local agent to manage.</p>
+<p>The loop is simple and typical: read stdin line by line, parse method, params and id, dispatch initialize, list or call, and write the reply to stdout. It's pure stdio, with no network and no port, which makes it a natural child process for a local agent to manage.</p>
 
 <p>Set against the capabilities, the design intent is clear. Navigate, read, click, fill, wait, screenshot and eval are <strong>hands and eyes</strong>. Cookies are <strong>the session</strong>. Traffic is <strong>observability</strong>. Together they are the minimal complete set for letting an agent operate a web page.</p>
 
@@ -4985,7 +4985,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <li>Authorization and cookie headers, and form bodies, are covered by the same rules.</li>
 <li>Bodies are truncated, with a separate cap for individual values. The buffer holds at most 500 entries.</li>
 <li><strong>The log lives in memory only</strong> and is never written to disk.</li>
-<li><strong>Redaction cannot be turned off.</strong></li>
+<li><strong>Redaction can't be turned off.</strong></li>
 </ul>
 
 <p>There is one more trap, about redirects. <strong>A redirect reuses the same CDP request id</strong>, so keying records by the raw id lets a later record <strong>overwrite the original request and lose its body</strong>. Entries are therefore keyed by a unique key derived from the redirect chain.</p>
@@ -4997,11 +4997,11 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <p>Each tab webview's init script embeds an <strong>opaque random token minted in Rust</strong>, twenty-four hex digits. Two properties follow.</p>
 
 <ul>
-<li><strong>A page cannot forge events for another tab</strong>, because it does not know that tab's token.</li>
+<li><strong>A page can't forge events for another tab</strong>, because it doesn't know that tab's token.</li>
 <li>Rust resolves the sender through the token and <strong>never trusts a tab id the page reports about itself</strong>.</li>
 </ul>
 
-<p>In other words, tab identity is <strong>minted on the Rust side and injected into the page</strong>, rather than something the page gets to declare. That is "pages are untrusted" made concrete.</p>
+<p>In other words, tab identity is <strong>minted on the Rust side and injected into the page</strong>, rather than something the page gets to declare. That's "pages are untrusted" made concrete.</p>
 
 <h3>Layer two: favicons are hostile data</h3>
 
@@ -5099,8 +5099,8 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <p>Three practices are worth copying.</p>
 
 <ul>
-<li><strong>Atomic save.</strong> The JSON is written to a temporary file and then renamed over the profile. A crash mid-write cannot corrupt it, because the rename is atomic within a directory.</li>
-<li><strong>Cap-tolerant loading.</strong> History and downloads are truncated on read, so a file someone edited by hand cannot exhaust memory.</li>
+<li><strong>Atomic save.</strong> The JSON is written to a temporary file and then renamed over the profile. A crash mid-write can't corrupt it, because the rename is atomic within a directory.</li>
+<li><strong>Cap-tolerant loading.</strong> History and downloads are truncated on read, so a file someone edited by hand can't exhaust memory.</li>
 <li><strong>Debounced window geometry.</strong> A pending flag plus a debounce keeps dragging the window from writing to disk on every frame.</li>
 </ul>
 
@@ -5112,7 +5112,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 
 <ol>
 <li>Every tab is an independent window, so <strong>a later-created page covers the shell</strong> and clips menus and suggestions. The fix is to expand the shell over the window and raise it while a menu is open, restore it on close, and re-assert z-order after any tab create, activate or close.</li>
-<li><strong>A child webview cannot see pointer movement outside its own bounds</strong>, so panel resizing has to route the pointer through a full-window capture layer in the shell.</li>
+<li><strong>A child webview can't see pointer movement outside its own bounds</strong>, so panel resizing has to route the pointer through a full-window capture layer in the shell.</li>
 <li><strong>Window control icons are injected by JavaScript, and the SVG's CSS classes must travel with them</strong>, or class-sized glyphs such as the fullscreen restore icon render at default enormous size.</li>
 </ol>
 
@@ -5130,14 +5130,14 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <li><strong>A redirect reusing the same request id overwrites the original record and loses its body</strong>, so records are keyed by an id derived from the redirect chain.</li>
 <li><strong>The debugging port is a dead end</strong>, because only the shell webview becomes a CDP target.</li>
 <li><strong><code>Schema.getDomains</code> lists domains and returns no event names</strong>, so a static event table plus lazy per-domain subscription is required.</li>
-<li><strong>Disabling native DevTools does not affect <code>CallDevToolsProtocolMethod</code></strong>, which is why the native popup can be killed while keeping full CDP.</li>
+<li><strong>Disabling native DevTools doesn't affect <code>CallDevToolsProtocolMethod</code></strong>, which is why the native popup can be killed while keeping full CDP.</li>
 </ol>
 
 <p><strong>Docked DevTools</strong></p>
 
 <ol start="11">
 <li><strong>The <code>devtools://</code> page is privileged</strong>: neither the WebView2 host object nor Tauri IPC exists, so a popup request that the app denies is the only signalling channel.</li>
-<li><strong>A second query key after <code>?ws=</code> fails the entire load</strong>, so extra data must go in the fragment. And while debugging it, <strong>the reported URL cannot be trusted</strong>, because the error page still reports what you asked for. The reliable signals are whether the bridge received a client and how many domains it registered.</li>
+<li><strong>A second query key after <code>?ws=</code> fails the entire load</strong>, so extra data must go in the fragment. And while debugging it, <strong>the reported URL can't be trusted</strong>, because the error page still reports what you asked for. The reliable signals are whether the bridge received a client and how many domains it registered.</li>
 <li><strong>The grip sits on the edge facing the page</strong>, and the cursor follows the dock axis. The drag maths is a subtraction from the window edge on that axis.</li>
 </ol>
 
@@ -5147,7 +5147,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <li><strong>A site on a non-default port that no declaration matches loses every injected feature at once</strong>: shortcuts, hover state, find highlighting and favicon reporting.</li>
 </ol>
 
-<p>Three of the fourteen are worth memorising outright: the DevTools URL rejects a second query key, disabling native DevTools does not disable in-process CDP, and sibling webviews cannot see outside themselves. They are the most counter-intuitive, and the most likely to reappear in another project.</p>
+<p>Three of the fourteen are worth memorising outright: the DevTools URL rejects a second query key, disabling native DevTools doesn't disable in-process CDP, and sibling webviews can't see outside themselves. They are the most counter-intuitive, and the most likely to reappear in another project.</p>
 
 <h2>Known limits</h2>
 
@@ -5167,11 +5167,11 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 
 <p><strong>First, building no engine is a capability, not laziness.</strong> Most projects default to implementing whatever they need. NanoBrowser asks the opposite question first: <strong>what does the system already have?</strong> Windows already has Chromium, so build only the shell. That buys 4.5 MB and near-zero engine maintenance, at the cost of Windows-only, and that cost is acceptable to its audience. Recognising which costs are acceptable matters far more than any comparison table.</p>
 
-<p><strong>Second, the hard part is not features but the host's boundaries.</strong> Almost all of the complexity here comes from four invariants: child webviews are siblings, CDP callbacks run on the UI thread with no request ids, the <code>devtools://</code> page has no conventional IPC, and its URL rejects a second query key. Those non-negotiable constraints shape the architecture, and they explain the whole list of pitfalls.</p>
+<p><strong>Second, the hard part isn't features but the host's boundaries.</strong> Almost all of the complexity here comes from four invariants: child webviews are siblings, CDP callbacks run on the UI thread with no request ids, the <code>devtools://</code> page has no conventional IPC, and its URL rejects a second query key. Those non-negotiable constraints shape the architecture, and they explain the whole list of pitfalls.</p>
 
-<p><strong>Third, a side-effect channel can be a signal channel.</strong> When both legitimate channels are cut, find an effect the host is guaranteed to intercept and hang the parameters on it. It is not elegant. It is correct, reliable, and needs no cooperation from the host.</p>
+<p><strong>Third, a side-effect channel can be a signal channel.</strong> When both legitimate channels are cut, find an effect the host is guaranteed to intercept and hang the parameters on it. It isn't elegant. It's correct, reliable, and needs no cooperation from the host.</p>
 
-<p>Back to the three decisions: no engine, no debugging port, hand-written hard dependencies. Together they say one thing. <strong>Push reuse to its limit, and shrink the self-written surface to the part that must be written and is worth writing.</strong> A 4.5 MB browser is not the result of trimming. It is the result of choosing not to rebuild something at every fork in the road.</p>
+<p>Back to the three decisions: no engine, no debugging port, hand-written hard dependencies. Together they say one thing. <strong>Push reuse to its limit, and shrink the self-written surface to the part that must be written and is worth writing.</strong> A 4.5 MB browser isn't the result of trimming. It's the result of choosing not to rebuild something at every fork in the road.</p>
 
 <h2>References</h2>
 

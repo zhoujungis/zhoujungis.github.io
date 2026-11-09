@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7iriVN.js"></script>
+    <script type="module" crossorigin src="/assets/index-T21q48Et.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -183,7 +183,7 @@
 
 <ul>
 <li>An explicit <code>http://</code> or <code>https://</code> prefix must also survive URL parsing.</li>
-<li>A string containing spaces, or an empty string, is <strong>not</strong> a URL. That is a strong signal the user wants to search.</li>
+<li>A string containing spaces, or an empty string, is <strong>not</strong> a URL. That's a strong signal the user wants to search.</li>
 <li>Otherwise the candidate gets <code>https://</code> and must then satisfy one of: the host is <code>localhost</code>, the host parses as an IP address, or the host has at least two dot-separated segments.</li>
 <li>And the first character must be an ASCII letter or digit.</li>
 </ul>
@@ -192,7 +192,7 @@
 
 <h3>Downloads: race-safe naming</h3>
 
-<p>Same-name files do not overwrite. They become <code>report (1).pdf</code>, <code>report (2).pdf</code> and so on. That sounds simple until two downloads start at once: both can decide the path is free, and both write the same file.</p>
+<p>Same-name files don't overwrite. They become <code>report (1).pdf</code>, <code>report (2).pdf</code> and so on. That sounds simple until two downloads start at once: both can decide the path is free, and both write the same file.</p>
 
 <p>The project removes the race with an <strong>atomic reservation</strong>. It claims the path by creating the file exclusively, and only the winner proceeds, so ownership is decided by the filesystem rather than by a check in memory. WebView2 fills in the content afterwards. The naming helper tries up to a thousand candidates, and the reservation is that exclusive create.</p>
 
@@ -207,14 +207,14 @@
 <pre><code>scheme://host:port/favicon.ico
 </code></pre>
 
-<p><strong>The port must be included.</strong> A site running on a non-default port would otherwise point at a different origin's icon. Guessing wrong there is not just ugly, it is semantically wrong.</p>
+<p><strong>The port must be included.</strong> A site running on a non-default port would otherwise point at a different origin's icon. Guessing wrong there isn't just ugly, it is semantically wrong.</p>
 
 <h3>Zoom: a fixed fifteen-step ladder</h3>
 
 <pre><code>0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0
 </code></pre>
 
-<p>The index is clamped against the array length before use, so an out-of-range value written into an old profile cannot panic. In a build that aborts on panic that matters: one out-of-bounds read is the whole process. A test pins the behaviour, with index 999 still yielding 3.0.</p>
+<p>The index is clamped against the array length before use, so an out-of-range value written into an old profile can't panic. In a build that aborts on panic that matters: one out-of-bounds read is the whole process. A test pins the behaviour, with index 999 still yielding 3.0.</p>
 
 <h3>Shortcuts: split across two worlds</h3>
 
@@ -244,7 +244,7 @@
 </tbody>
 </table>
 
-<p>One act of <strong>restraint</strong> is worth noticing. Editing keys, <code>Ctrl+R</code>, <code>Ctrl+P</code> and the <code>Ctrl+Shift</code> number combinations are <strong>deliberately left to the engine</strong> and not intercepted. The worst thing a browser shell can do is cleverly swallow a key the page needs. Under the same rule, <code>F5</code> is not intercepted either.</p>
+<p>One act of <strong>restraint</strong> is worth noticing. Editing keys, <code>Ctrl+R</code>, <code>Ctrl+P</code> and the <code>Ctrl+Shift</code> number combinations are <strong>deliberately left to the engine</strong> and not intercepted. The worst thing a browser shell can do is cleverly swallow a key the page needs. Under the same rule, <code>F5</code> isn't intercepted either.</p>
 
 <h2>Core 7: the zero-framework frontend</h2>
 
@@ -258,7 +258,7 @@
 <li>The interface to Rust is trivial: with the global API enabled, the page calls those 40 commands directly through it.</li>
 </ul>
 
-<p>Two things get worse. There is <strong>no component reuse and no type checking</strong>, and state plus DOM are managed by hand. That is why <code>shell.js</code> spends so much effort on interactions that are manual but deterministic.</p>
+<p>Two things get worse. There is <strong>no component reuse and no type checking</strong>, and state plus DOM are managed by hand. That's why <code>shell.js</code> spends so much effort on interactions that are manual but deterministic.</p>
 
 <h3>Tab dragging: FLIP plus one deterministic click suppression</h3>
 
@@ -267,7 +267,7 @@
 <ul>
 <li>Pointer move, up and cancel drive it. The dragged tab follows the cursor while its siblings slide aside with FLIP transitions, so the strip <strong>always previews where the drop will land</strong>.</li>
 <li>On release, a command tells Rust to reorder for real.</li>
-<li>One detail decides whether it feels broken. <strong>The browser still fires a click after a drag</strong>, so without care you drag a tab and accidentally select it. The project sets a suppression flag and <strong>clears it on the next pointer down</strong>, rather than waiting a tick. It is <strong>deterministic</strong> and does not depend on task-queue timing.</li>
+<li>One detail decides whether it feels broken. <strong>The browser still fires a click after a drag</strong>, so without care you drag a tab and accidentally select it. The project sets a suppression flag and <strong>clears it on the next pointer down</strong>, rather than waiting a tick. It's <strong>deterministic</strong> and doesn't depend on task-queue timing.</li>
 </ul>
 
 <h3>Other frontend notes</h3>
@@ -308,7 +308,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 
 <p><strong>First, trusted input.</strong> A click dispatches mouse events in sequence, and filling inserts text through the input domain. The combined effect is that <strong>the page sees real user input rather than a scripted assignment to a DOM property</strong>. That matters against pages which detect automation through the trusted-input flag.</p>
 
-<p><strong>Second, screenshots go around the missing API.</strong> WebView2 <strong>does not implement <code>Page.captureScreenshot</code></strong>. A hidden window, however, <strong>still composites</strong>, so the agent subscribes to the screencast stream and caches frames. The README leaves a fallback on record: if hidden windows ever stop compositing, move the window off-screen instead of hiding it.</p>
+<p><strong>Second, screenshots go around the missing API.</strong> WebView2 <strong>doesn't implement <code>Page.captureScreenshot</code></strong>. A hidden window, however, <strong>still composites</strong>, so the agent subscribes to the screencast stream and caches frames. The README leaves a fallback on record: if hidden windows ever stop compositing, move the window off-screen instead of hiding it.</p>
 
 <p><strong>Third, readiness and thread discipline.</strong> The worker polls a readiness check <strong>up to 600 times at 50 ms intervals</strong>, because <strong>a webview must have a running event loop before it answers CDP</strong>. And while waiting for a reply it <strong>must never block the UI thread</strong>, which would deadlock. The reply lands in shared state and the worker waits on a condition variable. Those two rules are exactly what the <code>cdp.rs</code> design buys in the agent scenario.</p>
 
@@ -331,7 +331,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 </tbody>
 </table>
 
-<p>The loop is simple and typical: read stdin line by line, parse method, params and id, dispatch initialize, list or call, and write the reply to stdout. It is pure stdio, with no network and no port, which makes it a natural child process for a local agent to manage.</p>
+<p>The loop is simple and typical: read stdin line by line, parse method, params and id, dispatch initialize, list or call, and write the reply to stdout. It's pure stdio, with no network and no port, which makes it a natural child process for a local agent to manage.</p>
 
 <p>Set against the capabilities, the design intent is clear. Navigate, read, click, fill, wait, screenshot and eval are <strong>hands and eyes</strong>. Cookies are <strong>the session</strong>. Traffic is <strong>observability</strong>. Together they are the minimal complete set for letting an agent operate a web page.</p>
 
@@ -348,7 +348,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <li>Authorization and cookie headers, and form bodies, are covered by the same rules.</li>
 <li>Bodies are truncated, with a separate cap for individual values. The buffer holds at most 500 entries.</li>
 <li><strong>The log lives in memory only</strong> and is never written to disk.</li>
-<li><strong>Redaction cannot be turned off.</strong></li>
+<li><strong>Redaction can't be turned off.</strong></li>
 </ul>
 
 <p>There is one more trap, about redirects. <strong>A redirect reuses the same CDP request id</strong>, so keying records by the raw id lets a later record <strong>overwrite the original request and lose its body</strong>. Entries are therefore keyed by a unique key derived from the redirect chain.</p>
@@ -360,11 +360,11 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <p>Each tab webview's init script embeds an <strong>opaque random token minted in Rust</strong>, twenty-four hex digits. Two properties follow.</p>
 
 <ul>
-<li><strong>A page cannot forge events for another tab</strong>, because it does not know that tab's token.</li>
+<li><strong>A page can't forge events for another tab</strong>, because it doesn't know that tab's token.</li>
 <li>Rust resolves the sender through the token and <strong>never trusts a tab id the page reports about itself</strong>.</li>
 </ul>
 
-<p>In other words, tab identity is <strong>minted on the Rust side and injected into the page</strong>, rather than something the page gets to declare. That is "pages are untrusted" made concrete.</p>
+<p>In other words, tab identity is <strong>minted on the Rust side and injected into the page</strong>, rather than something the page gets to declare. That's "pages are untrusted" made concrete.</p>
 
 <h3>Layer two: favicons are hostile data</h3>
 
@@ -462,8 +462,8 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <p>Three practices are worth copying.</p>
 
 <ul>
-<li><strong>Atomic save.</strong> The JSON is written to a temporary file and then renamed over the profile. A crash mid-write cannot corrupt it, because the rename is atomic within a directory.</li>
-<li><strong>Cap-tolerant loading.</strong> History and downloads are truncated on read, so a file someone edited by hand cannot exhaust memory.</li>
+<li><strong>Atomic save.</strong> The JSON is written to a temporary file and then renamed over the profile. A crash mid-write can't corrupt it, because the rename is atomic within a directory.</li>
+<li><strong>Cap-tolerant loading.</strong> History and downloads are truncated on read, so a file someone edited by hand can't exhaust memory.</li>
 <li><strong>Debounced window geometry.</strong> A pending flag plus a debounce keeps dragging the window from writing to disk on every frame.</li>
 </ul>
 
@@ -475,7 +475,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 
 <ol>
 <li>Every tab is an independent window, so <strong>a later-created page covers the shell</strong> and clips menus and suggestions. The fix is to expand the shell over the window and raise it while a menu is open, restore it on close, and re-assert z-order after any tab create, activate or close.</li>
-<li><strong>A child webview cannot see pointer movement outside its own bounds</strong>, so panel resizing has to route the pointer through a full-window capture layer in the shell.</li>
+<li><strong>A child webview can't see pointer movement outside its own bounds</strong>, so panel resizing has to route the pointer through a full-window capture layer in the shell.</li>
 <li><strong>Window control icons are injected by JavaScript, and the SVG's CSS classes must travel with them</strong>, or class-sized glyphs such as the fullscreen restore icon render at default enormous size.</li>
 </ol>
 
@@ -493,14 +493,14 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <li><strong>A redirect reusing the same request id overwrites the original record and loses its body</strong>, so records are keyed by an id derived from the redirect chain.</li>
 <li><strong>The debugging port is a dead end</strong>, because only the shell webview becomes a CDP target.</li>
 <li><strong><code>Schema.getDomains</code> lists domains and returns no event names</strong>, so a static event table plus lazy per-domain subscription is required.</li>
-<li><strong>Disabling native DevTools does not affect <code>CallDevToolsProtocolMethod</code></strong>, which is why the native popup can be killed while keeping full CDP.</li>
+<li><strong>Disabling native DevTools doesn't affect <code>CallDevToolsProtocolMethod</code></strong>, which is why the native popup can be killed while keeping full CDP.</li>
 </ol>
 
 <p><strong>Docked DevTools</strong></p>
 
 <ol start="11">
 <li><strong>The <code>devtools://</code> page is privileged</strong>: neither the WebView2 host object nor Tauri IPC exists, so a popup request that the app denies is the only signalling channel.</li>
-<li><strong>A second query key after <code>?ws=</code> fails the entire load</strong>, so extra data must go in the fragment. And while debugging it, <strong>the reported URL cannot be trusted</strong>, because the error page still reports what you asked for. The reliable signals are whether the bridge received a client and how many domains it registered.</li>
+<li><strong>A second query key after <code>?ws=</code> fails the entire load</strong>, so extra data must go in the fragment. And while debugging it, <strong>the reported URL can't be trusted</strong>, because the error page still reports what you asked for. The reliable signals are whether the bridge received a client and how many domains it registered.</li>
 <li><strong>The grip sits on the edge facing the page</strong>, and the cursor follows the dock axis. The drag maths is a subtraction from the window edge on that axis.</li>
 </ol>
 
@@ -510,7 +510,7 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <li><strong>A site on a non-default port that no declaration matches loses every injected feature at once</strong>: shortcuts, hover state, find highlighting and favicon reporting.</li>
 </ol>
 
-<p>Three of the fourteen are worth memorising outright: the DevTools URL rejects a second query key, disabling native DevTools does not disable in-process CDP, and sibling webviews cannot see outside themselves. They are the most counter-intuitive, and the most likely to reappear in another project.</p>
+<p>Three of the fourteen are worth memorising outright: the DevTools URL rejects a second query key, disabling native DevTools doesn't disable in-process CDP, and sibling webviews can't see outside themselves. They are the most counter-intuitive, and the most likely to reappear in another project.</p>
 
 <h2>Known limits</h2>
 
@@ -530,11 +530,11 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 
 <p><strong>First, building no engine is a capability, not laziness.</strong> Most projects default to implementing whatever they need. NanoBrowser asks the opposite question first: <strong>what does the system already have?</strong> Windows already has Chromium, so build only the shell. That buys 4.5 MB and near-zero engine maintenance, at the cost of Windows-only, and that cost is acceptable to its audience. Recognising which costs are acceptable matters far more than any comparison table.</p>
 
-<p><strong>Second, the hard part is not features but the host's boundaries.</strong> Almost all of the complexity here comes from four invariants: child webviews are siblings, CDP callbacks run on the UI thread with no request ids, the <code>devtools://</code> page has no conventional IPC, and its URL rejects a second query key. Those non-negotiable constraints shape the architecture, and they explain the whole list of pitfalls.</p>
+<p><strong>Second, the hard part isn't features but the host's boundaries.</strong> Almost all of the complexity here comes from four invariants: child webviews are siblings, CDP callbacks run on the UI thread with no request ids, the <code>devtools://</code> page has no conventional IPC, and its URL rejects a second query key. Those non-negotiable constraints shape the architecture, and they explain the whole list of pitfalls.</p>
 
-<p><strong>Third, a side-effect channel can be a signal channel.</strong> When both legitimate channels are cut, find an effect the host is guaranteed to intercept and hang the parameters on it. It is not elegant. It is correct, reliable, and needs no cooperation from the host.</p>
+<p><strong>Third, a side-effect channel can be a signal channel.</strong> When both legitimate channels are cut, find an effect the host is guaranteed to intercept and hang the parameters on it. It isn't elegant. It's correct, reliable, and needs no cooperation from the host.</p>
 
-<p>Back to the three decisions: no engine, no debugging port, hand-written hard dependencies. Together they say one thing. <strong>Push reuse to its limit, and shrink the self-written surface to the part that must be written and is worth writing.</strong> A 4.5 MB browser is not the result of trimming. It is the result of choosing not to rebuild something at every fork in the road.</p>
+<p>Back to the three decisions: no engine, no debugging port, hand-written hard dependencies. Together they say one thing. <strong>Push reuse to its limit, and shrink the self-written surface to the part that must be written and is worth writing.</strong> A 4.5 MB browser isn't the result of trimming. It's the result of choosing not to rebuild something at every fork in the road.</p>
 
 <h2>References</h2>
 

@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7iriVN.js"></script>
+    <script type="module" crossorigin src="/assets/index-T21q48Et.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -243,9 +243,9 @@ const groups = results.map((item) =&gt;
 return interleave(groups)
 </code></pre>
 
-<p><code>Promise.allSettled</code> is deliberate. When one source is temporarily down, the other two still show up. <code>interleave</code> alternates platforms so the first half of the list is not all from one place. <code>dedupeTracks</code> filters on platform id plus a normalized "title + artist" key, and normalization strips spaces, hyphens and brackets so the same recording does not appear three times.</p>
+<p><code>Promise.allSettled</code> is deliberate. When one source is temporarily down, the other two still show up. <code>interleave</code> alternates platforms so the first half of the list isn't all from one place. <code>dedupeTracks</code> filters on platform id plus a normalized "title + artist" key, and normalization strips spaces, hyphens and brackets so the same recording doesn't appear three times.</p>
 
-<p>Server-side adapters also cover QQ, Kuwo and JOOX, meaning the cases that need proxying or a fallback resolver. Playlist import additionally accepts public Netease, Qishui and QQ links. That lets search indexing and audio URL resolution evolve separately. One platform changing its API cannot take every feature down with it.</p>
+<p>Server-side adapters also cover QQ, Kuwo and JOOX, meaning the cases that need proxying or a fallback resolver. Playlist import additionally accepts public Netease, Qishui and QQ links. That lets search indexing and audio URL resolution evolve separately. One platform changing its API can't take every feature down with it.</p>
 
 <h3>2.3 Lazy detail loading, audio resolved only on play</h3>
 
@@ -265,7 +265,7 @@ return interleave(groups)
 
 <h3>2.4 One clock for LRC lyrics and the player timeline</h3>
 
-<p>Lyric sync does not start another timer. It listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both the <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms.</p>
+<p>Lyric sync doesn't start another timer. It listens to the <code>&lt;audio&gt;</code> element's <code>timeupdate</code>. The parser handles multiple time tags per line and both the <code>mm:ss.xx</code> and <code>mm:ss:xxx</code> forms.</p>
 
 <pre><code>function parseLrc(text) {
   const lines = []
@@ -284,7 +284,7 @@ return interleave(groups)
 
 <p>Rendering walks backwards to the last line with <code>line.time &lt;= audio.currentTime</code> and marks it active. Clicking a lyric line sets <code>audio.currentTime</code> to that timestamp. Progress bar, lyric highlight and current track therefore stay consistent by construction, not by coordination.</p>
 
-<h3>2.5 Responsive layout is not just shrinking</h3>
+<h3>2.5 Responsive layout isn't just shrinking</h3>
 
 <p>Desktop is a three-column workspace: search, then player and lyrics, then queue. Mobile switches to bottom navigation between search, lyrics and library. Layout uses CSS Grid, media queries and independent scroll containers, so lyrics and queue never push the page past the viewport. Theme, favourites and playlists sit in <code>localStorage</code>, which means search and local organization work before you ever sign in.</p>
 
@@ -326,7 +326,7 @@ return interleave(groups)
 </tbody>
 </table>
 
-<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts, so one misbehaving platform cannot occupy the whole Function invocation.</p>
+<p><code>/api/music</code> dispatches on <code>action</code>: <code>qq_search</code>, <code>kuwo_search</code>, <code>qq_detail</code>, <code>kuwo_detail</code>, <code>qq_audio</code> and <code>kuwo_audio</code>. The server caps keyword length, result count and upstream timeouts, so one misbehaving platform can't occupy the whole Function invocation.</p>
 
 <h3>4.2 Caching and verifying resolved addresses</h3>
 
@@ -364,7 +364,7 @@ return interleave(groups)
 
 <p>Favourites and playlists are "write localStorage first, sync to D1 asynchronously". Signed out, the data belongs to that browser. Signed in, the page submits the library to <code>/api/library</code>, and a weak connection still leaves local data usable.</p>
 
-<p>The cloud library is stored as JSON. That is simple and appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
+<p>The cloud library is stored as JSON. That's simple and appropriate to a personal project. Collaboration, incremental sync or audit trails would warrant splitting tracks, playlists and the relation between them into proper tables.</p>
 
 <h2>6. How does the Electron app keep accounts safe?</h2>
 
@@ -419,7 +419,7 @@ npm run desktop:portable
 
 <h2>8. What the project taught me</h2>
 
-<p>What is worth recording is not any single platform API but several reusable engineering decisions.</p>
+<p>What is worth recording isn't any single platform API but several reusable engineering decisions.</p>
 <ol>
 <li><strong>Unify the domain model before adding sources.</strong> HALO Track keeps platform differences inside adapters, so the player and playlist logic never learn upstream field names.</li>
 <li><strong>Separate search from playback resolution.</strong> Search optimizes for parallelism and tolerance. Resolution optimizes for validation, caching and retry. Their performance goals differ, so their code should too.</li>

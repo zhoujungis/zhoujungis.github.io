@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7iriVN.js"></script>
+    <script type="module" crossorigin src="/assets/index-T21q48Et.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -190,11 +190,11 @@
 
 <h2>Origin: turning scattered interview reports into a queryable dataset</h2>
 
-<p>Interview reports have a short half-life. A report from the autumn 2026 hiring season is down to its process skeleton by spring, because the questions and the interviewers' style have already turned over. They are also scattered across systems that do not talk to each other: Nowcoder's forums, Juejin's columns, Mianshiya's question banks. Each has its own search, its own login wall, and site search that only answers "contains this keyword", never "what did this company ask this role recently".</p>
+<p>Interview reports have a short half-life. A report from the autumn 2026 hiring season is down to its process skeleton by spring, because the questions and the interviewers' style have already turned over. They are also scattered across systems that don't talk to each other: Nowcoder's forums, Juejin's columns, Mianshiya's question banks. Each has its own search, its own login wall, and site search that only answers "contains this keyword", never "what did this company ask this role recently".</p>
 
 <p>InterviewAtlas is an attempt at that aggregation problem. Crawl three sites daily, normalize company and role, dedupe and merge by URL, render a README plus per-company-per-role Markdown, then use a model to summarize each group into four sections: interview process, high-frequency topics, representative questions, preparation advice. Everything runs on GitHub Actions. No server, no database, and model calls go through GitHub Models' free quota.</p>
 
-<p>At the time of writing the repository holds 41,771 records, 157 companies and 1,634 company-role files. <code>data/interviews</code> contains 158 <code>.json.gz</code> files (35.9 MB) and <code>interviews/</code> holds 1,791 Markdown files (92.3 MB). The source is 22 Python files with exactly four runtime dependencies: <code>requests</code>, <code>bs4</code>, <code>lxml</code>, <code>PyYAML</code>. What follows is not a feature list. It is the design reasoning and the holes I actually fell into.</p>
+<p>At the time of writing the repository holds 41,771 records, 157 companies and 1,634 company-role files. <code>data/interviews</code> contains 158 <code>.json.gz</code> files (35.9 MB) and <code>interviews/</code> holds 1,791 Markdown files (92.3 MB). The source is 22 Python files with exactly four runtime dependencies: <code>requests</code>, <code>bs4</code>, <code>lxml</code>, <code>PyYAML</code>. What follows isn't a feature list. It's the design reasoning and the holes I actually fell into.</p>
 
 <h2>Architecture: one collection chain, one analysis chain</h2>
 
@@ -220,7 +220,7 @@ src/analyze.py              separate process: reads stored data, calls GitHub Mo
 
 <p>Skipping the database comes from the same reasoning. Actions runners are ephemeral, so the only durable state is git, and 41,771 records read fully into memory are nowhere near needing an index. The price of that choice is the write amplification discussed below.</p>
 
-<p>The orchestration layer also does something easy to overlook: it prints each source's duration separately. The daily log shows record counts and seconds for Nowcoder, Mianshiya and Juejin. That is performance telemetry and a failure signal at once. Mianshiya finishing in one second while the other two take a dozen minutes is jarring, and the contrast is itself the anomaly. With only a total runtime, a missing ten minutes hides inside thirty.</p>
+<p>The orchestration layer also does something easy to overlook: it prints each source's duration separately. The daily log shows record counts and seconds for Nowcoder, Mianshiya and Juejin. That's performance telemetry and a failure signal at once. Mianshiya finishing in one second while the other two take a dozen minutes is jarring, and the contrast is itself the anomaly. With only a total runtime, a missing ten minutes hides inside thirty.</p>
 
 <h2>Data model: one record, three layers of normalization</h2>
 
@@ -247,7 +247,7 @@ src/analyze.py              separate process: reads stored data, calls GitHub Mo
 
 <p><strong>Role detection</strong> in a fixed order: backend, frontend, algorithms, testing, product, falling back to "other role".</p>
 
-<p><strong>The fallback layer.</strong> Unknown companies and roles both land in "other", and those are excluded from LLM analysis because they cannot support a meaningful summary. The final 157 companies and 1,634 company-role pairs are what survives all three.</p>
+<p><strong>The fallback layer.</strong> Unknown companies and roles both land in "other", and those are excluded from LLM analysis because they can't support a meaningful summary. The final 157 companies and 1,634 company-role pairs are what survives all three.</p>
 
 <p>The alias table looks dumb and is the precondition for the dataset being usable at all. ByteDance appears as 字节, 字节跳动 and "bytedance" depending on the site. Without normalization you get three thin sets of statistics. Yet Alibaba Cloud and Alibaba have to stay separate, or the cloud unit's roles get diluted by group-level reports. Longest-match-first solves exactly this containment problem: try the long alias, stop on a hit, and let short aliases fire only when nothing else matched.</p>
 
@@ -264,13 +264,13 @@ src/analyze.py              separate process: reads stored data, calls GitHub Mo
 </tbody>
 </table>
 
-<p><strong>Nowcoder</strong> coverage comes from a keyword matrix: ten generic terms plus 157 companies times two templates ("company interview report", "company interview experience"). That is well over three hundred queries, each capped at three pages. It necessarily produces duplicates, but the search API offers no stable full-scan cursor, so cross-coverage through keywords is the only option. Search returns truncated bodies, so every unseen record gets one more detail request before storage. Details run on six threads with a 0.2-second per-thread interval, which keeps total runtime down without hammering the site.</p>
+<p><strong>Nowcoder</strong> coverage comes from a keyword matrix: ten generic terms plus 157 companies times two templates ("company interview report", "company interview experience"). That's well over three hundred queries, each capped at three pages. It necessarily produces duplicates, but the search API offers no stable full-scan cursor, so cross-coverage through keywords is the only option. Search returns truncated bodies, so every unseen record gets one more detail request before storage. Details run on six threads with a 0.2-second per-thread interval, which keeps total runtime down without hammering the site.</p>
 
-<p><strong>Juejin</strong> supports cursor pagination, so paging is not the bottleneck. Body formatting is. The search API's <code>web_html_content</code> is an escaped string: quotes, newlines and backslashes each carry an extra layer, and standard JSON decoding does not yield usable HTML. The code contains a hand-written unescape routine that restores the string segment by segment, then hands it to the shared cleaner. No library helps here, because the payload's escaping sits on top of JSON's own escaping, and decoding twice eats legitimate backslashes in the body. It is code you only dare write once you know exactly what the platform emits.</p>
+<p><strong>Juejin</strong> supports cursor pagination, so paging isn't the bottleneck. Body formatting is. The search API's <code>web_html_content</code> is an escaped string: quotes, newlines and backslashes each carry an extra layer, and standard JSON decoding doesn't yield usable HTML. The code contains a hand-written unescape routine that restores the string segment by segment, then hands it to the shared cleaner. No library helps here, because the payload's escaping sits on top of JSON's own escaping, and decoding twice eats legitimate backslashes in the body. It's code you only dare write once you know exactly what the platform emits.</p>
 
-<p><strong>Mianshiya</strong> is a third shape: walk the bank list, then expand each bank into questions. The question endpoint has a hard limit of five pages per query. To get more data, the collector runs three variants per bank: no filter, <code>difficulty:1</code> and <code>difficulty:3</code>. That turns "five pages per query" into "three groups of five pages". The cost is triple the requests, with overlap between groups that needs local dedupe by question id. And it only relieves the ceiling. It does not remove it.</p>
+<p><strong>Mianshiya</strong> is a third shape: walk the bank list, then expand each bank into questions. The question endpoint has a hard limit of five pages per query. To get more data, the collector runs three variants per bank: no filter, <code>difficulty:1</code> and <code>difficulty:3</code>. That turns "five pages per query" into "three groups of five pages". The cost is triple the requests, with overlap between groups that needs local dedupe by question id. And it only relieves the ceiling. It doesn't remove it.</p>
 
-<p>Anti-bot handling is uniform across all three: a Chrome/124 User-Agent, a per-site Referer, <code>Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 5xx])</code>, and a global 0.5-second request interval. No browser automation and no login handling, so only publicly visible content is covered. That is the capability boundary, and the reason the sites do not block us.</p>
+<p>Anti-bot handling is uniform across all three: a Chrome/124 User-Agent, a per-site Referer, <code>Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 5xx])</code>, and a global 0.5-second request interval. No browser automation and no login handling, so only publicly visible content is covered. That's the capability boundary, and the reason the sites don't block us.</p>
 
 <h2>Incremental crawling: saving requests before deduplication</h2>
 
@@ -319,15 +319,15 @@ if path.exists() and path.read_bytes() == data:
 
 <p>The catch is that the README is fully re-sorted daily. One new record can change company ordering, role counts and the update time, so the whole page is rewritten. The measured daily README diff is about 3,404 lines, far more than the data increment itself.</p>
 
-<p>Write amplification is the most expensive hidden cost of this design. A daily commit is 53,614 insertions and 41,513 deletions. The weekly run with <code>--full</code> reaches 541,773 insertions and 372,746 deletions, and the initial commit was 2.03 million lines. The repository is 348 MB while the current snapshot is about 128 MB, and the difference is mostly blobs from whole-file rewrites throughout history. Git compresses. Git does not forget.</p>
+<p>Write amplification is the most expensive hidden cost of this design. A daily commit is 53,614 insertions and 41,513 deletions. The weekly run with <code>--full</code> reaches 541,773 insertions and 372,746 deletions, and the initial commit was 2.03 million lines. The repository is 348 MB while the current snapshot is about 128 MB, and the difference is mostly blobs from whole-file rewrites throughout history. Git compresses. Git doesn't forget.</p>
 
-<p>It is worth stressing how little new information those diffs contain. A few hundred new reports per day may be a few hundred lines. The remaining fifty-something thousand lines are whole sections moving because a sort position, a count or a timestamp changed. Git's diff algorithm records that as deletions plus insertions, and history grows. Idempotency can guarantee "do not write when nothing changed". It cannot prevent "one thing changed, the page reshuffled".</p>
+<p>It is worth stressing how little new information those diffs contain. A few hundred new reports per day may be a few hundred lines. The remaining fifty-something thousand lines are whole sections moving because a sort position, a count or a timestamp changed. Git's diff algorithm records that as deletions plus insertions, and history grows. Idempotency can guarantee "don't write when nothing changed". It can't prevent "one thing changed, the page reshuffled".</p>
 
 <h2>LLM summarization: a two-stage map-reduce</h2>
 
-<p>Analysis has a threshold, <code>min_records: 20</code>. A company-role pair needs at least twenty reports to be worth summarizing, otherwise the model can only invent. Groups that qualify get a group-level report first, then group reports roll up into a role-level report. That is textbook map-reduce.</p>
+<p>Analysis has a threshold, <code>min_records: 20</code>. A company-role pair needs at least twenty reports to be worth summarizing, otherwise the model can only invent. Groups that qualify get a group-level report first, then group reports roll up into a role-level report. That's textbook map-reduce.</p>
 
-<p>I deliberately did not take the easy route of stuffing every report into one prompt. 41,771 bodies far exceed any context window, and even if they fit, cost and latency would be uncontrollable. Map-reduce splits the problem into "eight reports per company-role" and "sixteen companies per role", and both inputs stay budgetable. The cost is information loss across two truncation layers: anything the group report omitted is gone at role level.</p>
+<p>I deliberately didn't take the easy route of stuffing every report into one prompt. 41,771 bodies far exceed any context window, and even if they fit, cost and latency would be uncontrollable. Map-reduce splits the problem into "eight reports per company-role" and "sixteen companies per role", and both inputs stay budgetable. The cost is information loss across two truncation layers: anything the group report omitted is gone at role level.</p>
 
 <p>The group prompt's input is selective: company, role, total count, sample time span, and at most eight samples. Half the samples are the longest bodies for high information density, half the newest for the closest match to the current process. Each is clipped to 1,200 characters and the whole block to 16,000. The prompt mandates four headings and asks the model to write "insufficient sample" rather than invent process steps, salaries or rounds.</p>
 
@@ -343,15 +343,15 @@ if path.exists() and path.read_bytes() == data:
 
 <p>Role level is the second stage: collect each company's group reports for a role, clip each to 700 characters, allow at most sixteen companies, and skip the role entirely below three. It never looks at raw reports, only at summaries already produced. That bounds the input and avoids reading the same originals twice.</p>
 
-<p>Sample selection has one more fallback. After taking the longest half and the newest half, if there are still fewer than eight, it keeps adding from the remaining longest records up to the cap. Small groups therefore do not end up with two or three samples just because the newest half is all short posts, and length still prioritizes information density. The three caps, eight samples, 1,200 characters and 16,000 characters, are not arbitrary. Together they fix the per-prompt token budget, which fixes how many groups 100 calls can cover.</p>
+<p>Sample selection has one more fallback. After taking the longest half and the newest half, if there are still fewer than eight, it keeps adding from the remaining longest records up to the cap. Small groups therefore don't end up with two or three samples just because the newest half is all short posts, and length still prioritizes information density. The three caps, eight samples, 1,200 characters and 16,000 characters, aren't arbitrary. Together they fix the per-prompt token budget, which fixes how many groups 100 calls can cover.</p>
 
 <h2>Cache, budget and invalidation</h2>
 
-<p>Analysis is not recomputed every run. <code>analysis/manifest.json</code> records <code>PROMPT_VERSION</code>, the model name, and per-group counts and generation time. <code>PROMPT_VERSION</code> is currently <code>2026-10-29.1</code>. If either the prompt version or the model name changes, the whole cache is invalidated and everything is recomputed. That is blunt but correct: once the prompt changes, old reports no longer represent the current standard, and partial reuse would leave two standards in the repository.</p>
+<p>Analysis isn't recomputed every run. <code>analysis/manifest.json</code> records <code>PROMPT_VERSION</code>, the model name, and per-group counts and generation time. <code>PROMPT_VERSION</code> is currently <code>2026-10-29.1</code>. If either the prompt version or the model name changes, the whole cache is invalidated and everything is recomputed. That's blunt but correct: once the prompt changes, old reports no longer represent the current standard, and partial reuse would leave two standards in the repository.</p>
 
 <p>A single group is recomputed after <code>refresh_after_days: 30</code>, or once its count grows by <code>max(5, 10%)</code>. The first prevents stale material. The second ensures a re-call only happens when enough new samples justify it, because for one or two new reports the benefit is below the cost.</p>
 
-<p>Budget is the other hard constraint. The free tier is about 15 RPM, so the config is conservatively <code>rpm: 12</code>, <code>workers: 2</code> and <code>max_calls_per_run: 100</code>. A hundred calls means one day covers only part of the groups, and the rest rolls to tomorrow. Hence the budget split: <code>reserve = min(roles, max_calls // 6)</code> calls are held for role-level summaries before company groups get anything, so groups cannot starve the rollups forever.</p>
+<p>Budget is the other hard constraint. The free tier is about 15 RPM, so the config is conservatively <code>rpm: 12</code>, <code>workers: 2</code> and <code>max_calls_per_run: 100</code>. A hundred calls means one day covers only part of the groups, and the rest rolls to tomorrow. Hence the budget split: <code>reserve = min(roles, max_calls // 6)</code> calls are held for role-level summaries before company groups get anything, so groups can't starve the rollups forever.</p>
 
 <p>Failures are routed by status code.</p>
 
@@ -361,13 +361,13 @@ if path.exists() and path.read_bytes() == data:
 <li><strong>5xx</strong> gets exponential backoff and three attempts.</li>
 </ul>
 
-<p>The point of routing is to separate "waiting will help" from "do not try again today".</p>
+<p>The point of routing is to separate "waiting will help" from "don't try again today".</p>
 
-<p>Cache decisions happen before the call, in this order. Read the manifest and compare prompt version and model name. Then per group compare count and generation date. Only when both pass is the group skipped. That order ensures a changed version cannot accidentally reuse an old report just because the count did not move. The manifest doubles as an observability surface: which groups were analyzed, with which model, when. No need to dig through Actions logs.</p>
+<p>Cache decisions happen before the call, in this order. Read the manifest and compare prompt version and model name. Then per group compare count and generation date. Only when both pass is the group skipped. That order ensures a changed version can't accidentally reuse an old report just because the count didn't move. The manifest doubles as an observability surface: which groups were analyzed, with which model, when. No need to dig through Actions logs.</p>
 
 <h2>GitHub Actions: an unattended pipeline</h2>
 
-<p>Two workflows, one daily and one weekly. <code>daily.yml</code> runs on cron <code>0 1 * * *</code>, which is 09:00 Beijing time, with <code>timeout-minutes: 60</code>. <code>weekly-full.yml</code> runs Sunday at 10:00 with <code>--full --limit 150</code> and a 180-minute timeout. <code>--full</code> enables more pagination and more company query templates, and <code>--limit</code> caps detail completion per source so the weekly run does not drain the quota in one go.</p>
+<p>Two workflows, one daily and one weekly. <code>daily.yml</code> runs on cron <code>0 1 * * *</code>, which is 09:00 Beijing time, with <code>timeout-minutes: 60</code>. <code>weekly-full.yml</code> runs Sunday at 10:00 with <code>--full --limit 150</code> and a 180-minute timeout. <code>--full</code> enables more pagination and more company query templates, and <code>--limit</code> caps detail completion per source so the weekly run doesn't drain the quota in one go.</p>
 
 <p>Permissions are only two: <code>contents: write</code> for commits and <code>models: read</code> for GitHub Models. Credentials come from the repository's own <code>GITHUB_TOKEN</code>, with no extra secret, so forks and pull requests never get write access. Concurrency uses <code>group: interview-crawl</code> with <code>cancel-in-progress: false</code>. When daily and weekly collide they queue rather than cancel each other, because collection is idempotent but a mid-flight cancellation leaves half a dataset.</p>
 
@@ -392,7 +392,7 @@ concurrency:
 
 <p>More confusingly, the whole pipeline was green. No failed step, no alert, the README updated as usual, and Mianshiya still showed 1,962 records in the source statistics.</p>
 
-<p>The investigation started from "this does not look right". A full bank traversal cannot finish in one second, and the daily run was still thirty minutes, so the other two sources were fine and only Mianshiya was spinning idle. Scrolling back through logs showed the same two lines repeating after a specific commit. Following that commit hash landed inside the Mianshiya changes. Reading the code path, the chain was complete: request, exception, catch, <code>break</code>, return empty list. Nothing in it could ever fail the job.</p>
+<p>The investigation started from "this doesn't look right". A full bank traversal can't finish in one second, and the daily run was still thirty minutes, so the other two sources were fine and only Mianshiya was spinning idle. Scrolling back through logs showed the same two lines repeating after a specific commit. Following that commit hash landed inside the Mianshiya changes. Reading the code path, the chain was complete: request, exception, catch, <code>break</code>, return empty list. Nothing in it could ever fail the job.</p>
 
 <h3>Cause</h3>
 
@@ -404,7 +404,7 @@ concurrency:
 
 <h3>Fix and current state</h3>
 
-<p>As recorded, the API side has not recovered and the silent <code>break</code> is still there. So the state is: Mianshiya returns zero every day, historical data stays, and the README numbers look unchanged. This is not fixed. It is a documented, unfixed defect.</p>
+<p>As recorded, the API side has not recovered and the silent <code>break</code> is still there. So the state is: Mianshiya returns zero every day, historical data stays, and the README numbers look unchanged. This isn't fixed. It's a documented, unfixed defect.</p>
 
 <p>Three changes should land.</p>
 
@@ -416,7 +416,7 @@ concurrency:
 
 <h3>Cost</h3>
 
-<p>Data missed while the source was down does not come back by itself. Only a <code>--full</code> rerun recovers it, at far higher request volume and runtime than a daily run. The more expensive cost is trust. A pipeline that is green every day with unchanging numbers convinces both maintainer and reader that everything is fine. The later such a silent failure is found, the higher the backfill cost, and every statistic produced in between carries a known gap.</p>
+<p>Data missed while the source was down doesn't come back by itself. Only a <code>--full</code> rerun recovers it, at far higher request volume and runtime than a daily run. The more expensive cost is trust. A pipeline that is green every day with unchanging numbers convinces both maintainer and reader that everything is fine. The later such a silent failure is found, the higher the backfill cost, and every statistic produced in between carries a known gap.</p>
 
 <h2>Postmortem two: analysis stuck at 0/237</h2>
 <h3>Symptom</h3>
@@ -446,13 +446,13 @@ concurrency:
 key = f"{title}|{normalized}"
 </code></pre>
 
-<p>But that one line is not enough. The intent of <code>continue-on-error</code>, which is not losing data when the model is down, should stay. What must change is that failure cannot disappear as "0 seconds, success".</p>
+<p>But that one line isn't enough. The intent of <code>continue-on-error</code>, which isn't losing data when the model is down, should stay. What must change is that failure can't disappear as "0 seconds, success".</p>
 
-<p>A sturdier shape is to split analysis into its own job, commit collected data regardless, and mark the job red with the reason in the summary. Or read <code>steps.analyze.outcome</code> in the same job and emit an annotation on failure. The rule: failure is allowed, invisibility is not.</p>
+<p>A sturdier shape is to split analysis into its own job, commit collected data regardless, and mark the job red with the reason in the summary. Or read <code>steps.analyze.outcome</code> in the same job and emit an annotation on failure. The rule: failure is allowed, invisibility isn't.</p>
 
 <h3>Cost</h3>
 
-<p>Not a single call for 237 groups was sent, so no quota was consumed. But the core "LLM summary" feature effectively did not exist, and the README showing 0 made readers think the data did not meet the threshold.</p>
+<p>Not a single call for 237 groups was sent, so no quota was consumed. But the core "LLM summary" feature effectively didn't exist, and the README showing 0 made readers think the data didn't meet the threshold.</p>
 
 <p>The subtler cost is debugging time. Zero seconds, no logs and no artifacts all point at "there was no work to do", while the truth was one layer down: the code never loaded. When a step is wrapped in <code>continue-on-error</code>, the failure signal decays in exactly the direction you least want.</p>
 
@@ -465,7 +465,7 @@ key = f"{title}|{normalized}"
 
 <p><strong>Fix.</strong> For unseen records, make one detail request and decide after fetching the full body. For records already seen, the content set skips them, so there is no repeat request. The mechanism is live: the daily run makes 2,900+ detail requests in 18 minutes 46 seconds, and that is where most of the time goes.</p>
 
-<p><strong>Cost.</strong> "Short but complete" content may still be dropped, with no separate counter. It is an invisible loss.</p>
+<p><strong>Cost.</strong> "Short but complete" content may still be dropped, with no separate counter. It's an invisible loss.</p>
 
 <h3>The same post collected three times</h3>
 
@@ -516,27 +516,27 @@ key = f"{title}|{normalized}"
 
 <p><strong>Fix.</strong> <code>prachub: enabled: false</code> plus <code>exclude_sources: [prachub]</code>, and the next run drops its history per the dropped list.</p>
 
-<p><strong>Cost.</strong> Irreversibility. Once deleted, re-enabling means crawling from scratch, and old links may already be dead. It is a straight trade between data assets and running cost, with no both-ways option.</p>
+<p><strong>Cost.</strong> Irreversibility. Once deleted, re-enabling means crawling from scratch, and old links may already be dead. It's a straight trade between data assets and running cost, with no both-ways option.</p>
 
 <h3>Three things still unresolved</h3>
 
-<p>First, there is no robots.txt check. Collection covers only public content and is rate-limited, but "are we allowed to crawl this" was never verified in code. That is an explicit compliance gap.</p>
+<p>First, there is no robots.txt check. Collection covers only public content and is rate-limited, but "are we allowed to crawl this" was never verified in code. That's an explicit compliance gap.</p>
 
 <p>Second, Juejin requests carry no signature parameters. They work today, but the day the API requires signing they will fail again, and that failure will very likely present as "0 records", re-enacting Mianshiya's silent failure.</p>
 
-<p>Third, the README derives its last-update time from file mtime, and Actions always checks out fresh, so unchanged files all get the same timestamp. The "updated at" readers see is not real. All three are open items, not decorations on a to-do list.</p>
+<p>Third, the README derives its last-update time from file mtime, and Actions always checks out fresh, so unchanged files all get the same timestamp. The "updated at" readers see isn't real. All three are open items, not decorations on a to-do list.</p>
 
 <h2>Measured numbers and known limits</h2>
 
 <p>A daily run measures 30 minutes 08 seconds. Nowcoder takes 18:46 for 12,945 records and 2,900+ details. Mianshiya takes 1 second, the zero described above. Juejin takes 10:46 for 3,924 search results and 3,333 bodies. The weekly run takes 24:48, shorter than daily, mainly because <code>--limit 150</code> caps detail completion. Timeouts are 60 and 180 minutes, so both have more than double the headroom they need. The real risk is API change and quota, not duration.</p>
 
-<p>The breakdown shows the bottleneck. Nowcoder accounts for over 60% of runtime, almost all of it those 2,900+ detail requests. Juejin fetched 3,333 bodies in just over ten minutes because its search API returns full text, so far fewer detail calls are needed. That is exactly why the incremental design must prioritize saving detail requests: search paging is a fixed cost, and details scale linearly with new records.</p>
+<p>The breakdown shows the bottleneck. Nowcoder accounts for over 60% of runtime, almost all of it those 2,900+ detail requests. Juejin fetched 3,333 bodies in just over ten minutes because its search API returns full text, so far fewer detail calls are needed. That's exactly why the incremental design must prioritize saving detail requests: search paging is a fixed cost, and details scale linearly with new records.</p>
 
 <p>Three judgments.</p>
 
 <p>First, the architecture holds under its constraints of zero server, free quota and one run a day. Incremental checks eliminate most detail requests, idempotent writes avoid meaningless commits, and the two-stage analysis turns an unfinishable job into a resumable one.</p>
 
-<p>Second, its weakest point is not anti-bot defense but the way failure is expressed. A dead source or a compile failure can both leave the pipeline green.</p>
+<p>Second, its weakest point isn't anti-bot defense but the way failure is expressed. A dead source or a compile failure can both leave the pipeline green.</p>
 
 <p>Third, the repository will keep growing. The full README re-sort and the history of whole-file rewrites are the main sources, so either accept it or make rendering incremental.</p>
 
@@ -546,17 +546,17 @@ key = f"{title}|{normalized}"
 
 <p>InterviewAtlas is a long-running data pipeline held up by four dependencies, two workflows and one git repository. Its design compresses into four sentences: decide what is new before sending the request; dedupe in three layers at three different stages; pin the gzip timestamp to buy idempotency; version the manifest and budget the calls to buy control.</p>
 
-<p>The holes it fell into are worth more than the features. Mianshiya's zero shows that "empty result" cannot mean both success and failure. The 0/237 shows a compile-time error can be dressed up as normal operation by <code>continue-on-error</code>. Truncation, duplicates and dirty characters show every cleaning heuristic has collateral damage. Write amplification shows the storage cost of a git repository lives in history, not in the snapshot.</p>
+<p>The holes it fell into are worth more than the features. Mianshiya's zero shows that "empty result" can't mean both success and failure. The 0/237 shows a compile-time error can be dressed up as normal operation by <code>continue-on-error</code>. Truncation, duplicates and dirty characters show every cleaning heuristic has collateral damage. Write amplification shows the storage cost of a git repository lives in history, not in the snapshot.</p>
 
-<p>Neither of the two worst problems is fixed. Mianshiya's API has not recovered and the silent <code>break</code> remains. The f-string-and-3.11 combination remains, and 0/237 will not become 237/237 on its own. Writing the fix down plainly is more honest than claiming it is solved.</p>
+<p>Neither of the two worst problems is fixed. Mianshiya's API has not recovered and the silent <code>break</code> remains. The f-string-and-3.11 combination remains, and 0/237 won't become 237/237 on its own. Writing the fix down plainly is more honest than claiming it is solved.</p>
 
-<p>If I started again, I would write "failure is visible" before writing collection. Every source needs three distinct states: success, failure, zero output. And every background step's exit code must reach the summary instead of being flattened by <code>continue-on-error</code>. Most pipeline incidents are not "we could not fetch". They are "we could not fetch and nobody knew".</p>
+<p>If I started again, I would write "failure is visible" before writing collection. Every source needs three distinct states: success, failure, zero output. And every background step's exit code must reach the summary instead of being flattened by <code>continue-on-error</code>. Most pipeline incidents aren't "we could not fetch". They are "we could not fetch and nobody knew".</p>
 
 <h2>Further reading</h2>
 <ul>
 <li><a href="/en/article/nanohermes-rust-coding-agent/">NanoHermes: a Rust agent with zero runtime</a>, another "minimal dependencies, bounded output" trade-off worth comparing with this post's budget and clipping design.</li>
 <li><a href="/article/agent-loop-two-hundred-lines/">The essence of an agent: a two-hundred-line loop</a>, a different kind of loop, starting from the smallest implementation.</li>
-<li><a href="/article/agent-evaluation-not-a-benchmark/">Agent evaluation: a single run is not a test</a>, useful when generated reports themselves need a quality judgment.</li>
+<li><a href="/article/agent-evaluation-not-a-benchmark/">Agent evaluation: a single run isn't a test</a>, useful when generated reports themselves need a quality judgment.</li>
 </ul>
 </div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
   </body>

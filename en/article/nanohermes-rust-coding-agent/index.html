@@ -98,7 +98,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7iriVN.js"></script>
+    <script type="module" crossorigin src="/assets/index-T21q48Et.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -162,7 +162,7 @@
   </head>
   <body>
     <div id="app"><div class="ns-article"><h1>NanoHermes: a coding agent in Rust with no async runtime and three dependencies</h1><div class="ns-meta">2026-10-22 · 38 min · Stack Frame</div><div class="markdown-body">
-<p>Coding agents are not scarce in 2026. Claude Code, Codex, Trae and Cursor each own a niche, and open-source clones appear every week. What they share is weight: a Node or Python runtime, hundreds of transitive dependencies, a tokio or asyncio event loop, installers hundreds of megabytes wide, and idle processes that sit on hundreds of megabytes of memory.</p>
+<p>Coding agents aren't scarce in 2026. Claude Code, Codex, Trae and Cursor each own a niche, and open-source clones appear every week. What they share is weight: a Node or Python runtime, hundreds of transitive dependencies, a tokio or asyncio event loop, installers hundreds of megabytes wide, and idle processes that sit on hundreds of megabytes of memory.</p>
 
 <p>NanoHermes asks a much smaller engineering question.</p>
 
@@ -170,7 +170,7 @@
 
 <p>The answer is a set of trade-offs. One binary, with a design target around 2 MB. Resident memory that depends on context length and nothing else. Three dependency crates. No async runtime. Not even <code>libc</code>. And it still runs as a resident HTTP service on a 1 GB Debian VPS.</p>
 
-<p>This post does not sell concepts. It takes the implementation apart. The technical density is in five places: how an agent loop is organized without async, which primitive concurrency uses, how Landlock and signal handling work without <code>libc</code>, how long-term memory does Chinese retrieval with no embedding service, and how every layer of context gets a ceiling. Each of those has details you cannot guess from outside.</p>
+<p>This post doesn't sell concepts. It takes the implementation apart. The technical density is in five places: how an agent loop is organized without async, which primitive concurrency uses, how Landlock and signal handling work without <code>libc</code>, how long-term memory does Chinese retrieval with no embedding service, and how every layer of context gets a ceiling. Each of those has details you can't guess from outside.</p>
 
 <h2>What it is in one minute</h2>
 
@@ -311,7 +311,7 @@ ureq = { version = "2", features = ["json", "tls"] }
 
 <p><strong>Token usage reports the delta, not the running total.</strong> A daemon serving many sessions would make a cumulative total useless to the client. Deltas let the client compute a per-task total, and locally they sum to the same number anyway.</p>
 
-<p><strong>Distillation has a hard gate.</strong> It runs only when the turn completed normally, not when it was interrupted and not when it hit the iteration cap. A half conversation never becomes a lesson. A failed distillation degrades silently and does not affect the answer.</p>
+<p><strong>Distillation has a hard gate.</strong> It runs only when the turn completed normally, not when it was interrupted and not when it hit the iteration cap. A half conversation never becomes a lesson. A failed distillation degrades silently and doesn't affect the answer.</p>
 
 <p>One model round trip is wrapped in <code>complete</code>, which lands in <code>llm::chat</code>. It builds the request body, attaches tools and tool choice when needed, sets <code>reasoning_effort: "high"</code> when thinking is enabled, adds <code>stream_options.include_usage</code> so token counts arrive inside the stream, and then enters the retry loop.</p>
 
@@ -349,16 +349,16 @@ ureq = { version = "2", features = ["json", "tls"] }
 
 <ul>
 <li><strong>A single call takes the direct path.</strong> Threads are spawned only when there is more than one call, and most turns call one tool.</li>
-<li><strong>Results are collected in call order.</strong> <code>join</code> runs in the same order as <code>tool_calls</code>, so the completion order cannot mismatch a result with its <code>tool_call_id</code>.</li>
+<li><strong>Results are collected in call order.</strong> <code>join</code> runs in the same order as <code>tool_calls</code>, so the completion order can't mismatch a result with its <code>tool_call_id</code>.</li>
 <li><strong><code>Agent</code> must be <code>Sync</code>.</strong> That is the precondition for the whole scheme. On the MCP side, each server's child process and reader handle sit inside a <code>Mutex&lt;Server&gt;</code>, which makes the manager and therefore the agent <code>Sync</code>.</li>
-<li><strong>A panicking thread does not take down the turn.</strong> <code>join</code> returns an error, which becomes a string that looks like a tool error. The model sees a failed call and carries on.</li>
+<li><strong>A panicking thread doesn't take down the turn.</strong> <code>join</code> returns an error, which becomes a string that looks like a tool error. The model sees a failed call and carries on.</li>
 </ul>
 
 <p>MCP concurrency has a finer grain. Calls to the same server serialize on its stdin lock, because the protocol is request and response over a single connection. Different servers run in parallel.</p>
 
 <h2>Core 3: not even libc</h2>
 
-<p>Both <code>sandbox.rs</code> and <code>interrupt.rs</code> need syscalls that the Rust standard library does not expose: the Landlock family, and <code>rt_sigaction</code>. The usual answer is the <code>libc</code> crate. Here it is <code>agent/src/sys.rs</code>.</p>
+<p>Both <code>sandbox.rs</code> and <code>interrupt.rs</code> need syscalls that the Rust standard library doesn't expose: the Landlock family, and <code>rt_sigaction</code>. The usual answer is the <code>libc</code> crate. Here it is <code>agent/src/sys.rs</code>.</p>
 
 <pre><code>#[cfg(target_arch = "x86_64")]
 pub mod nr {
@@ -432,7 +432,7 @@ const KEEP_RECENT: usize = 10;
 <p>Three details prevent the usual accidents.</p>
 
 <ul>
-<li><strong>It never cuts inside a tool-call chain.</strong> If the starting point lands on a <code>role == "tool"</code> message, it moves forward until it does not. Otherwise the summary would drop an assistant tool call while the tool result stayed behind.</li>
+<li><strong>It never cuts inside a tool-call chain.</strong> If the starting point lands on a <code>role == "tool"</code> message, it moves forward until it doesn't. Otherwise the summary would drop an assistant tool call while the tool result stayed behind.</li>
 <li><strong>A failed summary still loses nothing.</strong> The span is replaced by a single line saying earlier conversation was omitted, rather than an error or silent loss.</li>
 <li><strong>It can be triggered by hand.</strong> <code>/compact</code> forces one compaction regardless of size.</li>
 </ul>
@@ -458,13 +458,13 @@ score += idf * (f * (k1 + 1.0))
        / (f + k1 * (1.0 - b + b * len / avg_len.max(1.0)));
 </code></pre>
 
-<p>Two details go beyond the textbook. <strong>Category words participate in matching.</strong> Every memory has a kind, and that kind's labels are added to the document bag, so a question about what was corrected earlier hits correction entries directly. And <strong>zero-score entries are filtered before ranking</strong>, so an unrelated memory cannot crowd out a relevant one.</p>
+<p>Two details go beyond the textbook. <strong>Category words participate in matching.</strong> Every memory has a kind, and that kind's labels are added to the document bag, so a question about what was corrected earlier hits correction entries directly. And <strong>zero-score entries are filtered before ranking</strong>, so an unrelated memory can't crowd out a relevant one.</p>
 
 <p>Because the number of entries is small, scoring is linear with no inverted index. One vector and one hash map are enough. Retrieval is recomputed every turn and injected by the same marker mechanism as the memory block.</p>
 
 <p>Writing has two gates. <code>memory_save</code> skips text that already exists, and automatic distillation only runs on completed turns. Small talk and half conversations never pollute the store.</p>
 
-<p>The system is closer to an index than to a brain. It does not summarize conversations, and it does not decay the weight of a memory that went unused. What it does guarantee is that every entry can be seen, edited and deleted in the UI, so a user can explain why the model mentioned something. For a personal assistant, that is worth more than recall.</p>
+<p>The system is closer to an index than to a brain. It doesn't summarize conversations, and it doesn't decay the weight of a memory that went unused. What it does guarantee is that every entry can be seen, edited and deleted in the UI, so a user can explain why the model mentioned something. For a personal assistant, that is worth more than recall.</p>
 
 <h2>Core 7: the MCP client</h2>
 
@@ -493,7 +493,7 @@ score += idf * (f * (k1 + 1.0))
 /// the frontmatter.
 </code></pre>
 
-<p>Startup parses only the frontmatter. The system prompt lists each skill's name and description. When the model needs a body, it calls the skill tool and the body arrives, capped at 20 KB. That is progressive disclosure: <strong>the library can be large while the base prompt stays small.</strong></p>
+<p>Startup parses only the frontmatter. The system prompt lists each skill's name and description. When the model needs a body, it calls the skill tool and the body arrives, capped at 20 KB. That's progressive disclosure: <strong>the library can be large while the base prompt stays small.</strong></p>
 
 <p>Missing frontmatter falls back to the directory name and the first line of the body.</p>
 
@@ -521,7 +521,7 @@ score += idf * (f * (k1 + 1.0))
 <pre><code>let payload = json!({ "tool": tool, "event": event, "arguments": args }).to_string();
 </code></pre>
 
-<p>Two environment variables are exported as well, so a hook does not have to parse stdin just to branch on the event.</p>
+<p>Two environment variables are exported as well, so a hook doesn't have to parse stdin just to branch on the event.</p>
 
 <p>Two implementation details are worth copying.</p>
 
@@ -542,7 +542,7 @@ score += idf * (f * (k1 + 1.0))
 <thead><tr><th>Policy</th><th>Behaviour</th></tr></thead>
 <tbody>
 <tr><td><code>never</code></td><td>Never ask, for any command. This is the default, and what the yes flag selects.</td></tr>
-<tr><td><code>on-request</code></td><td>Ask only for commands that are not recognized as read-only.</td></tr>
+<tr><td><code>on-request</code></td><td>Ask only for commands that aren't recognized as read-only.</td></tr>
 <tr><td><code>untrusted</code></td><td>Ask for everything, read-only commands included.</td></tr>
 </tbody>
 </table>
@@ -569,13 +569,13 @@ score += idf * (f * (k1 + 1.0))
 </tbody>
 </table>
 
-<p>The most interesting part of the implementation is that <strong>it refuses to degrade</strong>. Landlock is installed between fork and exec, so the restriction covers every child the command spawns. If the kernel does not expose Landlock, or an outer sandbox blocks it, NanoHermes <strong>refuses to run the command</strong> rather than quietly running it unsandboxed. The comment makes the argument: a security mechanism that always falls back gracefully is not a mechanism.</p>
+<p>The most interesting part of the implementation is that <strong>it refuses to degrade</strong>. Landlock is installed between fork and exec, so the restriction covers every child the command spawns. If the kernel doesn't expose Landlock, or an outer sandbox blocks it, NanoHermes <strong>refuses to run the command</strong> rather than quietly running it unsandboxed. The comment makes the argument: a security mechanism that always falls back gracefully isn't a mechanism.</p>
 
 <p>All of this still goes through the hand-written syscall shim, with no external crate.</p>
 
-<h2>Core 12: Ctrl-C that does not kill, and undo</h2>
+<h2>Core 12: Ctrl-C that doesn't kill, and undo</h2>
 
-<p>In interactive use, Ctrl-C is redefined. It does not kill the process. It flips a flag, and the current turn exits cleanly at the next step boundary with the conversation intact.</p>
+<p>In interactive use, Ctrl-C is redefined. It doesn't kill the process. It flips a flag, and the current turn exits cleanly at the next step boundary with the conversation intact.</p>
 
 <p>The implementation depends on a piece of timing.</p>
 
@@ -587,7 +587,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>Reference counting keeps nested turns sharing one handler, and the outermost exit restores the default action. <strong>Ctrl-C while idle still quits.</strong> Only while busy does it mean "stop this turn". One signal, two meanings, decided by when the handler is installed rather than by inspecting a flag.</p>
 
-<p>One more engineering detail. On x86_64, the kernel refuses to deliver a caught signal unless the caller supplies a restorer that executes <code>rt_sigreturn</code>. That is the only hand-written assembly in the project beyond the syscall instruction itself: a few lines, hidden from the symbol table, that issue syscall 15.</p>
+<p>One more engineering detail. On x86_64, the kernel refuses to deliver a caught signal unless the caller supplies a restorer that executes <code>rt_sigreturn</code>. That's the only hand-written assembly in the project beyond the syscall instruction itself: a few lines, hidden from the symbol table, that issue syscall 15.</p>
 
 <pre><code>core::arch::global_asm!(
     ".globl nanohermes_sigrestorer",
@@ -600,7 +600,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>The desktop has no signal to send, so a request function flips the same flag directly. The GUI stop button and the terminal Ctrl-C take one path, and the loop never learns who asked.</p>
 
-<p>Paired with it is <code>/undo [n]</code>, which deletes the last n complete user turns, including everything that followed each one, and persists the result. Interrupt preserves, undo erases, and both are needed, because "it went sideways and I want to correct it" and "it went sideways and I want to pretend it did not happen" are different intentions.</p>
+<p>Paired with it is <code>/undo [n]</code>, which deletes the last n complete user turns, including everything that followed each one, and persists the result. Interrupt preserves, undo erases, and both are needed, because "it went sideways and I want to correct it" and "it went sideways and I want to pretend it didn't happen" are different intentions.</p>
 
 <h2>The desktop shell</h2>
 
@@ -634,8 +634,8 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 <p>Desktop performance notes come from four hard-won conclusions.</p>
 
 <ul>
-<li><strong>No blocking Tauri commands.</strong> A synchronous command runs on the window's main thread, so any disk or network work freezes the whole UI for that turn. Everything touching the filesystem, processes or HTTP is async and handed to the blocking pool. Only two memory-only commands stay synchronous. Settings writes are also serialized behind a static mutex so two flushes cannot land out of order.</li>
-<li><strong>Streaming text stays out of the global store.</strong> Deltas go through a dedicated subscription that only the bubble being written listens to, and each stage, such as a tool call or the end of a turn, commits once to the transcript. A long answer therefore does not re-render the sidebar, the results panel and the title bar. Events batch on dedicated channels at 40 ms intervals.</li>
+<li><strong>No blocking Tauri commands.</strong> A synchronous command runs on the window's main thread, so any disk or network work freezes the whole UI for that turn. Everything touching the filesystem, processes or HTTP is async and handed to the blocking pool. Only two memory-only commands stay synchronous. Settings writes are also serialized behind a static mutex so two flushes can't land out of order.</li>
+<li><strong>Streaming text stays out of the global store.</strong> Deltas go through a dedicated subscription that only the bubble being written listens to, and each stage, such as a tool call or the end of a turn, commits once to the transcript. A long answer therefore doesn't re-render the sidebar, the results panel and the title bar. Events batch on dedicated channels at 40 ms intervals.</li>
 <li><strong>The transcript is virtualized.</strong> Only messages in or near the viewport mount, height measurement is skipped while the last bubble is still growing, and follow-scroll is driven by the stream rather than by React.</li>
 <li><strong>Markdown is incremental.</strong> During streaming the text is split into blocks on blank lines outside code fences. Stable blocks render once and stay, an unterminated fence only updates its own code text node, and syntax highlighting runs per block after the turn instead of over the whole answer.</li>
 </ul>
@@ -656,7 +656,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <p>Sessions are isolated by a request header. Supplying a session id selects that session, different ids never share context, and omitting it uses the default. Each session persists to its own JSON file.</p>
 
-<p>The desktop connects cloud tasks this way, each with its own session id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost is that cloud configuration is fixed at daemon startup, meaning model, persona, temperature and permission mode all come from flags, and that <strong>a cloud turn cannot be cancelled midway</strong> because the request is held by the daemon.</p>
+<p>The desktop connects cloud tasks this way, each with its own session id, so <strong>one daemon serves many desktop tasks without cross-talk</strong>. The cost is that cloud configuration is fixed at daemon startup, meaning model, persona, temperature and permission mode all come from flags, and that <strong>a cloud turn can't be cancelled midway</strong> because the request is held by the daemon.</p>
 
 <p>The deployment script does the whole job.</p>
 
@@ -677,7 +677,7 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <h2>Sessions and multimodal input</h2>
 
-<p>A session file is a JSON array of OpenAI-style messages, written atomically: a temporary sibling file is written and then renamed over the target. A crash mid-write therefore cannot truncate history. Saves happen after each completed turn and after clearing; a failed read at startup falls back to a fresh conversation with a warning rather than refusing to start.</p>
+<p>A session file is a JSON array of OpenAI-style messages, written atomically: a temporary sibling file is written and then renamed over the target. A crash mid-write therefore can't truncate history. Saves happen after each completed turn and after clearing; a failed read at startup falls back to a fresh conversation with a warning rather than refusing to start.</p>
 
 <p>Multimodal input is available for vision models: a flag for one-shot use, a command in the REPL, and paste, drag or picker on the desktop. Limits are four images per turn, a long edge scaled to 1024 pixels, and rejection with a reason for undecodable or oversized files. Transfer is by data URL, so the model must support vision.</p>
 
@@ -695,15 +695,15 @@ static DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 <ul>
 <li><strong>Sandboxing and SIGINT handling are Linux-only.</strong> Both rest on raw syscalls and disappear on Windows and macOS, so the Windows desktop runs without a sandbox and with default signal handling.</li>
-<li><strong>Cloud turns cannot be cancelled.</strong> The request is held by the daemon and the desktop can only wait. Only local tasks stop at step boundaries.</li>
+<li><strong>Cloud turns can't be cancelled.</strong> The request is held by the daemon and the desktop can only wait. Only local tasks stop at step boundaries.</li>
 <li><strong>The daemon runs as root, and the token is the only credential.</strong> Anyone holding it can read, write and execute inside the workspace, which is exactly why the documentation insists on not exposing the port.</li>
-<li><strong>No async has real costs.</strong> A stuck HTTP request occupies a thread until its timeout, 120 seconds by default. That is fine for a CLI and a desktop app, and wrong for a high-concurrency gateway.</li>
+<li><strong>No async has real costs.</strong> A stuck HTTP request occupies a thread until its timeout, 120 seconds by default. That's fine for a CLI and a desktop app, and wrong for a high-concurrency gateway.</li>
 <li><strong>The Windows installer is unsigned</strong>, so the first run trips SmartScreen.</li>
 </ul>
 
 <h2>Verdict</h2>
 
-<p>What is worth reading in NanoHermes is not the feature list but the discipline. Coding agents converge on similar feature sets. Holding four constraints all the way through is what produced these implementations: no async runtime, three crates, no <code>libc</code>, and a ceiling on every output.</p>
+<p>What is worth reading in NanoHermes isn't the feature list but the discipline. Coding agents converge on similar feature sets. Holding four constraints all the way through is what produced these implementations: no async runtime, three crates, no <code>libc</code>, and a ceiling on every output.</p>
 
 <p>Those constraints buy a single binary with a design target around 2 MB, memory that tracks context length rather than framework overhead, and one codebase that is simultaneously a CLI, a desktop application and a systemd service on a small VPS.</p>
 
