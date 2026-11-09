@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Two primitives, scoped threads and a counting gate, plus one join barrier per turn. Four levels of concurrency, seven fixable defects, and why the parallel window is a boundary question before it is a performance one." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/agent-concurrency-without-async/" />
+    <meta property="og:title" content="Agent concurrency without an async runtime | Stack Frame" />
+    <meta property="og:description" content="Two primitives, scoped threads and a counting gate, plus one join barrier per turn. Four levels of concurrency, seven fixable defects, and why the parallel window is a boundary question before it is a performance one." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/agent-concurrency-without-async/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Agent concurrency without an async runtime | Stack Frame" />
+    <meta name="twitter:description" content="Two primitives, scoped threads and a counting gate, plus one join barrier per turn. Four levels of concurrency, seven fixable defects, and why the parallel window is a boundary question before it is a performance one." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Agent concurrency without an async runtime | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dg1StFZy.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/agent-concurrency-without-async/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Agent concurrency without an async runtime</h1><div class="ns-meta">2026-10-26 · 34 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who added parallelism to an agent and got deadlocks or mismatched results; people unwilling to drag an async runtime into a CLI; people who want to know how many things can actually run at once inside one turn.</p>
+<p><strong>TL;DR:</strong> NanoHermes has exactly two concurrency primitives, scoped threads and a counting gate built on a mutex and a condition variable. No async runtime, no cancellation token, no queue. What holds it together is one join barrier per turn, which confines concurrency to a bounded box.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Parallelism is not mainly about speed</li>
+<li>Four levels of concurrency</li>
+<li>A world without async: threads are the primitive</li>
+<li>Why not async: four reasons and three costs</li>
+<li>The structure of one turn: a join barrier</li>
+<li>Seven numbers</li>
+<li>What <code>thread::scope</code> buys</li>
+<li>Why the agent must be <code>Sync</code></li>
+<li>Five locks in <code>Ctx</code></li>
+<li>Lock granularity: why the board uses two mutexes</li>
+<li>A condition variable and a gate in twenty lines</li>
+<li>The gate is in the wrong place</li>
+<li>Sub-agents: the first real user of parallelism</li>
+<li>Why sub-agents are serial inside</li>
+<li>Four places a sub-agent exceeds its bounds</li>
+<li>Tool threads have no cap</li>
+<li>Result order is not optional</li>
+<li>What happens when a thread panics</li>
+<li>Not every tool should run in parallel</li>
+<li>Approval under concurrency: there is one stdin</li>
+<li>Background tasks: another kind of concurrency</li>
+<li>Defect one: stderr is never drained</li>
+<li>Defect two: reading to EOF while holding the lock</li>
+<li>Pipe backpressure, the thing mistaken for a deadlock</li>
+<li>Interrupt: exactly one preemption point</li>
+<li>Where Ctrl-C actually lands</li>
+<li>The daemon: concurrency zero</li>
+<li>Why a single-threaded daemon still works</li>
+<li>Seven fixable defects</li>
+<li>How to verify that concurrency is actually correct</li>
+<li>Six principles of concurrency design</li>
+</ul>
+
+<h2>Parallelism is not mainly about speed</h2>
+
+<p>A coding agent spends most of its time on two things: waiting for the model, and waiting for a command. Model calls are serial, because you need this turn's assistant message before you know which tools to call. That leaves exactly one window for parallelism: <strong>several tool calls returned in a single model response</strong>.</p>
+
+<p>The window is small and it sets the floor on the experience. If the model asks for four <code>read_file</code> calls and one <code>grep</code>, serial execution makes one exploration take five times as long. If one <code>run_command</code> hangs on a service that never answers, a serial implementation drags the other four results down with it. Parallelism makes the batch cost the slowest call rather than the sum, and stops one slow tool from holding back everyone else's result.</p>
+
+<p>Once parallelism exists, the question stops being "is it fast" and becomes "is it right": is the order preserved, is shared state trampled, where does Ctrl-C land, does one dead thread kill the turn. NanoHermes answers plainly. No async runtime, threads from <code>thread::scope</code>, one join barrier to close the batch, one counting gate to bound sub-agents. This post walks each place where that plain design had to be thought through.</p>
+
+<h2>Four levels of concurrency</h2>
+
+<table>
+<thead><tr><th>Level</th><th>Implementation</th><th>Concurrency</th><th>Who waits</th></tr></thead>
+<tbody>
+<tr><td>Tool</td><td><code>thread::scope</code>, one thread per <code>tool_call</code></td><td>Unbounded</td><td>The main thread joins all of them</td></tr>
+<tr><td>Sub-agent</td><td><code>Gate::new(4)</code> plus a condition variable</td><td>At most four</td><td>A thread waiting for a permit</td></tr>
+<tr><td>Command</td><td>Two drain threads plus 25 ms polling</td><td>Two readers</td><td>The main thread waits for the child</td></tr>
+<tr><td>Process</td><td><code>listener.incoming()</code>, handled synchronously</td><td>One</td><td>The next request waits for the previous one</td></tr>
+</tbody>
+</table>
+
+<p>The four numbers are different on purpose, so "how much concurrency does NanoHermes support" has no single answer. The accurate answer is: one daemon serves one session at a time; inside a turn it runs all the tool calls the model asked for; among those, at most four sub-agents run simultaneously.</p>
+
+<p>The first level is the one that goes wrong, because it is the only level with no ceiling. It gets its own section.</p>
+
+<h2>A world without async: threads are the primitive</h2>
+
+<table>
+<thead><tr><th>Primitive</th><th>Used for</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>std::thread::scope</code></td><td>Tool calls within a turn</td><td>Can borrow <code>&amp;Agent</code>, no <code>Arc</code> needed</td></tr>
+<tr><td><code>Mutex</code></td><td>The board, task manager, todo list, MCP pipes</td><td>Protects mutable state</td></tr>
+<tr><td><code>Condvar</code></td><td>The gate</td><td>Blocks when no permit is free</td></tr>
+<tr><td><code>AtomicBool</code></td><td>The interrupt flag</td><td>A signal handler can only do atomic writes</td></tr>
+<tr><td><code>mpsc::channel</code></td><td>MCP request and response pairing</td><td>The reader thread hands a response to the waiter</td></tr>
+</tbody>
+</table>
+
+<p>No tokio, no async-std, no futures. There is not a single async runtime in the dependency tree. That looks unfashionable in 2026 and is the right call for this project.</p>
+
+<p>The costs are real too. Without a cancellation token, interrupts can only be checked at step boundaries, so a running tool cannot be stopped. Without <code>select!</code>, "did output or the timeout arrive first" needs 25 ms polling. Without structured concurrency, a panicking thread is only caught by the return value of <code>join</code>.</p>
+
+<h2>Why not async: four reasons and three costs</h2>
+
+<p><strong>One. Nearly every tool is a blocking call.</strong> <code>read_file</code> is <code>std::fs</code>, <code>run_command</code> is spawn plus pipe reads, git is a subprocess, <code>web_fetch</code> is synchronous HTTP. In async, each either gets wrapped in <code>spawn_blocking</code>, which is still a thread, or gets replaced with an async library, which grows the dependency tree by an order of magnitude. For a single binary that aims to fit in a few megabytes, that trade is bad.</p>
+
+<p><strong>Two. The concurrency window is naturally bounded.</strong> A response contains a handful of tool calls, usually one to eight, and every turn ends by joining them all to assemble messages. Thread count therefore never accumulates over time, so the problem a thread pool solves, lifetimes longer than tasks, does not exist here.</p>
+
+<p><strong>Three. The barrier simplifies state management.</strong> Because each turn has a join barrier, <code>self.messages</code> is read-only for the whole parallel section. The main thread writes history only after every join returns. That means conversation history needs no lock at all. With async and <code>select!</code>, a tool future could interleave with a history write, and you would need a lock or a more elaborate ownership design.</p>
+
+<p><strong>Four. The compiler checks it.</strong> For <code>Agent</code> to be shared by scoped threads it must be <code>Sync</code>, and any field without a mutex fails to compile. You find the data race at build time, not in production. Async's equivalent check is <code>Send</code>, but since an await point can appear anywhere, the compiler cannot help with holding a lock guard across an await.</p>
+
+<table>
+<thead><tr><th>Cost</th><th>Manifestation</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>No cancellation mid-task</td><td>Once a tool starts, you wait for it</td><td>Command timeouts, 120 s default, 3,600 s ceiling</td></tr>
+<tr><td>Thread stack overhead</td><td>2 MiB of virtual stack per thread</td><td>Bounded call counts, so real RSS stays far below the peak</td></tr>
+<tr><td>Blocked threads waste OS threads</td><td>A sub-agent waiting for a permit holds a thread</td><td>Four sub-agents, queue length bounded by call count</td></tr>
+</tbody>
+</table>
+
+<p>That second row deserves unpacking: 2 MiB is virtual address space, not physical memory. Linux allocates thread stacks lazily, committing only the pages actually used. So "20 tool threads equals 40 MB" is wrong arithmetic; the real RSS increase is usually hundreds of kilobytes. What actually costs is the per-thread buffer, such as the 16 KiB read buffer inside <code>read_capped</code>.</p>
+
+<h2>The structure of one turn: a join barrier</h2>
+
+<pre><code>let results: Vec&lt;String&gt; = if turn.tool_calls.len() == 1 {
+    vec![self.execute(&amp;turn.tool_calls[0])]
+} else {
+    // Reborrow as &amp;Agent so scoped threads can share it (execute takes &amp;self, Agent is Sync).
+    let this: &amp;Agent = self;
+    std::thread::scope(|s| {
+        let handles: Vec&lt;_&gt; = turn
+            .tool_calls
+            .iter()
+            .map(|call| s.spawn(move || this.execute(call)))
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| {
+                h.join()
+                    .unwrap_or_else(|_| "ERROR: tool thread panicked".to_string())
+            })
+            .collect()
+    })
+};
+</code></pre>
+
+<p>Four decisions.</p>
+
+<p><strong>One call takes the fast path.</strong> With a single tool call there is no thread at all; it runs on the current thread. That is the common case, and it saves the spawn and join cost plus the cognitive cost of the <code>Sync</code> requirement.</p>
+
+<p><strong><code>let this: &amp;Agent = self</code> is not redundant.</strong> The scope closure captures <code>&amp;mut self</code>, since <code>self</code> is <code>&amp;mut Agent</code>, and <code>spawn</code> needs <code>move</code>. Reborrowing explicitly as <code>&amp;Agent</code> tells the compiler a shared reference is moved, not a mutable one, so <code>Agent</code> only needs <code>Sync</code>. Omit the line and the compiler complains about moving out of <code>self</code>.</p>
+
+<p><strong><code>handles.into_iter().map(join)</code> preserves order.</strong> The result vector lines up with <code>tool_calls</code> by index, regardless of which thread finished first. Everything in the next section depends on this.</p>
+
+<p><strong><code>unwrap_or_else</code> turns a panic into a string.</strong> <code>join</code> returns <code>Err</code> when the thread panicked, and instead of unwrapping, the code produces an error result.</p>
+
+<p>The whole thing is a fork-join rebuilt every turn: start N threads, wait for all N, take N strings, append them. No pool, no queue, no long-lived worker. That throwaway model pays a spawn cost of tens of microseconds and buys an enormous simplification in state management.</p>
+
+<h2>Seven numbers</h2>
+
+<table>
+<thead><tr><th>Constraint</th><th>Value</th><th>Where</th><th>Governs</th><th>On exceed</th></tr></thead>
+<tbody>
+<tr><td><code>MAX_PARALLEL_SUBAGENTS</code></td><td>4</td><td><code>agent.rs</code></td><td>Sub-agents running at once</td><td>Block and queue</td></tr>
+<tr><td>Tool threads</td><td>Unbounded</td><td>The scope in <code>run()</code></td><td>Threads per turn</td><td>Nothing, the model decides</td></tr>
+<tr><td><code>max_iterations</code></td><td>40</td><td><code>Config</code></td><td>Model round trips per turn</td><td>Stop with a warning</td></tr>
+<tr><td><code>RESULT_PREVIEW</code></td><td>500</td><td><code>board.rs</code></td><td>Result visibility on the board</td><td>Truncate with an ellipsis</td></tr>
+<tr><td>Command timeout</td><td>120 s, 1 to 3,600</td><td><code>run_command</code></td><td>Longest single command</td><td>Kill and note it</td></tr>
+<tr><td>MCP request timeout</td><td>60 s</td><td><code>mcp.rs</code></td><td>One MCP call</td><td>Return a timeout error</td></tr>
+<tr><td>Daemon concurrency</td><td>1</td><td><code>main.rs</code></td><td>Requests served at once</td><td>Queue in the TCP backlog</td></tr>
+</tbody>
+</table>
+
+<p><strong>Only sub-agents have a concurrency cap.</strong> Tool threads and the daemon do not. The first relies on the empirical claim that models ask for a few calls, the second is an explicit single-thread design. Neither has a hard guard.</p>
+
+<p><strong>Four is a resource number, not a performance one.</strong> Each sub-agent sends a full model request, so four in flight means four contexts at once. With a 120,000 character budget that is a 480,000 character memory peak, plus four JSON serializations. Beyond that it starts competing with the main conversation for memory and bandwidth.</p>
+
+<p><strong>Forty iterations times four equals 160.</strong> In theory a sub-agent runs up to 40 rounds, each with several tool calls, and four run at once. That is not a target, it is an upper bound, and it matters because it prices a single runaway: at most 160 model requests.</p>
+
+<h2>What thread::scope buys</h2>
+
+<p>Plain <code>thread::spawn</code> requires a <code>'static</code> closure, so nothing on the stack can be borrowed. Sharing <code>&amp;Agent</code> would mean wrapping it in an <code>Arc</code> and cloning that per call. <code>scope</code> introduces a lexical scope whose threads may borrow stack variables, and which joins everything when it ends.</p>
+
+<p><strong>No <code>Arc</code> overhead, and no temptation.</strong> Wrapping the agent in an <code>Arc</code> is not expensive by itself, but it invites <code>Arc&lt;Mutex&lt;Agent&gt;&gt;</code>, which serializes the entire agent. <code>scope</code> forces a shared immutable <code>&amp;Agent</code>, so mutable shared state can only live behind the locks inside <code>Ctx</code>, which is exactly the right granularity.</p>
+
+<p><strong>The scope always joins.</strong> Even if a <code>?</code> returns early, the scope waits for its threads on exit. That guarantees no thread is still writing state while the main thread moves on.</p>
+
+<p><strong>A panic does not leak a thread.</strong> The scope still joins a panicked thread, receiving <code>Err</code>, so nothing is left unreaped.</p>
+
+<p>What <code>scope</code> does not give you is a <strong>thread count limit</strong>. The code maps over every call, so 20 calls means 20 threads. That is the unbounded first level, handled later.</p>
+
+<h2>Why the agent must be Sync</h2>
+
+<p>Sharing <code>Agent</code> across threads is not a design choice, it is the compiler's requirement: <code>&amp;Agent</code> moves into a closure that must be <code>Send</code>, which means <code>Agent: Sync</code>.</p>
+
+<p>Among its fields, only <code>Ctx</code> carries shared mutable state.</p>
+
+<pre><code>pub struct Ctx {
+    pub root: PathBuf,
+    pub auto_approve: bool,
+    pub approval: crate::config::ApprovalPolicy,
+    pub sandbox: crate::config::SandboxMode,
+    pub max_output: usize,
+    pub tasks: TaskManager,       // Mutex&lt;HashMap&lt;String, Task&gt;&gt;
+    pub todos: TodoList,          // Mutex&lt;Vec&lt;Todo&gt;&gt;
+    pub skills: Vec&lt;Skill&gt;,       // read-only
+    pub board: Board,             // Mutex&lt;Vec&lt;Job&gt;&gt; + Mutex&lt;u64&gt;
+    pub gate: Gate,               // Mutex&lt;usize&gt; + Condvar
+    pub memory_dir: Option&lt;PathBuf&gt;,
+}
+</code></pre>
+
+<p>The first four fields are immutable, the next three hold locks, and skills are read-only. <code>memory_dir</code> is only a path; actual memory reads and writes go through the filesystem, so two threads writing the memory file can lose an update. That comes up again under "not every tool should run in parallel".</p>
+
+<p>The remaining agent fields are either touched only outside the parallel section, or carry their own locks: the MCP manager holds an <code>Arc&lt;Mutex&gt;</code>, and the UI sink is an <code>Arc&lt;dyn Fn + Send + Sync&gt;</code>.</p>
+
+<p>That field layout is what makes concurrency safe: <strong>the only things mutable inside the parallel section are the five locked parts of <code>Ctx</code></strong>. Anything that writes <code>messages</code> has to return to the main thread, which is sitting in the join barrier. It is structure bought instead of correctness checks.</p>
+
+<h2>Five locks in Ctx</h2>
+
+<table>
+<thead><tr><th>Lock</th><th>Protects</th><th>Typical operation</th><th>Contention</th></tr></thead>
+<tbody>
+<tr><td><code>TaskManager.tasks</code></td><td><code>HashMap&lt;String, Task&gt;</code></td><td>Start, read output, kill</td><td>Medium, per background call</td></tr>
+<tr><td><code>TodoList.items</code></td><td><code>Vec&lt;Todo&gt;</code></td><td>Replace wholesale, read</td><td>Low</td></tr>
+<tr><td><code>Board.jobs</code></td><td><code>Vec&lt;Job&gt;</code></td><td>Register, settle, snapshot</td><td>Medium, per sub-agent</td></tr>
+<tr><td><code>Board.seq</code></td><td><code>u64</code></td><td>Increment</td><td>High, per sub-agent, very short</td></tr>
+<tr><td><code>Gate.active</code></td><td><code>usize</code></td><td>Acquire, release</td><td>High, per sub-agent</td></tr>
+</tbody>
+</table>
+
+<p>The last two have the highest contention but the shortest critical sections: <code>Board::seq</code> is an increment plus a format, <code>Gate.active</code> is a compare and an increment. What can actually be held for a long time is <code>TaskManager.tasks</code>, because it reads pipes while holding the lock.</p>
+
+<pre><code>pub struct Board {
+    jobs: Mutex&lt;Vec&lt;Job&gt;&gt;,
+    seq: Mutex&lt;u64&gt;,
+}
+</code></pre>
+
+<p>One lock would force <code>start()</code> to hold it while formatting an id and copying a possibly long task string. Two locks keep both critical sections tiny, and since <code>start()</code> always locks seq then jobs, there is no reverse path and no deadlock.</p>
+
+<p>The price is that numbering and registration are not atomic together: concurrent starts can register <code>agent-3</code> before <code>agent-2</code>, so the board's order is not monotonic in id. Harmless, since ids identify rather than sort.</p>
+
+<h2>Lock granularity: why the board uses two mutexes</h2>
+
+<p>There are three granularities in <code>Ctx</code>.</p>
+
+<p><strong>Coarse: one lock for a whole collection.</strong> The todo list and task manager work this way, because the todo semantics are replace-everything.</p>
+
+<p><strong>Medium: one lock per logical entity.</strong> The board separates numbering from the job list: numbering is frequent and instant, the list is occasional and longer.</p>
+
+<p><strong>Fine: one lock per entry.</strong> Not used here. If each task carried its own lock, <code>task_output</code> on one task would not block <code>task_kill</code> on another, which is exactly the task manager's biggest problem.</p>
+
+<p>The test for correct granularity is not "is the lock fine enough" but "<strong>is there a path that performs blocking IO while holding it</strong>". The board's critical sections are all memory operations, so any granularity works. The task manager's <code>output()</code> calls <code>read()</code> under the lock, and no amount of refining the granularity fixes that; the structure has to change.</p>
+
+<h2>A condition variable and a gate in twenty lines</h2>
+
+<pre><code>pub struct Gate {
+    active: Mutex&lt;usize&gt;,
+    cv: Condvar,
+    max: usize,
+}
+
+impl Gate {
+    pub fn new(max: usize) -&gt; Self {
+        Gate {
+            active: Mutex::new(0),
+            cv: Condvar::new(),
+            max: max.max(1),
+        }
+    }
+
+    pub fn acquire(&amp;self) -&gt; GateGuard&lt;'_&gt; {
+        let mut active = self.active.lock().unwrap();
+        while *active &gt;= self.max {
+            active = self.cv.wait(active).unwrap();
+        }
+        *active += 1;
+        GateGuard { gate: self }
+    }
+}
+</code></pre>
+
+<p>Three details.</p>
+
+<p><strong><code>while</code>, not <code>if</code>.</strong> A condition variable can wake spuriously and the predicate may not hold. Re-checking in a loop is the standard form; tutorials that use <code>if</code> usually get away with it on Linux, by luck.</p>
+
+<p><strong><code>max.max(1)</code>.</strong> Configured as zero it becomes one, because otherwise <code>acquire()</code> never gets a permit and the turn deadlocks. One extra agent beats a hang.</p>
+
+<p><strong>The guard returns the permit in <code>Drop</code>.</strong></p>
+
+<pre><code>impl Drop for GateGuard&lt;'_&gt; {
+    fn drop(&amp;mut self) {
+        let mut active = self.gate.active.lock().unwrap();
+        *active = active.saturating_sub(1);
+        self.gate.cv.notify_one();
+    }
+}
+</code></pre>
+
+<p><code>Drop</code> covers all four paths: normal return, early <code>?</code>, panic unwinding, and every match arm. That is RAII's real value in concurrency; nobody hand-writes a release on each return.</p>
+
+<p><code>notify_one</code> rather than <code>notify_all</code>, since each release frees exactly one slot. Waking everyone causes a thundering herd where all waiters contend and all but one go back to sleep.</p>
+
+<h2>The gate is in the wrong place</h2>
+
+<pre><code>fn run_subagent(&amp;self, name: &amp;str, task: &amp;str) -&gt; Result&lt;String, String&gt; {
+    let id = self.ctx.board.start(name, task);   // register first
+    let _permit = self.ctx.gate.acquire();       // then queue
+    let result = self.run_subagent_inner(name, task);
+    match &amp;result {
+        Ok(text) =&gt; self.ctx.board.finish_ok(&amp;id, text),
+        Err(err) =&gt; self.ctx.board.finish_err(&amp;id, err),
+    }
+    result
+}
+</code></pre>
+
+<p>Two consequences.</p>
+
+<p><strong>The board lies about status.</strong> <code>start</code> registers the job as running. If four sub-agents already hold permits, the fifth blocks in <code>acquire()</code> having executed nothing, while the board shows it as running. <code>agent_list</code> then shows a row of running jobs, half of which are queued.</p>
+
+<p><strong>Duration includes queue time.</strong> The start timestamp is taken in <code>start()</code>, so a sub-agent that waited 30 seconds and ran for 2 reports 32.0 s. Every performance judgment based on the board is skewed.</p>
+
+<p>The fix is a queued state and a state parameter on registration: register as queued, acquire, then mark running, and set the start timestamp at that point. Under 20 lines, and the board turns from approximately right into something you can use to see where things are stuck.</p>
+
+<p>Why did it end up this way? Because the natural order is register then work, since you need an id to settle afterwards, and the gate arrived later as one line inserted right after registration. Nobody re-read the state machine. It is the most common mistake in concurrency retrofits: <strong>inserting a blocking point into an existing flow without re-checking what the code upstream of it has already done.</strong></p>
+
+<h2>Sub-agents: the first real user of parallelism</h2>
+
+<p>Parallel tool calls are a batch of independent jobs. Sub-agents are one task handed to several specialists, and unlike tools they issue their own model requests and tool calls.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>Code</th><th>Shared state</th></tr></thead>
+<tbody>
+<tr><td>Register</td><td><code>board.start(name, task)</code></td><td>Board jobs and sequence</td></tr>
+<tr><td>Queue</td><td><code>gate.acquire()</code></td><td>Gate counter</td></tr>
+<tr><td>Build config</td><td>Clone, override the model, disable streaming</td><td>None</td></tr>
+<tr><td>Build tools</td><td><code>build_tools()</code> filtered by <code>allowed_tools</code>, minus <code>subagent</code></td><td>None</td></tr>
+<tr><td>Build messages</td><td>One system prompt plus one task message</td><td>None</td></tr>
+<tr><td>Loop</td><td>Model call, tools, append, at most 40 rounds</td><td>The five locks</td></tr>
+<tr><td>Settle</td><td><code>finish_ok</code> or <code>finish_err</code></td><td>Board jobs</td></tr>
+</tbody>
+</table>
+
+<p>The key point is that <strong>a sub-agent does not inherit the parent's conversation</strong>. It receives two things: its own system prompt from configuration, and one task description. That is the precondition for real parallelism. If it inherited the dialogue, four sub-agents would each copy a 120,000 character history and memory and token cost would explode.</p>
+
+<p>The cost is information asymmetry: a sub-agent does not know what the parent already tried or which approaches failed. So the tool description says it suits review, testing, research, and any task that benefits from a focused specialist. It suits self-contained subtasks, not "continue from where the last step stopped".</p>
+
+<p>The board records each sub-agent's task text and a 500 character result preview, and <code>agent_list</code> gives the parent a progress table. The design intent is to let the model decide whether to keep waiting: two done and one running for 40 seconds means it can process the finished results first. Scheduling authority goes back to the model instead of being hard-coded as "wait for everything".</p>
+
+<h2>Why sub-agents are serial inside</h2>
+
+<pre><code>// Sub-agent tool calls run in order (the sub-agent is already bounded).
+for call in &amp;turn.tool_calls {
+    let out = self.execute(call);
+    messages.push(json!({
+        "role": "tool",
+        "tool_call_id": call.id,
+        "content": out,
+    }));
+}
+</code></pre>
+
+<p>Three reasons, all valid.</p>
+
+<p><strong>Nested parallelism multiplies threads.</strong> Four sub-agents each spawning five tool threads is 24 threads. Since the <code>subagent</code> tool is filtered out of sub-agent tool lists, further nesting cannot happen, but serial execution is still a deliberate downgrade at the nested level.</p>
+
+<p><strong>Sub-agents rarely call several tools at once.</strong> A specialist prompt narrows the task, so a round usually has one or two calls. Parallelism would buy little.</p>
+
+<p><strong>The real reason: the sub-agent is already parallel.</strong> Four running at once, each serial inside, gives a concurrency of four, which is where the benefit already is. Going deeper has diminishing returns and linear thread growth.</p>
+
+<p>The cost: five 20-second commands inside one sub-agent means 100 seconds, and the slowest sub-agent sets the turn's duration. Serial-inside moves the worst case from "the slowest single tool" to "the sum of the slowest sub-agent's tools".</p>
+
+<p>There is also a wording problem in that comment. "Bounded" here means concurrency is capped, but it reads as "a sub-agent's tool calls are limited", which they are not. A better comment would say the gate already bounds concurrency and adding inner parallelism would multiply threads.</p>
+
+<h2>Four places a sub-agent exceeds its bounds</h2>
+
+<p>A sub-agent shares <code>&amp;self</code>, and four things it looks like it inherits, it does not.</p>
+
+<p><strong>Interrupts.</strong> The parent checks the interrupt flag at the top of each round; the sub-agent loop has no check at all. After Ctrl-C, a sub-agent keeps going for up to 40 model requests, and the parent only sees the flag once <code>execute</code> returns. The fix is one line at the top of the sub-agent loop, but a plain <code>take()</code> would consume the flag so the parent never sees it. Use a read-only peek, or re-request the interrupt before breaking.</p>
+
+<p><strong>The iteration cap.</strong> A sub-agent uses the cloned parent config, so it inherits all 40 rounds. There is no separate limit. Forty is baked in and cannot be tuned, when a focused subtask should default to something much smaller, perhaps ten, via a field on the sub-agent definition.</p>
+
+<p><strong>The model override applies to the model call only.</strong> Tool execution runs through the parent's context, so a sub-agent configured with a cheap small model still receives up to 20,000 bytes of tool output that the small model may not be able to read.</p>
+
+<p><strong>And the worst one: <code>allowed_tools</code> is advertising, not a gate.</strong> It filters the list handed to the model. The actual pre-execution check uses the parent's allow and deny lists, with no reference to the sub-agent's whitelist. So if the model emits a tool name that was never advertised, and the parent config allows it, the tool really runs.</p>
+
+<p>Will a model emit an unadvertised name? Normally not, but it can: it appeared in history, another sub-agent used it, or it hallucinated. This is a boundary that depends on the model's self-discipline, and a whitelist exists precisely so that nothing depends on self-discipline.</p>
+
+<p>The fix is to push the whitelist into the execution path, either as an optional parameter on <code>execute</code> or by giving sub-agents a scoped view of <code>Ctx</code>. The second is cleaner and takes hours rather than minutes.</p>
+
+<h2>Tool threads have no cap</h2>
+
+<pre><code>let handles: Vec&lt;_&gt; = turn
+    .tool_calls
+    .iter()
+    .map(|call| s.spawn(move || this.execute(call)))
+    .collect();
+</code></pre>
+
+<p>Whatever the model returns becomes threads, and that count is shaped by the number of tools and the context length. A batch task phrased as "read thirty files" can plausibly produce thirty calls.</p>
+
+<table>
+<thead><tr><th>Risk</th><th>Manifestation</th></tr></thead>
+<tbody>
+<tr><td>Thread explosion</td><td>Twenty threads each holding a read buffer and file contents</td></tr>
+<tr><td>File descriptor exhaustion</td><td>Twenty concurrent opens is fine; two hundred may not be</td></tr>
+<tr><td>Unbounded total output</td><td>Twenty results of 20,000 bytes is 400,000 characters in one append</td></tr>
+</tbody>
+</table>
+
+<p>The third is the dangerous one, because its interaction with the context budget is unintuitive. <code>clamp</code> caps each tool's output, not the batch total. Twenty results can push <code>messages</code> past the 120,000 character budget and trigger compaction, which costs another model request for the summary.</p>
+
+<p>The fix is not a thread cap of eight, it is a <strong>budget for the batch</strong>: keep a running total, clamp each result against what remains, and stop at 40,000 characters. A thread cap is still worth adding for resource reasons, but one number cannot solve both problems.</p>
+
+<h2>Result order is not optional</h2>
+
+<p><code>handles.into_iter().map(join)</code> follows <code>tool_calls</code> order, so alignment is by construction.</p>
+
+<pre><code>for (call, result) in turn.tool_calls.iter().zip(results) {
+    self.style.tool_call(&amp;call.name, &amp;summarize(&amp;call.name, &amp;call.arguments), &amp;result);
+    self.messages.push(json!({
+        "role": "tool",
+        "tool_call_id": call.id,
+        "content": result,
+    }));
+}
+</code></pre>
+
+<p><code>zip</code> assumes equal length and matching order. Collect results through a channel instead, first finished first delivered, and the order becomes completion order. The consequence is not mild confusion, it is a protocol error: each tool message's <code>tool_call_id</code> must match an id in the preceding assistant message, so misordering hands the model one tool's output labelled as another's.</p>
+
+<p>A subtler version: join correctly, but filter out empty results. The vectors no longer match, <code>zip</code> silently truncates, and the last tool call has no tool message. The next request returns 400 saying tool_calls must be followed by tool messages, several hundred lines away from the cause.</p>
+
+<table>
+<thead><tr><th>Rule</th><th>Why</th><th>If broken</th></tr></thead>
+<tbody>
+<tr><td>Exactly one tool message per call</td><td>The protocol requires pairs</td><td>400 on the next request</td></tr>
+<tr><td>Order matches <code>tool_calls</code></td><td><code>zip</code> matches by position</td><td>Mismatched results, wrong reasoning</td></tr>
+<tr><td>Results are always strings, never empty</td><td><code>zip</code> truncates</td><td>The same</td></tr>
+</tbody>
+</table>
+
+<p>The third rule is why <code>unwrap_or_else(|_| "ERROR: tool thread panicked")</code> exists. A panic still has to produce a string, so the pairing survives.</p>
+
+<h2>What happens when a thread panics</h2>
+
+<p><code>join</code> returns <code>Err</code> on panic, and the code turns it into an error string, so <strong>one tool's panic does not fail the turn</strong>. Other results are appended, the model sees the error, and decides whether to retry.</p>
+
+<p>That is right, with one precondition: the lock must not be poisoned. A <code>Mutex</code> panicking while held poisons the lock, and every subsequent <code>lock().unwrap()</code> panics. Since the codebase uses unwrap everywhere, a panic while holding the board's job lock would take <code>agent_list</code> down permanently, turning one tool failure into a dead subsystem.</p>
+
+<p>The good news is that these critical sections are short and pure memory operations, so a panic is very unlikely. The real risk is the task manager, which does IO under the lock: one panic during a pipe read poisons the whole table.</p>
+
+<p>Two fixes: replace <code>unwrap()</code> with <code>unwrap_or_else(|e| e.into_inner())</code> to ignore poisoning, or switch to <code>parking_lot::Mutex</code>, which does not poison. For a system that already degrades tool panics into strings, ignoring poisoning is more consistent: inconsistent data is a smaller risk than a permanently dead feature.</p>
+
+<h2>Not every tool should run in parallel</h2>
+
+<table>
+<thead><tr><th>Combination</th><th>Problem</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Two <code>edit_file</code> on one file</td><td>Each reads the whole file, edits, writes back</td><td>The later write erases the earlier edit</td></tr>
+<tr><td><code>write_file</code> and <code>read_file</code> on one file</td><td>The read may see stale content</td><td>The model decides on old content</td></tr>
+<tr><td>Two <code>todo_write</code></td><td>The semantics are replace-everything</td><td>The later list erases the earlier one</td></tr>
+<tr><td>Two <code>run_command</code> needing approval</td><td>One stdin between them</td><td>Prompts interleave, answers mismatch</td></tr>
+<tr><td><code>git_commit</code> and <code>edit_file</code></td><td>The committed content is undefined</td><td>A half-finished state is committed</td></tr>
+</tbody>
+</table>
+
+<p>The first is the easiest to hit. <code>edit_file</code> is read, replace, write, so two concurrent calls necessarily lose an update, and a model can easily ask for two edits to different lines of the same file in one round, believing they are independent.</p>
+
+<p>Nothing protects against it: no file lock, no mtime check. So it is not a theoretical risk. If the model does it, it is wrong.</p>
+
+<p>Three levels of fix. <strong>Cheapest:</strong> say so in the description, asking for multiple edits to one file to be combined into a single call. Zero cost, depends on the model, removes most cases. <strong>Middle:</strong> serialize per file in the dispatch layer with a map from path to mutex, about 30 lines, which eliminates lost updates entirely. <strong>Thorough:</strong> tag each call with a resource and parallelize only across different resources, which is truly correct but requires annotating all 24 tools.</p>
+
+<p><code>todo_write</code> has an extra wrinkle under parallelism: whichever concurrent write lands last wins, while the model sees both calls report success. "Both succeeded, one took effect" is the hardest class of concurrency bug to diagnose.</p>
+
+<h2>Approval under concurrency: there is one stdin</h2>
+
+<pre><code>pub fn confirm(command: &amp;str) -&gt; bool {
+    eprint!("Run this command? [y/N] {command}
+&gt; ");
+    let _ = io::stderr().flush();
+    let mut line = String::new();
+    if io::stdin().read_line(&amp;mut line).is_err() {
+        return false;
+    }
+    matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+}
+</code></pre>
+
+<p>Two <code>run_command</code> calls needing approval in one round means both threads enter <code>confirm()</code>. The prompts interleave, so the user cannot tell which command is which. Two threads read the same stdin, so a single "y" may be consumed by either, and the other keeps waiting. And in a non-interactive environment, where stdin is not a TTY, both reads return EOF and both commands are denied.</p>
+
+<p>This is not hypothetical: the approve policy returns true for dangerous commands, and models ask for "run the tests" and "run the build" together all the time.</p>
+
+<p>The proper fix moves approval back to the main thread: parallel workers return a pending-approval marker, the main thread asks serially after joining, then runs the approved ones. That means splitting <code>execute</code> into a parallelizable part and an approval part, which is substantial.</p>
+
+<p>The cheap version wraps <code>confirm()</code> in a global mutex. Prompts stop interleaving, and "the turn blocks while waiting for input" remains, but as a queue instead of a collision. For an interactive CLI that is enough, because human input is serial anyway.</p>
+
+<h2>Background tasks: another kind of concurrency</h2>
+
+<p>Everything so far is "do it together, then collect". Background tasks are "return now, collect later", which removes test runs, builds and dev servers from the critical path.</p>
+
+<p>But the module has two real defects, both concurrency related, and neither theoretical.</p>
+
+<h2>Defect one: stderr is never drained</h2>
+
+<p><code>spawn</code> pipes stderr, but <code>output()</code> drains only stdout. Nothing ever reads the other pipe.</p>
+
+<p>When the child writes 64 KiB to stderr, the kernel pipe buffer fills and the write blocks. Nobody reads, so it never unblocks. The task never finishes, <code>task_output</code> reports running forever, stdout is quiet so it returns "no output yet", and the model keeps polling a task that will never complete.</p>
+
+<p>Which commands hit this? Anything writing more than 64 KiB to stderr: compiler warnings from <code>cargo build</code>, progress bars from <code>npm install</code>, failure stacks from a verbose test run. Those are exactly the commands background mode exists for.</p>
+
+<p>The fix is a thread that drains stderr into its own buffer, appending to a shared buffer. It is precisely what the foreground path already does: one problem, two implementations, one right and one wrong. The background path was presumably built minimally first and never revisited.</p>
+
+<h2>Defect two: reading to EOF while holding the lock</h2>
+
+<pre><code>pub fn output(&amp;self, task_id: &amp;str) -&gt; Result&lt;String, String&gt; {
+    let mut map = self.tasks.lock().unwrap();          // hold the lock
+    let task = map.get_mut(task_id).ok_or_else(…)?;
+    if let Some(child) = task.child.as_mut() {
+        if let Some(mut out) = child.stdout.take() {
+            let (kept, total) = read_capped(&amp;mut out); // blocking read under the lock
+            // …
+        }
+    }
+    // …
+}
+</code></pre>
+
+<p><code>read_capped</code> loops until EOF or error. For a task that is running and currently silent, stdout is open with no data, so <code>read()</code> blocks. It returns neither zero nor an error; it just waits.</p>
+
+<p>So <code>task_output</code> on a quiet task hangs, and while it hangs the task map stays locked. <code>task_list</code> blocks, <code>task_kill</code> blocks, a new background command blocks, another <code>task_output</code> blocks. One poll freezes the whole subsystem: the classic error of blocking IO inside a critical section.</p>
+
+<p>This is also why the foreground path is fine: it reads pipes in separate threads and only polls <code>try_wait()</code> every 25 ms. The same <code>read_capped</code> is correct in a thread and wrong under a lock.</p>
+
+<p>The fix moves reads into a thread and leaves only a buffer snapshot in the lock, so the critical section is a memory copy.</p>
+
+<h2>Pipe backpressure, the thing mistaken for a deadlock</h2>
+
+<table>
+<thead><tr><th>Shape</th><th>Symptom</th><th>Root cause</th></tr></thead>
+<tbody>
+<tr><td>Reading stdout but not stderr</td><td>The command hangs, stdout silent</td><td>stderr filled 64 KiB</td></tr>
+<tr><td>Reading pipes under a lock</td><td>Every task operation hangs</td><td>A blocked read holds the lock</td></tr>
+<tr><td>Waiting before reading</td><td>The command never ends</td><td>Output filled the buffer, the child cannot exit</td></tr>
+</tbody>
+</table>
+
+<p>The third is the classic: wait for the exit code first, read the pipe after. A command producing more than 64 KiB writes into a full buffer, blocks, never exits, so the wait never returns and the read line is never reached. Genuine deadlock.</p>
+
+<p>There is exactly one correct order: start the readers, then wait for exit. The foreground path does it, the background path gets both parts wrong. That inconsistency inside one module is why backpressure deserves a full section: it is basic competence for this kind of code, not trivia.</p>
+
+<p>And <code>read_capped</code> keeps reading after the buffer fills, discarding. It cannot break at the cap, or the child blocks again. That is why it returns both kept and total: the total is what tells the model how much it did not see.</p>
+
+<h2>Interrupt: exactly one preemption point</h2>
+
+<p>The interrupt is checked in one place only, at the top of each iteration, and "step boundary" means after a full model round trip plus all the tool execution it triggered.</p>
+
+<table>
+<thead><tr><th>Moment of Ctrl-C</th><th>Delay before it takes effect</th></tr></thead>
+<tbody>
+<tr><td>Model streaming</td><td>Until this request ends</td></tr>
+<tr><td>A tool running</td><td>Until all tools join</td></tr>
+<tr><td>A sub-agent running</td><td>Until it finishes, up to 40 rounds</td></tr>
+<tr><td>A command running</td><td>Until it returns or times out, 120 s by default</td></tr>
+</tbody>
+</table>
+
+<p>The justification is in the comment: interrupting mid-tool leaves history with three calls and one result, and the next request returns 400. Better to be unresponsive than to break the invariant.</p>
+
+<p>The cost is that the worst case can be minutes. Two things limit it incidentally: command timeouts and the sub-agent iteration cap. Neither was designed for interrupts.</p>
+
+<p>A better design is a two-stage interrupt: first Ctrl-C sets the flag and prints "finishing the current step, press again to force quit", the second exits immediately. It preserves the invariant and gives the user an escape hatch, for the price of one more atomic counter.</p>
+
+<pre><code>static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+static DEPTH: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+extern "C" fn on_sigint(_sig: i32) {
+    INTERRUPTED.store(true, Ordering::SeqCst);
+}
+</code></pre>
+
+<p>A signal handler may only do async-signal-safe things, and an atomic store qualifies. The depth counter handles nesting so an inner install cannot tear down the outer handler when it exits; install on zero to one, restore on one to zero. A RAII guard created on the first line of <code>run</code> handles both the early-return and panic paths, and a guard against underflow protects the restore.</p>
+
+<h2>Where Ctrl-C actually lands</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Interrupt effective</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Main loop</td><td>Yes, at boundaries</td><td>The flag is read at the top of each round</td></tr>
+<tr><td>Tool threads</td><td>No</td><td><code>execute</code> has no checkpoint</td></tr>
+<tr><td>Sub-agents</td><td>No, indirectly</td><td>No check inside, and joining cannot be interrupted</td></tr>
+<tr><td>Child processes</td><td>Partly</td><td>Only a timeout kills them; Ctrl-C does not propagate</td></tr>
+</tbody>
+</table>
+
+<p>On Linux, SIGINT goes to the whole process group from the terminal driver, so the child receives it and exits on its own; the parent's polling loop sees the exit and returns normally. "The command was interrupted" is really "the child answered SIGINT".</p>
+
+<p>On Windows there is no <code>sigaction</code>, so installing the handler returns false and Ctrl-C takes the default action: <strong>the process dies, agent included</strong>. Ctrl-C is not "stop this turn", it is "quit the program". That is a platform difference, not a bug, but the documentation has to say so or users will assume the conversation survived.</p>
+
+<p>GUIs have no terminal to send SIGINT, so there is an in-process path: a request function sets the same flag, and the stop button calls it. Same semantics, finish the current step then stop.</p>
+
+<h2>The daemon: concurrency zero</h2>
+
+<pre><code>for stream in listener.incoming() {
+    let mut stream = match stream {
+        Ok(s) =&gt; s,
+        Err(e) =&gt; { eprintln!("accept error: {e}"); continue; }
+    };
+    let peer = stream.peer_addr().ok();
+    match handle_daemon_request(&amp;mut agent, &amp;mut store, &amp;mut stream) {
+        Ok(()) =&gt; {}
+        Err(e) =&gt; { /* log */ }
+    }
+}
+</code></pre>
+
+<p>The incoming iterator blocks, and each request is handled synchronously on the same thread. So process-level concurrency is one; the second request waits in the backlog. The agent is taken as a mutable reference, which forbids concurrent handling at the type level. The session store is a plain hash map with no mutex, because it needs none.</p>
+
+<p>For a single-user desktop scenario that is fine. For several clients sharing one daemon it is a bottleneck, since two sessions cannot run at once.</p>
+
+<p>It still works because <strong>the real parallelism is inside the agent</strong>: one request may spawn four sub-agents and eight tool threads. Concurrency of one at the process level does not mean one thing runs at a time.</p>
+
+<p>Session isolation uses an <code>X-Session-Id</code> header, mapping each id to its own message vector and session file. Different ids cannot see each other, and because handling is serial, that isolation is temporal rather than concurrent, which is why no locks are needed.</p>
+
+<p>Supporting real concurrency minimally means one thread per connection plus <code>Arc&lt;Mutex&lt;Agent&gt;&gt;</code>, but then one slow session blocks every other session's model call. The correct fix is one agent instance per session, which is a refactor.</p>
+
+<h2>Why a single-threaded daemon still works</h2>
+
+<p><strong>It is not a performance bottleneck.</strong> The bottleneck is model latency, seconds to tens of seconds per call, not CPU. Serializing two requests costs "the second waits", and running them in parallel would have the second waiting on the same HTTP response anyway.</p>
+
+<p><strong>It simplifies state.</strong> The message vector, the UI sink and the session path all stay in "used by one request from start to finish" form, so none needs a lock or a copy.</p>
+
+<p><strong>It keeps streaming simple.</strong> The stream sink holds an <code>Arc&lt;Mutex&lt;TcpStream&gt;&gt;</code> so tool threads can write NDJSON lines to one connection. Share that agent between two requests and the sink points at the wrong client. That is another hidden dividend of the single-thread model.</p>
+
+<p>So the real boundary is: one user, one task, serial is acceptable. Outside it, refactor; inside it, the design is right.</p>
+
+<h2>Seven fixable defects</h2>
+
+<table>
+<thead><tr><th>#</th><th>Defect</th><th>Severity</th><th>Fix</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Background stderr never drained</td><td>High, tasks hang forever</td><td>Drain it on a thread</td><td>20 lines</td></tr>
+<tr><td>2</td><td><code>task_output</code> blocks reading to EOF under the lock</td><td>High, freezes the whole table</td><td>Move reads to a thread, copy in the lock</td><td>40 lines</td></tr>
+<tr><td>3</td><td>Sub-agent <code>allowed_tools</code> not enforced at execution</td><td>High, the boundary does not exist</td><td>Validate against the whitelist before execution</td><td>30 lines</td></tr>
+<tr><td>4</td><td>No interrupt check inside sub-agents</td><td>Medium, minutes of delay</td><td>Add a peek at the top of the loop</td><td>10 lines</td></tr>
+<tr><td>5</td><td>Gate after registration, queued jobs show as running</td><td>Medium, misleading board</td><td>Add a queued state and mark running</td><td>20 lines</td></tr>
+<tr><td>6</td><td>No cap on tool threads</td><td>Medium, resource and context blowup</td><td>Thread cap plus a batch output budget</td><td>30 lines</td></tr>
+<tr><td>7</td><td>Concurrent approvals share stdin</td><td>Medium, interleaved prompts</td><td>A global mutex around confirm</td><td>5 lines</td></tr>
+</tbody>
+</table>
+
+<p>The first three cause visible failures in real use; the last four need specific conditions. Defect seven has the best return on effort at five lines, while one and two are small in code but change data structures, affecting output, list and kill.</p>
+
+<p>There is also one not in the table: <strong>mutex poisoning</strong>. Every <code>lock().unwrap()</code> fails in a cascade after a panic while held. It is rare but permanently disabling rather than transient, and the fix is ignoring poisoning or switching to a non-poisoning mutex.</p>
+
+<h2>How to verify that concurrency is actually correct</h2>
+
+<p>"Ran it once and nothing crashed" proves nothing. NanoHermes keeps a dedicated test module that drives the real parallel path, with and without MCP, so data races surface there rather than in production.</p>
+
+<p><strong>Shared state in built-in tools:</strong> ten groups of three tools, thirty threads at once, which checks that nothing mutable in <code>Ctx</code> is unprotected.</p>
+
+<p><strong>MCP mixed with built-ins:</strong> eight concurrent MCP echoes, three MCP helpers and two built-ins. This exercises the MCP request and response pairing: eight requests each expecting their own answer, where any id mismatch makes one echo receive another's result and fails the assertion immediately.</p>
+
+<p><strong>The gate itself:</strong> six threads for two permits, asserting the peak never exceeds two and the counter returns to zero. The second assertion matters most, because a forgotten release fails here instead of showing up as "gets slower over time" in production.</p>
+
+<table>
+<thead><tr><th>Limitation</th><th>Consequence</th><th>Supplement</th></tr></thead>
+<tbody>
+<tr><td>Races found by luck</td><td>Everything may pass while a race remains</td><td>More threads, more repetitions</td></tr>
+<tr><td>No memory ordering checks</td><td>Subtle ordering bugs stay hidden</td><td>ThreadSanitizer or Miri</td></tr>
+<tr><td>No panic simulation</td><td>Poisoning paths untested</td><td>Dedicated panic injection tests</td></tr>
+</tbody>
+</table>
+
+<p>A stricter tool is Loom, which exhaustively explores thread interleavings and finds races in seconds, at the cost of swapping in Loom's mutex and condition variable behind a cfg flag. For this project the intrusion outweighs the benefit, but it is worth knowing it exists.</p>
+
+<p>Practical advice: keep concurrency tests in their own module, run once with a single test thread and once with the default parallel test harness. Passing both tells you more than passing one.</p>
+
+<h2>Six principles of concurrency design</h2>
+
+<p><strong>One. Draw the parallel region before discussing concurrency.</strong> NanoHermes has exactly one, the execution of a tool batch, bounded by one scope. Everything outside it is safe by construction. With a fuzzy boundary, every piece of state needs a lock and complexity doubles.</p>
+
+<p><strong>Two. Use the join barrier to eliminate locks.</strong> The main thread waits at the barrier, so history is read-only for the whole parallel section. Trade a little latency for a whole class of synchronization problems disappearing.</p>
+
+<p><strong>Three. Any IO while holding a lock is wrong.</strong> Both task-manager defects violate this. Critical sections hold memory operations only; IO goes on a thread or becomes non-blocking plus polling.</p>
+
+<p><strong>Four. Bounded concurrency needs RAII to return permits.</strong> Drop covers every return path including panics. Hand-written release always misses one, and the missed one is the exceptional path, which is also the least tested.</p>
+
+<p><strong>Five. Fewer interrupt points means clearer semantics.</strong> Checking in one place buys history that is always consistent, at the cost of worst-case delay that timeouts and a two-stage interrupt can soften. An interruptible-anywhere implementation will almost certainly leave half a turn in history.</p>
+
+<p><strong>Six. Caps and bounds are separate designs.</strong> Sub-agents are capped at four, tool threads are not; a single output is capped at 20,000 bytes, a batch total is not. Where there is a cap, it prevents exhaustion; where there is none, the assumption is that the count stays small, and a prompt change will eventually break it.</p>
+
+<h2>Closing</h2>
+
+<p>The interesting part is not how to start threads, which is a dozen lines. It is where the boundaries are: what can be mutated inside the parallel region, which operations are bounded, which are not, which semantics break under parallelism, and which delays are designed in.</p>
+
+<p>NanoHermes is not perfect. Two of its seven defects genuinely hang the feature. But the skeleton is right: one clear parallel region, one join barrier, one RAII-counted gate, one interrupt point. Those four things are under sixty lines and they carry the entire concurrency model.</p>
+
+<p>Avoiding an async runtime is not a religious position, it is a cost calculation. For this project the total cost of threads and a barrier, tens of microseconds to spawn, 2 MiB of virtual stack, no mid-task cancellation, is far below the cost of the async ecosystem, the dependency tree, the state held across await points and the complexity of <code>Send</code> checks. Change the scenario to one that must hold thousands of long-lived connections and the arithmetic flips.</p>
+
+<p>The next post is security: letting it run commands without losing control. Concurrency answers "how many things at once", security answers "what may those things do", and the two meet on exactly one line of code, the approval check, which is where defect seven lives.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/">Agent 并发：不用 async 运行时怎么并行</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/agent-concurrency-without-async/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
