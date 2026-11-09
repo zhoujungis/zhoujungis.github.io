@@ -20345,6 +20345,417 @@ RETURNING owner;
 `,
   },
 
+  {
+    slug: 'metrics-and-distributed-tracing',
+    zhSlug: 'metrics-and-distributed-tracing',
+    topicSlug: 'backend',
+    title: 'Metrics and tracing: from RED to OpenTelemetry',
+    excerpt:
+      'Logs record events, metrics record trends, traces record the path of one request. Averages hide tails, quantiles without exemplars hide the request, and fixed-rate sampling hides exactly the failures you care about.',
+    date: '2026-11-04',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Who this is for: engineers with plenty of logs who still guess during incidents, and anyone about to bolt Prometheus and OpenTelemetry onto a service without knowing which piece comes first.</p>
+<p><strong>TL;DR:</strong> the three signals are not substitutes. Metrics say how bad and how often; traces say which segment is slow; logs say what happened inside it. Averages without quantiles understate the tail. Quantiles without exemplars tell you the tail is bad but not which request. Traces without logs tell you the segment but not its inputs.</p>
+<p>Reading time around 26 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>The tail tripled and every log line says 200</h2>
+
+<p>A feed endpoint runs at sixty milliseconds at the median and a hundred and twenty at the tail. One afternoon the tail climbs past four hundred while the median moves from sixty to sixty-eight. No errors, no 5xx, and complaints start arriving.</p>
+
+<p>The first engineer opens the logs. Each line has method, path, status 200, sixty-eight milliseconds and a user id. Hundreds of lines, all 200, all around seventy milliseconds, and the conclusion is that the client network must be at fault.</p>
+
+<p>The second looks at metrics. There is one series, the mean duration, and it rises from sixty to sixty-eight. The conclusion is that the service did not slow down.</p>
+
+<p>The third suspects the database and checks the slow query log, which is set to two hundred milliseconds. Nothing in it.</p>
+
+<p>All three looked at data and all three were wrong, because each tool answers only its own question and none of them answers "which segment". Logs record that a request took sixty-eight milliseconds, not where they went. A mean blends ninety-nine fast requests with one slow one into a number that is arithmetically correct and analytically poisonous. The slow query log only covers the database, and only past its threshold, so four queries of a hundred and eighty milliseconds slip past it and add up to seven hundred and twenty.</p>
+
+<p>The real cause was a per-row author lookup: twenty rows on a page, twenty serial queries of fifteen to twenty milliseconds, three hundred odd milliseconds in total. <strong>Several small segments in series, none of them over any threshold</strong>, is exactly the intersection of the three blind spots.</p>
+
+<h2>What each signal is for</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Logs</th><th>Metrics</th><th>Traces</th></tr></thead>
+<tbody>
+<tr><td>Unit</td><td>One discrete event</td><td>A pre-aggregated numeric series</td><td>A tree of spans for one request</td></tr>
+<tr><td>Answers</td><td>What happened, with which parameters</td><td>How slow, how often, which way it is trending</td><td>Which segment, calling whom</td></tr>
+<tr><td>Data structure</td><td>Append-only text or JSON</td><td>Numbers with labels and timestamps</td><td>Spans grouped by trace id</td></tr>
+<tr><td>Cost grows with</td><td>Requests times lines per request</td><td>Series count, which is label cardinality</td><td>Spans times sample rate times retention</td></tr>
+<tr><td>Typical failure</td><td>Volume, no correlation, schema drift</td><td>High cardinality, lying averages, lost buckets</td><td>Sampling away errors, broken context, spans too fine</td></tr>
+<tr><td>Query model</td><td>Scan and filter</td><td>Aggregate series over windows</td><td>Fetch a tree by trace id</td></tr>
+</tbody>
+</table>
+
+<p>The last row matters. Log queries scan, so they answer anything at a cost that grows with volume. Metric queries find series and aggregate, so they are fast but only answer questions whose dimensions you defined in advance. Trace queries fetch one tree by id, which is precise and requires already knowing the id.</p>
+
+<p>The investigation order therefore is fixed. First metrics, to confirm this is real and how large: a tail moving from a hundred and twenty to four hundred affects one percent of requests, which at a hundred per second is one user per second. Then traces, to find the segment: three hundred of the four hundred milliseconds sat in twenty serial author lookups, not in the cache and not in rendering. Then logs, to confirm why there were twenty: the trace says the same author query ran twenty times, and the log line for the feed build lists twenty distinct author ids, which justifies a batch query instead of a hunch.</p>
+
+<p>Reverse the order and you drown in 200s, or you pick a trace at random out of millions and land on the normal ninety-nine percent.</p>
+
+<p>This is the step above structured logging. That post covered how to write logs cheaply and how to tie the lines of one request together; this one covers the two layers above events, compressing events into trends and unfolding a request into a tree. A request id is the poor relation of a trace id: it groups lines, but it cannot record start and end times and parentage by itself.</p>
+
+<h2>Four metric types, and why latency needs a histogram</h2>
+
+<p><strong>A counter</strong> is monotonic: how many times something happened since the process started. It resets on restart, so you never difference it directly; rate and increase handle the resets. The naming convention is a total suffix.</p>
+
+<p><strong>A gauge</strong> is a current value that goes up and down: in-flight requests, queue depth, pool usage. It has no cumulative meaning, so a rate over it is nonsense.</p>
+
+<p><strong>A histogram</strong> counts observations into preset buckets on the client and exports cumulative counts per bucket plus a sum and a count.</p>
+
+<p><strong>A summary</strong> computes quantiles on the client and exports them as gauges with a quantile label.</p>
+
+<p>Here is the conclusion that matters: <strong>latency must be a histogram, never a summary, and never a mean.</strong></p>
+
+<p>Not because a histogram is more accurate, but because it aggregates. A summary computes a tail in each process, and averaging two processes' tails gives you something that is not a tail at all, since quantiles depend on the ordering of the whole distribution. A histogram only counts per bucket, and counts add: two instances' buckets sum into the combined bucket. So you aggregate instances and time windows first, then compute the quantile over the result.</p>
+
+<p>In a service with many pods, a summary is close to useless, because what you want is the cluster tail, not one pod's.</p>
+
+<pre><code>from prometheus_client import Counter, Gauge, Histogram
+
+HTTP_REQUESTS = Counter(
+    "http_requests_total",
+    "Total HTTP requests",
+    ["method", "route", "status_class"],
+)
+
+INFLIGHT = Gauge(
+    "http_inflight_requests",
+    "Requests currently being served",
+)
+
+HTTP_DURATION = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request duration",
+    ["method", "route"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+
+with HTTP_DURATION.labels(method="GET", route="/api/articles/feed").time():
+    render_feed(request)
+</code></pre>
+
+<h2>Averages, quantiles and what a P99 actually is</h2>
+
+<pre><code>(99 × 10ms + 1 × 10000ms) / 100 = (990 + 10000) / 100 = 109.9ms
+</code></pre>
+
+<p>A hundred requests, ninety-nine at ten milliseconds and one at ten seconds, average a hundred and ten milliseconds, comfortably under a hundred and twenty millisecond objective. Somebody still waited ten seconds, and at a million calls a day ten thousand people did.</p>
+
+<p>The mean is not miscalculated, it is mixing two populations into one number, assuming a symmetric unimodal distribution. Latency is almost never that: it has a long tail, it is often bimodal because cache hits and misses differ, and it moves with traffic.</p>
+
+<p>A quantile answers how heavy the tail is. The 99th percentile is the value at which ninety-nine percent of samples are at or below, and one percent are slower. It is <strong>not</strong> the mean of the slowest one percent, which can be far larger.</p>
+
+<ul>
+<li>The median describes a typical experience and ignores the tail.</li>
+<li>The 95th is a common internal target.</li>
+<li>The 99th is the usual basis for a user-facing objective, because one percent of a million daily users is ten thousand people.</li>
+</ul>
+
+<p>There is a statistical constraint people skip: <strong>a quantile is only as trustworthy as the sample count behind it.</strong> A tail needs the top one percent counted, so a hundred samples a minute leaves that percentile resting on a single request. The practical floor is a few hundred samples to estimate a tail and a few thousand for a minute-by-minute view. A low-traffic endpoint with a jumpy tail usually has thin data, not a broken metric.</p>
+
+<pre><code>histogram_quantile(0.99,
+  sum by (le) (rate(http_request_duration_seconds_bucket{route="/api/articles/feed"}[5m])
+))
+</code></pre>
+
+<p>Two details. Aggregate the buckets first and compute the quantile second; the reverse averages per-instance tails. And the function interpolates linearly inside the bucket that contains the quantile, assuming a uniform spread across it, which means bucket width becomes uncertainty: a tail landing in a bucket from a quarter to a half second carries two hundred and fifty milliseconds of doubt. If the tail lands in the overflow bucket, the answer is effectively unknown, which is why the top bucket must sit above your objective.</p>
+
+<p>So buckets go dense near the threshold that matters and sparse far from it. For a three hundred millisecond objective, place edges at a hundred, two hundred, three hundred, four hundred and five hundred rather than every half second.</p>
+
+<h2>Prometheus: pull, naming, and cardinality</h2>
+
+<pre><code>scrape_configs:
+  - job_name: article-api
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "10.0.1.11:8000"
+          - "10.0.1.12:8000"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "go_.*"
+        action: drop
+</code></pre>
+
+<p>Pulling rather than pushing gives three structural benefits: a failed scrape is itself a signal that the target is gone, the collection cadence belongs to the server rather than the client, and the ingest cost is predictable as series count times scrape frequency. The cost is that a job shorter than one scrape interval may never be seen, which is what the push gateway exists for, with the known trap that its last pushed values persist after the job ends.</p>
+
+<p>Names follow namespace, subsystem, name and unit, with base units only: seconds, bytes, never milliseconds or megabytes. Counters take a total suffix.</p>
+
+<pre><code>series ≤ metrics × Π(values per label)
+</code></pre>
+
+<pre><code>5 × 200 × 8 × 20 = 160,000 series
+160,000 × 12 = 1,920,000 series
+</code></pre>
+
+<p>Five methods, two hundred routes, eight status classes and twenty instances, multiplied by twelve buckets, is nearly two million series, and each series costs kilobytes of index and chunk. That is why adding one label is never cheap.</p>
+
+<p>Three things must never become labels. A user id multiplies by the user count, even at one percent. A raw URL puts a resource id in the label, so cardinality equals the number of resources. And a request or trace id is the wrong shape entirely: metrics aggregate, ids are unique, and putting uniqueness in a label turns the metric store into a log store at log-store cost.</p>
+
+<p>Four remedies, cheapest first: template the route rather than using the request path; collapse status codes into classes unless you truly need to distinguish 401 from 403; drop or relabel on the scrape side; and pre-aggregate high-cardinality series into low-cardinality recording rules. To monitor it, watch the head series count. If it climbs while traffic is flat, some label is growing its value set, and the usual culprit is a route template that let an id through.</p>
+
+<h2>Exemplars: pinning a metric to one trace</h2>
+
+<p>Metrics say the tail is four hundred milliseconds and cannot say which request. Traces number in the millions, so a random pick lands on the normal case. An exemplar is the pin between them.</p>
+
+<pre><code>http_request_duration_seconds_bucket{le="0.5",route="/api/articles/feed"} 8421
+# {trace_id="4bf92f3577b34da6a3ce929d0e0e4736"} 0.481 1756000000.123
+http_request_duration_seconds_bucket{le="1.0",route="/api/articles/feed"} 8426
+</code></pre>
+
+<p>The hash-prefixed line is comment syntax, which is the compatibility trick: older parsers skip it, newer ones read it. The server must enable exemplar storage explicitly and keeps only a bounded amount.</p>
+
+<p>Its value is that the tail curve in a dashboard carries dots, one per sampled trace, and clicking one opens that tree. Three limits: exemplars are sampled, so you get one example rather than a list; they only mean something on histograms and counters; and keep the id short, thirty-two hex characters rather than a whole header value. None of that contradicts the rule against ids as labels, because an exemplar is an annotation on one sample and expires with it.</p>
+
+<h2>RED, USE, the four golden signals and objectives</h2>
+
+<p><strong>RED</strong> is for request-driven services: rate, errors, and duration, where duration means quantiles and errors mean both 5xx and business failures that return 200.</p>
+
+<p><strong>USE</strong> is for resources: utilisation, saturation and errors. Saturation is the one that warns before latency moves, since utilisation at seventy percent often still serves fine while the run queue grows.</p>
+
+<p>The four golden signals summarise both, and the detail people drop is that <strong>latency must separate successful requests from failed ones</strong>, because fast failures drag the mean down exactly when the error rate rises.</p>
+
+<p>An objective turns this into a number. The indicator is successful requests over valid requests, where success is your definition. The objective is a target such as ninety-nine point nine percent within three hundred milliseconds. The agreement is the external contract and is usually looser.</p>
+
+<pre><code>30 days = 2,592,000 seconds
+budget at 99.9% = 2,592 seconds = 43m 12s
+at 99.95%      = 1,296 seconds = 21m 36s
+at 99.99%      = 259.2 seconds = 4m 19s
+</code></pre>
+
+<p>That budget is what makes deploys a decision rather than a mood: spend it and ship, or stop and fix. Alerting on burn rate beats alerting on a single threshold crossing, because a threshold only tells you somebody is unhappy right now, while a burn rate tells you the month's budget disappears in days.</p>
+
+<p>Then business metrics. A 200 means the server did not fall over, not that the user got what they wanted. First-screen render rate, checkout conversion, zero-result rate, all of those have to be instrumented and shown next to the technical metrics. Technical metrics explain why; business metrics explain whether it is worth fixing.</p>
+
+<h2>The trace model and W3C trace context</h2>
+
+<p>A trace is one logical request identified by a trace id. A span is a node with a start, an end, a name, a kind, a parent, attributes, events and a status. The kind matters: a client span should have a matching server span on the other side.</p>
+
+<p>An example makes the ids concrete. The gateway receives a request, creates a trace and its own server span, then a client span for the call to the content service. The content service reads the trace and the calling span from the header and creates its own server span under that client span, then a client span for the database. The whole tree is grouped by the trace id.</p>
+
+<p>The common misconception: <strong>a span's parent is the span that called it, not the previous span in the same process.</strong> So a downstream root's parent is the upstream client span, which is what lets the waterfall show network and queueing time as the gap between the upstream client's end and the downstream server's start.</p>
+
+<p>Baggage is a separate propagation channel for business context, tenant id, experiment bucket, and it is client controlled. <strong>Never authorise from baggage.</strong> Its useful role is hints, such as telling a downstream which shard to look in.</p>
+
+<pre><code>00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+ │  └────────── 32 hex ──────────┘ └── 16 hex ──┘ └flags┘
+version          trace-id                  parent-id     trace-flags
+</code></pre>
+
+<ul>
+<li>The version is two hex characters; an unknown version means discard the header rather than guess.</li>
+<li>The trace id is 128 bits, and all zeroes is invalid.</li>
+<li>The parent id is the caller's span id, 64 bits, and all zeroes is invalid.</li>
+<li>The flags byte currently uses only the low bit for sampled.</li>
+</ul>
+
+<pre><code>def parse_traceparent(value: str):
+    parts = value.split("-")
+    if len(parts) != 4:
+        return None
+    version, trace_id, parent_id, flags = parts
+    if version != "00":
+        return None
+    if len(trace_id) != 32 or len(parent_id) != 16:
+        return None
+    if trace_id == "0" * 32 or parent_id == "0" * 16:
+        return None
+    try:
+        int(trace_id, 16)
+        int(parent_id, 16)
+        flag_bits = int(flags, 16)
+    except ValueError:
+        return None
+    return trace_id, parent_id, flag_bits &amp; 0x01
+</code></pre>
+
+<p>One rule matters more than the rest: <strong>an invalid header means start a new trace, never reject the request.</strong> Tracing is observability, and turning a malformed header into a 400 escalates an observability problem into an availability one.</p>
+
+<p>Propagation is not only HTTP headers. Queues carry it in message attributes and gRPC in metadata. <strong>One link that drops it breaks the trace into two trees.</strong></p>
+
+<h2>Sampling: head, tail, and the blind spot of a fixed rate</h2>
+
+<pre><code>20 × 10 × 86,400 = 17,280,000 spans per day
+</code></pre>
+
+<p>At a kilobyte each that is seventeen gigabytes a day, so sampling is a precondition for shipping, not a later optimisation.</p>
+
+<p>Head sampling decides once at the entry point and writes the verdict into the flags, which every downstream service reads. It costs nothing and decides too early, before anything is known about failure or duration.</p>
+
+<p>Tail sampling decides at the collector, buffering whole traces by id and keeping them by rule: all errors, all slow requests, a fraction of the rest. That fills exactly the head-sampling blind spot.</p>
+
+<pre><code>E[error samples] = N × p × r
+N = 1 / (p × r)
+</code></pre>
+
+<ul>
+<li>One percent errors at one percent sampling needs ten thousand requests to see a single error trace.</li>
+<li>A tenth of a percent needs a hundred thousand.</li>
+<li>A hundredth of a percent, which is four nines, needs a million.</li>
+</ul>
+
+<p><strong>The stricter the objective, the blinder a fixed-rate sampler becomes</strong>, because the requests that violate it are the rare ones and the sampler thins them by the same factor as everything else.</p>
+
+<p>Tail sampling costs structurally: the collector buffers whole trees, memory grows with traces per second times trace lifetime; all spans of one trace must reach the same collector, which means consistent hashing on the trace id at the edge; and the decision is deferred until the trace ends, so there is a delay before it can be queried.</p>
+
+<p>In practice the two combine: head sampling as a coarse filter, tail sampling inside that sample keeping every error and every slow request.</p>
+
+<h2>OpenTelemetry, from API to OTLP</h2>
+
+<p>The API defines tracers, spans and meters and is a no-op when nothing is installed. The SDK implements sampling, context propagation and batching. Exporters ship data, and OTLP is the standard protocol on ports 4317 for gRPC and 4318 for HTTP. Business code imports only the API, so switching backends is a change of initialisation.</p>
+
+<p>Automatic instrumentation owns framework boundaries: server and client HTTP, database drivers, queue producers and consumers. Manual spans own business segments, ranking, hydration, risk checks. The anti-pattern is a span per function, which multiplies cost, nests dozens of levels in the waterfall, and records microseconds that tell nobody anything. <strong>The useful rule: a segment earns a span when it can take more than five percent of the total or fail on its own.</strong></p>
+
+<pre><code>class FeedSpanMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        span = trace.get_current_span()
+        span.set_attribute("feed.page", request.GET.get("page", "1"))
+        span.set_attribute("feed.user_tier", getattr(request, "tier", "anon"))
+        with tracer.start_as_current_span("feed.hydrate") as child:
+            child.set_attribute("hydrate.strategy", "batch")
+            response = self.get_response(request)
+            child.set_attribute("hydrate.authors", getattr(request, "author_count", 0))
+        return response
+</code></pre>
+
+<p>The current span is the one automatic instrumentation made and the new one is its child; creating another root here is exactly how a trace gets cut in two.</p>
+
+<pre><code>headers = {}
+inject(headers)          # writes the current span's traceparent into the dict
+resp = httpx.get("http://author-svc/internal/authors", headers=headers)
+</code></pre>
+
+<p>Injection and extraction are the only correct way to keep a trace across a service boundary; hand-writing the header drops the trailing state and picks up the wrong span under async.</p>
+
+<pre><code>def fetch_authors(conn, author_ids):
+    with tracer.start_as_current_span("db.author.batch") as span:
+        span.set_attribute("db.system", "postgresql")
+        span.set_attribute("db.operation", "SELECT")
+        span.set_attribute("db.collection.name", "author")
+        span.set_attribute("db.query.ids_count", len(author_ids))
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name FROM author WHERE id = ANY(%s)",
+                (author_ids,),
+            )
+            return cur.fetchall()
+</code></pre>
+
+<p>That count attribute is the one that turns "hydrate is slow" into "either twenty queries or one slow batch", which is a fact rather than a debate.</p>
+
+<pre><code>ctx = contextvars.copy_context()
+
+async def handle():
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, ctx.run, blocking_work)
+    return result
+</code></pre>
+
+<p>A thread pool does not carry context variables by itself. Without copying the context, the work in the thread starts a new root and the trace ends there, quietly.</p>
+
+<pre><code>provider = TracerProvider(
+    resource=Resource.create({
+        "service.name": "article-api",
+        "service.version": "2026.11.04",
+        "deployment.environment": "prod",
+    })
+)
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://otel-collector:4317", insecure=True),
+        max_queue_size=2048,
+        schedule_delay_millis=5000,
+    )
+)
+trace.set_tracer_provider(provider)
+</code></pre>
+
+<p>Always batch in production. The queue drops spans when full and counts the drops without blocking the request, which is the right trade, provided you watch the counter instead of reading the gap as quiet traffic.</p>
+
+<h2>One investigation, end to end</h2>
+
+<p>First, confirm the shape. Compare the median and the tail: the median moved from sixty to sixty-eight and the tail from a hundred and twenty to four hundred and ten. A uniform slowdown moves both, so a flat median with a tripled tail means a minority of requests, under five percent.</p>
+
+<p>Second, look at which bucket the tail occupies. Moving from the hundred to two hundred and fifty millisecond bucket into the next one means a couple of hundred extra milliseconds, which matches extra queries and not a timeout.</p>
+
+<pre><code>GET /api/articles/feed                 410ms  server
+├── feed.query_articles                 22ms  internal
+├── feed.rank                           18ms  internal
+├── feed.hydrate                       355ms  internal
+│   ├── SELECT author (id=1)            17ms  client
+│   ├── SELECT author (id=2)            16ms  client
+│   ├── ... 20 in total ...
+│   └── SELECT author (id=20)           18ms  client
+└── render.template                     14ms  internal
+</code></pre>
+
+<p>Third, fetch one trace from an exemplar on the high bucket, which is the waterfall above: twenty serial lookups of sixteen to eighteen milliseconds, each one fast on its own.</p>
+
+<p>Fourth, read the attributes. The identity count on each span is one, which says the code queries per row rather than batching and being slow.</p>
+
+<p>Fifth, confirm in the logs by trace id, where the feed build line lists twenty author ids and a page size of twenty. The chain of facts is complete and the fix is one query with an array parameter instead of twenty round trips.</p>
+
+<p>Every step is load-bearing. Without metrics you do not know it is a tail. Without exemplars you sample the normal case. Without traces you know the total but not the segment. Without attributes you know the segment but not whether it is twenty small queries or one slow batch. Without logs you know the count but not where the ids came from.</p>
+
+<pre><code>class TraceContextFilter(logging.Filter):
+    def filter(self, record):
+        ctx = trace.get_current_span().get_span_context()
+        if ctx.is_valid:
+            record.trace_id = format(ctx.trace_id, "032x")
+            record.span_id = format(ctx.span_id, "016x")
+        else:
+            record.trace_id = "-"
+            record.span_id = "-"
+        return True
+
+logging.getLogger().addFilter(TraceContextFilter())
+</code></pre>
+
+<p>Write both ids into the record: the trace id groups a request, the span id says which segment the line belongs to. The order matters, since without a trace id in the logs the log store has no key to join on.</p>
+
+<h2>Storage and cost</h2>
+
+<pre><code>total cost ≈ series × cost per series + samples × cost per sample
+</code></pre>
+
+<p>Series count dominates, because a series exists whether or not traffic flows through it. Cutting one high-cardinality label can save most of the bill, while halving the scrape interval only halves sample storage.</p>
+
+<p>Set both a time and a size retention limit and let whichever comes first apply. Local storage is not an archive; long-term data belongs in a remote-write system with a few days kept locally for fast queries.</p>
+
+<pre><code>spans per day × sample rate × span size × retention days
+</code></pre>
+
+<p>Three factors, three levers: control span granularity rather than adding a span per function; sample with head as a filter and tail as the safety net; and retain errors longer than successes, often in different backends. Watch attribute cardinality too, since full SQL statements and full URLs destroy compression. Record the statement template and the parameter count, and let the values live in logs.</p>
+
+<p>Order the work by return: measure cardinality first; template the route, which alone usually removes an order of magnitude; check bucket counts, since twenty buckets over a hundred and sixty thousand series is three million; whitelist attributes rather than taking automatic defaults; and keep the sampling policy in configuration so it can be raised during an incident.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Tool</th><th>Constraint that bites</th></tr></thead>
+<tbody>
+<tr><td>How slow, how often</td><td>Histogram and tail quantiles</td><td>Buckets must cover the objective; enough samples; aggregate before the quantile</td></tr>
+<tr><td>Which segment</td><td>Span tree</td><td>Context must propagate; span granularity kept coarse</td></tr>
+<tr><td>What happened there</td><td>Logs plus trace id</td><td>The id must be in the log; parameters live there</td></tr>
+<tr><td>Which request</td><td>Exemplar</td><td>Histograms only; sampled, not exhaustive</td></tr>
+<tr><td>Why the bill grows</td><td>Cardinality, span count, retention</td><td>Cardinality multiplies everything else</td></tr>
+</tbody>
+</table>
+
+<p>Three sentences. An average is not a latency metric, it is a latency lie, because the distribution is long-tailed and often bimodal. Metrics, traces and logs are three different answers rather than three storages of one answer, and the order matters. Sampling must make an exception for errors and slow requests, and the size of the blind spot is computable, which is why a strict objective needs a sampler that looks at the request rather than at the clock.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
