@@ -5768,6 +5768,749 @@ class LRUCache:
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">LRU 缓存：手写哈希表与双向链表</a>.</p>
 `,
   },
+  {
+    slug: 'agent-context-keep-or-drop',
+    zhSlug: 'agent-context-keep-or-drop',
+    topicSlug: 'aiagent',
+    title: 'Agent context: what to keep, what to drop',
+    excerpt:
+      'Context is not a chat log, it is the working set for the next step. Four layers of hard caps, a 120k character compaction budget, the cut point that must not land on a tool message, and seven ways context quietly goes bad.',
+    date: '2026-10-22',
+    readingTime: 28,
+    html: `
+<blockquote>
+<p>Who this is for: people who have a working agent loop and are now being tortured by a history that keeps growing; people who want to know what <code>compact</code> should actually preserve; people about to add memory, retrieval or sub-agents and who want the budget worked out first.</p>
+<p><strong>TL;DR:</strong> context is not the chat log. It is the working set the next step still needs. The only test for keeping something is whether the next message will use it. NanoHermes turns that into arithmetic with four layers of caps: a 4 MB file read is refused, a single tool result is cut at 20,000 bytes, project docs stop at 20,000 characters, and the session compacts at 120,000 characters. Compaction keeps the last ten messages and replaces everything older with a summary under 300 words.</p>
+<p>Reading time around 28 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Context is not a chat log</li>
+<li>What one request actually carries</li>
+<li>Four budgets, from a single file to the whole session</li>
+<li>Why one tool result can eat half the window</li>
+<li>The stable prefix</li>
+<li>The system prompt: short, and layered</li>
+<li>AGENTS.md: order of assembly and the 20,000 character cut</li>
+<li>Memory injection on a 2,400 character budget</li>
+<li>Every tool needs a ceiling</li>
+<li>Three truncation semantics: refuse, cut, summarize</li>
+<li>How clamp works</li>
+<li>When compaction fires</li>
+<li>Why characters and not tokens</li>
+<li>Keep the last ten messages, not the last ten turns</li>
+<li>The cut point must not land on a tool message</li>
+<li>The summary is one more model request</li>
+<li>What the summarizer sees, and what it does not</li>
+<li>Degradation when the summary fails</li>
+<li>What to keep, what to drop</li>
+<li>Context, memory and session are three different things</li>
+<li>What compaction costs</li>
+<li>Seven ways context goes quietly wrong</li>
+<li>How to check that compaction didn't break anything</li>
+</ul>
+
+<h2>Context is not a chat log</h2>
+
+<p>The first post in this series treated the message list as one thing: whatever the model answers, append it, and as long as the history stays legal the loop keeps turning.</p>
+
+<p>History isn't free, though. The model has no memory, so every request resends the whole history. The context window is a container refilled on every turn, not a chat log stored somewhere.</p>
+
+<p>So the hard part was never fitting things in. It is deciding what to bring.</p>
+
+<p>That produces a constraint no ordinary program has: <strong>the cost of context is not storage, it is input paid again on every turn.</strong> Leave a 20,000 character tool result in history and you have not spent one disk write, you have made every following request 20,000 characters heavier. Ten turns later you have resent two hundred thousand characters.</p>
+
+<p>Keeping too much makes the model lose the thread while latency and the bill both rise. Dropping too much makes it forget the goal, forget which file it edited, forget that a path was already ruled out, and start circling.</p>
+
+<p>The answer compresses to one line:</p>
+
+<blockquote>
+<p>What stays is the working set for the next step, not the record of what already happened.</p>
+</blockquote>
+
+<p>The test is just as short: will the next message use it? If yes, keep it. If no, drop it. If you are unsure, compress it to a sentence.</p>
+
+<h2>What one request actually carries</h2>
+
+<p>The <code>messages</code> array of a single request is usually made of seven things.</p>
+
+<table>
+<thead><tr><th>Content</th><th>Typical source</th><th>Size profile</th><th>How often it changes</th></tr></thead>
+<tbody>
+<tr><td>System prompt</td><td><code>prompt::system_prompt</code></td><td>Fixed, about 30 lines</td><td>At startup or on a config change</td></tr>
+<tr><td>Project conventions</td><td><code>AGENTS.md</code>, assembled level by level</td><td>At most 20,000 characters</td><td>When the file changes</td></tr>
+<tr><td>Project context</td><td><code>NANOHERMES.md</code></td><td>No separate cap</td><td>When the file changes</td></tr>
+<tr><td>Skill list</td><td><code>skills::listing</code></td><td>One line per skill</td><td>At startup</td></tr>
+<tr><td>Memory block</td><td><code>memory::render_block</code></td><td>At most 2,400 characters</td><td>Re-retrieved every turn</td></tr>
+<tr><td>Conversation messages</td><td>user, assistant, tool</td><td>Grows with turns</td><td>Every turn</td></tr>
+<tr><td>Compaction summary</td><td><code>summarize_messages</code></td><td>At most 300 words</td><td>When the budget is exceeded</td></tr>
+</tbody>
+</table>
+
+<p>The first three and the skill list all live in the system message and are rebuilt only at startup or when configuration changes. The memory block also lives in the system message, but it is replaced by marker every turn. Conversation messages are the part that grows, and the summary exists to stop that growth.</p>
+
+<p>The intuition most people have is that conversation messages dominate. Often they don't. A <code>read_file</code> that returns 2,000 lines gets clamped to 20,000 bytes, and five of those is 100,000 bytes, which is nearly the entire session budget. What eats the window is usually tool output, not model prose.</p>
+
+<table>
+<thead><tr><th>Content</th><th>Estimated size</th><th>Share of a 120k budget</th></tr></thead>
+<tbody>
+<tr><td>System prompt plus project conventions</td><td>2,000 to 22,000 characters</td><td>2% to 18%</td></tr>
+<tr><td>Memory block</td><td>2,400 characters or less</td><td>2% or less</td></tr>
+<tr><td>An ordinary tool result</td><td>200 to 2,000 characters</td><td>0.2% to 1.7%</td></tr>
+<tr><td>A clamped tool result</td><td>20,000 bytes</td><td>about 17%</td></tr>
+<tr><td>The last ten messages</td><td>5,000 to 40,000 characters</td><td>4% to 33%</td></tr>
+<tr><td>The compaction summary</td><td>1,500 to 2,500 characters</td><td>1% to 2%</td></tr>
+</tbody>
+</table>
+
+<p>Which explains a familiar symptom: <strong>context blows up because a few tool calls returned too much, not because the conversation was long.</strong> One uncapped <code>cat</code>, one whole-repo <code>grep</code>, one <code>web_fetch</code> that returns a full page of HTML, and the budget is gone.</p>
+
+<h2>Four budgets, from a single file to the whole session</h2>
+
+<p>NanoHermes does not have one context manager. It has caps at four levels, each aimed at a different failure.</p>
+
+<table>
+<thead><tr><th>Level</th><th>Cap</th><th>Where</th><th>Behaviour when exceeded</th></tr></thead>
+<tbody>
+<tr><td>Single file read</td><td>4 MB</td><td><code>fs::MAX_FILE_BYTES</code></td><td>Refused, with a hint to use <code>offset</code> and <code>limit</code></td></tr>
+<tr><td>Search scan</td><td>1 MB per file, 200 hits, 240 characters per line</td><td><code>search.rs</code></td><td>Oversized files skipped, stops at the hit cap</td></tr>
+<tr><td>Glob enumeration</td><td>500 files</td><td><code>search.rs</code></td><td>Truncated and marked as capped</td></tr>
+<tr><td>Single tool return</td><td>20,000 bytes</td><td><code>Ctx.max_output</code> with <code>clamp</code></td><td>Cut, with a note of how much was omitted</td></tr>
+<tr><td>Command capture</td><td>256 KB for stdout and stderr each</td><td><code>shell::CAPTURE_BYTES</code></td><td>Keeps reading, throws the excess away</td></tr>
+<tr><td>Background task</td><td>512 KB</td><td><code>tasks::CAPTURE_BYTES</code></td><td>Keeps the first 512 KB, notes the omission</td></tr>
+<tr><td>Web response</td><td>2 MB</td><td><code>web::MAX_RESPONSE_BYTES</code></td><td>Truncated response, text extraction continues</td></tr>
+<tr><td>Web body</td><td>20,000 characters by default</td><td><code>web_fetch.max_chars</code></td><td>Cut and marked</td></tr>
+<tr><td>Project docs</td><td>20,000 characters</td><td><code>prompt::MAX_PROJECT_DOCS</code></td><td>Cut and marked</td></tr>
+<tr><td>Skill body</td><td>20,000 characters</td><td><code>skills::MAX_BODY_CHARS</code></td><td>Cut and marked</td></tr>
+<tr><td>Memory injection</td><td>2,400 characters, at most 4 entries</td><td><code>memory::INJECT_*</code></td><td>Entries that don't fit are skipped</td></tr>
+<tr><td>Session total</td><td>120,000 characters</td><td><code>CONTEXT_CHAR_BUDGET</code></td><td>Older messages summarized</td></tr>
+</tbody>
+</table>
+
+<p>Why four layers instead of one compaction pass at the session level?</p>
+
+<p><strong>Compaction comes too late.</strong> If you only react at 120,000 characters, the model has already paid for the giant results across several turns. A cap at the tool layer applies the moment the result exists, so the cost stops there.</p>
+
+<p><strong>Compaction is expensive.</strong> It is itself a model request. If it had to read a 4 MB file and summarize it, the summarizer could blow its own window. The tool layer refuses first so the compaction layer only ever handles material worth summarizing.</p>
+
+<p><strong>Compaction loses information.</strong> A 20,000-byte tool result cut in place still shows the model its first 20,000 bytes. The same result summarized into a paragraph loses the detail entirely. Anything solvable at the tool layer should not be pushed down to compaction.</p>
+
+<p>The relationship fits in one line: <strong>closer to where the bytes are produced, cut hard; closer to the session, summarize.</strong> Hard cuts are cheap and preserve existence but lose detail. Summaries are expensive and preserve meaning but introduce model error. Neither substitutes for the other.</p>
+
+<h2>Why one tool result can eat half the window</h2>
+
+<p>Suppose the model calls <code>read_file</code> on a 2,000 line file averaging 80 characters a line. That is about 160,000 characters.</p>
+
+<p><code>fs::read_file</code> does not hand 160,000 characters to the model. It takes the first 2,000 lines per <code>limit</code>, then hands off to <code>dispatch</code>, whose last step is <code>clamp(s, ctx.max_output)</code> at 20,000 bytes by default. So the model sees the first 20,000 bytes plus one line reading <code>… output truncated (N chars omitted)</code>.</p>
+
+<p>Those 20,000 bytes then get JSON-serialized once more. Newlines become <code>\n</code>, quotes become <code>\"</code>, and the whole thing is wrapped in <code>{"role":"tool","tool_call_id":"…","content":"…"}</code>. Say it grows 3%, which makes 20,600 characters.</p>
+
+<p>Against a 120,000 character budget, that single result is 17%. Five of them is 85%. Add the system prompt, project docs and the model's own explanation, and the budget is gone.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>Raw size</th><th>Landed size</th><th>Share of 120k</th></tr></thead>
+<tbody>
+<tr><td>Read a 200 line file</td><td>16,000 characters</td><td>16,000 characters</td><td>13%</td></tr>
+<tr><td>Read a 2,000 line file</td><td>160,000 characters</td><td>20,000 bytes</td><td>17%</td></tr>
+<tr><td>Whole-repo grep, 200 hits</td><td>48,000 characters</td><td>20,000 bytes</td><td>17%</td></tr>
+<tr><td><code>git diff</code> on a large change</td><td>possibly 500,000 characters</td><td>20,000 bytes</td><td>17%</td></tr>
+<tr><td><code>web_fetch</code> on an article</td><td>up to 2 MB</td><td>20,000 characters by default</td><td>17%</td></tr>
+</tbody>
+</table>
+
+<p>That last row is worth noticing. <code>web_fetch</code> has its own <code>max_chars</code> floor at 20,000, the same number as the tool clamp. Not a coincidence: it is one budget, enforced twice.</p>
+
+<p>It also explains a design choice. <strong>Every built-in tool's result passes through <code>dispatch</code>'s <code>clamp</code>, rather than each tool deciding whether to truncate.</strong> A single tool can forget, or underestimate its own output. Enforcing at the exit is what guarantees no tool can flood the context in one shot.</p>
+
+<h2>The stable prefix</h2>
+
+<p>The system message sits at <code>messages[0]</code> and leads every request. Its content affects two things: how the model behaves, and whether the inference service gets a prefix cache hit.</p>
+
+<p>NanoHermes builds it in <code>system_content</code>: the built-in prompt, the <code>NANOHERMES.md</code> project context, and the skill list. It is rebuilt on three occasions.</p>
+
+<table>
+<thead><tr><th>Occasion</th><th>Action</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>New session</td><td><code>default_messages</code> builds it</td><td>Starting from nothing</td></tr>
+<tr><td>Resuming a session</td><td><code>refresh_system</code> replaces it</td><td>Configuration may have changed</td></tr>
+<tr><td><code>reset</code></td><td>Rebuilt</td><td>New topic, same rules</td></tr>
+</tbody>
+</table>
+
+<p>Resuming deserves attention. When a session file is loaded, NanoHermes does not reuse the system message stored in it. It regenerates one from the current configuration. The system message is configuration, not conversation. Permission mode, persona and <code>AGENTS.md</code> can all have changed, and restoring verbatim would leave the session running on expired rules.</p>
+
+<p>It isn't fully read-only either. The memory block is replaced every turn by <code>set_memory_block</code>, and that block sits at the end of the system message. So the <strong>front half is stable and the back half changes every turn</strong>.</p>
+
+<p>For an inference service, prefix caching usually matches on a token prefix. The stable front half hits; everything after the memory block is recomputed. That is an acceptable trade, because putting the volatile part at the end at least preserves the long stable prefix.</p>
+
+<p>Reverse it and the caching collapses. Put the memory block in the middle of the prompt, or prepend a timestamp to the system message every turn, and the cache misses entirely. <strong>Context design is not only what goes in, it is where it goes and how often it changes.</strong></p>
+
+<h2>The system prompt: short, and layered</h2>
+
+<p>The first post covered the five sources of the system prompt. Here they are again, by size.</p>
+
+<table>
+<thead><tr><th>Source</th><th>Content</th><th>Cap</th><th>Frequency of change</th></tr></thead>
+<tbody>
+<tr><td>Built-in prompt</td><td>Identity, six rules, workspace path</td><td>About 30 lines</td><td>At startup</td></tr>
+<tr><td>Permission mode note</td><td>One line of constraint per mode</td><td>One line</td><td>On mode switch</td></tr>
+<tr><td>User persona</td><td>The <code>system_prompt</code> setting</td><td>No separate cap</td><td>At startup</td></tr>
+<tr><td><code>AGENTS.md</code></td><td>Global plus ancestors, level by level</td><td>20,000 characters</td><td>When the file changes</td></tr>
+<tr><td><code>NANOHERMES.md</code></td><td>Project context at the workspace root</td><td>No separate cap</td><td>When the file changes</td></tr>
+<tr><td>Skill list</td><td>Name and one-line description per skill</td><td>One line each</td><td>At startup</td></tr>
+</tbody>
+</table>
+
+<p>Two asymmetries are worth naming.</p>
+
+<p><strong><code>AGENTS.md</code> has a 20,000 character cap; <code>NANOHERMES.md</code> does not.</strong> <code>prompt::project_docs</code> truncates after joining and appends <code>… project guidance truncated</code>. <code>system_content</code> reads <code>NANOHERMES.md</code> whole, with no separate cap. The session budget eventually catches it, but by then it has already ridden along in every request. That is a real boundary: keep the project context file short, and do not treat it as a documentation repository.</p>
+
+<p><strong>The skill list carries names and descriptions only; bodies load on demand.</strong> <code>skills::listing</code> emits one line per skill, and the actual instructions are read when the model calls the <code>skill</code> tool, with a 20,000 character cap of its own. Knowing what exists is cheap. Reading all of it is not.</p>
+
+<pre><code>fn system_content(cfg: &amp;Config, skills: &amp;[crate::skills::Skill]) -&gt; String {
+    let mut system = prompt::system_prompt(cfg);
+    let project_ctx = cfg.workspace.join("NANOHERMES.md");
+    if let Ok(text) = std::fs::read_to_string(&amp;project_ctx) {
+        if !text.trim().is_empty() {
+            system.push_str("\n\n=== Project context (NANOHERMES.md) ===\n");
+            system.push_str(text.trim());
+            system.push('\n');
+        }
+    }
+    if !skills.is_empty() {
+        system.push('\n');
+        system.push_str(&amp;crate::skills::listing(skills));
+    }
+    system
+}
+</code></pre>
+
+<p>The system prompt is resent every turn. A 2,000 token prompt across 20 turns is 40,000 tokens of input. Every sentence has to justify itself as worth paying per turn. Identity and tool rules earn it. Project conventions earn it. A three thousand word company introduction does not.</p>
+
+<h2>AGENTS.md: order of assembly and the 20,000 character cut</h2>
+
+<p><code>AGENTS.md</code> is not just the file at the workspace root. NanoHermes collects it from the global config directory, then down from the filesystem root to the workspace.</p>
+
+<pre><code>fn project_docs(workspace: &amp;Path) -&gt; Option&lt;String&gt; {
+    let mut candidates: Vec&lt;PathBuf&gt; = Vec::new();
+    if let Some(home) = std::env::var_os("HOME") {
+        candidates.push(PathBuf::from(home).join(".nanohermes").join("AGENTS.md"));
+    }
+    let mut chain: Vec&lt;&amp;Path&gt; = workspace.ancestors().collect();
+    chain.reverse();
+    for dir in chain {
+        for name in DOC_NAMES {
+            candidates.push(dir.join(name));
+        }
+    }
+    // canonicalize to deduplicate, read the files, join into parts
+    let mut joined = parts.join("\n\n");
+    if joined.len() &gt; MAX_PROJECT_DOCS {
+        let mut end = MAX_PROJECT_DOCS;
+        while end &gt; 0 &amp;&amp; !joined.is_char_boundary(end) {
+            end -= 1;
+        }
+        joined.truncate(end);
+        joined.push_str("\n… project guidance truncated");
+    }
+    Some(joined)
+}
+</code></pre>
+
+<p>The order carries two meanings.</p>
+
+<table>
+<thead><tr><th>Level</th><th>Read order</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>Global</td><td><code>~/.nanohermes/AGENTS.md</code> first</td><td>Preferences shared by every project</td></tr>
+<tr><td>Outer directories</td><td>Filesystem root down to the workspace</td><td>Broader scope comes earlier</td></tr>
+<tr><td>Inner directories</td><td>The workspace, most specific</td><td>More specific comes later, which means higher priority</td></tr>
+</tbody>
+</table>
+
+<p>"More specific later" is not ceremony. When a model reads a long document, later content is usually treated as the current instruction. Putting the workspace's own rules last means they override the general rules above them. The priority is expressed through order rather than hard-coded.</p>
+
+<p>Deduplication handles another case: a file reachable by a symlink or a second path is read once. When canonicalization fails, the code falls back to the original path, preferring a duplicate over a miss.</p>
+
+<p>The 20,000 character cut happens after assembly, so it removes the <strong>end</strong> of the joined text, which is the most specific project rule. That is a deliberate trade: global preferences and outer conventions are protected first, and if the workspace rules are too long their tail is what gets sacrificed. The better fix is a shorter workspace <code>AGENTS.md</code>, not reliance on the cut.</p>
+
+<h2>Memory injection on a 2,400 character budget</h2>
+
+<p>The memory block is the only part of the system message that changes every turn. Its budget is small and hard.</p>
+
+<table>
+<thead><tr><th>Parameter</th><th>Value</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>INJECT_TOP_K</code></td><td>4</td><td>Inject at most four memories</td></tr>
+<tr><td><code>INJECT_CHAR_BUDGET</code></td><td>2,400</td><td>Total characters for the injected block</td></tr>
+<tr><td><code>MAX_TEXT</code></td><td>400</td><td>Length cap per memory</td></tr>
+<tr><td>Markers</td><td><code>BLOCK_START</code> and <code>BLOCK_END</code></td><td>Locate and replace the old block wholesale</td></tr>
+</tbody>
+</table>
+
+<pre><code>pub fn render_block(entries: &amp;[&amp;Entry]) -&gt; String {
+    if entries.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from(BLOCK_START);
+    out.push_str("\nRelevant memories retrieved from earlier sessions (extracted automatically, for reference only; the user's current instruction takes precedence):\n");
+    let mut used = 0usize;
+    for e in entries {
+        let line = format!("\n- [{}] {}", e.kind.label(), e.text);
+        if used + line.chars().count() &gt; INJECT_CHAR_BUDGET {
+            break;
+        }
+        used += line.chars().count();
+        out.push_str(&amp;line);
+    }
+    out.push('\n');
+    out.push_str(BLOCK_END);
+    out
+}
+</code></pre>
+
+<p>The important word is <code>break</code>, not <code>continue</code>. When the budget runs short it stops rather than skipping an entry to try a shorter one later. Retrieval already ordered results by relevance, so anything further down matters less. Skipping a highly relevant memory to squeeze in a weak one is a bad trade.</p>
+
+<p><code>set_block</code> does the replacement: find the old markers, delete the whole segment, append the new block at the end of the system message, and if the new block is empty, delete without appending. Appending instead of replacing is the trap from the first post. Append every turn and the system prompt grows linearly until it owns the entire budget.</p>
+
+<p>The injected text says the user's current instruction takes precedence. That is not politeness. Retrieval ranks by relevance, and relevant is not the same as correct. A stale preference can outrank the current instruction on relevance alone. Writing the precedence into the injected text gives the model a rule to arbitrate with when the two conflict.</p>
+
+<h2>Every tool needs a ceiling</h2>
+
+<p>A tool that cannot limit its output is a context bomb. It arrives as a <code>cat</code> on a large file, a whole-repo search, a web fetch, or a build command that dumps a log.</p>
+
+<p>NanoHermes puts a gate wherever large output can appear.</p>
+
+<table>
+<thead><tr><th>Tool or layer</th><th>Cap</th><th>Behaviour when exceeded</th></tr></thead>
+<tbody>
+<tr><td><code>read_file</code></td><td>4 MB file, 2,000 lines by default</td><td>Refuses oversized files and suggests chunking</td></tr>
+<tr><td><code>grep</code></td><td>1 MB per file, 200 hits, 240 characters per line</td><td>Skips oversized files, stops at the hit cap</td></tr>
+<tr><td><code>glob</code></td><td>500 files</td><td>Truncated, marked as capped</td></tr>
+<tr><td><code>run_command</code></td><td>256 KB for stdout and stderr each</td><td>Keeps reading, discards, notes the truncation</td></tr>
+<tr><td>Background tasks</td><td>512 KB</td><td>First 512 KB kept, omitted bytes noted</td></tr>
+<tr><td><code>web_fetch</code></td><td>2 MB response, 20,000 characters of body by default</td><td>Response truncated, body cut at <code>max_chars</code></td></tr>
+<tr><td><code>web_search</code></td><td>Result count and snippet length bounded</td><td>Returns the first few</td></tr>
+<tr><td>All built-in tools</td><td>20,000 bytes</td><td><code>dispatch</code> applies <code>clamp</code> uniformly</td></tr>
+</tbody>
+</table>
+
+<p>These numbers map to different failures, which is why they differ.</p>
+
+<p><strong>4 MB is the read-or-not boundary.</strong> Past that size, reading is pointless: the model is never going to see the whole thing through a 20,000-byte cut, so it is better to say "this file is too large, read it in chunks with offset and limit". Refusal, not truncation.</p>
+
+<p><strong>1 MB is the search-or-not boundary.</strong> <code>grep</code> walks the whole workspace. A file above 1 MB is skipped so archives, build output and logs are not scanned as source. The skip is silent, but the result shows nothing matched there, and the model can confirm with <code>glob</code> or <code>read_file</code>.</p>
+
+<p><strong>200 hits is the enough-is-enough boundary.</strong> Search is for locating, not enumerating. Two hundred hits is plenty to find the target file, and more than the model will read. It stops and says so, so the model doesn't conclude those were all the matches.</p>
+
+<p><strong>256 KB is how loud a command may shout.</strong> A build command can emit megabytes. <code>read_capped</code> keeps the first 256 KB and discards the rest while still reading, because stopping would block the pipe and hang the child process. Classic case of "discard but never stop reading".</p>
+
+<p><strong>20,000 bytes is how much of the window one result may take.</strong> It does not care which tool produced it. Every built-in result passes through. It is the last line of defense against a tool that forgot its own cap.</p>
+
+<h2>Three truncation semantics: refuse, cut, summarize</h2>
+
+<p>Truncation is not one action but three different semantics. Mix them up and the model receives contradictory signals.</p>
+
+<table>
+<thead><tr><th>Semantic</th><th>Example</th><th>What the model sees</th><th>Strength</th><th>Weakness</th></tr></thead>
+<tbody>
+<tr><td>Refuse</td><td><code>read_file</code> above 4 MB</td><td><code>… is N bytes (&gt; 4194304); read it in chunks</code></td><td>Explicit, costs no context</td><td>The model must ask again</td></tr>
+<tr><td>Hard cut with a note</td><td><code>dispatch</code>'s <code>clamp</code></td><td>First 20,000 bytes plus <code>N chars omitted</code></td><td>Cheap, keeps the beginning</td><td>The tail is lost</td></tr>
+<tr><td>Counter with a note</td><td><code>grep</code> at 200 hits</td><td>200 hits plus <code>stopped after 200 matches</code></td><td>Predictable output</td><td>Later hits may be missed</td></tr>
+<tr><td>Response cut with a note</td><td><code>web_fetch</code> above 2 MB</td><td>Text plus <code>response truncated at …</code></td><td>Body still extractable</td><td>The page may be incomplete</td></tr>
+<tr><td>Summarize</td><td><code>compact</code></td><td>A 300 word summary</td><td>Preserves meaning in little space</td><td>One more request, some loss</td></tr>
+</tbody>
+</table>
+
+<p>All three share one requirement: <strong>leave a trace.</strong> Silent truncation is the worst option. A model that cannot see the cut treats an incomplete result as complete and decides on missing information. A <code>grep</code> that quietly returns the first 200 matches can convince a model that those are the only matches in the repository, and it edits the wrong file.</p>
+
+<p>Every truncation path in NanoHermes carries a note:</p>
+
+<ul>
+<li><code>clamp</code>: <code>… output truncated (N chars omitted)</code></li>
+<li><code>grep</code>: <code>… stopped after 200 matches</code></li>
+<li><code>glob</code>: <code>… capped at 500 files</code></li>
+<li><code>read_file</code>: <code>… N more lines (total M)</code></li>
+<li><code>shell</code>: <code>… stdout truncated (N bytes not shown)</code></li>
+<li>Background tasks: <code>… output truncated (N bytes not shown)</code></li>
+<li><code>web_fetch</code>: <code>[response truncated at 2097152 bytes]</code></li>
+</ul>
+
+<p>The notes cost space, and they are the best few dozen characters in the context. Without them, the model acts on a false assumption of completeness.</p>
+
+<h2>How clamp works</h2>
+
+<p><code>clamp</code> is a dozen lines that handle three easy-to-miss details.</p>
+
+<pre><code>fn clamp(s: String, max: usize) -&gt; String {
+    if s.len() &lt;= max {
+        return s;
+    }
+    let mut end = max;
+    while end &gt; 0 &amp;&amp; !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!(
+        "{}\n… output truncated ({} chars omitted)",
+        &amp;s[..end],
+        s.len() - end
+    )
+}
+</code></pre>
+
+<p><strong>The cap counts bytes.</strong> <code>s.len()</code> returns bytes, not characters. For pure ASCII output such as logs, code and command results, those are the same thing. For Chinese output, a character is three bytes, so 20,000 bytes holds roughly 6,600 characters.</p>
+
+<p><strong>The cut must land on a UTF-8 boundary.</strong> Slice directly at a byte offset that falls inside a three-byte character and Rust panics. The <code>while</code> loop walks back at most two bytes to guarantee a legal slice.</p>
+
+<p><strong>The note counts bytes but says chars.</strong> A small inconsistency: <code>s.len() - end</code> is a byte count and the message calls it characters. Harmless for ASCII, an overestimate for Chinese. It does not affect safety, but it makes the model slightly conservative about how much is left. Better to know that than to pretend it isn't there.</p>
+
+<table>
+<thead><tr><th>Input</th><th>Cap</th><th>Output</th><th>Actually kept</th></tr></thead>
+<tbody>
+<tr><td>30,000 bytes of ASCII</td><td>20,000</td><td>First 20,000 bytes plus the note</td><td>20,000 characters</td></tr>
+<tr><td>30,000 bytes of Chinese, 10,000 characters</td><td>20,000</td><td>First 20,000 bytes plus the note</td><td>About 6,666 characters</td></tr>
+<tr><td>Boundary inside a multi-byte character</td><td>20,000</td><td>Backs off to 19,998 bytes</td><td>Legal UTF-8</td></tr>
+</tbody>
+</table>
+
+<p>Which is why the unit should be documented as bytes. <code>Ctx.max_output</code> is a bare <code>usize</code> with no unit, and <code>clamp</code> uses <code>len()</code>, so bytes is what it means.</p>
+
+<h2>When compaction fires</h2>
+
+<p>Compaction is <code>compact</code>, called after each turn's tool results go back into history.</p>
+
+<pre><code>fn compact_with(&amp;mut self, force: bool) -&gt; usize {
+    let size: usize = self.messages.iter().map(|m| m.to_string().len()).sum();
+    if !force &amp;&amp; (size &lt;= CONTEXT_CHAR_BUDGET || self.messages.len() &lt;= KEEP_RECENT + 1) {
+        return 0;
+    }
+
+    let mut start = self.messages.len().saturating_sub(KEEP_RECENT);
+    while start &lt; self.messages.len() &amp;&amp; self.messages[start]["role"] == "tool" {
+        start += 1;
+    }
+    if start &lt;= 1 {
+        return 0;
+    }
+
+    let dropped: Vec&lt;Value&gt; = self.messages.drain(1..start).collect();
+    let note = match self.summarize_messages(&amp;dropped) {
+        Some(summary) =&gt; format!("[Earlier conversation summary]\n{summary}"),
+        None =&gt; "[Earlier conversation was omitted to keep the context small]".to_string(),
+    };
+    self.messages.insert(1, json!({ "role": "system", "content": note }));
+    dropped.len()
+}
+</code></pre>
+
+<p>Four gates decide whether it runs.</p>
+
+<table>
+<thead><tr><th>Gate</th><th>Condition</th><th>When not met</th></tr></thead>
+<tbody>
+<tr><td>Budget</td><td><code>size &gt; 120_000</code></td><td>No compaction</td></tr>
+<tr><td>Message count</td><td><code>messages.len() &gt; 11</code></td><td>No compaction, not enough old material</td></tr>
+<tr><td>Forced</td><td><code>force == true</code> from <code>/compact</code></td><td>The first two gates are ignored</td></tr>
+<tr><td>Cut point</td><td><code>start &gt; 1</code> and not on a tool message</td><td>No compaction</td></tr>
+</tbody>
+</table>
+
+<p><code>size</code> is computed as <code>messages.iter().map(|m| m.to_string().len()).sum()</code>. It measures the <strong>serialized JSON length</strong>, not the length of the content.</p>
+
+<p>The <code>/compact</code> command calls <code>compact_now()</code>, which calls <code>compact_with(true)</code> and skips the budget gate, so an interactive user can tidy up before the budget explodes.</p>
+
+<p>That distinction matters. A <code>tool</code> message's JSON carries <code>role</code>, <code>tool_call_id</code> and <code>content</code>, plus quotes, colons and escapes. Every newline becomes two characters, every double quote becomes an escape. So <code>size</code> is always slightly larger than the sum of content lengths. For newline-dense material such as code and logs, the gap runs 5% to 10%.</p>
+
+<table>
+<thead><tr><th>Content</th><th>Raw characters</th><th>Serialized</th><th>Growth</th></tr></thead>
+<tbody>
+<tr><td>1,000 lines of log</td><td>50,000</td><td>about 52,000</td><td>4%</td></tr>
+<tr><td>2,000 lines of code</td><td>80,000</td><td>about 84,000</td><td>5%</td></tr>
+<tr><td>JSON full of quotes</td><td>20,000</td><td>about 24,000</td><td>20%</td></tr>
+</tbody>
+</table>
+
+<p>So 120,000 is a JSON character count, not a token count and not a content character count. Treat it as a conservative approximation, not the exact window size.</p>
+
+<h2>Why characters and not tokens</h2>
+
+<p>Precise context management should count tokens. Each model has its own tokenizer, and the same text costs different amounts on different models. Counting tokens is the only way to hit the window exactly.</p>
+
+<p>NanoHermes counts characters for three reasons.</p>
+
+<p><strong>A tokenizer is a heavy dependency.</strong> One vocabulary per model, tens to hundreds of megabytes. Bundling one means binding to a model family or maintaining a copy per model. NanoHermes has three crates and did not want a fourth and fifth just to estimate.</p>
+
+<p><strong>Character counts are a good conservative approximation.</strong> English and code run about three to four characters per token; Chinese runs one to two. So 120,000 characters lands somewhere between 30,000 and 60,000 tokens. As long as the budget sits below the real window, the error points the safe way.</p>
+
+<p><strong>Character counts are explainable.</strong> "Context: 120,000 characters" is something a user can reason about. "Context: 37,842 tokens" tells them nothing about how much room is left. For an interactive CLI, explainability beats precision.</p>
+
+<table>
+<thead><tr><th>Text type</th><th>Characters per token (rough)</th><th>120k characters is about</th></tr></thead>
+<tbody>
+<tr><td>English prose</td><td>4</td><td>30,000 tokens</td></tr>
+<tr><td>Source code</td><td>3 to 3.5</td><td>34,000 to 40,000 tokens</td></tr>
+<tr><td>Chinese</td><td>1 to 1.5</td><td>80,000 to 120,000 tokens</td></tr>
+<tr><td>Mixed English, Chinese and code</td><td>2 to 3</td><td>40,000 to 60,000 tokens</td></tr>
+</tbody>
+</table>
+
+<p>The Chinese row is the blind spot. A context that is entirely Chinese can push 120,000 characters close to 120,000 tokens, past the window of many models. NanoHermes mostly handles code and English technical text, so the Chinese share is usually low. If your workload is long Chinese documents, lower the budget or switch to token estimation.</p>
+
+<h2>Keep the last ten messages, not the last ten turns</h2>
+
+<p>Compaction keeps the last ten <strong>messages</strong>. The difference from ten turns is large, because the message count per turn depends on how many tools the model called.</p>
+
+<table>
+<thead><tr><th>What happens in one turn</th><th>Messages</th></tr></thead>
+<tbody>
+<tr><td>User asks, model answers in text</td><td>2 (user and assistant)</td></tr>
+<tr><td>User asks, model calls one tool, then summarizes</td><td>4 (user, assistant, tool, assistant)</td></tr>
+<tr><td>User asks, model calls five tools, then summarizes</td><td>7 (user, assistant, five tools, assistant)</td></tr>
+<tr><td>User asks, three tool rounds of two calls each</td><td>1 + 3 × (1 + 2) + 1 = 11</td></tr>
+</tbody>
+</table>
+
+<p>Keeping "the last ten turns" would preserve 110 messages in the last case, which no budget survives. Keeping the last ten messages caps the retained count no matter how many tools a turn used.</p>
+
+<pre><code>let mut start = self.messages.len().saturating_sub(KEEP_RECENT);
+while start &lt; self.messages.len() &amp;&amp; self.messages[start]["role"] == "tool" {
+    start += 1;
+}
+</code></pre>
+
+<p><code>saturating_sub</code> handles a history shorter than ten, yielding zero, and the later <code>start &lt;= 1</code> check returns without touching the system message.</p>
+
+<p>Ten is chosen to guarantee the most recent tool exchange survives. One turn with five tool calls is seven messages; add a user and an assistant and that is nine. Ten covers a complete round trip, so the model knows what just happened.</p>
+
+<h2>The cut point must not land on a tool message</h2>
+
+<p>The first version of the cut was "start ten from the end and drop everything before". That has a fatal case: if the tenth-from-last message happens to be a <code>tool</code> message, dropping the assistant call before it while keeping the result leaves a tool result with no call behind it.</p>
+
+<p>The next request is rejected outright:</p>
+
+<blockquote>
+<p>messages with role 'tool' must be a response to a preceding message with 'tool_calls'</p>
+</blockquote>
+
+<p>The subtler version is a compatibility layer that doesn't reject it. The model then sees a result with no matching call and starts improvising.</p>
+
+<p>NanoHermes pushes the cut point forward until it is no longer a tool message. After that, the dropped region holds complete assistant calls and all their results, and the kept region starts at a non-tool message, so the history stays legal.</p>
+
+<table>
+<thead><tr><th>Cut point</th><th>Dropped</th><th>Kept history</th><th>Legal</th></tr></thead>
+<tbody>
+<tr><td>On a user message</td><td>That user message and everything before</td><td>user, assistant, tool…</td><td>Yes</td></tr>
+<tr><td>On an assistant message</td><td>That assistant message and everything before</td><td>assistant, tool…</td><td>Yes</td></tr>
+<tr><td>On a tool message, unadjusted</td><td>The call, but not the result</td><td>An orphaned tool result</td><td>No</td></tr>
+<tr><td>On a tool message, adjusted</td><td>The whole round of calls and results</td><td>The next non-tool message</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<p>One more boundary: <code>start &lt;= 1</code> returns immediately. <code>messages[0]</code> is the system message and <code>messages[1]</code> is the summary or the first exchange. A cut point at 1 or earlier means there is nothing old enough to drop, so compaction gives up rather than discarding the system message.</p>
+
+<p>This rule is a direct extension of the first post's invariant that history must stay legal. Compaction is not deleting an arbitrary slice. It has to preserve the pairing between calls and results.</p>
+
+<h2>The summary is one more model request</h2>
+
+<p>Compaction does not just delete old messages. It asks the model to summarize what was dropped, and that paragraph goes back in as a <code>system</code> message.</p>
+
+<pre><code>fn summarize_messages(&amp;self, messages: &amp;[Value]) -&gt; Option&lt;String&gt; {
+    if messages.is_empty() {
+        return None;
+    }
+    let mut excerpt = String::new();
+    for m in messages {
+        let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("?");
+        let content = match m.get("content") {
+            Some(Value::String(s)) =&gt; s.clone(),
+            Some(Value::Array(arr)) =&gt; arr
+                .iter()
+                .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+                .collect::&lt;Vec&lt;_&gt;&gt;()
+                .join(" "),
+            _ =&gt; String::new(),
+        };
+        let content = content.trim();
+        if content.is_empty() {
+            continue;
+        }
+        excerpt.push_str(&amp;format!("{role}: {}\n", content));
+    }
+    if excerpt.trim().is_empty() {
+        return None;
+    }
+    match llm::summarize(&amp;self.cfg, &amp;excerpt) {
+        Ok(s) if !s.is_empty() =&gt; Some(s),
+        _ =&gt; None,
+    }
+}
+</code></pre>
+
+<p>The first job is flattening each message into <code>role: content</code> text. Multimodal messages contribute only their text parts; image URLs never enter the summary. Empty messages are skipped.</p>
+
+<p>Then it calls <code>llm::summarize</code>, which turns streaming off, passes no tools, and reuses the main temperature (0 by default). A summary is an ordinary, non-streaming, tool-less model request.</p>
+
+<h2>What the summarizer sees, and what it does not</h2>
+
+<p>This is the most overlooked part of the design.</p>
+
+<p><code>summarize_messages</code> reads only each message's <code>content</code>. It does <strong>not</strong> read <code>function.name</code> or <code>function.arguments</code> from <code>tool_calls</code>.</p>
+
+<table>
+<thead><tr><th>Message type</th><th>Enters the summary</th><th>Does not</th></tr></thead>
+<tbody>
+<tr><td>user</td><td>The text, with multimodal reduced to text</td><td>Image data</td></tr>
+<tr><td>assistant, plain text</td><td>The <code>content</code></td><td>Nothing</td></tr>
+<tr><td>assistant, tool call</td><td>Usually empty, so the whole message is skipped</td><td>The name, arguments and id in <code>tool_calls</code></td></tr>
+<tr><td>tool</td><td>The full result text</td><td>The <code>tool_call_id</code> and the call it answers</td></tr>
+</tbody>
+</table>
+
+<p>So the summarizer sees a sequence like this:</p>
+
+<pre><code>user: change the install command in the README to pnpm
+assistant: let me look at the README first.
+tool: 1|# Project
+2|
+3|## Install
+4|npm install
+…
+assistant: done, it says pnpm now.
+</code></pre>
+
+<p>It can see that the README was read and what those lines said. It cannot see that the call was <code>read_file</code> with <code>path=README.md</code>. If the tool result itself doesn't name the file, the summary loses the critical fact of which file was changed.</p>
+
+<p>That is a real limitation, and the reason the summary prompt asks for file paths changed. Since structured fields never arrive, the paths have to come from the tool output and the model's prose. <code>read_file</code> output here doesn't carry the filename, so the summarizer infers it from context. <code>edit_file</code> results do carry a path, which usually fills the gap.</p>
+
+<p>Two ways to improve it:</p>
+
+<ol>
+<li><strong>Keep tool names and arguments in the summary input.</strong> Render the assistant message's <code>tool_calls</code> as <code>assistant: [read_file] {"path":"README.md"}</code> instead of skipping the message.</li>
+<li><strong>Give tool results their own identity.</strong> Have each tool say what it did and where, such as <code>read_file README.md</code>.</li>
+</ol>
+
+<p>Both lengthen the summary input and both sharply reduce the "after compaction nobody remembers which file changed" problem.</p>
+
+<h2>Degradation when the summary fails</h2>
+
+<p>Summarization is one more request, so it can fail: rate limit, timeout, empty response. When it does, <code>compact_with</code> still compacts. It inserts a note instead of a summary:</p>
+
+<pre><code>[Earlier conversation was omitted to keep the context small]
+</code></pre>
+
+<p>The result is smaller and less useful. The model knows something was removed, which is the important part: it can re-read a file or re-run a search instead of assuming the gap never existed. Silent loss is far worse than an acknowledged gap.</p>
+
+<p>After insertion, the sequence reads: system message, the summary note, then the last ten messages. Legal, bounded, and honest about its own missing pieces.</p>
+
+<h2>What to keep, what to drop</h2>
+
+<p>Five kinds of information have to survive compaction.</p>
+
+<ol>
+<li><strong>The goal.</strong> What the user actually asked for, including constraints and corrections. A summary that loses "don't touch the tests" causes damage later.</li>
+<li><strong>Decisions already made.</strong> Chosen approach, rejected alternatives, and why. Otherwise the model re-litigates settled questions.</li>
+<li><strong>Files touched.</strong> Paths created, edited or deleted. Without them the next edit lands in the wrong place.</li>
+<li><strong>Dead ends.</strong> What was tried and did not work. This is the cheapest information in the world: one line prevents an hour of repetition.</li>
+<li><strong>Current state.</strong> What is done, what is pending, what is blocked.</li>
+</ol>
+
+<p>Four kinds of content can go without much loss.</p>
+
+<ol>
+<li><strong>Verbose tool output already consumed.</strong> The 20,000 lines of a log that produced one conclusion. Keep the conclusion, drop the log.</li>
+<li><strong>Successful command chatter.</strong> Build logs that passed, install output, test listings that all went green.</li>
+<li><strong>Superseded plans.</strong> The first draft of an approach that was replaced.</li>
+<li><strong>Social scaffolding.</strong> "Sure", "let me take a look", "now I'll check the second file".</li>
+</ol>
+
+<p>The asymmetry is deliberate: keeping the wrong thing costs tokens every turn, dropping the right thing costs a repeated action.</p>
+
+<h2>Context, memory and session are three different things</h2>
+
+<table>
+<thead><tr><th></th><th>Context</th><th>Memory</th><th>Session</th></tr></thead>
+<tbody>
+<tr><td>Scope</td><td>This request</td><td>Across sessions</td><td>This conversation</td></tr>
+<tr><td>Lifetime</td><td>Rebuilt every turn</td><td>Persisted, retrieved by relevance</td><td>Persisted, resumed on demand</td></tr>
+<tr><td>Size limit</td><td>120,000 characters</td><td>2,400 characters injected</td><td>Grows on disk</td></tr>
+<tr><td>Failure if confused</td><td>Budget overrun</td><td>Stale preferences override the present</td><td>History cannot be resumed</td></tr>
+</tbody>
+</table>
+
+<p>The boundary matters because people try to solve context growth by adding memory. Memory is not a bigger context. It is a small, relevance-filtered injection for facts that outlive a conversation. Anything specific to the current task belongs in history, not in memory.</p>
+
+<h2>What compaction costs</h2>
+
+<ul>
+<li><strong>Latency.</strong> One extra request on the turn it fires, which is exactly the turn that was already slow because the context was large.</li>
+<li><strong>Loss.</strong> Anything the summary omits is gone from the model's view, even though the full log is still on disk.</li>
+<li><strong>Drift.</strong> Summaries are written by a model. Repeated compaction compounds small distortions, and after several rounds the model's idea of the goal can differ from the user's.</li>
+</ul>
+
+<p>Mitigations are structural: compact late rather than often, keep the goal in the system prompt where it cannot be summarized away, and keep the raw session file so the user can rewind.</p>
+
+<h2>A ledger for a twelve-turn task</h2>
+
+<p>A rough accounting makes the pressure concrete. Numbers are characters after serialization.</p>
+
+<table>
+<thead><tr><th>Turn</th><th>What happened</th><th>Added</th><th>Running total</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>System prompt, project docs, skill list</td><td>6,000</td><td>6,000</td></tr>
+<tr><td>1</td><td>Question, plus one file read at the cap</td><td>21,000</td><td>27,000</td></tr>
+<tr><td>2</td><td>Two more reads, one large</td><td>25,000</td><td>52,000</td></tr>
+<tr><td>3</td><td>Whole-repo search, 200 hits</td><td>21,000</td><td>73,000</td></tr>
+<tr><td>4</td><td>Edits and a diff</td><td>18,000</td><td>91,000</td></tr>
+<tr><td>5</td><td>Test run with a long log</td><td>16,000</td><td>107,000</td></tr>
+<tr><td>6</td><td>Another read and a fix</td><td>15,000</td><td>122,000, compaction fires</td></tr>
+<tr><td>7</td><td>After compaction: summary plus the last ten messages</td><td>resets to about 45,000</td><td>45,000</td></tr>
+</tbody>
+</table>
+
+<p>Compaction fired at turn six, roughly halfway through the task. That is the normal shape: a handful of large tool results get you to the budget, not a long conversation.</p>
+
+<h2>Seven ways context goes quietly wrong</h2>
+
+<ol>
+<li><strong>A tool without a cap.</strong> One uncapped output and the budget is spent before compaction can help.</li>
+<li><strong>Appending instead of replacing the memory block.</strong> The system prompt grows every turn until it owns everything.</li>
+<li><strong>Cutting inside a tool exchange.</strong> Orphaned results, and either a hard API rejection or a confused model.</li>
+<li><strong>Silent truncation.</strong> The model assumes an incomplete result is complete and edits the wrong file.</li>
+<li><strong>Volatile content at the front of the system prompt.</strong> A timestamp in the opening line kills prefix caching for the whole request.</li>
+<li><strong>Treating the last ten turns as the last ten messages.</strong> A tool-heavy turn makes the retained set five times bigger than intended.</li>
+<li><strong>Summarizing without tool names.</strong> The summary cannot say which file was read or changed, and the model re-does work.</li>
+</ol>
+
+<h2>How to check that compaction didn't break anything</h2>
+
+<ul>
+<li><strong>Assert the sequence is legal after every compaction.</strong> Every <code>tool</code> message must follow an assistant message with a matching <code>tool_call_id</code>, and the count must match.</li>
+<li><strong>Assert the system message survives.</strong> <code>messages[0]</code> must still be the system message after the cut.</li>
+<li><strong>Assert the retained count.</strong> After compaction, the message count should be at most <code>KEEP_RECENT + 2</code>, the extra two being the system message and the summary.</li>
+<li><strong>Assert idempotence.</strong> Compacting twice in a row without new messages should be a no-op the second time.</li>
+<li><strong>Check the summary is bounded.</strong> A summary longer than the budget is a bug, not a feature.</li>
+<li><strong>Replay a known session.</strong> Keep one recorded session as a fixture and assert that compaction leaves a legal sequence and a summary containing the goal.</li>
+</ul>
+
+<p>These tests are cheap and they cover exactly the failure modes above. A context bug is nearly always a legality bug that shows up as "the model got weird", so the tests belong at the sequence level, not at the prompt level.</p>
+
+<h2>Closing</h2>
+
+<p>Context engineering compresses into four sentences.</p>
+
+<ol>
+<li><strong>Context is the working set, not the record.</strong> Keep what the next message will use, drop the rest, and summarize when unsure.</li>
+<li><strong>Cap close to the source.</strong> Four megabytes is a refusal, twenty thousand bytes is a cut, and both happen before the session budget matters.</li>
+<li><strong>Leave a trace on every cut.</strong> The few dozen characters saying "200 matches, stopped" are the highest-value text in the context.</li>
+<li><strong>Compaction must preserve legality.</strong> The cut point cannot land on a tool message, and the summary has to carry the goal, the decisions, the paths and the dead ends.</li>
+</ol>
+
+<p>The next post covers memory: what deserves to outlive a conversation, and how to retrieve it without a vector database.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
