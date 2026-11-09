@@ -18509,6 +18509,462 @@ def get_article_safe(article_id):
 `,
   },
 
+  {
+    slug: 'django-slow-query-index-tuning',
+    zhSlug: 'django-slow-query-index-tuning',
+    topicSlug: 'backend',
+    title: 'The index is there, so why is the sort unindexed? A slow query investigation',
+    excerpt:
+      'Two queries per request is cheap until each one scans a million rows. An index whose direction disagrees with the ordering is worth nothing, and at nine rows you cannot see it.',
+    date: '2026-11-01',
+    readingTime: 30,
+    html: `
+<blockquote>
+<p>Follows the earlier post that took a list endpoint from twenty-one queries down to two. The count problem was solved, and the cost problem was still waiting.</p>
+<p>Django with SQLite, matching this site's stack. The reasoning holds for MySQL 8 and PostgreSQL, and the differences are called out.</p>
+<p>Reading time around 30 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>After the N+1 fix, the bill arrived</h2>
+
+<table>
+<thead><tr><th>Setup</th><th>Plan</th><th>First page, ten rows, median</th></tr></thead>
+<tbody>
+<tr><td>No index at all</td><td>SCAN plus a temp B-tree</td><td>395.92 ms</td></tr>
+<tr><td>The index in production</td><td>SEARCH plus a temp B-tree</td><td>476.50 ms</td></tr>
+<tr><td>One more column added</td><td>SEARCH plus a temp B-tree for the last term</td><td>690.80 ms</td></tr>
+<tr><td>Directions aligned</td><td>SEARCH</td><td><strong>0.18 ms</strong></td></tr>
+</tbody>
+</table>
+
+<p>Three findings, each counterintuitive. The index made it slower than no index at all, 476 against 396, so for this statement the index was effectively absent. Adding the missing column made it worse, because a partial index is more damaging than none: it convinces the optimiser it can help. And writing the direction correctly made it roughly 2,600 times faster.</p>
+
+<p>The gap is not about having an index. It is about whether the physical order of the index matches the order the query asks for. On a blog with nine posts, you would never see any of it, which is what makes slow queries so quiet.</p>
+
+<h2>Two separate bills: how many queries, and how expensive each one is</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Symptom</th><th>Usual culprit</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Query count</td><td>The count grows with the data</td><td>N+1</td><td>Related-object loading, prefetching, annotation</td></tr>
+<tr><td>Per-query cost</td><td>The count is stable but each one slows down</td><td>Full scans, sorting, temporary tables</td><td>Indexes, rewritten SQL, a different paging strategy</td></tr>
+</tbody>
+</table>
+
+<p>Two queries per request, each scanning nine hundred thousand rows, is almost a second. The count optimisation can be perfect and the site still feels slow.</p>
+
+<p>So investigate in this order: the count first, because removing an outrageous N+1 is the biggest single win; then the plan for each statement, which sets the ceiling; then the internals of each statement, whether an index can be used and whether sorting or a temporary table appears.</p>
+
+<h2>Reading a plan</h2>
+
+<table>
+<thead><tr><th>Keyword</th><th>Meaning</th><th>Cost</th><th>Danger</th></tr></thead>
+<tbody>
+<tr><td>SCAN table</td><td>Full table scan</td><td>All rows</td><td>High</td></tr>
+<tr><td>SEARCH table USING INDEX (col=?)</td><td>Index seek to specific rows</td><td>Matching rows</td><td>Low</td></tr>
+<tr><td>SEARCH using COVERING INDEX</td><td>Every needed column is in the index, no row fetch</td><td>Matching rows, cheaper</td><td>Lower</td></tr>
+<tr><td>SCAN using COVERING INDEX</td><td>Walks the whole index rather than the table</td><td>All rows, but narrower</td><td>Medium</td></tr>
+<tr><td>USE TEMP B-TREE FOR ORDER BY</td><td>An extra sort is required</td><td>n log n</td><td>High</td></tr>
+<tr><td>USE TEMP B-TREE FOR LAST TERM OF ORDER BY</td><td>Only part of the ordering was satisfied</td><td>Part of n log n</td><td>Medium-high</td></tr>
+<tr><td>USE TEMP B-TREE FOR GROUP BY</td><td>Grouping needs a temporary table</td><td>n log n</td><td>Medium-high</td></tr>
+</tbody>
+</table>
+
+<p>A search seeks, a scan walks, and a temp B-tree means the index did not cover the ordering. A scan is not automatically a disaster on a small table or when few columns are needed, but on a hot path it is a time bomb. The temp B-tree is the engine telling you the index was used for half its job.</p>
+
+<h3>Getting the plan out of Django</h3>
+
+<pre><code># tools/explain.py -- print the plan for any queryset
+import os
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "blog_api.settings")
+django.setup()
+
+from django.db import connection
+
+
+def explain(qs, verbose=True):
+    """Return the plan for a queryset, using EXPLAIN QUERY PLAN on SQLite."""
+    sql, params = qs.query.sql_with_params()
+    if verbose:
+        print(sql)
+    with connection.cursor() as cur:
+        # MySQL 8: "EXPLAIN", or "EXPLAIN ANALYZE" from 8.0.18
+        # PostgreSQL: "EXPLAIN (ANALYZE, BUFFERS)"
+        cur.execute("EXPLAIN QUERY PLAN " + sql, params)
+        return [row[-1] for row in cur.fetchall()]
+
+
+if __name__ == "__main__":
+    from articles.models import Article
+
+    qs = Article.objects.filter(status=Article.Status.PUBLISHED)
+    for line in explain(qs):
+        print("   ", line)
+</code></pre>
+
+<pre><code>SELECT "articles_article"."id", ... FROM "articles_article"
+WHERE "articles_article"."status" = ? ORDER BY "articles_article"."is_top" DESC,
+"articles_article"."created_at" DESC
+
+    SEARCH articles_article USING INDEX articles_status_created_idx (status=?)
+    USE TEMP B-TREE FOR ORDER BY
+</code></pre>
+
+<p>The last line is the problem. The index was used and the ordering was not covered, which is the splinter this post pulls out.</p>
+
+<h3>Capturing how long each statement took</h3>
+
+<pre><code>from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from articles.models import Article
+
+with CaptureQueriesContext(connection) as ctx:
+    list(Article.objects.filter(status=Article.Status.PUBLISHED)[:10])
+
+print(f"{len(ctx.captured_queries)} statements")
+for q in ctx.captured_queries:
+    print(f'{float(q["time"]) * 1000:8.2f} ms | {q["sql"][:110]}')
+</code></pre>
+
+<p>Count and duration together are the full picture. With only the count, the common incident of two statements each taking half a second is invisible.</p>
+
+<h2>The real model, and its real plan</h2>
+
+<pre><code>class Article(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PUBLISHED = "published", "Published"
+        ARCHIVED = "archived", "Archived"
+        SCHEDULED = "scheduled", "Scheduled"
+
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, unique=True)
+    # ... other fields omitted ...
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    is_top = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_top", "-created_at"]        # order: pinned first, then newest
+        indexes = [
+            models.Index(                            # index: status and created_at
+                fields=["status", "-created_at"],
+                name="articles_status_created_idx",
+            ),
+            models.Index(fields=["scheduled_at"], name="articles_scheduled_idx"),
+        ]
+</code></pre>
+
+<p>Put those two lines side by side. The ordering needs two columns and the index holds one of them; the missing one is the pinned flag.</p>
+
+<pre><code>SEARCH articles_article USING INDEX articles_status_created_idx (status=?)
+USE TEMP B-TREE FOR ORDER BY
+</code></pre>
+
+<p>Remove the pinned column from the ordering and the same query against the same table gives a single line, with no temp B-tree. Same index, same data, one fewer sort term, and the extra sort disappears.</p>
+
+<p>With nine rows both versions take a fraction of a millisecond, so nothing is visible. Whether an index is valid has nothing to do with data volume; the pain of an invalid one is entirely about data volume.</p>
+
+<h2>Experiment one: a million rows</h2>
+
+<pre><code>ROWS = 1_000_000
+# 90% published, 10% draft; only a handful pinned, like the real blog
+for i in range(ROWS):
+    status = "published" if (i % 10) != 0 else "draft"
+    is_top = 1 if i in (7, 42, 1337, 99999, 500000) else 0
+    created_at = base + i * 37 seconds
+</code></pre>
+
+<p>Every measurement takes the median of seven runs, and every index change drops the others so each group stands alone. The statement under test is the list page.</p>
+
+<pre><code>SELECT id, title FROM articles_article
+WHERE status = 'published'
+ORDER BY is_top DESC, created_at DESC
+LIMIT 10;
+</code></pre>
+
+<table>
+<thead><tr><th>#</th><th>Index</th><th>Plan</th><th>Median</th><th>Relative</th></tr></thead>
+<tbody>
+<tr><td>S0</td><td>None</td><td>SCAN plus temp B-tree</td><td>395.92 ms</td><td>1x</td></tr>
+<tr><td>S1</td><td>status, created_at desc (production)</td><td>SEARCH plus temp B-tree</td><td>476.50 ms</td><td>0.83x, slower</td></tr>
+<tr><td>S2</td><td>status, is_top, created_at desc</td><td>SEARCH plus temp B-tree for the last term</td><td>690.80 ms</td><td>0.57x, slower</td></tr>
+<tr><td>S3</td><td>status, is_top desc, created_at desc</td><td>SEARCH</td><td><strong>0.18 ms</strong></td><td>2,200x</td></tr>
+</tbody>
+</table>
+
+<p>Without an index, a scan reads a million rows and the sort orders a million rows. The production index is the painful one: it was genuinely used, cutting a million rows to nine hundred thousand, and the sort still ran, and it came out twenty percent slower than the scan. Two reasons. Walking the index means nine hundred thousand index entries plus nine hundred thousand row fetches to get the unindexed columns, while the scan reads the table sequentially, and sequential reads are cheaper than random ones. And the ten percent filter it saved is not worth the detour.</p>
+
+<p>Adding the pinned column in ascending order is the most counterintuitive case. The index holds it ascending while the query asks for descending, so the engine can only walk the index backwards, which flips the timestamp term into ascending as well and breaks the second ordering term. The optimiser settles for sorting the last term again, and since 99.9995 percent of the pinned column is zero, that last group is essentially all nine hundred thousand rows. It paid the index cost and still sorted everything.</p>
+
+<p>A partial index is worse than none, because it convinces the optimiser it can help, so the optimiser takes a longer road and saves nothing.</p>
+
+<p>With the direction aligned, the physical order of the index matches the requested order term by term. The engine seeks to the first published row and reads ten entries down the index, and the limit finally means something: 476.50 to 0.18, about 2,600 times.</p>
+
+<h3>The same fix on deep paging</h3>
+
+<table>
+<thead><tr><th>Index</th><th>Offset 900,000, median</th></tr></thead>
+<tbody>
+<tr><td>The old one</td><td>1,131.62 ms</td></tr>
+<tr><td>The new one</td><td>109.72 ms</td></tr>
+</tbody>
+</table>
+
+<p>A tenth of the cost is still a slow query, because an offset counts nine hundred thousand rows and throws them away. That gets its own section.</p>
+
+<h2>Why the wrong direction equals no index</h2>
+
+<p>Most people think of an index as faster lookup. That is half of its value; the other half is order.</p>
+
+<p>Picture the aligned composite index as a phone book ordered by status, then pinned descending, then timestamp descending. The query asks for exactly that order, so the engine opens to the first published page and reads ten rows.</p>
+
+<p>Now the production index: ordered by status and then timestamp, with the pinned flag absent altogether. The query asks for pinned first, so the engine has to pull all nine hundred thousand published rows, look up the flag for each, and sort them itself. That is the temp B-tree.</p>
+
+<p>Three rules follow. <strong>Equality columns come first and sort columns after</strong>, because a condition on the first column is what lets the seek happen at all. <strong>The index columns must cover the ordering columns in order, starting from the first term</strong>, since a missing or misplaced term forces a sort. And <strong>each column's direction must match</strong>, which is the rule people forget and the one that produces results slower than no index.</p>
+
+<table>
+<thead><tr><th>Database</th><th>Descending index support</th><th>Signal that sorting was not indexed</th></tr></thead>
+<tbody>
+<tr><td>SQLite</td><td>Supported since 3.3.0</td><td>USE TEMP B-TREE FOR ORDER BY</td></tr>
+<tr><td>MySQL</td><td>Only really from 8.0; 5.7 silently ignored the keyword and built ascending indexes</td><td>Using filesort</td></tr>
+<tr><td>PostgreSQL</td><td>Supported, but only whole-index reverse scans, so mixed directions need a matching index</td><td>Sort, or incremental sort</td></tr>
+</tbody>
+</table>
+
+<p>On MySQL 5.7, a Django index with descending fields generates DDL containing the keyword, and 5.7 builds an ascending index regardless, with nothing to see in the table definition. Upgrading to 8.0 changes the behaviour, which is where a surprising number of "it got slow after the upgrade" incidents begin.</p>
+
+<h2>The fix</h2>
+
+<pre><code>class Article(models.Model):
+    # ... fields unchanged ...
+
+    class Meta:
+        ordering = ["-is_top", "-created_at"]
+        indexes = [
+            # Aligned with the ordering: the equality column first,
+            # then pinned descending, then timestamp descending
+            models.Index(
+                fields=["status", "-is_top", "-created_at"],
+                name="articles_status_top_created_idx",
+            ),
+            models.Index(fields=["scheduled_at"], name="articles_scheduled_idx"),
+        ]
+</code></pre>
+
+<pre><code>CREATE INDEX "articles_status_top_created_idx"
+ON "articles_article" ("status", "is_top" DESC, "created_at" DESC);
+</code></pre>
+
+<pre><code>[before]
+    SEARCH articles_article USING INDEX articles_status_created_idx (status=?)
+    USE TEMP B-TREE FOR ORDER BY
+
+[after]
+    SEARCH articles_article USING INDEX articles_status_top_created_idx (status=?)
+</code></pre>
+
+<p>The disappearance of the temp B-tree is the only hard evidence that the fix is right. Do not trust a feeling, and do not trust timings, because at nine rows timings never differ.</p>
+
+<p>Three details to watch. The column order cannot be rearranged: the equality column has to be leftmost. The old index may still be useful for orderings that omit the pinned flag, so check whether any query sorts by timestamp alone before dropping it, since otherwise it is pure write amplification. And adding an index to a large table can block writes for tens of seconds, so use an online DDL path: MySQL with a no-lock algorithm, PostgreSQL with a concurrent build, and accept that SQLite locks briefly.</p>
+
+<h2>Experiment two: ten ways to break an index</h2>
+
+<table>
+<thead><tr><th>#</th><th>Form</th><th>Plan</th><th>Median</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>A</td><td>Equality on status, order by timestamp</td><td>SEARCH using index</td><td>0.33 ms</td><td>Baseline</td></tr>
+<tr><td>B</td><td>A function wrapped around the column</td><td>SCAN plus temp B-tree</td><td>1015.49 ms</td><td>3,000x worse</td></tr>
+<tr><td>C</td><td>LIKE with a prefix wildcard</td><td>SCAN plus temp B-tree</td><td>936.83 ms</td><td>Index unusable</td></tr>
+<tr><td>D</td><td>LIKE with wildcards on both sides</td><td>SCAN using covering index</td><td>25.38 ms</td><td>Full scan, saved by coverage</td></tr>
+<tr><td>E</td><td>Not equal</td><td>SCAN plus temp B-tree</td><td>948.18 ms</td><td>Inequality</td></tr>
+<tr><td>F</td><td>OR of two equalities</td><td>SEARCH using index plus temp B-tree</td><td>0.38 ms</td><td>Indexed, sort not</td></tr>
+<tr><td>G</td><td>Select only indexed columns</td><td>SEARCH using covering index</td><td>0.30 ms</td><td>Covered</td></tr>
+<tr><td>H</td><td>Select a narrow set, still fetching rows</td><td>SEARCH using index</td><td>0.23 ms</td><td>Fetch is fine under a limit</td></tr>
+<tr><td>I</td><td>Skip the leftmost column</td><td>SCAN using covering index</td><td>216.15 ms</td><td>Prefix violated</td></tr>
+<tr><td>J</td><td>Equality plus range on the second column</td><td>SEARCH on both</td><td>0.28 ms</td><td>770x better than I</td></tr>
+</tbody>
+</table>
+
+<p><strong>Function wrapping is the most expensive mistake.</strong> The index stores the raw column value, so once you wrap it in a function the engine cannot use the ordered values and must compute the function for every row. In Django, three wrappers hide in plain sight: date part lookups, which should be expressed as a range; case folding, which belongs in a collation or a normalised column; and string comparisons against numeric columns. The date one is the sneakiest, since it reads as harmless and generates a cast that kills the index.</p>
+
+<p><strong>A prefix LIKE failing is the surprising one.</strong> A prefix pattern can use an index in principle, but SQLite's default LIKE is case-insensitive for ASCII while the index uses a binary collation, so the semantics do not match and the optimiser gives up. Turning on case-sensitive LIKE or adding a no-case collation fixes it, and the better advice is to prefer equality where possible. MySQL differs: a prefix pattern can use an index under its default collation, while patterns with a leading wildcard never can.</p>
+
+<p><strong>A leading wildcard cannot be helped.</strong> No starting point means no seek, which means a full scan. Case D is only twenty-five milliseconds rather than nine hundred because the plan used a covering index: it walked a narrow index instead of the table. That is the practical value of coverage, where the same scan class costs ten to forty times less.</p>
+
+<p><strong>OR is not doomed.</strong> SQLite has handled OR by running each branch through the index and merging since 3.9, and case F shows the index was used, with only the sort left over. MySQL does the same through index merge, whose cost is routinely underestimated, and a single branch without an index collapses the whole query into a scan. Rewrite to IN or UNION ALL when you can.</p>
+
+<p><strong>The leftmost prefix is worth a factor of 770.</strong> Cases I and J differ only in whether the leftmost column appears. Without it there is no starting point in the index. The precise rule: the index can be used continuously from its leftmost column, and once a column is missing, everything to its right is unavailable for positioning. A range condition also cuts off the columns after it, so order index columns as equality, then range, then sort.</p>
+
+<h2>The second slow query: an offset of 900,000</h2>
+
+<pre><code>SELECT id, title FROM articles_article
+WHERE status = 'published'
+ORDER BY is_top DESC, created_at DESC
+LIMIT 10 OFFSET 900000;    -- the engine must count and skip 900,000 rows
+</code></pre>
+
+<p>No index fixes this. The offset is linear work by definition. The answer is to paginate from a position rather than a page number.</p>
+
+<pre><code>-- first page
+SELECT id, title, is_top, created_at FROM articles_article
+WHERE status = 'published'
+ORDER BY is_top DESC, created_at DESC
+LIMIT 10;
+
+-- next page, carrying the last row as a cursor
+SELECT id, title, is_top, created_at FROM articles_article
+WHERE status = 'published'
+  AND (is_top, created_at) &lt; (?, ?)      -- row comparison, SQLite 3.15+ and PostgreSQL
+ORDER BY is_top DESC, created_at DESC
+LIMIT 10;
+</code></pre>
+
+<p>The index seeks to the cursor and reads ten entries, so every page costs the same. MySQL 8 needs the expanded OR form, since a row comparison does not use an index there. Django REST Framework ships cursor pagination, and the only decision is which field to use.</p>
+
+<h3>An honest conflict: pinned posts and cursors</h3>
+
+<p>Cursor pagination takes a single ordering field, and that field has to be unique and stable because its value is the cursor. The list orders by pinned and then timestamp, which fails twice: the ordering is composite, and the pinned flag is edited. When a post is pinned or unpinned, an existing cursor no longer means what it did, and the reader may see duplicates or miss rows.</p>
+
+<pre><code># pinned posts are few; fetch them whole, no pagination
+top_articles = Article.objects.filter(
+    status=Article.Status.PUBLISHED, is_top=True
+).order_by("-created_at")
+
+# the main list paginates on the immutable timestamp
+class ArticleCursorPagination(CursorPagination):
+    page_size = 10
+    ordering = "-created_at"
+</code></pre>
+
+<p>Merging the two sets inside one paginator would put the cursor across two datasets and break at the boundary, so render them as two regions. The front end wants that anyway, since pinned posts look different.</p>
+
+<p>The cost of cursors is losing "jump to page N". If the product needs a page indicator, accept offsets and reduce the count cost instead. That is a product decision, not a technical one.</p>
+
+<h2>COUNT is also a slow query</h2>
+
+<pre><code>SELECT count(*) FROM articles_article WHERE status='published'
+→ SEARCH articles_article USING COVERING INDEX idx_status_created (status=?)
+→ 88.05 ms
+</code></pre>
+
+<p>Eighty-eight milliseconds to render a line saying there are 128 posts. The plan is the best available, walking a narrow index rather than the table, and it is still linear: ninety thousand index entries have to be counted.</p>
+
+<table>
+<thead><tr><th>Option</th><th>Method</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Cache the count</td><td>A key with a short TTL</td><td>Almost every content site</td></tr>
+<tr><td>Do not show it</td><td>Previous and next only</td><td>Pairs naturally with cursors</td></tr>
+<tr><td>Estimate</td><td>The optimiser's row estimate or table statistics</td><td>"About a hundred" is enough</td></tr>
+<tr><td>Materialise</td><td>A counter table updated on write</td><td>Frequent, must be exact</td></tr>
+</tbody>
+</table>
+
+<p>This site combines the first two: the list shows no exact total, and category counts come from a single annotated query.</p>
+
+<p>One detail worth knowing: counting a column is no faster than counting rows, and the only real optimisation is to make sure a narrow index exists that includes the filter column. The genuine shortcut is not counting at all.</p>
+
+<h2>More indexes is not better</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>One index</th><th>Five indexes</th></tr></thead>
+<tbody>
+<tr><td>Insert</td><td>Row plus one tree</td><td>Row plus five trees</td></tr>
+<tr><td>Update the status</td><td>Row plus one tree</td><td>Row plus five trees</td></tr>
+<tr><td>Delete</td><td>Row plus one tree</td><td>Row plus five trees</td></tr>
+</tbody>
+</table>
+
+<p>On a read-heavy blog, five indexes are harmless. On a table taking a thousand writes a second, every redundant index costs real throughput and buffer pool space.</p>
+
+<p>Selectivity is distinct values over rows, and low selectivity makes an index near useless on its own: a unique slug has selectivity near one, a status column with four values has almost none, and a boolean has effectively zero. In this article's index, the first two columns are barely selective, and nearly all the value comes from the last one. Their job is not filtering but aligning the physical order with the ordering, which is the theme of the whole post.</p>
+
+<p>So two questions decide whether an index earns its place: how many rows does its leftmost column eliminate, and which ordering does its column order align with. An index that answers neither is pure write amplification.</p>
+
+<p>The storage cost is real too: a 63 MB table grew to 128 MB with three indexes, and indexes larger than the data itself are ordinary in production.</p>
+
+<pre><code>-- PostgreSQL: find indexes nobody reads
+SELECT indexrelname, idx_scan, idx_tup_read
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0
+ORDER BY pg_relation_size(indexrelid) DESC;
+</code></pre>
+
+<p>MySQL has no view quite this direct. The reliable manual method is to list every ordering and filter in the codebase, match each against the existing indexes, and treat the unclaimed ones as deletion candidates.</p>
+
+<h2>Five steps for any slow query</h2>
+
+<table>
+<thead><tr><th>Step</th><th>Action</th><th>Tools</th></tr></thead>
+<tbody>
+<tr><td>Measure</td><td>Find the slowest endpoint and statement, do not guess</td><td>Debug toolbar, a profiler, an APM, the slow log with a digest tool</td></tr>
+<tr><td>Split the bill</td><td>Decide whether it is count or cost</td><td>The query capture context gives both</td></tr>
+<tr><td>Read the plan</td><td>Look for scans and temp B-trees</td><td>Explain, with analysis where available</td></tr>
+<tr><td>Change the index or the SQL</td><td>Align the ordering first, then remove function wrapping, leading wildcards and prefix violations</td><td>Model metadata plus a migration, or a rewritten queryset</td></tr>
+<tr><td>Verify with numbers</td><td>Run the plan and the timing before and after, and require the temp B-tree to be gone or the scan to become a search</td><td>The same tools, plus a query-count assertion against regressions</td></tr>
+</tbody>
+</table>
+
+<p>The last step deserves a rule of its own, because the enemy of performance work is "it feels faster". At nine rows, 0.18 and 476 milliseconds both round to nothing, and at small sizes a scan can genuinely beat a search on sequential reads, so tuning by feel can move you backwards.</p>
+
+<p>Any performance change has to answer two questions: what was the number before, and what is it now. If it cannot, it is not an optimisation, it is a code change.</p>
+
+<p>And indexes get undone. Someone adds a third sort term, the index no longer covers the ordering, and the temp B-tree is back. Pin the requirement in a test.</p>
+
+<pre><code># articles/tests/test_query_plan.py
+from django.db import connection
+from django.test import TestCase
+from articles.models import Article
+
+
+class QueryPlanTests(TestCase):
+    """The list query must not scan the table or sort."""
+
+    def test_list_query_uses_index_without_sort(self):
+        qs = Article.objects.filter(status=Article.Status.PUBLISHED)
+        sql, params = qs.query.sql_with_params()
+        with connection.cursor() as cur:
+            cur.execute("EXPLAIN QUERY PLAN " + sql, params)
+            plan = " | ".join(row[-1] for row in cur.fetchall())
+
+        self.assertNotIn("TEMP B-TREE", plan, f"sort not indexed: {plan}")
+        self.assertNotIn("SCAN articles_article", plan, f"full scan: {plan}")
+</code></pre>
+
+<p>Turning a plan into an assertion is the practice most worth copying here. It moves performance from something discovered after deploy to something blocked at commit.</p>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>The plan before the change was captured, along with the numbers: time and rows scanned.</li>
+<li>Index columns are ordered equality, then range, then sort.</li>
+<li>Every ordering column and direction is matched by the index, including descending terms.</li>
+<li>No index column is wrapped in a function, including date lookups and case folding.</li>
+<li>No pattern begins with a wildcard.</li>
+<li>No query skips the leftmost index column.</li>
+<li>When a limit accompanies an ordering, the ordering itself uses the index, otherwise the limit only saves transfer.</li>
+<li>Deep paging uses a cursor, or the linear cost of an offset is accepted deliberately.</li>
+<li>Counts are cached or estimated rather than recomputed per page.</li>
+<li>Large tables got their index through an online DDL path.</li>
+<li>After the change, the plan shows no temp B-tree and no scan.</li>
+<li>A plan assertion test exists to prevent a regression.</li>
+<li>The old index was checked for remaining users and dropped if it had none.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>All of this reduces to one sentence. <strong>An index has two halves: faster lookup, and order. Most people only use the first half.</strong></p>
+
+<p>The production index used the first half, filtering a million rows down to nine hundred thousand, and looked like it was working. It ignored the second half, so the engine sorted nine hundred thousand rows by hand. The plan said so the whole time; nobody had looked.</p>
+
+<p>Three things to take away. Match every ordering column and direction in the index, because one missing term or one wrong direction is worse than no index. At small data volume an invalid index is invisible, so build data and read plans instead of trusting how it feels. And turn the plan into a test assertion, because performance is not a one-time task but a chronic condition that returns with every new field, ordering and endpoint.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-slow-query-index-tuning/">索引建了，为什么排序还是没用上？——慢查询实战</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
