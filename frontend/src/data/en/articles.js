@@ -19224,6 +19224,722 @@ async def fetch_orders(user_id):
 `,
   },
 
+  {
+    slug: 'resilience-timeout-retry-circuit-breaker-deep-dive',
+    zhSlug: 'resilience-timeout-retry-circuit-breaker-deep-dive',
+    topicSlug: 'backend',
+    title: 'The downstream wobbled for three seconds and took us down for five',
+    excerpt:
+      'Timeouts, retries, jitter, retry budgets, circuit breakers and bulkheads, each implemented and measured. Retries cost 88 percent of my own throughput while cutting the downstream load by 40.',
+    date: '2026-11-03',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who has shipped a call with no timeout and found out later.</p>
+<p>Plain Python and real multithreaded load; the mechanics do not depend on a language or framework.</p>
+<p>Reading time around 26 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>An incident where the downstream recovered in three seconds and we took five minutes</h2>
+
+<p>At 9:12 the alert said the article page was returning 502, and it had been doing so for five minutes. The database was fine, the CPU was fine, and nothing had been deployed that day. The recommendation service, which supplies the related-articles list, was down: one unindexed query had pushed its response time from thirty milliseconds to five seconds.</p>
+
+<p>It recovered on its own three minutes later. The article page stayed broken for two more minutes.</p>
+
+<p>Eight lines of code call that service. Five separate mistakes sat in them, and each one looks reasonable alone.</p>
+
+<pre><code># the incident version: five mistakes in eight lines
+def related_articles(article_id):
+    try:
+        resp = requests.post(REC_URL, json={"id": article_id})   # 1. no timeout
+    except Exception:
+        for _ in range(3):                                        # 2. fixed backoff, 3. blind retry
+            time.sleep(0.3)
+            try:
+                resp = requests.post(REC_URL, json={"id": article_id})
+                break
+            except Exception:
+                continue
+        else:
+            raise                                                 # 4. no fallback
+    return resp.json()                                            # 5. no breaker
+</code></pre>
+
+<table>
+<thead><tr><th>#</th><th>Missing</th><th>Consequence</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>A timeout</td><td>Every worker sat inside a five second call and the queue filled</td></tr>
+<tr><td>2</td><td>Jitter</td><td>All retries arrived at the same instant and killed the service a second time</td></tr>
+<tr><td>3</td><td>Retry moderation</td><td>Each user request became four downstream calls</td></tr>
+<tr><td>4</td><td>A fallback</td><td>Related articles are decoration, so why did the page fail?</td></tr>
+<tr><td>5</td><td>A breaker</td><td>Hundreds of calls per second went to something already dead</td></tr>
+</tbody>
+</table>
+
+<p>Rather than reciting definitions, this post implements each mechanism and measures it, to answer four questions. Why does a missing timeout keep you down after the downstream recovers? Why did retries, meant to improve success, cut my throughput by eighty-eight percent? How much peak does jitter actually shave? And what does a breaker really cost?</p>
+
+<h2>Inbound and outbound: different problems</h2>
+
+<table>
+<thead><tr><th>Mechanism</th><th>Direction</th><th>Governs</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>Rate limiting</td><td>Inbound</td><td>Traffic aimed at you</td><td>Reject or queue</td></tr>
+<tr><td>Timeout</td><td>Outbound</td><td>Your calls out</td><td>Give up, free the thread</td></tr>
+<tr><td>Retry</td><td>Outbound</td><td>Your calls out</td><td>Try again, amplifying traffic</td></tr>
+<tr><td>Circuit breaker</td><td>Outbound</td><td>Your calls out</td><td>Do not call, fail fast</td></tr>
+<tr><td>Fallback</td><td>Outbound</td><td>Your calls out</td><td>Serve a substitute</td></tr>
+<tr><td>Bulkhead</td><td>Outbound</td><td>Your calls out</td><td>Cap one dependency's resources</td></tr>
+</tbody>
+</table>
+
+<p>Rate limiting stops other people killing you; these mechanisms stop your own dependencies killing you. A service can have excellent rate limiting and still collapse on the first downstream wobble, because its outbound calls are unprotected. The reverse is equally true.</p>
+
+<h2>Timeouts: the one with no room for argument</h2>
+
+<h3>Experiment A: no timeout, and you stay down after the downstream is back</h3>
+
+<pre><code>service: 20 worker threads, like a gunicorn sync pool or a servlet pool
+load:    60 concurrent closed-loop clients for 8 seconds
+downstream: 5s responses before t=3s, then 30ms
+</code></pre>
+
+<table>
+<thead><tr><th>Config</th><th>Completed</th><th>Throughput</th><th>p50</th><th>p99</th><th>Max latency</th><th>Peak downstream concurrency</th></tr></thead>
+<tbody>
+<tr><td>No timeout</td><td>2021</td><td>249.8/s</td><td>92 ms</td><td>5034 ms</td><td>5059 ms</td><td>20</td></tr>
+<tr><td>Timeout 200 ms</td><td>3533</td><td>436.8/s</td><td>92 ms</td><td>627 ms</td><td>640 ms</td><td>320</td></tr>
+</tbody>
+</table>
+
+<p>The aggregate p50 looks fine in both rows, because the recovered requests dilute it. The timeline of completions per second is the honest view.</p>
+
+<pre><code>no timeout:   0 / 0 / 0 / 0 / 0 / 652 / 654 / 655 / 60
+200ms:       80 / 100 / 100 / 580 / 659 / 652 / 650 / 652 / 60
+                            ^ downstream recovered here
+</code></pre>
+
+<p>The downstream was healthy from second three and the unprotected service produced nothing until second five. The extra two seconds come from the request issued at 2.99, which returns at 7.99. The downstream outage lasted three seconds; yours lasted five, because the tail is set by the last request that entered the queue.</p>
+
+<p>And note the concurrency column: the unprotected group peaked at twenty downstream requests while the timeout group peaked at three hundred and twenty, sixteen times more.</p>
+
+<p><strong>A timeout protects you, not the downstream.</strong> When you let go, the work is still running over there. The timeout group abandoned a hundred requests per second, all of which continued occupying the downstream. Its load did not fall; it rose, because giving up quickly means retrying quickly. That is why a timeout has to be paired with retry moderation and a breaker. On its own it just moves the flood from your house to theirs.</p>
+
+<h3>Three timeouts, not one</h3>
+
+<pre><code># wrong: a single number applies to both phases
+requests.post(url, json=data, timeout=3)
+
+# right: connect and read are different things
+requests.post(url, json=data, timeout=(1.0, 3.0))
+#                                       ^     ^
+#                                   connect  read
+</code></pre>
+
+<table>
+<thead><tr><th>Timeout</th><th>Covers</th><th>Typical</th><th>If wrong</th></tr></thead>
+<tbody>
+<tr><td>Connect</td><td>TCP and TLS setup</td><td>0.5 to 2 s</td><td>Too long means waiting on a black hole</td></tr>
+<tr><td>Read</td><td>The gap between two packets</td><td>From the tail latency</td><td>Too long lets a slow query pin the pool</td></tr>
+<tr><td>Deadline</td><td>The whole call, including retries</td><td>From the chain budget</td><td>Without it, three attempts cost three times as much</td></tr>
+</tbody>
+</table>
+
+<p>The read timeout is a gap, not a total: a hundred-megabyte download that keeps streaming never trips it, so large transfers need a deadline instead. And without a deadline, three attempts with three second reads plus backoff run to ten and a half seconds, all of it spent producing a result your gateway discarded after five.</p>
+
+<pre><code>import time
+
+def call_with_deadline(url, payload, total_budget, attempts=3):
+    """A fixed budget; each attempt may only spend what is left."""
+    deadline = time.monotonic() + total_budget
+    for i in range(attempts):
+        remaining = deadline - time.monotonic()
+        if remaining &lt;= 0:
+            break
+        try:
+            per_try = min(remaining, 3.0)
+            return requests.post(url, json=payload, timeout=(1.0, per_try))
+        except Exception:
+            if i == attempts - 1:
+                raise
+            time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+    raise TimeoutError("total budget exhausted")
+</code></pre>
+
+<p>The idea comes from SRE practice: a timeout is a budget that decreases down the call chain, not a constant each hop invents.</p>
+
+<h3>Defaults that have no timeout</h3>
+
+<table>
+<thead><tr><th>Component</th><th>Default</th><th>What to set</th></tr></thead>
+<tbody>
+<tr><td>requests and urllib3</td><td>No timeout, wait forever</td><td>Pass a connect and read pair</td></tr>
+<tr><td>httpx</td><td>5 s</td><td>Explicit is safer</td></tr>
+<tr><td>socket</td><td>None</td><td>A default of ten seconds</td></tr>
+<tr><td>redis-py</td><td>No socket timeout</td><td>Socket and connect timeouts of a second</td></tr>
+<tr><td>psycopg2</td><td>No statement timeout</td><td>Set statement timeout in options</td></tr>
+<tr><td>MySQL client</td><td>None</td><td>Session max execution time</td></tr>
+<tr><td>gunicorn</td><td>30 s, too long</td><td>10 to 15 for sync workers, below the load balancer</td></tr>
+<tr><td>Celery task</td><td>None</td><td>Soft and hard time limits</td></tr>
+</tbody>
+</table>
+
+<pre><code>DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        # ...
+        "CONN_MAX_AGE": 60,
+        "OPTIONS": {
+            "connect_timeout": 3,
+            "options": "-c statement_timeout=3000",
+        },
+    }
+}
+</code></pre>
+
+<p>A statement timeout covers one statement, not a transaction: a hundred two-second statements in one transaction still take two hundred seconds. Bounding a transaction needs an idle-in-transaction timeout plus an application deadline.</p>
+
+<h2>Retries: the only mechanism that multiplies a failure</h2>
+
+<h3>Experiment B: three retries cost 88 percent of my throughput</h3>
+
+<pre><code>downstream already slow: a flat 1s against a 150ms timeout
+20 workers, 40 concurrent clients, 6 seconds
+</code></pre>
+
+<table>
+<thead><tr><th>Retries</th><th>User requests</th><th>Downstream calls</th><th>Amplification</th><th>User throughput</th><th>Peak downstream concurrency</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>800</td><td>800</td><td>1.00x</td><td>128.3/s</td><td>140</td></tr>
+<tr><td>1</td><td>320</td><td>640</td><td>2.00x</td><td>47.6/s</td><td>113</td></tr>
+<tr><td>2</td><td>180</td><td>540</td><td>3.00x</td><td>25.7/s</td><td>100</td></tr>
+<tr><td>3</td><td>120</td><td>480</td><td>4.00x</td><td>15.0/s</td><td>80</td></tr>
+</tbody>
+</table>
+
+<p>The amplification is exactly n plus one, since every attempt fails. And the trade is bad on both sides: user throughput fell from 128 to 15, an 88 percent loss, while downstream calls fell only from 800 to 480, forty percent. All the saved capacity burned inside attempts that could not succeed.</p>
+
+<p>Put differently, downstream work per user request served was 1.00 with no retries and 0.25 with three: four calls served one user, all four failed, and the useful output was zero.</p>
+
+<p>That is the retry storm in arithmetic: slower downstream, more timeouts, more retries, slower downstream. It is a positive feedback loop, and without a limiter it always runs to collapse.</p>
+
+<h3>Idempotency first</h3>
+
+<table>
+<thead><tr><th>Operation</th><th>Idempotent</th><th>Retryable as-is</th></tr></thead>
+<tbody>
+<tr><td>Reading an article</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Replacing an article</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Deleting an article</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Creating an order</td><td>No</td><td>Only with an idempotency key</td></tr>
+<tr><td>Taking a payment</td><td>No</td><td>Only with an idempotency key</td></tr>
+<tr><td>Incrementing a counter</td><td>Depends</td><td>Carefully</td></tr>
+<tr><td>Sending a message</td><td>No</td><td>Only with an idempotency key</td></tr>
+</tbody>
+</table>
+
+<p>A timeout is not a failure. The request may never have arrived, in which case a retry is safe, or it may have succeeded with the response lost, in which case a retry does the work twice. For non-idempotent operations that is one click producing two orders.</p>
+
+<p><strong>Add the idempotency key before the retry, never after. The other order is an incident.</strong></p>
+
+<h3>Retry only what deserves it</h3>
+
+<pre><code>RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+
+def is_retryable(exc):
+    if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+        return True
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        return exc.response.status_code in RETRYABLE_STATUS
+    return False
+</code></pre>
+
+<p>Connection timeouts, refusals and resets are transient, as are read timeouts on idempotent calls and the gateway-side status codes. A bad request, an authorisation failure or a validation error will be identical on the tenth attempt. Business errors, serialisation failures and code bugs are the same. And when the response carries a retry hint, honour it rather than computing your own delay.</p>
+
+<h3>Backoff and jitter</h3>
+
+<p>Retrying immediately means hitting the same wall with the same force. Exponential backoff multiplies the wait, but it synchronises clients: everyone fails together, waits together, retries together.</p>
+
+<pre><code>fixed:  26  0  0  0  55  39  0   2 118  0   0 120  0   0 120  0   0  19 101
+full:   25 28 23 24  35  31 17  41  40  22  36  45  30  31  47  35  28  46  37
+</code></pre>
+
+<table>
+<thead><tr><th>Strategy</th><th>Peak after recovery</th><th>Mean after recovery</th><th>Spike ratio</th><th>CV</th></tr></thead>
+<tbody>
+<tr><td>Fixed backoff</td><td>1200/s</td><td>357/s</td><td>3.36x</td><td>1.43</td></tr>
+<tr><td>Full jitter</td><td>520/s</td><td>361/s</td><td>1.44x</td><td>0.23</td></tr>
+</tbody>
+</table>
+
+<p>The fixed line shows three neat waves, each followed by silence, with peaks of twelve hundred. A downstream that just recovered gets knocked over again, which produces the familiar oscillation of recovering, dying, recovering.</p>
+
+<p>Full jitter cuts the peak by fifty-seven percent and the coefficient of variation by eighty-four, while the mean load is unchanged. That is the entire value: the same total work, spread evenly instead of delivered in blows.</p>
+
+<pre><code>import random
+
+def backoff_delay(base, attempt, strategy="full"):
+    raw = base * (2 ** (attempt - 1))
+    if strategy == "none":
+        return raw                                  # synchronised, stampedes
+    if strategy == "equal":
+        return raw / 2 + random.uniform(0, raw / 2)  # bounded, still clustered
+    if strategy == "full":
+        return random.uniform(0, raw)                # AWS recommendation
+    if strategy == "decorrelated":
+        return random.uniform(base, raw * 3)         # longer expected wait
+    return raw
+</code></pre>
+
+<p>Full jitter costs a slightly longer expected wait, half the raw delay, which is a good trade when the priority is not knocking the downstream over twice. One trap: give each client its own random source. A shared generator contends on a lock, and a shared seed produces identical sequences, which defeats the jitter entirely.</p>
+
+<h3>Retry budgets</h3>
+
+<p>The budget answers how much retrying is allowed at all. Instead of a per-request count, it caps retries against recent successes, so every hundred successful calls permit a fixed number of retries.</p>
+
+<table>
+<thead><tr><th>Config</th><th>Amplification</th><th>Real success</th><th>Budget denials</th></tr></thead>
+<tbody>
+<tr><td>No budget</td><td>1.45x</td><td>99.0%</td><td>0</td></tr>
+<tr><td>Budget 50%</td><td>1.45x</td><td>98.9%</td><td>2</td></tr>
+<tr><td>Budget 20%</td><td>1.29x</td><td>88.1%</td><td>150</td></tr>
+</tbody>
+</table>
+
+<p>At a thirty percent downstream failure rate the budget barely engages, which is the design: it does not interfere with ordinary operation. The twenty percent budget that pushes success down to eighty-eight is a different matter, and the caveat is that a denied retry is not a failed request, it is a request that goes to the fallback. If your fallback is an error page, do not squeeze the budget this hard.</p>
+
+<table>
+<thead><tr><th>Config</th><th>User throughput</th><th>Downstream calls</th><th>Amplification</th></tr></thead>
+<tbody>
+<tr><td>No budget</td><td>26.7/s</td><td>640</td><td>4.00x</td></tr>
+<tr><td>Budget 20%</td><td>97.0/s</td><td>603</td><td>1.04x</td></tr>
+</tbody>
+</table>
+
+<p>With the downstream fully unavailable, adding a limit made my own throughput three point six times higher. Three quarters of every worker's time had been spent on retries that could not succeed; removing that work left the same twenty workers free to serve users, some of them with fallback data, but immediately rather than after ten seconds.</p>
+
+<pre><code>import threading
+import time
+
+class RetryBudget:
+    """Global gate: retries in the window stay below a ratio of successes."""
+
+    def __init__(self, ratio=0.2, window=1.0, clock=time.monotonic, floor=10):
+        self.ratio = ratio
+        self.window = window
+        self.clock = clock
+        self.floor = floor          # minimum allowance while successes are zero
+        self.lock = threading.Lock()
+        self.success = 0
+        self.retries = 0
+        self.window_start = clock()
+        self.denied = 0
+
+    def allow(self):
+        with self.lock:
+            now = self.clock()
+            if now - self.window_start &gt;= self.window:
+                self.success *= 0.5   # decay, not a hard reset
+                self.retries = 0
+                self.window_start = now
+            if self.retries &lt;= self.ratio * max(self.success, self.floor):
+                self.retries += 1
+                return True
+            self.denied += 1
+            return False
+
+    def record_success(self):
+        with self.lock:
+            self.success += 1
+</code></pre>
+
+<p>Two details. The floor keeps a trickle of retries alive when there are no successes at all, otherwise the budget locks itself out and can never discover that the downstream came back. And decaying rather than zeroing avoids the sawtooth where the window flips, the allowance vanishes, and it reopens all at once.</p>
+
+<h2>Circuit breakers</h2>
+
+<p>Timeouts let go eventually and budgets cap retries, but neither answers the real question: if I already know the dependency is dead, why send the first request at all?</p>
+
+<pre><code>        ┌──────────────────────────────────────┐
+        │                                      │
+        ▼                                      │
+   ┌─────────┐   failure rate over limit  ┌────────┐  cooldown elapsed  ┌───────────┐
+   │ CLOSED  │ ─────────────────────────▶ │  OPEN  │ ─────────────────▶ │ HALF-OPEN │
+   │  pass   │                            │ reject │                    │  probes   │
+   └─────────┘ ◀───────────────────────── └────────┘                    └───────────┘
+        ▲          probe succeeded               ▲                            │
+        └───────────────────────────────────────┴────────────────────────────┘
+                                            probe failed
+</code></pre>
+
+<table>
+<thead><tr><th>State</th><th>Behaviour</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Closed</td><td>Pass through, count failures</td><td>Normal operation</td></tr>
+<tr><td>Open</td><td>Fail immediately, send nothing</td><td>Stop the stampede, give the downstream room</td></tr>
+<tr><td>Half-open</td><td>Allow a few probes</td><td>Test whether it recovered</td></tr>
+</tbody>
+</table>
+
+<p>The half-open state is where implementations go wrong: releasing all traffic when the cooldown expires will kill a downstream that has not actually recovered. Release a few probes, close only if they succeed, and restart the timer if they fail.</p>
+
+<pre><code>import threading
+import time
+from collections import deque
+
+class CircuitBreaker:
+    """Sliding-window failure-rate breaker with half-open probing."""
+
+    def __init__(self, name, window=10.0, min_calls=20, threshold=0.5,
+                 cooldown=5.0, probes=3, clock=time.monotonic):
+        self.name = name
+        self.window = window        # statistics window, seconds
+        self.min_calls = min_calls  # do not judge below this many calls
+        self.threshold = threshold  # failure rate that trips it
+        self.cooldown = cooldown    # time before half-open
+        self.probes = probes        # probes allowed in half-open
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.events = deque()       # (timestamp, ok)
+        self.state = "closed"
+        self.opened_at = 0.0
+        self.probe_left = 0
+        self.open_count = 0
+        self.rejected = 0
+
+    def _prune(self, now):
+        cut = now - self.window
+        while self.events and self.events[0][0] &lt; cut:
+            self.events.popleft()
+
+    def allow(self):
+        with self.lock:
+            now = self.clock()
+            self._prune(now)
+            if self.state == "open":
+                if now - self.opened_at &gt;= self.cooldown:
+                    self.state = "half-open"
+                    self.probe_left = self.probes
+                else:
+                    self.rejected += 1
+                    return False
+            if self.state == "half-open":
+                if self.probe_left &lt;= 0:
+                    self.rejected += 1
+                    return False
+                self.probe_left -= 1
+            return True
+
+    def record(self, ok):
+        with self.lock:
+            now = self.clock()
+            self.events.append((now, bool(ok)))
+            self._prune(now)
+            if self.state == "half-open":
+                if ok:
+                    self.state = "closed"
+                    self.events.clear()
+                else:
+                    self.state = "open"
+                    self.opened_at = now
+                    self.open_count += 1
+                return
+            if len(self.events) &gt;= self.min_calls:
+                fails = sum(1 for _, ok_ in self.events if not ok_)
+                if fails / len(self.events) &gt;= self.threshold:
+                    self.state = "open"
+                    self.opened_at = now
+                    self.open_count += 1
+                    self.events.clear()
+</code></pre>
+
+<p>Three parameters deserve explanation. The minimum call count prevents a trip at three in the morning when two of three requests failed; low-traffic false trips are a classic incident. The threshold usually starts at half; use higher for dependencies that must be right, lower for ones that may be absent. The cooldown trades probing frequency against recovery speed, and a breaker that opens and closes repeatedly is telling you the cooldown is too short.</p>
+
+<h3>Experiment D: what a breaker costs</h3>
+
+<table>
+<thead><tr><th>Config</th><th>Success</th><th>Degraded</th><th>Failed</th><th>Rejected</th><th>p50 in outage</th><th>Downstream calls</th><th>Recovery probe</th></tr></thead>
+<tbody>
+<tr><td>Timeouts and 2 retries</td><td>807</td><td>0</td><td>150</td><td>543, 36.2%</td><td>774 ms</td><td>1296</td><td>32 ms</td></tr>
+<tr><td>Breaker with fallback</td><td>643</td><td>804</td><td>0</td><td>53, 3.5%</td><td>0 ms</td><td>723</td><td>731 ms</td></tr>
+</tbody>
+</table>
+
+<p>Three gains, all hard numbers. Rejections fall from thirty-six to three and a half percent, because without a breaker every worker sat inside a 774 millisecond call and the queue overflowed. User wait during the outage falls from 774 milliseconds to zero, since the fallback returns in microseconds. And downstream calls fall by forty-four percent, because during the outage nothing bothered it.</p>
+
+<p>Two costs, stated honestly. Recovery detection goes from thirty-two milliseconds to seven hundred and thirty-one, which is inherent: you learn about recovery only after the cooldown and a successful probe, and shortening the cooldown raises the risk of knocking the downstream over again. And the breaker in this run opened four times, meaning it oscillated, which is exactly the signal to watch in production.</p>
+
+<p>The trade is slower recovery for no collapse during failure. For a core dependency it is clearly worth it. For a dependency that flaps ten times a minute, a retry budget is the better tool.</p>
+
+<table>
+<thead><tr><th></th><th>Breaker</th><th>Retry budget</th></tr></thead>
+<tbody>
+<tr><td>Decides by</td><td>Failure rate</td><td>Retry share</td></tr>
+<tr><td>Action</td><td>Reject everything</td><td>Reject some retries</td></tr>
+<tr><td>Fits</td><td>Long, definite outages</td><td>Short wobbles</td></tr>
+<tr><td>Recovery</td><td>Slow, waits and probes</td><td>Fast, every request tests</td></tr>
+<tr><td>Collateral</td><td>High, all or nothing</td><td>Low, fine grained</td></tr>
+</tbody>
+</table>
+
+<p>Use both: the budget handles seconds, the breaker handles minutes. Mature clients implement both together.</p>
+
+<h2>Fallbacks</h2>
+
+<p>A breaker is only a switch. What you return when it is open decides whether any of this helped: returning a 500 to the eight hundred degraded requests in the experiment above would have wasted the whole exercise.</p>
+
+<pre><code>from django.core.cache import cache
+
+def related_articles(article_id, limit=6):
+    """A four-level fallback chain."""
+    breaker = breakers["recommend"]
+
+    # 1. normal path
+    if breaker.allow():
+        try:
+            data = call_recommend(article_id, limit)   # with timeout and deadline
+            breaker.record(True)
+            cache.set(f"rec:{article_id}", data, 3600)
+            return data, "realtime"
+        except Exception:
+            breaker.record(False)
+
+    # 2. the last successful snapshot, even if expired
+    stale = cache.get(f"rec:{article_id}")
+    if stale:
+        return stale, "stale_cache"
+
+    # 3. globally popular articles
+    hot = cache.get("global_hot_articles")
+    if hot:
+        return hot[:limit], "global_hot"
+
+    # 4. last resort: newest in the same category, from the local database
+    from blog.models import Article
+    fallback = list(
+        Article.objects.filter(
+            category_id=Article.objects.get(id=article_id).category_id
+        ).exclude(id=article_id).values("id", "title")[:limit]
+    )
+    return fallback, "same_category"
+</code></pre>
+
+<p>The second return value is the degradation label, and it does two jobs: the front end can rename or hide the module, and monitoring can track the degraded rate, which rises before the error rate does.</p>
+
+<table>
+<thead><tr><th>Strategy</th><th>Fits</th><th>Gain</th><th>Risk</th></tr></thead>
+<tbody>
+<tr><td>Serve a stale snapshot</td><td>Read-heavy, tolerates staleness</td><td>Still relevant to the user</td><td>Needs a previous success cached</td></tr>
+<tr><td>Serve something generic</td><td>Recommendations, ad slots</td><td>Always available</td><td>Impersonal</td></tr>
+<tr><td>Hide the feature</td><td>Decoration</td><td>Honest</td><td>Functionality missing</td></tr>
+<tr><td>Defer to a queue</td><td>Writes</td><td>Nothing lost</td><td>Complex, needs a reliable queue</td></tr>
+</tbody>
+</table>
+
+<p>Deferring a write turns an immediate failure into a later success, so the user's feedback has to change accordingly and the queue has to be trustworthy.</p>
+
+<p>And the rule that gets broken most: <strong>the fallback path must have no external dependency.</strong> A fallback that queries the database while the database is also slow is worse than the primary path.</p>
+
+<pre><code># wrong: the fallback depends on Redis
+def get_user_level(uid):
+    try:
+        return call_risk_api(uid)
+    except Exception:
+        return cache.get(f"level:{uid}") or "normal"   # what if Redis is down too?
+
+# right: the fallback uses an in-process constant
+_DEFAULT_LEVEL = "normal"
+
+def get_user_level(uid):
+    try:
+        return call_risk_api(uid)
+    except Exception:
+        return _DEFAULT_LEVEL
+</code></pre>
+
+<p>If the fallback data needs refreshing, refresh it into a process variable in the background rather than reading it on the failure path.</p>
+
+<h2>Bulkheads</h2>
+
+<p>Everything so far assumes one downstream. Real services talk to a database, a cache, a recommender, a risk engine and a payment gateway. Sharing one thread pool means any single one of them slowing down occupies the pool and takes the healthy ones with it.</p>
+
+<table>
+<thead><tr><th>Config</th><th>Slow dependency p95</th><th>Healthy p50</th><th>Healthy p95</th><th>Healthy throughput</th></tr></thead>
+<tbody>
+<tr><td>Shared pool of twenty</td><td>820 ms</td><td>436 ms</td><td>477 ms</td><td>61.4/s</td></tr>
+<tr><td>Isolated pools of ten each</td><td>1232 ms</td><td>76 ms</td><td>92 ms</td><td>283.5/s</td></tr>
+</tbody>
+</table>
+
+<p>A thirty millisecond dependency became a 436 millisecond one, fourteen times worse, and its throughput fell seventy-eight percent. Isolation restores it, at the cost of the slow dependency dropping from 277 to 165 per second, which is exactly the intent: starve what is already sick to keep what is healthy running.</p>
+
+<p>Three levels exist. Process isolation, separate services or containers, is cleanest and costliest. A thread pool per dependency is the middle ground, with a timeout on the future. A semaphore per dependency is lightest, limiting concurrency without a dedicated pool, which does not stop threads being parked on a slow call but does bound the damage.</p>
+
+<pre><code>from concurrent.futures import ThreadPoolExecutor
+
+POOLS = {
+    "recommend": ThreadPoolExecutor(max_workers=10, thread_name_prefix="rec"),
+    "risk":      ThreadPoolExecutor(max_workers=10, thread_name_prefix="risk"),
+    "payment":   ThreadPoolExecutor(max_workers=20, thread_name_prefix="pay"),
+}
+
+def call_isolated(dep, fn, *args, **kwargs):
+    try:
+        return POOLS[dep].submit(fn, *args, **kwargs).result(timeout=3.0)
+    except Exception:
+        raise DependencyError(dep)
+</code></pre>
+
+<pre><code>import threading
+
+LIMITS = {
+    "recommend": threading.Semaphore(10),
+    "risk":      threading.Semaphore(10),
+    "payment":   threading.Semaphore(20),
+}
+
+def call_with_limit(dep, fn, *args, **kwargs):
+    sem = LIMITS[dep]
+    if not sem.acquire(blocking=False):
+        raise DependencyBusy(dep)      # fail at once rather than queue
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        sem.release()
+</code></pre>
+
+<p>Core dependencies get pools, peripheral ones get semaphores. Failing immediately when a semaphore is exhausted matches the intent: decoration should yield.</p>
+
+<h2>Putting the set together</h2>
+
+<p>The usual failure is each layer configured independently, which produces the absurd arrangement where the gateway waits five seconds, the service waits ten, and the database waits thirty. A downstream must never be allowed to wait longer than its caller.</p>
+
+<table>
+<thead><tr><th>Layer</th><th>Timeout</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Browser or app</td><td>2000 ms</td><td>What a user will tolerate</td></tr>
+<tr><td>CDN or gateway</td><td>1800 ms</td><td>Leaves 200 for network</td></tr>
+<tr><td>Service deadline</td><td>1500 ms</td><td>Leaves 300 to return</td></tr>
+<tr><td>Database query</td><td>300 ms</td><td>Per statement</td></tr>
+<tr><td>Cache</td><td>50 ms</td><td>Must be fast</td></tr>
+<tr><td>Recommender</td><td>300 ms, one retry</td><td>Timeout means fallback</td></tr>
+<tr><td>Risk engine</td><td>500 ms, no retry</td><td>Not idempotent, needs a human on failure</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Dependency</th><th>Timeout</th><th>Retries</th><th>Breaker</th><th>Fallback</th><th>Bulkhead</th></tr></thead>
+<tbody>
+<tr><td>Core read</td><td>Twice the tail</td><td>One, with jitter</td><td>0.7, cautious</td><td>Stale snapshot</td><td>Pool</td></tr>
+<tr><td>Core write</td><td>Three times the tail</td><td>None without a key</td><td>0.8</td><td>Defer to a queue</td><td>Pool</td></tr>
+<tr><td>Peripheral read</td><td>300 ms hard</td><td>One</td><td>0.3, aggressive</td><td>Generic or hidden</td><td>Semaphore</td></tr>
+<tr><td>Telemetry</td><td>100 ms</td><td>None</td><td>0.5</td><td>Drop</td><td>Semaphore</td></tr>
+</tbody>
+</table>
+
+<p>Telemetry never retries and never blocks; dropping a data point costs nothing and retrying costs traffic. Core writes never retry without an idempotency key, because a duplicate order is worse than a visible error.</p>
+
+<pre><code>def resilient_call(dep, fn, *, fallback=None, timeout=0.3, retries=1,
+                   base_backoff=0.1, breaker=None, budget=None, pool=None):
+    """Unified outbound path: deadline, retries, jitter, budget, breaker, fallback."""
+    deadline = time.monotonic() + timeout * (retries + 1)
+
+    for attempt in range(retries + 1):
+        if attempt &gt; 0:
+            if budget is not None and not budget.allow():
+                log.warning("dep=%s retry denied by budget", dep)
+                break
+            time.sleep(random.uniform(0, base_backoff * (2 ** (attempt - 1))))
+
+        if breaker is not None and not breaker.allow():
+            break
+
+        remaining = deadline - time.monotonic()
+        if remaining &lt;= 0:
+            break
+
+        try:
+            if pool is not None:
+                result = pool.submit(fn).result(timeout=min(remaining, timeout))
+            else:
+                result = fn()
+            if breaker is not None:
+                breaker.record(True)
+            if budget is not None:
+                budget.record_success()
+            return result, "ok"
+        except Exception as exc:
+            if breaker is not None:
+                breaker.record(False)
+            log.warning("dep=%s attempt=%s failed: %s", dep, attempt, exc)
+
+    if fallback is not None:
+        return (fallback() if callable(fallback) else fallback), "degraded"
+    raise DependencyError(dep)
+</code></pre>
+
+<p>Under forty lines, and the point is the order: consult the budget, consult the breaker, then send, carrying the remaining deadline, and fall back on failure. Invert that order and the machinery does nothing.</p>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>Every outbound call has an explicit timeout: HTTP, cache, database, everything.</li>
+<li>HTTP clients get a connect and read pair, not a single number.</li>
+<li>A deadline bounds the total, so N retries cannot exceed the caller's timeout.</li>
+<li>Timeouts decrease down the chain; nothing downstream waits longer than its caller.</li>
+<li>Statement timeouts exist on the database, and the application server times out before the load balancer.</li>
+<li>Non-idempotent endpoints either do not retry or carry an idempotency key.</li>
+<li>Only transient failures are retried.</li>
+<li>Backoff carries full jitter with a per-client random source.</li>
+<li>A retry budget caps the total, with a floor to avoid locking itself out.</li>
+<li>Retry hints in responses are honoured.</li>
+<li>Breakers have a minimum call count, probe in half-open rather than releasing everything, and export their state.</li>
+<li>Each dependency has its own breaker.</li>
+<li>Every peripheral dependency has a fallback, and the fallback has no external dependency.</li>
+<li>Fallback responses carry a label the front end and monitoring can use.</li>
+<li>Core and peripheral dependencies do not share pools, and telemetry is dropped rather than retried.</li>
+<li>A real failure injection has been run, and every timeout value comes from measured latency.</li>
+</ul>
+
+<h2>Questions that come up</h2>
+
+<p><strong>How long should a timeout be?</strong> Twice or three times the dependency's tail latency. One times the tail kills normal requests by construction; ten times stops protecting anything. Then check it against the chain budget, and if a dependency's tail cannot fit, it does not belong in the synchronous path.</p>
+
+<p><strong>Do retries make requests visibly slower?</strong> They must not. Retrying only makes sense when one attempt is far below what a user notices. If one attempt is a second, three retries is four seconds and the user is gone, so the fallback is the right answer. Retry only when one timeout times attempts plus one is still under a third of the acceptable delay.</p>
+
+<p><strong>Is a breaker the same as a fallback?</strong> No. The breaker is a decision, the fallback is a result. A breaker without a fallback turns a slow failure into a fast one.</p>
+
+<p><strong>Should breaker state be shared across instances?</strong> No. Sharing it would introduce a new dependency whose failure disables the breaker; instances observe different downstream behaviour anyway; and global state needs synchronisation. Slightly inconsistent timing is harmless, since erring toward opening early is the safer side.</p>
+
+<p><strong>If I rate limit, do I still need these?</strong> Yes, they govern opposite directions. Rate limiting does not stop a hundred requests all stalling on one slow dependency.</p>
+
+<p><strong>Does a monolith need them?</strong> More than a distributed system does. A monolith still calls a database, a cache, an object store and third parties, and one slow query is enough to take the connection pool down. Replace "recommendation service" with "unindexed query" in experiment A and the numbers hold.</p>
+
+<p><strong>How long should the cooldown be?</strong> From the dependency's typical recovery time: five to ten seconds if it heals itself within thirty, up to a minute if a human is needed. Frequent opening and closing means the cooldown is too short.</p>
+
+<p><strong>Do I have to write all this?</strong> No, and you should not. There are established libraries for every language, and if you run a service mesh, timeouts, retries, breakers and bulkheads can all live in the sidecar, configured centrally and language-neutrally. The implementations here are for understanding; production should use a mature component.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Mechanism</th><th>Question it answers</th><th>Without it</th><th>Measured cost</th></tr></thead>
+<tbody>
+<tr><td>Timeout</td><td>How long is too long?</td><td>You stay down after the downstream recovers</td><td>Five seconds of zero throughput after a three second outage</td></tr>
+<tr><td>Retry</td><td>Should we try again?</td><td>Higher success, amplified failure</td><td>Four times the calls, 88 percent less throughput</td></tr>
+<tr><td>Jitter</td><td>When should we retry?</td><td>Everyone retries at once and kills it again</td><td>Peak 1200 against 520</td></tr>
+<tr><td>Budget</td><td>How many retries in total?</td><td>Wasted retries eat the pool</td><td>Throughput 3.6 times higher with a budget</td></tr>
+<tr><td>Breaker</td><td>Should we call at all?</td><td>Continued stampede and a full queue</td><td>Rejections 36.2 against 3.5 percent</td></tr>
+<tr><td>Fallback</td><td>What do we return instead?</td><td>The breaker does nothing visible</td><td>804 requests rescued or not</td></tr>
+<tr><td>Bulkhead</td><td>How much can one dependency take?</td><td>Healthy dependencies die alongside</td><td>Latency 436 against 76 milliseconds</td></tr>
+</tbody>
+</table>
+
+<p>Three sentences to keep. Timeouts have no room for argument, and they protect you rather than the downstream. Retries are the only mechanism that multiplies traffic, so jitter and budgets are not optional, and idempotency comes before retries. A breaker buys always having an answer and costs slower recovery, and it is only worth anything alongside a fallback.</p>
+
+<p>One last thing worth sitting with: this machinery does nothing for a hundred percent of normal operation. It does not make anything faster or cheaper. Its entire value appears in the few minutes of an incident, and those minutes decide what users think of the system.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/resilience-timeout-retry-circuit-breaker-deep-dive/">下游只抖了 3 秒，我的服务被拖死 5 秒——超时、重试、熔断、降级实战</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
