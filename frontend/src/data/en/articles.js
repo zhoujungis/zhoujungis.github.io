@@ -14947,6 +14947,353 @@ latency = t_returned - t_intended
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a>.</p>
 `,
   },
+  {
+    slug: 'btree-page-split',
+    zhSlug: 'btree-page-split',
+    topicSlug: 'database',
+    title: 'Inside a B+ tree page split, from the source',
+    excerpt:
+      'A split is not one atomic halving. It is a planned multi-step operation: choose a point, allocate a page, rewrite the parent, move records, maybe grow the tree, and possibly start over. Read in SQLite and InnoDB.',
+    date: '2026-10-29',
+    readingTime: 32,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers who read a slow query post and now want to know why an index fragments and why sequential keys do not; people implementing a B+ tree or debugging split-related jitter; people who want the textbook word "split" turned into concrete bytes.</p>
+<p><strong>TL;DR:</strong> a page split is not an atomic halving. It is a planned multi-step operation: pick a split point, allocate a page, rewrite the parent pointer, move records, possibly grow the tree, and possibly start the whole thing again. Every claim here comes from SQLite's <code>btree.c</code> and InnoDB's tree code, not from invented examples.</p>
+<p>Reading time around 32 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Slow queries are the surface, splits are the interior</li>
+<li>What a page actually looks like</li>
+<li>SQLite: an 8 byte header and two arrays growing toward each other</li>
+<li>InnoDB: a 38 byte file header, sentinel records and a slot directory</li>
+<li>Three checks before an insert: how "no room" is discovered</li>
+<li>When it is worth operating: the reorganisation threshold and the truth about 50%</li>
+<li>SQLite's operating theatre: the packing ledger</li>
+<li>InnoDB's surgery sheet: eight steps</li>
+<li>How the split point is chosen</li>
+<li>Where the new page comes from</li>
+<li>The parent's divider key and how splits recurse</li>
+<li>How the tree grows taller</li>
+<li>When the operation is wasted: reorganise, retry, restart</li>
+<li>In-page fragmentation: the freeblock chain</li>
+<li>Why sequential writes do not fragment</li>
+<li>Under concurrency: lock release and the no-rollback contract</li>
+<li>The two implementations side by side</li>
+</ul>
+
+<h2>Slow queries are the surface, splits are the interior</h2>
+
+<p>A slow query post describes the symptoms: exploding scan counts, temporary tables, the number of lookups back to the table. Then you rewrite the statement, add a covering index, adjust a threshold. But several familiar observations only make sense once you are inside the storage engine.</p>
+
+<ul>
+<li>Why does a sequential primary key produce a compact index while a random UUID produces one that fragments and occupies more pages?</li>
+<li>Why does the tablespace file grow faster than the data after heavy inserts, and where do those extra pages come from?</li>
+<li>Why do people talk about index page fill factor, and does the textbook half-full actually exist in the source?</li>
+<li>Tree height plus one sounds like a global event. Is it one big move or a series of small ones?</li>
+</ul>
+
+<p>All four converge on one mechanism: the page split. Each B+ tree node is a whole page. When a page fills, it has to be torn in two, with the extra half attached to the parent, and the parent may then split in turn, recursively up to the root. A root split makes the tree one level taller.</p>
+
+<p>This post reads two industrial implementations side by side: SQLite, where the balancing code is textbook clear, and InnoDB, where it is production grade with concurrency and tablespace management. The page formats could hardly be more different, and the surgical procedure is strikingly similar: check, choose, allocate, restructure, move records, recurse upward.</p>
+
+<p>Where the source does not support a popular claim, the claim is marked as unsupported and the real mechanism is given instead.</p>
+
+<h2>What a page actually looks like</h2>
+
+<p>Since a split turns one page into two, the first thing to understand is one page. The textbook says a node has n keys and n plus one pointers. The real layout is more interesting: keys and pointers are not stored next to each other.</p>
+
+<h2>SQLite: an 8 byte header and two arrays growing toward each other</h2>
+
+<pre><code>|----------------|
+| file header    |   100 bytes, page 1 only
+|----------------|
+| page header    |   8 bytes for leaves, 12 for interior nodes
+|----------------|
+| cell pointer   |   2 bytes per cell, sorted order
+| array          |   grows downward
+|                |   v
+|----------------|
+| unallocated    |
+| space          |
+|----------------|   ^  grows upward
+| cell content   |   |  arbitrary order, interspersed with
+| area           |   |  freeblocks and fragments
+|----------------|
+</code></pre>
+
+<p>From the top: header, then the cell pointer array growing toward low addresses. From the bottom: the cell content area growing toward high addresses. The two grow toward each other with unallocated space between, and the distance from the end of the pointer array to the start of the content area is the single truth about how much room the page has left.</p>
+
+<pre><code>OFFSET  SIZE  DESCRIPTION
+     0     1   Flags. 1 intkey, 2 zerodata, 4 leafdata, 8 leaf
+     1     2   Byte offset to the first freeblock
+     3     2   Number of cells on this page
+     5     2   First byte of the cell content area
+     7     1   Number of fragmented free bytes
+     8     4   Right child pointer, omitted on leaves
+</code></pre>
+
+<p>A leaf page has an 8 byte header; an interior page adds a 4 byte right child pointer for 12. Reading a page pulls these fields into memory and nothing else: not a single byte of page content is decoded. Cells are decoded when a lookup or an insert actually touches them.</p>
+
+<h2>InnoDB: a 38 byte file header, sentinel records and a slot directory</h2>
+
+<p>InnoDB pages are heavier: 16 KB by default, starting with a 38 byte file header carrying page number, checksum, page type and log sequence number, then the index page header.</p>
+
+<pre><code>PAGE_N_DIR_SLOTS = 0    number of slots in the page directory
+PAGE_HEAP_TOP    = 2    pointer to the record heap top
+PAGE_N_HEAP      = 4    records in the heap, bit 15 flags the compact format
+PAGE_FREE        = 6    start of the free record list
+PAGE_GARBAGE     = 8    bytes in deleted records
+PAGE_N_RECS      = 16   user records
+PAGE_LEVEL       = 26   node level, leaves are 0
+PAGE_INDEX_ID    = 28
+PAGE_DATA        = PAGE_HEADER + 36 + 2 * FSEG_HEADER_SIZE
+</code></pre>
+
+<p>Thirty-eight plus thirty-six plus two ten-byte segment headers equals 94, so the first 94 bytes of an InnoDB page have nothing to do with user data, and there are another 8 bytes of directory trailer at the end. The working heap starts at 94, and the first two things in it are two 13 byte sentinel records, infimum and supremum.</p>
+
+<pre><code>static const byte infimum_supremum_compact[] = {
+    0x01, 0x00, 0x02, 0x00, 0x0d, 'i','n','f','i','m','u','m', 0,
+    0x01, 0x00, 0x0b, 0x00, 0x00, 's','u','p','r','e','m','u','m'};
+</code></pre>
+
+<p>Infimum heads the record chain and supremum ends it, so every record's next pointer walks to the end. That design shows up repeatedly in a split: moving half the records is really cutting one chain in the middle and reconnecting two.</p>
+
+<pre><code>1      8 bits  relative offset of the next record
+2      8 bits  continuation of that unsigned 16-bit offset,
+               computed modulo 64 KiB
+3      3 bits  status: conventional, node pointer, infimum, supremum
+       5 bits  heap number
+4      8 bits  heap number
+5      4 bits  n_owned
+       4 bits  info bits
+</code></pre>
+
+<p>Five header bytes before each record origin, with a two byte relative offset. That is why records can be stored out of order while the chain stays ordered: jumping to the middle by ordinal and splicing chains both rely on those two bytes. The owned count pairs with the trailer directory, where every four to eight records share a slot, so a binary search over slots is refined by walking the chain.</p>
+
+<table>
+<thead><tr><th></th><th>SQLite</th><th>InnoDB</th></tr></thead>
+<tbody>
+<tr><td>Header</td><td>8 or 12 bytes</td><td>38 file plus 36 fields plus 20 segment</td></tr>
+<tr><td>Record addressing</td><td>Sorted 2 byte cell pointer array</td><td>2 byte relative offset chain plus slot directory</td></tr>
+<tr><td>Trailer</td><td>None</td><td>8 byte directory, 2 bytes per slot</td></tr>
+<tr><td>"Next record"</td><td>Implicit in the array</td><td>Relative offset modulo 64 KiB</td></tr>
+</tbody>
+</table>
+
+<p>Array addressing reads fast but inserts need a memmove; chain insertion is constant time but lookups walk. During a split the cost structures invert: SQLite moves both pointers and content, while InnoDB mostly cuts and reconnects chains.</p>
+
+<h2>Three checks before an insert: how "no room" is discovered</h2>
+
+<p>A full page is not an instant, it is three checks tightening in sequence. The first is in the cell insert path: a new cell needs its size plus two bytes for the pointer, and if that exceeds the free space it does not land on the page at all. It goes into an in-process overflow slot, of which at most three are used and four allocated. The page on disk is untouched. Overflow is an accounting entry in memory, settled later by the balancer. That is an important design: split decisions accumulate instead of reorganising on every insert.</p>
+
+<p>The second check handles the case where the unallocated gap is too small but the page still has holes. Before splitting, the page is defragmented to pack the scattered cells together and the allocation is retried. Pack first, split only if that fails.</p>
+
+<p>The third is the delete path's boundary check, which also shows how the geometry detects corruption: offset plus length crossing the usable end of the page is declared corruption, because every boundary in an array structure is computable and an uncomputable one is broken.</p>
+
+<p>InnoDB splits this into optimistic and pessimistic paths. The optimistic insert first computes capacity, asking two questions: can this fit after reorganisation, and can it fit as is. Failure gives a fail status that routes into the pessimistic path, where the fork is explicit: a root page goes to the root-raising routine, an ordinary page goes to the page split routine. The lowest level failure is a null from the heap allocator when top plus the needed bytes exceeds the page.</p>
+
+<p>The reorganisation threshold is documented as a macro: one thirty-second of the page, 512 bytes at 16 KB. Once the holes exceed that, reorganising is worth doing.</p>
+
+<h2>When it is worth operating: the reorganisation threshold and the truth about 50%</h2>
+
+<p>SQLite compresses "should we operate" into one expression at the entry to the balancer: skip rebalancing when there are no overflow cells and free space is no more than two thirds of the usable area. Note that this is a lower bound on rebalancing. A page has to be more than a third empty before touching it is worthwhile, rather than being touched when full. Batching overflow amortises the fixed cost of each split.</p>
+
+<p>Now the popular claim, that pages sit at about fifty percent fill after a split. The literal number does not exist in InnoDB's source. The actual mechanism picks the middle record by count:</p>
+
+<pre><code>ulint middle = (page_get_n_recs(page) + PAGE_HEAP_NO_USER_LOW) / 2;
+return page_rec_get_nth(page, middle);
+</code></pre>
+
+<p>Count, not bytes. A hundred byte record and an eight hundred byte record each get one vote, so the two halves frequently differ substantially in bytes, and the directional heuristics tilt them further. Half full is an approximation in record counts, and in bytes only if records are uniform. The precise version: the midpoint is cut by count, and the byte distribution depends on how record sizes happen to fall.</p>
+
+<p>SQLite does not even guarantee a midpoint. Its balancing target is written as a packing problem in the comment: fit all cells into some number of pages, none exceeding the usable space. The result may be two pages, three, or more, with fill determined by the combination of cell sizes.</p>
+
+<h2>SQLite's operating theatre: the packing ledger</h2>
+
+<p>The balancer dispatches to three subroutines: a fast path that halves a page, a routine that grows the tree, and the general packing routine. The real redistribution is in the general one, and its first act is bookkeeping.</p>
+
+<pre><code>k:           total number of sibling pages
+szNew[i]:    space used on the i-th sibling page
+cntNew[i]:   index in the flattened cell array of the first cell
+             to the right of page i
+usableSpace: bytes available on each sibling
+</code></pre>
+
+<p>Flatten every cell from this page and its neighbours, then answer three questions: how many pages are needed, how many bytes each will hold, and where each cut falls. Then the balancing loop.</p>
+
+<pre><code>k = nOld;
+for (i = 0; i &lt; k; i++) {
+  while (szNew[i] &gt; usableSpace) {
+    if (i + 1 &gt;= k) {
+      k = i + 2;
+      if (k &gt; NB + 2) { corrupt; }
+      szNew[k-1] = 0;
+      cntNew[k-1] = b.nCell;
+    }
+    sz = 2 + cachedCellSize(&amp;b, cntNew[i] - 1);
+    szNew[i] -= sz;
+    szNew[i+1] += sz;
+    cntNew[i]--;
+  }
+}
+</code></pre>
+
+<p>When a page's running total exceeds the usable space, move the rightmost cell to the next page until it fits. If there is no next page, open one: two pages becoming three happens right here. Every move adjusts by real byte counts, so this is exact packing rather than a naive halving.</p>
+
+<pre><code>#define NN 1   /* neighbours on either side */
+#define NB 3   /* total pages involved: NN * 2 + 1 */
+</code></pre>
+
+<p>Three pages take part, this one plus one sibling on each side, and the new page count is capped at five, beyond which the code declares corruption. A comment above the constant is honest about it: the value has been three since SQLite began and no other value has ever been tested.</p>
+
+<p>Packing is only the first pass, and the comment admits a bias: the computed packing leans toward the left-hand siblings, and the adjustment that follows is not optional, because a right sibling can end up emptied. Balancing is two scans: pack, then correct.</p>
+
+<p>The end of a split is attaching the new page to the tree. The divider cell is a four byte page number plus a variable length key equal to the largest key on the page, extracted on the spot from the rightmost cell. Each new page except the rightmost adds one divider cell to the parent. And when the parent has no room for that cell, it becomes the parent's overflow, settled when the parent is balanced. That is how a split propagates upward.</p>
+
+<h2>InnoDB's surgery sheet: eight steps</h2>
+
+<p>The header comment of the split routine is a consent form with three promises: an X latch on the tree is already held, that latch is released inside the function, and the operation must always succeed because it cannot be reversed, which is why two free pages must be guaranteed before the call.</p>
+
+<p>The body numbers eight steps.</p>
+
+<ol>
+<li>Decide the split record; a null split record means the tuple being inserted becomes the first record of the upper half.</li>
+<li>Allocate a new page for the index.</li>
+<li>Calculate the first record on the upper half page.</li>
+<li>Make the tree structure changes first, attaching the new page and rewriting the parent.</li>
+<li>Move the records to the new page.</li>
+<li>Decide which half the tuple belongs in.</li>
+<li>Reposition the cursor for the insert.</li>
+<li>If the insert does not fit, reorganise the page and try again.</li>
+</ol>
+
+<p>Step eight's failure handling is the most bracing line in the file: increment the iteration counter and jump back to the start of the function, restarting the whole operation with a different split point. And step four's helper carries the recursion in a comment: inserting the node pointer next to the lower half may generate recursion leading to a split at the higher level.</p>
+
+<h2>How the split point is chosen</h2>
+
+<p>The choice decides how balanced the halves are, and the two engines differ.</p>
+
+<p>InnoDB prefers a heuristic and falls back to the midpoint. It first tries a directional split, upward with a hinted page number one higher than the current page, and only if that fails falls back to the middle record by count. When a page holds a single record, the new tuple's size relative to it decides whether the split point is that record or null, meaning the tuple itself becomes the first record of the upper half.</p>
+
+<p>That null case deserves attention: it makes the incoming tuple the split point, so inserting a key larger or smaller than everything on a full page is cut at the insertion position rather than inserted and then moved.</p>
+
+<p>SQLite does not choose a point at all. It flattens everything and repacks, ignoring which record came from where and cutting two or three pages according to the new boundaries.</p>
+
+<p>So InnoDB keeps the chain's relative order, cuts in the middle, moves half a page, and uses direction heuristics to keep sequential appends splitting as far right as possible, with hinted page numbers keeping same-direction inserts adjacent. SQLite repacks everything, using two scans to keep every page inside the usable space. The cost is moving both pointers and content, and the benefit is that one balancing pass settles all outstanding debt.</p>
+
+<h2>Where the new page comes from</h2>
+
+<p>SQLite uses a file-level freelist, a two-level trunk and leaf structure rooted at a 32-byte offset in page one. A freed page becomes a new trunk when the existing trunk is full or the list is empty, and allocation reads from the same field. Pages from dropped tables therefore become new pages for splits, and the file does not have to keep growing.</p>
+
+<p>InnoDB uses segment and extent allocation, and turns "must succeed" into an upfront reservation. Before entering the split, the pessimistic path reserves extents sized by tree height divided by sixteen plus three. The taller the tree, the more levels a split can touch and the more it reserves, pricing the worst case of a recursive growth that allocates several pages at once.</p>
+
+<p>The allocator's own documentation admits how soft that guarantee is: when the file is smaller than an extent, the reservation returns zero even if the file is about to be full, and the function is a point of no return that expects space to be in place, while callers rely on a reservation that does not really guarantee a whole extent. The final backstop is a null return becoming an out-of-space error at the top. Reservation before the door, best effort inside, an error code behind it: three layers are what make the header's "must always succeed" true.</p>
+
+<h2>The parent's divider key and how splits recurse</h2>
+
+<p>Both engines recurse the same way: the new page needs a divider key in the parent, and if the parent has no room it splits in turn.</p>
+
+<p>InnoDB's recursion entry point searches to the level above, inserts optimistically, falls to the pessimistic path on failure, and asserts the result must succeed. The flags on that call say something important: no locking and no undo logging, because the recursion happens while the tree lock is already held and the logging was done by the outer layer. Lock and log boundaries belong to the caller; the recursive layer only handles structure.</p>
+
+<p>SQLite's equivalent is one insert into the parent. If it does not fit it becomes overflow, and the outer loop balances the parent next. The driving force differs, an explicit recursion against accumulated overflow in a loop, but the direction is identical: splits always bubble from leaf to root, and the root is the last to give way.</p>
+
+<p>The other side of bubbling is lock scope. InnoDB releases the tree latch early when the split is at leaf level and the tuple is certain to fit in one half, so that moving records, the slow work, happens after the structural change and outside the tree lock. This is the textbook "lock the structure, then release" pattern in its concrete form.</p>
+
+<h2>How the tree grows taller</h2>
+
+<p>A root split is the extreme case, and both engines keep one invariant: the root page number never changes, because the file header and metadata point at it. What changes is the root's content and role.</p>
+
+<p>SQLite grows in place. When the root overflows, a new child page is allocated, the root's contents are copied down into it, the root is zeroed and given a single right-child pointer, and the next loop iteration balances that child. The root goes from a full leaf to an interior page with one child. There is no stored tree height in a SQLite file at all; height is counted on the spot by walking down from the root.</p>
+
+<p>InnoDB moves the data first and then splits. The root's records are copied to a new page, the root is emptied and rebuilt one level higher with a single node pointer, and then the new page goes through the ordinary split routine. The height is recorded in the cursor during the search, as the root height plus one, and that is the only authoritative source in the current code.</p>
+
+<table>
+<thead><tr><th></th><th>SQLite</th><th>InnoDB</th></tr></thead>
+<tbody>
+<tr><td>New page</td><td>Allocate, copy the root's contents down</td><td>Allocate, move the root's records out, then empty it</td></tr>
+<tr><td>Root change</td><td>Zeroed, one right-child pointer</td><td>Rebuilt one level higher, one node pointer</td></tr>
+<tr><td>Afterwards</td><td>The next loop iteration balances the child</td><td>The new page is split immediately</td></tr>
+<tr><td>Root page number</td><td>Unchanged</td><td>Unchanged</td></tr>
+<tr><td>Failure</td><td>Return code propagates</td><td>Must succeed, two pages reserved upfront</td></tr>
+</tbody>
+</table>
+
+<p>Growing taller is not a global rewrite, it is a role change for the root: one page copy and one parent pointer. Which is exactly why three levels of tree can hold hundreds of millions of rows. Every extra level multiplies fan-out by the page capacity.</p>
+
+<h2>When the operation is wasted: reorganise, retry, restart</h2>
+
+<p>Three places in the source handle "that was wasted, now what".</p>
+
+<p>SQLite reorganises before splitting, its balancer is a loop that runs again if overflow cleared but conditions still fail, and its fast path falls back to the general repacking when it cannot finish. The defragment routine's own doc comment describes the goal: no freeblocks or fragments left, all unused bytes in the unallocated region, all cells packed tightly at the end of the page.</p>
+
+<p>InnoDB restarts the whole operation when the last step cannot fit the tuple. The cost is real, since a new page was already allocated, and it buys a second attempt at the split point. The iteration counter also switches the directional heuristic, so in append-heavy workloads the second pass almost always succeeds.</p>
+
+<p>The recursive layer asserts success rather than handling failure, and the confidence behind that assertion comes from the reservation made before the door. The promise is not luck, it is buying the road ahead before walking it.</p>
+
+<h2>In-page fragmentation: the freeblock chain</h2>
+
+<p>Splitting redistributes between pages; the holes inside a page are the other half of the story. SQLite accounts for the two kinds of hole separately: free space equals the unallocated gap, plus the fragmented byte count stored in the header, plus the freeblock chain walked from the header pointer.</p>
+
+<p>Three details in the free function. A hole adjacent to the start of the content area simply extends the area instead of taking a list slot. New holes are inserted in ascending offset order and adjacent ones are coalesced. Fragments of three bytes or less never enter the chain and only increment the fragment counter. Deleting one record therefore has three possible destinations: absorbed into the gap, entered into the chain, or counted as fragment, and defragmentation folds all three back into the gap with the cells repacked against the end of the page.</p>
+
+<p>InnoDB's equivalents are the free record list head and the deleted-byte counter, plus the reorganisation threshold. Both engines store the size of the holes in the page header, because that number is the raw material for deciding when to reorganise.</p>
+
+<p>Which answers two of the opening questions. A random UUID primary key scatters insert points across every page, so every delete and update leaves a freeblock somewhere different, every page has holes, reorganisation and splits are frequent, and the file fragments. A sequential key concentrates inserts at the rightmost leaf, so old pages have few holes, new pages get consecutive numbers, and fill stays high.</p>
+
+<h2>Why sequential writes do not fragment</h2>
+
+<ol>
+<li>InnoDB's first split step sets direction upward and a hinted page number one greater when retrying.</li>
+<li>The page allocation call passes that hint to the extent allocator so the new page lands after the original.</li>
+<li>A midpoint split makes the append pattern reproduce stably: append at the right edge, cut when full, continue at the right edge of the new page. Pages end up adjacent and produce almost no in-page fragmentation.</li>
+<li>SQLite has no direction concept, but its accumulate-and-balance loop with the two-thirds threshold produces the same effect: wait until the debt is large, then pack to the usable space.</li>
+</ol>
+
+<p>A random key breaks step three. Insertions land on arbitrary pages, every page is a little short, every page triggers reorganisation or a split, and the three-page window cannot find same-direction neighbours to absorb the debt. The advice to use an auto-increment or timestamp key instead of a random UUID has its origin right here, in the interaction between the directional hint and the midpoint split.</p>
+
+<h2>Under concurrency: lock release and the no-rollback contract</h2>
+
+<p>InnoDB's evidence chain starts with assertions: the tree latch is already held in X or SX mode, and the page is already X-fixed into the mini transaction. Lock modes are separate rungs: ordinary readers take a shared latch at the leaf, ordinary writers take an exclusive latch at the leaf, and only structural changes rise to the modify-tree mode. Combined with the early release, the picture is that steps one through four hold the tree lock, the lock is dropped once the new page is known to fit, and the slow record movement is protected only by page locks on the two pages.</p>
+
+<p>Add the write-ahead conclusion from the other post, that page changes reach disk through the redo log and cannot be rolled back, and the division of labour is complete: a small window of tree lock for structure, page locks only for data movement, redo guaranteeing the replay is whole, and reservation guaranteeing the allocation does not fail. Four mechanisms, each with its own scope.</p>
+
+<p>SQLite is a single-writer model with a database-level write lock, so it has none of these gymnastics and gets to flatten and repack at will. Complexity is conserved: concurrency is paid for in locks, correctness in rollback, and SQLite books both elsewhere, in the write lock and the transaction log.</p>
+
+<h2>The two implementations side by side</h2>
+
+<table>
+<thead><tr><th>Stage</th><th>SQLite</th><th>InnoDB</th></tr></thead>
+<tbody>
+<tr><td>Page header</td><td>8 or 12 bytes, five fields</td><td>94 bytes before user data</td></tr>
+<tr><td>First signal of no room</td><td>Size plus two exceeds free space, into an in-memory overflow slot</td><td>Capacity check fails, optimistic insert reports failure</td></tr>
+<tr><td>Reorganise before splitting</td><td>Defragment when the gap is too small</td><td>Reorganise when holes exceed 512 bytes</td></tr>
+<tr><td>Threshold to operate</td><td>No overflow and more than two thirds free</td><td>The pessimistic path after both optimistic checks</td></tr>
+<tr><td>Split point</td><td>None, flatten and repack</td><td>Directional heuristic, then the middle record by count</td></tr>
+<tr><td>New page</td><td>File freelist</td><td>Segment allocation with extents reserved by tree height</td></tr>
+<tr><td>Split routine</td><td>General packing, three pages involved, at most five out</td><td>Eight steps, may jump back and restart</td></tr>
+<tr><td>Parent propagation</td><td>Insert into the parent, overflow, balance above</td><td>Explicit recursion to the level above</td></tr>
+<tr><td>Growing taller</td><td>Root becomes an interior page in place</td><td>Move the root's data out, then split</td></tr>
+<tr><td>Failure semantics</td><td>Return codes propagate</td><td>Must succeed, with an out-of-space backstop</td></tr>
+<tr><td>Stored height</td><td>None, counted at runtime</td><td>Page level field and the cursor field</td></tr>
+</tbody>
+</table>
+
+<p>Back to practice, in the order the split perspective suggests. Look at key shape first, because sequential appends align with the directional hint and stable midpoint splits while random keys scatter both. Then look at page fill rather than row counts, since the ratio of pages to rows, or the gap between page count and freelist count, corresponds to the deleted-byte counter and the freeblock chain. Leave room for reorganisation at the tail of the load, because the thresholds show periodic tidying is designed into the path and occasional reorganisation is not an incident. And remember that height is nearly free: growing a level is one page copy and one pointer, so what actually costs is the frequency of splits, not the height.</p>
+
+<h2>Closing</h2>
+
+<p>The textbook draws a split as one arrow becoming two. In the source it is an eight step operation: heuristics for the split point, allocation that must be paid for in advance, chains cut and reconnected, recursion into the parent, the root moved house, a restart when the insert still does not fit, and space bought before the door is opened. Not one step is superfluous, and each answers a specific accident: a bad split point, a full tablespace, a lock held too long, a crash mid-move, a parent that also overflows.</p>
+
+<p>The comparison confirms the mirror image of the write-ahead rule: formats are arbitrary, contracts are not. Whether records are addressed by an array or a chain, whether the header is 8 bytes or 94, either choice is fine. But check before reorganising, reorganise before splitting, always give the parent a divider key, always keep the root page number, and always have a defined exit on failure. Not one of those is negotiable.</p>
+
+<p>So the next time you write "switch to a sequential primary key" in a slow query post, you can point at the exact line: the hint that sets the next page number to the current one plus one, in the first step of an InnoDB split. That line is what "the index does not fragment" looks like in source.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
