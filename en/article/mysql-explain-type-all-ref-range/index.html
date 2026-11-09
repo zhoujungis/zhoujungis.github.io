@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The access type describes how a table is visited, not how fast the query is. A full scan is fine on a small table, and an index lookup is slow when it fetches a few hundred thousand rows." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/mysql-explain-type-all-ref-range/" />
+    <meta property="og:title" content="Reading a MySQL query plan: what each column actually tells you | Stack Frame" />
+    <meta property="og:description" content="The access type describes how a table is visited, not how fast the query is. A full scan is fine on a small table, and an index lookup is slow when it fetches a few hundred thousand rows." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/mysql-explain-type-all-ref-range/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Reading a MySQL query plan: what each column actually tells you | Stack Frame" />
+    <meta name="twitter:description" content="The access type describes how a table is visited, not how fast the query is. A full scan is fine on a small table, and an index lookup is slow when it fetches a few hundred thousand rows." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Reading a MySQL query plan: what each column actually tells you | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BRBi0-HW.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/mysql-explain-type-all-ref-range/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Reading a MySQL query plan: what each column actually tells you</h1><div class="ns-meta">2026-11-04 · 14 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who run a plan every day but only read the access type; people burned by a row estimate that was off by ten times; people wondering which of the length, filter and extra columns to believe.</p>
+<p><strong>TL;DR:</strong> the access type says how a table is visited, not whether the query is fast. A full scan is not automatically bad on a small table, and an index lookup is not automatically fast if it fetches hundreds of thousands of rows. What matters is whether an index was chosen, how large the scanned counts multiply out, and whether the plan shows an extra sort or temporary table.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>A plan is not a performance score</h2>
+
+<p>People treat the access type as a grade: constant lookup is a hundred, index lookup is eighty, full scan is zero. That produces two kinds of mistake. Seeing a full scan, someone rushes to add an index, when scanning a small table was already faster. Seeing an index lookup, someone relaxes, when the plan expects 800,000 rows and the fetches rinse out the buffer pool.</p>
+
+<p>A plan answers what the optimiser intends to do, not how long it will take. Every field is an estimate or a structural description. Real timing comes from execution analysis, the slow query log and instrumentation.</p>
+
+<h2>Knowing the columns</h2>
+
+<table>
+<thead><tr><th>Column</th><th>Meaning</th><th>How to use it</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>Query block number</td><td>Same id runs top to bottom; larger ids run first</td></tr>
+<tr><td>select_type</td><td>Kind of select</td><td>Simple, primary, subquery, derived, union</td></tr>
+<tr><td>table</td><td>Table or derived table</td><td>Derived tables appear as numbered placeholders</td></tr>
+<tr><td>partitions</td><td>Matched partitions</td><td>Only interesting for partitioned tables</td></tr>
+<tr><td>type</td><td>Access type</td><td>The main subject here</td></tr>
+<tr><td>possible_keys</td><td>Candidate indexes</td><td>Tells you whether candidates existed</td></tr>
+<tr><td>key</td><td>Chosen index</td><td>Null means no index was used</td></tr>
+<tr><td>key_len</td><td>Index bytes actually used</td><td>Infer how many columns were used</td></tr>
+<tr><td>ref</td><td>What the index was compared against</td><td>A constant, a column, a function result</td></tr>
+<tr><td>rows</td><td>Estimated rows scanned</td><td>An estimate, not a measurement</td></tr>
+<tr><td>filtered</td><td>Estimated share passing the rest of the condition</td><td>Percentage</td></tr>
+<tr><td>Extra</td><td>Additional operations</td><td>The most informative column</td></tr>
+</tbody>
+</table>
+
+<p>Remember one thing first: candidates exist but no index was chosen, which is worth more investigation than no candidate at all.</p>
+
+<h2>The full ladder of access types</h2>
+
+<pre><code>system
+const
+eq_ref
+ref
+fulltext
+ref_or_null
+index_merge
+unique_subquery
+index_subquery
+range
+index
+ALL
+</code></pre>
+
+<p>That order is precision of access, not a strict performance ranking.</p>
+
+<h2>Constant lookups: the best rung</h2>
+
+<p>An equality condition on a primary key or unique index lets the optimiser decide at compile time that only one row can match, so the type is a constant lookup. If the table itself has a single row, the type becomes the system case.</p>
+
+<p>The precondition is unique and non-null. A primary key is both. A unique index that permits nulls is not: several nulls do not violate uniqueness, so the optimiser cannot promise one row and may fall back to a reference.</p>
+
+<p>One detail: if the value does not exist, the plan says there is no matching row in a constant table and reports zero rows. That is not an error, it is the optimiser knowing in advance.</p>
+
+<h2>Unique join matches</h2>
+
+<p>This access type appears in joins, where the driven table is matched through a unique index so each driving row corresponds to exactly one row. If the join column is not unique, it degrades to a plain reference.</p>
+
+<p>The difference from a constant lookup is the source of the comparison value: a compile-time constant against the current row of another table. So it means one unique lookup per driving row.</p>
+
+<h2>Plain references, the most common good state</h2>
+
+<p>An equality condition on an ordinary secondary index may match several rows, and the type is a reference. That is the ordinary good outcome, with one caution: it only says the index could seek. How many rows that means is in the row estimate.</p>
+
+<p>A variant covers the case of equality or null, which forces the optimiser to scan both the matching range and the null range. One extra range is usually harmless, unless there are many nulls, in which case the estimate rises noticeably.</p>
+
+<h2>Range scans on an index</h2>
+
+<pre><code>SELECT * FROM users WHERE tenant_id = 7 AND status &gt; 1;
+SELECT * FROM users WHERE created_at BETWEEN '2026-01-01' AND '2026-02-01';
+SELECT * FROM users WHERE email LIKE 'abc%';
+</code></pre>
+
+<p>Narrow ranges are better. If the range covers most of the table, the optimiser may choose a full scan instead. The index length usually stops at the range column, since anything after it cannot seek and only filters.</p>
+
+<h2>Two shapes of a full scan</h2>
+
+<p>An index scan walks the whole index rather than the table. With a covering note it reads only the index and never fetches rows, which is common for a covering index plus an ordering requirement. It is still slow if the index is large.</p>
+
+<p>A full table scan is the other shape. A column that is not the leading part of any usable index forces it. On a table of a few hundred rows that is completely normal; on a million rows it is the thing to fix.</p>
+
+<p>Both can be fast and both can be slow. The criterion is how many pages are read, not which name looks more advanced.</p>
+
+<h2>Merging several indexes</h2>
+
+<p>When a condition matches several indexes and no single composite index covers it, the optimiser may merge results. The plan shows an intersection for a conjunction, a union for a disjunction, or a sorted union when the union needs ordering.</p>
+
+<p>In practice this is unstable: several index scans plus a set operation cost both CPU and memory, and it usually loses to one well-designed composite index. Disabling it for comparison is fine; leaving it disabled in production is not a good long-term plan.</p>
+
+<h2>Subquery access types</h2>
+
+<p>These appear when an IN subquery is executed per value. A unique index inside the subquery gives one type, an ordinary index another, and a subquery with no usable index degrades to a full scan or gets materialised.</p>
+
+<p>Version matters: 8.0 applies semi-join transformations, materialisation and derived merging that 5.7 did not, so plans differ. Do not transplant experience from an older version without checking.</p>
+
+<h2>Working out the index length byte by byte</h2>
+
+<table>
+<thead><tr><th>Type</th><th>Bytes</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>TINYINT</td><td>1</td><td></td></tr>
+<tr><td>SMALLINT</td><td>2</td><td></td></tr>
+<tr><td>MEDIUMINT</td><td>3</td><td></td></tr>
+<tr><td>INT</td><td>4</td><td></td></tr>
+<tr><td>BIGINT</td><td>8</td><td></td></tr>
+<tr><td>DATE</td><td>3</td><td></td></tr>
+<tr><td>DATETIME</td><td>5</td><td>Plus one byte per one or two fractional digits</td></tr>
+<tr><td>TIMESTAMP</td><td>4</td><td>Same</td></tr>
+<tr><td>CHAR(n) in utf8mb4</td><td>4n</td><td>Plus one if nullable</td></tr>
+<tr><td>VARCHAR(n) in utf8mb4</td><td>4n + 2</td><td>Two bytes for the length, plus one if nullable</td></tr>
+<tr><td>Prefix index of k characters</td><td>4k + 2</td><td>Only the first k characters are indexed</td></tr>
+<tr><td>Any nullable column</td><td>+1</td><td>Null flag</td></tr>
+</tbody>
+</table>
+
+<p>For an index on a BIGINT and a TINYINT, both non-null, one column gives 8 and two give 9. If both are nullable the total becomes 10, one null flag each.</p>
+
+<p>A smaller than expected length usually means one of three things: the extra columns are absent from the condition, the order violates the prefix rule, or a range appears in the middle.</p>
+
+<p>One trap: the length counts index key bytes and excludes the primary key that InnoDB appends to secondary indexes automatically. Do not use it to estimate the size of a secondary index record.</p>
+
+<h2>Row estimates and filter ratios</h2>
+
+<p>The row estimate is how many rows this access is expected to scan, and the filter ratio is what share of those should pass the remaining conditions. Multiplying them gives the rows that go on to the next stage. Chain that across a join and you see the order of magnitude of the whole statement.</p>
+
+<p>The estimates depend on statistics, which go wrong in familiar ways: a bulk import before statistics are refreshed, frequent inserts and deletes leaving statistics stale, too many equality conditions pushing past the dive limit so the optimiser switches to sampling, and skewed distributions that the histogram does not cover. Histograms on skewed columns improve this noticeably.</p>
+
+<h2>A dictionary of plan notes</h2>
+
+<table>
+<thead><tr><th>Note</th><th>Meaning</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>Using index</td><td>Covering index, no row fetch</td><td>Good</td></tr>
+<tr><td>Using index condition</td><td>Filters pushed to the index layer</td><td>Usually good</td></tr>
+<tr><td>Using where</td><td>The server still filters</td><td>Check the row estimate</td></tr>
+<tr><td>Using filesort</td><td>The ordering did not use the index</td><td>Handle when the result is large</td></tr>
+<tr><td>Using temporary</td><td>A temporary table was needed</td><td>Handle when the result is large</td></tr>
+<tr><td>Using join buffer</td><td>The join had no index, or uses a hash join</td><td>Add an index, or evaluate whether the hash join is fine</td></tr>
+<tr><td>Using index for skip scan</td><td>Skip scan on a composite index</td><td>Know it exists, do not rely on it</td></tr>
+<tr><td>Using index for group-by</td><td>Grouping used the index</td><td>Good</td></tr>
+<tr><td>Backward index scan</td><td>Reverse index scan</td><td>Normal</td></tr>
+<tr><td>Range checked for each record</td><td>The index was re-chosen per row</td><td>Usually needs work</td></tr>
+<tr><td>Select tables optimized away</td><td>The result was computed from metadata</td><td>Good</td></tr>
+<tr><td>Impossible WHERE</td><td>The condition is always false</td><td>Normal</td></tr>
+</tbody>
+</table>
+
+<p>A filesort note does not prove a disk sort. Small results sort in memory quickly. The problem is CPU and memory when the row count is large. Likewise a temporary table does not necessarily hit disk: since 8.0.16 internal temporary tables default to an in-memory engine and spill only past a threshold, so check the disk-temporary counter to know which happened.</p>
+
+<h2>What the JSON format adds</h2>
+
+<p>The tabular plan compresses information. The JSON format exposes finer cost and condition detail: the access type, candidate and chosen indexes, the <strong>key parts actually used</strong>, the key length, the comparison values, rows examined per scan and rows produced per join, the filter ratio, the conditions attached or pushed down, the columns the query needs, and a cost breakdown.</p>
+
+<p>The used key parts field is the one to remember. On an index over three columns with conditions on the first and third, it plainly shows that only the first was used, which beats inferring it from a byte count.</p>
+
+<p>The reported query cost is in arbitrary cost units, not milliseconds. It compares two plans against each other; it does not predict wall clock.</p>
+
+<h2>Reconciling estimates with reality</h2>
+
+<p>Execution analysis, available from 8.0.18, actually runs the statement and reports per operator the real time, the real row count, how many times the operator ran, and the optimiser's estimate. The usual use is reconciliation: an estimate of three rows against an actual 1,200 means the statistics or the cost model is wrong, so refresh statistics first and consider a histogram second.</p>
+
+<p>Two cautions. It really executes the query, which is safe for a select and needs care for writes. And it reports one execution, so cache state and concurrency affect the numbers; one sample is not a conclusion.</p>
+
+<h2>Five common misreadings</h2>
+
+<p><strong>Implicit type conversion.</strong> A string compared against a numeric column converts the constant, which usually keeps the index; a number compared against a string column converts the column, which loses it. Align types explicitly.</p>
+
+<p><strong>Stale statistics.</strong> After a bulk load or heavy churn the estimates can be badly off, so refresh and then re-read the plan.</p>
+
+<p><strong>The optimiser abandoned the index.</strong> When the matching fraction is high, fetching rows costs more than scanning, and a full scan is the correct arithmetic. Force the index once to check: faster means the statistics or model need attention, slower means accept the choice.</p>
+
+<p><strong>An index exists but was not chosen.</strong> Look for a broken prefix, a function wrapped around a column, an implicit conversion, a fetch cost estimate that came out too high, or a competing index merge or skip scan.</p>
+
+<p><strong>A limit clause as a universal optimisation.</strong> With an index it is fast; without one, the sort has to order the whole result before taking ten rows. A limit reduces transfer, not sorting.</p>
+
+<h2>An order of investigation</h2>
+
+<ol>
+<li>How big is the table: rows and data size.</li>
+<li>Access type and chosen index: any full scan, any missing index.</li>
+<li>The product of rows and filter ratio: does the magnitude match business expectations.</li>
+<li>Plan notes: sorting, temporary tables, join buffers.</li>
+<li>Used key parts, from the JSON format, to see how many index columns were really used.</li>
+<li>Reconcile with execution analysis.</li>
+<li>Then change something, and re-run the same sequence to compare.</li>
+</ol>
+
+<p>The optimiser trace explains why a plan was chosen, listing the cost estimate for every candidate index. It is worth using for one question, and too verbose for daily reading.</p>
+
+<h2>Summary</h2>
+
+<ul>
+<li>Access type is how, row count is how much, plan notes are what else happens. Read all three.</li>
+<li>Constant lookups, unique join matches, references and ranges are usable; index scans and full scans depend on table size.</li>
+<li>The index length is direct evidence of columns used, and the JSON format states it more plainly.</li>
+<li>Row and filter estimates are estimates; reconcile them with execution analysis when it matters.</li>
+<li>Plan before adding an index, plan after, and compare. Do not work from a feeling.</li>
+</ul>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>

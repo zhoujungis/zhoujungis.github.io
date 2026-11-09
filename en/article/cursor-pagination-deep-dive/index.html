@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="An offset makes the database pay for skipping. A cursor makes it pay for seeking. Everything else, including the signed token and the missing page numbers, follows from that one sentence." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/cursor-pagination-deep-dive/" />
+    <meta property="og:title" content="Why a deep offset gets slower, and what cursor pagination fixes | Stack Frame" />
+    <meta property="og:description" content="An offset makes the database pay for skipping. A cursor makes it pay for seeking. Everything else, including the signed token and the missing page numbers, follows from that one sentence." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/cursor-pagination-deep-dive/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Why a deep offset gets slower, and what cursor pagination fixes | Stack Frame" />
+    <meta name="twitter:description" content="An offset makes the database pay for skipping. A cursor makes it pay for seeking. Everything else, including the signed token and the missing page numbers, follows from that one sentence." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Why a deep offset gets slower, and what cursor pagination fixes | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BRBi0-HW.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/cursor-pagination-deep-dive/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Why a deep offset gets slower, and what cursor pagination fixes</h1><div class="ns-meta">2026-11-04 · 16 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: backend engineers whose list endpoints get slower the deeper they are paged, and whose slow query logs fill with large offsets.</p>
+<p>Examples are in Django and standard SQL, and the same reasoning applies in any stack.</p>
+<p>Reading time around 16 minutes. Level: intermediate.</p>
+</blockquote>
+
+<h2>One statement from the slow query log</h2>
+
+<pre><code>SELECT id, title, created_at
+FROM article
+ORDER BY created_at DESC, id DESC
+LIMIT 20 OFFSET 500000;
+</code></pre>
+
+<p>This is the blog's article list endpoint. Everything was fine just past a million rows, and then, as the table grew and users paged into the twenty-thousandth page, which crawlers and a few endless-scroll clients like to do, the statement went from three milliseconds to over two seconds. Database CPU oscillated and every request sharing the same connection pool slowed down with it.</p>
+
+<p>The first instinct is to add an index. There is one: the whole point of the index is to serve that ordering. Adding an index and still being slow means the problem is not the index, it is what the offset does.</p>
+
+<h2>What an offset really costs</h2>
+
+<p>Most people imagine the database jumping straight to row 500,001. That is not what happens, because there is no general ability to fetch row N directly. The engine reads rows one to 500,020 in index order, throws the first 500,000 away, and returns the remaining twenty.</p>
+
+<p>So the work is offset plus limit. The deeper the page, the more rows are read and discarded, and the time grows linearly. That is the origin of the O(offset) complexity.</p>
+
+<p>Comparing two plans on a million-row table, changing only the offset, shows the difference: a near-zero startup cost at offset zero, and a startup cost that already includes scanning half a million rows at offset 500,000. If the selected columns are not in the index, each of those rows also needs a fetch, which is worse.</p>
+
+<p>One common workaround, the deferred join, first selects primary keys from a covering index and then joins back to the table. That genuinely cuts the fetches from 500,020 to twenty and is often ten times faster. <strong>But it does not change the linear nature</strong>: the subquery still walks 500,000 index entries. It buys time; it does not solve the problem.</p>
+
+<h2>The arithmetic of page depth</h2>
+
+<table>
+<thead><tr><th>Page</th><th>Offset</th><th>Rows scanned</th><th>Measured on one million rows</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>20</td><td>about 0.1 ms</td></tr>
+<tr><td>100</td><td>1,980</td><td>2,000</td><td>about 3 ms</td></tr>
+<tr><td>1,000</td><td>19,980</td><td>20,000</td><td>about 25 ms</td></tr>
+<tr><td>10,000</td><td>199,980</td><td>200,000</td><td>about 250 ms</td></tr>
+<tr><td>25,000</td><td>499,980</td><td>500,000</td><td>600 ms and up</td></tr>
+</tbody>
+</table>
+
+<p>The problem is not only that one query is slow. Deep paging traffic concentrates in a few clients, crawlers, export scripts and infinite scroll, and they issue a series of ever deeper requests that push the genuinely hot pages out of the buffer pool. <strong>Every query in the system slows down</strong>, which is why deep pagination so often appears in alerts alongside a CPU spike.</p>
+
+<h2>The core idea: replace the page number with the last row</h2>
+
+<p>Offset pagination asks the database to skip N rows. Cursor pagination, also called keyset pagination, changes the question: instead of how many to skip, tell it what the last row of the previous page was, and continue from there.</p>
+
+<pre><code>SELECT id, title, created_at
+FROM article
+WHERE (created_at, id) &lt; ('2026-09-01 12:00:00+08', 86400)
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+</code></pre>
+
+<p>That row comparison means lexicographic comparison: either the timestamp is smaller, or it is equal and the id is smaller.</p>
+
+<p>The execution path is completely different. The index is stored in that order, so locating the pair is one seek, after which twenty rows are read in sequence. <strong>No matter how deep the page, the rows scanned equal the limit.</strong> The complexity is constant with respect to page depth.</p>
+
+<table>
+<thead><tr><th></th><th>Offset</th><th>Cursor</th></tr></thead>
+<tbody>
+<tr><td>How it positions</td><td>Skips N rows by reading and discarding</td><td>Seeks to a starting point</td></tr>
+<tr><td>Complexity</td><td>Linear in the offset</td><td>Constant</td></tr>
+<tr><td>Client parameter</td><td>A page number</td><td>The sort key of the last row</td></tr>
+<tr><td>Jump to any page</td><td>Supported</td><td>Not by nature</td></tr>
+<tr><td>Rows inserted while paging</td><td>Duplicates appear</td><td>No duplicates</td></tr>
+<tr><td>Dependency</td><td>None</td><td>A suitable unique sort key</td></tr>
+</tbody>
+</table>
+
+<h2>The simplest version</h2>
+
+<pre><code>SELECT id, title FROM article
+WHERE id &lt; 86400
+ORDER BY id DESC
+LIMIT 20;
+</code></pre>
+
+<pre><code>def get_page(last_id, size=20):
+    qs = Article.objects.order_by("-id")
+    if last_id is not None:
+        qs = qs.filter(id__lt=last_id)
+    return list(qs[:size])
+</code></pre>
+
+<p>Fine as a starting point, with two production problems. It only supports ordering by id, whereas the product wants ordering by publish time with a stable tie-break. And the cursor is bare, so clients can guess and construct values, which exposes internal keys and invites scripted enumeration.</p>
+
+<h2>Five details for production</h2>
+
+<h3>The sort key must be unique and stable</h3>
+
+<p>Ordering by timestamp alone has a fatal detail: timestamps repeat, either because several rows share a second or because the column has only second precision. If the cursor carries only the timestamp, a page boundary that falls in the middle of a repeated value either loses rows or repeats them.</p>
+
+<p>So add a tie-breaker and make the sort key the pair of timestamp and id. The id makes the total order unique and the timestamp satisfies the product requirement. Index in that order, and note that some engines handle the row comparison well while others are better off with the equivalent expanded or-form.</p>
+
+<pre><code>WHERE created_at &lt; '2026-09-01 12:00:00'
+   OR (created_at = '2026-09-01 12:00:00' AND id &lt; 86400)
+</code></pre>
+
+<p>It is an or, not an and, and the comparison direction is easy to invert. Those two mistakes are the most common bugs in cursor pagination.</p>
+
+<h3>The cursor should be opaque and signed</h3>
+
+<p>Clients should not pass raw key values. They should pass an opaque string the server issued, which they return unchanged. The server encodes the payload, appends a short HMAC over it, and base64url encodes the pair; decoding verifies the signature and rejects anything malformed with a validation error rather than a server error.</p>
+
+<p>The signature does two things: it stops clients from tampering with a cursor to walk data they should not see, and it stops nonsense values from producing a scan. A whitelist on the sort key is the second half of that defence.</p>
+
+<h3>Null values in the sort key</h3>
+
+<p>If the sort key can be null, for example drafts without a publish time, the default ordering behaviour differs between engines, and some put nulls first on a descending sort while others put them last. Migrating between databases breaks immediately. Declare it explicitly, or better, make the column non-null with a default so the cursor never meets a null. A nullable sort key plus cursor pagination produces intermittent lost rows that are very hard to reproduce.</p>
+
+<h3>Snapshot semantics while paging</h3>
+
+<p>Offset pagination has a subtle flaw: someone publishes a new article while you are on page three, every row shifts, and content you already saw on page two appears again. Cursor pagination is immune, because the cursor anchors to a position rather than a count, so inserts do not move the starting point.</p>
+
+<p>It is not a panacea either. Inserts behave correctly. A delete is also fine, since the condition compares against a value rather than requiring the row to exist. But <strong>an update to the sort key</strong> can move a row to an earlier position and make it appear twice, so ordering by a field that changes, such as an update time, needs the semantics thought through. Prefer immutable fields.</p>
+
+<h3>Totals and the next-page probe</h3>
+
+<p>Offset pagination hands out a total page count for free, and clients get used to it. With cursors, three things change. An exact count is another deep scan on many engines. An estimate from table statistics is nearly free and can be shown as approximately a million. And whether a next page exists is discovered by fetching one extra row: request size plus one, return size, and if the extra row came back there is more.</p>
+
+<p>The product implication is that infinite scroll and load-more use cursors, while jump-to-page plus exact totals, typical in admin tools, keep offsets. Both can coexist.</p>
+
+<h2>A pagination class you can copy</h2>
+
+<p>A keyset paginator supports a composite sort key, both directions, an HMAC-signed opaque cursor, and a one-row lookahead. The essentials:</p>
+
+<pre><code>class KeysetPagination(BasePagination):
+    """Cursor pagination over (created_at, id) descending.
+    Requires an index on that pair, and both columns non-null."""
+
+    page_size = 20
+    cursor_query_param = "cursor"
+
+    def paginate_queryset(self, queryset, request, view=None):
+        page_size = self.get_page_size(request)
+        cur = decode_cursor(request.query_params.get(self.cursor_query_param, ""))
+        direction = cur.get("d", "next")
+
+        if "t" in cur:
+            ts, pid = cur["t"], cur["i"]
+            if direction == "next":
+                queryset = queryset.filter(
+                    Q(created_at__lt=ts) | Q(created_at=ts, id__lt=pid)
+                ).order_by("-created_at", "-id")
+            else:
+                queryset = queryset.filter(
+                    Q(created_at__gt=ts) | Q(created_at=ts, id__gt=pid)
+                ).order_by("created_at", "id")
+        else:
+            queryset = queryset.order_by("-created_at", "-id")
+
+        rows = list(queryset[: page_size + 1])   # one extra to detect a next page
+        self.has_next = len(rows) &gt; page_size
+        rows = rows[:page_size]
+        if direction == "prev":
+            rows.reverse()
+        self._rows = rows
+        return rows
+</code></pre>
+
+<p>The response carries a signed next cursor when more rows exist, a previous cursor pointing at the first row, and the results. The client sends the cursor back verbatim and never parses it.</p>
+
+<h2>Before and after</h2>
+
+<table>
+<thead><tr><th>Scenario</th><th>Offset</th><th>Deferred join</th><th>Cursor</th></tr></thead>
+<tbody>
+<tr><td>Page 1</td><td>0.1 ms</td><td>0.2 ms</td><td>0.2 ms</td></tr>
+<tr><td>Page 1,000</td><td>25 ms</td><td>4 ms</td><td>0.3 ms</td></tr>
+<tr><td>Page 10,000</td><td>250 ms</td><td>35 ms</td><td>0.3 ms</td></tr>
+<tr><td>Page 25,000</td><td>600 ms</td><td>90 ms</td><td>0.3 ms</td></tr>
+<tr><td>Crawling 50,000 pages</td><td>Tens of minutes</td><td>Minutes</td><td>About two minutes, bound by latency</td></tr>
+</tbody>
+</table>
+
+<p>The cursor's cost is a flat line, independent of depth, which is its whole advantage. The deferred join is cheap first aid, one statement to change, clearly worthwhile up to a few thousand pages. And for crawlers, cursor pagination turns a cost that grew quadratically into a linear one, which in this case took search engine crawling from a database problem to almost nothing.</p>
+
+<h2>When not to use cursors</h2>
+
+<ul>
+<li>Users need to jump pages and see exact totals, as in admin and reporting screens. Data volume there is usually manageable, and offsets plus a decent index are enough.</li>
+<li>The result set is small: return it whole and paginate in the client.</li>
+<li>Ordering depends on a computed score that cannot be indexed. Either materialise the score into a column and index it, or accept the query and cache the result.</li>
+<li>The endpoint is stable and pages are shallow, where changing the client contract costs more than it saves.</li>
+</ul>
+
+<p>A pragmatic migration: leave old endpoints alone, build new ones with cursors, and convert the deepest traffic first. Deep paging concentrates in one or two endpoints, so converting those removes most of the slow queries.</p>
+
+<h2>Checklist before shipping</h2>
+
+<ul>
+<li>Is the sort key unique and stable, with a tie-breaker.</li>
+<li>Does the index match the ordering direction.</li>
+<li>Are both key columns non-null, or is the null ordering declared explicitly.</li>
+<li>Is the cursor signed and encoded, with invalid cursors returning a client error.</li>
+<li>Is the next page detected by fetching one extra row rather than a separate existence query.</li>
+<li>Are totals replaced with estimates, and has the product accepted that pages cannot be jumped to.</li>
+<li>On engines where row comparisons index poorly, is the condition expanded.</li>
+<li>Does the client documentation say the cursor is opaque and that a reset goes back to the first page.</li>
+<li>Has the slow query log been checked to confirm the deep offset statements are gone.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>Deep pagination in one sentence: <strong>an offset makes the database pay for skipping, a cursor makes it pay for seeking.</strong> Skipping grows with depth, seeking on a tree is constant.</p>
+
+<p>The change itself is not much work: one composite key, one signed cursor, one lookahead. The real effort is persuading the product and the client that pages cannot be jumped to, and thinking through the snapshot semantics of the sort field. Get those two settled and the rest is mechanical.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/">为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>

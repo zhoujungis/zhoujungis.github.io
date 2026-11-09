@@ -16032,6 +16032,446 @@ SELECT id, user_id, amount FROM orders WHERE user_id = 42;
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a>.</p>
 `,
   },
+  {
+    slug: 'mysql-explain-type-all-ref-range',
+    zhSlug: 'mysql-explain-type-all-ref-range',
+    topicSlug: 'database',
+    title: 'Reading a MySQL query plan: what each column actually tells you',
+    excerpt:
+      'The access type describes how a table is visited, not how fast the query is. A full scan is fine on a small table, and an index lookup is slow when it fetches a few hundred thousand rows.',
+    date: '2026-11-04',
+    readingTime: 14,
+    html: `
+<blockquote>
+<p>Who this is for: people who run a plan every day but only read the access type; people burned by a row estimate that was off by ten times; people wondering which of the length, filter and extra columns to believe.</p>
+<p><strong>TL;DR:</strong> the access type says how a table is visited, not whether the query is fast. A full scan is not automatically bad on a small table, and an index lookup is not automatically fast if it fetches hundreds of thousands of rows. What matters is whether an index was chosen, how large the scanned counts multiply out, and whether the plan shows an extra sort or temporary table.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>A plan is not a performance score</h2>
+
+<p>People treat the access type as a grade: constant lookup is a hundred, index lookup is eighty, full scan is zero. That produces two kinds of mistake. Seeing a full scan, someone rushes to add an index, when scanning a small table was already faster. Seeing an index lookup, someone relaxes, when the plan expects 800,000 rows and the fetches rinse out the buffer pool.</p>
+
+<p>A plan answers what the optimiser intends to do, not how long it will take. Every field is an estimate or a structural description. Real timing comes from execution analysis, the slow query log and instrumentation.</p>
+
+<h2>Knowing the columns</h2>
+
+<table>
+<thead><tr><th>Column</th><th>Meaning</th><th>How to use it</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>Query block number</td><td>Same id runs top to bottom; larger ids run first</td></tr>
+<tr><td>select_type</td><td>Kind of select</td><td>Simple, primary, subquery, derived, union</td></tr>
+<tr><td>table</td><td>Table or derived table</td><td>Derived tables appear as numbered placeholders</td></tr>
+<tr><td>partitions</td><td>Matched partitions</td><td>Only interesting for partitioned tables</td></tr>
+<tr><td>type</td><td>Access type</td><td>The main subject here</td></tr>
+<tr><td>possible_keys</td><td>Candidate indexes</td><td>Tells you whether candidates existed</td></tr>
+<tr><td>key</td><td>Chosen index</td><td>Null means no index was used</td></tr>
+<tr><td>key_len</td><td>Index bytes actually used</td><td>Infer how many columns were used</td></tr>
+<tr><td>ref</td><td>What the index was compared against</td><td>A constant, a column, a function result</td></tr>
+<tr><td>rows</td><td>Estimated rows scanned</td><td>An estimate, not a measurement</td></tr>
+<tr><td>filtered</td><td>Estimated share passing the rest of the condition</td><td>Percentage</td></tr>
+<tr><td>Extra</td><td>Additional operations</td><td>The most informative column</td></tr>
+</tbody>
+</table>
+
+<p>Remember one thing first: candidates exist but no index was chosen, which is worth more investigation than no candidate at all.</p>
+
+<h2>The full ladder of access types</h2>
+
+<pre><code>system
+const
+eq_ref
+ref
+fulltext
+ref_or_null
+index_merge
+unique_subquery
+index_subquery
+range
+index
+ALL
+</code></pre>
+
+<p>That order is precision of access, not a strict performance ranking.</p>
+
+<h2>Constant lookups: the best rung</h2>
+
+<p>An equality condition on a primary key or unique index lets the optimiser decide at compile time that only one row can match, so the type is a constant lookup. If the table itself has a single row, the type becomes the system case.</p>
+
+<p>The precondition is unique and non-null. A primary key is both. A unique index that permits nulls is not: several nulls do not violate uniqueness, so the optimiser cannot promise one row and may fall back to a reference.</p>
+
+<p>One detail: if the value does not exist, the plan says there is no matching row in a constant table and reports zero rows. That is not an error, it is the optimiser knowing in advance.</p>
+
+<h2>Unique join matches</h2>
+
+<p>This access type appears in joins, where the driven table is matched through a unique index so each driving row corresponds to exactly one row. If the join column is not unique, it degrades to a plain reference.</p>
+
+<p>The difference from a constant lookup is the source of the comparison value: a compile-time constant against the current row of another table. So it means one unique lookup per driving row.</p>
+
+<h2>Plain references, the most common good state</h2>
+
+<p>An equality condition on an ordinary secondary index may match several rows, and the type is a reference. That is the ordinary good outcome, with one caution: it only says the index could seek. How many rows that means is in the row estimate.</p>
+
+<p>A variant covers the case of equality or null, which forces the optimiser to scan both the matching range and the null range. One extra range is usually harmless, unless there are many nulls, in which case the estimate rises noticeably.</p>
+
+<h2>Range scans on an index</h2>
+
+<pre><code>SELECT * FROM users WHERE tenant_id = 7 AND status &gt; 1;
+SELECT * FROM users WHERE created_at BETWEEN '2026-01-01' AND '2026-02-01';
+SELECT * FROM users WHERE email LIKE 'abc%';
+</code></pre>
+
+<p>Narrow ranges are better. If the range covers most of the table, the optimiser may choose a full scan instead. The index length usually stops at the range column, since anything after it cannot seek and only filters.</p>
+
+<h2>Two shapes of a full scan</h2>
+
+<p>An index scan walks the whole index rather than the table. With a covering note it reads only the index and never fetches rows, which is common for a covering index plus an ordering requirement. It is still slow if the index is large.</p>
+
+<p>A full table scan is the other shape. A column that is not the leading part of any usable index forces it. On a table of a few hundred rows that is completely normal; on a million rows it is the thing to fix.</p>
+
+<p>Both can be fast and both can be slow. The criterion is how many pages are read, not which name looks more advanced.</p>
+
+<h2>Merging several indexes</h2>
+
+<p>When a condition matches several indexes and no single composite index covers it, the optimiser may merge results. The plan shows an intersection for a conjunction, a union for a disjunction, or a sorted union when the union needs ordering.</p>
+
+<p>In practice this is unstable: several index scans plus a set operation cost both CPU and memory, and it usually loses to one well-designed composite index. Disabling it for comparison is fine; leaving it disabled in production is not a good long-term plan.</p>
+
+<h2>Subquery access types</h2>
+
+<p>These appear when an IN subquery is executed per value. A unique index inside the subquery gives one type, an ordinary index another, and a subquery with no usable index degrades to a full scan or gets materialised.</p>
+
+<p>Version matters: 8.0 applies semi-join transformations, materialisation and derived merging that 5.7 did not, so plans differ. Do not transplant experience from an older version without checking.</p>
+
+<h2>Working out the index length byte by byte</h2>
+
+<table>
+<thead><tr><th>Type</th><th>Bytes</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>TINYINT</td><td>1</td><td></td></tr>
+<tr><td>SMALLINT</td><td>2</td><td></td></tr>
+<tr><td>MEDIUMINT</td><td>3</td><td></td></tr>
+<tr><td>INT</td><td>4</td><td></td></tr>
+<tr><td>BIGINT</td><td>8</td><td></td></tr>
+<tr><td>DATE</td><td>3</td><td></td></tr>
+<tr><td>DATETIME</td><td>5</td><td>Plus one byte per one or two fractional digits</td></tr>
+<tr><td>TIMESTAMP</td><td>4</td><td>Same</td></tr>
+<tr><td>CHAR(n) in utf8mb4</td><td>4n</td><td>Plus one if nullable</td></tr>
+<tr><td>VARCHAR(n) in utf8mb4</td><td>4n + 2</td><td>Two bytes for the length, plus one if nullable</td></tr>
+<tr><td>Prefix index of k characters</td><td>4k + 2</td><td>Only the first k characters are indexed</td></tr>
+<tr><td>Any nullable column</td><td>+1</td><td>Null flag</td></tr>
+</tbody>
+</table>
+
+<p>For an index on a BIGINT and a TINYINT, both non-null, one column gives 8 and two give 9. If both are nullable the total becomes 10, one null flag each.</p>
+
+<p>A smaller than expected length usually means one of three things: the extra columns are absent from the condition, the order violates the prefix rule, or a range appears in the middle.</p>
+
+<p>One trap: the length counts index key bytes and excludes the primary key that InnoDB appends to secondary indexes automatically. Do not use it to estimate the size of a secondary index record.</p>
+
+<h2>Row estimates and filter ratios</h2>
+
+<p>The row estimate is how many rows this access is expected to scan, and the filter ratio is what share of those should pass the remaining conditions. Multiplying them gives the rows that go on to the next stage. Chain that across a join and you see the order of magnitude of the whole statement.</p>
+
+<p>The estimates depend on statistics, which go wrong in familiar ways: a bulk import before statistics are refreshed, frequent inserts and deletes leaving statistics stale, too many equality conditions pushing past the dive limit so the optimiser switches to sampling, and skewed distributions that the histogram does not cover. Histograms on skewed columns improve this noticeably.</p>
+
+<h2>A dictionary of plan notes</h2>
+
+<table>
+<thead><tr><th>Note</th><th>Meaning</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>Using index</td><td>Covering index, no row fetch</td><td>Good</td></tr>
+<tr><td>Using index condition</td><td>Filters pushed to the index layer</td><td>Usually good</td></tr>
+<tr><td>Using where</td><td>The server still filters</td><td>Check the row estimate</td></tr>
+<tr><td>Using filesort</td><td>The ordering did not use the index</td><td>Handle when the result is large</td></tr>
+<tr><td>Using temporary</td><td>A temporary table was needed</td><td>Handle when the result is large</td></tr>
+<tr><td>Using join buffer</td><td>The join had no index, or uses a hash join</td><td>Add an index, or evaluate whether the hash join is fine</td></tr>
+<tr><td>Using index for skip scan</td><td>Skip scan on a composite index</td><td>Know it exists, do not rely on it</td></tr>
+<tr><td>Using index for group-by</td><td>Grouping used the index</td><td>Good</td></tr>
+<tr><td>Backward index scan</td><td>Reverse index scan</td><td>Normal</td></tr>
+<tr><td>Range checked for each record</td><td>The index was re-chosen per row</td><td>Usually needs work</td></tr>
+<tr><td>Select tables optimized away</td><td>The result was computed from metadata</td><td>Good</td></tr>
+<tr><td>Impossible WHERE</td><td>The condition is always false</td><td>Normal</td></tr>
+</tbody>
+</table>
+
+<p>A filesort note does not prove a disk sort. Small results sort in memory quickly. The problem is CPU and memory when the row count is large. Likewise a temporary table does not necessarily hit disk: since 8.0.16 internal temporary tables default to an in-memory engine and spill only past a threshold, so check the disk-temporary counter to know which happened.</p>
+
+<h2>What the JSON format adds</h2>
+
+<p>The tabular plan compresses information. The JSON format exposes finer cost and condition detail: the access type, candidate and chosen indexes, the <strong>key parts actually used</strong>, the key length, the comparison values, rows examined per scan and rows produced per join, the filter ratio, the conditions attached or pushed down, the columns the query needs, and a cost breakdown.</p>
+
+<p>The used key parts field is the one to remember. On an index over three columns with conditions on the first and third, it plainly shows that only the first was used, which beats inferring it from a byte count.</p>
+
+<p>The reported query cost is in arbitrary cost units, not milliseconds. It compares two plans against each other; it does not predict wall clock.</p>
+
+<h2>Reconciling estimates with reality</h2>
+
+<p>Execution analysis, available from 8.0.18, actually runs the statement and reports per operator the real time, the real row count, how many times the operator ran, and the optimiser's estimate. The usual use is reconciliation: an estimate of three rows against an actual 1,200 means the statistics or the cost model is wrong, so refresh statistics first and consider a histogram second.</p>
+
+<p>Two cautions. It really executes the query, which is safe for a select and needs care for writes. And it reports one execution, so cache state and concurrency affect the numbers; one sample is not a conclusion.</p>
+
+<h2>Five common misreadings</h2>
+
+<p><strong>Implicit type conversion.</strong> A string compared against a numeric column converts the constant, which usually keeps the index; a number compared against a string column converts the column, which loses it. Align types explicitly.</p>
+
+<p><strong>Stale statistics.</strong> After a bulk load or heavy churn the estimates can be badly off, so refresh and then re-read the plan.</p>
+
+<p><strong>The optimiser abandoned the index.</strong> When the matching fraction is high, fetching rows costs more than scanning, and a full scan is the correct arithmetic. Force the index once to check: faster means the statistics or model need attention, slower means accept the choice.</p>
+
+<p><strong>An index exists but was not chosen.</strong> Look for a broken prefix, a function wrapped around a column, an implicit conversion, a fetch cost estimate that came out too high, or a competing index merge or skip scan.</p>
+
+<p><strong>A limit clause as a universal optimisation.</strong> With an index it is fast; without one, the sort has to order the whole result before taking ten rows. A limit reduces transfer, not sorting.</p>
+
+<h2>An order of investigation</h2>
+
+<ol>
+<li>How big is the table: rows and data size.</li>
+<li>Access type and chosen index: any full scan, any missing index.</li>
+<li>The product of rows and filter ratio: does the magnitude match business expectations.</li>
+<li>Plan notes: sorting, temporary tables, join buffers.</li>
+<li>Used key parts, from the JSON format, to see how many index columns were really used.</li>
+<li>Reconcile with execution analysis.</li>
+<li>Then change something, and re-run the same sequence to compare.</li>
+</ol>
+
+<p>The optimiser trace explains why a plan was chosen, listing the cost estimate for every candidate index. It is worth using for one question, and too verbose for daily reading.</p>
+
+<h2>Summary</h2>
+
+<ul>
+<li>Access type is how, row count is how much, plan notes are what else happens. Read all three.</li>
+<li>Constant lookups, unique join matches, references and ranges are usable; index scans and full scans depend on table size.</li>
+<li>The index length is direct evidence of columns used, and the JSON format states it more plainly.</li>
+<li>Row and filter estimates are estimates; reconcile them with execution analysis when it matters.</li>
+<li>Plan before adding an index, plan after, and compare. Do not work from a feeling.</li>
+</ul>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a>.</p>
+`,
+  },
+  {
+    slug: 'cursor-pagination-deep-dive',
+    zhSlug: 'cursor-pagination-deep-dive',
+    topicSlug: 'backend',
+    title: 'Why a deep offset gets slower, and what cursor pagination fixes',
+    excerpt:
+      'An offset makes the database pay for skipping. A cursor makes it pay for seeking. Everything else, including the signed token and the missing page numbers, follows from that one sentence.',
+    date: '2026-11-04',
+    readingTime: 16,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers whose list endpoints get slower the deeper they are paged, and whose slow query logs fill with large offsets.</p>
+<p>Examples are in Django and standard SQL, and the same reasoning applies in any stack.</p>
+<p>Reading time around 16 minutes. Level: intermediate.</p>
+</blockquote>
+
+<h2>One statement from the slow query log</h2>
+
+<pre><code>SELECT id, title, created_at
+FROM article
+ORDER BY created_at DESC, id DESC
+LIMIT 20 OFFSET 500000;
+</code></pre>
+
+<p>This is the blog's article list endpoint. Everything was fine just past a million rows, and then, as the table grew and users paged into the twenty-thousandth page, which crawlers and a few endless-scroll clients like to do, the statement went from three milliseconds to over two seconds. Database CPU oscillated and every request sharing the same connection pool slowed down with it.</p>
+
+<p>The first instinct is to add an index. There is one: the whole point of the index is to serve that ordering. Adding an index and still being slow means the problem is not the index, it is what the offset does.</p>
+
+<h2>What an offset really costs</h2>
+
+<p>Most people imagine the database jumping straight to row 500,001. That is not what happens, because there is no general ability to fetch row N directly. The engine reads rows one to 500,020 in index order, throws the first 500,000 away, and returns the remaining twenty.</p>
+
+<p>So the work is offset plus limit. The deeper the page, the more rows are read and discarded, and the time grows linearly. That is the origin of the O(offset) complexity.</p>
+
+<p>Comparing two plans on a million-row table, changing only the offset, shows the difference: a near-zero startup cost at offset zero, and a startup cost that already includes scanning half a million rows at offset 500,000. If the selected columns are not in the index, each of those rows also needs a fetch, which is worse.</p>
+
+<p>One common workaround, the deferred join, first selects primary keys from a covering index and then joins back to the table. That genuinely cuts the fetches from 500,020 to twenty and is often ten times faster. <strong>But it does not change the linear nature</strong>: the subquery still walks 500,000 index entries. It buys time; it does not solve the problem.</p>
+
+<h2>The arithmetic of page depth</h2>
+
+<table>
+<thead><tr><th>Page</th><th>Offset</th><th>Rows scanned</th><th>Measured on one million rows</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>20</td><td>about 0.1 ms</td></tr>
+<tr><td>100</td><td>1,980</td><td>2,000</td><td>about 3 ms</td></tr>
+<tr><td>1,000</td><td>19,980</td><td>20,000</td><td>about 25 ms</td></tr>
+<tr><td>10,000</td><td>199,980</td><td>200,000</td><td>about 250 ms</td></tr>
+<tr><td>25,000</td><td>499,980</td><td>500,000</td><td>600 ms and up</td></tr>
+</tbody>
+</table>
+
+<p>The problem is not only that one query is slow. Deep paging traffic concentrates in a few clients, crawlers, export scripts and infinite scroll, and they issue a series of ever deeper requests that push the genuinely hot pages out of the buffer pool. <strong>Every query in the system slows down</strong>, which is why deep pagination so often appears in alerts alongside a CPU spike.</p>
+
+<h2>The core idea: replace the page number with the last row</h2>
+
+<p>Offset pagination asks the database to skip N rows. Cursor pagination, also called keyset pagination, changes the question: instead of how many to skip, tell it what the last row of the previous page was, and continue from there.</p>
+
+<pre><code>SELECT id, title, created_at
+FROM article
+WHERE (created_at, id) &lt; ('2026-09-01 12:00:00+08', 86400)
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+</code></pre>
+
+<p>That row comparison means lexicographic comparison: either the timestamp is smaller, or it is equal and the id is smaller.</p>
+
+<p>The execution path is completely different. The index is stored in that order, so locating the pair is one seek, after which twenty rows are read in sequence. <strong>No matter how deep the page, the rows scanned equal the limit.</strong> The complexity is constant with respect to page depth.</p>
+
+<table>
+<thead><tr><th></th><th>Offset</th><th>Cursor</th></tr></thead>
+<tbody>
+<tr><td>How it positions</td><td>Skips N rows by reading and discarding</td><td>Seeks to a starting point</td></tr>
+<tr><td>Complexity</td><td>Linear in the offset</td><td>Constant</td></tr>
+<tr><td>Client parameter</td><td>A page number</td><td>The sort key of the last row</td></tr>
+<tr><td>Jump to any page</td><td>Supported</td><td>Not by nature</td></tr>
+<tr><td>Rows inserted while paging</td><td>Duplicates appear</td><td>No duplicates</td></tr>
+<tr><td>Dependency</td><td>None</td><td>A suitable unique sort key</td></tr>
+</tbody>
+</table>
+
+<h2>The simplest version</h2>
+
+<pre><code>SELECT id, title FROM article
+WHERE id &lt; 86400
+ORDER BY id DESC
+LIMIT 20;
+</code></pre>
+
+<pre><code>def get_page(last_id, size=20):
+    qs = Article.objects.order_by("-id")
+    if last_id is not None:
+        qs = qs.filter(id__lt=last_id)
+    return list(qs[:size])
+</code></pre>
+
+<p>Fine as a starting point, with two production problems. It only supports ordering by id, whereas the product wants ordering by publish time with a stable tie-break. And the cursor is bare, so clients can guess and construct values, which exposes internal keys and invites scripted enumeration.</p>
+
+<h2>Five details for production</h2>
+
+<h3>The sort key must be unique and stable</h3>
+
+<p>Ordering by timestamp alone has a fatal detail: timestamps repeat, either because several rows share a second or because the column has only second precision. If the cursor carries only the timestamp, a page boundary that falls in the middle of a repeated value either loses rows or repeats them.</p>
+
+<p>So add a tie-breaker and make the sort key the pair of timestamp and id. The id makes the total order unique and the timestamp satisfies the product requirement. Index in that order, and note that some engines handle the row comparison well while others are better off with the equivalent expanded or-form.</p>
+
+<pre><code>WHERE created_at &lt; '2026-09-01 12:00:00'
+   OR (created_at = '2026-09-01 12:00:00' AND id &lt; 86400)
+</code></pre>
+
+<p>It is an or, not an and, and the comparison direction is easy to invert. Those two mistakes are the most common bugs in cursor pagination.</p>
+
+<h3>The cursor should be opaque and signed</h3>
+
+<p>Clients should not pass raw key values. They should pass an opaque string the server issued, which they return unchanged. The server encodes the payload, appends a short HMAC over it, and base64url encodes the pair; decoding verifies the signature and rejects anything malformed with a validation error rather than a server error.</p>
+
+<p>The signature does two things: it stops clients from tampering with a cursor to walk data they should not see, and it stops nonsense values from producing a scan. A whitelist on the sort key is the second half of that defence.</p>
+
+<h3>Null values in the sort key</h3>
+
+<p>If the sort key can be null, for example drafts without a publish time, the default ordering behaviour differs between engines, and some put nulls first on a descending sort while others put them last. Migrating between databases breaks immediately. Declare it explicitly, or better, make the column non-null with a default so the cursor never meets a null. A nullable sort key plus cursor pagination produces intermittent lost rows that are very hard to reproduce.</p>
+
+<h3>Snapshot semantics while paging</h3>
+
+<p>Offset pagination has a subtle flaw: someone publishes a new article while you are on page three, every row shifts, and content you already saw on page two appears again. Cursor pagination is immune, because the cursor anchors to a position rather than a count, so inserts do not move the starting point.</p>
+
+<p>It is not a panacea either. Inserts behave correctly. A delete is also fine, since the condition compares against a value rather than requiring the row to exist. But <strong>an update to the sort key</strong> can move a row to an earlier position and make it appear twice, so ordering by a field that changes, such as an update time, needs the semantics thought through. Prefer immutable fields.</p>
+
+<h3>Totals and the next-page probe</h3>
+
+<p>Offset pagination hands out a total page count for free, and clients get used to it. With cursors, three things change. An exact count is another deep scan on many engines. An estimate from table statistics is nearly free and can be shown as approximately a million. And whether a next page exists is discovered by fetching one extra row: request size plus one, return size, and if the extra row came back there is more.</p>
+
+<p>The product implication is that infinite scroll and load-more use cursors, while jump-to-page plus exact totals, typical in admin tools, keep offsets. Both can coexist.</p>
+
+<h2>A pagination class you can copy</h2>
+
+<p>A keyset paginator supports a composite sort key, both directions, an HMAC-signed opaque cursor, and a one-row lookahead. The essentials:</p>
+
+<pre><code>class KeysetPagination(BasePagination):
+    """Cursor pagination over (created_at, id) descending.
+    Requires an index on that pair, and both columns non-null."""
+
+    page_size = 20
+    cursor_query_param = "cursor"
+
+    def paginate_queryset(self, queryset, request, view=None):
+        page_size = self.get_page_size(request)
+        cur = decode_cursor(request.query_params.get(self.cursor_query_param, ""))
+        direction = cur.get("d", "next")
+
+        if "t" in cur:
+            ts, pid = cur["t"], cur["i"]
+            if direction == "next":
+                queryset = queryset.filter(
+                    Q(created_at__lt=ts) | Q(created_at=ts, id__lt=pid)
+                ).order_by("-created_at", "-id")
+            else:
+                queryset = queryset.filter(
+                    Q(created_at__gt=ts) | Q(created_at=ts, id__gt=pid)
+                ).order_by("created_at", "id")
+        else:
+            queryset = queryset.order_by("-created_at", "-id")
+
+        rows = list(queryset[: page_size + 1])   # one extra to detect a next page
+        self.has_next = len(rows) &gt; page_size
+        rows = rows[:page_size]
+        if direction == "prev":
+            rows.reverse()
+        self._rows = rows
+        return rows
+</code></pre>
+
+<p>The response carries a signed next cursor when more rows exist, a previous cursor pointing at the first row, and the results. The client sends the cursor back verbatim and never parses it.</p>
+
+<h2>Before and after</h2>
+
+<table>
+<thead><tr><th>Scenario</th><th>Offset</th><th>Deferred join</th><th>Cursor</th></tr></thead>
+<tbody>
+<tr><td>Page 1</td><td>0.1 ms</td><td>0.2 ms</td><td>0.2 ms</td></tr>
+<tr><td>Page 1,000</td><td>25 ms</td><td>4 ms</td><td>0.3 ms</td></tr>
+<tr><td>Page 10,000</td><td>250 ms</td><td>35 ms</td><td>0.3 ms</td></tr>
+<tr><td>Page 25,000</td><td>600 ms</td><td>90 ms</td><td>0.3 ms</td></tr>
+<tr><td>Crawling 50,000 pages</td><td>Tens of minutes</td><td>Minutes</td><td>About two minutes, bound by latency</td></tr>
+</tbody>
+</table>
+
+<p>The cursor's cost is a flat line, independent of depth, which is its whole advantage. The deferred join is cheap first aid, one statement to change, clearly worthwhile up to a few thousand pages. And for crawlers, cursor pagination turns a cost that grew quadratically into a linear one, which in this case took search engine crawling from a database problem to almost nothing.</p>
+
+<h2>When not to use cursors</h2>
+
+<ul>
+<li>Users need to jump pages and see exact totals, as in admin and reporting screens. Data volume there is usually manageable, and offsets plus a decent index are enough.</li>
+<li>The result set is small: return it whole and paginate in the client.</li>
+<li>Ordering depends on a computed score that cannot be indexed. Either materialise the score into a column and index it, or accept the query and cache the result.</li>
+<li>The endpoint is stable and pages are shallow, where changing the client contract costs more than it saves.</li>
+</ul>
+
+<p>A pragmatic migration: leave old endpoints alone, build new ones with cursors, and convert the deepest traffic first. Deep paging concentrates in one or two endpoints, so converting those removes most of the slow queries.</p>
+
+<h2>Checklist before shipping</h2>
+
+<ul>
+<li>Is the sort key unique and stable, with a tie-breaker.</li>
+<li>Does the index match the ordering direction.</li>
+<li>Are both key columns non-null, or is the null ordering declared explicitly.</li>
+<li>Is the cursor signed and encoded, with invalid cursors returning a client error.</li>
+<li>Is the next page detected by fetching one extra row rather than a separate existence query.</li>
+<li>Are totals replaced with estimates, and has the product accepted that pages cannot be jumped to.</li>
+<li>On engines where row comparisons index poorly, is the condition expanded.</li>
+<li>Does the client documentation say the cursor is opaque and that a reset goes back to the first page.</li>
+<li>Has the slow query log been checked to confirm the deep offset statements are gone.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>Deep pagination in one sentence: <strong>an offset makes the database pay for skipping, a cursor makes it pay for seeking.</strong> Skipping grows with depth, seeking on a tree is constant.</p>
+
+<p>The change itself is not much work: one composite key, one signed cursor, one lookahead. The real effort is persuading the product and the client that pages cannot be jumped to, and thinking through the snapshot semantics of the sort field. Get those two settled and the rest is mechanical.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/">为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
