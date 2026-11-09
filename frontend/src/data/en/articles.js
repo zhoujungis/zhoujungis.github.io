@@ -20756,6 +20756,593 @@ logging.getLogger().addFilter(TraceContextFilter())
 `,
   },
 
+  {
+    slug: 'django-zero-downtime-migration',
+    zhSlug: 'django-zero-downtime-migration',
+    topicSlug: 'backend',
+    title: 'At deploy time the database rebuilds the whole table',
+    excerpt:
+      'One line in models.py can turn into an eight second full table copy that locks everything. Read the SQL first, then pick one of four escape routes.',
+    date: '2026-11-03',
+    readingTime: 30,
+    html: `
+<blockquote>
+<p>Follows the slow query post and the transaction post. The previous one suggested adding an index over the status, the pinned flag and the timestamp; this one is about how that index ships, and why the common way of shipping it locks the table for tens of seconds.</p>
+<p>Django with SQLite, matching this site. MySQL and PostgreSQL get a comparison section with their own landmines.</p>
+<p>Reading time around 30 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>The cost of one makemigrations</h2>
+
+<p>The previous post ended with a to-do:</p>
+
+<pre><code># backend/articles/models.py -- the current shape, which has a bug
+class Article(models.Model):
+    class Meta:
+        ordering = ["-is_top", "-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="articles_status_created_idx"),
+        ]
+</code></pre>
+
+<p>The ordering names two columns and the index holds one of them, with the wrong direction besides. Measured on a million rows, that apparently usable index pushed the list query to 476.50 milliseconds, slower than building nothing at all at 395.92, and aligning the columns and directions brought it to 0.18.</p>
+
+<pre><code>models.Index(fields=["status", "-is_top", "-created_at"], name="articles_status_top_created_idx"),
+</code></pre>
+
+<p>Then run the two commands. That was the plan. Before pressing enter I did something more careful and asked what SQL the migration would actually become.</p>
+
+<pre><code>python manage.py sqlmigrate articles 0007
+</code></pre>
+
+<p>The output took my hands off the keyboard, because on this site a migration is never only an index. It also finds wherever the model and the database disagree and adds the field back, and <strong>on SQLite adding a field is not an alter table, it is a full rebuild</strong>.</p>
+
+<p>So I filled a table to two hundred thousand rows and 789.7 megabytes, matching the real schema including the two large text columns for the body and the rendered HTML, and ran every kind of DDL against it. The numbers were worse than I expected.</p>
+
+<h2>One: what sqlmigrate actually says</h2>
+
+<p>The command is badly underrated. It does not connect, does not change data, and only renders the migration as SQL. Every migration that ships should go through it first.</p>
+
+<p>Here is a real one from this site. A single boolean field:</p>
+
+<pre><code>migrations.AddField(
+    model_name="article",
+    name="notification_sent",
+    field=models.BooleanField(default=False),
+)
+</code></pre>
+
+<pre><code>BEGIN;
+--
+-- Add field notification_sent to article
+--
+CREATE TABLE "new__articles_article" (
+    "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "notification_sent" bool NOT NULL,
+    "title" varchar(200) NOT NULL,
+    "slug" varchar(200) NOT NULL UNIQUE,
+    "content" text NOT NULL,
+    "html_content" text NOT NULL,
+    "excerpt" text NOT NULL,
+    "status" varchar(16) NOT NULL,
+    "is_top" bool NOT NULL,
+    "views_count" integer unsigned NOT NULL CHECK ("views_count" &gt;= 0),
+    "created_at" datetime NOT NULL,
+    "updated_at" datetime NOT NULL,
+    "category_id" bigint NULL REFERENCES "articles_category" ("id") DEFERRABLE INITIALLY DEFERRED,
+    "cover_image" varchar(200) NOT NULL,
+    "likes_count" integer unsigned NOT NULL CHECK ("likes_count" &gt;= 0),
+    "scheduled_at" datetime NULL
+);
+INSERT INTO "new__articles_article" ("id", "title", "slug", ... , "scheduled_at", "notification_sent")
+SELECT "id", "title", "slug", ... , "scheduled_at", 0 FROM "articles_article";
+DROP TABLE "articles_article";
+ALTER TABLE "new__articles_article" RENAME TO "articles_article";
+CREATE INDEX "articles_article_category_id_633dad2b" ON "articles_article" ("category_id");
+COMMIT;
+</code></pre>
+
+<p>One boolean field, four operations: create a table, copy everything, drop the old one, rename the new one. Inside a single transaction.</p>
+
+<p>Compare an index migration, which is two statements and touches no rows:</p>
+
+<pre><code>BEGIN;
+--
+-- Create index articles_status_created_idx on field(s) status, -created_at of model article
+--
+CREATE INDEX "articles_status_created_idx" ON "articles_article" ("status", "created_at" DESC);
+--
+-- Create index articles_scheduled_idx on field(s) scheduled_at of model article
+--
+CREATE INDEX "articles_scheduled_idx" ON "articles_article" ("scheduled_at");
+COMMIT;
+</code></pre>
+
+<p>From here on there is a line in your head:</p>
+
+<table>
+<thead><tr><th>Migration operation</th><th>Real SQL on SQLite</th><th>Rebuilds the table</th></tr></thead>
+<tbody>
+<tr><td>AddIndex / RemoveIndex</td><td>Create or drop an index</td><td>No</td></tr>
+<tr><td>AddField, nullable, no default</td><td>Alter table add column</td><td>No</td></tr>
+<tr><td>AddField, <strong>not null</strong> or with a default</td><td>Create, copy, drop, rename</td><td><strong>Yes</strong></td></tr>
+<tr><td>AlterField</td><td>Create, copy, drop, rename</td><td><strong>Yes</strong></td></tr>
+<tr><td>RemoveField</td><td>Drop column on 3.35 and later, or a rebuild</td><td>Depends</td></tr>
+<tr><td>RunSQL</td><td>Whatever you wrote</td><td>Your call</td></tr>
+</tbody>
+</table>
+
+<p>That table is the map for the whole post. Python on the left, the real work on the right, and a translation layer in between that nobody has ever read.</p>
+
+<h3>Why the command has to become muscle memory</h3>
+
+<p>It tells you three things in advance. Whether the table will be rebuilt, which a temporary table name reveals immediately. Whether it quietly changes something else, since the detection pass looks at every drift in every model, not only the one you meant. And whether it can run in a single transaction, which sounds reassuring until the transaction turns out to be the problem.</p>
+
+<p>The second one bit me. I expected one index operation and got a mixed migration, because the index definition in the model disagreed with the ordering and because fields had been edited by hand before. Run the command before you decide whether to press enter.</p>
+
+<h2>Two: what plain SQLite can do</h2>
+
+<p>Before the 8,381 milliseconds there has to be a baseline. SQLite has supported adding a column for a long time and it is <strong>pure metadata</strong>, editing one row in the schema table without touching any data, so it should be independent of table size.</p>
+
+<pre><code>sqlite lib version: 3.53.1
+  OK   ADD COLUMN nullable (c TEXT)                              7.7 ms
+  OK   ADD COLUMN NOT NULL DEFAULT 0 (d INTEGER)                 7.4 ms
+  OK   ADD COLUMN NOT NULL DEFAULT '' (e TEXT)                   7.0 ms
+  FAIL ADD COLUMN NOT NULL no default (f INTEGER)           OperationalError: Cannot add a NOT NULL column with default value NULL
+  FAIL ADD COLUMN non-constant default (g TEXT)             OperationalError: Cannot add a column with non-constant default
+  FAIL ADD COLUMN UNIQUE (h TEXT)                           OperationalError: Cannot add a UNIQUE column
+  OK   ADD COLUMN CHECK (i INTEGER CHECK(i&gt;=0))                 52.8 ms
+  OK   ADD COLUMN REFERENCES (j)                                 7.7 ms
+  FAIL ALTER COLUMN / change type (a)                       OperationalError: near "TYPE": syntax error
+  OK   ADD CONSTRAINT CHECK (table-level)                       26.3 ms
+</code></pre>
+
+<p>Look at the second line. A not-null column with a constant default is native, and it costs 7.4 milliseconds, exactly the same as a nullable one. Django spends 8,381 milliseconds on the same operation against similar data, a factor of 1,130.</p>
+
+<p>Three hard limits explain the detour. You cannot add a not-null column without a default, because existing rows have nothing to hold and the engine refuses to guess. The default must be constant, because a constant can live in the schema while anything else would have to be written into every row. And you cannot add a unique column, because uniqueness needs an index and this statement does not build one.</p>
+
+<p>Conversely, not null with a constant default is perfectly legal: the value lives in the schema and is applied when old rows are read, so no row is rewritten. That is the 7.4 milliseconds. A check constraint is supported, at 52.8 because existing rows have to be validated. And altering a column type is not supported at all, which is exactly why any field change forces a rebuild.</p>
+
+<p>In one sentence: <strong>the engine can add a not-null column with a default in seven milliseconds; the question is why the framework refuses to.</strong></p>
+
+<h2>Three: the rebuild, 8.4 seconds and double the disk</h2>
+
+<pre><code>elapsed   : 8381.1 ms    full copy plus every index rebuilt
+peak size : 1.5 GB (table 789.7 MB, about 2x)
+exclusive : reads queue, writes queue, for the whole duration
+</code></pre>
+
+<p>Three numbers, each of them fatal on its own.</p>
+
+<p><strong>The copy is linear.</strong> A full scan and a full write, with no ceiling: mine is 790 megabytes, an eight gigabyte table starts at eighty seconds, and all of it runs inside one transaction holding the lock.</p>
+
+<p><strong>Peak disk is double.</strong> Before the drop both tables exist, so peak usage is twice the table plus the indexes. On a shared host that is an incident by itself: a 512 megabyte quota cannot absorb a migration of a 400 megabyte database, and the failure lands halfway through, inside a transaction, so the rollback frees nothing until the engine gets around to cleaning up.</p>
+
+<p><strong>The table is exclusive, and the lock is database-wide</strong>, not per row or per table. Once the write begins no other connection writes, and outside WAL mode readers queue as well. For eight seconds every insert, update and delete waits, every save() in a request stalls, requests time out, the pool drains and the workers fill.</p>
+
+<p>Users do not experience slow. They experience the site being down, while the person who pushed sees one line saying the migration applied.</p>
+
+<h2>Four: creating an index, and the write lock</h2>
+
+<pre><code>elapsed      : 1594.0 ms
+index size   : 7.4 MB
+</code></pre>
+
+<p>Reasonable for two hundred thousand rows, since it scans, sorts and builds a tree at linearithmic cost. The point is that it also needs a write transaction. During it, writes block, and outside WAL mode reads block too; inside WAL mode reads continue.</p>
+
+<p>Which gives the first practical piece of advice: if the database still uses the default rollback journal, switch it to WAL. Writing still blocks, but reading continues, which turns "the site is down" into "publishing is a bit slower" for a read-heavy blog. The cost is two sidecar files and poor behaviour on network filesystems, which is a net win on a single machine.</p>
+
+<h2>Five: how long writes wait behind DDL</h2>
+
+<pre><code>baseline INSERT (no DDL)  : 181.1 ms
+INSERT during DDL         : 1324.5 ms
+CREATE INDEX total        : 1456.2 ms
+</code></pre>
+
+<p>The baseline is the total for two hundred batched inserts, so read the ratio rather than the absolute. Writes took 7.3 times longer, and the stalled insert's duration is almost identical to the whole DDL, which means it was not slower, it was <strong>waiting</strong>: blocked until the DDL took the lock, finished and released it.</p>
+
+<h3>The lock queue pile-up</h3>
+
+<p>Suppose the DDL takes ten seconds. Five writers arrive in the first second and queue. Five more arrive in the second and queue behind them. By the tenth second there are fifty requests waiting, and when the lock releases they all hit the database at once. Instant concurrency goes from zero to fifty, and with a default five second busy timeout the ones at the back fail outright.</p>
+
+<p><strong>What kills the site is often not the DDL but the reverse pressure after it.</strong> This is precisely why PostgreSQL has a lock timeout, covered later.</p>
+
+<h2>Six: dropping a column costs more</h2>
+
+<pre><code>ADD COLUMN   : 1.8 ms
+DROP COLUMN  : 1864.4 ms   (3.35 and later still rebuilds)
+</code></pre>
+
+<p>Adding is metadata, dropping rewrites every record, because rows are stored compactly and removing a column means repacking all of them. Dropping also falls back to a rebuild when the column has an index, is a primary or unique key, appears in a check constraint, a foreign key or a generated expression, or is referenced by a view.</p>
+
+<p>In practice removing a field on SQLite is almost always a rebuild, which means the contract phase of an expand-and-contract migration has to be planned as a real rebuild rather than a casual cleanup.</p>
+
+<h2>Seven: the size accounting</h2>
+
+<p>File size cannot answer how much space the indexes take, because pages are interleaved. The right tool is the dbstat virtual table, which reports bytes per object by walking pages:</p>
+
+<pre><code>SELECT name, SUM(pgsize) AS bytes FROM dbstat GROUP BY name ORDER BY bytes DESC;
+</code></pre>
+
+<pre><code>file size   : 1.5 GB
+logical sum : 804.3 MB
+  articles_article                         783.2 MB   97.4%
+  articles_status_top_created_idx            7.4 MB    0.9%
+  articles_status_created_probe_idx          7.2 MB    0.9%
+  sqlite_autoindex_articles_article_1        4.7 MB    0.6%
+  articles_article_category_id_idx           1.8 MB    0.2%
+  sqlite_schema                              4.0 KB    0.0%
+  sqlite_sequence                            4.0 KB    0.0%
+</code></pre>
+
+<p>The gap between the file and the logical sum is free pages left by the rebuild, which the engine does not hand back to the operating system until a vacuum. Another operational detail worth remembering: vacuum after a rebuild or the disk stays doubled.</p>
+
+<p>The most valuable line is that <strong>the table itself is 97.4 percent and all the indexes together are under two</strong>. Two conclusions follow.</p>
+
+<p>Indexes are not a space problem. Seven megabytes buys a two hundred fold improvement, and the write amplification argument from the previous post was about write performance, not storage. Refusing an index on space grounds does not survive arithmetic.</p>
+
+<p>The real weight is in the two large text columns. Nearly eight hundred megabytes is article bodies and rendered HTML, which explains both why the rebuild takes eight seconds and why any rebuild is expensive regardless of how many fields you add.</p>
+
+<p><strong>The inference:</strong> if the body and rendered HTML are the bottleneck, moving them to a one-to-one table shrinks the hot table to tens of megabytes, after which every migration is an order of magnitude faster. That is a one-off architectural investment with a permanent return, and it is what I plan to do here next.</p>
+
+<h2>Eight: reading the source</h2>
+
+<p>Why does a framework spend eight seconds on something the engine does in seven milliseconds? The answer is in the SQLite schema editor, in the field-adding method:</p>
+
+<pre><code>def add_field(self, model, field):
+    """Create a field on a model."""
+    from django.db.models.expressions import Value
+
+    # Special-case implicit M2M tables.
+    if field.many_to_many and field.remote_field.through._meta.auto_created:
+        self.create_model(field.remote_field.through)
+    elif isinstance(field, CompositePrimaryKey):
+        return
+    elif (
+        # Primary keys and unique fields are not supported in ALTER TABLE
+        # ADD COLUMN.
+        field.primary_key
+        or field.unique
+        or not field.null
+        # Fields with default values cannot by handled by ALTER TABLE ADD
+        # COLUMN statement because DROP DEFAULT is not supported in
+        # ALTER TABLE.
+        or self.effective_default(field) is not None
+        # Fields with non-constant defaults cannot by handled by ALTER
+        # TABLE ADD COLUMN statement.
+        or (field.has_db_default() and not isinstance(field.db_default, Value))
+    ):
+        self._remake_table(model, create_field=field)
+    else:
+        super().add_field(model, field)
+</code></pre>
+
+<table>
+<thead><tr><th>Condition</th><th>When it fires</th><th>Reasonable</th></tr></thead>
+<tbody>
+<tr><td>primary key</td><td>Adding a key</td><td>Yes</td></tr>
+<tr><td>unique</td><td>Adding a unique field</td><td>Yes, an engine limit</td></tr>
+<tr><td><strong>not null</strong></td><td><strong>Any non-null field</strong></td><td>Over-broad</td></tr>
+<tr><td>has a Django default</td><td>Any field with a default argument</td><td>Over-broad</td></tr>
+<tr><td>database default that is not a constant</td><td>An expression default</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<p>The first two and the last are fair. The middle two are the problem.</p>
+
+<h3>Not null does not have to mean a rebuild</h3>
+
+<p>The comment says the alter statement does not support not null, which is incomplete: what it does not support is not null <strong>without a default</strong>, as the first experiment shows. The framework takes the conservative path because it must handle the general case, where the field is not null and has no default and the statement genuinely cannot do it. Rather than distinguish the cases it rebuilds whenever the field is not null.</p>
+
+<p>The price is the factor of 1,130.</p>
+
+<h3>The hidden cost of a default</h3>
+
+<p>The comment explains it: a field with a default cannot be handled because dropping a default is not supported in an alter table. Django writes the default into the DDL and then drops it, because it treats defaults as a Python-level concept that does not belong in the database. SQLite has no alter-column syntax at all, so "add and then drop the default" is impossible, and the fallback is a rebuild with no default in the DDL.</p>
+
+<pre><code># rebuilds, because default=False gives an effective default
+models.BooleanField(default=False)
+
+# also rebuilds, because it is not null
+models.BooleanField()
+
+# does not rebuild: nullable, no default
+models.BooleanField(null=True)
+</code></pre>
+
+<p>One word, <code>default=False</code>, buys a full rebuild, and nothing warns you.</p>
+
+<h3>A database-level default does not save you</h3>
+
+<pre><code>models.PositiveSmallIntegerField(db_default=Value(0))
+</code></pre>
+
+<p>The last condition in the chain is happy with a constant, so it does not fire. But the not-null condition earlier already short-circuited, and control never reaches it, so on SQLite a constant database default cannot avoid the rebuild. I would not have believed that without reading the source; the documentation does not say it.</p>
+
+<h2>Nine: four ways out</h2>
+
+<h3>A: design the column as nullable</h3>
+
+<pre><code>migrations.AddField(
+    model_name="article",
+    name="reading_minutes",
+    field=models.PositiveSmallIntegerField(null=True),
+)
+</code></pre>
+
+<p>Nullable with no default makes the whole chain fall through to the real alter, in milliseconds. The cost is that a field which should be required now lies about it, and every later query carries a null branch. Use it only when the field genuinely can be empty.</p>
+
+<h3>B: separate the state from the database work</h3>
+
+<p>This is the mechanism Django provides for exactly this mismatch: let the model state believe the field was added normally, and let the database execute the cheap statement you wrote.</p>
+
+<pre><code>migrations.SeparateDatabaseAndState(
+    # tell the model state the field exists
+    state_operations=[
+        migrations.AddField(
+            model_name="article",
+            name="reading_minutes",
+            field=models.PositiveSmallIntegerField(default=0),
+        ),
+    ],
+    # tell the database to add it the cheap way
+    database_operations=[
+        migrations.RunSQL(
+            sql=(
+                "ALTER TABLE articles_article "
+                "ADD COLUMN reading_minutes integer unsigned NOT NULL DEFAULT 0"
+            ),
+            reverse_sql=(
+                "ALTER TABLE articles_article DROP COLUMN reading_minutes"
+            ),
+        ),
+    ],
+)
+</code></pre>
+
+<p>The same operation drops from 8,381 milliseconds to 7.4. Three cautions.</p>
+
+<p>The state definition must match the model exactly, or the next detection pass produces an alter and you are back where you started; the default in Python and the default in SQL must agree. The raw SQL is not portable, since the unsigned modifier and the type names differ per engine, so a cross-database project branches on the vendor. And the statement bypasses the schema editor entirely, so quoting, backend abstraction and transaction wrapping are yours, which means running it against a copy before shipping.</p>
+
+<pre><code>def add_column(apps, schema_editor):
+    vendor = schema_editor.connection.vendor
+    ddl = {
+        "sqlite": "ALTER TABLE articles_article ADD COLUMN reading_minutes integer unsigned NOT NULL DEFAULT 0",
+        "mysql": "ALTER TABLE articles_article ADD COLUMN reading_minutes INT UNSIGNED NOT NULL DEFAULT 0, ALGORITHM=INSTANT",
+        "postgresql": "ALTER TABLE articles_article ADD COLUMN reading_minutes smallint NOT NULL DEFAULT 0",
+    }[vendor]
+    schema_editor.execute(ddl)
+</code></pre>
+
+<h3>C: accept the rebuild and treat it as a change</h3>
+
+<p>If the field truly must be not null with no sensible default, the rebuild may be unavoidable. Then run it as a real change. Time it against a copy, with the database pointed at the copy. Triple the measured duration as the budget, because production has more rows, more indexes and busier disks. Back up with the database's own backup command rather than a file copy, since the backup command handles a database that is being written to. Run it in a window with the web processes stopped, then vacuum, then start them. And vacuum immediately after, to return the free pages.</p>
+
+<h3>D: remove the need to rebuild</h3>
+
+<pre><code>class ArticleBody(models.Model):
+    article = models.OneToOneField(Article, on_delete=models.CASCADE, related_name="body")
+    content = models.TextField()
+    html_content = models.TextField()
+    excerpt = models.TextField()
+</code></pre>
+
+<p>The size accounting already pointed at this: nearly eight hundred megabytes of text. Split it out and the article table holds metadata only, tens of megabytes, and every future migration is an order of magnitude cheaper because there is an order of magnitude less to copy. The cost is one join, or a select-related, on detail pages, which is acceptable since list pages never read the body at all.</p>
+
+<p><strong>The takeaway worth carrying: rather than optimising migrations repeatedly, make the table smaller. Table size is the foundation of migration cost.</strong></p>
+
+<h2>Ten: MySQL and PostgreSQL</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>SQLite</th><th>MySQL 8.0.12+</th><th>PostgreSQL 11+</th></tr></thead>
+<tbody>
+<tr><td>Add nullable column</td><td>Metadata, about 7 ms</td><td>Instant algorithm, metadata</td><td>Metadata</td></tr>
+<tr><td>Add non-null with a constant default</td><td>Native, about 7 ms, but Django rebuilds</td><td>Instant, metadata</td><td>Metadata, optimized since 11</td></tr>
+<tr><td>Add non-null without a default</td><td>Not supported</td><td>Instant plus a table check</td><td>Unvalidated check, then validate</td></tr>
+<tr><td>Add an index</td><td>Create index, blocks writes</td><td>In place, no lock</td><td>Concurrent build</td></tr>
+<tr><td>Drop a column</td><td>Rebuild</td><td>Instant</td><td>Metadata, marked dropped</td></tr>
+<tr><td>Change a column type</td><td>Not supported</td><td>In place or copy</td><td>In place or rewrite</td></tr>
+<tr><td>Django uses online DDL automatically</td><td>Not applicable</td><td>No, you write the SQL</td><td>Only with the concurrent operation</td></tr>
+</tbody>
+</table>
+
+<h3>MySQL: instant is real, and Django will not add the hint</h3>
+
+<pre><code>ALTER TABLE articles_article
+  ADD COLUMN reading_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+  ALGORITHM=INSTANT;
+</code></pre>
+
+<p>The landmine: instant only applies when the column goes at the end of the table. Ask for a position in the middle and it falls back to copying, which is a rebuild. So always append new columns.</p>
+
+<h3>PostgreSQL: concurrent builds need a non-atomic migration</h3>
+
+<pre><code>class Migration(migrations.Migration):
+    atomic = False          # required, or the concurrent build errors out
+    dependencies = [("articles", "0006_articlelike")]
+    operations = [
+        migrations.RunSQL(
+            "CREATE INDEX CONCURRENTLY articles_status_top_created_idx "
+            "ON articles_article (status, is_top DESC, created_at DESC)",
+            reverse_sql="DROP INDEX CONCURRENTLY articles_status_top_created_idx",
+        ),
+    ]
+</code></pre>
+
+<pre><code>from django.contrib.postgres.operations import AddIndexConcurrently
+
+class Migration(migrations.Migration):
+    atomic = False
+    operations = [
+        AddIndexConcurrently(
+            model_name="article",
+            index=models.Index(
+                fields=["status", "-is_top", "-created_at"],
+                name="articles_status_top_created_idx",
+            ),
+        ),
+    ]
+</code></pre>
+
+<p>The landmine is that a non-atomic migration loses atomicity: a failure at step three leaves the first two applied, and a failed concurrent build leaves an invalid index that reads ignore but writes still pay for, until it is dropped and retried by hand.</p>
+
+<h3>PostgreSQL: not null in two steps</h3>
+
+<pre><code>-- step 1: add the constraint without validating, brief exclusive lock
+ALTER TABLE articles_article
+  ADD CONSTRAINT article_reading_minutes_not_null
+  CHECK (reading_minutes IS NOT NULL) NOT VALID;
+
+-- step 2: validate, takes a weaker lock and does not block writes
+ALTER TABLE articles_article VALIDATE CONSTRAINT article_reading_minutes_not_null;
+</code></pre>
+
+<p>From version twelve, if a validated check constraint already proves the column has no nulls, the not-null conversion skips the scan entirely.</p>
+
+<h2>Eleven: lock timeout</h2>
+
+<p>The queue pile-up is the quietest killer. PostgreSQL has a one-line answer:</p>
+
+<pre><code>SET lock_timeout = '3s';
+</code></pre>
+
+<p>An alter table needs an exclusive lock that conflicts with every other lock. It queues, and once it is queued every later read queues behind it, because the queue is strictly first come, first served. A sixty second slow query therefore holds the alter table in line for sixty seconds, and the alter table blocks every ordinary query for the same span. One DDL takes the site down.</p>
+
+<p>With a three second timeout, the DDL gives up instead of blocking the queue, and you retry later.</p>
+
+<p>SQLite's equivalent is the busy timeout, with a different semantic because the lock is database-wide and there is no first-come queue. For SQLite the practical setup is:</p>
+
+<pre><code>PRAGMA busy_timeout = 10000;   -- ten seconds, room for DDL
+PRAGMA journal_mode = WAL;     -- reads are not blocked by writes
+</code></pre>
+
+<pre><code>from django.db.backends.signals import connection_created
+
+@receiver(connection_created)
+def set_sqlite_pragmas(sender, connection, **kwargs):
+    if connection.vendor != "sqlite":
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=10000;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+</code></pre>
+
+<p>The normal sync level still guarantees crash consistency under WAL, losing at most the last transaction on a power cut, and buys an order of magnitude on write throughput, which for a blog is the right trade.</p>
+
+<h2>Twelve: expand and contract</h2>
+
+<p>Everything so far makes one DDL faster. Real zero-downtime migration splits one dangerous change into several safe ones under a single constraint: <strong>at every moment, the running code and the running schema must be compatible.</strong></p>
+
+<p>Deployment is not atomic. After a push, old and new code coexist for a while across workers, restarts and caches. If the migration already dropped a column the old code still reads, that is a 500.</p>
+
+<p>A real example, adding a not-null column with a backfill, in five releases.</p>
+
+<p><strong>Release one, expand:</strong> add the column as nullable, in milliseconds, invisible to the old code.</p>
+
+<pre><code>migrations.SeparateDatabaseAndState(
+    state_operations=[migrations.AddField(
+        model_name="article", name="reading_minutes",
+        field=models.PositiveSmallIntegerField(null=True),
+    )],
+    database_operations=[migrations.RunSQL(
+        "ALTER TABLE articles_article ADD COLUMN reading_minutes integer unsigned NULL",
+        reverse_sql="ALTER TABLE articles_article DROP COLUMN reading_minutes",
+    )],
+)
+</code></pre>
+
+<p><strong>Release two, dual write:</strong> new code writes both sides and still reads the old field.</p>
+
+<pre><code>def save(self, *args, **kwargs):
+    if self.reading_minutes is None:
+        self.reading_minutes = estimate_reading_minutes(self.content)
+    super().save(*args, **kwargs)
+</code></pre>
+
+<p><strong>Release three, backfill</strong> in batches, as a management command rather than a migration, because a migration that backfills a hundred thousand rows is one transaction as bad as a rebuild and has to start over on failure.</p>
+
+<pre><code>class Command(BaseCommand):
+    def add_arguments(self, parser):
+        parser.add_argument("--batch-size", type=int, default=200)
+
+    def handle(self, *args, **options):
+        size = options["batch_size"]
+        qs = Article.objects.filter(reading_minutes__isnull=True)
+        while True:
+            batch = list(qs.values_list("pk", "content")[:size])
+            if not batch:
+                break
+            for pk, content in batch:
+                Article.objects.filter(pk=pk).update(
+                    reading_minutes=estimate_reading_minutes(content)
+                )
+            self.stdout.write(f"backfilled {len(batch)}")
+            time.sleep(0.05)      # yield the lock
+</code></pre>
+
+<p><strong>Release four, switch reads</strong> to the new field and drop the dual write.</p>
+
+<p><strong>Release five, contract:</strong> tighten the constraint, with an unvalidated check and a separate validation on PostgreSQL, or a timed rebuild on SQLite. Drop the old column only if you are certain there will be no rollback, and preferably one release later, because dropping is irreversible.</p>
+
+<h3>Deciding whether a change can roll back</h3>
+
+<p>Ask one question: <strong>if I roll the code back right after migrating, does it still run?</strong></p>
+
+<table>
+<thead><tr><th>Change</th><th>Rollback safe</th></tr></thead>
+<tbody>
+<tr><td>Add a nullable column</td><td>Yes, the old code ignores it</td></tr>
+<tr><td>Add an index</td><td>Yes</td></tr>
+<tr><td>Drop a column</td><td>No, the old code looks for it</td></tr>
+<tr><td>Change a column type</td><td>Usually no</td></tr>
+<tr><td>Add a not-null constraint</td><td>Depends on whether the old code always writes a value</td></tr>
+</tbody>
+</table>
+
+<p>Changes that can roll back ship whenever. The rest go through expand and contract.</p>
+
+<h2>Thirteen: checklist</h2>
+
+<p>Before any migrate, in order.</p>
+
+<ul>
+<li>Render the SQL and look for a temporary table name.</li>
+<li>Run the plan output, since more than your migration may apply.</li>
+<li>Test against a copy and record the duration.</li>
+<li>Back up with the database's own backup command, not a file copy.</li>
+<li>Check that free space covers twice the database size.</li>
+<li>Confirm WAL is on.</li>
+<li>Stop the web processes before a rebuild.</li>
+<li>Run migrations non-interactively.</li>
+<li>Run migrations in exactly one place, not on every worker start.</li>
+<li>Vacuum afterwards.</li>
+<li>Run the framework's own checks.</li>
+<li>Open the site and verify the list page, the detail page and the admin.</li>
+<li>Compare response times against the pre-migration baseline.</li>
+<li>Move large text columns out of the hot table.</li>
+<li>For any new not-null field, ask whether it can be nullable or use the separated state mechanism.</li>
+<li>Put the SQL rendering command in continuous integration so dangerous migrations surface before merge.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>Before writing this I thought of a migration as code that changes a schema. Now I think of it as a git push that rewrites 783 megabytes on disk while holding the whole table.</p>
+
+<p>What changed the model was opening the translation layer between Python and SQL and looking inside. A field addition reads like adding a field; the SQL says rebuilding the table, and the distance between those two sentences is the entire space in which incidents happen.</p>
+
+<p>Three numbers. <strong>7.4 milliseconds</strong> for what the engine really costs. <strong>8,381 milliseconds</strong> for what the framework pays. <strong>1,130 times</strong> between them, entirely from one condition in the schema editor.</p>
+
+<p>On a database with nine articles you will never see any of them. Rebuilding nine rows takes about a millisecond and nobody reads a temporary table name twice. That is the trap: a migration is always safe on a developer machine and becomes an incident only once the data has grown.</p>
+
+<p>The previous post left a to-do about fixing the index in the model. Now I know how: not by running the generator, but by rendering the SQL first to confirm it will not trigger a rebuild along the way, and splitting into an index operation plus a separated state operation if it will.</p>
+
+<p>Look at the SQL before you press enter.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/">上线那一刻，数据库在重建整张表——零停机迁移</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

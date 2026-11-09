@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="One line in models.py can turn into an eight second full table copy that locks everything. Read the SQL first, then pick one of four escape routes." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/django-zero-downtime-migration/" />
+    <meta property="og:title" content="At deploy time the database rebuilds the whole table | Stack Frame" />
+    <meta property="og:description" content="One line in models.py can turn into an eight second full table copy that locks everything. Read the SQL first, then pick one of four escape routes." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/django-zero-downtime-migration/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="At deploy time the database rebuilds the whole table | Stack Frame" />
+    <meta name="twitter:description" content="One line in models.py can turn into an eight second full table copy that locks everything. Read the SQL first, then pick one of four escape routes." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>At deploy time the database rebuilds the whole table | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/django-zero-downtime-migration/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>At deploy time the database rebuilds the whole table</h1><div class="ns-meta">2026-11-03 · 30 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Follows the slow query post and the transaction post. The previous one suggested adding an index over the status, the pinned flag and the timestamp; this one is about how that index ships, and why the common way of shipping it locks the table for tens of seconds.</p>
+<p>Django with SQLite, matching this site. MySQL and PostgreSQL get a comparison section with their own landmines.</p>
+<p>Reading time around 30 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>The cost of one makemigrations</h2>
+
+<p>The previous post ended with a to-do:</p>
+
+<pre><code># backend/articles/models.py -- the current shape, which has a bug
+class Article(models.Model):
+    class Meta:
+        ordering = ["-is_top", "-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="articles_status_created_idx"),
+        ]
+</code></pre>
+
+<p>The ordering names two columns and the index holds one of them, with the wrong direction besides. Measured on a million rows, that apparently usable index pushed the list query to 476.50 milliseconds, slower than building nothing at all at 395.92, and aligning the columns and directions brought it to 0.18.</p>
+
+<pre><code>models.Index(fields=["status", "-is_top", "-created_at"], name="articles_status_top_created_idx"),
+</code></pre>
+
+<p>Then run the two commands. That was the plan. Before pressing enter I did something more careful and asked what SQL the migration would actually become.</p>
+
+<pre><code>python manage.py sqlmigrate articles 0007
+</code></pre>
+
+<p>The output took my hands off the keyboard, because on this site a migration is never only an index. It also finds wherever the model and the database disagree and adds the field back, and <strong>on SQLite adding a field is not an alter table, it is a full rebuild</strong>.</p>
+
+<p>So I filled a table to two hundred thousand rows and 789.7 megabytes, matching the real schema including the two large text columns for the body and the rendered HTML, and ran every kind of DDL against it. The numbers were worse than I expected.</p>
+
+<h2>One: what sqlmigrate actually says</h2>
+
+<p>The command is badly underrated. It does not connect, does not change data, and only renders the migration as SQL. Every migration that ships should go through it first.</p>
+
+<p>Here is a real one from this site. A single boolean field:</p>
+
+<pre><code>migrations.AddField(
+    model_name="article",
+    name="notification_sent",
+    field=models.BooleanField(default=False),
+)
+</code></pre>
+
+<pre><code>BEGIN;
+--
+-- Add field notification_sent to article
+--
+CREATE TABLE "new__articles_article" (
+    "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "notification_sent" bool NOT NULL,
+    "title" varchar(200) NOT NULL,
+    "slug" varchar(200) NOT NULL UNIQUE,
+    "content" text NOT NULL,
+    "html_content" text NOT NULL,
+    "excerpt" text NOT NULL,
+    "status" varchar(16) NOT NULL,
+    "is_top" bool NOT NULL,
+    "views_count" integer unsigned NOT NULL CHECK ("views_count" &gt;= 0),
+    "created_at" datetime NOT NULL,
+    "updated_at" datetime NOT NULL,
+    "category_id" bigint NULL REFERENCES "articles_category" ("id") DEFERRABLE INITIALLY DEFERRED,
+    "cover_image" varchar(200) NOT NULL,
+    "likes_count" integer unsigned NOT NULL CHECK ("likes_count" &gt;= 0),
+    "scheduled_at" datetime NULL
+);
+INSERT INTO "new__articles_article" ("id", "title", "slug", ... , "scheduled_at", "notification_sent")
+SELECT "id", "title", "slug", ... , "scheduled_at", 0 FROM "articles_article";
+DROP TABLE "articles_article";
+ALTER TABLE "new__articles_article" RENAME TO "articles_article";
+CREATE INDEX "articles_article_category_id_633dad2b" ON "articles_article" ("category_id");
+COMMIT;
+</code></pre>
+
+<p>One boolean field, four operations: create a table, copy everything, drop the old one, rename the new one. Inside a single transaction.</p>
+
+<p>Compare an index migration, which is two statements and touches no rows:</p>
+
+<pre><code>BEGIN;
+--
+-- Create index articles_status_created_idx on field(s) status, -created_at of model article
+--
+CREATE INDEX "articles_status_created_idx" ON "articles_article" ("status", "created_at" DESC);
+--
+-- Create index articles_scheduled_idx on field(s) scheduled_at of model article
+--
+CREATE INDEX "articles_scheduled_idx" ON "articles_article" ("scheduled_at");
+COMMIT;
+</code></pre>
+
+<p>From here on there is a line in your head:</p>
+
+<table>
+<thead><tr><th>Migration operation</th><th>Real SQL on SQLite</th><th>Rebuilds the table</th></tr></thead>
+<tbody>
+<tr><td>AddIndex / RemoveIndex</td><td>Create or drop an index</td><td>No</td></tr>
+<tr><td>AddField, nullable, no default</td><td>Alter table add column</td><td>No</td></tr>
+<tr><td>AddField, <strong>not null</strong> or with a default</td><td>Create, copy, drop, rename</td><td><strong>Yes</strong></td></tr>
+<tr><td>AlterField</td><td>Create, copy, drop, rename</td><td><strong>Yes</strong></td></tr>
+<tr><td>RemoveField</td><td>Drop column on 3.35 and later, or a rebuild</td><td>Depends</td></tr>
+<tr><td>RunSQL</td><td>Whatever you wrote</td><td>Your call</td></tr>
+</tbody>
+</table>
+
+<p>That table is the map for the whole post. Python on the left, the real work on the right, and a translation layer in between that nobody has ever read.</p>
+
+<h3>Why the command has to become muscle memory</h3>
+
+<p>It tells you three things in advance. Whether the table will be rebuilt, which a temporary table name reveals immediately. Whether it quietly changes something else, since the detection pass looks at every drift in every model, not only the one you meant. And whether it can run in a single transaction, which sounds reassuring until the transaction turns out to be the problem.</p>
+
+<p>The second one bit me. I expected one index operation and got a mixed migration, because the index definition in the model disagreed with the ordering and because fields had been edited by hand before. Run the command before you decide whether to press enter.</p>
+
+<h2>Two: what plain SQLite can do</h2>
+
+<p>Before the 8,381 milliseconds there has to be a baseline. SQLite has supported adding a column for a long time and it is <strong>pure metadata</strong>, editing one row in the schema table without touching any data, so it should be independent of table size.</p>
+
+<pre><code>sqlite lib version: 3.53.1
+  OK   ADD COLUMN nullable (c TEXT)                              7.7 ms
+  OK   ADD COLUMN NOT NULL DEFAULT 0 (d INTEGER)                 7.4 ms
+  OK   ADD COLUMN NOT NULL DEFAULT '' (e TEXT)                   7.0 ms
+  FAIL ADD COLUMN NOT NULL no default (f INTEGER)           OperationalError: Cannot add a NOT NULL column with default value NULL
+  FAIL ADD COLUMN non-constant default (g TEXT)             OperationalError: Cannot add a column with non-constant default
+  FAIL ADD COLUMN UNIQUE (h TEXT)                           OperationalError: Cannot add a UNIQUE column
+  OK   ADD COLUMN CHECK (i INTEGER CHECK(i&gt;=0))                 52.8 ms
+  OK   ADD COLUMN REFERENCES (j)                                 7.7 ms
+  FAIL ALTER COLUMN / change type (a)                       OperationalError: near "TYPE": syntax error
+  OK   ADD CONSTRAINT CHECK (table-level)                       26.3 ms
+</code></pre>
+
+<p>Look at the second line. A not-null column with a constant default is native, and it costs 7.4 milliseconds, exactly the same as a nullable one. Django spends 8,381 milliseconds on the same operation against similar data, a factor of 1,130.</p>
+
+<p>Three hard limits explain the detour. You cannot add a not-null column without a default, because existing rows have nothing to hold and the engine refuses to guess. The default must be constant, because a constant can live in the schema while anything else would have to be written into every row. And you cannot add a unique column, because uniqueness needs an index and this statement does not build one.</p>
+
+<p>Conversely, not null with a constant default is perfectly legal: the value lives in the schema and is applied when old rows are read, so no row is rewritten. That is the 7.4 milliseconds. A check constraint is supported, at 52.8 because existing rows have to be validated. And altering a column type is not supported at all, which is exactly why any field change forces a rebuild.</p>
+
+<p>In one sentence: <strong>the engine can add a not-null column with a default in seven milliseconds; the question is why the framework refuses to.</strong></p>
+
+<h2>Three: the rebuild, 8.4 seconds and double the disk</h2>
+
+<pre><code>elapsed   : 8381.1 ms    full copy plus every index rebuilt
+peak size : 1.5 GB (table 789.7 MB, about 2x)
+exclusive : reads queue, writes queue, for the whole duration
+</code></pre>
+
+<p>Three numbers, each of them fatal on its own.</p>
+
+<p><strong>The copy is linear.</strong> A full scan and a full write, with no ceiling: mine is 790 megabytes, an eight gigabyte table starts at eighty seconds, and all of it runs inside one transaction holding the lock.</p>
+
+<p><strong>Peak disk is double.</strong> Before the drop both tables exist, so peak usage is twice the table plus the indexes. On a shared host that is an incident by itself: a 512 megabyte quota cannot absorb a migration of a 400 megabyte database, and the failure lands halfway through, inside a transaction, so the rollback frees nothing until the engine gets around to cleaning up.</p>
+
+<p><strong>The table is exclusive, and the lock is database-wide</strong>, not per row or per table. Once the write begins no other connection writes, and outside WAL mode readers queue as well. For eight seconds every insert, update and delete waits, every save() in a request stalls, requests time out, the pool drains and the workers fill.</p>
+
+<p>Users do not experience slow. They experience the site being down, while the person who pushed sees one line saying the migration applied.</p>
+
+<h2>Four: creating an index, and the write lock</h2>
+
+<pre><code>elapsed      : 1594.0 ms
+index size   : 7.4 MB
+</code></pre>
+
+<p>Reasonable for two hundred thousand rows, since it scans, sorts and builds a tree at linearithmic cost. The point is that it also needs a write transaction. During it, writes block, and outside WAL mode reads block too; inside WAL mode reads continue.</p>
+
+<p>Which gives the first practical piece of advice: if the database still uses the default rollback journal, switch it to WAL. Writing still blocks, but reading continues, which turns "the site is down" into "publishing is a bit slower" for a read-heavy blog. The cost is two sidecar files and poor behaviour on network filesystems, which is a net win on a single machine.</p>
+
+<h2>Five: how long writes wait behind DDL</h2>
+
+<pre><code>baseline INSERT (no DDL)  : 181.1 ms
+INSERT during DDL         : 1324.5 ms
+CREATE INDEX total        : 1456.2 ms
+</code></pre>
+
+<p>The baseline is the total for two hundred batched inserts, so read the ratio rather than the absolute. Writes took 7.3 times longer, and the stalled insert's duration is almost identical to the whole DDL, which means it was not slower, it was <strong>waiting</strong>: blocked until the DDL took the lock, finished and released it.</p>
+
+<h3>The lock queue pile-up</h3>
+
+<p>Suppose the DDL takes ten seconds. Five writers arrive in the first second and queue. Five more arrive in the second and queue behind them. By the tenth second there are fifty requests waiting, and when the lock releases they all hit the database at once. Instant concurrency goes from zero to fifty, and with a default five second busy timeout the ones at the back fail outright.</p>
+
+<p><strong>What kills the site is often not the DDL but the reverse pressure after it.</strong> This is precisely why PostgreSQL has a lock timeout, covered later.</p>
+
+<h2>Six: dropping a column costs more</h2>
+
+<pre><code>ADD COLUMN   : 1.8 ms
+DROP COLUMN  : 1864.4 ms   (3.35 and later still rebuilds)
+</code></pre>
+
+<p>Adding is metadata, dropping rewrites every record, because rows are stored compactly and removing a column means repacking all of them. Dropping also falls back to a rebuild when the column has an index, is a primary or unique key, appears in a check constraint, a foreign key or a generated expression, or is referenced by a view.</p>
+
+<p>In practice removing a field on SQLite is almost always a rebuild, which means the contract phase of an expand-and-contract migration has to be planned as a real rebuild rather than a casual cleanup.</p>
+
+<h2>Seven: the size accounting</h2>
+
+<p>File size cannot answer how much space the indexes take, because pages are interleaved. The right tool is the dbstat virtual table, which reports bytes per object by walking pages:</p>
+
+<pre><code>SELECT name, SUM(pgsize) AS bytes FROM dbstat GROUP BY name ORDER BY bytes DESC;
+</code></pre>
+
+<pre><code>file size   : 1.5 GB
+logical sum : 804.3 MB
+  articles_article                         783.2 MB   97.4%
+  articles_status_top_created_idx            7.4 MB    0.9%
+  articles_status_created_probe_idx          7.2 MB    0.9%
+  sqlite_autoindex_articles_article_1        4.7 MB    0.6%
+  articles_article_category_id_idx           1.8 MB    0.2%
+  sqlite_schema                              4.0 KB    0.0%
+  sqlite_sequence                            4.0 KB    0.0%
+</code></pre>
+
+<p>The gap between the file and the logical sum is free pages left by the rebuild, which the engine does not hand back to the operating system until a vacuum. Another operational detail worth remembering: vacuum after a rebuild or the disk stays doubled.</p>
+
+<p>The most valuable line is that <strong>the table itself is 97.4 percent and all the indexes together are under two</strong>. Two conclusions follow.</p>
+
+<p>Indexes are not a space problem. Seven megabytes buys a two hundred fold improvement, and the write amplification argument from the previous post was about write performance, not storage. Refusing an index on space grounds does not survive arithmetic.</p>
+
+<p>The real weight is in the two large text columns. Nearly eight hundred megabytes is article bodies and rendered HTML, which explains both why the rebuild takes eight seconds and why any rebuild is expensive regardless of how many fields you add.</p>
+
+<p><strong>The inference:</strong> if the body and rendered HTML are the bottleneck, moving them to a one-to-one table shrinks the hot table to tens of megabytes, after which every migration is an order of magnitude faster. That is a one-off architectural investment with a permanent return, and it is what I plan to do here next.</p>
+
+<h2>Eight: reading the source</h2>
+
+<p>Why does a framework spend eight seconds on something the engine does in seven milliseconds? The answer is in the SQLite schema editor, in the field-adding method:</p>
+
+<pre><code>def add_field(self, model, field):
+    """Create a field on a model."""
+    from django.db.models.expressions import Value
+
+    # Special-case implicit M2M tables.
+    if field.many_to_many and field.remote_field.through._meta.auto_created:
+        self.create_model(field.remote_field.through)
+    elif isinstance(field, CompositePrimaryKey):
+        return
+    elif (
+        # Primary keys and unique fields are not supported in ALTER TABLE
+        # ADD COLUMN.
+        field.primary_key
+        or field.unique
+        or not field.null
+        # Fields with default values cannot by handled by ALTER TABLE ADD
+        # COLUMN statement because DROP DEFAULT is not supported in
+        # ALTER TABLE.
+        or self.effective_default(field) is not None
+        # Fields with non-constant defaults cannot by handled by ALTER
+        # TABLE ADD COLUMN statement.
+        or (field.has_db_default() and not isinstance(field.db_default, Value))
+    ):
+        self._remake_table(model, create_field=field)
+    else:
+        super().add_field(model, field)
+</code></pre>
+
+<table>
+<thead><tr><th>Condition</th><th>When it fires</th><th>Reasonable</th></tr></thead>
+<tbody>
+<tr><td>primary key</td><td>Adding a key</td><td>Yes</td></tr>
+<tr><td>unique</td><td>Adding a unique field</td><td>Yes, an engine limit</td></tr>
+<tr><td><strong>not null</strong></td><td><strong>Any non-null field</strong></td><td>Over-broad</td></tr>
+<tr><td>has a Django default</td><td>Any field with a default argument</td><td>Over-broad</td></tr>
+<tr><td>database default that is not a constant</td><td>An expression default</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<p>The first two and the last are fair. The middle two are the problem.</p>
+
+<h3>Not null does not have to mean a rebuild</h3>
+
+<p>The comment says the alter statement does not support not null, which is incomplete: what it does not support is not null <strong>without a default</strong>, as the first experiment shows. The framework takes the conservative path because it must handle the general case, where the field is not null and has no default and the statement genuinely cannot do it. Rather than distinguish the cases it rebuilds whenever the field is not null.</p>
+
+<p>The price is the factor of 1,130.</p>
+
+<h3>The hidden cost of a default</h3>
+
+<p>The comment explains it: a field with a default cannot be handled because dropping a default is not supported in an alter table. Django writes the default into the DDL and then drops it, because it treats defaults as a Python-level concept that does not belong in the database. SQLite has no alter-column syntax at all, so "add and then drop the default" is impossible, and the fallback is a rebuild with no default in the DDL.</p>
+
+<pre><code># rebuilds, because default=False gives an effective default
+models.BooleanField(default=False)
+
+# also rebuilds, because it is not null
+models.BooleanField()
+
+# does not rebuild: nullable, no default
+models.BooleanField(null=True)
+</code></pre>
+
+<p>One word, <code>default=False</code>, buys a full rebuild, and nothing warns you.</p>
+
+<h3>A database-level default does not save you</h3>
+
+<pre><code>models.PositiveSmallIntegerField(db_default=Value(0))
+</code></pre>
+
+<p>The last condition in the chain is happy with a constant, so it does not fire. But the not-null condition earlier already short-circuited, and control never reaches it, so on SQLite a constant database default cannot avoid the rebuild. I would not have believed that without reading the source; the documentation does not say it.</p>
+
+<h2>Nine: four ways out</h2>
+
+<h3>A: design the column as nullable</h3>
+
+<pre><code>migrations.AddField(
+    model_name="article",
+    name="reading_minutes",
+    field=models.PositiveSmallIntegerField(null=True),
+)
+</code></pre>
+
+<p>Nullable with no default makes the whole chain fall through to the real alter, in milliseconds. The cost is that a field which should be required now lies about it, and every later query carries a null branch. Use it only when the field genuinely can be empty.</p>
+
+<h3>B: separate the state from the database work</h3>
+
+<p>This is the mechanism Django provides for exactly this mismatch: let the model state believe the field was added normally, and let the database execute the cheap statement you wrote.</p>
+
+<pre><code>migrations.SeparateDatabaseAndState(
+    # tell the model state the field exists
+    state_operations=[
+        migrations.AddField(
+            model_name="article",
+            name="reading_minutes",
+            field=models.PositiveSmallIntegerField(default=0),
+        ),
+    ],
+    # tell the database to add it the cheap way
+    database_operations=[
+        migrations.RunSQL(
+            sql=(
+                "ALTER TABLE articles_article "
+                "ADD COLUMN reading_minutes integer unsigned NOT NULL DEFAULT 0"
+            ),
+            reverse_sql=(
+                "ALTER TABLE articles_article DROP COLUMN reading_minutes"
+            ),
+        ),
+    ],
+)
+</code></pre>
+
+<p>The same operation drops from 8,381 milliseconds to 7.4. Three cautions.</p>
+
+<p>The state definition must match the model exactly, or the next detection pass produces an alter and you are back where you started; the default in Python and the default in SQL must agree. The raw SQL is not portable, since the unsigned modifier and the type names differ per engine, so a cross-database project branches on the vendor. And the statement bypasses the schema editor entirely, so quoting, backend abstraction and transaction wrapping are yours, which means running it against a copy before shipping.</p>
+
+<pre><code>def add_column(apps, schema_editor):
+    vendor = schema_editor.connection.vendor
+    ddl = {
+        "sqlite": "ALTER TABLE articles_article ADD COLUMN reading_minutes integer unsigned NOT NULL DEFAULT 0",
+        "mysql": "ALTER TABLE articles_article ADD COLUMN reading_minutes INT UNSIGNED NOT NULL DEFAULT 0, ALGORITHM=INSTANT",
+        "postgresql": "ALTER TABLE articles_article ADD COLUMN reading_minutes smallint NOT NULL DEFAULT 0",
+    }[vendor]
+    schema_editor.execute(ddl)
+</code></pre>
+
+<h3>C: accept the rebuild and treat it as a change</h3>
+
+<p>If the field truly must be not null with no sensible default, the rebuild may be unavoidable. Then run it as a real change. Time it against a copy, with the database pointed at the copy. Triple the measured duration as the budget, because production has more rows, more indexes and busier disks. Back up with the database's own backup command rather than a file copy, since the backup command handles a database that is being written to. Run it in a window with the web processes stopped, then vacuum, then start them. And vacuum immediately after, to return the free pages.</p>
+
+<h3>D: remove the need to rebuild</h3>
+
+<pre><code>class ArticleBody(models.Model):
+    article = models.OneToOneField(Article, on_delete=models.CASCADE, related_name="body")
+    content = models.TextField()
+    html_content = models.TextField()
+    excerpt = models.TextField()
+</code></pre>
+
+<p>The size accounting already pointed at this: nearly eight hundred megabytes of text. Split it out and the article table holds metadata only, tens of megabytes, and every future migration is an order of magnitude cheaper because there is an order of magnitude less to copy. The cost is one join, or a select-related, on detail pages, which is acceptable since list pages never read the body at all.</p>
+
+<p><strong>The takeaway worth carrying: rather than optimising migrations repeatedly, make the table smaller. Table size is the foundation of migration cost.</strong></p>
+
+<h2>Ten: MySQL and PostgreSQL</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>SQLite</th><th>MySQL 8.0.12+</th><th>PostgreSQL 11+</th></tr></thead>
+<tbody>
+<tr><td>Add nullable column</td><td>Metadata, about 7 ms</td><td>Instant algorithm, metadata</td><td>Metadata</td></tr>
+<tr><td>Add non-null with a constant default</td><td>Native, about 7 ms, but Django rebuilds</td><td>Instant, metadata</td><td>Metadata, optimized since 11</td></tr>
+<tr><td>Add non-null without a default</td><td>Not supported</td><td>Instant plus a table check</td><td>Unvalidated check, then validate</td></tr>
+<tr><td>Add an index</td><td>Create index, blocks writes</td><td>In place, no lock</td><td>Concurrent build</td></tr>
+<tr><td>Drop a column</td><td>Rebuild</td><td>Instant</td><td>Metadata, marked dropped</td></tr>
+<tr><td>Change a column type</td><td>Not supported</td><td>In place or copy</td><td>In place or rewrite</td></tr>
+<tr><td>Django uses online DDL automatically</td><td>Not applicable</td><td>No, you write the SQL</td><td>Only with the concurrent operation</td></tr>
+</tbody>
+</table>
+
+<h3>MySQL: instant is real, and Django will not add the hint</h3>
+
+<pre><code>ALTER TABLE articles_article
+  ADD COLUMN reading_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+  ALGORITHM=INSTANT;
+</code></pre>
+
+<p>The landmine: instant only applies when the column goes at the end of the table. Ask for a position in the middle and it falls back to copying, which is a rebuild. So always append new columns.</p>
+
+<h3>PostgreSQL: concurrent builds need a non-atomic migration</h3>
+
+<pre><code>class Migration(migrations.Migration):
+    atomic = False          # required, or the concurrent build errors out
+    dependencies = [("articles", "0006_articlelike")]
+    operations = [
+        migrations.RunSQL(
+            "CREATE INDEX CONCURRENTLY articles_status_top_created_idx "
+            "ON articles_article (status, is_top DESC, created_at DESC)",
+            reverse_sql="DROP INDEX CONCURRENTLY articles_status_top_created_idx",
+        ),
+    ]
+</code></pre>
+
+<pre><code>from django.contrib.postgres.operations import AddIndexConcurrently
+
+class Migration(migrations.Migration):
+    atomic = False
+    operations = [
+        AddIndexConcurrently(
+            model_name="article",
+            index=models.Index(
+                fields=["status", "-is_top", "-created_at"],
+                name="articles_status_top_created_idx",
+            ),
+        ),
+    ]
+</code></pre>
+
+<p>The landmine is that a non-atomic migration loses atomicity: a failure at step three leaves the first two applied, and a failed concurrent build leaves an invalid index that reads ignore but writes still pay for, until it is dropped and retried by hand.</p>
+
+<h3>PostgreSQL: not null in two steps</h3>
+
+<pre><code>-- step 1: add the constraint without validating, brief exclusive lock
+ALTER TABLE articles_article
+  ADD CONSTRAINT article_reading_minutes_not_null
+  CHECK (reading_minutes IS NOT NULL) NOT VALID;
+
+-- step 2: validate, takes a weaker lock and does not block writes
+ALTER TABLE articles_article VALIDATE CONSTRAINT article_reading_minutes_not_null;
+</code></pre>
+
+<p>From version twelve, if a validated check constraint already proves the column has no nulls, the not-null conversion skips the scan entirely.</p>
+
+<h2>Eleven: lock timeout</h2>
+
+<p>The queue pile-up is the quietest killer. PostgreSQL has a one-line answer:</p>
+
+<pre><code>SET lock_timeout = '3s';
+</code></pre>
+
+<p>An alter table needs an exclusive lock that conflicts with every other lock. It queues, and once it is queued every later read queues behind it, because the queue is strictly first come, first served. A sixty second slow query therefore holds the alter table in line for sixty seconds, and the alter table blocks every ordinary query for the same span. One DDL takes the site down.</p>
+
+<p>With a three second timeout, the DDL gives up instead of blocking the queue, and you retry later.</p>
+
+<p>SQLite's equivalent is the busy timeout, with a different semantic because the lock is database-wide and there is no first-come queue. For SQLite the practical setup is:</p>
+
+<pre><code>PRAGMA busy_timeout = 10000;   -- ten seconds, room for DDL
+PRAGMA journal_mode = WAL;     -- reads are not blocked by writes
+</code></pre>
+
+<pre><code>from django.db.backends.signals import connection_created
+
+@receiver(connection_created)
+def set_sqlite_pragmas(sender, connection, **kwargs):
+    if connection.vendor != "sqlite":
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=10000;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+</code></pre>
+
+<p>The normal sync level still guarantees crash consistency under WAL, losing at most the last transaction on a power cut, and buys an order of magnitude on write throughput, which for a blog is the right trade.</p>
+
+<h2>Twelve: expand and contract</h2>
+
+<p>Everything so far makes one DDL faster. Real zero-downtime migration splits one dangerous change into several safe ones under a single constraint: <strong>at every moment, the running code and the running schema must be compatible.</strong></p>
+
+<p>Deployment is not atomic. After a push, old and new code coexist for a while across workers, restarts and caches. If the migration already dropped a column the old code still reads, that is a 500.</p>
+
+<p>A real example, adding a not-null column with a backfill, in five releases.</p>
+
+<p><strong>Release one, expand:</strong> add the column as nullable, in milliseconds, invisible to the old code.</p>
+
+<pre><code>migrations.SeparateDatabaseAndState(
+    state_operations=[migrations.AddField(
+        model_name="article", name="reading_minutes",
+        field=models.PositiveSmallIntegerField(null=True),
+    )],
+    database_operations=[migrations.RunSQL(
+        "ALTER TABLE articles_article ADD COLUMN reading_minutes integer unsigned NULL",
+        reverse_sql="ALTER TABLE articles_article DROP COLUMN reading_minutes",
+    )],
+)
+</code></pre>
+
+<p><strong>Release two, dual write:</strong> new code writes both sides and still reads the old field.</p>
+
+<pre><code>def save(self, *args, **kwargs):
+    if self.reading_minutes is None:
+        self.reading_minutes = estimate_reading_minutes(self.content)
+    super().save(*args, **kwargs)
+</code></pre>
+
+<p><strong>Release three, backfill</strong> in batches, as a management command rather than a migration, because a migration that backfills a hundred thousand rows is one transaction as bad as a rebuild and has to start over on failure.</p>
+
+<pre><code>class Command(BaseCommand):
+    def add_arguments(self, parser):
+        parser.add_argument("--batch-size", type=int, default=200)
+
+    def handle(self, *args, **options):
+        size = options["batch_size"]
+        qs = Article.objects.filter(reading_minutes__isnull=True)
+        while True:
+            batch = list(qs.values_list("pk", "content")[:size])
+            if not batch:
+                break
+            for pk, content in batch:
+                Article.objects.filter(pk=pk).update(
+                    reading_minutes=estimate_reading_minutes(content)
+                )
+            self.stdout.write(f"backfilled {len(batch)}")
+            time.sleep(0.05)      # yield the lock
+</code></pre>
+
+<p><strong>Release four, switch reads</strong> to the new field and drop the dual write.</p>
+
+<p><strong>Release five, contract:</strong> tighten the constraint, with an unvalidated check and a separate validation on PostgreSQL, or a timed rebuild on SQLite. Drop the old column only if you are certain there will be no rollback, and preferably one release later, because dropping is irreversible.</p>
+
+<h3>Deciding whether a change can roll back</h3>
+
+<p>Ask one question: <strong>if I roll the code back right after migrating, does it still run?</strong></p>
+
+<table>
+<thead><tr><th>Change</th><th>Rollback safe</th></tr></thead>
+<tbody>
+<tr><td>Add a nullable column</td><td>Yes, the old code ignores it</td></tr>
+<tr><td>Add an index</td><td>Yes</td></tr>
+<tr><td>Drop a column</td><td>No, the old code looks for it</td></tr>
+<tr><td>Change a column type</td><td>Usually no</td></tr>
+<tr><td>Add a not-null constraint</td><td>Depends on whether the old code always writes a value</td></tr>
+</tbody>
+</table>
+
+<p>Changes that can roll back ship whenever. The rest go through expand and contract.</p>
+
+<h2>Thirteen: checklist</h2>
+
+<p>Before any migrate, in order.</p>
+
+<ul>
+<li>Render the SQL and look for a temporary table name.</li>
+<li>Run the plan output, since more than your migration may apply.</li>
+<li>Test against a copy and record the duration.</li>
+<li>Back up with the database's own backup command, not a file copy.</li>
+<li>Check that free space covers twice the database size.</li>
+<li>Confirm WAL is on.</li>
+<li>Stop the web processes before a rebuild.</li>
+<li>Run migrations non-interactively.</li>
+<li>Run migrations in exactly one place, not on every worker start.</li>
+<li>Vacuum afterwards.</li>
+<li>Run the framework's own checks.</li>
+<li>Open the site and verify the list page, the detail page and the admin.</li>
+<li>Compare response times against the pre-migration baseline.</li>
+<li>Move large text columns out of the hot table.</li>
+<li>For any new not-null field, ask whether it can be nullable or use the separated state mechanism.</li>
+<li>Put the SQL rendering command in continuous integration so dangerous migrations surface before merge.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>Before writing this I thought of a migration as code that changes a schema. Now I think of it as a git push that rewrites 783 megabytes on disk while holding the whole table.</p>
+
+<p>What changed the model was opening the translation layer between Python and SQL and looking inside. A field addition reads like adding a field; the SQL says rebuilding the table, and the distance between those two sentences is the entire space in which incidents happen.</p>
+
+<p>Three numbers. <strong>7.4 milliseconds</strong> for what the engine really costs. <strong>8,381 milliseconds</strong> for what the framework pays. <strong>1,130 times</strong> between them, entirely from one condition in the schema editor.</p>
+
+<p>On a database with nine articles you will never see any of them. Rebuilding nine rows takes about a millisecond and nobody reads a temporary table name twice. That is the trap: a migration is always safe on a developer machine and becomes an incident only once the data has grown.</p>
+
+<p>The previous post left a to-do about fixing the index in the model. Now I know how: not by running the generator, but by rendering the SQL first to confirm it will not trigger a rebuild along the way, and splitting into an index operation plus a separated state operation if it will.</p>
+
+<p>Look at the SQL before you press enter.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/">上线那一刻，数据库在重建整张表——零停机迁移</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
