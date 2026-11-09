@@ -16850,6 +16850,590 @@ WHERE id = 1 AND fence &lt; 11;   -- a stale token cannot write
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/distributed-id-deep-dive/">分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万</a>.</p>
 `,
   },
+  {
+    slug: 'wal-deep-dive',
+    zhSlug: 'wal-deep-dive',
+    topicSlug: 'database',
+    title: 'Write the log first: how WAL actually works, read at the source',
+    excerpt:
+      'Two production write-ahead logs, line by line: SQLite page frames and LevelDB physical records. Four small promises hold both of them together, and every constant proves it.',
+    date: '2026-10-28',
+    readingTime: 34,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers who want to see what "crash recovery" looks like in source; anyone writing a storage engine, a log, or an embedded database; anyone who has been hit with WAL, fsync, checkpoint and group commit without reading an implementation.</p>
+<p><strong>TL;DR:</strong> WAL is not a feature. It is four small rules. Append only. Check every record. Stop at the first bad one. Write the ledger before you touch the data. Nothing here is invented: everything comes from SQLite's <code>src/wal.c</code> and the log layer of LevelDB and RocksDB, down to the 32-byte file header, the 24-byte frame header, the 7-byte physical record header, the 32 KB block, two checksum algorithms, salts, the ordering rule, group commit, the three sync levels, four checkpoint modes and four recovery modes.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why a crash lands exactly on the half-written part</h2>
+
+<p>Every storage system faces the same crime scene. You are writing bytes into a data file, and halfway through, the power goes.</p>
+
+<p>Without a log, the data file is updated in place. An index page has just been given a new pointer, and the page it points at has not been written; or the first half of a page is the new version and the second half is the old one, which is a torn page. On restart the filesystem hands you something physically legal and logically self-contradictory: checksums that do not match, or worse, a pointer into an offset that never existed.</p>
+
+<p>The whole idea of write-ahead logging fits in one sentence. Before touching the data file, append what you intend to do to another file that only grows; after a crash, replay the log to bring the data file back to a consistent state.</p>
+
+<p>That sounds like a change of order. Turning it into engineering requires answering very specific questions. What does an appended record look like, and how do you know one is complete? If the write dies halfway, how does recovery tell a complete record from garbage? If the log wraps around and reuses space, how do old bytes avoid passing as new ones? Where exactly in the code is the "before" of "before you touch the data"? At what moment is fsync mandatory, and what is lost if it does not happen? The log cannot grow forever, so when and how does its content move back into the data file? And when the tail left by a crash is corrupt, do you refuse to start or salvage what you can?</p>
+
+<p>SQLite and the LevelDB lineage evolved two independent answers. Their formats have nothing in common, and yet, with the source open, four rules match exactly. This post follows those rules: two formats first, then checksums, recovery, salts, commit points, ordering, group commit, sync semantics, checkpoints, recovery modes and reader visibility, and a design checklist at the end.</p>
+
+<h2>The contract: four promises</h2>
+
+<table>
+<thead><tr><th>Rule</th><th>Accident it prevents</th><th>In SQLite</th><th>In LevelDB and RocksDB</th></tr></thead>
+<tbody>
+<tr><td>Append only</td><td>Rewriting the log in place creates tears</td><td>Frames written to the end; after a checkpoint, overwritten from the start with a new salt</td><td><code>log::Writer</code> appends in order, pads the block tail with zeros</td></tr>
+<tr><td>Per-record checksum</td><td>Torn pages, bit flips, half records</td><td>Two 32-bit rolling accumulators, chained from the previous frame</td><td>CRC32C over type and payload</td></tr>
+<tr><td>Stop at the first bad record</td><td>Garbage replayed as data</td><td><code>walDecodeFrame</code> returns 0 and the loop breaks; the visible bound stays at the last commit</td><td><code>ReadRecord</code> returns false; a half record is discarded whole</td></tr>
+<tr><td>Ledger before data</td><td>An in-memory "committed" with nothing behind it after a power cut</td><td><code>walFrames</code> writes frames, then advances visibility</td><td><code>AddRecord</code>, optional sync, then <code>InsertInto</code></td></tr>
+</tbody>
+</table>
+
+<p>The third rule is the counterintuitive one: <strong>stop, do not repair</strong>. Recovery never guesses, never scans, never tries to resynchronise past bad bytes. It accepts only the contiguous prefix that passes checks from the start of the file. Everything after the damage, however much it looks like data, is treated as absent. That conservatism is the foundation the rest stands on, and you will see it implemented three separate times.</p>
+
+<p>Two terms first, used throughout. A <strong>physical</strong> log records which page became what. SQLite's WAL stores whole page images, so recovery copies pages back verbatim. A <strong>logical</strong> log records which operations happened. The LevelDB WAL stores write batches, so recovery re-executes them.</p>
+
+<h2>Format one: SQLite page frames</h2>
+
+<p>A SQLite WAL file is a 32-byte header followed by frames, each frame being a 24-byte frame header and one complete database page. The comment block at the top of <code>wal.c</code> pins the header layout down.</p>
+
+<pre><code>**     0: Magic number.  0x377f0682 or 0x377f0683
+**     4: File format version.  Currently 3007000
+**     8: Database page size.  Example: 1024
+**    12: Checkpoint sequence number
+**    16: Salt-1, random integer incremented with each checkpoint
+**    20: Salt-2, a different random integer changing with each ckpt
+**    24: Checksum-1 (first part of checksum for first 24 bytes of header).
+**    28: Checksum-2 (second part of checksum for first 24 bytes of header).
+</code></pre>
+
+<p>The last four bytes of the header are a checksum over the first twenty-four. The header is checked too, so a bad header invalidates the file. The writing code lives in <code>walFrames()</code>.</p>
+
+<pre><code>    sqlite3Put4byte(&amp;aWalHdr[0], (WAL_MAGIC | SQLITE_BIGENDIAN));
+    sqlite3Put4byte(&amp;aWalHdr[4], WAL_MAX_VERSION);
+    sqlite3Put4byte(&amp;aWalHdr[8], szPage);
+    sqlite3Put4byte(&amp;aWalHdr[12], pWal-&gt;nCkpt);
+    if( pWal-&gt;nCkpt==0 ) sqlite3_randomness(8, pWal-&gt;hdr.aSalt);
+    memcpy(&amp;aWalHdr[16], pWal-&gt;hdr.aSalt, 8);
+    walChecksumBytes(1, aWalHdr, WAL_HDRSIZE-2*4, 0, aCksum);
+    sqlite3Put4byte(&amp;aWalHdr[24], aCksum[0]);
+    sqlite3Put4byte(&amp;aWalHdr[28], aCksum[1]);
+</code></pre>
+
+<p>The low bit of the magic is borrowed to carry byte order. Set to zero it means checksums run in native order; set to one it means big endian. One magic bit answers both "is this a WAL" and "how do I read it". Recovery applies the same test and gives every failure the same outcome, abandoning the file.</p>
+
+<pre><code>    magic = sqlite3Get4byte(&amp;aBuf[0]);
+    szPage = sqlite3Get4byte(&amp;aBuf[8]);
+    if( (magic&amp;0xFFFFFFFE)!=WAL_MAGIC
+     || szPage&amp;(szPage-1)
+     || szPage&gt;SQLITE_MAX_PAGE_SIZE
+     || szPage&lt;512
+    ){
+      goto finished;
+    }
+    pWal-&gt;hdr.bigEndCksum = (u8)(magic&amp;0x00000001);
+    pWal-&gt;szPage = szPage;
+    pWal-&gt;nCkpt = sqlite3Get4byte(&amp;aBuf[12]);
+    memcpy(&amp;pWal-&gt;hdr.aSalt, &amp;aBuf[16], 8);
+
+    /* Verify that the WAL header checksum is correct */
+    walChecksumBytes(pWal-&gt;hdr.bigEndCksum==SQLITE_BIGENDIAN,
+        aBuf, WAL_HDRSIZE-2*4, 0, pWal-&gt;hdr.aFrameCksum
+    );
+    if( pWal-&gt;hdr.aFrameCksum[0]!=sqlite3Get4byte(&amp;aBuf[24])
+     || pWal-&gt;hdr.aFrameCksum[1]!=sqlite3Get4byte(&amp;aBuf[28])
+    ){
+      goto finished;
+    }
+</code></pre>
+
+<p>The page size test is the familiar power-of-two bit trick. Page size doubles as the fixed stride between frames, so a non-power-of-two value would break the offset formula that locates any frame.</p>
+
+<p>The frame header is documented the same way.</p>
+
+<pre><code>**     0: Page number.
+**     4: For commit records, the size of the database image in pages
+**        after the commit. For all other records, zero.
+**     8: Salt-1 (copied from the wal-header)
+**    12: Salt-2 (copied from the wal-header)
+**    16: Checksum-1.
+**    20: Checksum-2.
+</code></pre>
+
+<pre><code>  assert( WAL_FRAME_HDRSIZE==24 );
+  sqlite3Put4byte(&amp;aFrame[0], iPage);
+  sqlite3Put4byte(&amp;aFrame[4], nTruncate);
+  if( pWal-&gt;iReCksum==0 ){
+    memcpy(&amp;aFrame[8], pWal-&gt;hdr.aSalt, 8);
+
+    nativeCksum = (pWal-&gt;hdr.bigEndCksum==SQLITE_BIGENDIAN);
+    walChecksumBytes(nativeCksum, aFrame, 8, aCksum, aCksum);
+    walChecksumBytes(nativeCksum, aData, pWal-&gt;szPage, aCksum, aCksum);
+
+    sqlite3Put4byte(&amp;aFrame[16], aCksum[0]);
+    sqlite3Put4byte(&amp;aFrame[20], aCksum[1]);
+  }else{
+    memset(&amp;aFrame[8], 0, 16);
+  }
+</code></pre>
+
+<p>The calling convention is the point. The checksum argument is both input and output: each frame starts from the previous frame's checksum, accumulates the first eight header bytes, then the whole page. Every frame therefore carries the history of everything before it, and <strong>altering any frame on the chain breaks every checksum after it</strong>.</p>
+
+<p>The write order is equally fixed: header first, body second.</p>
+
+<pre><code>  walEncodeFrame(p-&gt;pWal, pPage-&gt;pgno, nTruncate, pData, aFrame);
+  rc = walWriteToLog(p, aFrame, sizeof(aFrame), iOffset);
+  if( rc ) return rc;
+  /* Write the page data */
+  rc = walWriteToLog(p, pData, p-&gt;szPage, iOffset+sizeof(aFrame));
+</code></pre>
+
+<p>Because the header lands before the body, the most likely crash shape is a complete header over a torn body, and the checksum covers the body, so the tear is found. The design anticipates the accident it will meet.</p>
+
+<h2>Format two: LevelDB physical records</h2>
+
+<p>LevelDB's log layer knows nothing about pages. It knows records, cut into blocks of 32 KB. <code>db/log_format.h</code> defines the whole format.</p>
+
+<pre><code>enum RecordType {
+  // Zero is reserved for preallocated files
+  kZeroType = 0,
+
+  kFullType = 1,
+
+  // For fragments
+  kFirstType = 2,
+  kMiddleType = 3,
+  kLastType = 4
+};
+static const int kMaxRecordType = kLastType;
+
+static const int kBlockSize = 32768;
+
+// Header is checksum (4 bytes), length (2 bytes), type (1 byte).
+static const int kHeaderSize = 4 + 2 + 1;
+</code></pre>
+
+<p>A physical record is a 7-byte header and a payload. Four types exist because one logical record may not fit in the space left in a block, so it is fragmented across blocks: full if it fits, otherwise a first fragment, some middles, and a last. The writer encodes the header here.</p>
+
+<pre><code>  // Format the header
+  char buf[kHeaderSize];
+  buf[4] = static_cast&lt;char&gt;(length &amp; 0xff);
+  buf[5] = static_cast&lt;char&gt;(length &gt;&gt; 8);
+  buf[6] = static_cast&lt;char&gt;(t);
+
+  // Compute the crc of the record type and the payload.
+  uint32_t crc = crc32c::Extend(type_crc_[t], ptr, length);
+  crc = crc32c::Mask(crc);  // Adjust for storage
+  EncodeFixed32(buf, crc);
+</code></pre>
+
+<p>The array of per-type seeds is computed once at startup, and extending from it makes a single CRC cover both the type byte and the data. The mask is the standard CRC32C storage transform that keeps all-zero data from producing a plausible-looking all-zero checksum.</p>
+
+<p>When fewer than seven bytes remain in a block, no header fits, so the tail is zero-filled and a new block starts. That is why recovery must tolerate zeros: they are structurally necessary padding, not damage.</p>
+
+<p>RocksDB keeps the same skeleton and adds a recyclable header that carries a log number, folding it into the CRC.</p>
+
+<pre><code>constexpr unsigned int kBlockSize = 32768;
+
+// Header is checksum (4 bytes), length (2 bytes), type (1 byte)
+constexpr int kHeaderSize = 4 + 2 + 1;
+
+// Recyclable header is checksum (4 bytes), length (2 bytes), type (1 byte),
+// log number (4 bytes).
+constexpr int kRecyclableHeaderSize = 4 + 2 + 1 + 4;
+</code></pre>
+
+<p>With both skeletons in hand, the first question has an answer. How do you know a record is complete? SQLite: the chained checksum over header and body matches. LevelDB: the CRC in the 7-byte header matches, and the fragments reassemble to a last-type record. Both define completeness as <strong>a computable predicate</strong>, not a resemblance.</p>
+
+<h2>Checksums: two algorithms, one question of coverage</h2>
+
+<p>SQLite does not use an off-the-shelf CRC. It uses a pair of 32-bit rolling accumulators whose core loop is five lines.</p>
+
+<pre><code>  }else{
+    do {
+      s1 += *aData++ + s2;
+      s2 += *aData++ + s1;
+    }while( aData&lt;aEnd );
+  }
+  assert( aData==aEnd );
+
+  aOut[0] = s1;
+  aOut[1] = s2;
+</code></pre>
+
+<p>Both accumulators are unsigned 32-bit, so overflow wraps modulo two to the thirty-two for free. The header comment explains the mathematical property: each byte is weighted by a Fibonacci weight, and the weights run in reverse, so earlier bytes carry more weight, and the second accumulator spans one more term than the first.</p>
+
+<p>That property is what makes it useful here. Later frames depend on the initial value supplied by earlier ones, so a change anywhere propagates to the end of the chain and cannot hide. The hot path is unrolled eight bytes at a time, which tells you this code runs on every frame.</p>
+
+<p>LevelDB uses standard CRC32C with a detail that is easy to miss: <strong>the length field is not covered</strong>. The reader makes the coverage explicit.</p>
+
+<pre><code>    // Check crc
+    if (checksum_) {
+      uint32_t expected_crc = crc32c::Unmask(DecodeFixed32(header));
+      uint32_t actual_crc = crc32c::Value(header + 6, 1 + length);
+      if (actual_crc != expected_crc) {
+        // Drop the rest of the buffer since "length" itself may have
+        // been corrupted and if we trust it, we could find some
+        // fragment of a real log record that just happens to look
+        // like a valid log record.
+        size_t drop_size = buffer_.size();
+        buffer_.clear();
+        ReportCorruption(drop_size, "checksum mismatch");
+        return kBadRecord;
+      }
+    }
+</code></pre>
+
+<p>Starting at the type byte and running one plus the length covers type and payload while skipping the two length bytes. If the length flips, the slice is the wrong size and the CRC fails, so damage is still detected. The comment states the real defence: once the length is not trusted, it must never be used to hunt for the next record that happens to look valid. On a mismatch the whole buffer is dropped, because discarding too much beats accepting the wrong thing. That is "stop at the first bad record" expressed at byte level.</p>
+
+<h2>Recovery: stop at the last good frame</h2>
+
+<pre><code>      for(iFrame=iFirst; iFrame&lt;=iLast; iFrame++){
+        i64 iOffset = walFrameOffset(iFrame, szPage);
+        u32 pgno;                 /* Database page number for frame */
+        u32 nTruncate;            /* dbsize field from frame header */
+
+        /* Read and decode the next log frame. */
+        rc = sqlite3OsRead(pWal-&gt;pWalFd, aFrame, szFrame, iOffset);
+        if( rc!=SQLITE_OK ) break;
+        isValid = walDecodeFrame(pWal, &amp;pgno, &amp;nTruncate, aData, aFrame);
+        if( !isValid ) break;
+        rc = walIndexAppend(pWal, iFrame, pgno);
+        if( NEVER(rc!=SQLITE_OK) ) break;
+
+        /* If nTruncate is non-zero, this is a commit record. */
+        if( nTruncate ){
+          pWal-&gt;hdr.mxFrame = iFrame;
+          pWal-&gt;hdr.nPage = nTruncate;
+          ...
+        }
+      }
+</code></pre>
+
+<p>The bad-frame test lives in <code>walDecodeFrame</code>: salt first, then checksum, both mandatory.</p>
+
+<pre><code>  if( memcmp(&amp;pWal-&gt;hdr.aSalt, &amp;aFrame[8], 8)!=0 ){
+    return 0;
+  }
+  ...
+  walChecksumBytes(nativeCksum, aFrame, 8, aCksum, aCksum);
+  walChecksumBytes(nativeCksum, aData, pWal-&gt;szPage, aCksum, aCksum);
+  if( aCksum[0]!=sqlite3Get4byte(&amp;aFrame[16])
+   || aCksum[1]!=sqlite3Get4byte(&amp;aFrame[20])
+  ){
+    /* Checksum failed. */
+    return 0;
+  }
+</code></pre>
+
+<p>A false return breaks the loop, and the outer loop stops too. The replay range is therefore always the prefix from the start of the file up to the last contiguous good frame, and a half-written tail is excluded by construction.</p>
+
+<pre><code>  while (reader.ReadRecord(&amp;record, &amp;scratch) &amp;&amp; status.ok()) {
+    if (record.size() &lt; 12) {
+      reporter.Corruption(record.size(),
+                          Status::Corruption("log record too small"));
+      continue;
+    }
+    WriteBatchInternal::SetContents(&amp;batch, record);
+    ...
+    status = WriteBatchInternal::InsertInto(&amp;batch, mem);
+</code></pre>
+
+<p>Ten lines above that loop, the comment answers why nothing looks for the next record after a bad CRC.</p>
+
+<pre><code>  // We intentionally make log::Reader do checksumming even if
+  // paranoid_checks==false so that corruptions cause entire commits
+  // to be skipped instead of propagating bad information (like overly
+  // large sequence numbers).
+  log::Reader reader(file, &amp;reporter, true /*checksum*/, 0 /*initial_offset*/);
+</code></pre>
+
+<p>Checksumming stays on even when paranoid checks are off, because skipping a whole commit is far better than replaying half of one. A partially applied batch would push sequence numbers ahead and corrupt the ordering of everything written afterwards.</p>
+
+<p>Fragment atomicity comes from the reader's state machine, and the end-of-file branch shows the trade-off plainly.</p>
+
+<pre><code>      case kEof:
+        if (in_fragmented_record) {
+          // This can be caused by the writer dying immediately after
+          // writing a physical record but before completing the next; don't
+          // treat it as a corruption, just ignore the entire logical record.
+          scratch-&gt;clear();
+        }
+        return false;
+</code></pre>
+
+<p>A crash between two fragments of one logical record is an ordinary accident, not corruption: the half-assembled record is discarded and recovery ends. Fragmentation thus provides atomicity for free, since only a record that reached its last fragment is ever delivered.</p>
+
+<h2>Salts: invalidating the previous round</h2>
+
+<p>An append-only file eventually reaches the end and has to wrap, either overwriting from the start or restarting after a checkpoint. The danger is that a crash during overwriting leaves a mixture of new frames and old frames, each with a self-consistent chain, and recovery cannot tell which round they belong to.</p>
+
+<p>SQLite gives each round an identity: a salt. The frame header copies the file salt at write time, and recovery compares salts before computing checksums. The timing is in the <code>wal.c</code> comment.</p>
+
+<pre><code>** After each checkpoint, the salt-1 value is incremented and the salt-2
+** value is randomized.  This prevents old and new frames in the WAL from
+** being considered valid at the same time and being checkpointing together
+** following a crash.
+</code></pre>
+
+<pre><code>static void walRestartHdr(Wal *pWal, u32 salt1){
+  volatile WalCkptInfo *pInfo = walCkptInfo(pWal);
+  int i;                          /* Loop counter */
+  u32 *aSalt = pWal-&gt;hdr.aSalt;   /* Big-endian salt values */
+  pWal-&gt;nCkpt++;
+  pWal-&gt;hdr.mxFrame = 0;
+  sqlite3Put4byte((u8*)&amp;aSalt[0], 1 + sqlite3Get4byte((u8*)&amp;aSalt[0]));
+  memcpy(&amp;pWal-&gt;hdr.aSalt[1], &amp;salt1, 4);
+  walIndexWriteHdr(pWal);
+  AtomicStore(&amp;pInfo-&gt;nBackfill, 0);
+  ...
+}
+</code></pre>
+
+<p>The first salt increments and the second becomes random. Frames left over in the overwritten region still carry the old salt, so the comparison fails immediately. <strong>Old frames are not deleted, they are invalidated.</strong> The cost is eight bytes copied per frame and one comparison at recovery, and it closes the nastiest scenario in the whole design.</p>
+
+<p>One detail matters: the header restart only happens when the read slot can be taken, meaning no active readers. Changing the salt invalidates every reader's snapshot, so they must be gone first. Correctness and concurrency control are the same lock here.</p>
+
+<h2>The commit point: one field decides atomicity</h2>
+
+<p>A multi-page transaction spans several frames. If the crash lands in the middle, how does recovery know whether the transaction counts? The answer is the field at offset four: zero on ordinary frames, and the post-commit page count on the commit frame. The comment inside the replay loop is the whole mechanism.</p>
+
+<pre><code>        /* If nTruncate is non-zero, this is a commit record. */
+        if( nTruncate ){
+          pWal-&gt;hdr.mxFrame = iFrame;
+          pWal-&gt;hdr.nPage = nTruncate;
+</code></pre>
+
+<p>The visible bound only advances on a commit frame. If the crash came earlier, recovery reads the orphan frames with a zero field but stops the bound at the previous commit, so <strong>the uncommitted tail does not exist logically</strong>. Atomicity is not implemented by rolling back. It is implemented by not moving the bound.</p>
+
+<p>LevelDB puts its commit point in the 12-byte write batch header: an eight-byte sequence number followed by a four-byte count, then the records. The sequence is the first number in the batch, the count is how many operations follow. Writing sets the sequence against the global counter, replay increments per operation, and a final check that the number of applied operations matches the count catches truncated batches. <strong>One batch equals one logical record in the log</strong>, so combined with fragment atomicity, a batch either enters the memtable whole or not at all.</p>
+
+<p>Both roads end in the same place: atomicity is bounded by the end of a record in the log. SQLite marks it with a dedicated field and LevelDB encodes it in the record's own consistency.</p>
+
+<h2>The ordering rule: log first, memory second</h2>
+
+<p>The "before" of "write the log before the data" is two adjacent statements. The LevelDB write path says it in code and comment together.</p>
+
+<pre><code>    // Add to log and apply to memtable.  We can release the lock
+    // during this phase since &amp;w is currently responsible for logging
+    // and protects against concurrent loggers and concurrent writes
+    // into mem_.
+    {
+      mutex_.Unlock();
+      status = log_-&gt;AddRecord(WriteBatchInternal::Contents(write_batch));
+      bool sync_error = false;
+      if (status.ok() &amp;&amp; options.sync) {
+        status = logfile_-&gt;Sync();
+        if (!status.ok()) {
+          sync_error = true;
+        }
+      }
+      if (status.ok()) {
+        status = WriteBatchInternal::InsertInto(write_batch, mem_);
+      }
+      mutex_.Lock();
+</code></pre>
+
+<p>Read it in order: append to the log, optionally sync, then insert into the memtable, with every step gated on the previous status. A failed log write never reaches memory, and neither does a failed sync. The reverse order cannot be defended after a single-machine crash, because the in-memory claim of durability evaporates on power loss while the log never landed.</p>
+
+<p>RocksDB keeps the same order with many writers and encodes it in callback semantics, calling the pre-release callback after the WAL write and before the memtable write. The write itself goes through <code>WriteGroupToWAL</code> into <code>log_writer-&gt;AddRecord</code>. Two generations, one order, because that order is the definition.</p>
+
+<p>SQLite is the physical route, and the equivalent is frames reaching disk before the frame counter becomes visible. <code>walFrames</code> writes the frames first and only then advances the header's bound, so bytes in the log always precede the header that refers to them and no reader can observe a bound pointing at a frame that is not there.</p>
+
+<h2>Group commit: one sync shared by many writes</h2>
+
+<p>fsync is where the cost lives. Sync on every commit and the disk becomes a serial device. Group commit lets one writing thread finish the work for everyone queued behind it. LevelDB keeps a queue of writers and wakes the head, which merges the requests behind it into one batch before writing.</p>
+
+<pre><code>  if (status.ok() &amp;&amp; updates != nullptr) {  // nullptr batch is for compactions
+    WriteBatch* write_batch = BuildBatchGroup(&amp;last_writer);
+    WriteBatchInternal::SetSequence(write_batch, last_sequence + 1);
+    last_sequence += WriteBatchInternal::Count(write_batch);
+</code></pre>
+
+<p>The group builder packs suitable requests into a single batch under a byte cap, so small writes are not starved, and sequence assignment keeps them contiguous in the log. <strong>Group commit changes the aggregation of IO, not the semantic unit of the log: each request is still its own batch.</strong></p>
+
+<p>RocksDB names the same pattern leader and follower, and the comment states the intent directly: the leader picks up the remaining writers when suitable and finishes them in the same batch. One <code>WriteGroupToWAL</code> covers the group, then the group shares one <code>InsertInto</code>. Whether a sync is needed is decided by OR-ing the group's options, so <strong>one request demanding durability makes the whole group durable</strong>. That is the fairness price, and the entire reason N syncs collapse into one.</p>
+
+<h2>fsync semantics: what the three sync levels really mean</h2>
+
+<p>When a sync is mandatory is the most muddled part of WAL. SQLite makes it configurable and leaves a complete derivation in the source.</p>
+
+<pre><code>#define WAL_SYNC_FLAGS(X)   ((X)&amp;0x03)
+#define CKPT_SYNC_FLAGS(X)  (((X)&gt;&gt;2)&amp;0x03)
+</code></pre>
+
+<pre><code>  if( pPager-&gt;noSync ){
+    pPager-&gt;syncFlags = 0;
+  }else if( pgFlags &amp; PAGER_FULLFSYNC ){
+    pPager-&gt;syncFlags = SQLITE_SYNC_FULL;
+  }else{
+    pPager-&gt;syncFlags = SQLITE_SYNC_NORMAL;
+  }
+  pPager-&gt;walSyncFlags = (pPager-&gt;syncFlags&lt;&lt;2);
+  if( pPager-&gt;fullSync ){
+    pPager-&gt;walSyncFlags |= pPager-&gt;syncFlags;
+  }
+</code></pre>
+
+<p>One pragma value is split into two halves, one for the commit path and one for checkpoints. The base level shifts into the high bits that checkpoints read, and the low bits stay zero unless the mode is full. The commit path only looks at the low bits.</p>
+
+<pre><code>  if( isCommit &amp;&amp; WAL_SYNC_FLAGS(sync_flags)!=0 ){
+</code></pre>
+
+<table>
+<thead><tr><th>Mode</th><th>On commit</th><th>On checkpoint</th></tr></thead>
+<tbody>
+<tr><td>Off</td><td>No sync</td><td>No sync</td></tr>
+<tr><td>Normal</td><td><strong>No sync</strong></td><td>Sync</td></tr>
+<tr><td>Full</td><td>Sync</td><td>Sync</td></tr>
+</tbody>
+</table>
+
+<p>Why can the normal mode skip the commit sync? Because in WAL mode a commit only appends to the log and never touches the data file. A crash can lose the log tail, which the format already permits, and the data file is protected by the checkpoint sync. The famous comment in <code>wal.c</code> states the benefit: all barrier operations happen in the checkpoint routine, so if checkpoints run in the background, foreground threads never block on a long fsync.</p>
+
+<p><strong>Synchronisation moves from the commit path to the checkpoint path</strong>, foreground threads stop stalling, and the price is that a process crash may lose the last few commits while the database stays consistent. The full mode pays a barrier on every commit and loses only uncommitted work. These levels are not grades of safety; they are answers to where you accept a loss window.</p>
+
+<h2>Checkpoints: the log cannot grow forever</h2>
+
+<pre><code>#define SQLITE_CHECKPOINT_NOOP    -1  /* Do no work at all */
+#define SQLITE_CHECKPOINT_PASSIVE  0  /* Do as much as possible w/o blocking */
+#define SQLITE_CHECKPOINT_FULL     1  /* Wait for writers, then checkpoint */
+#define SQLITE_CHECKPOINT_RESTART  2  /* Like FULL but wait for readers */
+#define SQLITE_CHECKPOINT_TRUNCATE 3  /* Like RESTART but also truncate WAL */
+</code></pre>
+
+<p>The four are strictly progressive. Passive waits for nobody and copies back what it can. Full takes the write lock and reports busy if it cannot finish. Restart additionally waits for readers so the log can be reused from the start, which works with a salt change. Truncate then cuts the file to zero. The differences are visible in <code>walCheckpoint</code>, where a failure to take the lock downgrades rather than errors out.</p>
+
+<pre><code>      if( eMode!=SQLITE_CHECKPOINT_PASSIVE ){
+        rc = walBusyLock(pWal, xBusy2, pBusyArg, WAL_WRITE_LOCK, 1);
+        if( rc==SQLITE_OK ){
+          pWal-&gt;writeLock = 1;
+        }else if( rc==SQLITE_BUSY ){
+          eMode2 = SQLITE_CHECKPOINT_PASSIVE;
+          xBusy2 = 0;
+          rc = SQLITE_OK;
+        }
+      }
+</code></pre>
+
+<p>A checkpoint is maintenance, and doing half of it beats doing none. Best effort with an honest report is more useful than all-or-nothing.</p>
+
+<p>Combined with the sync table, the division of labour is: in normal mode the log tail can be lost, while the checkpoint syncs whatever it has already copied into the data file, and the log continues from that point. Every change to the data file precedes its own barrier, and that invariant is the whole of "opening after a crash is always consistent".</p>
+
+<h2>Recovery modes: which timeline do you want</h2>
+
+<p>LevelDB always tolerated a corrupt tail. RocksDB turned the decision into an explicit choice, and the enum comments say why.</p>
+
+<pre><code>enum class WALRecoveryMode : char {
+  // Original levelDB recovery
+  //
+  // We tolerate the last record in any log to be incomplete due to a crash
+  // while writing it. Zeroed bytes from preallocation are also tolerated in the
+  // trailing data of any log.
+  //
+  // Use case: Applications for which updates, once applied, must not be rolled
+  // back even after a crash-recovery. In this recovery mode, RocksDB guarantees
+  // this as long as \`WritableFile::Append()\` writes are durable. In case the
+  // user needs the guarantee in more situations (e.g., when
+  // \`WritableFile::Append()\` writes to page cache, but the user desires this
+  // guarantee in face of power-loss crash-recovery), RocksDB offers various
+  // mechanisms to additionally invoke \`WritableFile::Sync()\` in order to
+  // strengthen the guarantee.
+  //
+  // This differs from \`kPointInTimeRecovery\` in that, in case a corruption is
+  // detected during recovery, this mode will refuse to open the DB. Whereas,
+  // \`kPointInTimeRecovery\` will stop recovery just before the corruption since
+  // that is a valid point-in-time to which to recover.
+  kTolerateCorruptedTailRecords = 0x00,
+  // Recover from clean shutdown
+  // We don't expect to find any corruption in the WAL
+  // Use case : This is ideal for unit tests and rare applications that
+  // can require high consistency guarantee
+  kAbsoluteConsistency = 0x01,
+  // Recover to point-in-time consistency (default)
+  // We stop the WAL playback on discovering WAL inconsistency
+  // Use case : Ideal for systems that have disk controller cache like
+  // hard disk, SSD without super capacitor that store related data
+  kPointInTimeRecovery = 0x02,
+  // Recovery after a disaster
+  // We ignore any corruption in the WAL and try to salvage as much data as
+  // possible
+  // Use case : Ideal for last ditch effort to recover data or systems that
+  // operate with low grade unrelated data
+  kSkipAnyCorruptedRecords = 0x03,
+};
+</code></pre>
+
+<p>The four run from refusing to start to salvaging regardless, and the default is point-in-time. The phrase in the comment, that the point before corruption is a valid point in time to recover to, is the philosophy in one line: <strong>the log before the damage is a legitimate snapshot, and stopping there is not data loss, it is keeping the promise.</strong></p>
+
+<p>The mechanism is unchanged in every mode. Stop at the first bad record, then choose what to do: refuse to open, stop at the point before the damage, treat the tail as a normal end, or skip the bad record and keep digging. Mechanism and policy are cleanly separated, which is the engineering maturity level that did not exist in the LevelDB era.</p>
+
+<h2>Reader visibility: where the snapshot bound comes from</h2>
+
+<p>Recovery answers how many frames in the log are legal. Readers also need to know which frame their snapshot sees, and SQLite stores the answer as one number. The frame lookup starts from two bounds: the upper bound snapshotted when the read transaction began, and a lower bound that keeps stale slots out.</p>
+
+<pre><code>  u32 iRead = 0;                  /* If !=0, WAL frame to return data from */
+  u32 iLast = pWal-&gt;hdr.mxFrame;  /* Last page in WAL for this reader */
+  ...
+  if( iLast==0 || (pWal-&gt;readLock==0 &amp;&amp; pWal-&gt;bShmUnreliable==0) ){
+    *piRead = 0;
+    return SQLITE_OK;
+  }
+</code></pre>
+
+<pre><code>      if( iFrame&lt;=iLast
+       &amp;&amp; iFrame&gt;=pWal-&gt;minFrame
+       &amp;&amp; sLoc.aPgno[(iH-1)&amp;(HASHTABLE_NPAGE-1)]==pgno
+      ){
+        iRead = iFrame;
+      }
+</code></pre>
+
+<p>For a given page it takes the highest legal frame, so multiple versions of a page resolve to the one the snapshot allows. The upper bound comes from the whole recovery and validation machinery, and <strong>the reader never re-validates: it consumes a conclusion someone else proved</strong>. Writer, recovery and reader each do one job, and a single number passes between them.</p>
+
+<h2>WAL as a general technique</h2>
+
+<p>WAL does not belong to databases. It belongs to any append-only system that cannot survive an in-place rewrite accident. Two witnesses.</p>
+
+<p><strong>The LevelDB manifest is the same log format re-employed.</strong> Version metadata, which files make up the current set, is written with the same writer and synced, then decoded with the same reader on open. "Metadata must not contradict itself after a crash" and "data must not be lost after a crash" are the same problem, so one log layer serves both files.</p>
+
+<p><strong>SQLite writes page images, LevelDB writes operations, and a text-based engine writes JSON lines.</strong> The same rule survives the format change: only a contiguous, verified prefix counts. Three implementations, one contract, which is why the contract comes before the formats.</p>
+
+<h2>A design checklist</h2>
+
+<table>
+<thead><tr><th>#</th><th>Decision</th><th>Accident it prevents</th><th>Model in the source</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Header carries magic, version and self-checksum</td><td>Wrong file, or a corrupt header accepted</td><td>SQLite's 32-byte header, abandoning the file on any mismatch</td></tr>
+<tr><td>2</td><td>Record header carries length and a checksum covering type</td><td>Tears and bit flips read as data</td><td>LevelDB's 7-byte header</td></tr>
+<tr><td>3</td><td>Checksums chained from the previous record</td><td>A middle record altered while both ends stay consistent</td><td>The accumulator passed in and out</td></tr>
+<tr><td>4</td><td>Stop on damage, never resynchronise</td><td>Garbage replayed</td><td>A break on invalid, a cleared buffer</td></tr>
+<tr><td>5</td><td>Discard half a logical record entirely</td><td>Half a transaction in memory</td><td>Clearing the assembly buffer at end of file</td></tr>
+<tr><td>6</td><td>A dedicated commit marker, or batch self-consistency</td><td>A crash mid-transaction leaving half of it</td><td>The commit field, the operation count check</td></tr>
+<tr><td>7</td><td>Log first, memory only after the write succeeds</td><td>A "committed" claim that evaporates</td><td>Append, sync, insert</td></tr>
+<tr><td>8</td><td>Log wraparound changes identity</td><td>Old frames passing as current</td><td>Salt increment and randomisation</td></tr>
+<tr><td>9</td><td>Sync points explicit and separately tunable</td><td>Paying full price per commit, or never paying</td><td>Commit and checkpoint flag masks</td></tr>
+<tr><td>10</td><td>Checkpoints best effort, with modes</td><td>An endless log, or a stall that blocks traffic</td><td>Downgrading when the lock is unavailable</td></tr>
+<tr><td>11</td><td>Damage handling as policy, not hardcoded</td><td>No way to trade risk against availability</td><td>Four recovery modes</td></tr>
+<tr><td>12</td><td>Readers consume the recovery result, one bound</td><td>Each reader validating its own way</td><td>A snapshotted bound plus a two-sided search</td></tr>
+</tbody>
+</table>
+
+<p>Items one to five are the format layer, six to eight the semantic layer, nine to twelve the policy layer. The common mistake is deferring the policy items as advanced features. They decide whether an incident costs you a few commits or a database that will not open, so they need an answer in the first version, even if the answer is a hardcoded default.</p>
+
+<h2>Closing</h2>
+
+<p>Not one line here was written by me, and yet the skeleton of two industrial logs is now on the table: SQLite's 32-byte file header, 24-byte frame header and chained rolling checksum, against LevelDB's 7-byte record header, 32 KB blocks and CRC32C with fragmentation. Different in every byte, identical in four rules. Append only, and change the salt on wraparound. Check every record over an explicit byte range. Stop at the first bad record and accept only a contiguous prefix. Write the ledger before the data, with sync points you can point at.</p>
+
+<p>What is worth chewing on is the temperament they share: they do not guess. Recovery does not guess at what follows the bad bytes. Readers do not guess whether a frame is valid. Checkpoints do not guess whether the lock is available. Every place that could need a guess is replaced by a computable predicate, and a computable predicate is the entire shape of consistency in source code.</p>
+
+<p>Next time someone says a database does not lose data on a crash, you can name the pieces: recovery, frame decoding, the salt restart, the sync flag masks, the append-then-insert order, the point-in-time recovery mode. The promise is not mysterious. It is the sum of those branches.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
