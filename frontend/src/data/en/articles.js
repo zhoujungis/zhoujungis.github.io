@@ -810,11 +810,11 @@ link.click();
 
 <pre><code>const stash = [];
 const put = (html) =&gt; '\\\\u0001' + (stash.push(html) - 1) + '\\\\u0001';
-t = t.replace(/(\\\`+)([\\\\s\\\\S]*?)\\\\1/g, (m, ticks, code) =&gt;
+t = t.replace(/(\`+)([\\\\s\\\\S]*?)\\\\1/g, (m, ticks, code) =&gt;
   put('&lt;code&gt;' + esc(code.replace(/^ ([\\\\s\\\\S]*?) $/, '$1')) + '&lt;/code&gt;'));
 t = t.replace(/&lt;((?:https?:\\\\/\\\\/|mailto:)[^\\\\s&lt;&gt;]+)&gt;/g, (m, url) =&gt;
   put('&lt;a href="' + esc(url) + '"&gt;' + esc(url) + '&lt;/a&gt;'));
-t = t.replace(/\\\\\\\\([\\\\\\\\\\\`*_{}\\\\[\\\\]()#+\\\\-.!&gt;~|])/g, (m, ch) =&gt; put(esc(ch)));
+t = t.replace(/\\\\\\\\([\`*_{}\\\\[\\\\]()#+\\\\-.!&gt;~|])/g, (m, ch) =&gt; put(esc(ch)));
 t = esc(t);
 </code></pre>
 
@@ -1101,7 +1101,7 @@ return interleave(groups)
     const content = line.replace(/\\\\[[^\\\\]]+\\\\]/g, "").trim()
     if (!content) continue
     for (const tag of tags) {
-      const fraction = tag[3] ? Number(\\\`0.\\\${tag[3].padEnd(3, "0").slice(0, 3)}\\\`) : 0
+      const fraction = tag[3] ? Number(\`0.\\\${tag[3].padEnd(3, "0").slice(0, 3)}\`) : 0
       lines.push({ time: Number(tag[1]) * 60 + Number(tag[2]) + fraction, text: content })
     }
   }
@@ -8823,6 +8823,902 @@ std::thread::scope(|s| {
 <p>The next post moves to tool design: why every output needs a cap. Memory answers "what crosses sessions", tools answer "how much comes back in one turn", and both land on the same budget.</p>
 
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a>.</p>
+`,
+  },
+  {
+    slug: 'agent-tool-design-output-budgets',
+    zhSlug: 'agent-tool-design-output-budgets',
+    topicSlug: 'aiagent',
+    title: 'Agent tool design: every output needs a ceiling',
+    excerpt:
+      'Tools have three contracts: topology, shape and budget. The third one is the one tutorials skip and production breaks on, because an uncapped output does not error, it just quietly feeds the model half the truth.',
+    date: '2026-10-24',
+    readingTime: 34,
+    html: `
+<blockquote>
+<p>Who this is for: people adding tools to an agent and finding it gets more fragile with each one; people whose context was destroyed by a single <code>cat</code> on a large file; people who want a tool set that stays maintainable and auditable.</p>
+<p><strong>TL;DR:</strong> a tool has three contracts. Topology is which tools exist, shape is their arguments and descriptions, budget is how much comes back. The first two decide whether the model can use a tool correctly. The third decides whether using it destroys the context. NanoHermes caps every tool internally, then adds one global backstop: <code>clamp(s, 20_000)</code>.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Tool boundaries are agent boundaries</li>
+<li>The three-layer contract</li>
+<li>Topology: where 24 tools come from</li>
+<li>Why the tool count grows on its own</li>
+<li>Shape: the JSON schema is the only interface</li>
+<li>Description text is a contract too</li>
+<li>The first gate: argument validation</li>
+<li>Budget: why every output must be capped</li>
+<li>Three infinite sources</li>
+<li>Thirteen caps in one table</li>
+<li>One exit: the clamp at the end of dispatch</li>
+<li>The comment says characters, the code counts bytes</li>
+<li>Three truncation semantics</li>
+<li><code>read_file</code>: a 4 MB gate and a 2,000 line window</li>
+<li><code>read_file</code> details: lossy decoding, binary detection</li>
+<li><code>grep</code>: 200 matches and 240 character lines</li>
+<li><code>grep</code> has no file-count cap</li>
+<li><code>glob</code>: 500 files and a false message</li>
+<li><code>list_dir</code>: the only uncapped reader</li>
+<li><code>run_command</code>: 256 KB twice, plus a timeout</li>
+<li>Draining both pipes</li>
+<li>Background tasks</li>
+<li>A real defect: stderr is never drained</li>
+<li><code>web_fetch</code>: 2 MB and 20,000 characters</li>
+<li>Skills and project docs eat the same budget</li>
+<li>Errors are results</li>
+<li>Approval: which tools ask first</li>
+<li>Which directories read-only tools skip</li>
+<li>Output order matters</li>
+<li>The hidden cost of tools</li>
+<li>Eight principles of tool design</li>
+<li>Nine common traps</li>
+<li>How to check that your tools are actually safe</li>
+</ul>
+
+<h2>Tool boundaries are agent boundaries</h2>
+
+<p>What an agent can do is set not by how clever its model is but by which tools it holds. The tool set is the ceiling on capability: no <code>edit_file</code> and it cannot change code, no <code>run_command</code> and it cannot run tests, no <code>web_fetch</code> and it cannot read documentation.</p>
+
+<p>The tool set also sets the floor on failure. A read-only tool that returns 3 MB of text destroys that turn, not because the model cannot answer but because the returned text fills the context and leaves no room for later results. That failure is sneakier than a wrong answer: the model treats the truncated fragment as the whole, and concludes confidently from incomplete information.</p>
+
+<p>So tool design is not "write a few functions plus a JSON schema". Three layers need handling: what the model is shown (topology), how it calls (shape), and how much comes back (budget). The tool layer in NanoHermes is under 1,200 lines, and every layer has deliberate design.</p>
+
+<h2>The three-layer contract</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Carrier</th><th>Symptom when wrong</th></tr></thead>
+<tbody>
+<tr><td>Topology</td><td>The array returned by <code>build_tools</code></td><td>The model calls a tool that does not exist, or a capability is missing</td></tr>
+<tr><td>Shape</td><td>name, description and parameters in <code>specs()</code></td><td>Wrong arguments, misleading descriptions, repeated trial and error</td></tr>
+<tr><td>Budget</td><td>Per-tool caps plus <code>clamp</code></td><td>One call blows up the context</td></tr>
+<tr><td>Errors</td><td><code>Result&lt;String, String&gt;</code></td><td>A single failure aborts the whole turn</td></tr>
+<tr><td>Permission</td><td><code>check_tool</code> and the approval policy</td><td>A dangerous action runs unconfirmed</td></tr>
+</tbody>
+</table>
+
+<p>Of the five, budget is the layer most tutorials skip and most production incidents land in. Get topology or shape wrong and something errors immediately. Get budget wrong and nothing errors at all; the model just quietly sees half the data.</p>
+
+<h2>Topology: where 24 tools come from</h2>
+
+<p>The tool list is assembled, not hard-coded.</p>
+
+<pre><code>fn build_tools(&amp;self) -&gt; Value {
+    let mut list = tools::specs().as_array().cloned().unwrap_or_default();
+    // Only expose the skill tool when a skill was actually discovered.
+    if !self.ctx.skills.is_empty() {
+        list.push(skill_tool_spec());
+    }
+    if let Some(m) = &amp;self.mcp {
+        list.extend(m.all_tools());
+        list.extend(mcp_aux_tools());
+    }
+    // Drop whatever the current configuration does not allow.
+    list.retain(|t| { /* cfg.check_tool(name).is_ok() */ });
+    if !self.cfg.subagents.is_empty() {
+        list.push(subagent_tool_spec());
+        list.push(agent_list_tool_spec());
+    }
+    Value::Array(list)
+}
+</code></pre>
+
+<p><code>specs()</code> holds 21 built-ins in six groups.</p>
+
+<table>
+<thead><tr><th>Group</th><th>Tools</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>File access</td><td><code>read_file</code>, <code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code>, <code>list_dir</code></td><td>Read, whole-file write, targeted edit, multi-site patch, listing</td></tr>
+<tr><td>Search</td><td><code>grep</code>, <code>glob</code></td><td>Content and filename search</td></tr>
+<tr><td>Execution</td><td><code>run_command</code>, <code>task_output</code>, <code>task_list</code>, <code>task_kill</code></td><td>One foreground plus three background controls</td></tr>
+<tr><td>Network</td><td><code>web_fetch</code>, <code>web_search</code></td><td>Fetch a page, search for one</td></tr>
+<tr><td>State</td><td><code>todo_write</code>, <code>todo_read</code></td><td>The plan list inside a session</td></tr>
+<tr><td>Version control</td><td><code>git_status</code>, <code>git_diff</code>, <code>git_log</code>, <code>git_commit</code></td><td>Three read-only, one write</td></tr>
+<tr><td>Memory</td><td><code>memory_save</code>, <code>memory_search</code></td><td>Cross-session read and write</td></tr>
+</tbody>
+</table>
+
+<p>Then three conditional ones: <code>skill</code> when a skill was discovered, <code>subagent</code> and <code>agent_list</code> when sub-agents are configured. An MCP server adds its own tools plus four helpers, <code>mcp_list_resources</code>, <code>mcp_read_resource</code>, <code>mcp_list_prompts</code> and <code>mcp_get_prompt</code>.</p>
+
+<p>The order is built-ins, then skills, then MCP, then sub-agents. That order becomes the order in the prompt, and models tend to favor what they see first. Built-ins leading is the right call: they are the most reliable and depend on nothing external.</p>
+
+<h2>Why the tool count grows on its own</h2>
+
+<p>The count is not a constant. The same binary can expose a dozen more or fewer tools depending on the workspace and the configuration.</p>
+
+<table>
+<thead><tr><th>Source</th><th>Trigger</th><th>Delta</th><th>Controlled by</th></tr></thead>
+<tbody>
+<tr><td>Built-ins</td><td>Always</td><td>21</td><td>The code</td></tr>
+<tr><td><code>skill</code></td><td>At least one skill found</td><td>+1</td><td>Skill directories in the workspace</td></tr>
+<tr><td>MCP</td><td>An MCP server configured</td><td>+N, declared by the server</td><td>The mcp section of <code>config.json</code></td></tr>
+<tr><td>MCP helpers</td><td>An MCP server configured</td><td>+4</td><td>The code</td></tr>
+<tr><td><code>subagent</code></td><td>Sub-agents configured</td><td>+2</td><td>The subagents section of <code>config.json</code></td></tr>
+</tbody>
+</table>
+
+<p>More tools means a higher chance of a wrong pick and a tiring <code>/tools</code> listing. NanoHermes does three things about it.</p>
+
+<ol>
+<li>Conditional tools are never exposed unconditionally. No skills, no <code>skill</code>; no sub-agents, no <code>subagent</code>. The model is never invited to call something that must fail.</li>
+<li>Tools the permissions disallow are filtered out, so the model cannot see a tool it would only be rejected for.</li>
+<li>Related capabilities collapse into one tool. <code>todo_write</code> replaces the whole list, which obviates add, update, remove and clear. <code>run_command</code> takes a <code>background</code> flag instead of a second tool.</li>
+</ol>
+
+<p>That third one is debatable: merging complicates one schema. But understanding "the same <code>run_command</code> with a <code>background</code> boolean" costs a model less cognition than remembering two names.</p>
+
+<h2>Shape: the JSON schema is the only interface</h2>
+
+<p>The model sees three things: name, description, parameter schema. Those three are the whole contract. Nothing implicit gets guessed.</p>
+
+<pre><code>{
+  "type": "function",
+  "function": {
+    "name": "read_file",
+    "description": "Read a text file from the workspace. Returns content with line numbers. Use offset/limit for large files.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path":   { "type": "string", "description": "File path, absolute or relative to the workspace root." },
+        "offset": { "type": "integer", "description": "1-based first line to read (default 1)." },
+        "limit":  { "type": "integer", "description": "Maximum number of lines to read (default 2000)." }
+      },
+      "required": ["path"]
+    }
+  }
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Field</th><th>Job</th><th>Cost of omitting it</th></tr></thead>
+<tbody>
+<tr><td><code>name</code></td><td>The identifier the model calls</td><td>Nothing to call</td></tr>
+<tr><td><code>description</code></td><td>When to use it and what comes back</td><td>Wrong tool chosen, or the right one skipped</td></tr>
+<tr><td><code>properties[].description</code></td><td>Argument meaning and defaults</td><td>Wrong values, guessed defaults, repeated attempts</td></tr>
+<tr><td><code>required</code></td><td>Which arguments must be present</td><td>A missing argument and an extra failed round trip</td></tr>
+</tbody>
+</table>
+
+<p>Two sentences in that description are deliberate. "Returns content with line numbers" tells the model the output format. "Use offset/limit for large files" tells it what to do with a big file, which is what decides whether it paginates instead of giving up.</p>
+
+<p>A counterexample: <code>grep</code>'s description says "Search file contents for a literal substring". The word <em>literal</em> matters, because it rules out regular expressions. Without it the model passes <code>\d+</code> or <code>.*</code>, gets no matches, and concludes the code does not contain what it plainly does. The <code>include</code> parameter says "Glob filter, e.g. '*.rs' or 'src/**/*.ts'", and two examples beat a grammar description every time.</p>
+
+<h2>Description text is a contract too</h2>
+
+<p>Read all 24 descriptions together and a pattern appears: a good description says what it does, what it returns, and where the edges are.</p>
+
+<table>
+<thead><tr><th>Tool</th><th>Key phrase</th><th>Problem it solves</th></tr></thead>
+<tbody>
+<tr><td><code>write_file</code></td><td>"Prefer edit_file for small changes"</td><td>Stops whole-file overwrites for a one-line edit</td></tr>
+<tr><td><code>edit_file</code></td><td>"must match the file byte-for-byte, including indentation"</td><td>Fewer no-match failures</td></tr>
+<tr><td><code>apply_patch</code></td><td>"instead of edit_file" plus "must include @@ hunks with matching context"</td><td>Draws the boundary with <code>edit_file</code></td></tr>
+<tr><td><code>run_command</code></td><td>"Use non-interactive flags"</td><td>Stops commands hanging on input</td></tr>
+<tr><td><code>run_command</code></td><td>"Set background=true for long-running tasks, then poll with task_output"</td><td>Teaches the two-step pattern</td></tr>
+<tr><td><code>web_search</code></td><td>"Follow up with web_fetch on a result URL to read the page"</td><td>Teaches the combination</td></tr>
+<tr><td><code>todo_write</code></td><td>"Replaces any previous list"</td><td>Kills the append-or-replace ambiguity</td></tr>
+<tr><td><code>memory_save</code></td><td>"One concise, self-contained sentence"</td><td>Keeps memories readable out of context</td></tr>
+<tr><td><code>git_commit</code></td><td>"Asks the user to confirm unless auto-approval is enabled"</td><td>Lets the model expect a refusal</td></tr>
+</tbody>
+</table>
+
+<p>The most valuable category is cross-referencing. <code>write_file</code> points at <code>edit_file</code>, <code>apply_patch</code> points at <code>edit_file</code>, <code>web_search</code> points at <code>web_fetch</code>, <code>run_command</code> points at <code>task_output</code>. None of it adds capability, all of it reduces wrong choices, and the benefit grows with the size of the set.</p>
+
+<p>A thinner example: <code>task_list</code> says only "List all background tasks with their id, command and status (running/finished)." Correct but thin, since it does not say what the output looks like and the model has to call once to learn. Acceptable for a low-frequency, low-risk read; worth fixing if it starts being misused.</p>
+
+<h2>The first gate: argument validation</h2>
+
+<p>A schema is advice to the model, not enforcement. It can omit a field, pass the wrong type, or send an empty string. Every tool entry point therefore validates.</p>
+
+<pre><code>fn req_str&lt;'a&gt;(args: &amp;'a Value, key: &amp;str) -&gt; Result&lt;&amp;'a str, String&gt; {
+    args.get(key)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("missing string field \`{key}\`"))
+}
+</code></pre>
+
+<p>One line handles three cases: the field is absent, the type is wrong, or the value is null. All three become "missing string field" with the field name included, which is what lets the model fix it.</p>
+
+<p>Optional parameters get defaults rather than becoming required, following one rule: cover the common case and never produce dangerous behavior. <code>offset</code> is 1, <code>limit</code> is 2,000, <code>timeout_secs</code> is 120, <code>max_chars</code> is 20,000. Dangerous values are blocked separately: <code>timeout_secs</code> clamps to 1 through 3,600, <code>max_chars</code> clamps to 500 through 200,000. The model cannot ask for a command that never times out, or for 100 MB of text.</p>
+
+<table>
+<thead><tr><th>Tool</th><th>Rejected input</th><th>Error text</th></tr></thead>
+<tbody>
+<tr><td><code>run_command</code></td><td>Empty command after trimming</td><td><code>command</code> must not be empty</td></tr>
+<tr><td><code>grep</code>, <code>glob</code></td><td>Empty pattern</td><td><code>pattern</code> must not be empty</td></tr>
+<tr><td><code>edit_file</code></td><td>Empty <code>old_string</code></td><td><code>old_string</code> must not be empty; use write_file to create a file</td></tr>
+<tr><td><code>apply_patch</code></td><td>Empty diff</td><td><code>diff</code> must not be empty</td></tr>
+<tr><td><code>git_commit</code></td><td>Empty message</td><td><code>message</code> must not be empty</td></tr>
+<tr><td><code>web_search</code></td><td>Empty query</td><td><code>query</code> must not be empty</td></tr>
+</tbody>
+</table>
+
+<p>These checks look redundant. Why would the model send an empty string? They catch two real cases: a half-formed call emitted mid-reasoning, and a JSON parse failure that collapsed into an empty object, which makes every field missing at once.</p>
+
+<p>Order matters too. The empty <code>old_string</code> check and the empty diff check both run before the file is touched. An argument error should surface before the filesystem is involved, which saves an IO round trip and stops "file not found" from masking "you forgot the argument".</p>
+
+<h2>Budget: why every output must be capped</h2>
+
+<p>The previous two layers cover how to call. This one covers how much comes back, and it is both the most overlooked and the most dangerous.</p>
+
+<p>Counterintuitively, the biggest context killer is usually tool output, not user input. A typed line is dozens of characters; one <code>run_command</code> can emit megabytes. Without caps, three bad things happen.</p>
+
+<ol>
+<li><strong>The context blows up.</strong> A single call exceeds the 120,000 character session budget, compaction fires, real history is dropped, and the summary costs another model request on top.</li>
+<li><strong>The model drowns in noise.</strong> Of the thousands of lines from <code>ls -R</code> or <code>npm install</code>, three are useful, and the model has to read all of them.</li>
+<li><strong>The request fails outright.</strong> Many providers cap tokens per request, and exceeding it returns an error after the whole turn's work.</li>
+</ol>
+
+<p>A cap is also a compression signal: it tells the model "this is not everything", which pushes it to paginate, narrow the search, or switch tools. <strong>The cap is part of the prompt.</strong></p>
+
+<h2>Three infinite sources</h2>
+
+<table>
+<thead><tr><th>Source</th><th>Why it can be unbounded</th><th>Where it gets capped</th></tr></thead>
+<tbody>
+<tr><td>Files</td><td>A user may have a 500 MB log file</td><td>The <code>read_file</code> admission gate, then <code>clamp</code></td></tr>
+<tr><td>Commands</td><td><code>npm install</code> and <code>cargo build</code> emit an unpredictable number of lines</td><td>Capture limits while draining the pipe</td></tr>
+<tr><td>Network</td><td>A page can be any length, or a 100 MB archive</td><td>Response byte cap plus character clipping</td></tr>
+<tr><td>Directories</td><td>A directory can hold a hundred thousand entries</td><td>File-count caps in <code>grep</code> and <code>glob</code>, then <code>clamp</code></td></tr>
+</tbody>
+</table>
+
+<p>Four layers of capping correspond to that table: filter before enumerating (<code>grep</code> skips files over 1 MB), limit while reading (<code>read_capped</code> keeps the first 256 KB), clip after producing (<code>clip</code> trims each line to 240 characters), and backstop at the exit (<code>clamp</code> to 20,000 bytes). The order cannot be shuffled: skip the enumeration filter and one huge file slows the whole <code>grep</code>; skip the read limit and process memory dies before the backstop is ever reached.</p>
+
+<h2>Thirteen caps in one table</h2>
+
+<table>
+<thead><tr><th>Constant</th><th>Where</th><th>Value</th><th>Governs</th><th>On exceed</th></tr></thead>
+<tbody>
+<tr><td><code>max_output</code></td><td><code>Ctx</code></td><td>20,000</td><td>Final output of every tool</td><td>Truncate and note omitted bytes</td></tr>
+<tr><td><code>MAX_FILE_BYTES</code></td><td><code>tools/fs.rs</code></td><td>4 MB</td><td>Admission for one <code>read_file</code></td><td>Error, suggest chunked reads</td></tr>
+<tr><td><code>MAX_MATCHES</code></td><td><code>tools/search.rs</code></td><td>200</td><td><code>grep</code> hits</td><td>Stop and append one line</td></tr>
+<tr><td><code>MAX_FILES</code></td><td><code>tools/search.rs</code></td><td>500</td><td><code>glob</code> results</td><td>Stop and append one line</td></tr>
+<tr><td><code>MAX_FILE_BYTES</code></td><td><code>tools/search.rs</code></td><td>1 MB</td><td><code>grep</code> per-file admission</td><td>Skip the file silently</td></tr>
+<tr><td><code>MAX_LINE_CHARS</code></td><td><code>tools/search.rs</code></td><td>240</td><td><code>grep</code> line length</td><td>Clip with an ellipsis</td></tr>
+<tr><td><code>CAPTURE_BYTES</code></td><td><code>tools/shell.rs</code></td><td>256 KB</td><td>Each stream of a foreground command</td><td>Drain and discard, note it</td></tr>
+<tr><td><code>CAPTURE_BYTES</code></td><td><code>tools/tasks.rs</code></td><td>512 KB</td><td>Accumulated background output</td><td>Drain and discard, note it</td></tr>
+<tr><td><code>MAX_RESPONSE_BYTES</code></td><td><code>tools/web.rs</code></td><td>2 MB</td><td>One downloaded response body</td><td>Drain and discard, note it</td></tr>
+<tr><td><code>MAX_BODY_CHARS</code></td><td><code>skills.rs</code></td><td>20,000</td><td>A single skill body</td><td>Truncate</td></tr>
+<tr><td><code>MAX_PROJECT_DOCS</code></td><td><code>prompt.rs</code></td><td>20,000</td><td>Joined project docs</td><td>Truncate with a note</td></tr>
+<tr><td><code>MAX_ITEMS</code></td><td><code>tools/todo.rs</code></td><td>50</td><td>Plan list entries</td><td>Error, refuse the write</td></tr>
+<tr><td><code>RESULT_PREVIEW</code></td><td><code>board.rs</code></td><td>500</td><td>Sub-agent preview in the list</td><td>Truncate</td></tr>
+</tbody>
+</table>
+
+<p>Three observations.</p>
+
+<ol>
+<li><strong>Units are inconsistent.</strong> Some are bytes, some are called characters but count bytes, some genuinely count characters. For English and code it barely matters; for Chinese and emoji the difference is a factor of three.</li>
+<li><strong>Exceed behavior is inconsistent.</strong> Error, truncate-and-note, or skip silently.</li>
+<li><strong>The magnitudes form a clean ladder.</strong> A file read is widest at 4 MB, then network at 2 MB, background at 512 KB, foreground commands at 256 KB, and everything funnels into 20,000 bytes. The gradient reflects where the data comes from: a local file is the most trusted and controllable, a web page the least.</li>
+</ol>
+
+<p>The easiest one to overlook is <code>RESULT_PREVIEW = 500</code>, the length of a sub-agent result shown by <code>agent_list</code>. It decides how much a parent sees when it glances at the task board, and 500 characters is about two sentences, enough to tell finished from stuck.</p>
+
+<h2>One exit: the clamp at the end of dispatch</h2>
+
+<pre><code>pub fn dispatch(name: &amp;str, args: &amp;Value, ctx: &amp;Ctx) -&gt; Result&lt;String, String&gt; {
+    let r = match name {
+        "read_file" =&gt; fs::read_file(args, ctx),
+        // ... twenty-odd branches ...
+        other =&gt; Err(format!("unknown tool \`{other}\`")),
+    };
+    r.map(|s| clamp(s, ctx.max_output))
+}
+</code></pre>
+
+<p>That last line is valuable because it cannot be bypassed. A new tool may forget its own cap, but going through <code>dispatch</code> means <code>clamp</code> runs regardless. That is default safety: the unsafe version requires deliberate effort, not the safe one.</p>
+
+<pre><code>fn clamp(s: String, max: usize) -&gt; String {
+    if s.len() &lt;= max {
+        return s;
+    }
+    let mut end = max;
+    while end &gt; 0 &amp;&amp; !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!(
+        "{}\n… output truncated ({} chars omitted)",
+        &amp;s[..end],
+        s.len() - end
+    )
+}
+</code></pre>
+
+<p>Two details. <strong>Character boundary retreat</strong>: slicing at an arbitrary byte would panic, and the 20,000th byte very often lands inside a three-byte Chinese character, so the code walks back at most two bytes. Leave that out and the agent panics instead of truncating.</p>
+
+<p><strong>Omitted byte count</strong>: the note says <code>(3600 chars omitted)</code> but the number is bytes. For Chinese, the actual number of omitted characters is a third of what the note claims.</p>
+
+<p>There is also an asymmetry: <code>Result::map</code> only touches the <code>Ok</code> branch, so errors pass through unclamped. In theory a tool could return a 100 KB error and inflate the context; in practice errors are short, but the asymmetry is worth remembering.</p>
+
+<h2>The comment says characters, the code counts bytes</h2>
+
+<pre><code>/// Max characters of tool output fed back to the model (keeps context small).
+pub max_output: usize,
+</code></pre>
+
+<p>The comment says characters. <code>clamp</code> uses <code>s.len()</code>, and in Rust <code>String::len()</code> returns bytes. So <code>max_output = 20_000</code> means 20,000 bytes.</p>
+
+<p>For Chinese content the difference is a factor of three: 20,000 bytes of ASCII is 20,000 characters, Chinese is about 6,666 characters, mixed text about 10,000. Reading Chinese comments, searching Chinese docs, fetching Chinese pages: the comparable capacity for Chinese is a third of English.</p>
+
+<p>The same codebase contains the opposite: <code>web_fetch</code>'s <code>clip_chars</code>, <code>grep</code>'s <code>MAX_LINE_CHARS</code> and <code>MAX_BODY_CHARS</code> really do count characters. Two semantics in one project, depending on whether the author reached for <code>len()</code> or <code>chars().count()</code>.</p>
+
+<p>This is not a bug that must be fixed today; 20,000 bytes covers most situations. It is an inconsistency that must be documented, because any capacity estimate built on "max_output is characters" will be wrong. The cheap fix is renaming the comment to bytes. The intuitive fix is counting <code>chars()</code>, at the cost of walking the string every time.</p>
+
+<h2>Three truncation semantics</h2>
+
+<table>
+<thead><tr><th>Semantic</th><th>Implementation</th><th>Used by</th><th>Strength</th><th>Risk</th></tr></thead>
+<tbody>
+<tr><td>Refuse</td><td>Return <code>Err</code></td><td><code>read_file</code> over 4 MB, <code>todo_write</code> over 50 items</td><td>The model immediately knows to change strategy</td><td>One extra failed round trip</td></tr>
+<tr><td>Truncate with a note</td><td>Keep the prefix, state what was dropped</td><td><code>clamp</code>, <code>clip</code>, <code>CAPTURE_BYTES</code></td><td>Usable information, and the model knows it is partial</td><td>The note costs budget too</td></tr>
+<tr><td>Skip silently</td><td>Skip without a word</td><td><code>grep</code> skipping files over 1 MB</td><td>Does not interrupt the flow</td><td>The model reads it as "no matches"</td></tr>
+</tbody>
+</table>
+
+<p>The third is the dangerous one.</p>
+
+<pre><code>let Ok(meta) = fs::metadata(path) else { return };
+if meta.len() &gt; MAX_FILE_BYTES {
+    return;   // files over 1 MB are skipped with no error and no note
+}
+</code></pre>
+
+<p>Search a string across a directory of small files, where the string only exists in one large file, and the model receives "no matches for ...". The conclusion is wrong and the model cannot tell, because it does not know a file was skipped.</p>
+
+<p>Why keep the silent skip? Because in a full tree walk, printing a line per oversized file turns "no match" into dozens of lines of noise, which is worse. The middle ground costs one counter: append "N files skipped for size" to the final output, which removes a whole class of misjudgment for almost nothing.</p>
+
+<p>The same shape appears in <code>read_capped</code>.</p>
+
+<pre><code>pub(crate) fn read_capped(mut r: impl Read) -&gt; (Vec&lt;u8&gt;, usize) {
+    let mut kept = Vec::new();
+    let mut total = 0usize;
+    loop {
+        match r.read(&amp;mut buf) {
+            Ok(0) =&gt; break,
+            Ok(n) =&gt; {
+                total += n;
+                if kept.len() &lt; CAPTURE_BYTES {
+                    let room = CAPTURE_BYTES - kept.len();
+                    kept.extend_from_slice(&amp;buf[..n.min(room)]);
+                }
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted =&gt; continue,
+            Err(_) =&gt; break,
+        }
+    }
+    (kept, total)
+}
+</code></pre>
+
+<p>It must keep reading to the end rather than stopping, because a child process writing into a full pipe blocks forever. So "discard" here means read and drop, never stop reading. <code>total</code> is what lets the note state how much was omitted. The function is reused in three places, <code>shell.rs</code> for foreground commands, <code>tasks.rs</code> for background tasks and <code>git.rs</code> for git output, each with a different cap.</p>
+
+<h2>read_file: a 4 MB gate and a 2,000 line window</h2>
+
+<pre><code>let meta = fs::metadata(&amp;full)?;
+if meta.len() &gt; MAX_FILE_BYTES {
+    return Err(format!(
+        "{} is {} bytes (&gt; {}); read it in chunks with offset/limit",
+        full.display(), meta.len(), MAX_FILE_BYTES
+    ));
+}
+</code></pre>
+
+<p>The error names the next action: read it in chunks with offset and limit. That is far more useful than "file too large", because it moves the model from "what do I do" straight to "use a window".</p>
+
+<p>Where does 4 MB come from? It is not an output budget, it is a memory budget. The file is read whole and then split by line, so 4 MB means "allocating 4 MB at once is safe". The real output budget is handled by the 2,000 line default window and the 20,000 byte clamp at the exit.</p>
+
+<p>Worth doing the arithmetic. A 3.5 MB log at 100 bytes a line is about 35,000 lines. The default reads the first 2,000, about 200 KB, and the exit clamp cuts that to 20,000 bytes, roughly 200 lines. So the model believes it asked for 2,000 lines and actually got 200 plus a truncation note. Miss the note and it concludes from the first 200 lines.</p>
+
+<p>Two more thorough fixes exist: lower the default <code>limit</code> to match the output budget, so requested and received line counts roughly agree, or state in the note "this file has N lines; you are seeing the first M". NanoHermes does half of the second, with a note but an unchanged default, leaving the arithmetic to the model.</p>
+
+<pre><code>let end = (offset - 1 + limit).min(total);
+let width = end.to_string().len();
+for (i, line) in lines[(offset - 1)..end].iter().enumerate() {
+    let n = offset + i;
+    out.push_str(&amp;format!("{n:&gt;width$}→{line}\n"));
+}
+</code></pre>
+
+<p>The right-aligned line number width comes from <code>end</code>, the last line of the window, not from <code>total</code>. Reading lines 1 to 2,000 gives width four; reading lines 1 to 9 gives width one. Alignment shifts between calls. Harmless for a model reading numbers, mildly annoying for a human diffing two outputs side by side.</p>
+
+<h2>read_file details: lossy decoding, binary detection</h2>
+
+<p><strong>It uses <code>from_utf8_lossy</code>, not strict decoding.</strong> If the file contains invalid UTF-8, a GBK-encoded Chinese text, a corrupted log, binary bytes mixed in, lossy decoding replaces those bytes with U+FFFD instead of failing. For an agent that is the right call: a few replacement characters beat refusing to read the whole file over one bad byte.</p>
+
+<p><strong><code>read_file</code> does no binary detection; <code>grep</code> does.</strong></p>
+
+<pre><code>/// Exposed for reuse by the search module.
+pub fn is_binary(bytes: &amp;[u8]) -&gt; bool {
+    bytes.iter().take(8192).any(|&amp;b| b == 0)
+}
+</code></pre>
+
+<p>Only <code>grep</code> calls it. Hand <code>read_file</code> a 2 MB PNG, which passes the 4 MB gate, and it reads the whole thing, returns a wall of mojibake, and gets clamped to 20,000 bytes. The model usually works out that it was binary, after wasting the turn. The fix is the same one-line check returning an error like "looks like a binary file": a NUL byte in the first 8,192 is a test with zero false positives on real text and near-total coverage on real binaries.</p>
+
+<h2>grep: 200 matches and 240 character lines</h2>
+
+<pre><code>const MAX_MATCHES: usize = 200;
+const MAX_FILES: usize = 500;
+const MAX_FILE_BYTES: u64 = 1024 * 1024;
+const MAX_LINE_CHARS: usize = 240;
+</code></pre>
+
+<table>
+<thead><tr><th>Limit</th><th>Value</th><th>Applied</th><th>Output</th></tr></thead>
+<tbody>
+<tr><td>Matches</td><td>200</td><td>Inner loop, stops the walk</td><td><code>… stopped after 200 matches</code></td></tr>
+<tr><td>File size</td><td>1 MB</td><td>Before entering the file</td><td>Nothing, skipped silently</td></tr>
+<tr><td>Line length</td><td>240</td><td>After a match</td><td>Trailing <code>…</code></td></tr>
+<tr><td>File count</td><td>500</td><td>Not used</td><td>Only <code>glob</code> uses it</td></tr>
+</tbody>
+</table>
+
+<pre><code>for_each_file(&amp;base, |path, rel| {
+    if truncated { return; }
+    // …
+    if hay.contains(&amp;needle) {
+        out.push_str(&amp;format!("{}:{}:{}\n", rel, i + 1, clip(line)));
+        hits += 1;
+        if hits &gt;= MAX_MATCHES {
+            truncated = true;
+            return;
+        }
+    }
+});
+</code></pre>
+
+<p>A flag instead of <code>break</code>, because the closure cannot break out of <code>for_each_file</code>. The guard at the top returns immediately for later files, which is equivalent to stopping early, except the walk itself continues and every remaining file still enters the closure. On a large repository that is wasted motion, at an acceptable cost.</p>
+
+<p>Output is <code>path:line:text</code>, with relative paths and backslashes normalized to forward slashes. One path style across platforms means the model never has to tell two conventions apart. Windows drive letters still create ambiguity, since <code>C:</code> contains a colon.</p>
+
+<p>One performance wart: case-insensitive search lowercases every line, two allocations and two passes each, so a 10,000 line file costs tens of thousands of small allocations. An allocation-free case-insensitive compare would be faster. Not a correctness issue, but <code>grep</code> is one of the most-used tools.</p>
+
+<h2>grep has no file-count cap</h2>
+
+<p><code>MAX_FILES = 500</code> appears only in <code>glob</code>. <code>grep</code> limits nothing but matches.</p>
+
+<p>The worst case: search for a string that almost certainly does not exist, in a tree with 500,000 files. <code>grep</code> reads every file, one <code>fs::read</code> each, and finally answers "no matches", possibly minutes later. No timeout, no file cap, no progress output. <code>glob</code> at least stops collecting after 501 matches, though it too keeps walking. Agents usually search from a project root with a few thousand files, so this is not urgent, but a workspace containing one huge generated directory that the ignore list misses turns <code>grep</code> into an operation that never returns. Two improvements: count visited files in <code>for_each_file</code> and stop early, or make the ignore list configurable.</p>
+
+<p>One genuinely good design in the same function: <code>include</code> goes through <code>path_matches</code>, which tries both the relative path and the file name.</p>
+
+<pre><code>fn path_matches(pattern: &amp;str, rel: &amp;str) -&gt; bool {
+    if glob_match(pattern, rel) { return true; }
+    let name = rel.rsplit('/').next().unwrap_or(rel);
+    glob_match(pattern, name)
+}
+</code></pre>
+
+<p>So <code>include: "*.rs"</code> matches <code>src/main.rs</code> by filename, and <code>include: "src/**/*.ts"</code> matches by relative path. The model never has to decide which form to use.</p>
+
+<h2>glob: 500 files and a false message</h2>
+
+<p>The segment matcher has three rules: when the pattern is exhausted the path must be too, so <code>*.rs</code> does not match <code>src/main.rs</code>; <code>**</code> eats zero or more segments, so <code>src/**/*.rs</code> matches <code>src/main.rs</code>; ordinary segments use <code>*</code> and <code>?</code> within a segment, and <code>*</code> never crosses <code>/</code>. Tests lock all three.</p>
+
+<p><code>for_each_file</code> uses an explicit stack rather than recursion: no stack overflow on deep trees, and collecting entries before descending avoids holding a <code>read_dir</code> handle while recursing.</p>
+
+<p>Then there is the false message.</p>
+
+<pre><code>if matches.len() &gt;= MAX_FILES {
+    out.push_str(&amp;format!("\n… capped at {MAX_FILES} files"));
+}
+</code></pre>
+
+<p>The condition is <code>&gt;=</code> 500. A project with exactly 500 matching files, no 501st, still gets "capped at 500 files", and the model concludes there are more and keeps looking another way. The correct test is whether a match was actually dropped because of the cap, which means setting an <code>overflowed</code> flag inside the branch that refuses a match. The difference only shows at the boundary, but a false truncation notice is worse than none: it makes the model abandon a complete result it already has.</p>
+
+<h2>list_dir: the only uncapped reader</h2>
+
+<p><code>list_dir</code> applies no internal limit at all. It lists every entry and lets the exit clamp handle it. The consequence is calculable: 5,000 files at about 40 characters a line is 200 KB, clamped to 20,000 bytes leaves roughly 500 lines, and the last 90% of the directory is invisible.</p>
+
+<p>Contrast that with <code>read_file</code>, which refuses and asks for a window. <code>list_dir</code> hands over the first 500 entries and has no pagination parameter, only <code>path</code>, so "show me entries 501 to 1,000" requires finding a deeper subdirectory. For the normal use, "what is in this project", it is fine. For build output or a dataset directory it produces a misleading partial panorama. A cheap fix is an internal cap of 300 with a closing line stating the total.</p>
+
+<p>A smaller issue: sizes are rendered by <code>human_size</code> as "1.5 MB". Friendly for humans, but 1,048,576 becomes "1.0 MB", so a model trying to find the largest files has to parse units and compare. Not wrong, just a choice about who it is optimized for.</p>
+
+<h2>run_command: 256 KB twice, plus a timeout</h2>
+
+<pre><code>const CAPTURE_BYTES: usize = 256 * 1024;
+</code></pre>
+
+<table>
+<thead><tr><th>Constraint</th><th>Value</th><th>On trigger</th></tr></thead>
+<tbody>
+<tr><td>Capture per stream</td><td>256 KB</td><td>Drain and discard, note the omitted bytes</td></tr>
+<tr><td>Timeout</td><td>Default 120s, clamped to 1 to 3,600</td><td>Kill, report <code>command timed out after Ns and was killed</code></td></tr>
+<tr><td>Working directory</td><td>The workspace root by default</td><td>Resolved to an absolute path</td></tr>
+<tr><td>Output shape</td><td>Exit code, stdout section, stderr section</td><td>Empty streams print <code>(empty)</code></td></tr>
+</tbody>
+</table>
+
+<p>256 KB is per stream, so the theoretical worst case is 512 KB, which the exit clamp then cuts to 20,000 bytes. In practice the 256 KB limit is almost never visible to a user; it exists to stop a chatty command from eating memory.</p>
+
+<p>What users actually see is the timeout, implemented by polling.</p>
+
+<pre><code>let exit = loop {
+    match child.try_wait() {
+        Ok(Some(status)) =&gt; break status.code(),
+        Ok(None) =&gt; {
+            if start.elapsed() &gt;= Duration::from_secs(timeout) {
+                let _ = child.kill();
+                let _ = child.wait();
+                timed_out = true;
+                break None;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        Err(e) =&gt; return Err(format!("failed to wait for command: {e}")),
+    }
+};
+</code></pre>
+
+<p>Polling at 25 ms trades CPU for the ability to enforce a timeout at all, with about 25 ms of precision, plenty for second-scale limits. <code>wait()</code> right after <code>kill()</code> is mandatory: signal without reap leaves a zombie. On timeout <code>exit</code> is <code>None</code> and the report says <code>exit code: killed</code>, so the model can tell a normal failure from a kill.</p>
+
+<pre><code>if crate::sandbox::needs_approval(ctx.auto_approve, ctx.approval, command) &amp;&amp; !confirm(command) {
+    return Ok("Command denied by the user. Do not retry it; ask what to do instead.".to_string());
+}
+</code></pre>
+
+<p>Note that this returns <code>Ok</code>, not <code>Err</code>, and the text carries two instructions: do not retry, ask instead. Making a refusal an instruction to the model rather than an error is one of the smarter choices in the design, because "the user refused" and "the command failed" demand opposite reactions. Refusal should stop and ask; failure can be retried with a different command. Return an <code>Err</code> with a generic message and the model will cheerfully retry the exact thing the user just rejected.</p>
+
+<h2>Draining both pipes</h2>
+
+<pre><code>let out_pipe = child.stdout.take().expect("stdout piped");
+let err_pipe = child.stderr.take().expect("stderr piped");
+let out_thread = std::thread::spawn(move || read_capped(out_pipe));
+let err_thread = std::thread::spawn(move || read_capped(err_pipe));
+</code></pre>
+
+<p>Why not <code>wait_with_output()</code>? Because it waits for exit before reading anything. Pipe buffers are bounded, 64 KB on Linux typically, so a child writing more than that blocks on the write and never exits, and the wait never returns. That is the classic pipe deadlock.</p>
+
+<p>Two threads, one per stream, and the main thread only waits and watches the clock. A child can now emit megabytes without filling a pipe, because someone is always draining.</p>
+
+<pre><code>// Drain both pipes on separate threads so a chatty child can never deadlock
+// by filling the OS pipe buffer while we wait for it to exit.
+</code></pre>
+
+<p>The pattern is reused in <code>git.rs</code>, since <code>git diff</code> can also emit megabytes. It is not reused in <code>tasks.rs</code>, which is exactly the defect the next section covers.</p>
+
+<h2>Background tasks</h2>
+
+<p>The foreground timeout caps at 3,600 seconds, but even inside that range, making the model wait through a <code>cargo build</code> is a waste: the whole turn is spent waiting when the model could be reading code, writing docs, and coming back for the result.</p>
+
+<pre><code>if args.get("background").and_then(|v| v.as_bool()).unwrap_or(false) {
+    return super::tasks::run_background(args, ctx);
+}
+</code></pre>
+
+<p>The registry lives in <code>Ctx</code>, shared by every tool and guarded by a mutex.</p>
+
+<pre><code>pub struct TaskManager {
+    tasks: Mutex&lt;HashMap&lt;String, Task&gt;&gt;,
+}
+</code></pre>
+
+<p>A task id is the process id plus a nanosecond timestamp. Nanoseconds rather than a counter means two tasks started in the same millisecond cannot collide, with no global counter to maintain; the process id makes cross-process logs tell you which agent instance spawned the task.</p>
+
+<p>Three tools cover the lifecycle: <code>task_list</code> for what exists, <code>task_output</code> for increments, <code>task_kill</code> to stop. <code>output()</code> drains increments rather than returning the whole buffer.</p>
+
+<pre><code>pub fn output(&amp;self, task_id: &amp;str) -&gt; Result&lt;String, String&gt; {
+    let mut map = self.tasks.lock().unwrap();
+    let task = map.get_mut(task_id).ok_or(/* unknown task */)?;
+    if let Some(child) = task.child.as_mut() {
+        if let Some(mut out) = child.stdout.take() {
+            let (kept, total) = read_capped(&amp;mut out);
+            task.out_buf.extend_from_slice(&amp;kept);
+            task.out_total += total;
+            child.stdout = Some(out);
+        }
+        // …
+    }
+    // …
+}
+</code></pre>
+
+<p>The <code>take()</code> and put-back exists because <code>read_capped</code> takes the reader by value. Slightly awkward, but it avoids adding a lifetime parameter to <code>Task</code>.</p>
+
+<p>Accumulated output caps at 512 KB, double the foreground limit. That makes sense: a background task is drained over several calls, so the total is naturally larger, and it is retained cumulatively rather than reported per call.</p>
+
+<h2>A real defect: stderr is never drained</h2>
+
+<pre><code>cmd.current_dir(cwd)
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+</code></pre>
+
+<p>Both streams are piped. But <code>output()</code> only takes and reads <code>child.stdout</code>, and <code>Task</code> has a single <code>out_buf</code> field with no error buffer. Once stderr is a pipe, <strong>no code ever reads it</strong>.</p>
+
+<p>Which means something serious: a background command that writes more than the pipe buffer to stderr, 64 KB typically, blocks forever on that write, never exits, and <code>task_output</code> reports <code>running</code> until the end of time, while the model polls a task that will never finish.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>stderr volume</th></tr></thead>
+<tbody>
+<tr><td><code>cargo build</code> with progress and warnings</td><td>Warnings alone can exceed 64 KB</td></tr>
+<tr><td><code>npm install</code> with deprecations and an audit report</td><td>Commonly a few KB to tens of KB</td></tr>
+<tr><td>Any CLI with a progress bar, pip or docker included</td><td>Continuous redraw, large totals</td></tr>
+<tr><td>A test command reporting many failures</td><td>Unbounded</td></tr>
+</tbody>
+</table>
+
+<p>The control group is the foreground <code>run_command</code>, which drains both pipes on two threads and therefore has no such problem. <code>git.rs</code> does the same. Only the background path was missed.</p>
+
+<p>Two fixes: merge stderr into stdout, which means editing the command string and is unclean, or add an <code>err_buf</code> to <code>Task</code> and drain stderr in <code>output()</code> the same way.</p>
+
+<pre><code>if let Some(mut err) = child.stderr.take() {
+    let (kept, total) = read_capped(&amp;mut err);
+    task.err_buf.extend_from_slice(&amp;kept);
+    task.err_total += total;
+    child.stderr = Some(err);
+}
+</code></pre>
+
+<p>That fixes the hang and makes error output visible, which it currently is not: the model only ever sees stdout. For an agent tool, "the command failed and you cannot see why" is a miserable state.</p>
+
+<p>It is worth calling out because it illustrates a whole class: <strong>two similar paths in one project, foreground and background, with different draining strategies, one of them wrong, and no test covering "a background command writes a lot to stderr"</strong>. Review rarely catches this, because the broken path looks entirely normal. It just never ends.</p>
+
+<h2>web_fetch: 2 MB and 20,000 characters</h2>
+
+<pre><code>const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
+
+let max_chars = args
+    .get("max_chars")
+    .and_then(|v| v.as_u64())
+    .unwrap_or(20_000)
+    .clamp(500, 200_000) as usize;
+</code></pre>
+
+<p>Two layers. The response body keeps at most 2 MB and drains the rest. Then <code>clip_chars</code> cuts to <code>max_chars</code> by characters, 20,000 by default. Note the semantic clash with the exit clamp: 20,000 characters of Chinese is 60,000 bytes, which the clamp then cuts to 20,000 bytes. Both cuts do something, and the second is the one that finally binds.</p>
+
+<p>The 200,000 upper bound will never matter, because the exit clamp is 20,000 bytes. An honest range would be 500 to 20,000, or at least consistent with the exit budget.</p>
+
+<pre><code>let mut out = format!("URL: {url}\n");
+if total &gt; bytes.len() {
+    out.push_str(&amp;format!("[response truncated at {MAX_RESPONSE_BYTES} bytes]\n"));
+}
+out.push_str(&amp;clip_chars(&amp;text, max_chars));
+</code></pre>
+
+<p>Comparing total read against bytes kept is more reliable than trusting Content-Length, which chunked transfer and gzip can make absent or wrong. Deciding on observed facts rather than declarations is the only correct approach in HTTP.</p>
+
+<p><code>web_search</code> caps result count only, five by default, clamped to 1 through 10. Reasonable: the result shape is fixed, title plus URL plus snippet, so count is the only length driver. A pathologically long snippet can still inflate the output, and the exit clamp catches it.</p>
+
+<p>One last note: capping output is not capping work. <code>html_to_text</code> walks the entire document to strip tags, decode entities and collapse whitespace before clipping, so a 2 MB page is fully parsed. At normal call rates that is irrelevant; put <code>web_fetch</code> in a loop of thousands and the bottleneck is right here.</p>
+
+<h2>Skills and project docs eat the same budget</h2>
+
+<p>Two things are not tool output but still consume the budget, and both are capped.</p>
+
+<p><strong>Skill bodies.</strong> <code>MAX_BODY_CHARS = 20_000</code>. Loading a skill returns the full text, and a very long skill doc would fill the context. Twenty thousand characters matches the <code>web_fetch</code> default, the size of a thorough document that does not hijack the conversation.</p>
+
+<p><strong>Project docs.</strong> <code>MAX_PROJECT_DOCS = 20_000</code>, applied to <code>AGENTS.md</code>, the global one plus every one from the repository root down to the workspace. Exceeding it truncates and appends "project guidance truncated".</p>
+
+<pre><code>const MAX_PROJECT_DOCS: usize = 20_000;
+const DOC_NAMES: [&amp;str; 1] = ["AGENTS.md"];
+</code></pre>
+
+<p>Assembly order is global, then root, then down to the workspace, deduplicated by <code>canonicalize</code> so a symlink cannot cause a double read. There is a real risk here: truncation cuts the tail, and the tail is exactly the most workspace-specific guidance. Fifteen thousand characters at the repository root plus eight thousand in a subdirectory is 23,000, and what gets cut is the back half of the subdirectory file, the most specific half. Collecting upward from the workspace and stopping when the budget is full would preserve the right end.</p>
+
+<p>The skill list also costs budget, but one line each, so the effect is linear and small. The real weight is loading a body through the <code>skill</code> tool. Index always resident, body on demand: the same idea as RAG, with a much thinner index.</p>
+
+<h2>Errors are results</h2>
+
+<p>Every tool failure is expressed as <code>Result&lt;String, String&gt;</code>, with a string error. That decision has three consequences.</p>
+
+<p><strong>The error text is written for the model, not for a log.</strong> Each one says what went wrong and what to do next.</p>
+
+<table>
+<thead><tr><th>Tool</th><th>Error text</th><th>Next step for the model</th></tr></thead>
+<tbody>
+<tr><td><code>read_file</code></td><td>N bytes, over the limit, read it in chunks with offset/limit</td><td>Re-read with a window</td></tr>
+<tr><td><code>edit_file</code></td><td><code>old_string</code> not found, read the file and match it exactly, including whitespace</td><td>Read the file first</td></tr>
+<tr><td><code>edit_file</code></td><td><code>old_string</code> occurs 3 times, pass replace_all or more context</td><td>Add the flag or context</td></tr>
+<tr><td><code>grep</code></td><td>No matches for the pattern</td><td>Try another term, or widen the scope</td></tr>
+<tr><td><code>skill</code></td><td>Unknown skill, plus the available names</td><td>Pick from the list</td></tr>
+<tr><td><code>subagent</code></td><td>Unknown sub-agent</td><td>Use a configured name</td></tr>
+<tr><td><code>git</code></td><td>git status exited with 128, plus git's own stderr</td><td>Read the underlying error</td></tr>
+</tbody>
+</table>
+
+<p>The <code>skill</code> error lists the available names and the <code>git</code> error embeds git's stderr. Both put the information the model needs into the error and save a round trip through "fail, list, call again".</p>
+
+<p><strong>An error does not abort the turn.</strong> <code>execute</code> wraps it into a tool result and the loop continues; <code>run_tool</code> formats it as <code>ERROR: ...</code>. If a tool error bubbled up as an exception, one mistyped argument would end the whole task. As a string, the model sees the error and fixes it. That is one of the largest differences between an agent and an ordinary program: <strong>errors are first-class input, not exceptions.</strong></p>
+
+<p><strong>A counterintuitive corollary: error text should be capped too, and is not.</strong> <code>clamp</code> only touches the <code>Ok</code> branch. A tool returning a 100 KB error, say dumping an entire <code>git diff</code> as a failure message, would pass through untouched. No tool does that today, but "the exit only protects the success path" is an asymmetry worth remembering.</p>
+
+<h2>Approval: which tools ask first</h2>
+
+<p>Capability is not proportional to danger. <code>read_file</code> cannot destroy code no matter how it is written; one <code>run_command</code> with <code>rm -rf</code> can.</p>
+
+<pre><code>pub fn check_tool(&amp;self, name: &amp;str) -&gt; Result&lt;(), String&gt; {
+    if self.permission_mode.blocked_tools().contains(&amp;name) {
+        return Err(format!("tool \`{name}\` is not available in {:?} mode", self.permission_mode));
+    }
+    if self.disallowed_tools.iter().any(|t| t == name) {
+        return Err(format!("tool \`{name}\` is disallowed by configuration"));
+    }
+    if !self.allowed_tools.is_empty() &amp;&amp; !self.allowed_tools.iter().any(|t| t == name) {
+        return Err(format!("tool \`{name}\` is not in the allowed list"));
+    }
+    Ok(())
+}
+</code></pre>
+
+<p>The order is deliberate: mode first, because the current situation disallows it; then the deny list, which is the user's explicit instruction; then the allow list, a narrowing rule that only matters if the first two did not already reject.</p>
+
+<p>Blocked tools never appear in the tool list at all, via <code>retain</code> in <code>build_tools</code>, while <code>check_tool</code> errors at call time. The first prevents a wrong pick; the second prevents a bypass, such as a model that learned a tool name from history and tries it anyway.</p>
+
+<table>
+<thead><tr><th>Tool</th><th>Confirms by default</th><th>Basis</th></tr></thead>
+<tbody>
+<tr><td><code>run_command</code></td><td>Per the approval policy</td><td>A command cannot be analyzed statically</td></tr>
+<tr><td><code>git_commit</code></td><td>Per the approval policy</td><td>Writes history, but it is reversible</td></tr>
+<tr><td><code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code></td><td>No, outside specific modes</td><td>File changes can be rolled back</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Mode</th><th>Blocked tools</th><th>Typical use</th></tr></thead>
+<tbody>
+<tr><td>default</td><td>None</td><td>Everyday work</td></tr>
+<tr><td>accept-edits</td><td>None, but shell confirmation stays on</td><td>Trust file edits, not commands</td></tr>
+<tr><td>plan</td><td><code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code>, <code>run_command</code>, <code>git_commit</code></td><td>Read-only analysis</td></tr>
+<tr><td>debug</td><td><code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code>, <code>git_commit</code></td><td>Run commands to reproduce, never change files</td></tr>
+<tr><td>goal</td><td>None, and no confirmations at all</td><td>Unattended runs</td></tr>
+</tbody>
+</table>
+
+<p>The contrast between plan and debug is the clearest illustration: plan blocks even <code>run_command</code>, because a planning phase should have no side effects, while debug allows commands to reproduce a problem and forbids touching files, so a broken state does not get worse.</p>
+
+<h2>Which directories read-only tools skip</h2>
+
+<pre><code>fn is_ignored_dir(name: &amp;str) -&gt; bool {
+    matches!(name,
+        ".git" | "target" | "node_modules" | "__pycache__"
+        | ".venv" | "venv" | "dist" | "build"
+        | ".idea" | ".cache" | ".next" | "vendor"
+        | ".tox" | ".mypy_cache" | ".ruff_cache" | ".pytest_cache"
+    )
+}
+</code></pre>
+
+<p>Fifteen names cover the build output of the main ecosystems: Rust's <code>target</code>, Node's <code>node_modules</code>, <code>dist</code>, <code>build</code> and <code>.next</code>, Python's <code>__pycache__</code>, <code>.venv</code>, <code>.tox</code> and various caches, PHP's <code>vendor</code>, and the IDE's <code>.idea</code>. A medium Node project has a hundred thousand files under <code>node_modules</code>, so without this "just search the name globally" walks a hundred thousand third-party files. Hard-coding means it works out of the box; the cost is that generated directories outside the list, <code>out</code>, <code>bin</code>, <code>obj</code>, <code>.gradle</code>, <code>Pods</code>, can only be handled by editing the code.</p>
+
+<p><code>grep</code> and <code>glob</code> both go through <code>for_each_file</code> and share the list. <code>list_dir</code> does not, so listing a directory does show <code>node_modules</code>, which is usually what a user wants. The split is right: <strong>filter when searching, show everything when listing.</strong></p>
+
+<h2>Output order matters</h2>
+
+<p>Three tools sort before returning, each for a reason.</p>
+
+<p><code>list_dir</code> sorts directories and files separately, printing all directories then all files. Unsorted output follows the filesystem, usually inode order on Linux, which looks random and makes it hard to spot the main directories. "Directories first, alphabetical" is a convention both humans and models read easily.</p>
+
+<p><code>glob</code> sorts too. <code>for_each_file</code> uses a stack, collecting depth-first in reverse, so the natural order is scrambled. Sorting means the same pattern returns the same order twice, which matters for caching and diffing.</p>
+
+<p><code>grep</code> does not sort. Hits come out in traversal order, line order within a file, but every line carries a <code>path:line</code> prefix, so nothing is lost. Not sorting means truncation drops files that were visited later, and sorting would require collecting everything first.</p>
+
+<p>The three rules reduce to one principle: <strong>whenever output is truncated by position, order decides what survives.</strong> <code>list_dir</code> does not truncate, so order is only readability. <code>glob</code>'s order decides which 500 files survive. <code>grep</code>'s decides which 200 hits survive, and that is the one worth improving: sorting by path and line before truncating would make the output far more stable for a little extra memory.</p>
+
+<h2>The hidden cost of tools</h2>
+
+<p>Tools are not free. Every tool ships its full definition with every request, and 24 tools cost roughly 2,500 to 4,000 tokens depending on description length. Across 100 turns that is hundreds of thousands of input tokens of schema alone.</p>
+
+<p>The larger cost is not money, it is <strong>choice difficulty</strong>. More tools means more wrong picks. The confusing pairs are predictable.</p>
+
+<table>
+<thead><tr><th>Confusable pair</th><th>Difference</th><th>How it is mitigated</th></tr></thead>
+<tbody>
+<tr><td><code>write_file</code> vs <code>edit_file</code></td><td>Whole-file overwrite vs targeted replacement</td><td><code>write_file</code> says prefer <code>edit_file</code> for small changes</td></tr>
+<tr><td><code>edit_file</code> vs <code>apply_patch</code></td><td>One site vs several</td><td><code>apply_patch</code> says "instead of edit_file"</td></tr>
+<tr><td><code>grep</code> vs <code>glob</code></td><td>Search content vs search names</td><td>"file contents" versus "Find files by"</td></tr>
+<tr><td><code>run_command</code> vs <code>task_output</code></td><td>Run vs collect</td><td><code>run_command</code> explains polling after backgrounding</td></tr>
+<tr><td><code>memory_save</code> vs <code>todo_write</code></td><td>Across sessions vs within one</td><td>Both descriptions state their persistence scope</td></tr>
+<tr><td><code>web_fetch</code> vs <code>web_search</code></td><td>Read a known URL vs find an unknown one</td><td><code>web_search</code> points at <code>web_fetch</code></td></tr>
+</tbody>
+</table>
+
+<p>The third column is the valuable trick: <strong>disambiguate in the description instead of making the model guess.</strong> For every confusable pair, at least one description names the other. The larger the tool set, the more this should be a hard requirement.</p>
+
+<p>Another hidden cost is overlap: nearly everything <code>apply_patch</code> can do, <code>edit_file</code> can do. Overlap is not a defect, it gives the model options, but it raises the bar on descriptions. Otherwise the model picks one at random, fails, and tries the other.</p>
+
+<h2>Eight principles of tool design</h2>
+
+<p><strong>One. Every output must have a ceiling, and it must be on by default.</strong> Not "this tool might be long, so cap it", but "cap everything, then loosen where it truly cannot be long". Safe by default, not trusted by default.</p>
+
+<p><strong>Two. Caps must be layered, never single.</strong> Filter before enumerating, limit while reading, clip after producing, backstop at the exit. With only the exit, memory and latency problems still happen.</p>
+
+<p><strong>Three. Exceeding a cap must be visible.</strong> Of the three semantics, silent skip belongs only where a note would create noise, and it should still produce a count. A model that does not know information is incomplete will conclude from what it has, which is the most expensive failure mode.</p>
+
+<p><strong>Four. Error text should say what to do next.</strong> Not "file too large" but "read it in chunks with offset/limit". Likewise a refusal should read as an instruction: do not retry, ask instead.</p>
+
+<p><strong>Five. Refuse with Ok plus an instruction; fail with Err plus a reason.</strong> The two mean opposite things to a model. Merging them produces a model that retries rejected operations.</p>
+
+<p><strong>Six. Defaults must cover the common case and must not be dangerous.</strong> <code>offset: 1</code>, <code>limit: 2,000</code>, <code>timeout: 120</code>, <code>max_chars: 20,000</code>. If the dangerous value is the default, the design is wrong.</p>
+
+<p><strong>Seven. Unify units, or label them explicitly.</strong> Mixing bytes and characters in one project is a source-level confusion, because it never errors; it just skews every capacity estimate. Pick one and write it in the field comment.</p>
+
+<p><strong>Eight. Use descriptions to remove ambiguity between tools.</strong> For each confusable pair, at least one description names the other. Highest return on effort in the whole set.</p>
+
+<p>One more, outside the eight, matters as much: <strong>write symmetric implementations for symmetric paths.</strong> Foreground and background commands draining pipes differently caused a guaranteed deadlock. Opening <code>run_command</code> side by side while writing the background path would have found it in five minutes.</p>
+
+<h2>Nine common traps</h2>
+
+<table>
+<thead><tr><th>Trap</th><th>Symptom</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Uncapped tool output</td><td>One call fills the context and triggers compaction</td><td>A global <code>clamp</code> plus per-tool caps</td></tr>
+<tr><td>Silent skips with no count</td><td>The model reads a skip as "no match"</td><td>Count skips and summarize once at the end</td></tr>
+<tr><td>Mixed units</td><td>Chinese capacity is a third of English</td><td>Unify on bytes or characters, and document it</td></tr>
+<tr><td>Defaults that do not match caps</td><td>Ask for 2,000 lines, get 200</td><td>Align the default with real output, or say so in the note</td></tr>
+<tr><td>Truncation notes in the wrong unit</td><td>The note says chars, the number is bytes</td><td>Use the real unit, or count correctly</td></tr>
+<tr><td>Errors without an action</td><td>The model retries the same bad argument</td><td>State the next step in the error</td></tr>
+<tr><td>Refusals confused with failures</td><td>A rejected command is retried with a tweak</td><td>Return Ok with a stop instruction</td></tr>
+<tr><td>Only one pipe drained</td><td>The command hangs whenever output goes to the other stream</td><td>Drain both, or merge them with a redirect</td></tr>
+<tr><td>Hard-coded ignore list</td><td>Project-specific output directories cannot be excluded</td><td>Allow configuration to extend it</td></tr>
+</tbody>
+</table>
+
+<p>Four of these nine, silent skips, mixed units, the mislabeled unit and the single drained pipe, produce no error at all. They quietly make the tool worse, and are usually discovered by a specific incident. That is why output budget deserves its own article: it is the least visible layer.</p>
+
+<h2>How to check that your tools are actually safe</h2>
+
+<table>
+<thead><tr><th>Check</th><th>Method</th><th>Expected</th></tr></thead>
+<tbody>
+<tr><td>Is there a backstop</td><td>Read the end of <code>dispatch</code>, or the single exit</td><td>One truncation that applies to every tool</td></tr>
+<tr><td>Does each tool cap itself</td><td>Search for the constants</td><td>Every reader and every executor has a limit</td></tr>
+<tr><td>Are units consistent</td><td>Compare constant names with <code>len()</code> and <code>chars().count()</code></td><td>Consistent, or documented</td></tr>
+<tr><td>Binary files</td><td>Ask the agent to read a PNG</td><td>A clear error, not mojibake</td></tr>
+<tr><td>Large files</td><td>Ask it to read a 10 MB log</td><td>An error suggesting offset and limit</td></tr>
+<tr><td>Huge directories</td><td>Ask it to list 5,000 files</td><td>A stated cap, not a silent cut</td></tr>
+<tr><td>Chatty commands</td><td>Run a script that prints for five minutes</td><td>Killed on timeout, reported, memory flat</td></tr>
+<tr><td>Two-stream blocking</td><td>Background a command that writes 1 MB to stderr</td><td>The task finishes; this is the easiest check to skip</td></tr>
+<tr><td>Empty arguments</td><td>Call a tool with an empty string</td><td>A clear error, raised before any IO</td></tr>
+<tr><td>Permission modes</td><td>Try to edit a file in plan mode</td><td>The tool is absent, a direct call is rejected</td></tr>
+<tr><td>Approval</td><td>Run a dangerous command in default mode</td><td>A confirmation appears, and a refusal is not retried</td></tr>
+<tr><td>Cap firing</td><td>Temporarily set the match limit to 3</td><td>Output carries the truncation note, count correct</td></tr>
+</tbody>
+</table>
+
+<p>The two-stream check is the one that almost always finds a bug: write a script that prints a line to stderr every second, background it for ten seconds, then call <code>task_output</code>. If it reports <code>running</code> forever, you have the deadlock.</p>
+
+<h2>Closing</h2>
+
+<ol>
+<li><strong>Tool design has three layers.</strong> Topology, shape, budget. The first two decide correctness, the third decides whether the context survives.</li>
+<li><strong>Caps must be layered and on by default.</strong> Filter, limit, clip, backstop. Drop a layer and a matching resource problem appears.</li>
+<li><strong>Exceeding a cap must leave a trace.</strong> Silent skipping is the most expensive failure, because it lets a model conclude confidently from incomplete data.</li>
+<li><strong>Error text is part of the prompt.</strong> Saying what to do next beats saying what went wrong.</li>
+<li><strong>Symmetric paths need symmetric code.</strong> Foreground and background draining differently caused a permanent block.</li>
+</ol>
+
+<p>An agent's tool layer is, in the end, the layer that translates the outside world into text the model can digest. The quality of that translation depends on two things: whether it is accurate, which is schema and description, and whether the volume is controlled, which is budget. Most tutorials cover only the first. Production incidents mostly come from the second.</p>
+
+<p>NanoHermes' tool layer is not perfect: <code>read_file</code> does no binary detection, <code>grep</code> has no file-count cap, background tasks never drain stderr, the clamp's unit label is wrong, and <code>glob</code> can report a false truncation. All of those are identifiable, locatable and individually fixable. They are not "the design missed it", they are "the implementation missed a spot", and that difference matters: the first needs re-architecture, the second needs one more commit.</p>
+
+<p>The next post turns to concurrency: how to run in parallel without an async runtime. Tools answer "how much comes back at once"; concurrency answers "how many things happen in one turn", the same philosophy applied to time instead of volume.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a>.</p>
 `,
   },
 ]
