@@ -14515,6 +14515,438 @@ fn a_fixed_task_costs_no_more_than_the_baseline() {
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/rea-reverse-engineer-anything/">一周 15 万 Star 的 REA：让 Agent 逆向一切的开源 MCP Server</a>.</p>
 `,
   },
+  {
+    slug: 'queueing-theory-capacity-planning',
+    zhSlug: 'queueing-theory-capacity-planning',
+    topicSlug: 'backend',
+    title: 'Eight machines were slower than four: queueing theory and capacity planning',
+    excerpt:
+      'Utilisation amplifies latency nonlinearly, variance matters as much as the mean, and past an optimal node count adding machines makes things worse. A quantitative framework for whether to scale out, and how much headroom to keep.',
+    date: '2026-10-30',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers who have made scaling decisions, been tortured by a p99 curve, or wondered why adding machines did not help.</p>
+<p>Stack: none. This is pure theory, and every number comes from closed-form solutions rather than measurement.</p>
+<p>Reading time around 26 minutes. Level: intermediate to advanced. Prerequisites: arithmetic and a little probability.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Anatomy of a scaling incident</li>
+<li>Little's Law: measure two, get the third</li>
+<li>Utilisation, the latency amplifier</li>
+<li>Kendall notation and two basic models</li>
+<li>Variance matters more than the mean</li>
+<li>Why several small machines beat one big one</li>
+<li>Tail amplification: why p99 cannot be averaged</li>
+<li>Amdahl's law: the tax on the serial part</li>
+<li>The universal scalability law and retrograde scaling</li>
+<li>Retry storms and metastable failure</li>
+<li>Coordinated omission: why your load test lies</li>
+<li>Capacity planning in practice</li>
+<li>FAQ</li>
+</ul>
+
+<h2>Anatomy of a scaling incident</h2>
+
+<p>One endpoint, four machines, 45% CPU utilisation, p99 at 80 ms. Traffic doubles, so operations doubles the fleet to eight.</p>
+
+<p>Expected: utilisation back to 45%, p99 unchanged. Actual: utilisation is 46%, and <strong>p99 rose to 115 ms</strong>.</p>
+
+<p>Machines doubled, load doubled, utilisation is the same, and latency got 44% worse. That is not mysterious and not a broken machine. It is a result queueing theory produces directly, and almost nobody computes it while scaling.</p>
+
+<p>Four questions this post answers quantitatively. Where is the danger line for utilisation, and why 70% rather than 90%? Should you watch the mean or the variance, and how can two services with identical average latency differ fivefold at p99? When does adding machines stop working, and when does it make things <strong>worse</strong>? And how should p99 actually be computed, given that fan-out makes it explode?</p>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Utilisation ceiling</td><td>70% is the common target. Under M/M/1, rho of 0.7 gives 3.3 times the service time, 0.9 gives 10 times, 0.95 gives 20</td></tr>
+<tr><td>Mean versus variance</td><td>At a service time coefficient of variation of 3, queue length is five times what it is at 1</td></tr>
+<tr><td>When scaling fails</td><td>An optimal node count exists, and beyond it throughput <em>falls</em></td></tr>
+<tr><td>p99</td><td>Never average it. With a fan-out of 100 backends each slow 1% of the time, the page is slow 63% of the time</td></tr>
+</tbody>
+</table>
+
+<h2>Little's Law: measure two, get the third</h2>
+
+<pre><code>L = λ · W
+</code></pre>
+
+<p>L is the average number of tasks in the system, lambda the arrival rate, W the average time a task spends there.</p>
+
+<p>The conditions are astonishingly weak: steady state, nothing lost, nothing leaked, long-run averages exist. No Poisson arrivals, no exponential service, no distributional assumption at all.</p>
+
+<p><strong>Inferring latency from concurrency and throughput.</strong> With 1,200 requests per second from the logs and 60 in flight from the server counter, W equals 60 divided by 1,200, so 50 ms. When you have no latency instrumentation but can count requests and read in-flight concurrency, this gives you the average for free.</p>
+
+<p><strong>Estimating the capacity gap.</strong> If the SLA wants 50 ms at the median and the service takes 20 ms, then at 1,000 requests per second L is 50. A thread pool of 32 means queueing starts at 640 requests per second. Little's Law tells you how big the pool has to be.</p>
+
+<p>One common misuse: treating W as a latency metric. It is a long-run average and knows nothing about the tail. A system with W of 50 ms can have a p99 of five seconds. Use it for capacity, not for SLAs.</p>
+
+<h2>Utilisation, the latency amplifier</h2>
+
+<pre><code>ρ = λ / μ = λ · E[S]
+L = ρ / (1 - ρ)
+W = E[S] / (1 - ρ)
+</code></pre>
+
+<table>
+<thead><tr><th>Utilisation</th><th>Latency multiplier</th><th>Share of time queueing</th></tr></thead>
+<tbody>
+<tr><td>0.10</td><td>1.11</td><td>10%</td></tr>
+<tr><td>0.30</td><td>1.43</td><td>30%</td></tr>
+<tr><td>0.50</td><td>2.00</td><td>50%</td></tr>
+<tr><td>0.70</td><td><strong>3.33</strong></td><td>70%</td></tr>
+<tr><td>0.80</td><td>5.00</td><td>80%</td></tr>
+<tr><td>0.90</td><td><strong>10.00</strong></td><td>90%</td></tr>
+<tr><td>0.95</td><td>20.00</td><td>95%</td></tr>
+<tr><td>0.99</td><td><strong>100.00</strong></td><td>99%</td></tr>
+</tbody>
+</table>
+
+<p>Three readings. It is not linear: going from 10% to 50% costs 80% more latency, while going from 70% to 90% costs 200% more for the same twenty points. Utilisation is exactly the share of time spent queueing, since waiting time over total time equals rho. And the last stretch is a cliff, with latency going to infinity as rho approaches one.</p>
+
+<p>So "70% is the safe line" is not folklore, it is the inverse of accepting a 3.3 times amplification. Accept five times and 80% works; demand strictness and push to 50%.</p>
+
+<h3>Why latency got worse after scaling</h3>
+
+<p>Queueing is global, service time is not. Four machines at 1x load is 45% each, a multiplier of 1.82. Eight machines at 2x load is still about 45%, so still 1.82. The fact that it got worse means the cause is outside the model, and there are three candidates.</p>
+
+<p><strong>Shared resources did not scale.</strong> Database connections, Redis, downstream services stayed the same size. Eight machines pushed twice the concurrency at one database, moving the bottleneck down a layer.</p>
+
+<p><strong>Coordination cost rose.</strong> Cache invalidation broadcasts, distributed lock contention and heartbeats grow superlinearly with node count.</p>
+
+<p><strong>Load balancing is uneven.</strong> Long connections, pool warm-up and unsynchronised garbage collection turn "45% average" into some machines at 30% and one at 70%. Latency is convex, so the 70% machine contributes far more than the mean suggests: 1.82 for balanced machines against 3.33 for the busiest, 83% slower. If requests fan out, the slowest machine decides. <strong>Watch the maximum utilisation, not the average.</strong></p>
+
+<h2>Kendall notation and two basic models</h2>
+
+<table>
+<thead><tr><th>Position</th><th>Meaning</th><th>Common values</th></tr></thead>
+<tbody>
+<tr><td>A</td><td>Arrival process</td><td>M for Markov or Poisson, D for deterministic, G for general</td></tr>
+<tr><td>S</td><td>Service time distribution</td><td>M, D, G</td></tr>
+<tr><td>c</td><td>Number of servers</td><td>1, 2, and so on</td></tr>
+<tr><td>K</td><td>System capacity including the queue</td><td>Infinite by default</td></tr>
+<tr><td>N</td><td>Population size</td><td>Infinite by default</td></tr>
+<tr><td>D</td><td>Discipline</td><td>FCFS, LCFS, processor sharing, shortest remaining processing time</td></tr>
+</tbody>
+</table>
+
+<p><strong>M/M/1</strong> is Poisson arrivals, exponential service, one server, unbounded queue, first come first served.</p>
+
+<pre><code>W  = E[S] / (1 - ρ)
+Wq = ρ · E[S] / (1 - ρ)
+L  = ρ / (1 - ρ)
+Lq = ρ² / (1 - ρ)
+P(L &gt; n) = ρ^(n+1)
+</code></pre>
+
+<p>Remember the formula for W and the rest follow through Little's Law. The last line matters: at rho of 0.9, the probability of more than ten tasks in the system is 31%, and more than twenty is 10.9%. That is why tail latency is so sensitive to utilisation, since every increment raises the probability of a long queue exponentially.</p>
+
+<p>For <strong>M/M/c</strong>, total load a is lambda over mu in Erlangs and utilisation is a over c. The waiting probability comes from the Erlang C formula, and queueing time is that probability times the service time divided by c minus a. Its engineering meaning appears in the pooling section.</p>
+
+<h2>Variance matters more than the mean</h2>
+
+<p>M/M/1 assumes exponential service, which is a coefficient of variation of one. Real service times are rarely exponential: database queries, cache misses and garbage collection pauses are long-tailed, with coefficients between two and five.</p>
+
+<pre><code>Wq = ρ/(1 - ρ) · (1 + Cs²)/2 · E[S]
+</code></pre>
+
+<p>That is Pollaczek-Khinchine for M/G/1, and M/M/1 is the special case where the factor equals one.</p>
+
+<table>
+<thead><tr><th>Cs</th><th>Service character</th><th>Factor</th><th>Relative to M/M/1</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Fully deterministic</td><td>0.5</td><td>0.5x</td></tr>
+<tr><td>0.5</td><td>Low variance</td><td>0.625</td><td>0.63x</td></tr>
+<tr><td>1.0</td><td>Exponential</td><td>1.0</td><td>1.0x</td></tr>
+<tr><td>2.0</td><td>High variance</td><td>2.5</td><td>2.5x</td></tr>
+<tr><td>3.0</td><td>Long-tailed</td><td>5.0</td><td>5.0x</td></tr>
+<tr><td>5.0</td><td>Very long-tailed</td><td>13.0</td><td>13.0x</td></tr>
+</tbody>
+</table>
+
+<p>Two services with identical mean service time can differ in queue length by 26 times, the ratio of 13 to 0.5. So identical average response time does not mean identical performance. Reducing the mean has additive returns; reducing variance has multiplicative ones. Garbage collection is doubly harmful, raising both the mean and the coefficient, so the queueing cost of one pause is quadratic. And mixing batch jobs with interactive traffic poisons the queue, which is the hardest mathematical reason to isolate them.</p>
+
+<h3>A counterintuitive corollary: random routing beats round robin</h3>
+
+<p>When the coefficient is large, spreading requests randomly across machines is more stable than round robin. Round robin equalises counts, but with high variance one machine can receive several slow requests in a row and round robin never corrects. Random routing spreads the slow requests and dilutes the amplification. It is also why least-connections beats round robin: it uses current state rather than a historical count.</p>
+
+<h2>Why several small machines beat one big one</h2>
+
+<p>Take 18 requests per second at 0.5 seconds each, so nine Erlangs of load. One machine capable of ten per second gives rho of 0.9 and a queueing time of 4.5 seconds. Ten machines each capable of one per second give the same rho, an Erlang C waiting probability of about 0.669, and a queueing time of 0.33 seconds.</p>
+
+<table>
+<thead><tr><th>Plan</th><th>Capacity</th><th>Utilisation</th><th>Queue time</th><th>Total latency</th></tr></thead>
+<tbody>
+<tr><td>One big machine</td><td>10 per second</td><td>90%</td><td>4.5 s</td><td><strong>5.0 s</strong></td></tr>
+<tr><td>Ten small machines</td><td>10 per second</td><td>90%</td><td>0.33 s</td><td><strong>0.83 s</strong></td></tr>
+</tbody>
+</table>
+
+<p>Same capacity, same utilisation, six times faster when pooled. The intuition: across ten machines some are idle at any moment and can take work immediately, while one busy machine makes everything wait. What matters is the probability that at least one is free, not the average idle capacity.</p>
+
+<table>
+<thead><tr><th>Utilisation</th><th>One machine</th><th>Ten machines</th><th>Absolute saving</th><th>Multiple</th></tr></thead>
+<tbody>
+<tr><td>50%</td><td>1.00</td><td>0.01</td><td>0.99</td><td>138x</td></tr>
+<tr><td>70%</td><td>2.33</td><td>0.07</td><td>2.26</td><td>32x</td></tr>
+<tr><td>90%</td><td>9.00</td><td>0.67</td><td>8.33</td><td>13x</td></tr>
+<tr><td>95%</td><td>19.00</td><td>1.65</td><td>17.35</td><td>12x</td></tr>
+</tbody>
+</table>
+
+<p>Read vertically, the relative gain is largest at low utilisation. Read horizontally, the absolute saving is largest at high utilisation. But the shape is the point: the single machine goes from 1.00 to 19.00 while ten machines go from 0.01 to 1.65. <strong>Pooling flattens the cliff.</strong> High-utilisation systems need horizontal scaling not to be faster but to keep latency from exploding as utilisation rises.</p>
+
+<p>Which brings the incident back: if latency got worse after scaling, the gain was eaten by something else, not by the queueing model.</p>
+
+<h2>Tail amplification: why p99 cannot be averaged</h2>
+
+<h3>Percentiles are not linear operators</h3>
+
+<table>
+<thead><tr><th>Window</th><th>Requests</th><th>p99</th></tr></thead>
+<tbody>
+<tr><td>First minute</td><td>100</td><td>10 ms</td></tr>
+<tr><td>Second minute</td><td>10,000</td><td>1,000 ms</td></tr>
+</tbody>
+</table>
+
+<p>Averaging gives 505 ms, which is wrong. Merge all 10,100 requests and recompute: about a hundred requests in the second minute exceed a second, and one in the first minute exceeds ten milliseconds, so the merged p99 is about 1,000 ms. Twice the averaged value, and averaging per-window percentiles is extremely common.</p>
+
+<pre><code>Wrong:  store p50/p99 scalars  -&gt; cannot merge, can only average
+Right:  store histograms (HDR, t-digest, DDSketch) -&gt; mergeable, any quantile
+</code></pre>
+
+<h3>Fan-out: multiplicative tail amplification</h3>
+
+<pre><code>P(page is slow) = 1 - (1 - p)^N
+</code></pre>
+
+<table>
+<thead><tr><th>Fan-out</th><th>Probability the page is slow, p = 0.01</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>1.0%</td></tr>
+<tr><td>10</td><td>9.6%</td></tr>
+<tr><td>50</td><td>39.5%</td></tr>
+<tr><td>100</td><td><strong>63.4%</strong></td></tr>
+<tr><td>200</td><td>86.6%</td></tr>
+</tbody>
+</table>
+
+<p>A hundred backends each slow one percent of the time makes the page slow most of the time. Note what that means for the page's "p99": it is not some combination of backend p99s, it is worse than the backend median, because <em>most</em> requests are slow.</p>
+
+<p>This explains why finer service decomposition degrades tail latency, why per-service p99 compliance does not mean page compliance, and why reducing the tail matters far more than reducing the mean. Dropping each backend from one percent to a tenth takes a hundred-way fan-out from 63% to 9.5%, while cutting the mean by twenty percent does nothing for the tail.</p>
+
+<p>Three countermeasures. Reduce fan-out by merging endpoints, batching and aggregating at the edge, taking 100 down to 10 and 63% down to 9.6%. Use hedged requests, sending a second copy to another machine and taking whichever returns first, at the cost of extra load and only for idempotent reads. And do not let slow requests drag fast ones down: time out and return partial results.</p>
+
+<h2>Amdahl's law: the tax on the serial part</h2>
+
+<pre><code>S(n) = 1 / ((1 - p) + p/n)
+limit as n grows = 1 / (1 - p)
+</code></pre>
+
+<table>
+<thead><tr><th>Parallel share</th><th>n = 2</th><th>n = 4</th><th>n = 8</th><th>Limit</th></tr></thead>
+<tbody>
+<tr><td>0.75</td><td>1.60</td><td>2.29</td><td>2.91</td><td><strong>4.00</strong></td></tr>
+<tr><td>0.90</td><td>1.82</td><td>3.08</td><td>4.71</td><td><strong>10.00</strong></td></tr>
+<tr><td>0.95</td><td>1.90</td><td>3.48</td><td>5.93</td><td><strong>20.00</strong></td></tr>
+<tr><td>0.99</td><td>1.98</td><td>3.88</td><td>7.48</td><td><strong>100.00</strong></td></tr>
+</tbody>
+</table>
+
+<p>Five percent serial caps the speedup at twenty times no matter how many machines you add, and going from four to eight gains 1.7 times. The more useful application is deciding whether parallelising is worth it at all: at 50% serial the ceiling is two times, so go optimise the serial part; at 1% serial there is a hundredfold ceiling and the investment is justified.</p>
+
+<table>
+<thead><tr><th>Serial part</th><th>Why it is serial</th></tr></thead>
+<tbody>
+<tr><td>Database write transactions</td><td>Row locks, unique index conflicts, sequence generation</td></tr>
+<tr><td>Distributed locks</td><td>The lock exists to serialise</td></tr>
+<tr><td>Global counters</td><td>A single hot spot</td></tr>
+<tr><td>Configuration and metadata reads</td><td>Usually synchronous and cached</td></tr>
+<tr><td>Request parsing and authentication</td><td>Before business logic, hard to parallelise</td></tr>
+</tbody>
+</table>
+
+<p>Amdahl is a ceiling on scaling out: at 10% serial, scaling tenfold gains nothing. What is needed then is architecture, turning the serial part into something parallel or asynchronous, not operations.</p>
+
+<h2>The universal scalability law and retrograde scaling</h2>
+
+<pre><code>C(N) = N / (1 + α(N - 1) + βN(N - 1))
+N* = sqrt((1 - α) / β)
+</code></pre>
+
+<p>Alpha is contention, from serialisation, growing linearly. Beta is coherency, the cost of synchronisation between nodes, growing <strong>quadratically</strong>. With beta at zero this reduces to Amdahl.</p>
+
+<p>With alpha of 0.05 and beta of 0.001, the optimum is just under thirty-one nodes.</p>
+
+<table>
+<thead><tr><th>Nodes</th><th>Relative throughput</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>4</td><td>3.44</td><td></td></tr>
+<tr><td>10</td><td>6.49</td><td>+89%</td></tr>
+<tr><td>20</td><td>8.58</td><td>+32%</td></tr>
+<tr><td><strong>31</strong></td><td><strong>9.04</strong></td><td>+5%, the peak</td></tr>
+<tr><td>50</td><td>8.47</td><td>−6%</td></tr>
+<tr><td>80</td><td>7.10</td><td>−16%</td></tr>
+<tr><td>100</td><td>6.31</td><td>−11%</td></tr>
+</tbody>
+</table>
+
+<p>From thirty-one nodes to a hundred, throughput falls from 9.04 to 6.31, worse than twenty nodes. That is the mathematics of "adding machines makes it slower", and it corresponds to real mechanisms: cache coherency broadcasts, where each write notifies N minus one peers for O(N squared) traffic; distributed lock contention; heartbeats and membership; shared database connection pools; session synchronisation in the load balancer.</p>
+
+<p>So scaling out and adding nodes are not the same thing. Scaling out assumes beta is small. When beta is significant, reduce alpha by removing serial bottlenecks, and reduce beta by reducing synchronisation: shard instead of sharing, drop global cache invalidation broadcasts, accept eventual consistency.</p>
+
+<p>Sharding works because it moves beta from global to per-shard. A hundred nodes in ten shards of ten turns O(100 squared) into ten times O(10 squared), from ten thousand to a thousand.</p>
+
+<h2>Retry storms and metastable failure</h2>
+
+<pre><code>load multiplier = Σ from i=0 to k of f^i = (1 - f^(k+1)) / (1 - f)
+</code></pre>
+
+<table>
+<thead><tr><th>Failure rate</th><th>No retry</th><th>Up to 1 retry</th><th>Up to 3 retries</th></tr></thead>
+<tbody>
+<tr><td>0.01</td><td>1.000x</td><td>1.010x</td><td>1.010x</td></tr>
+<tr><td>0.10</td><td>1.000x</td><td>1.100x</td><td>1.111x</td></tr>
+<tr><td>0.30</td><td>1.000x</td><td>1.300x</td><td>1.417x</td></tr>
+<tr><td>0.50</td><td>1.000x</td><td>1.500x</td><td>1.875x</td></tr>
+<tr><td>0.70</td><td>1.000x</td><td>1.700x</td><td>2.533x</td></tr>
+<tr><td>0.90</td><td>1.000x</td><td>1.900x</td><td>3.439x</td></tr>
+</tbody>
+</table>
+
+<p>Note how much smaller the three-retry column is than the unlimited-retry value of one over one minus f. At a 90% failure rate, unlimited retries multiply load tenfold, while capping at three takes it to 3.44. <strong>The cap itself is the most important protection</strong>, because it turns exponential growth into a constant. And this table underestimates overload scenarios: if failures come from overload, retries keep failing and the multiplier approaches the cap.</p>
+
+<pre><code>load rises
+  -&gt; queues grow, and latency explodes as rho approaches one
+  -&gt; timeouts start firing
+  -&gt; retries multiply the load
+  -&gt; load rises further
+  -&gt; more timeouts
+</code></pre>
+
+<p>A positive feedback loop, and it leads to metastable failure: after the triggering event, a brief network blip say, the system does not recover, because the retry-generated load by itself exceeds capacity. Two steady states exist, and removing the trigger from the failed one does nothing. Recovery requires active load shedding: restarting, rate limiting, breaking the circuit.</p>
+
+<table>
+<thead><tr><th>Measure</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>A retry budget</td><td>Cap retries as a share of total requests rather than a fixed count</td></tr>
+<tr><td>Exponential backoff with jitter</td><td>Desynchronise retries and spread them over time</td></tr>
+<tr><td>A circuit breaker</td><td>Fail fast when a dependency is down instead of sending traffic</td></tr>
+<tr><td>A bounded queue with active rejection</td><td>Reject when full instead of queueing forever</td></tr>
+<tr><td>Client-side rate limiting</td><td>Throttle at the source rather than collapsing</td></tr>
+</tbody>
+</table>
+
+<h3>Why an unbounded queue is a trap</h3>
+
+<p>It looks friendly because it rejects nothing, and it does three bad things. It converts a throughput problem into a latency problem: requests do not fail, they wait until they time out and then fail, so users wait longer for the same outcome. It hides overload, since the queue grows while the error rate does not, and monitoring sees nothing until the queue bursts. And every queued task holds memory, so an unbounded queue eventually runs out.</p>
+
+<pre><code>queue not full -&gt; accept, process normally
+queue full     -&gt; return 503 immediately
+</code></pre>
+
+<p>Fast failure gives the client a clear signal to back off, degrade or let the user retry, while unlimited queueing drags everyone down in slow motion. In queueing terms, an unbounded queue pushes rho above one, which is unstable, and latency grows without bound, while a bounded queue forces rho back below one by dropping. <strong>Dropping requests is the only way to preserve latency under overload.</strong></p>
+
+<h2>Coordinated omission: why your load test lies</h2>
+
+<p>A closed-loop tool sends a request, waits, and sends the next one. Consider a service that stalls for a second once every hundred requests. The tool records ninety-nine at five milliseconds and one at 1,005, so p99 looks acceptable.</p>
+
+<p>Real clients do not wait. They are open-loop, sending at a fixed rate regardless. During that one second stall, a client at 200 requests per second issues 200 requests, all of which queue, with latencies from about a second down to five milliseconds. The real p99 is around a second and it affects two hundred requests, not one. The tool also <strong>sent fewer requests</strong> while blocked, so its throughput is inflated too.</p>
+
+<pre><code>t_intended = time.now()      # when the request should have gone out
+response = send(request)
+t_returned = time.now()
+latency = t_returned - t_intended
+</code></pre>
+
+<p>Record the intended send time and the blocked requests show their real queueing delay. Or run an open-loop test with an independent scheduler at a fixed rate, which is what modern load generators offer.</p>
+
+<p>To tell whether your test suffers from coordinated omission, look at the throughput curve. If increasing concurrency raises throughput linearly with latency flat, either capacity is genuinely huge or the tool is under-sending. A real system saturates throughput and then latency takes off.</p>
+
+<h2>Capacity planning in practice</h2>
+
+<h3>Choosing a target utilisation</h3>
+
+<table>
+<thead><tr><th>Acceptable amplification</th><th>Utilisation ceiling</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>1.4x</td><td>30%</td><td>Very low latency work: trading, bidding</td></tr>
+<tr><td>2x</td><td>50%</td><td>Latency-sensitive APIs</td></tr>
+<tr><td>3.3x</td><td>70%</td><td>General online services, the usual target</td></tr>
+<tr><td>5x</td><td>80%</td><td>Queueing tolerable, degradation available</td></tr>
+<tr><td>10x</td><td>90%</td><td>Batch and offline work</td></tr>
+</tbody>
+</table>
+
+<p>These are M/M/1 numbers. With high service variance, multiply by the factor from the variance section. At a coefficient of three and 70% utilisation, the amplification is 2.33 times 5, about 11.7 times, not 3.3. So measure your coefficient first.</p>
+
+<h3>The capacity formula</h3>
+
+<pre><code>N = ceil( λ · E[S] / ρ_target )
+</code></pre>
+
+<p>At a peak of 500 per second, 80 ms of processing and a 70% target, that is about 58 instances. Three traps follow. Use the peak, not the mean, since peaks run three to five times the average and planning on the mean is the classic failure. Keep an N plus one fault margin, because one failure out of 58 leaves 57 at 70.2%, already on the line, whereas planning at 100% utilisation means one failure puts you at rho equal to one and the queue unbounded. And leave a release margin, since rolling deploys remove capacity while instances restart, and canary or blue-green phases need a discount on top.</p>
+
+<p>In practice, planning for peak plus one failure plus release margin puts the target utilisation around 50 to 60%, not 70%.</p>
+
+<h3>Three autoscaling traps</h3>
+
+<p><strong>Scaling on CPU lags.</strong> CPU is a result, not a cause. By the time it hits 80% the queue has already formed and a new instance still needs thirty to sixty seconds. Better signals are queue depth, request queueing time and concurrency, which are leading indicators and rise before CPU.</p>
+
+<p><strong>Scale up fast, scale down slowly.</strong> Be aggressive scaling out, conservative scaling in. Shrinking too eagerly means you cannot grow back in time when traffic returns, and the system oscillates.</p>
+
+<p><strong>Without hysteresis it flaps.</strong> The same threshold for scaling out and in makes the system oscillate around it. Add a hysteresis band and a cooldown.</p>
+
+<h3>A checklist before scaling</h3>
+
+<ul>
+<li>Where is the bottleneck, and is it application CPU rather than the database, cache or a downstream service? If it is the latter, more application instances will not help.</li>
+<li>What are the mean service time and the coefficient of variation? Without both, every calculation is a guess.</li>
+<li>Is lambda the peak, and what is the peak-to-mean ratio?</li>
+<li>What is the maximum instance utilisation, not the average?</li>
+<li>How large is beta? With global synchronisation between nodes, reduce beta first or adding nodes may regress.</li>
+<li>Are there retries, and what is the retry budget? Retries multiply load and can trigger metastability.</li>
+<li>Is the queue bounded? An unbounded queue converts overload into latency.</li>
+<li>Does the load test suffer from coordinated omission? Check whether throughput saturates.</li>
+<li>How is p99 aggregated? Averaging per-window percentiles is wrong.</li>
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>These formulas assume Poisson arrivals. Real traffic is not Poisson, so are they still usable?</strong> Yes, knowing the direction of the error. Real traffic is usually burstier than Poisson, and burstier arrivals make queues longer, so M/M/1 is optimistic. The Kingman approximation accounts for both coefficients: queueing time is rho over one minus rho, times the average of the arrival and service coefficients squared, times the service time. That formula is far more practical, because it accounts for both burstiness and service variability.</p>
+
+<p><strong>Is 70% absolute?</strong> No, it encodes a 3.3 times amplification. Accept five times and you can run at 80%; demand strictness and go to 50%. And it assumes an M/M/1 shape; high variance degrades it substantially.</p>
+
+<p><strong>Why not monitor the average?</strong> Because the average is insensitive to the tail. Ninety-nine requests at five milliseconds and one at five seconds averages to 55 milliseconds, which looks fine while one percent of users waited five seconds. And with fan-out, the tail becomes the majority. Watch p99, p999 and the share of requests above a threshold.</p>
+
+<p><strong>Which should I watch, p99 or p999?</strong> It depends on fan-out. With N backends per request, the p99 a user experiences is roughly the 1 minus (1 minus 0.99) to the 1/N quantile of a single backend, which at N of 100 is around the median. The wider the fan-out, the deeper you should look.</p>
+
+<p><strong>Can Little's Law be used for capacity planning?</strong> Yes, and it is the most practical tool available, since it only needs two measurements. The usual cases are inferring latency from concurrency and throughput, or inferring required concurrency from target latency and expected throughput, which then sizes thread and connection pools. It gives long-run averages and no tail.</p>
+
+<p><strong>Why does adding machines sometimes make things slower?</strong> Three reasons, in order of frequency. The bottleneck is not in the application layer, so more instances just push pressure downstream. Inter-node coordination grows superlinearly, the beta term, so throughput falls past the optimal count. Or load is uneven, and while the average is unchanged the maximum rises, and latency is convex.</p>
+
+<p><strong>There are no measurements in this post. Are the formulas trustworthy?</strong> They are closed-form results from queueing theory, not estimates: Little's Law, M/M/1, Erlang C, Pollaczek-Khinchine, Amdahl and the universal scalability law are all textbook. Every table is the formula evaluated, so you can check the arithmetic. What matters more than the formula is whether its assumptions hold, which is why the Kingman approximation and measuring the coefficient come first.</p>
+
+<h2>Closing</h2>
+
+<p>Three things worth taking away.</p>
+
+<p><strong>Utilisation amplifies latency, nonlinearly.</strong> Seventy percent means 3.3 times and ninety percent means ten times. That curve explains most "why is it slow" questions: not slow code, slow queueing.</p>
+
+<p><strong>Variance matters as much as the mean.</strong> Two services with identical average latency differ fivefold in queue length when the coefficient goes from one to three. Reducing variance is multiplicative, through isolating batch work, eliminating collection pauses and cutting long-tail queries; reducing the mean is additive.</p>
+
+<p><strong>Adding machines has a ceiling.</strong> Amdahl caps it at the serial share, the universal scalability law caps it at coherency cost, and past the optimum more machines make the system slower. At that point the answer is architecture, not capacity.</p>
+
+<p>Which brings the incident back. Four machines to eight, and p99 up 44%. Now there is a way to diagnose it: check whether the bottleneck moved to a shared resource, look at the maximum rather than the average utilisation, and compute whether beta is already large enough to make scaling counterproductive.</p>
+
+<p>Do not solve problems by adding machines. Do the arithmetic, then decide whether to add any.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
