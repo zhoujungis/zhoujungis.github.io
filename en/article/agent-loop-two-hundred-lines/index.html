@@ -1,0 +1,1383 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Strip the vocabulary off an agent and one loop remains: send messages, get text or tool calls, run the tools, append the results, send again. Five decisions, four variables and three gates, read line by line." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/agent-loop-two-hundred-lines/" />
+    <meta property="og:title" content="The agent loop: two hundred lines is all of it | Stack Frame" />
+    <meta property="og:description" content="Strip the vocabulary off an agent and one loop remains: send messages, get text or tool calls, run the tools, append the results, send again. Five decisions, four variables and three gates, read line by line." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/agent-loop-two-hundred-lines/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The agent loop: two hundred lines is all of it | Stack Frame" />
+    <meta name="twitter:description" content="Strip the vocabulary off an agent and one loop remains: send messages, get text or tool calls, run the tools, append the results, send again. Five decisions, four variables and three gates, read line by line." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>The agent loop: two hundred lines is all of it | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DmGZhFwF.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/agent-loop-two-hundred-lines/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>The agent loop: two hundred lines is all of it</h1><div class="ns-meta">2026-10-22 · 34 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: engineers who have written application code and want to build a coding agent themselves; people dizzy from the vocabulary of planning, memory and multi-agent systems who want to see the runtime skeleton; people about to read the NanoHermes source and unsure which function to start with.</p>
+<p><strong>TL;DR:</strong> strip every noun off an agent and a loop is what is left. Send messages to the model; the model answers with text or with tool calls; run the tools, push the results back into the message list, send again. NanoHermes' <code>Agent::run</code> is 109 lines, and with <code>complete</code>, <code>execute</code>, <code>assistant_message</code> and <code>compact</code> counted in, the core is about two hundred. Those two hundred lines hold five decisions, four variables and three gates.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Why the first post is about the loop</li>
+<li>One sentence: an agent is a model, tools and a loop</li>
+<li>Strip the vocabulary and five elements remain</li>
+<li>The full timeline of one user turn</li>
+<li>The skeleton: a 109-line <code>Agent::run</code></li>
+<li>The four variables in the loop</li>
+<li>Step one: retrieve memory, then push the user message</li>
+<li>The system prompt: short by design</li>
+<li>Step two: assemble the tool list</li>
+<li>Step three: one model request</li>
+<li>Every field in the request body answers a question</li>
+<li>Retries and fallback: five errors that count</li>
+<li>Streaming: reading SSE line by line</li>
+<li>Tool calls are assembled, not read</li>
+<li><code>assistant_message</code>: why empty content becomes null</li>
+<li>Step four: execute the tools</li>
+<li>Three gates: permission, arguments, hooks</li>
+<li>Tool results are always strings</li>
+<li>Feeding results back: <code>tool_call_id</code> is the anchor</li>
+<li>Step five: where the loop exits</li>
+<li>Concurrent tool calls: scoped threads, ordered collection</li>
+<li>Interrupt: Ctrl-C only lands at a step boundary</li>
+<li>The iteration cap: what 40 actually counts</li>
+<li>Compaction: 120,000 characters and the last ten</li>
+<li>Session persistence</li>
+<li>Memory distillation</li>
+<li>The token ledger: why it reports deltas</li>
+<li>The boundary of two hundred lines</li>
+<li>Ten implementation traps</li>
+<li>Closing, and the rest of the series</li>
+</ul>
+
+<h2>Why the first post is about the loop</h2>
+
+<p>No field is as rich in nouns as agents.</p>
+
+<p>Planning, reflection, memory, retrieval, tool use, multi-agent collaboration, task decomposition, self-correction. Each one can support its own article, and behind each one sits a stack of papers and frameworks. A newcomer easily concludes that an agent is a complicated system, and that the right move is to pick a framework and fill in configuration.</p>
+
+<p>But pause an agent process at a random moment and look at what it is doing. The answer is usually humiliatingly plain: <strong>it is waiting on an HTTP response, or it is running a shell command.</strong></p>
+
+<p>The model is stateless. It doesn't remember what was said last turn and doesn't know which tool it just called. What people call multi-turn conversation is the client resending the entire history every turn. What people call tool calling is the model emitting JSON, the client executing it, and the result going back as the next message. All the magic happens inside that send, receive, execute, send again loop.</p>
+
+<p>NanoHermes does this out in the open. <code>Agent::run</code> in <code>agent/src/agent.rs</code> is 109 lines from <code>pub fn run</code> to the closing brace, comments and blank lines included. Add the functions it calls directly, <code>complete</code>, <code>execute</code>, <code>assistant_message</code> and <code>compact</code>, strip comments and blank lines, and the core is about two hundred lines.</p>
+
+<p>Those two hundred lines contain no async runtime, no state machine generator and no middleware pipeline. There are five decisions, four variables, three gates and one <code>for</code> loop.</p>
+
+<p>The series starts there for a simple reason: <strong>context, memory, tools, concurrency, security, multi-agent setups and observability all hang off this loop.</strong> Miss the loop and every later post becomes vocabulary recitation.</p>
+
+<h2>One sentence: an agent is a model, tools and a loop</h2>
+
+<p>Compress the definition as far as it goes:</p>
+
+<blockquote>
+<p>An agent is a loop. Send messages and a tool list to the model. The model returns text or tool calls. If there are tool calls, execute them, append the results to the message list, and send again. Stop when the model stops calling tools.</p>
+</blockquote>
+
+<p>Three parts, none optional.</p>
+
+<table>
+<thead><tr><th>Part</th><th>Job</th><th>Without it</th></tr></thead>
+<tbody>
+<tr><td>Model</td><td>Reads messages, decides the next step, emits text or tool calls</td><td>No source of decisions, only a script following fixed rules</td></tr>
+<tr><td>Tools</td><td>Actually read files, change code, run commands, fetch pages</td><td>The model can talk but not act, and output stops at the chat box</td></tr>
+<tr><td>Loop</td><td>Turns model output into actions and action results into model input</td><td>One question and answer, no multi-step task</td></tr>
+</tbody>
+</table>
+
+<p>People hear "tool" and think of a plugin marketplace. The minimal definition is narrower: <strong>a function with a name, a JSON Schema, and the ability to be called by name</strong>. It can be <code>read_file</code>, an HTTP request, or another agent. The model never needs to know how a tool works inside, only what it is called, what the arguments look like and what comes back.</p>
+
+<p>The loop knows as little about reasoning. It does four things: assemble messages, send the request, execute calls, decide whether to continue. Write those four cleanly and an agent exists.</p>
+
+<h2>Strip the vocabulary and five elements remain</h2>
+
+<p>Set planning, memory and RAG aside for a moment. A minimal working agent needs five things.</p>
+
+<table>
+<thead><tr><th>Element</th><th>In NanoHermes</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>Message list</td><td><code>Vec&lt;Value&gt;</code> in OpenAI <code>messages</code> format</td><td><code>Agent.messages</code></td></tr>
+<tr><td>Tool declarations</td><td>Nineteen built-ins plus skills, MCP and sub-agents</td><td><code>tools::specs()</code>, <code>Agent::build_tools</code></td></tr>
+<tr><td>One model call</td><td>Blocking HTTP, optional SSE streaming</td><td><code>llm::chat</code></td></tr>
+<tr><td>One tool execution</td><td>Permission check, argument parsing, hooks, dispatch</td><td><code>Agent::execute</code></td></tr>
+<tr><td>Termination</td><td>No more tool calls, interrupted, or the iteration cap</td><td>The three exits of <code>Agent::run</code></td></tr>
+</tbody>
+</table>
+
+<p>The part people get wrong is not how to send HTTP. It is <strong>managing the state of the message list</strong>.</p>
+
+<p>The model is stateless but strict about message shape: an assistant message carrying <code>tool_calls</code> must be followed by a <code>tool</code> message for every call, with matching <code>tool_call_id</code> values. One missing, one extra, or a wrong order and the API rejects the request. So the loop is really a state machine whose job is to leave history as a legal message sequence after every turn.</p>
+
+<p>Everything downstream, the interrupt at step boundaries, errors turned into results, concurrent execution with ordered write-back, exists to hold that invariant.</p>
+
+<h2>The full timeline of one user turn</h2>
+
+<p>Before the code, follow one real turn. The user says: change the install command in the README to pnpm.</p>
+
+<table>
+<thead><tr><th>Step</th><th>Action</th><th>Where</th><th>On failure</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Retrieve long-term memory for the current instruction and replace the injected block in the system message</td><td><code>memory::retrieve_block</code>, <code>set_memory_block</code></td><td>Skipped silently, no effect on the turn</td></tr>
+<tr><td>2</td><td>Append the user message to <code>messages</code></td><td><code>Agent::run</code></td><td>Cannot fail</td></tr>
+<tr><td>3</td><td>Check the interrupt flag</td><td><code>interrupt::take()</code></td><td>Exits the loop</td></tr>
+<tr><td>4</td><td>Send one model request</td><td><code>complete</code> then <code>llm::chat</code></td><td>Returns <code>Err</code>, the turn aborts</td></tr>
+<tr><td>5</td><td>Accumulate token usage</td><td><code>UsageTotals</code></td><td>Cannot fail</td></tr>
+<tr><td>6</td><td>Append the assistant message</td><td><code>assistant_message</code></td><td>Cannot fail</td></tr>
+<tr><td>7</td><td>No tool calls? Finish</td><td><code>turn.tool_calls.is_empty()</code></td><td>Returns normally</td></tr>
+<tr><td>8</td><td>Tool calls? Run them concurrently</td><td><code>execute</code> and <code>thread::scope</code></td><td>Each tool's error becomes a string</td></tr>
+<tr><td>9</td><td>Append each result as <code>role=tool</code></td><td>Paired by <code>tool_call_id</code></td><td>Cannot fail</td></tr>
+<tr><td>10</td><td>Check the context budget and compact if needed</td><td><code>compact</code></td><td>A failed summary degrades to a truncation note</td></tr>
+<tr><td>11</td><td>Back to step 3</td><td>The <code>for</code> loop</td><td>At most <code>max_iterations</code> times</td></tr>
+</tbody>
+</table>
+
+<p>That table is worth a second look, because it exposes four design choices.</p>
+
+<ul>
+<li><strong>Memory retrieval happens before the user message enters history.</strong> The query is this turn's input, not last turn's residue.</li>
+<li><strong>The interrupt check sits at the top of the loop.</strong> It never fires mid-tool. It fires in the gap where the previous turn has fully closed and the next one has not started.</li>
+<li><strong>Execution and write-back are separate steps.</strong> All tools run concurrently first, then results are appended in call order, so what the model sees is always in the order it asked for.</li>
+<li><strong>Compaction runs after results are appended.</strong> It operates on a complete turn, so it can never split an assistant tool call from its result.</li>
+</ul>
+
+<h2>The skeleton: a 109-line Agent::run</h2>
+
+<p>Strip the UI output, memory distillation and persistence, and the loop looks like this.</p>
+
+<pre><code>pub fn run(&amp;mut self, content: Value) -&gt; Result&lt;String, String&gt; {
+    let _guard = InterruptGuard::new();
+
+    let user_text = memory::content_text(&amp;content);
+    if let Some(dir) = self.ctx.memory_dir.clone() {
+        let block = memory::retrieve_block(&amp;dir, &amp;user_text);
+        self.set_memory_block(&amp;block);
+    }
+    self.messages.push(json!({ "role": "user", "content": content }));
+
+    let mut completed = false;
+    let mut interrupted = false;
+    let mut had_tools = false;
+    let mut final_text = String::new();
+
+    for _ in 0..self.cfg.max_iterations {
+        if crate::interrupt::take() {
+            interrupted = true;
+            break;
+        }
+
+        let turn = self.complete()?;
+        self.usage.requests += 1;
+        self.usage.prompt_tokens += turn.usage.prompt_tokens;
+        self.usage.completion_tokens += turn.usage.completion_tokens;
+
+        final_text = turn.content.clone();
+        self.messages.push(assistant_message(&amp;turn));
+
+        if turn.tool_calls.is_empty() {
+            completed = true;
+            break;
+        }
+        had_tools = true;
+
+        let results = self.run_tool_calls(&amp;turn.tool_calls);
+        for (call, result) in turn.tool_calls.iter().zip(results) {
+            self.messages.push(json!({
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": result,
+            }));
+        }
+        self.compact();
+    }
+
+    if interrupted {
+        self.style.warn("interrupted — the conversation was kept");
+    } else if !completed {
+        self.style.warn(&amp;format!(
+            "reached the {} iteration limit without finishing",
+            self.cfg.max_iterations
+        ));
+    }
+
+    self.persist();
+    Ok(final_text)
+}
+</code></pre>
+
+<p>Two merges were made for length here: concurrent execution is folded into <code>run_tool_calls</code>, and UI output is dropped. In the original, concurrency is an inline <code>std::thread::scope</code>, covered further down.</p>
+
+<p>Even so the skeleton is complete. There is no planning phase and no reflection phase. If the model wants to plan, it calls <code>todo_write</code>. If it wants to reflect, it sees the tool results next turn and changes its mind. <strong>Planning is not a phase of the loop. It is something the model does inside the loop.</strong></p>
+
+<p>That is the first hurdle in understanding agents: don't hard-code a human workflow into stages. The loop supplies the rhythm of act and observe. What to do is the model's decision.</p>
+
+<h2>The four variables in the loop</h2>
+
+<p><code>run</code> declares four mutable variables, each answering a different question.</p>
+
+<table>
+<thead><tr><th>Variable</th><th>Type</th><th>Question</th><th>Who sets it</th></tr></thead>
+<tbody>
+<tr><td><code>completed</code></td><td><code>bool</code></td><td>Did the model stop calling tools on its own?</td><td><code>turn.tool_calls.is_empty()</code></td></tr>
+<tr><td><code>interrupted</code></td><td><code>bool</code></td><td>Did the user press Ctrl-C?</td><td><code>interrupt::take()</code> at the top</td></tr>
+<tr><td><code>had_tools</code></td><td><code>bool</code></td><td>Did this turn actually run any tools?</td><td>Set on the first pass through the tool branch</td></tr>
+<tr><td><code>final_text</code></td><td><code>String</code></td><td>What was the last assistant text?</td><td>Overwritten after every model response</td></tr>
+</tbody>
+</table>
+
+<p>The first three decide how the turn closes. The fourth decides what <code>run</code> returns.</p>
+
+<p><code>final_text</code> has an easy-to-miss detail: it is overwritten every turn, not only at the end. So if the loop exits on the iteration cap, what comes back is <strong>the text from the last model response</strong>, which may be "I'll continue with the next edit" or may be empty. An empty string is a normal return value, not an error.</p>
+
+<p><code>had_tools</code> serves exactly one side channel: whether it is worth distilling long-term memory afterwards. A turn of pure pleasantries ran no tools and is not worth another model request to summarize. Only turns that did work enter distillation. The variable plays no part in controlling the loop, but it is the gate on the memory feature.</p>
+
+<p>The precedence between <code>interrupted</code> and <code>completed</code> also deserves a note: interrupt wins. If the user presses Ctrl-C after the last tool finishes, the top of the loop sees it, sets <code>interrupted</code>, and takes the interrupt branch even though the model would have finished next turn. That matches intuition. The user said stop.</p>
+
+<h2>Step one: retrieve memory, then push the user message</h2>
+
+<p>Before the loop starts, <code>run</code> does two things: retrieve long-term memory, and append the user message.</p>
+
+<p>The order matters. The query is <code>memory::content_text(&amp;content)</code>, the plain text of this turn's input. A multimodal message is reduced to its text parts, so images never take part in retrieval. Then <code>retrieve_block</code> returns a formatted memory block and <code>set_memory_block</code> writes it into the system message.</p>
+
+<pre><code>fn set_memory_block(&amp;mut self, block: &amp;str) {
+    if let Some(system) = self.messages.first_mut() {
+        if system.get("role").and_then(|r| r.as_str()) == Some("system") {
+            if let Some(text) = system.get("content").and_then(|c| c.as_str()) {
+                let updated = memory::set_block(text, block);
+                system["content"] = json!(updated);
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>The point of that code is not writing. It is replacing.</p>
+
+<p>The system message contains a marked memory block. Each retrieval replaces it rather than appending. The reason is practical: append and turn two injects once more, turn three again, and the system prompt grows linearly until it eats the context budget. Replacing by marker keeps the block sized by the retrieval result, independent of how long the conversation has run.</p>
+
+<p>An empty block means delete. If nothing relevant is retrieved this turn, <code>set_block</code> clears the old block instead of leaving last turn's residue. That is what "retrieve for the current instruction" means in practice: memory follows the task, not the session.</p>
+
+<p>When <code>memory_dir</code> is <code>None</code> the whole feature is off, and the tool layer stops offering <code>memory_save</code> and <code>memory_search</code>. The declarations are still there; calls return "long-term memory is disabled". This is the subject of the third post. For now the one thing to remember: <strong>memory is a hook in front of the loop, not part of the loop.</strong></p>
+
+<h2>The system prompt: short by design</h2>
+
+<p><code>run</code> doesn't build the system prompt; <code>prompt::system_prompt</code> does. But its shape drives the cost of every turn, so it belongs here.</p>
+
+<p>The base prompt in NanoHermes is short: identity, tool rules, workspace path.</p>
+
+<pre><code>pub fn system_prompt(cfg: &amp;Config) -&gt; String {
+    let mut out = format!(
+        r#"You are NanoHermes, a lightweight terminal coding agent working inside the user's workspace.
+
+You help with software engineering tasks: reading and understanding code, editing files,
+running commands, searching the codebase, and answering questions about the project.
+
+Operating rules:
+- You have tools. Use them to inspect the code instead of guessing about file contents or command output.
+- Always read a file before editing it. Never rewrite a file you have not read.
+- Prefer targeted edits (edit_file) over whole-file rewrites; keep changes minimal and focused.
+- Do not add features, refactors, or "improvements" beyond what the user asked for.
+- Prefer non-interactive commands (pass auto-confirm flags) since this terminal has no TTY.
+- Briefly explain what you are doing, then act. Do not over-narrate.
+- After each tool result, decide the next step. When the task is complete, reply with a
+  concise summary and stop calling tools.
+
+Workspace root: {root}
+"#,
+        root = cfg.workspace.display()
+    );
+    // Permission mode note, persona and AGENTS.md are appended in order
+    ...
+}
+</code></pre>
+
+<p>There is no "you are a senior engineer" and no "first make a plan". That is deliberate, for three reasons.</p>
+
+<p><strong>First, the prompt is resent every turn.</strong> The system message leads every request. A 2,000 token base prompt across 20 turns is 40,000 tokens of input, billed again each time. The longer the prompt, the higher the marginal cost of the loop.</p>
+
+<p><strong>Second, a long prompt dilutes the tool rules.</strong> Attention over context is not uniform. Burying "read before you edit" behind three thousand words of persona works worse than putting it in the first ten lines. NanoHermes keeps the six most important rules right after the identity block so they stay visible.</p>
+
+<p><strong>Third, project conventions belong to the project.</strong> "This repo uses pnpm" and "run cargo fmt before committing" should not be hard-coded into the agent. They belong in <code>AGENTS.md</code>. NanoHermes walks from the filesystem root down to the workspace, concatenates each level's <code>AGENTS.md</code>, and ends with the most specific one last, which creates a natural priority order.</p>
+
+<p>The five sources of the system message form a table.</p>
+
+<table>
+<thead><tr><th>Source</th><th>Content</th><th>Cap or condition</th></tr></thead>
+<tbody>
+<tr><td>Built-in prompt</td><td>Identity, six operating rules, workspace path</td><td>Fixed, about 30 lines</td></tr>
+<tr><td>Permission mode note</td><td>One line of constraint per mode</td><td>Only when not Default or AcceptEdits</td></tr>
+<tr><td>User persona</td><td>Extra instructions from the <code>system_prompt</code> setting</td><td>Appended only when non-empty, never replacing base rules</td></tr>
+<tr><td><code>AGENTS.md</code></td><td>Global <code>~/.nanohermes/AGENTS.md</code> plus every ancestor directory</td><td>20,000 characters in total</td></tr>
+<tr><td><code>NANOHERMES.md</code></td><td>Project context at the workspace root</td><td>Appended only when non-empty</td></tr>
+<tr><td>Skill list</td><td>Name and one-line description per skill</td><td>Appended only when skills were discovered</td></tr>
+</tbody>
+</table>
+
+<p>The last two rows are not in <code>prompt.rs</code>. <code>NANOHERMES.md</code> and the skill list are appended by <code>system_content</code> in <code>agent.rs</code>. The split follows a rule: whoever discovers the thing injects it. Project files belong to the workspace, skills belong to the runtime.</p>
+
+<p>One more detail: <code>AGENTS.md</code> files are deduplicated by <code>canonicalize</code>. The same file reached through a symlink or a second path is read once. If the joined text runs long it is truncated at a character boundary and a line reading <code>project guidance truncated</code> is appended. None of that is complicated, and together they guarantee the prompt cannot be blown up by a giant document sitting in the repository.</p>
+
+<h2>Step two: assemble the tool list</h2>
+
+<p>The model cannot know which tools exist unless each request declares them. A declaration is a JSON Schema, and the model uses it to choose a tool and shape the arguments.</p>
+
+<p>NanoHermes builds the list from four sources.</p>
+
+<table>
+<thead><tr><th>Source</th><th>Content</th><th>Included when</th></tr></thead>
+<tbody>
+<tr><td>Built-in tools</td><td>File read and write, patch, directories, grep, glob, shell, background tasks, web, todo, git, memory</td><td>Always</td></tr>
+<tr><td><code>skill</code></td><td>Loads a skill's full instructions by name</td><td>A skill was discovered in the workspace</td></tr>
+<tr><td>MCP tools</td><td>Everything each MCP server exposes</td><td>An MCP server is configured</td></tr>
+<tr><td>MCP helpers</td><td><code>mcp_list_resources</code>, <code>mcp_read_resource</code>, <code>mcp_list_prompts</code>, <code>mcp_get_prompt</code></td><td>An MCP server is configured</td></tr>
+<tr><td>Sub-agents</td><td><code>subagent</code>, <code>agent_list</code></td><td>Sub-agent definitions are configured</td></tr>
+</tbody>
+</table>
+
+<p>Then comes a filter.</p>
+
+<pre><code>fn build_tools(&amp;self) -&gt; Value {
+    let mut list = tools::specs().as_array().cloned().unwrap_or_default();
+    if !self.ctx.skills.is_empty() {
+        list.push(skill_tool_spec());
+    }
+    if let Some(m) = &amp;self.mcp {
+        list.extend(m.all_tools());
+        list.extend(mcp_aux_tools());
+    }
+    list.retain(|t| {
+        let name = t.get("function")
+            .and_then(|f| f.get("name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("");
+        self.cfg.check_tool(name).is_ok()
+    });
+    if !self.cfg.subagents.is_empty() {
+        list.push(subagent_tool_spec());
+        list.push(agent_list_tool_spec());
+    }
+    Value::Array(list)
+}
+</code></pre>
+
+<p><code>check_tool</code> applies three rules, highest priority first.</p>
+
+<ol>
+<li><strong>Permission mode block.</strong> Plan mode blocks every write and <code>run_command</code>. Debug mode blocks writes but allows commands.</li>
+<li><strong>Deny list.</strong> A denied tool can never run.</li>
+<li><strong>Allow list.</strong> Once an allow list is configured, only the tools on it can run.</li>
+</ol>
+
+<table>
+<thead><tr><th>Mode</th><th>Blocked</th><th>Intended use</th></tr></thead>
+<tbody>
+<tr><td>Default</td><td>None</td><td>Everyday use, with <code>auto_approve</code> deciding whether shell needs confirmation</td></tr>
+<tr><td>AcceptEdits</td><td>None, but shell always confirms</td><td>File edits without prompts, commands still gated</td></tr>
+<tr><td>Plan</td><td><code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code>, <code>run_command</code>, <code>git_commit</code></td><td>Read-only analysis, producing a plan</td></tr>
+<tr><td>Goal</td><td>None, and never confirms</td><td>Unattended runs toward a completion goal</td></tr>
+<tr><td>Debug</td><td><code>write_file</code>, <code>edit_file</code>, <code>apply_patch</code>, <code>git_commit</code></td><td>Reproduce a problem without changing the scene</td></tr>
+</tbody>
+</table>
+
+<p>There is one asymmetry worth noting: <code>subagent</code> and <code>agent_list</code> are appended after <code>retain</code>, so they never pass through <code>check_tool</code> when the list is built. They do pass through it at execution, so safety is unaffected. The declaration is advertising; execution is the gate. That is the design principle: <strong>declare broadly, execute strictly.</strong></p>
+
+<p>Order matters too. All else equal, models favor the tools they see first. NanoHermes puts file read, write, search and shell at the front, and memory, git and background tasks later. That isn't superstition, it is reducing the model's choice cost across a long list.</p>
+
+<h2>Step three: one model request</h2>
+
+<p><code>complete</code> is one of the shortest functions in the loop. It fetches the tool list and picks a callback based on the output format.</p>
+
+<pre><code>fn complete(&amp;self) -&gt; Result&lt;AssistantTurn, String&gt; {
+    let style = self.style.clone();
+    let tools = self.build_tools();
+    match self.cfg.output_format {
+        OutputFormat::StreamJson =&gt; {
+            llm::chat(&amp;self.cfg, &amp;self.messages, &amp;tools, |delta| {
+                if !delta.is_empty() {
+                    println!("{}", json!({ "delta": delta }));
+                }
+            })
+        }
+        _ =&gt; llm::chat(&amp;self.cfg, &amp;self.messages, &amp;tools, |delta| {
+            style.stream(delta)
+        }),
+    }
+}
+</code></pre>
+
+<p>The output format forks here. Plain text hands each delta to the terminal renderer. <code>stream-json</code> wraps each delta in a JSON object on stdout for pipelines. The HTTP request is identical; only the handling of an arriving delta differs.</p>
+
+<p>The real work is in <code>llm::chat</code>: build the body, handle retries, choose streaming or not, and ultimately return one <code>AssistantTurn</code>.</p>
+
+<pre><code>pub struct AssistantTurn {
+    pub content: String,
+    pub tool_calls: Vec&lt;ToolCall&gt;,
+    pub usage: Usage,
+}
+</code></pre>
+
+<p>That struct is the loop's input. <code>content</code> is what the model said, <code>tool_calls</code> is what it wants to do, <code>usage</code> is what it cost. The loop cares about the first two and books the third.</p>
+
+<h2>Every field in the request body answers a question</h2>
+
+<p><code>build_body</code> is short, and every field maps to a real constraint.</p>
+
+<table>
+<thead><tr><th>Field</th><th>Value</th><th>Question it answers</th></tr></thead>
+<tbody>
+<tr><td><code>model</code></td><td>Current config or fallback</td><td>Which model</td></tr>
+<tr><td><code>messages</code></td><td>The full history</td><td>What the model needs to see</td></tr>
+<tr><td><code>temperature</code></td><td><code>0.0</code> by default</td><td>How much randomness</td></tr>
+<tr><td><code>max_tokens</code></td><td><code>4096</code> by default</td><td>How long one response may be</td></tr>
+<tr><td><code>stream</code></td><td><code>true</code> by default</td><td>Show text as it arrives</td></tr>
+<tr><td><code>tools</code></td><td>The declaration array</td><td>What the model may call</td></tr>
+<tr><td><code>tool_choice</code></td><td><code>"auto"</code></td><td>Let the model decide whether to call</td></tr>
+<tr><td><code>reasoning_effort</code></td><td><code>"high"</code></td><td>Whether to enable extended thinking</td></tr>
+<tr><td><code>stream_options</code></td><td><code>{"include_usage": true}</code></td><td>Whether streamed responses report usage</td></tr>
+</tbody>
+</table>
+
+<pre><code>let build_body = |model: &amp;str| {
+    let mut body = json!({
+        "model": model,
+        "messages": messages,
+        "temperature": cfg.temperature,
+        "max_tokens": cfg.max_tokens,
+        "stream": cfg.stream,
+    });
+    if has_tools {
+        body["tools"] = tools.clone();
+        body["tool_choice"] = "auto".into();
+    }
+    if cfg.thinking {
+        body["reasoning_effort"] = "high".into();
+    }
+    if cfg.stream {
+        body["stream_options"] = json!({ "include_usage": true });
+    }
+    body
+};
+</code></pre>
+
+<p>Several choices deserve explanation.</p>
+
+<p><strong><code>temperature</code> defaults to 0.0.</strong> A coding agent is not creative writing. Code edits need to be reproducible. Higher temperature makes the diff from the same context more random and debugging more expensive. NanoHermes sets zero and raises it through configuration when divergence is wanted.</p>
+
+<p><strong><code>max_tokens</code> defaults to 4096.</strong> That is not the model's ceiling, it is the per-response budget. Tool calls are short, and 4096 comfortably holds one explanation plus several calls. A larger value tempts the model into long replies, which slows the loop.</p>
+
+<p><strong><code>tool_choice</code> only appears when tools exist.</strong> Sending <code>"auto"</code> with no tools makes some APIs error out. The <code>has_tools</code> boolean exists to prevent that.</p>
+
+<p><strong><code>stream_options.include_usage</code> is where streamed usage comes from.</strong> An SSE stream does not carry usage at the end unless you ask. NanoHermes needs it to keep books without a non-streaming response.</p>
+
+<p><strong>There is no <code>top_p</code>, <code>seed</code> or <code>presence_penalty</code>.</strong> Not because they are useless, but because the payoff for a coding agent is tiny and the compatibility risk is not. OpenAI-compatible layers support these fields unevenly, and every field left out is one fewer "this vendor rejects it" failure.</p>
+
+<h2>Retries and fallback: five errors that count</h2>
+
+<p>Requests fail. The loop cannot collapse because of one 429, so <code>llm::chat</code> wraps a retry loop.</p>
+
+<pre><code>let mut attempt: u32 = 0;
+loop {
+    match chat_with_model(cfg, build_body(&amp;cfg.model), &amp;mut on_text) {
+        Ok(turn) =&gt; return Ok(turn),
+        Err(e) =&gt; {
+            if is_retryable_error(&amp;e) &amp;&amp; attempt &lt; cfg.max_retries {
+                attempt += 1;
+                let delay = backoff_ms(cfg.retry_base_ms, attempt);
+                eprintln!("note: retrying in {delay}ms (attempt {attempt}/{})", cfg.max_retries);
+                std::thread::sleep(Duration::from_millis(delay));
+                continue;
+            }
+            if let Some(fallback) = &amp;cfg.fallback_model {
+                if is_retryable_error(&amp;e) {
+                    return chat_with_model(cfg, build_body(fallback), &amp;mut on_text);
+                }
+            }
+            return Err(e);
+        }
+    }
+}
+</code></pre>
+
+<p><code>is_retryable_error</code> is honest about how crude it is: the error string contains <code>HTTP 429</code>, <code>HTTP 500</code>, <code>HTTP 502</code>, <code>HTTP 503</code> or <code>HTTP 504</code>.</p>
+
+<table>
+<thead><tr><th>Error</th><th>Retry</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>HTTP 429</td><td>Yes</td><td>Rate limited, waiting may help</td></tr>
+<tr><td>HTTP 500</td><td>Yes</td><td>Server-side fault, possibly transient</td></tr>
+<tr><td>HTTP 502, 503, 504</td><td>Yes</td><td>Gateway or upstream temporarily unavailable</td></tr>
+<tr><td>HTTP 400, 401, 403</td><td>No</td><td>Request shape, authentication or permission; retrying changes nothing</td></tr>
+<tr><td>JSON parse failure</td><td>No</td><td>The response shape is wrong and will likely stay wrong</td></tr>
+<tr><td>Connection timeout</td><td>No</td><td>The error string does not match, so it fails outright</td></tr>
+</tbody>
+</table>
+
+<p>Backoff is <code>base * 2^(attempt-1)</code> capped at 30 seconds. With <code>base = 500ms</code> and <code>max_retries = 2</code>, that is waits of 500 ms and 1000 ms, 1.5 seconds in total. The right order of magnitude for an interactive CLI, where a user is sitting there waiting.</p>
+
+<pre><code>fn backoff_ms(base_ms: u64, attempt: u32) -&gt; u64 {
+    base_ms
+        .saturating_mul(2u64.saturating_pow(attempt.saturating_sub(1)))
+        .min(30_000)
+}
+</code></pre>
+
+<p>Once retries are exhausted, a configured <code>fallback_model</code> gets one try. Not a retry loop, one try. The fallback exists so work continues when the primary is rate limited, not so the process lives forever.</p>
+
+<p>One cost is honest but easy to overlook: <strong>a streaming request that fails after emitting text will emit that text again on retry</strong>, so the interface can show duplicates. NanoHermes does no incremental deduplication, because almost every retryable error occurs while connecting or on the first frame. Mid-stream drops are rare enough that the deduplication logic is not worth its complexity. Knowing the boundary beats pretending it isn't there.</p>
+
+<h2>Streaming: reading SSE line by line</h2>
+
+<p>A streamed response is <code>text/event-stream</code>, one <code>data: {...}</code> per line. NanoHermes pulls in no SSE library and reads with <code>BufReader::lines()</code>.</p>
+
+<pre><code>fn read_stream(resp: ureq::Response, on_text: &amp;mut impl FnMut(&amp;str))
+    -&gt; Result&lt;AssistantTurn, String&gt;
+{
+    let mut turn = AssistantTurn::default();
+    let reader = BufReader::new(resp.into_reader());
+
+    for l in reader.lines() {
+        let l = match l {
+            Ok(l) =&gt; l,
+            Err(e) =&gt; return Err(format!("stream read error: {e}")),
+        };
+        let l = l.trim_end_matches(['', '
+']);
+        if l.is_empty() || l.starts_with(':') {
+            continue;
+        }
+        let data = match l.strip_prefix("data:") {
+            Some(d) =&gt; d.trim(),
+            None =&gt; continue,
+        };
+        if data == "[DONE]" {
+            break;
+        }
+        let v: Value = match serde_json::from_str(data) {
+            Ok(v) =&gt; v,
+            Err(_) =&gt; continue,
+        };
+        if let Some(err) = v.get("error") {
+            return Err(format!("API error: {err}"));
+        }
+        if v.get("usage").is_some() {
+            turn.usage = usage_from_value(&amp;v);
+        }
+        let Some(delta) = v.get("choices").and_then(|c| c.get(0))
+            .and_then(|c| c.get("delta")) else { continue };
+        if let Some(text) = delta.get("content").and_then(|c| c.as_str()) {
+            if !text.is_empty() {
+                turn.content.push_str(text);
+                on_text(text);
+            }
+        }
+        accumulate_tool_calls(delta.get("tool_calls"), &amp;mut turn.tool_calls);
+    }
+    Ok(turn)
+}
+</code></pre>
+
+<p>That handles six kinds of frame.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Handling</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Blank line</td><td>Skip</td><td>SSE separates events with blank lines</td></tr>
+<tr><td>Starts with <code>:</code></td><td>Skip</td><td>Comment or keep-alive</td></tr>
+<tr><td><code>data: [DONE]</code></td><td>End the loop</td><td>The stream terminator</td></tr>
+<tr><td><code>data: {...}</code> with <code>error</code></td><td>Return <code>Err</code></td><td>The server reported an error inside the stream</td></tr>
+<tr><td><code>data: {...}</code> with <code>usage</code></td><td>Update usage</td><td>Streamed usage arrives in its own final frame</td></tr>
+<tr><td><code>data: {...}</code> with <code>delta</code></td><td>Accumulate text and tool calls</td><td>Normal increment</td></tr>
+<tr><td>Unparseable JSON</td><td>Skip</td><td>Tolerates half frames and vendor extensions</td></tr>
+</tbody>
+</table>
+
+<p>Skipping unparseable frames looks dangerous and is a necessary compromise. Network framing does not guarantee that every read lands on a complete JSON object. <code>lines()</code> already splits by line, but some vendors put non-standard fields inside <code>data:</code>. Skipping a bad frame is cheaper than failing the turn. Real errors surface through the <code>error</code> field or the HTTP status, not only inside a bad frame.</p>
+
+<p>The non-streaming path, <code>read_json</code>, is simpler: parse the body, take <code>choices[0].message</code>, read <code>content</code>, <code>tool_calls</code> and <code>usage</code>. If there is no <code>choices</code> at all, it returns an error containing a truncated response body, so you can see what the compatibility layer actually sent.</p>
+
+<h2>Tool calls are assembled, not read</h2>
+
+<p>In a non-streamed response, <code>tool_calls</code> is a complete array. In a streamed one it is not.</p>
+
+<p>OpenAI streams tool calls as <strong>increments</strong>. Each delta carries an <code>index</code> saying which call it belongs to. <code>id</code> and <code>function.name</code> usually appear only in the first frame. <code>function.arguments</code> arrives as string fragments that must be appended in order.</p>
+
+<pre><code>fn accumulate_tool_calls(tcs: Option&lt;&amp;Value&gt;, out: &amp;mut Vec&lt;ToolCall&gt;) {
+    let Some(arr) = tcs.and_then(|t| t.as_array()) else { return };
+    for tc in arr {
+        let idx = tc.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
+        if out.len() &lt;= idx {
+            out.resize(idx + 1, ToolCall::default());
+        }
+        let slot = &amp;mut out[idx];
+        if let Some(id) = tc.get("id").and_then(|i| i.as_str()) {
+            if !id.is_empty() {
+                slot.id = id.to_string();
+            }
+        }
+        if let Some(f) = tc.get("function") {
+            if let Some(name) = f.get("name").and_then(|n| n.as_str()) {
+                if !name.is_empty() {
+                    slot.name = name.to_string();
+                }
+            }
+            if let Some(args) = f.get("arguments").and_then(|a| a.as_str()) {
+                slot.arguments.push_str(args);
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>If the model wants to read two files at once, the stream can look like this.</p>
+
+<table>
+<thead><tr><th>Frame</th><th><code>index</code></th><th>Content</th><th>Accumulated</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td><code>id=call_a, name=read_file</code></td><td>Slot 0: name in place, arguments empty</td></tr>
+<tr><td>2</td><td>0</td><td><code>arguments={"path":"a</code></td><td>Slot 0: first half of the argument string</td></tr>
+<tr><td>3</td><td>0</td><td><code>.rs"}</code></td><td>Slot 0: arguments complete</td></tr>
+<tr><td>4</td><td>1</td><td><code>id=call_b, name=read_file</code></td><td>Slot 1: second call appears</td></tr>
+<tr><td>5</td><td>1</td><td><code>arguments={"path":"b.rs"}</code></td><td>Slot 1: arguments complete</td></tr>
+</tbody>
+</table>
+
+<p>Three things must be right.</p>
+
+<p><strong><code>arguments</code> must use <code>push_str</code>, never assignment.</strong> Writing <code>slot.arguments = args</code> keeps only the last fragment, and the model's JSON is permanently broken. The tool then reports invalid JSON arguments.</p>
+
+<p><strong><code>id</code> and <code>name</code> only overwrite when non-empty.</strong> Later frames usually carry null or an empty string for those fields. Assigning unconditionally wipes the name out of the slot.</p>
+
+<p><strong>Slots must grow by <code>index</code>.</strong> The model may send <code>index=1</code> before <code>index=0</code>, or skip an index entirely. <code>resize(idx + 1, default)</code> guarantees the slot exists so ordered execution never runs off the end.</p>
+
+<p>When assembly finishes, <code>AssistantTurn.tool_calls</code> is an ordered array. The loop executes in that order and writes results back in that order, so the <code>tool_call_id</code> sequence the model sees matches what it asked for. That is the precondition for pairing.</p>
+
+<h2>assistant_message: why empty content becomes null</h2>
+
+<p>The returned <code>AssistantTurn</code> cannot go straight back into <code>messages</code>. The OpenAI message format expects tool calls on an assistant message in a different shape.</p>
+
+<pre><code>fn assistant_message(turn: &amp;AssistantTurn) -&gt; Value {
+    let content = if turn.content.is_empty() {
+        Value::Null
+    } else {
+        Value::String(turn.content.clone())
+    };
+    if turn.tool_calls.is_empty() {
+        return json!({ "role": "assistant", "content": content });
+    }
+    let calls: Vec&lt;Value&gt; = turn.tool_calls.iter().map(|c| {
+        let args = if c.arguments.trim().is_empty() { "{}" } else { &amp;c.arguments };
+        json!({
+            "id": c.id,
+            "type": "function",
+            "function": { "name": c.name, "arguments": args }
+        })
+    }).collect();
+    json!({ "role": "assistant", "content": content, "tool_calls": calls })
+}
+</code></pre>
+
+<p>Three details.</p>
+
+<p><strong>Empty content becomes <code>null</code>, not an empty string.</strong> Some compatibility layers treat <code>content: ""</code> and <code>content: null</code> differently. When an assistant message carries only tool calls, the standard shape is null. An empty string is read by some vendors as "the model said nothing", and can even trip validation.</p>
+
+<p><strong>Empty arguments become <code>{}</code>.</strong> Models sometimes emit <code>arguments: ""</code> for a tool with no parameters. Passing that through leaves an empty string in history, and the next request may be rejected. Normalizing to <code>{}</code> keeps history valid JSON.</p>
+
+<p><strong><code>tool_calls</code> appears only when non-empty.</strong> A text-only response does not need the field. Sending an empty array makes some APIs think the model declared calls but produced nothing, with unpredictable results.</p>
+
+<p>None of this is fastidiousness. It is cross-vendor survival. OpenAI compatibility is not a standard, and every vendor has its own tolerance. An agent's history is resent over and over, so any illegal detail compounds into a 400 on the next turn.</p>
+
+<h2>Step four: execute the tools</h2>
+
+<p><code>execute</code> is the function that looks most like a security boundary. It does not dispatch directly. It runs three checks first.</p>
+
+<pre><code>fn execute(&amp;self, call: &amp;llm::ToolCall) -&gt; String {
+    if let Err(reason) = self.cfg.check_tool(&amp;call.name) {
+        return format!("ERROR: {reason}");
+    }
+
+    let args: Value = if call.arguments.trim().is_empty() {
+        json!({})
+    } else {
+        match serde_json::from_str(&amp;call.arguments) {
+            Ok(v) =&gt; v,
+            Err(e) =&gt; return format!("ERROR: invalid JSON arguments for `{}`: {e}", call.name),
+        }
+    };
+
+    for hook in self.cfg.hooks.iter()
+        .filter(|h| h.event == HookEvent::PreToolUse &amp;&amp; h.matches(&amp;call.name))
+    {
+        match hooks::run(hook, &amp;call.name, &amp;args, &amp;self.cfg.workspace) {
+            Ok(o) if o.ok() =&gt; {}
+            Ok(o) =&gt; return format!(
+                "ERROR: `{}` blocked by PreToolUse hook (exit {}):
+{}",
+                call.name, o.code, o.output
+            ),
+            Err(e) =&gt; return format!("ERROR: PreToolUse hook failed: {e}"),
+        }
+    }
+
+    let mut result = self.run_tool(&amp;call.name, &amp;args);
+
+    for hook in self.cfg.hooks.iter()
+        .filter(|h| h.event == HookEvent::PostToolUse &amp;&amp; h.matches(&amp;call.name))
+    {
+        match hooks::run(hook, &amp;call.name, &amp;args, &amp;self.cfg.workspace) {
+            Ok(o) if o.ok() =&gt; {}
+            Ok(o) =&gt; result.push_str(&amp;format!(
+                "
+[PostToolUse hook exited {}]
+{}", o.code, o.output
+            )),
+            Err(e) =&gt; result.push_str(&amp;format!("
+[PostToolUse hook failed: {e}]")),
+        }
+    }
+    result
+}
+</code></pre>
+
+<p>Broken open, it is a pipeline.</p>
+
+<ol>
+<li><strong>Permission check</strong>: can this tool run under the current mode, allow list and deny list?</li>
+<li><strong>Argument parsing</strong>: is the JSON the model produced legal? If not, return an error string rather than panicking.</li>
+<li><strong>Pre-hook</strong>: user scripts can veto this call with a non-zero exit.</li>
+<li><strong>Dispatch</strong>: hand off to <code>run_tool</code>.</li>
+<li><strong>Post-hook</strong>: cannot veto, only append warnings.</li>
+</ol>
+
+<p>What stands out is how steps two and three fail: <strong>they return strings, not <code>Err</code>, and never panic.</strong> A malformed argument does not abort the turn. The model sees "your JSON is invalid" in the next <code>tool</code> message and tries again.</p>
+
+<p>That is a fundamental difference between an agent and an ordinary program: <strong>an error is input to the model, not a termination signal to the process.</strong> A normal function throws on a bad argument. An agent's tool layer has to translate the exception into a sentence the model can read.</p>
+
+<h2>Three gates: permission, arguments, hooks</h2>
+
+<p>Looked at separately, the gates have different jobs and different failure semantics.</p>
+
+<table>
+<thead><tr><th>Gate</th><th>Checks</th><th>What the model sees</th><th>Recoverable</th></tr></thead>
+<tbody>
+<tr><td>Permission</td><td>Mode block, deny list, allow list</td><td><code>ERROR: tool ... is not available in Plan mode</code></td><td>Switch mode or tool</td></tr>
+<tr><td>Arguments</td><td>Is <code>arguments</code> legal JSON</td><td><code>ERROR: invalid JSON arguments for ...</code></td><td>Regenerate the arguments</td></tr>
+<tr><td>Pre-hook</td><td>A user script's exit code</td><td><code>ERROR: ... blocked by PreToolUse hook</code></td><td>Change the command</td></tr>
+<tr><td>Post-hook</td><td>A user script's warning</td><td>Appends <code>[PostToolUse hook exited N]</code></td><td>Does not affect the result</td></tr>
+</tbody>
+</table>
+
+<p>The permission gate has the strongest semantics. It already filtered the tool list at build time and checks again at execution. Why twice? Because the list is advertising to the model, and the model may call a filtered tool from memory. The check at execution is the real boundary.</p>
+
+<p>The argument gate has the weakest semantics. It guarantees "legal JSON", not "matches the tool's schema". <code>read_file</code> wants a string path; if the model passes a number, <code>req_str</code> inside <code>fs::read_file</code> returns an error, which also becomes a string result. Central schema validation was skipped because each tool knows best how to interpret its own arguments, and centralizing it tends to drift from the implementations.</p>
+
+<p>The hook gate is the only external extension point allowed to veto outright. A non-zero <code>PreToolUse</code> exit means the tool never runs. A non-zero <code>PostToolUse</code> exit happens after the fact, so it can only append a warning. Splitting block from remind avoids the illusion that a post-hook prevented a change it did not prevent.</p>
+
+<h2>Tool results are always strings</h2>
+
+<p><code>run_tool</code> does the dispatch and its return type is <code>String</code>, not <code>Result&lt;String, String&gt;</code>.</p>
+
+<pre><code>fn run_tool(&amp;self, name: &amp;str, args: &amp;Value) -&gt; String {
+    if name == "subagent" {
+        let sname = args.get("name").and_then(|n| n.as_str()).unwrap_or("");
+        let task = args.get("task").and_then(|t| t.as_str()).unwrap_or("");
+        return match self.run_subagent(sname, task) {
+            Ok(s) =&gt; s,
+            Err(e) =&gt; format!("ERROR: {e}"),
+        };
+    }
+
+    match tools::dispatch(name, args, &amp;self.ctx) {
+        Ok(s) =&gt; s,
+        Err(e) =&gt; {
+            if e.contains("unknown tool") {
+                if let Some(m) = &amp;self.mcp {
+                    if let Some(result) = m.call(name, args) {
+                        return match result {
+                            Ok(s) =&gt; s,
+                            Err(err) =&gt; format!("ERROR: {err}"),
+                        };
+                    }
+                }
+            }
+            format!("ERROR: {e}")
+        }
+    }
+}
+</code></pre>
+
+<p><code>tools::dispatch</code> returns <code>Result&lt;String, String&gt;</code> and every tool implementation does the same. By the time it reaches <code>run_tool</code>, errors are translated into <code>ERROR: ...</code> strings. Successful results are not passed through raw either: the last line of <code>dispatch</code> is <code>r.map(|s| clamp(s, ctx.max_output))</code> with a default of 20,000, truncated at a character boundary with a note saying how much was omitted. Note that the cap counts bytes, not tokens.</p>
+
+<p>One consequence is direct: <strong>the model always learns why a tool failed.</strong></p>
+
+<table>
+<thead><tr><th>Failure</th><th>Tool layer returns</th><th>What the model does next</th></tr></thead>
+<tbody>
+<tr><td>File does not exist</td><td><code>ERROR: path: No such file or directory</code></td><td>Try another path or list the directory</td></tr>
+<tr><td><code>old_string</code> not found</td><td><code>ERROR: old_string not found ... read the file and match it exactly</code></td><td>Re-read the file</td></tr>
+<tr><td><code>old_string</code> matches several times</td><td><code>ERROR: occurs N times ... pass replace_all=true</code></td><td>Add context or pass the flag</td></tr>
+<tr><td>File above 4 MB</td><td><code>ERROR: ... read it in chunks with offset/limit</code></td><td>Re-read with a window</td></tr>
+<tr><td>Command refused by the user</td><td><code>Command denied by the user. Do not retry it; ask what to do instead.</code></td><td>Stops and asks</td></tr>
+<tr><td>Shell exits non-zero</td><td>A normal result including <code>exit code: N</code> and stderr</td><td>Reads the error and fixes it</td></tr>
+<tr><td>Unknown tool</td><td><code>ERROR: unknown tool ...</code></td><td>Picks another tool</td></tr>
+</tbody>
+</table>
+
+<p>The denied-command row matters. It does not start with <code>ERROR:</code>. It is an explicit instruction: do not retry, ask instead. That is deliberate. The default reaction to <code>ERROR:</code> is retry or adjust parameters, but the right reaction to a user refusal is to stop. The wording of the error is behavior guidance.</p>
+
+<p>One more layer: when <code>dispatch</code> reports an unknown tool, <code>run_tool</code> looks for a matching tool on an MCP server. That is the unified entry point for built-ins and MCP. Built-ins match first, MCP only on a miss, so an MCP server cannot silently shadow built-in behavior.</p>
+
+<h2>Feeding results back: tool_call_id is the anchor</h2>
+
+<p>After execution, results go back into <code>messages</code>. It looks like three lines of <code>json!</code> and is the easiest place to break the history invariant.</p>
+
+<pre><code>for (call, result) in turn.tool_calls.iter().zip(results) {
+    self.style.tool_call(&amp;call.name, &amp;summarize(&amp;call.name, &amp;call.arguments), &amp;result);
+    self.messages.push(json!({
+        "role": "tool",
+        "tool_call_id": call.id,
+        "content": result,
+    }));
+}
+</code></pre>
+
+<p>A tool result message has exactly three fields: the role <code>tool</code>, a <code>tool_call_id</code> pointing at a call in the assistant message, and the result string. No <code>name</code>, no timestamp, no structured JSON.</p>
+
+<p>Why so plain? Because the API accepts nothing else. <code>tool_call_id</code> is the only anchor for pairing, the thing that lets the model connect "the third call I requested" with "this result". Get the id wrong, empty or out of order and the model receives a mismatched set, which ranges from nonsense answers to a hard 400.</p>
+
+<p>After a turn with two tool calls, the history looks like this.</p>
+
+<table>
+<thead><tr><th>#</th><th>role</th><th>Key fields</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>system</td><td><code>content</code></td><td>System prompt plus memory block</td></tr>
+<tr><td>2</td><td>user</td><td><code>content</code></td><td>The instruction</td></tr>
+<tr><td>3</td><td>assistant</td><td><code>content: null</code>, <code>tool_calls: [call_a, call_b]</code></td><td>The model asks for two tools</td></tr>
+<tr><td>4</td><td>tool</td><td><code>tool_call_id: call_a</code></td><td>Result of the first</td></tr>
+<tr><td>5</td><td>tool</td><td><code>tool_call_id: call_b</code></td><td>Result of the second</td></tr>
+<tr><td>6</td><td>assistant</td><td><code>content: "done, it is pnpm now"</code></td><td>The summary after seeing results</td></tr>
+</tbody>
+</table>
+
+<p>That sequence must hold exactly. Note message 3: the order is <code>[call_a, call_b]</code>, so messages 4 and 5 must match. NanoHermes uses <code>zip</code> to guarantee it. Even if <code>call_b</code> finishes first, <code>call_a</code>'s result still comes first.</p>
+
+<h2>Step five: where the loop exits</h2>
+
+<p>Three exits, each with its own way of closing out.</p>
+
+<table>
+<thead><tr><th>Exit</th><th>Trigger</th><th><code>run</code> returns</th><th>History state</th><th>Message</th></tr></thead>
+<tbody>
+<tr><td>Completed</td><td><code>turn.tool_calls.is_empty()</code></td><td>The last assistant text</td><td>Complete, ending on assistant</td><td>None</td></tr>
+<tr><td>Interrupted</td><td><code>interrupt::take()</code> at the top</td><td>The last assistant text</td><td>Complete, ending on a tool result</td><td>Context kept, <code>/undo</code> available</td></tr>
+<tr><td>Iteration cap</td><td>The <code>for</code> loop runs out</td><td>The last assistant text</td><td>Complete, ending on a tool result</td><td>Warns it did not finish</td></tr>
+</tbody>
+</table>
+
+<p>All three leave legal history. That is the most important invariant in the design.</p>
+
+<p>Why does history end on a tool result rather than an assistant call when the loop is interrupted or capped? Because the checkpoint is at the top. The previous turn's results are all written back, <code>compact</code> has run, and the next request has not been sent. Exiting there leaves history in the complete state of "calls plus all results", which the model can resume from without a broken pairing.</p>
+
+<p>Put the interrupt check in the middle of tool execution and you can end up with an assistant message requesting three tools and only one result written back. The next request is rejected and the user sees no reason why. That trap is subtle enough to appear again in the list of ten.</p>
+
+<p>On normal completion, the last assistant message has no tool calls, only text, and <code>final_text</code> is that text. If the model both talks and calls a tool in the final round, the loop continues; talking is not a finish signal. <strong>Only the absence of tool calls ends the loop.</strong></p>
+
+<h2>Concurrent tool calls: scoped threads, ordered collection</h2>
+
+<p>Models often request several tools in one response: read three files, run tests and lint together. Running them serially makes total latency the sum of every tool, so NanoHermes runs them concurrently whenever there is more than one.</p>
+
+<pre><code>let results: Vec&lt;String&gt; = if turn.tool_calls.len() == 1 {
+    vec![self.execute(&amp;turn.tool_calls[0])]
+} else {
+    let this: &amp;Agent = self;
+    std::thread::scope(|s| {
+        let handles: Vec&lt;_&gt; = turn.tool_calls.iter()
+            .map(|call| s.spawn(move || this.execute(call)))
+            .collect();
+        handles.into_iter()
+            .map(|h| h.join().unwrap_or_else(|_| {
+                "ERROR: tool thread panicked".to_string()
+            }))
+            .collect()
+    })
+};
+</code></pre>
+
+<p>This is <code>std::thread::scope</code>, not <code>tokio::spawn</code> and not a pool. One thread per call, joined and reaped.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Latency</th><th>Complexity</th><th>Fits when</th></tr></thead>
+<tbody>
+<tr><td>Serial</td><td>The sum of all tools</td><td>Lowest</td><td>Strong dependencies between tools, few calls</td></tr>
+<tr><td>One thread per call</td><td>The slowest one</td><td>Low</td><td>Few calls, blocking I/O tools</td></tr>
+<tr><td>Thread pool</td><td>Bounded by pool size</td><td>Medium</td><td>High-frequency short tasks</td></tr>
+<tr><td>Async runtime</td><td>The slowest one</td><td>High</td><td>Massive concurrency, cancellation</td></tr>
+</tbody>
+</table>
+
+<p>NanoHermes takes the second, consistent with its overall stance: <strong>a response usually requests one to five tools, and a pool or an async runtime costs far more complexity than it returns at that scale.</strong></p>
+
+<p><code>thread::scope</code> lets the compiler guarantee lifetimes. The borrowed <code>&amp;Agent</code> outlives the join, so no <code>Arc</code> and no <code>'static</code> bound. The price is that <code>Agent</code> must be <code>Sync</code>, which in turn forces shared state in <code>Ctx</code>, such as the task manager, todo list, sub-agent board and concurrency gate, to use interior mutability with synchronization rather than <code>&amp;mut</code>. The type system ends up forcing the shared state to be designed correctly.</p>
+
+<p>Results are collected with <code>zip</code> to preserve order. <code>join</code> is called in handle order, so even if the third tool finishes first, <code>results[0]</code> is still the first call's result. A panicking thread does not kill the process: <code>join</code> returns <code>Err</code>, which becomes an <code>ERROR: tool thread panicked</code> result. The model learns that the tool died instead of watching the process exit.</p>
+
+<p>Concurrency adds a new problem: <strong>side effects can interleave.</strong> Two <code>write_file</code> calls on the same file depend on who lands first. A <code>git_commit</code> and an <code>edit_file</code> racing make the committed content undefined. NanoHermes applies no tool-level mutex, because models rarely request that combination and real conflicts belong to the tools themselves, such as git's own lock. It is a trade that spends complexity only where it is needed.</p>
+
+<h2>Interrupt: Ctrl-C only lands at a step boundary</h2>
+
+<p>A terminal agent has to be interruptible. But interrupting cannot mean killing the process, or history stops mid-turn and the next resume is broken.</p>
+
+<p>NanoHermes does this: Ctrl-C does not kill anything, it sets an atomic flag, and the loop reads that flag at step boundaries.</p>
+
+<pre><code>struct InterruptGuard;
+
+impl InterruptGuard {
+    fn new() -&gt; Self {
+        crate::interrupt::take();
+        crate::interrupt::install();
+        InterruptGuard
+    }
+}
+
+impl Drop for InterruptGuard {
+    fn drop(&amp;mut self) {
+        crate::interrupt::restore_default();
+    }
+}
+</code></pre>
+
+<p>The first line of <code>run</code> is <code>let _guard = InterruptGuard::new();</code>. The guard restores the default SIGINT behavior when <code>run</code> ends. Even if the user presses Ctrl-C while a tool runs, the handler only sets the flag; it does not terminate.</p>
+
+<p>The top of the loop is the only place that consumes it.</p>
+
+<pre><code>for _ in 0..self.cfg.max_iterations {
+    if crate::interrupt::take() {
+        interrupted = true;
+        break;
+    }
+    // ...
+}
+</code></pre>
+
+<p>That position guarantees an interrupt never happens mid-tool. After Ctrl-C, the current tool finishes, its result is written back, <code>compact</code> runs, and only when the next iteration begins does the flag get noticed.</p>
+
+<table>
+<thead><tr><th>When Ctrl-C lands</th><th>Behaviour</th><th>History</th></tr></thead>
+<tbody>
+<tr><td>During the model request</td><td>The request continues, the response is written back</td><td>Complete</td></tr>
+<tr><td>During tool execution</td><td>The tool finishes, the result is written back</td><td>Complete</td></tr>
+<tr><td>After results, before the next turn</td><td>Exits immediately</td><td>Complete</td></tr>
+<tr><td>During concurrent tools</td><td>All threads join, then exit</td><td>Complete</td></tr>
+</tbody>
+</table>
+
+<p>The cost is that stopping is not instant. A <code>run_command</code> that takes 120 seconds means the user waits up to 120 seconds after pressing Ctrl-C. That is deliberate: better slow than broken history. If you need an instant kill, use a background task and <code>task_kill</code> rather than interrupting the whole turn.</p>
+
+<p>The guard's comments also mention reference counting, so a nested turn, such as a sub-agent running inside a tool, does not tear down the outer handler. That keeps interrupt semantics consistent when nesting.</p>
+
+<p>After an interrupt, <code>run</code> prints a note saying the conversation was kept, and the user can type a new instruction or <code>/undo</code>. <code>/undo</code> is <code>rewind</code>: walk back from the last user message and delete the whole turn. Interrupt and undo are two mechanisms, one stops, one rewinds.</p>
+
+<h2>The iteration cap: what 40 actually counts</h2>
+
+<p><code>max_iterations</code> defaults to 40, and it is often misread as "at most 40 tool calls". It is not.</p>
+
+<p>It counts <strong>model round trips</strong>. One iteration is one <code>complete()</code>: one HTTP request plus every tool call in that response. Request five tools in one response and that is still one iteration.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>Typical iterations</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Answering a conceptual question</td><td>1</td><td>The model replies, no tools</td></tr>
+<tr><td>Reading a file and explaining it</td><td>2 to 3</td><td>Read, maybe read again, summarize</td></tr>
+<tr><td>Fixing a well-scoped bug</td><td>4 to 8</td><td>Read, edit, test, edit</td></tr>
+<tr><td>Implementing a small feature</td><td>8 to 20</td><td>Explore, multi-file edits, verify</td></tr>
+<tr><td>Long task or refactor</td><td>20 to 40</td><td>Easy to reach the cap</td></tr>
+<tr><td>Infinite loop</td><td>40</td><td>The model retrying the same failing tool</td></tr>
+</tbody>
+</table>
+
+<p>Forty is a generous ceiling. Its job is not to constrain real work but to catch a stuck model. Without it, a model could retry a permanently failing command forever and burn tokens doing it.</p>
+
+<p>On hitting the cap, the loop prints <code>reached the 40 iteration limit without finishing</code>. Note the wording: not finished, not failed. Reaching the cap is a resource boundary, not an exception.</p>
+
+<p>The cap is also a cost control. At 8,000 input and 500 output tokens per turn, forty iterations is 320,000 input tokens and 20,000 output. On a metered API that is real money. <code>max_iterations</code> is the first cost gate; compaction is the second; tool output caps are the third.</p>
+
+<h2>Compaction: 120,000 characters and the last ten</h2>
+
+<p>The longer the loop runs, the bigger <code>messages</code> gets. Every turn resends the full history, so growth means more input tokens, more latency, and eventually a request past the model's window.</p>
+
+<p>NanoHermes compacts by replacing old messages with one summary when the budget is exceeded.</p>
+
+<pre><code>fn compact_with(&amp;mut self, force: bool) -&gt; usize {
+    let size: usize = self.messages.iter().map(|m| m.to_string().len()).sum();
+    if !force &amp;&amp; (size &lt;= CONTEXT_CHAR_BUDGET || self.messages.len() &lt;= KEEP_RECENT + 1) {
+        return 0;
+    }
+
+    let mut start = self.messages.len().saturating_sub(KEEP_RECENT);
+    while start &lt; self.messages.len() &amp;&amp; self.messages[start]["role"] == "tool" {
+        start += 1;
+    }
+    if start &lt;= 1 {
+        return 0;
+    }
+
+    let dropped: Vec&lt;Value&gt; = self.messages.drain(1..start).collect();
+    let note = match self.summarize_messages(&amp;dropped) {
+        Some(summary) =&gt; format!("[Earlier conversation summary]
+{summary}"),
+        None =&gt; "[Earlier conversation was omitted to keep the context small]".to_string(),
+    };
+    self.messages.insert(1, json!({ "role": "system", "content": note }));
+    self.style.note(&amp;format!("compacted: {} messages", dropped.len()));
+    dropped.len()
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Parameter</th><th>Value</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>CONTEXT_CHAR_BUDGET</code></td><td><code>120_000</code></td><td>The character budget that triggers compaction, measured on serialized JSON</td></tr>
+<tr><td><code>KEEP_RECENT</code></td><td><code>10</code></td><td>Messages always retained</td></tr>
+<tr><td>Summary length</td><td>At most 300 words</td><td>Constrained by the <code>llm::summarize</code> prompt</td></tr>
+<tr><td>Insertion point</td><td><code>messages[1]</code></td><td>The summary goes right after the system message</td></tr>
+<tr><td>Failure fallback</td><td>A one-line placeholder</td><td>A gap in history never disappears silently</td></tr>
+</tbody>
+</table>
+
+<p>A few details deserve expansion.</p>
+
+<p><strong>The budget counts characters, not tokens.</strong> Exact token counts need a tokenizer, and a tokenizer breaks the three-crate rule. Character count is an approximation whose error for mixed English and Chinese is acceptable. 120,000 characters is roughly 30,000 to 60,000 tokens depending on the mix.</p>
+
+<p><strong>It keeps the last ten messages, not the last ten turns.</strong> A tool result is a message. A turn with five tool calls occupies seven messages: user, assistant and five results. The point is to guarantee the most recent tool exchange is still in context, so the model does not forget a result the moment it arrives.</p>
+
+<p><strong>The cut point cannot land inside a tool exchange.</strong> The <code>while</code> loop pushes it forward until the message is not a tool result. Otherwise you get an assistant call summarized away while its result remains, which is an illegal sequence.</p>
+
+<p><strong>A failed summary leaves a trace.</strong> If the summarization request fails, a line reading <code>[Earlier conversation was omitted ...]</code> is inserted rather than nothing. The model needs to know a stretch of history was removed, or it will assume its small context is all there ever was.</p>
+
+<p><strong>Compaction is synchronous.</strong> It blocks between writing back results and sending the next request. The summary is itself a model call, so the turn that compacts costs an extra round trip. Unavoidable, and only on the turns that exceed the budget.</p>
+
+<p><code>/compact</code> forces it through <code>compact_with(true)</code>, skipping the budget check, and reports how many messages were summarized so the user can tell whether it did anything.</p>
+
+<h2>Session persistence</h2>
+
+<p>The last step of <code>run</code> is <code>self.persist()</code>, which writes <code>messages</code> to the session file when <code>--session</code> is configured. The write is a temp file plus a rename, so a crash mid-write cannot leave truncated JSON.</p>
+
+<pre><code>pub fn save_session_file(path: &amp;Path, messages: &amp;[Value]) -&gt; Result&lt;(), String&gt; {
+    let body = serde_json::to_string_pretty(messages).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&amp;tmp, body).map_err(|e| e.to_string())?;
+    std::fs::rename(&amp;tmp, path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+</code></pre>
+
+<p>At startup, <code>load_session_file</code> reads the file and <code>refresh_system</code> regenerates the system message from current configuration, replacing the stored one.</p>
+
+<table>
+<thead><tr><th>Occasion</th><th>Action</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Startup with a session file</td><td>Read JSON, refresh the system message</td><td>Restore history under the latest configuration</td></tr>
+<tr><td>End of every turn</td><td>Write a temp file, rename over</td><td>Crash safety</td></tr>
+<tr><td>Load failure</td><td>Warn and start fresh</td><td>A bad file must not block startup</td></tr>
+<tr><td><code>reset</code></td><td>Clear history, keep the system message</td><td>New topic</td></tr>
+<tr><td><code>rewind</code></td><td>Delete the last N user turns</td><td>Undo recent instructions</td></tr>
+</tbody>
+</table>
+
+<p>Why refresh rather than restore the system message verbatim? Because the system message is configuration, not conversation. The tool list, persona, permission mode and <code>AGENTS.md</code> can all have changed. Restoring the old prompt leaves the session running on expired rules, which shows up as "I changed the config and nothing happened".</p>
+
+<p>Persistence has a boundary too. When <code>self.complete()?</code> fails, <code>run</code> returns early and <code>persist()</code> never runs. Memory then holds a user message that disk does not, so the failed instruction is lost on the next start. That is acceptable, since a failed request produced no useful reply, but it is a reminder that <code>?</code> inside the loop is an exit that skips the closing steps.</p>
+
+<h2>Memory distillation</h2>
+
+<p>After the loop ends, if the turn completed normally, memory is enabled and tools were actually used, <code>distill_memories</code> asks the model to extract a few long-term memories from the conversation.</p>
+
+<pre><code>if completed &amp;&amp; self.cfg.memory {
+    self.distill_memories(&amp;user_text, had_tools);
+}
+</code></pre>
+
+<p>Three gates.</p>
+
+<ol>
+<li><strong><code>completed</code> must be true.</strong> An interrupted or capped turn has no conclusion yet, so nothing is distilled.</li>
+<li><strong><code>cfg.memory</code> must be on.</strong> Feature disabled, step skipped.</li>
+<li><strong><code>worth_distilling</code> must pass.</strong> Pleasantries, short instructions and turns that used no tools are not worth another model request.</li>
+</ol>
+
+<p>Distillation takes the last 6,000 characters of conversation and asks the model for several <code>(kind, text)</code> pairs, where kind is one of lesson, preference, correction or fact. Each goes through <code>memory::remember</code>, which returns whether it was actually new after deduplication. If at least one was written, the CLI prints how many memories were distilled.</p>
+
+<p>The design keeps memory outside the loop rather than inside it. The loop does not decide what to remember, it only triggers distillation at the right moment. That keeps the loop simple and lets the memory policy evolve on its own.</p>
+
+<h2>The token ledger: why it reports deltas</h2>
+
+<p><code>UsageTotals</code> has three fields.</p>
+
+<table>
+<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>requests</code></td><td>How many model requests this session made</td></tr>
+<tr><td><code>prompt_tokens</code></td><td>Cumulative input tokens</td></tr>
+<tr><td><code>completion_tokens</code></td><td>Cumulative output tokens</td></tr>
+</tbody>
+</table>
+
+<p>After each <code>complete()</code>, <code>run</code> adds that turn's usage and calls <code>style.usage(1, prompt, completion)</code>. The first argument is 1, meaning one request this time, not the running total.</p>
+
+<pre><code>self.usage.requests += 1;
+self.usage.prompt_tokens += turn.usage.prompt_tokens;
+self.usage.completion_tokens += turn.usage.completion_tokens;
+self.style.usage(1, turn.usage.prompt_tokens, turn.usage.completion_tokens);
+</code></pre>
+
+<p>Why report deltas instead of totals? Because one <code>Agent</code> instance can serve several isolated sessions. In daemon mode, cloud tasks swap the message vector through <code>replace_messages</code> and reuse the same agent. If the UI received cumulative values it would add unrelated tasks together into a meaningless number. With deltas, the client accumulates per task, and in local mode the deltas sum to exactly the same total.</p>
+
+<p>It is a clean example of an interface shaped by deployment. A single-machine CLI is easier with totals, but a daemon requires deltas. NanoHermes picked the one that is correct for both.</p>
+
+<h2>The boundary of two hundred lines</h2>
+
+<p>"Two hundred lines" is not a code golf score, it is a boundary that says what belongs to the loop and what does not.</p>
+
+<table>
+<thead><tr><th>Module</th><th>In the loop?</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>HTTP, retries, proxying</td><td>No</td><td><code>llm::chat</code>'s job; the loop receives an <code>AssistantTurn</code></td></tr>
+<tr><td>SSE parsing, tool call assembly</td><td>No</td><td>Transport details; the loop does not care about frames</td></tr>
+<tr><td>System prompt construction</td><td>No</td><td>Configuration and project files; the loop consumes the result</td></tr>
+<tr><td>Tool implementations</td><td>No</td><td>Each tool handles its own arguments, limits and errors</td></tr>
+<tr><td>Permissions and hooks</td><td>Yes, at the call site</td><td>Must intercept before execution, cannot be delegated to tools</td></tr>
+<tr><td>Context compaction</td><td>Yes, at the call site</td><td>Needs the full history, which no tool can see</td></tr>
+<tr><td>Memory retrieval and distillation</td><td>Yes, at the call site</td><td>Needs the current user text and the whole conversation</td></tr>
+<tr><td>Session persistence</td><td>Yes, at the call site</td><td>Only the loop knows when a turn ends</td></tr>
+<tr><td>Concurrency scheduling</td><td>Yes, inline</td><td>Needs every tool call in this turn</td></tr>
+<tr><td>UI rendering</td><td>No</td><td>Injected through <code>Style</code> and <code>UiSink</code>; the loop emits events</td></tr>
+<tr><td>MCP protocol</td><td>No</td><td><code>McpManager</code>'s job; the loop sees tool names</td></tr>
+<tr><td>Sub-agent orchestration</td><td>Partly</td><td><code>subagent</code> is a tool, but the task board and gate live in <code>Ctx</code></td></tr>
+</tbody>
+</table>
+
+<p>That table explains why the loop can be short: <strong>it keeps only the logic that needs to see a complete turn.</strong> Anything a single tool can handle is pushed down; anything the transport can encapsulate is pushed up. The loop degrades into a coordinator instead of a god object.</p>
+
+<p>It also gives a test for whether an agent architecture is healthy. If SSE parsing, URL assembly or file-type detection shows up in the main loop, a layer has leaked.</p>
+
+<h2>Ten implementation traps</h2>
+
+<p>Almost everyone who hand-writes an agent hits at least three of these.</p>
+
+<table>
+<thead><tr><th>Trap</th><th>Symptom</th><th>Correct approach</th></tr></thead>
+<tbody>
+<tr><td>Tool results without <code>tool_call_id</code></td><td>The next request 400s, complaining a tool message lacks an id</td><td>Every tool message carries the id of its call</td></tr>
+<tr><td>Assigning streamed <code>arguments</code></td><td>Tools receive broken JSON and report argument errors</td><td>Append with <code>push_str</code>, keyed by <code>index</code></td></tr>
+<tr><td>Interrupting mid-tool</td><td>Three calls in history, one result</td><td>Check the interrupt only at the top of the loop</td></tr>
+<tr><td>No iteration cap</td><td>The model loops on a failing command and the bill explodes</td><td>Set <code>max_iterations</code> and say so clearly</td></tr>
+<tr><td>Uncapped tool output</td><td>One <code>cat</code> blows the context</td><td>Truncate centrally, hard-cap file reads</td></tr>
+<tr><td>Panicking on tool errors</td><td>One bad path exits the process</td><td>Translate errors into string results</td></tr>
+<tr><td>Empty content as an empty string</td><td>Some layers reject an assistant message with only tool calls</td><td>Write <code>null</code></td></tr>
+<tr><td>Compaction cutting inside a tool exchange</td><td>History contains an orphaned tool result</td><td>Push the cut point to a non-tool message</td></tr>
+<tr><td>Appending the memory block every turn</td><td>The system prompt grows linearly</td><td>Replace the block by marker</td></tr>
+<tr><td>Planning as a loop phase</td><td>The model is forced through a fixed workflow even for trivial tasks</td><td>Leave planning to the model, expressed as tool calls</td></tr>
+</tbody>
+</table>
+
+<p>Three finer ones:</p>
+
+<ul>
+<li><strong>Collecting concurrent results in completion order.</strong> <code>join</code> order must match <code>tool_calls</code>, not whoever finished first, or results stop lining up with requests.</li>
+<li><strong>Sending <code>tool_choice</code> with no tools.</strong> Some APIs reject it, so wrap it in a <code>has_tools</code> check.</li>
+<li><strong>Restoring the system message verbatim on resume.</strong> Configuration changes quietly stop applying and you spend an afternoon blaming the model.</li>
+</ul>
+
+<p>What these share is that <strong>none of them shows up on the first run.</strong> A single question and answer looks perfect. The breakage arrives on the third turn, the fifth, the tenth. Most of the difficulty in debugging agents comes from that accumulation.</p>
+
+<h2>Closing, and the rest of the series</h2>
+
+<p>Back to the opening sentence: an agent is a loop.</p>
+
+<p>The model decides, the tools act, the loop connects them. Planning, memory, reflection and multi-agent setups are behaviors that grow on this loop, not a separate system beside it. Understand the two hundred lines and everything else has somewhere to attach.</p>
+
+<p>This post deliberately covers only how it turns. Half the problem is still open: <strong>once it turns, what should history keep and what should it drop?</strong></p>
+
+<p>Context is the scarcest resource an agent has. Tool results, file contents, error messages and past dialogue all compete for one window. Keep too much and the model loses the point while costs climb. Drop too much and it forgets what it is doing. NanoHermes handles it with a 120,000 character budget, the last ten messages and a summary replacement, but the real difficulty is deciding <strong>what a summary must preserve</strong>.</p>
+
+<p>The next post takes <code>compact</code>, <code>summarize</code> and the tool output caps apart and asks the deeper question: which information deserves to cross a turn boundary.</p>
+
+<table>
+<thead><tr><th>#</th><th>Post</th><th>Subject</th></tr></thead>
+<tbody>
+<tr><td>01</td><td>The agent loop: two hundred lines is all of it</td><td>Main loop, message state, concurrency, interrupt</td></tr>
+<tr><td>02</td><td>Agent context: what to keep, what to drop</td><td>Compaction, summaries, output caps</td></tr>
+<tr><td>03</td><td>Agent memory without a vector database</td><td>Local retrieval, injection, distillation</td></tr>
+<tr><td>04</td><td>Agent tool design: every output needs a cap</td><td>Schemas, error semantics, truncation</td></tr>
+<tr><td>05</td><td>Agent concurrency without an async runtime</td><td>Scoped threads, gates</td></tr>
+<tr><td>06</td><td>Agent security: running commands without losing control</td><td>Approvals, sandboxing, hooks</td></tr>
+<tr><td>07</td><td>Agent multi-agent: sub-agents, task boards, rate gates</td><td>Delegation, concurrency gates, boards</td></tr>
+<tr><td>08</td><td>Agent observability: a ledger for every turn</td><td>Usage, logs, instrumentation</td></tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ul>
+<li><code>agent/src/agent.rs</code>: <code>Agent::run</code>, <code>complete</code>, <code>execute</code>, <code>assistant_message</code>, <code>compact_with</code></li>
+<li><code>agent/src/llm.rs</code>: <code>chat</code>, <code>read_stream</code>, <code>read_json</code>, <code>accumulate_tool_calls</code>, <code>backoff_ms</code></li>
+<li><code>agent/src/tools/mod.rs</code>: <code>specs</code>, <code>dispatch</code>, <code>Ctx</code></li>
+<li><code>agent/src/config.rs</code>: <code>Config</code>, <code>PermissionMode</code>, <code>ApprovalPolicy</code></li>
+<li><code>agent/src/prompt.rs</code>: <code>system_prompt</code>, <code>project_docs</code></li>
+<li><code>agent/src/tools/fs.rs</code>, <code>shell.rs</code>: output caps for files and commands</li>
+</ul>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
