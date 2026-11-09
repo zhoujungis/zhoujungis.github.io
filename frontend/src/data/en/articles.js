@@ -17434,6 +17434,575 @@ constexpr int kRecyclableHeaderSize = 4 + 2 + 1 + 4;
 `,
   },
 
+  {
+    slug: 'innodb-next-key-gap-lock-deep-dive',
+    zhSlug: 'innodb-next-key-gap-lock-deep-dive',
+    topicSlug: 'database',
+    title: 'The edges of an InnoDB lock: next-key and gap locks',
+    excerpt:
+      'InnoDB locks index records and the gaps between them, not rows. The bit flags, the four conflict rules, the three-state lock choice, implicit locks and the deadlock detector, read at the source.',
+    date: '2026-11-02',
+    readingTime: 34,
+    html: `
+<blockquote>
+<p>Who this is for: engineers who have been asked why a single-row update blocks an insert; people who write locking reads without being able to say which slice of the index they hold; people about to switch from repeatable read to read committed and wondering what they give up.</p>
+<p><strong>TL;DR:</strong> an InnoDB lock attaches to an index record and to the gap before it. A record lock covers one record, a gap lock covers the open interval before it, and a next-key lock is both. An insert intention lock is a queue ticket that conflicts with only one of those. Everything here comes from lock0lock.h, lock0lock.cc, lock0wait.cc and row0sel.cc in MySQL 8.0.</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>What one UPDATE actually locks</h2>
+
+<pre><code>CREATE TABLE t (
+  id INT PRIMARY KEY,
+  k INT NOT NULL,
+  v VARCHAR(32),
+  KEY idx_k (k)
+) ENGINE=InnoDB;
+
+INSERT INTO t (id, k, v) VALUES
+  (1, 10, 'a'),
+  (5, 20, 'b'),
+  (10, 30, 'c'),
+  (15, 40, 'd');
+</code></pre>
+
+<pre><code>-- session A
+BEGIN;
+UPDATE t SET v = 'x' WHERE k = 20;
+
+-- session B
+INSERT INTO t (id, k, v) VALUES (7, 20, 'b2');
+</code></pre>
+
+<p>B blocks. The immediate reading is that A changed the row with id five and B wants to insert id seven, so they are different rows and should not collide.</p>
+
+<p>But A did not lock a row. It locked a stretch of the index on k. The condition matched the secondary index entry (20, 5), which A covered with a next-key lock. The scan continued to (30, 10), found the condition no longer held, and placed a gap lock in front of it. B's (20, 7) falls inside that gap, so its insert intention lock conflicts with A's gap lock and it queues.</p>
+
+<p>Three facts are easy to miss on that path. The address of a lock is an index record, not a primary key row, so one row occupies a different lock coordinate in the clustered index and in each secondary index. A scan that finds nothing still takes locks, because it stops on the first non-matching record and often locks the gap before it. And an ordinary select runs through MVCC and takes no locks at all; only locking reads enter the system described here.</p>
+
+<h2>Pages, records and heap numbers: the smallest coordinate</h2>
+
+<p>Locks live on pages, not on tables. A page holds a chain of records between two sentinels, and the source numbers those positions.</p>
+
+<pre><code>/** Page infimum */
+constexpr ulint PAGE_HEAP_NO_INFIMUM = 0;
+/** Page supremum */
+constexpr ulint PAGE_HEAP_NO_SUPREMUM = 1;
+
+/** First user record in creation (insertion) order, not necessarily collation
+order; this record may have been deleted */
+constexpr ulint PAGE_HEAP_NO_USER_LOW = 2;
+</code></pre>
+
+<p>That is why status output shows heap numbers like two and three: a heap number is a slot inside a page, not a primary key and not a row number, and user records start at two because the sentinels took zero and one.</p>
+
+<p>A lock object is not one record either. It belongs to a page and carries a bitmap, where bit n says the lock covers the record at heap number n. Four accessors expose this: how many bits, is the nth bit set, set the nth bit, clear the nth bit.</p>
+
+<p>So a next-key lock is semantically a record lock plus a gap lock, and in memory it is often one object with one bitmap. The source says so directly, and adds the reason the split only happens one way: gap locks do not conflict with each other, so narrowing a waiting next-key lock to a record lock would not remove the conflict, while the reverse check is worth doing.</p>
+
+<p>There is a sentinel special case. Supremum is a virtual record pointing at infinity, and every lock on it is treated as a gap lock, so the code clears both the gap bit and the record-not-gap bit to save an object. Locking the unbounded interval after the last record therefore costs one bit at the supremum slot, and when pages split and records move, the bits move with them, which is why a lock structure is always bound to a space, page and heap number.</p>
+
+<h2>How a lock is encoded</h2>
+
+<pre><code>/** mask used to extract mode from the  type_mode field in a lock */
+constexpr uint32_t LOCK_MODE_MASK = 0xF;
+/** Lock types */
+/** table lock */
+constexpr uint32_t LOCK_TABLE = 16;
+/** record lock */
+constexpr uint32_t LOCK_REC = 32;
+/** mask used to extract lock type from the type_mode field in a lock */
+constexpr uint32_t LOCK_TYPE_MASK = 0xF0UL;
+static_assert((LOCK_MODE_MASK &amp; LOCK_TYPE_MASK) == 0,
+              "LOCK_MODE_MASK &amp; LOCK_TYPE_MASK");
+
+/** Waiting lock flag; when set, it  means that the lock has not yet been
+granted, it is just waiting for its  turn in the wait queue */
+constexpr uint32_t LOCK_WAIT = 256;
+/* Precise modes */
+/** this flag denotes an ordinary next-key lock in contrast to LOCK_GAP or
+LOCK_REC_NOT_GAP */
+constexpr uint32_t LOCK_ORDINARY = 0;
+/** when this bit is set, it means that the lock holds only on the gap before
+  the record; for instance, an x-lock on the gap does not give permission to
+  modify the record on which the bit is set; locks of this type are created
+  when records are removed from the index chain of records */
+constexpr uint32_t LOCK_GAP = 512;
+/** this bit means that the lock is only on the index record and does NOT
+   block inserts to the gap before the index record; this is used in the case
+   when we retrieve a record with a unique key, and is also used in locking
+   plain SELECTs (not part of UPDATE or DELETE) when the user has set the READ
+   COMMITTED isolation level */
+constexpr uint32_t LOCK_REC_NOT_GAP = 1024;
+/** this bit is set when we place a waiting gap type record lock request in
+   order to let an insert of an index record to wait until there are no
+   conflicting locks by other transactions on the gap; note that this flag
+   remains set when the waiting lock is granted, or if the lock is inherited to
+   a neighboring record */
+constexpr uint32_t LOCK_INSERT_INTENTION = 2048;
+</code></pre>
+
+<table>
+<thead><tr><th>Bit</th><th>Value</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>LOCK_GAP</td><td>512</td><td>Only the open interval before the record, not the record</td></tr>
+<tr><td>LOCK_REC_NOT_GAP</td><td>1024</td><td>Only the record, and inserts into the gap stay allowed</td></tr>
+<tr><td>LOCK_INSERT_INTENTION</td><td>2048</td><td>A waiting gap request raised before an insert</td></tr>
+<tr><td>LOCK_ORDINARY</td><td>0</td><td>Neither precise bit set, which is an ordinary next-key lock</td></tr>
+</tbody>
+</table>
+
+<p>That zero matters. A next-key lock is not a new bit; it is the default shape where gap and record were never separated. A lock covers the gap, the record, or both. The wait flag is not a shape at all but a state: the request has not been granted and sits in the queue.</p>
+
+<h2>Three words, three intervals</h2>
+
+<ul>
+<li>A <strong>record lock</strong> covers one index record. It does not cover the gap before it, so other transactions can still insert between the previous record and this one.</li>
+<li>A <strong>gap lock</strong> covers the open interval between two records. It covers neither endpoint and only blocks inserts into that space. Several transactions can hold the same gap at once, because gap locks do not conflict.</li>
+<li>A <strong>next-key lock</strong> covers the gap plus the record, and it is the default shape for range scans under repeatable read.</li>
+</ul>
+
+<p>The two ends of a gap are neighbours in index order, not in primary key order. The secondary index stores composite entries, so the gap between two of them spans not only the difference in the indexed column but also the ordering of the primary key within equal values. That is why an insert of a value equal to an existing one falls into the gap after it rather than beside the row with a similar primary key.</p>
+
+<p>Gap locks also do not block reads and do not block other gap locks. The conflict rule states it: a gap request without insert intention never waits, because different transactions can hold conflicting intentions over the same space. The semantics are to reserve a position against inserts, not to take exclusive ownership of an interval.</p>
+
+<h2>Consistent reads and locking reads</h2>
+
+<p>An ordinary select reads the MVCC version chain using a read view, and takes neither record nor gap locks. A locking read, whether a select for update, a select for share, an update or a delete, reads the latest version and locks what it reads.</p>
+
+<pre><code>  if (prebuilt-&gt;select_lock_type != LOCK_NONE) {
+    auto row_to_range_relation = row_compare_row_to_range(
+</code></pre>
+
+<p>Only a non-empty lock type gets past that gate into the range comparison, which is why a consistent read leaves no trace in the lock tables. It also explains a familiar scene: while A holds an uncommitted change, B's plain select still reads the old value and never blocks, but the moment B asks for a locking read it waits. Nothing appeared suddenly; B moved from MVCC into the lock system.</p>
+
+<p>Update and delete are locking reads too, and they position and lock before deciding to modify. That order means an update that matches no row can still leave a gap lock where the row would have been.</p>
+
+<h2>Unique equality: why only a record lock remains</h2>
+
+<pre><code>  if (!set_also_gap_locks || trx-&gt;skip_gap_locks() ||
+      (unique_search &amp;&amp; !rec_get_deleted_flag(rec, comp)) ||
+      dict_index_is_spatial(index) ||
+      (index == clust_index &amp;&amp; mode == PAGE_CUR_GE &amp;&amp; direction == 0 &amp;&amp;
+       dtuple_get_n_fields_cmp(search_tuple) ==
+           dict_index_get_n_unique(index) &amp;&amp;
+       0 == cmp_dtuple_rec(search_tuple, rec, index, offsets))) {
+    row_to_range_relation.gap_can_intersect_range = false;
+    return (row_to_range_relation);
+  }
+</code></pre>
+
+<p>Four kinds of condition short-circuit here. The caller said not to lock gaps, as in a plain locking read at read committed. The transaction's isolation level skips gap locks entirely. The search is unique and the matched record is not delete-marked. Or the search is a greater-or-equal on the clustered index that lands exactly on the unique key, so nothing inserted into the preceding gap can fall inside the range.</p>
+
+<pre><code>  ulint lock_type;
+  if (row_to_range_relation.row_can_be_in_range) {
+    if (row_to_range_relation.gap_can_intersect_range) {
+      lock_type = LOCK_ORDINARY;
+    } else {
+      lock_type = LOCK_REC_NOT_GAP;
+    }
+  } else {
+    if (row_to_range_relation.gap_can_intersect_range) {
+      lock_type = LOCK_GAP;
+    } else {
+      err = DB_RECORD_NOT_FOUND;
+      goto normal_return;
+    }
+  }
+</code></pre>
+
+<p>Row in range and gap cannot intersect gives a record-only lock, which is the source of the familiar rule. The gap is unnecessary because a unique index cannot grow a second row with the same value: an insert of a different value cannot extend the result, and an insert of the same value fails on the uniqueness check, which locks it anyway.</p>
+
+<p>Two exceptions matter. If the matched record is delete-marked, the condition fails, the gap stays in play, and the lock becomes an ordinary next-key, because delete-marked entries remain on the chain and uniqueness has to be conservative. And if nothing matches, the scan stops on the first greater record and takes a plain gap lock there, so a query for a missing value locks the position where it would appear, and inserts of anything that sorts into that gap will wait.</p>
+
+<pre><code>  /* If we are doing a 'greater or equal than a primary key
+  value' search from a clustered index, and we find a record
+  that has that exact primary key value, then there is no need
+  to lock the gap before the record, because no insert in the
+  gap can be in our search range. That is, no phantom row can
+  appear that way.
+
+  An example: if col1 is the primary key, the search is WHERE
+  col1 &gt;= 100, and we find a record where col1 = 100, then no
+  need to lock the gap before that record. */
+</code></pre>
+
+<p>Note which gap is skipped: the one before the lower bound, not the one after the upper bound. The other end of the range is still handled.</p>
+
+<h2>Non-unique index: two indexes, two lock shapes</h2>
+
+<p>Switch the predicate to equality on a non-unique secondary index and everything gets harder, because another entry with the same value can be inserted after the matched one. The scan takes an ordinary next-key lock on the match, then continues to the first record with a different value and adds a gap lock in front of it.</p>
+
+<p>Then comes the row fetch. The secondary index only yields a primary key, so the engine looks the row up in the clustered index under a unique condition, and takes a record-only lock there.</p>
+
+<pre><code>  if (prebuilt-&gt;select_lock_type != LOCK_NONE) {
+    /* Try to place a lock on the index record; we are searching
+    the clust rec with a unique condition, hence
+    we set a LOCK_REC_NOT_GAP type lock */
+
+    err = lock_clust_rec_read_check_and_lock(
+        lock_duration_t::REGULAR, prebuilt-&gt;clust_pcur-&gt;get_block(), clust_rec,
+        clust_index, *offsets, prebuilt-&gt;select_mode,
+        static_cast&lt;lock_mode&gt;(prebuilt-&gt;select_lock_type), LOCK_REC_NOT_GAP,
+        thr);
+</code></pre>
+
+<p>That comment is worth memorising: <strong>the secondary scan takes a next-key lock, the row fetch takes a record-only lock.</strong> Two indexes, two shapes.</p>
+
+<ul>
+<li>Updating a column that appears in no index still requires scanning the secondary index to find the rows, so next-key and gap locks still land there. Do not assume a non-indexed update locks only the clustered index.</li>
+<li>A covering query needs no row fetch, so no clustered locks appear and the footprint shrinks.</li>
+<li>Updating an indexed column forces a delete-mark on the old entry and an insert of a new one, which widens the locked area and raises the chance of a deadlock.</li>
+</ul>
+
+<h2>Range scans: a three-state choice</h2>
+
+<p>A range scan is where next-key and gap locks earn their keep. The engine does not guess from the shape of the SQL. It asks, for each record on the scan, two questions: can this row be inside the range, and can the gap before it intersect the range. Both answers default to true when the question is hard, and the pair picks the lock.</p>
+
+<table>
+<thead><tr><th>Row in range</th><th>Gap intersects</th><th>Lock</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>true</td><td>true</td><td>LOCK_ORDINARY</td><td>Record and gap both matter</td></tr>
+<tr><td>true</td><td>false</td><td>LOCK_REC_NOT_GAP</td><td>Only the record matters</td></tr>
+<tr><td>false</td><td>true</td><td>LOCK_GAP</td><td>Only the gap matters</td></tr>
+<tr><td>false</td><td>false</td><td>none, scan ends</td><td>Neither matters</td></tr>
+</tbody>
+</table>
+
+<p>With keys one, five, ten and fifteen, the same statement produces different shapes at its edges. An inclusive range from five to ten locks the lower bound with a record-only lock because no insert before it can enter the range, the interior with a next-key lock, and the first record outside with a gap lock. An open-ended range from above ten locks the remaining records with next-key locks and finishes with a gap lock on the supremum. A range below five locks its interior and ends with a gap lock before five.</p>
+
+<p>Those answers are conservative estimates, not geometry. The comment admits the heuristic covers the common, easily reasoned case of a forward scan on the clustered index, and falls back to "true" for descending scans, duplicate keys in a secondary index and other paths, which is why locking sometimes feels broader than the predicate. It did not miscount; it chose the safe answer.</p>
+
+<h2>Locking rows that do not exist</h2>
+
+<p>Under repeatable read, a locking read on a missing key finds nothing, lands on the next record, and answers the two questions as out of range but gap intersecting, so the lock is a gap lock placed before that next record. Nothing is locked on the missing value because it does not exist, and nothing is locked on the record itself. Every insert of a value that sorts into that interval queues.</p>
+
+<p>That is the anti-phantom mechanism. Without it, a transaction could read an empty result, another could insert and commit, and the same transaction's next identical read would see a row, breaking repeatable read. The gap lock does not cover rows; it covers the positions where rows could appear.</p>
+
+<p>At read committed the lock is absent, because the isolation level skips gap locks and the branch never runs. The empty result stays empty only for that statement, and a later read may see the new row. That is not a bug; it is what read committed means, where each statement sees the latest committed snapshot and phantoms are permitted.</p>
+
+<p>So "an insert was blocked by a row that does not exist" has a three-part answer: the isolation level is repeatable read or serializable; some transaction performed a locking read on that position; and that transaction left a gap lock on the successor record. Check in that order, and look for gap and next-key modes in the lock tables before anything else.</p>
+
+<h2>Insert intention: conflicts with gaps only</h2>
+
+<pre><code>    if (!lock_rec_has_any(lock_sys-&gt;rec_hash, block-&gt;get_page_id(), heap_no)) {
+      *inherit = false;
+    } else {
+      *inherit = true;
+
+      /* If another transaction has an explicit lock request which locks
+      the gap, waiting or granted, on the successor, the insert has to wait.
+
+      An exception is the case where the lock by the another transaction
+      is a gap type lock which it placed to wait for its turn to insert. We
+      do not consider that kind of a lock conflicting with our insert. This
+      eliminates an unnecessary deadlock which resulted when 2 transactions
+      had to wait for their insert. Both had waiting gap type lock requests
+      on the successor, which produced an unnecessary deadlock. */
+
+      const ulint type_mode = LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
+
+      const auto conflicting =
+          lock_rec_other_has_conflicting(type_mode, block, heap_no, trx);
+
+      /* LOCK_INSERT_INTENTION locks can not be allowed to bypass waiting locks,
+      because they allow insertion of a record which splits the gap which would
+      lead to duplication of the waiting lock, violating the constraint that
+      each transaction can wait for at most one lock at any given time */
+      ut_a(!conflicting.bypassed);
+
+      if (conflicting.wait_for != nullptr) {
+        RecLock rec_lock(thr, index, block, heap_no, type_mode);
+
+        trx_mutex_enter(trx);
+
+        err = rec_lock.add_to_waitq(conflicting.wait_for);
+
+        trx_mutex_exit(trx);
+      }
+    }
+</code></pre>
+
+<p>Four things to take from it. The intention lock is placed on the successor record, so the heap number in the wait is the record the new one will land before, which is why a waiting insert often shows the successor's value rather than the value being inserted. It conflicts only with gap locks and next-key locks, never with record-only locks and never with another intention lock. It may not bypass a waiting lock, because letting it split the gap would duplicate a waiting request and violate the rule that a transaction waits for at most one lock. And an insert can inherit gap locks from its successor, so the coverage can grow rather than shrink when a record arrives.</p>
+
+<p>The classic insert deadlock is built here: two transactions each hold their own intention lock over the same gap, which is compatible, and then each needs the other's gap for a second insert, which is not.</p>
+
+<h2>Conflict rules in four lines</h2>
+
+<pre><code>  if ((lock_is_on_supremum || (type_mode &amp; LOCK_GAP)) &amp;&amp;
+      !(type_mode &amp; LOCK_INSERT_INTENTION)) {
+    /* Gap type locks without LOCK_INSERT_INTENTION flag
+    do not need to wait for anything. This is because
+    different users can have conflicting lock types
+    on gaps. */
+
+    return Conflict::NO_CONFLICT;
+  }
+
+  if (!(type_mode &amp; LOCK_INSERT_INTENTION) &amp;&amp; lock_rec_get_gap(lock2)) {
+    /* Record lock (LOCK_ORDINARY or LOCK_REC_NOT_GAP
+    does not need to wait for a gap type lock */
+
+    return Conflict::NO_CONFLICT;
+  }
+
+  if ((type_mode &amp; LOCK_GAP) &amp;&amp; lock_rec_get_rec_not_gap(lock2)) {
+    /* Lock on gap does not need to wait for
+    a LOCK_REC_NOT_GAP type lock */
+
+    return Conflict::NO_CONFLICT;
+  }
+
+  if (lock_rec_get_insert_intention(lock2)) {
+    /* No lock request needs to wait for an insert
+    intention lock to be removed. This is ok since our
+    rules allow conflicting locks on gaps. This eliminates
+    a spurious deadlock caused by a next-key lock waiting
+    for an insert intention lock; when the insert
+    intention lock was granted, the insert deadlocked on
+    the waiting next-key lock.
+
+    Also, insert intention locks do not disturb each
+    other. */
+
+    return Conflict::NO_CONFLICT;
+  }
+</code></pre>
+
+<p>In order: a gap request without insert intention waits for nothing, including at the supremum, because gap locks coexist. A record request never waits for a pure gap lock. A gap request never waits for a record-only lock, which promised it would not block inserts. And nothing waits for an insert intention lock, because it is a pending request rather than a granted exclusive claim, and waiting on it creates spurious deadlocks.</p>
+
+<table>
+<thead><tr><th>Request \ Held</th><th>GAP</th><th>REC_NOT_GAP</th><th>ORDINARY</th><th>INSERT_INTENTION</th></tr></thead>
+<tbody>
+<tr><td>GAP</td><td>compatible</td><td>compatible</td><td>compatible</td><td>compatible</td></tr>
+<tr><td>REC_NOT_GAP</td><td>compatible</td><td>mode check</td><td>mode check</td><td>compatible</td></tr>
+<tr><td>ORDINARY</td><td>compatible</td><td>mode check</td><td>mode check</td><td>compatible</td></tr>
+<tr><td>INSERT_INTENTION</td><td><strong>waits</strong></td><td>compatible</td><td><strong>waits</strong></td><td>compatible</td></tr>
+</tbody>
+</table>
+
+<p>Mode check means falling back to shared versus exclusive compatibility. The last row is the one people misremember: an insert intention lock waits only for gap and next-key locks. Once that is settled, most "why is my insert stuck" questions reduce to who holds a gap over the target position.</p>
+
+<p>One special channel exists for high-priority transactions, which ignores a waiting non-high-priority lock. It exists for group replication and is not a tuning knob.</p>
+
+<h2>Implicit locks: nothing granted, yet others still wait</h2>
+
+<p>An insert does not create an explicit lock for its own row, so why does another transaction wait when it touches that row? Because of the implicit lock carried in the row header. Each row stores the id of the transaction that last modified it and a pointer into undo. A transaction that modified rows without committing may leave no lock object at all, only that id.</p>
+
+<pre><code>  if (index-&gt;is_clustered()) {
+    trx_id_t trx_id;
+
+    trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
+
+    trx = trx_rw_is_active(trx_id, true);
+  } else {
+    ut_ad(!dict_index_is_online_ddl(index));
+
+    trx = lock_sec_rec_some_has_impl(rec, index, offsets);
+    if (trx) {
+      DEBUG_SYNC_C("lock_rec_convert_impl_to_expl_will_validate");
+      ut_ad(!lock_rec_other_trx_holds_expl(LOCK_S | LOCK_REC_NOT_GAP, trx, rec,
+                                           block));
+    }
+  }
+
+  if (trx != nullptr) {
+    ulint heap_no = page_rec_get_heap_no(rec);
+
+    ut_ad(trx_is_referenced(trx));
+
+    /* If the transaction is still active and has no
+    explicit x-lock set on the record, set one for it.
+    trx cannot be committed until the ref count is zero. */
+
+    lock_rec_convert_impl_to_expl_for_trx(block, rec, index, offsets, trx,
+                                          heap_no);
+  }
+</code></pre>
+
+<p>The clustered index reads the transaction id straight from the record; a secondary index checks a page-level maximum first and then walks entries. If the owning transaction is still active, the code materialises a record-only exclusive lock on its behalf, and the current transaction then proceeds through the normal conflict check. The update path does the same before requesting its own lock.</p>
+
+<p>The design is pay-as-you-go. A freshly inserted row that nobody touches costs no lock object, and only contention turns an implicit lock into an explicit one. It also explains why a lock seems to appear from nowhere in the lock tables: it was just materialised.</p>
+
+<p>An implicit lock equals a record-only lock and never covers a gap, so inserts do not stop neighbours by themselves. Explicit gap and next-key locks do that. Keeping the two apart is what makes the combination sensible: the intention lock reserves the space before the insert, and the implicit lock marks the row afterwards.</p>
+
+<h2>The lock queue is not first come, first served</h2>
+
+<pre><code>  -# Granted locks are added at the HEAD of the queue.
+  -# Waiting locks are added at the TAIL of the queue.
+</code></pre>
+
+<p>Granted locks enter at the head, waiting locks at the tail. A new request scans the whole queue, granted and waiting alike, finds a conflicting holder, and attaches at the tail. Comparing against waiting requests as well is what prevents starvation, since a steady stream of shared locks could otherwise starve a waiting exclusive request forever.</p>
+
+<p>Grant order is not the physical order. Waiters are sorted by scheduling weight, heaviest first, ties broken by position, and each candidate is rechecked against the granted set before being passed over or granted.</p>
+
+<p>The weight comes from contention-aware transaction scheduling, which estimates how many transactions a waiter is transitively blocking. The one blocking the most goes first, because releasing it unblocks the most work. So three conclusions follow: the queue is not FIFO, a large transaction holding many others up can overtake earlier waiters, and the physical order in the wait queue is arrival order rather than grant order.</p>
+
+<p>And every transaction waits for at most one lock. That constraint appears repeatedly in the headers, and it is what makes each node in the wait-for graph have at most one outgoing edge, which is what makes deadlock detection cheap.</p>
+
+<h2>Why read committed has no gap locks</h2>
+
+<pre><code>  bool skip_gap_locks() const {
+    switch (isolation_level) {
+      case READ_UNCOMMITTED:
+      case READ_COMMITTED:
+        return (true);
+      case REPEATABLE_READ:
+      case SERIALIZABLE:
+        return (false);
+    }
+    ut_d(ut_error);
+    ut_o(return (false));
+  }
+</code></pre>
+
+<pre><code>  if (prebuilt-&gt;table-&gt;skip_gap_locks() ||
+      (trx-&gt;skip_gap_locks() &amp;&amp; prebuilt-&gt;select_lock_type != LOCK_NONE &amp;&amp;
+       trx-&gt;mysql_thd != nullptr &amp;&amp; thd_is_query_block(trx-&gt;mysql_thd))) {
+    /* It is a plain locking SELECT and the isolation
+    level is low: do not lock gaps */
+
+    /* Reads on DD tables dont require gap-locks as serializability
+    between different DDL statements is achieved using
+    metadata locks */
+    set_also_gap_locks = false;
+  }
+</code></pre>
+
+<p>Read the condition literally: it applies to a plain locking select with a lock type set. A consistent read never gets here, and data dictionary tables are serialised by metadata locks instead.</p>
+
+<p>Giving up gaps buys fewer waits and fewer deadlocks, and costs range scans their anti-phantom property. A locking range read at read committed does not stop inserts into its range, and the next read may see them. That is the definition of the level, not a defect.</p>
+
+<pre><code>  bool allow_semi_consistent() const { return (skip_gap_locks()); }
+  /** Checks if this transaction releases locks on non matching records due to
+  low isolation level.
+  @return true iff in this transaction's isolation level locks on records which
+               do not match the WHERE clause are released */
+  bool releases_non_matching_rows() const { return skip_gap_locks(); }
+</code></pre>
+
+<p>Read committed also allows semi-consistent reads: a scan may release locks on rows that failed the predicate, which shrinks the covered set, at the cost of reading a newer committed version than the transaction's snapshot, with a re-read if a row changed mid-statement.</p>
+
+<p>Record locks remain. Rows that an update touches, records that a uniqueness check inspects and rows that a foreign key check looks at all take locks. No gap locks does not mean no locks, a distinction that gets muddled in incident reviews.</p>
+
+<h2>Deadlock: find the cycle, verify it, pick a victim</h2>
+
+<pre><code>      if (colors[id] == 0) {
+        /* This node was never visited yet */
+        colors[id] = current_color;
+        continue;
+      }
+      /* This node was already visited:
+      - either it has current_color which means we've visited it during current
+        DFS descend, which means we have found a cycle, which we need to verify,
+      - or, it has a color used in a previous DFS which means that current DFS
+        path merges into an already processed portion of wait-for graph, so we
+        can stop now */
+      if (colors[id] == current_color) {
+        /* found a candidate cycle! */
+        lock_wait_extract_cycle_ids(cycle_ids, id, outgoing);
+        if (lock_wait_check_candidate_cycle(cycle_ids, infos, new_weights)) {
+          MONITOR_INC(MONITOR_DEADLOCK);
+        } else {
+          MONITOR_INC(MONITOR_DEADLOCK_FALSE_POSITIVES);
+        }
+      }
+      break;
+</code></pre>
+
+<p>Because each node has at most one outgoing edge, a colouring depth-first walk finds cycles cheaply. But a candidate cycle is only a candidate, since the wait information is a snapshot and a waiter may have been granted, timed out, or had its slot reused. Verification checks that the slot is still the one the snapshot reserved, which guards against reuse, and that the transaction still has a wait lock.</p>
+
+<pre><code>    if (trx-&gt;lock.wait_lock == nullptr) {
+      /* trx is on its way to being woken up, so this cycle is a false positive.
+      As this particular cycle will resolve itself, we ignore it. */
+      return false;
+    }
+</code></pre>
+
+<pre><code>    if (trx_weight_ge(chosen_victim, trx)) {
+      /* The joining transaction is 'smaller',
+      choose it as the victim and roll it back. */
+      chosen_victim = trx;
+    }
+</code></pre>
+
+<p>Weight approximates how much work a transaction has done, so the cheapest one is rolled back, and on a tie the traversal order makes the most recent joiner the loser. Two engineering choices, both leaning toward sacrificing the newcomer.</p>
+
+<p>Beyond deadlock there is timeout, with a default of fifty seconds, and by default a timeout rolls back only the current statement rather than the transaction.</p>
+
+<pre><code>static MYSQL_THDVAR_ULONG(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
+                          "Timeout in seconds an InnoDB transaction may wait "
+                          "for a lock before being rolled back. Values above "
+                          "100000000 disable the timeout.",
+                          nullptr, nullptr, 50, 1, 1024 * 1024 * 1024, 0);
+</code></pre>
+
+<pre><code>static MYSQL_SYSVAR_BOOL(rollback_on_timeout, innobase_rollback_on_timeout,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+                         "Roll back the complete transaction on lock wait "
+                         "timeout, for 4.x compatibility (disabled by default)",
+                         nullptr, nullptr, false);
+</code></pre>
+
+<p>The two failure modes need separate handling in the application. A deadlock rolls back the whole transaction, so the retry must start over. A timeout leaves the transaction alive with earlier statements still applied, so retrying only the failed statement continues inside a partially completed transaction, which is rarely what you want.</p>
+
+<p>Deadlock detection is on by default. Turning it off leaves timeouts as the only escape, which turns lock resolution into fifty-second waits.</p>
+
+<p>The root cause is almost never a wrong victim but inconsistent locking order, and two fixes cover most cases: make every transaction touch rows in the same order, and keep transactions short, preferring a unique equality over a wide locking range.</p>
+
+<h2>A lock map for one table</h2>
+
+<table>
+<thead><tr><th>Statement, repeatable read</th><th>Clustered index</th><th>Secondary index</th><th>What blocks</th></tr></thead>
+<tbody>
+<tr><td>Update a row by primary key</td><td>id 5: exclusive, record only</td><td>None</td><td>Nothing inserted between 6 and 9</td></tr>
+<tr><td>Update a primary key range</td><td>Lower bound record only, interior next-key, one gap past the end</td><td>None</td><td>Inserts inside the range and just after it</td></tr>
+<tr><td>Locking read of a missing key</td><td>Successor record: gap lock</td><td>None</td><td>Inserts into the interval before the successor</td></tr>
+<tr><td>Update by non-unique secondary equality</td><td>Fetched row: record only</td><td>Match: next-key, successor: gap</td><td>Inserts of the same value and of nearby values</td></tr>
+<tr><td>Update by secondary range</td><td>Each fetched row: record only</td><td>Lower bound record only, interior next-key, one gap past the end</td><td>Many insert positions across the range</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Lock mode shown</th><th>Source flags</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>X,REC_NOT_GAP</td><td>exclusive, record only</td><td>The record, not its gap</td></tr>
+<tr><td>X,GAP</td><td>exclusive, gap only</td><td>The gap alone</td></tr>
+<tr><td>X</td><td>exclusive, ordinary</td><td>Next-key, record and gap</td></tr>
+<tr><td>X,INSERT_INTENTION</td><td>exclusive, gap, insert intention</td><td>A pending insert request</td></tr>
+<tr><td>S and its variants</td><td>the shared equivalents</td><td>Shared shapes of the above</td></tr>
+</tbody>
+</table>
+
+<p>The data column names the index record the lock sits on, and a supremum entry means the unbounded interval after the last record. Read three things in order: which index, which shape, which successor record. With that, the opening question answers itself: there is a gap lock on the secondary index entry for value thirty, and the incoming row falls inside it.</p>
+
+<h2>Misconceptions and a checklist</h2>
+
+<ul>
+<li>A lock is not on a row. It is on an index record, and the same row has a distinct coordinate in every index, so updating a non-indexed column can still lock a secondary index.</li>
+<li>Unique equality does not always end with one record lock. It does when the row is found and not delete-marked; a miss locks the gap before the successor, and a delete-marked match can become a next-key lock.</li>
+<li>Gap locks do not conflict with each other, and neither do insert intention locks. What conflicts is an insert intention against a held gap.</li>
+<li>A next-key lock is often one object with a bitmap, and when waiting it may narrow to just the gap if the record lock is already held.</li>
+<li>Read committed has no gap locks, but it still has record locks from updates, uniqueness checks and foreign keys.</li>
+<li>A lock timeout rolls back the statement by default, not the transaction, so the earlier statements still stand.</li>
+<li>Deadlock victims are chosen by weight, smallest first, with ties going to the most recent joiner.</li>
+<li>Reading an old value in a consistent read is MVCC, not an absence of locks.</li>
+</ul>
+
+<p>Then the investigation order, without skipping. Confirm the isolation level, since it decides whether gap locks exist at all. Confirm the statement is a locking read. Read the current locks, looking for gap and next-key shapes before record-only ones. Read the waits table to reconstruct who waits for whom. Check the engine status output, where the latest deadlock section is the cheapest evidence available. Check the execution plan, because a wrong index widens the locked interval. Unify the locking order across statements. And narrow the locking read: unique equality over ranges, covering indexes over row fetches, and read committed where phantoms are tolerable.</p>
+
+<p>In short, ask which index first, then which interval, then which isolation level. Reverse that order and you stay inside the intuition that only one row was touched.</p>
+
+<h2>Closing: where the edge is</h2>
+
+<p>Three sentences cover the system. The address of a lock is an index, not a row, so one statement can hold a record, a gap, or both, and a row fetch is a second lock. The shape follows from the isolation level and the access path, with repeatable read using next-key and gap locks for anti-phantom work and read committed trading that for concurrency, and every rule falling out of the same two questions about whether a row is in range and whether its gap intersects. And contention is settled by a queue and a wait-for graph, with weights deciding grant order and a verified cycle deciding the victim.</p>
+
+<p>A next-key lock is not a bigger lock. It is a record and the gap before it written on the same line. A gap lock does not lock an absent row; it locks where a future row would go. With those two pictures, the lock tables stop being strings and become a map of an index: here is a point, here is a gap, here is who stands in it, and here is who is waiting for whom to move.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
