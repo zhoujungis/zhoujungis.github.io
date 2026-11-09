@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Why the design needs both structures, three fixed pointer operations, the double delete on eviction, and what changes when the follow-up question is thread safety or LFU." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/lc-146-lru-cache/" />
+    <meta property="og:title" content="LRU Cache: a hand-written hash map and doubly linked list | Stack Frame" />
+    <meta property="og:description" content="Why the design needs both structures, three fixed pointer operations, the double delete on eviction, and what changes when the follow-up question is thread safety or LFU." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/lc-146-lru-cache/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LRU Cache: a hand-written hash map and doubly linked list | Stack Frame" />
+    <meta name="twitter:description" content="Why the design needs both structures, three fixed pointer operations, the double delete on eviction, and what changes when the follow-up question is thread safety or LFU." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>LRU Cache: a hand-written hash map and doubly linked list | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DPG73x7M.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lc-146-lru-cache/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lc-146-lru-cache/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lc-146-lru-cache/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>LRU Cache: a hand-written hash map and doubly linked list</h1><div class="ns-meta">2026-10-12 · 18 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<blockquote>
+<p>Source: Tencent asks it 123 times, ByteDance 72. Among hand-written design questions, this is the cache problem that shows up most.</p>
+</blockquote>
+
+<p>Design and implement a data structure that satisfies the <strong>least recently used</strong> cache constraint.</p>
+
+<ul>
+<li><code>LRUCache(int capacity)</code>: initialize with a positive capacity.</li>
+<li><code>int get(int key)</code>: return the value if the key exists, otherwise -1.</li>
+<li><code>void put(int key, int value)</code>: update the value if the key exists, insert it if not, and <strong>evict the least recently used entry when the cache is full</strong>.</li>
+<li>Both <code>get</code> and <code>put</code> must run in O(1).</li>
+</ul>
+
+<p>You have to <strong>hand-write the doubly linked list and the hash map</strong>. <code>LinkedHashMap</code> and <code>OrderedDict</code> are off limits. Two follow-ups usually come next:</p>
+
+<blockquote>
+<p>One: how would you make it thread-safe?</p>
+<p>Two: how does it differ from LFU, LC 460?</p>
+</blockquote>
+
+<p>The canonical test case, which is also the default script for the walkthrough below:</p>
+
+<pre><code>LRUCache(2)
+put(1,1); put(2,2)        list: [1] then [2,1]
+get(1)                    returns 1,  list becomes [1,2]
+put(3,3)                  evicts 2,  list: [3,1]
+get(2)                    -1
+put(4,4)                  evicts 1,  list: [4,3]
+get(1) -1; get(3) 3; get(4) 4
+</code></pre>
+
+<h2>1. The core insight: two legs for O(1)</h2>
+
+<p>Start with why both structures are necessary.</p>
+
+<ul>
+<li><strong>A hash map alone</strong>: <code>get</code> is O(1), but nothing records who is least recently used. Every eviction would scan all keys, O(n), and the order of use cannot be maintained at all.</li>
+<li><strong>A linked list alone</strong>: order is trivial, but <code>get(key)</code> has to find the node first, and searching a list is O(n).</li>
+<li><strong>Both together</strong>: the map gives <code>key</code> to node lookup in one step, and the doubly linked list keeps usage order. Each does the job the other cannot.</li>
+</ul>
+
+<pre><code>front (head side) = most recently used (MRU)
+back  (tail side) = least recently used (LRU)   evictions always come from here
+</code></pre>
+
+<p>Two "why" questions come up almost every time.</p>
+
+<p><strong>Why doubly linked and not singly linked?</strong> A <code>get</code> hit has to detach the node from the middle of the list and move it to the front. A singly linked list needs the predecessor to detach a node, and finding the predecessor means scanning from the head, O(n). With a doubly linked list the node carries <code>prev</code>, so detaching is O(1).</p>
+
+<p><strong>Why sentinels?</strong> With a dummy head and tail, every node's <code>prev</code> and <code>next</code> are non-null, so insertion and removal never need a null check. That is half the <code>if</code> statements gone, and the boundary cases, capacity one and single-node lists, stop being special.</p>
+
+<h2>2. Hand-written structure: three fixed operations</h2>
+
+<p>The whole implementation is three pointer operations. Memorize their order and you stop getting them wrong.</p>
+
+<ul>
+<li><code>addToFront(node)</code>: attach the node right behind the head sentinel.</li>
+<li><code>unlink(node)</code>: remove the node, letting its neighbors point at each other.</li>
+<li><code>moveToFront(node)</code>: <code>unlink</code> then <code>addToFront</code>.</li>
+</ul>
+
+<p>Python, with no <code>OrderedDict</code>:</p>
+
+<pre><code>class Node:
+    __slots__ = ("key", "value", "prev", "next")
+
+    def __init__(self, key=0, value=0):
+        self.key = key
+        self.value = value
+        self.prev = None
+        self.next = None
+
+
+class LRUCache:
+    def __init__(self, capacity: int):
+        self.cap = capacity
+        self.cache = {}                    # key -> Node
+        self.head = Node()                 # sentinel: head.next is the first real node
+        self.tail = Node()                 # sentinel: tail.prev is the last real node
+        self.head.next = self.tail
+        self.tail.prev = self.head
+
+    def _add_to_front(self, node):
+        node.prev = self.head
+        node.next = self.head.next
+        self.head.next.prev = node
+        self.head.next = node
+
+    def _unlink(self, node):
+        node.prev.next = node.next
+        node.next.prev = node.prev
+
+    def _move_to_front(self, node):
+        self._unlink(node)
+        self._add_to_front(node)
+
+    def get(self, key: int) -> int:
+        node = self.cache.get(key)
+        if node is None:
+            return -1
+        self._move_to_front(node)          # a hit is a use
+        return node.value
+
+    def put(self, key: int, value: int) -> None:
+        node = self.cache.get(key)
+        if node is not None:
+            node.value = value
+            self._move_to_front(node)      # rewriting counts as a use
+            return
+        if len(self.cache) == self.cap:    # full: evict from the tail
+            victim = self.tail.prev
+            self._unlink(victim)
+            del self.cache[victim.key]     # delete from both, or you get a ghost
+        node = Node(key, value)
+        self.cache[key] = node
+        self._add_to_front(node)
+</code></pre>
+
+<p><code>put</code> has exactly three cases: the key exists, so update and move to front; the cache is not full, so insert at the front; the cache is full, so evict the tail from both structures and then insert. Reeling those three off in an interview is worth far more than "it's an LRU, you know".</p>
+
+<h2>3. Reading the two walkthroughs</h2>
+
+<p><strong>Walkthrough one, the LRU itself.</strong> The top row is the linked list. <code>H</code> and <code>T</code> are sentinels, the front is the most recently used and the tail is the eviction candidate. Each node shows <code>key:value</code> and a node number. The middle row is the hash map, whose entries look like <code>key to #n</code>. Watch them change together: an insert adds to both, an eviction removes from both. On an eviction frame the tail shows a dashed ghost node, which is the entry that was just detached.</p>
+
+<p><strong>Walkthrough two, the LFU contrast.</strong> The same operation script is fed to an LFU cache, where nodes are ordered by ascending frequency, so the leftmost node is the next eviction. Each node carries a frequency badge, and both <code>get</code> and a <code>put</code> hit increment it. Two frames tell the whole story: at <code>put(3,3)</code> the LRU evicts <code>(2,2)</code> while the LFU evicts <code>(1,1)</code>.</p>
+
+<h2>4. The full walkthrough</h2>
+
+<p>Running the default script through the LRU, with the list written head to tail:</p>
+
+<table>
+<thead><tr><th>Operation</th><th>List (head to tail)</th><th>Hash map</th><th>Returns</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>empty</td><td>empty</td><td></td></tr>
+<tr><td><code>put(1,1)</code></td><td><code>1:1</code></td><td><code>1 to #1</code></td><td></td></tr>
+<tr><td><code>put(2,2)</code></td><td><code>2:2</code> then <code>1:1</code></td><td><code>1,#1 ; 2,#2</code></td><td></td></tr>
+<tr><td><code>get(1)</code></td><td><code>1:1</code> then <code>2:2</code> (moved to front)</td><td>unchanged</td><td><strong>1</strong></td></tr>
+<tr><td><code>put(3,3)</code></td><td>evict <code>2:2</code>, insert, giving <code>3:3</code> then <code>1:1</code></td><td>remove 2, add 3</td><td></td></tr>
+<tr><td><code>get(2)</code></td><td>unchanged</td><td>unchanged</td><td><strong>-1</strong></td></tr>
+<tr><td><code>put(4,4)</code></td><td>evict <code>1:1</code>, insert, giving <code>4:4</code> then <code>3:3</code></td><td>remove 1, add 4</td><td></td></tr>
+<tr><td><code>get(1)</code></td><td>unchanged</td><td>unchanged</td><td><strong>-1</strong></td></tr>
+<tr><td><code>get(3)</code></td><td><code>3:3</code> then <code>4:4</code></td><td>unchanged</td><td><strong>3</strong></td></tr>
+<tr><td><code>get(4)</code></td><td><code>4:4</code> then <code>3:3</code></td><td>unchanged</td><td><strong>4</strong></td></tr>
+</tbody>
+</table>
+
+<p>Both eviction moments are worth memorizing. <code>put(3,3)</code> evicts <code>(2,2)</code> even though 2 was inserted later than 1, because the <code>get(1)</code> in between used 1 and left 2 untouched. <code>put(4,4)</code> evicts <code>(1,1)</code>: 1 had been popular, but once 3 arrived it was the tail. <strong>LRU looks at whether something was used recently, not at how often it was used.</strong></p>
+
+<p>The LFU contrast, same script, one divergence:</p>
+
+<table>
+<thead><tr><th>Step</th><th>Frequencies</th><th>Decision</th></tr></thead>
+<tbody>
+<tr><td><code>put(1,1)</code>, <code>put(2,2)</code></td><td><code>1:1, 2:1</code></td><td>both cold</td></tr>
+<tr><td><code>get(2)</code> twice</td><td><code>1:1, 2:3</code></td><td>in LFU a get raises the frequency</td></tr>
+<tr><td><code>get(1)</code></td><td><code>1:2, 2:3</code></td><td>1 heats up, but stays behind</td></tr>
+<tr><td><code>put(3,3)</code></td><td>evicts <code>1</code>, the lowest frequency</td><td>the LRU evicts <code>2</code> here</td></tr>
+</tbody>
+</table>
+
+<p>Same operations, same capacity, different key evicted. That is the entire difference between LRU and LFU compressed into one trace.</p>
+
+<h2>5. Follow-up two: how LFU differs</h2>
+
+<table>
+<thead><tr><th></th><th>LRU (146)</th><th>LFU (460)</th></tr></thead>
+<tbody>
+<tr><td>Dimension remembered</td><td><strong>Time</strong>: was it used recently</td><td><strong>Frequency</strong>: how often was it used</td></tr>
+<tr><td>What a get hit does</td><td>Move the node to the front, changing order</td><td>Increment frequency, changing eviction priority</td></tr>
+<tr><td>Who gets evicted</td><td>The tail, the least recently used</td><td>The lowest frequency, and among equals the least recently used</td></tr>
+<tr><td>Structure</td><td>Hash map plus one doubly linked list</td><td>Hash map plus frequency buckets plus a <code>minFreq</code> pointer</td></tr>
+<tr><td>Difficulty of O(1)</td><td>Low, three operations</td><td>High, bucket churn and <code>minFreq</code> maintenance</td></tr>
+<tr><td>Typical weakness</td><td>A single scan can flush the hot set, which is cache pollution</td><td>Historical hot keys stick around; new keys get killed instantly</td></tr>
+</tbody>
+</table>
+
+<p>LFU reaches O(1) through frequency buckets: each frequency value owns a doubly linked list ordered by recency, and a <code>minFreq</code> pointer tracks the smallest bucket. A hit moves the node from bucket f to bucket f+1. An eviction takes the tail of the <code>minFreq</code> bucket. <strong>The hard part of LC 460 was never the linked list, it is the buckets and the pointer.</strong></p>
+
+<p>Production caches take a fourth route. Caffeine uses W-TinyLFU, an admission window combined with a frequency sketch, which resists scan pollution without maintaining exact buckets. Mentioning that in an interview changes the level of the conversation.</p>
+
+<h2>6. Follow-up one: making it thread-safe</h2>
+
+<p>Start by killing an assumption: <strong><code>get</code> is not a read-only operation</strong>. It calls <code>moveToFront</code>, which mutates the list. "Use a read-write lock because reads dominate" is therefore a non-starter, since every read may write.</p>
+
+<ul>
+<li><strong>One global lock</strong> is the simple, correct answer: <code>synchronized</code> in Java, <code>threading.Lock</code> in Python. Correct, trivial, and fully serialized. Say this first, then talk about optimization.</li>
+<li><strong>Striped locks</strong> are the engineering answer: hash the key into N shards, each with its own LRU and its own lock. Concurrency rises, but capacity stops being exact, since each shard evicts independently and the total can drift.</li>
+<li><strong>Approximate algorithms</strong> are the production answer: CLOCK or W-TinyLFU reduce each access to a constant number of bit operations instead of precise list maintenance, trading eviction accuracy for scalability.</li>
+</ul>
+
+<p>An interview sentence that works: the simplest correct version serializes everything behind one lock, and the bottleneck is that <code>get</code> also writes to the list. In production you step back to striping or approximation, trading eviction precision for concurrency.</p>
+
+<h2>7. Java, also hand-written</h2>
+
+<pre><code>class LRUCache {
+    private static final class Node {
+        int key, value;
+        Node prev, next;
+        Node(int k, int v) { key = k; value = v; }
+    }
+
+    private final int capacity;
+    private final Map&lt;Integer, Node&gt; map = new HashMap&lt;&gt;();
+    private final Node head = new Node(0, 0);   // sentinel
+    private final Node tail = new Node(0, 0);   // sentinel
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        head.next = tail;
+        tail.prev = head;
+    }
+
+    public int get(int key) {
+        Node node = map.get(key);
+        if (node == null) return -1;
+        moveToFront(node);
+        return node.value;
+    }
+
+    public void put(int key, int value) {
+        Node node = map.get(key);
+        if (node != null) {
+            node.value = value;
+            moveToFront(node);
+            return;
+        }
+        if (map.size() == capacity) {
+            Node victim = tail.prev;            // tail is least recently used
+            remove(victim);
+            map.remove(victim.key);             // delete from both
+        }
+        Node fresh = new Node(key, value);
+        map.put(key, fresh);
+        addToFront(fresh);
+    }
+
+    private void addToFront(Node node) {
+        node.prev = head;
+        node.next = head.next;
+        head.next.prev = node;
+        head.next = node;
+    }
+
+    private void remove(Node node) {
+        node.prev.next = node.next;
+        node.next.prev = node.prev;
+    }
+
+    private void moveToFront(Node node) {
+        remove(node);
+        addToFront(node);
+    }
+}
+</code></pre>
+
+<p>One Java detail: the sentinels are never in the map and can never be overwritten by a <code>put</code>. After <code>remove</code> you <strong>must</strong> call <code>map.remove</code>, or the evicted key stays in the hash map and the next <code>get</code> finds a node that is no longer on the list.</p>
+
+<p>If a written test ever allows the standard library, <code>new LinkedHashMap&lt;&gt;(cap, 0.75f, true)</code> with <code>removeEldestEntry</code> overridden, or <code>OrderedDict</code> with <code>move_to_end</code>, solves it in one line. This question exists precisely because it forbids that.</p>
+
+<h2>8. The family: 460, 432, 707, 2296, interview 16.25</h2>
+
+<p>LC 146 is the origin point for the design, linked list and hash map family.</p>
+
+<ul>
+<li><strong>LC 460, LFU cache</strong>: the contrast in section 5. Frequency buckets plus <code>minFreq</code>, the natural next step.</li>
+<li><strong>LC 432, all O(1) data structure</strong>: increment, decrement, get max and get min in O(1), using the same value-to-list bucket idea.</li>
+<li><strong>LC 707, design a linked list</strong>: no cache at all, just raw doubly linked list operations.</li>
+<li><strong>LC 2296, design a text editor</strong>: a doubly linked list with a cursor, the other classic use.</li>
+<li><strong>Interview 16.25</strong>: the same problem under the interview numbering, with comparable frequency.</li>
+<li><strong>LC 588 and 1166</strong>: path-to-node hashing combined with trees and lists, same underlying idea.</li>
+</ul>
+
+<h2>9. Edge cases and traps</h2>
+
+<ul>
+<li><strong>A <code>put</code> on an existing key must move it to the front</strong> and update the value. Forgetting that an overwrite counts as a use is the most common bug in this problem.</li>
+<li><strong>A get miss must not disturb anything</strong>: return -1 and leave the structure alone.</li>
+<li><strong>Eviction is a double delete</strong>: detach from the list <strong>and</strong> delete the map entry. List only gives a ghost node; map only leaks the node.</li>
+<li><strong>Writing the same value still counts as a use.</strong> <code>put(1, 5)</code> when <code>1:5</code> is present still moves the node to the front.</li>
+<li><strong>Capacity one</strong> needs no special case with sentinels, which is exactly what they buy you.</li>
+<li><strong>Pointer order matters.</strong> Four lines in <code>addToFront</code>, two in <code>remove</code>. Get them backwards and a single-node list points at itself.</li>
+<li><strong>Do not use the library.</strong> The prompt forbids <code>LinkedHashMap</code> and <code>OrderedDict</code>. It compiles, and the interviewer counts it as not answering the question.</li>
+<li><strong><code>__slots__</code> in Python</strong> is a nice touch, worth mentioning and worth nothing if you skip it.</li>
+</ul>
+
+<h2>10. Complexity</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>Time</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>get</code></td><td>O(1) amortized</td><td>Hash lookup, then a constant number of pointer writes</td></tr>
+<tr><td><code>put</code></td><td>O(1) amortized</td><td>Lookup, at most one eviction, one insert at the front</td></tr>
+<tr><td>Space</td><td>O(capacity)</td><td>Map and list each hold at most capacity nodes</td></tr>
+</tbody>
+</table>
+
+<p>No traversal, no scan. That is all "O(1) LRU" means. Against LFU: with buckets and <code>minFreq</code> maintained correctly it is also O(1), but with considerably more structure to keep alive.</p>
+
+<h2>11. How to answer in an interview</h2>
+
+<p><strong>First, structure selection.</strong> Two legs: the hash map gives O(1) lookup from key to node, the doubly linked list gives O(1) reordering and eviction. Then why doubly linked, because detaching a middle node needs the predecessor, and why sentinels, because they remove every null check. Most candidates are vague here, and clarity on this part is half the interview.</p>
+
+<p><strong>Second, the hand-written part.</strong> Three operations, <code>addToFront</code>, <code>unlink</code>, <code>moveToFront</code>. Three cases in <code>put</code>. The double delete on eviction.</p>
+
+<p><strong>Third, the follow-ups.</strong> Thread safety, led by the observation that <code>get</code> writes to the list, with the global lock, striped and approximate answers in that order. LFU, which is the time dimension against the frequency dimension, with the same script evicting different keys, and O(1) from buckets plus <code>minFreq</code>.</p>
+
+<p>One sentence to close on: the whole question is <strong>hash map finds, doubly linked list queues</strong>, and when you write it by hand, watch the sentinels, the double delete, and the fact that a <code>put</code> hit still moves the node to the front.</p>
+
+<h2>Closing</h2>
+
+<p>LC 146 contains no algorithm and no math. It tests how well you command a combination of two basic structures: the map gives O(1) access, the list gives O(1) order. Get this one right and LFU's frequency buckets, 432's buckets of buckets, and the striped and approximate thread-safe variants are all the same map with more detail on it. Write it once by hand; reading it ten times will not do the same thing.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">LRU 缓存：手写哈希表与双向链表</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>

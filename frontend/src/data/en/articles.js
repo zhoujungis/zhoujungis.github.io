@@ -5188,6 +5188,586 @@ wait &lt;url&gt; &lt;selector&gt; [timeout_ms]           wait for an element
 <p>Related: <a href="/en/article/nanohermes-rust-coding-agent/">NanoHermes, a Rust agent with zero runtime</a> and <a href="/en/article/aidevops-terminal-client/">aidevops, an AI DevOps copilot in your terminal</a>.</p>
 `,
   },
+  {
+    slug: 'lc-20-valid-parentheses',
+    zhSlug: 'lc-20-valid-parentheses',
+    topicSlug: 'leetcode',
+    title: 'Valid Parentheses: the stack is forced by the structure',
+    excerpt:
+      'Three failure modes hide in nine lines of code, and the third check sits outside the loop. Why a counter cannot replace the stack, plus the priority variant and five sibling problems.',
+    date: '2026-09-29',
+    readingTime: 14,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a string <code>s</code> containing only <code>'('</code>, <code>')'</code>, <code>'{'</code>, <code>'}'</code>, <code>'['</code> and <code>']'</code>, decide whether it is valid.</p>
+
+<p>Valid means every opening bracket is closed by the <strong>same type</strong>, in the <strong>correct order</strong>, so nesting never crosses. Every closing bracket has a matching opener.</p>
+
+<pre><code>Input:  s = "{[()]}"   Output: true
+Input:  s = "()[]{}"   Output: true
+Input:  s = "(]"       Output: false   (wrong type)
+Input:  s = "([)]"     Output: false   (crossed nesting)
+Input:  s = "(()"      Output: false   (unclosed)
+</code></pre>
+
+<p>It is a fixture in Chinese interview loops and the classic introduction to the stack.</p>
+
+<h2>1. The core insight: the structure forces the stack</h2>
+
+<p>The interesting part is that you never have to think "I should use a stack". The bracket structure hands you one.</p>
+
+<p>Why is <code>"(]"</code> invalid while <code>"{[()]}"</code> is fine? Because every closing bracket matches the <strong>nearest</strong> unclosed opener of its type. Which is to say:</p>
+
+<blockquote>
+<p>The innermost unclosed opener has to close first. Last opened, first closed. That's LIFO.</p>
+<p>"Remember the openers you haven't closed yet, and when a closer arrives look at the most recent one" is a stack, in plain English.</p>
+</blockquote>
+
+<p>So the solution reads like prose. On an opener, push it and record what you're waiting for. On a closer, ask the top of the stack whether it's the one you're waiting for. When the scan ends, the stack must be empty.</p>
+
+<pre><code>def isValid(s: str) -> bool:
+    pairs = {'(': ')', '[': ']', '{': '}'}
+    stack = []
+    for ch in s:
+        if ch in pairs:                 # opener: push
+            stack.append(ch)
+        else:                           # closer: ask the top
+            if not stack:               # failure two: nothing to close
+                return False
+            if pairs[stack.pop()] != ch:  # failure one: wrong type
+                return False
+    return not stack                    # failure three: leftovers
+</code></pre>
+
+<p>Nine lines, but three independent validity checks live in them. Miss one and a whole class of input goes wrong. That's the real test here, and section 2 breaks it down.</p>
+
+<p>There is one implementation choice worth mentioning. The stack can hold the <strong>openers</strong> and look up the mapping on pop, or it can hold the <strong>expected closers</strong> directly: push <code>pairs[ch]</code> on an opener, then a closer only has to compare against <code>pop()</code>. The second version saves a lookup at pop time, and saying so in an interview is a small plus.</p>
+
+<h2>2. Three failure modes, three checks</h2>
+
+<p>"Valid" is not one condition. It is the conjunction of three negations, and each one has its own check. Miss one and you misjudge one family of input.</p>
+
+<table>
+<thead><tr><th>Failure</th><th>Example</th><th>Symptom</th><th>Where the check lives</th></tr></thead>
+<tbody>
+<tr><td><strong>Wrong type</strong></td><td><code>"(]"</code>, <code>"([)]"</code></td><td>The closer and the stack top are not a pair</td><td><code>pairs[stack.pop()] != ch</code></td></tr>
+<tr><td><strong>Nothing to close</strong></td><td>the second <code>)</code> in <code>"())"</code>, or a lone <code>"]"</code></td><td>The stack is empty when a closer arrives</td><td><code>if not stack</code></td></tr>
+<tr><td><strong>Left unclosed</strong></td><td><code>"(()"</code>, <code>"(((("</code></td><td>The scan ends with the stack non-empty</td><td><code>return not stack</code></td></tr>
+</tbody>
+</table>
+
+<p>The first is "paired with the wrong partner", the second is "one too many", the third is "never finished". They are independent. A given input trips exactly one of them, and input is only valid when none of them fires.</p>
+
+<p>Two positive-looking cases that catch people out:</p>
+
+<ul>
+<li><code>"(]"</code>: when <code>)</code> arrives the top is <code>(</code>. The count is right, one opener and one closer, but the <strong>type</strong> is wrong. Some people think "every opener got a closer" is enough. It isn't.</li>
+<li><code>"([)]"</code>: right count, right types, wrong <strong>nesting order</strong>. <code>[</code> closes <code>]</code> while <code>(</code> is still open. The stack catches exactly this: when <code>)</code> arrives the top is <code>[</code>, not <code>(</code>.</li>
+</ul>
+
+<h2>3. The frames, step by step</h2>
+
+<p>Walking <code>"{[()]}"</code> takes six steps: three pushes, three matched pops, and the stack ends empty. Read the stack from bottom to top and keep an eye on the top, because that's the only cell the algorithm ever looks at.</p>
+
+<ul>
+<li><strong>push frame</strong>: an opener enters the stack and records what it is waiting for.</li>
+<li><strong>match frame</strong>: the current closer matches the top, and the top pops. The pair is settled.</li>
+<li><strong>mismatch frame</strong>: the top and the current character disagree. The stack top was waiting for <code>"]"</code> and got <code>")"</code>.</li>
+<li><strong>unmatched frame</strong>: the stack is empty and a closer has nowhere to go.</li>
+<li><strong>done frame</strong>: valid means the whole string is consumed and the stack is empty. Leftovers mean the remaining openers are marked as failures.</li>
+</ul>
+
+<p>The main example uses eight frames: three pushes, three matched pops, and the stack happens to empty out.</p>
+
+<h2>4. The full walkthrough</h2>
+
+<p>Take <code>"{[()]}"</code> as the main example, six characters.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>i</th><th>ch</th><th>Action</th><th>Stack (bottom to top)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>-</td><td>-</td><td>-</td><td>[]</td><td></td></tr>
+<tr><td>1</td><td>0</td><td><code>{</code></td><td>push</td><td>[<code>{</code>]</td><td>waiting for <code>"}"</code></td></tr>
+<tr><td>2</td><td>1</td><td><code>[</code></td><td>push</td><td>[<code>{</code>, <code>[</code>]</td><td><code>[</code> becomes the innermost</td></tr>
+<tr><td>3</td><td>2</td><td><code>(</code></td><td>push</td><td>[<code>{</code>, <code>[</code>, <code>(</code>]</td><td>three levels deep</td></tr>
+<tr><td>4</td><td>3</td><td><code>)</code></td><td>pop, match</td><td>[<code>{</code>, <code>[</code>]</td><td>the top <code>(</code> was waiting for exactly this</td></tr>
+<tr><td>5</td><td>4</td><td><code>]</code></td><td>pop, match</td><td>[<code>{</code>]</td><td>the top <code>[</code> was waiting for exactly this</td></tr>
+<tr><td>6</td><td>5</td><td><code>}</code></td><td>pop, match</td><td>[]</td><td>stack empties exactly</td></tr>
+<tr><td>done</td><td></td><td></td><td></td><td>[]</td><td><strong>valid</strong></td></tr>
+</tbody>
+</table>
+
+<p>Compare the three failures on the same walkthrough:</p>
+
+<ul>
+<li><code>"(]"</code>: at frame 2, the top <code>(</code> is waiting for <code>")"</code> and <code>]</code> arrives. Mismatch, false immediately.</li>
+<li><code>"())"</code>: at frame 3, the second <code>)</code> finds an empty stack. Unmatched, false immediately.</li>
+<li><code>"(()"</code>: the scan finishes with <code>(</code> still on the stack. Leftover, false.</li>
+</ul>
+
+<h2>5. The priority variant, and sibling problems</h2>
+
+<h3>5.1 Adding a priority constraint</h3>
+
+<p>One common interview twist assigns priorities: <code>(</code> is 1, <code>[</code> is 2, <code>{</code> is 3. Beyond correct pairing, an <strong>inner bracket may not have lower priority than the one containing it</strong>. Priority can only rise as you go inward, never fall.</p>
+
+<table>
+<thead><tr><th>Input</th><th>Plain rules</th><th>With priority</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>([{}])</code></td><td>true</td><td><strong>true</strong></td><td>1, then 2, then 3, rising</td></tr>
+<tr><td><code>{(})</code></td><td>true</td><td><strong>false</strong></td><td><code>(</code> at 1 sits inside <code>{</code> at 3, priority inverts</td></tr>
+<tr><td><code>[({})]</code></td><td>true</td><td><strong>false</strong></td><td><code>{</code> at 3 sits inside <code>(</code> at 1</td></tr>
+<tr><td><code>{[()]}</code></td><td>true</td><td>true</td><td>rising throughout</td></tr>
+</tbody>
+</table>
+
+<p>The direction can be reversed: some versions require the outer bracket to be strictly higher, which just flips the comparison. The mechanism does not change. Carry one more field in the stack frame and compare against the top before pushing.</p>
+
+<pre><code>def isValidWithPriority(s: str) -> bool:
+    pairs = {'(': ')', '[': ']', '{': '}'}
+    prio = {'(': 1, '[': 2, '{': 3}
+    stack = []                       # holds (char, priority)
+    for ch in s:
+        if ch in pairs:
+            if stack and prio[ch] &lt; stack[-1][1]:   # inner must not be lower
+                return False
+            stack.append((ch, prio[ch]))
+        else:
+            if not stack or pairs[stack[-1][0]] != ch:
+                return False
+            stack.pop()
+    return not stack
+</code></pre>
+
+<p>This is where the stack approach earns its keep: <strong>any extra constraint becomes one more field in the frame</strong>. That is what the interviewer is usually probing when they keep twisting a familiar problem.</p>
+
+<h3>5.2 The family</h3>
+
+<table>
+<thead><tr><th>Problem</th><th>How the stack is used</th></tr></thead>
+<tbody>
+<tr><td>LC 22, generate parentheses</td><td>Generation rather than validation: counters act as a simplified stack during backtracking</td></tr>
+<tr><td>LC 32, longest valid parentheses</td><td>The stack holds <strong>indices</strong>, with -1 as a sentinel floor; the length comes from index differences</td></tr>
+<tr><td>LC 921, minimum add to make valid</td><td>Counter version: <code>need</code> counts unclosed openers, negative <code>bal</code> counts stray closers</td></tr>
+<tr><td>LC 1541, minimum insertions for balanced string</td><td>Same idea with one-to-many pairing</td></tr>
+<tr><td>LC 1047, remove adjacent duplicates</td><td>The same stack: if the top matches, pop it</td></tr>
+</tbody>
+</table>
+
+<p>The family rule: when the most recently handled thing must be handled first, reach for a stack. Pairing problems store <em>what I am waiting for</em>, counting problems store only the balance, and index problems store the position too.</p>
+
+<h2>6. Java</h2>
+
+<pre><code>public boolean isValid(String s) {
+    Map&lt;Character, Character&gt; pairs = Map.of('(', ')', '[', ']', '{', '}');
+    Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+    for (char ch : s.toCharArray()) {
+        if (pairs.containsKey(ch)) {
+            stack.push(ch);
+        } else {
+            if (stack.isEmpty() || pairs.get(stack.pop()) != ch) {
+                return false;      // failure two and failure one, merged
+            }
+        }
+    }
+    return stack.isEmpty();        // failure three
+}
+</code></pre>
+
+<p>Java convention prefers <code>ArrayDeque</code> over <code>Stack</code>, which extends <code>Vector</code>, carries locks and mixes in index access. Note also that the merged condition relies on short-circuit evaluation: <code>stack.isEmpty()</code> runs first, so <code>pop()</code> never touches an empty stack.</p>
+
+<h2>7. Edge cases</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>What it tests</th></tr></thead>
+<tbody>
+<tr><td><code>""</code></td><td>true</td><td>Empty input: the loop never runs, the stack is empty by default</td></tr>
+<tr><td><code>"("</code></td><td>false</td><td>One opener, leftover</td></tr>
+<tr><td><code>"]"</code></td><td>false</td><td>A closer as the first character, unmatched</td></tr>
+<tr><td><code>"([)]"</code></td><td>false</td><td>Crossed nesting with correct counts and types</td></tr>
+<tr><td><code>"(){}}{"</code></td><td>false</td><td>Early return on the first failure</td></tr>
+<tr><td>length 10<sup>4</sup></td><td>n/a</td><td>Linear scan, no pressure</td></tr>
+</tbody>
+</table>
+
+<h2>8. Complexity</h2>
+
+<ul>
+<li><strong>Time O(n)</strong>: each character is pushed and popped at most once.</li>
+<li><strong>Space O(n)</strong>: the worst case is all openers, <code>"(((("</code>, with a stack depth of n.</li>
+</ul>
+
+<h2>9. Common traps</h2>
+
+<h3>9.1 Checking pairing but forgetting the final emptiness check</h3>
+
+<p>In <code>"(()"</code> every closer finds its opener, but openers are left over. The stack has to be checked after the loop. This is the failure mode people miss most often, because its check lives <strong>outside</strong> the loop.</p>
+
+<h3>9.2 Popping before checking for an empty stack</h3>
+
+<p>For the second <code>)</code> in <code>"())"</code> or a lone <code>"]"</code>, <code>pop()</code> on an empty stack raises <code>IndexError</code> in Python and an exception in Java. Plenty of people write <code>pairs[stack.pop()]</code> first and add the empty check afterwards. The empty check has to come <strong>before</strong> the pop.</p>
+
+<h3>9.3 Replacing the stack with two counters</h3>
+
+<p>Do <code>count(</code> and <code>count)</code> matching make a string valid? <code>"(]"</code> defeats it immediately: <code>(</code> and <code>]</code> are not the same type and counters do not know types. Even with one counter per type, <code>"([)]"</code> slips through, because every count is correct. <strong>Counters can check the balance. They cannot check the order</strong>, and order is the whole point.</p>
+
+<h3>9.4 Assuming crossed nesting is fine</h3>
+
+<p><code>"([)]"</code> has the right counts and the right set of types, so intuition says true. What saves you is the top-of-stack comparison: when <code>)</code> arrives the innermost bracket is <code>[</code>, not <code>(</code>. Keep this case as a self-test.</p>
+
+<h3>9.5 Mishandling the empty string</h3>
+
+<p><code>""</code> should return true: there is nothing to pair. The loop does not run, the stack is empty, and <code>return not stack</code> gives the right answer. Adding <code>if not s: return False</code> at the top, on the assumption that empty means invalid, breaks it.</p>
+
+<h3>9.6 Using java.util.Stack</h3>
+
+<p>It runs, but <code>Stack</code> extends <code>Vector</code>: synchronized, with an index interface it should not expose. Modern Java uses <code>Deque</code> or <code>ArrayDeque</code>. Small engineering point, easy to earn.</p>
+
+<h2>10. How to answer in an interview</h2>
+
+<ol>
+<li><strong>State the insight in one sentence.</strong> The innermost unclosed bracket has to close first, which is last-in-first-out, which is a stack. The structure chose the data structure for you.</li>
+<li><strong>List the three failure modes before writing code.</strong> Wrong type, nothing to close, left unclosed. Three checks, none optional, and the last one sits outside the loop.</li>
+<li><strong>Offer <code>"([)]"</code> yourself.</strong> Correct counts, correct types, crossed nesting. It proves you understand that the top-of-stack comparison is checking order.</li>
+<li><strong>Complexity.</strong> O(n) time, O(n) space, worst case all openers.</li>
+<li><strong>Extend.</strong> The expected-closer variant, the priority variant that adds a field to the frame, the counter version (LC 921) and the index version (LC 32). It shows you know where this problem sits in the family.</li>
+</ol>
+
+<h2>Closing</h2>
+
+<p>Valid parentheses is the cleanest way to explain a stack, because it needs no tricks. One observation carries the whole solution: nested brackets are inherently last-in-first-out. Nine lines hold three checks for three failure modes, and none of them is optional. Every variant in the family, whether counting, index-based or priority-constrained, is a change to what the frame stores. Next time something has to handle the most recent unhandled item first, start here.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/">有效的括号：栈是被结构逼出来的</a>.</p>
+`,
+  },
+  {
+    slug: 'lc-146-lru-cache',
+    zhSlug: 'lc-146-lru-cache',
+    topicSlug: 'leetcode',
+    title: 'LRU Cache: a hand-written hash map and doubly linked list',
+    excerpt:
+      'Why the design needs both structures, three fixed pointer operations, the double delete on eviction, and what changes when the follow-up question is thread safety or LFU.',
+    date: '2026-10-12',
+    readingTime: 18,
+    html: `
+<h2>The problem</h2>
+
+<blockquote>
+<p>Source: Tencent asks it 123 times, ByteDance 72. Among hand-written design questions, this is the cache problem that shows up most.</p>
+</blockquote>
+
+<p>Design and implement a data structure that satisfies the <strong>least recently used</strong> cache constraint.</p>
+
+<ul>
+<li><code>LRUCache(int capacity)</code>: initialize with a positive capacity.</li>
+<li><code>int get(int key)</code>: return the value if the key exists, otherwise -1.</li>
+<li><code>void put(int key, int value)</code>: update the value if the key exists, insert it if not, and <strong>evict the least recently used entry when the cache is full</strong>.</li>
+<li>Both <code>get</code> and <code>put</code> must run in O(1).</li>
+</ul>
+
+<p>You have to <strong>hand-write the doubly linked list and the hash map</strong>. <code>LinkedHashMap</code> and <code>OrderedDict</code> are off limits. Two follow-ups usually come next:</p>
+
+<blockquote>
+<p>One: how would you make it thread-safe?</p>
+<p>Two: how does it differ from LFU, LC 460?</p>
+</blockquote>
+
+<p>The canonical test case, which is also the default script for the walkthrough below:</p>
+
+<pre><code>LRUCache(2)
+put(1,1); put(2,2)        list: [1] then [2,1]
+get(1)                    returns 1,  list becomes [1,2]
+put(3,3)                  evicts 2,  list: [3,1]
+get(2)                    -1
+put(4,4)                  evicts 1,  list: [4,3]
+get(1) -1; get(3) 3; get(4) 4
+</code></pre>
+
+<h2>1. The core insight: two legs for O(1)</h2>
+
+<p>Start with why both structures are necessary.</p>
+
+<ul>
+<li><strong>A hash map alone</strong>: <code>get</code> is O(1), but nothing records who is least recently used. Every eviction would scan all keys, O(n), and the order of use cannot be maintained at all.</li>
+<li><strong>A linked list alone</strong>: order is trivial, but <code>get(key)</code> has to find the node first, and searching a list is O(n).</li>
+<li><strong>Both together</strong>: the map gives <code>key</code> to node lookup in one step, and the doubly linked list keeps usage order. Each does the job the other cannot.</li>
+</ul>
+
+<pre><code>front (head side) = most recently used (MRU)
+back  (tail side) = least recently used (LRU)   evictions always come from here
+</code></pre>
+
+<p>Two "why" questions come up almost every time.</p>
+
+<p><strong>Why doubly linked and not singly linked?</strong> A <code>get</code> hit has to detach the node from the middle of the list and move it to the front. A singly linked list needs the predecessor to detach a node, and finding the predecessor means scanning from the head, O(n). With a doubly linked list the node carries <code>prev</code>, so detaching is O(1).</p>
+
+<p><strong>Why sentinels?</strong> With a dummy head and tail, every node's <code>prev</code> and <code>next</code> are non-null, so insertion and removal never need a null check. That is half the <code>if</code> statements gone, and the boundary cases, capacity one and single-node lists, stop being special.</p>
+
+<h2>2. Hand-written structure: three fixed operations</h2>
+
+<p>The whole implementation is three pointer operations. Memorize their order and you stop getting them wrong.</p>
+
+<ul>
+<li><code>addToFront(node)</code>: attach the node right behind the head sentinel.</li>
+<li><code>unlink(node)</code>: remove the node, letting its neighbors point at each other.</li>
+<li><code>moveToFront(node)</code>: <code>unlink</code> then <code>addToFront</code>.</li>
+</ul>
+
+<p>Python, with no <code>OrderedDict</code>:</p>
+
+<pre><code>class Node:
+    __slots__ = ("key", "value", "prev", "next")
+
+    def __init__(self, key=0, value=0):
+        self.key = key
+        self.value = value
+        self.prev = None
+        self.next = None
+
+
+class LRUCache:
+    def __init__(self, capacity: int):
+        self.cap = capacity
+        self.cache = {}                    # key -> Node
+        self.head = Node()                 # sentinel: head.next is the first real node
+        self.tail = Node()                 # sentinel: tail.prev is the last real node
+        self.head.next = self.tail
+        self.tail.prev = self.head
+
+    def _add_to_front(self, node):
+        node.prev = self.head
+        node.next = self.head.next
+        self.head.next.prev = node
+        self.head.next = node
+
+    def _unlink(self, node):
+        node.prev.next = node.next
+        node.next.prev = node.prev
+
+    def _move_to_front(self, node):
+        self._unlink(node)
+        self._add_to_front(node)
+
+    def get(self, key: int) -> int:
+        node = self.cache.get(key)
+        if node is None:
+            return -1
+        self._move_to_front(node)          # a hit is a use
+        return node.value
+
+    def put(self, key: int, value: int) -> None:
+        node = self.cache.get(key)
+        if node is not None:
+            node.value = value
+            self._move_to_front(node)      # rewriting counts as a use
+            return
+        if len(self.cache) == self.cap:    # full: evict from the tail
+            victim = self.tail.prev
+            self._unlink(victim)
+            del self.cache[victim.key]     # delete from both, or you get a ghost
+        node = Node(key, value)
+        self.cache[key] = node
+        self._add_to_front(node)
+</code></pre>
+
+<p><code>put</code> has exactly three cases: the key exists, so update and move to front; the cache is not full, so insert at the front; the cache is full, so evict the tail from both structures and then insert. Reeling those three off in an interview is worth far more than "it's an LRU, you know".</p>
+
+<h2>3. Reading the two walkthroughs</h2>
+
+<p><strong>Walkthrough one, the LRU itself.</strong> The top row is the linked list. <code>H</code> and <code>T</code> are sentinels, the front is the most recently used and the tail is the eviction candidate. Each node shows <code>key:value</code> and a node number. The middle row is the hash map, whose entries look like <code>key to #n</code>. Watch them change together: an insert adds to both, an eviction removes from both. On an eviction frame the tail shows a dashed ghost node, which is the entry that was just detached.</p>
+
+<p><strong>Walkthrough two, the LFU contrast.</strong> The same operation script is fed to an LFU cache, where nodes are ordered by ascending frequency, so the leftmost node is the next eviction. Each node carries a frequency badge, and both <code>get</code> and a <code>put</code> hit increment it. Two frames tell the whole story: at <code>put(3,3)</code> the LRU evicts <code>(2,2)</code> while the LFU evicts <code>(1,1)</code>.</p>
+
+<h2>4. The full walkthrough</h2>
+
+<p>Running the default script through the LRU, with the list written head to tail:</p>
+
+<table>
+<thead><tr><th>Operation</th><th>List (head to tail)</th><th>Hash map</th><th>Returns</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>empty</td><td>empty</td><td></td></tr>
+<tr><td><code>put(1,1)</code></td><td><code>1:1</code></td><td><code>1 to #1</code></td><td></td></tr>
+<tr><td><code>put(2,2)</code></td><td><code>2:2</code> then <code>1:1</code></td><td><code>1,#1 ; 2,#2</code></td><td></td></tr>
+<tr><td><code>get(1)</code></td><td><code>1:1</code> then <code>2:2</code> (moved to front)</td><td>unchanged</td><td><strong>1</strong></td></tr>
+<tr><td><code>put(3,3)</code></td><td>evict <code>2:2</code>, insert, giving <code>3:3</code> then <code>1:1</code></td><td>remove 2, add 3</td><td></td></tr>
+<tr><td><code>get(2)</code></td><td>unchanged</td><td>unchanged</td><td><strong>-1</strong></td></tr>
+<tr><td><code>put(4,4)</code></td><td>evict <code>1:1</code>, insert, giving <code>4:4</code> then <code>3:3</code></td><td>remove 1, add 4</td><td></td></tr>
+<tr><td><code>get(1)</code></td><td>unchanged</td><td>unchanged</td><td><strong>-1</strong></td></tr>
+<tr><td><code>get(3)</code></td><td><code>3:3</code> then <code>4:4</code></td><td>unchanged</td><td><strong>3</strong></td></tr>
+<tr><td><code>get(4)</code></td><td><code>4:4</code> then <code>3:3</code></td><td>unchanged</td><td><strong>4</strong></td></tr>
+</tbody>
+</table>
+
+<p>Both eviction moments are worth memorizing. <code>put(3,3)</code> evicts <code>(2,2)</code> even though 2 was inserted later than 1, because the <code>get(1)</code> in between used 1 and left 2 untouched. <code>put(4,4)</code> evicts <code>(1,1)</code>: 1 had been popular, but once 3 arrived it was the tail. <strong>LRU looks at whether something was used recently, not at how often it was used.</strong></p>
+
+<p>The LFU contrast, same script, one divergence:</p>
+
+<table>
+<thead><tr><th>Step</th><th>Frequencies</th><th>Decision</th></tr></thead>
+<tbody>
+<tr><td><code>put(1,1)</code>, <code>put(2,2)</code></td><td><code>1:1, 2:1</code></td><td>both cold</td></tr>
+<tr><td><code>get(2)</code> twice</td><td><code>1:1, 2:3</code></td><td>in LFU a get raises the frequency</td></tr>
+<tr><td><code>get(1)</code></td><td><code>1:2, 2:3</code></td><td>1 heats up, but stays behind</td></tr>
+<tr><td><code>put(3,3)</code></td><td>evicts <code>1</code>, the lowest frequency</td><td>the LRU evicts <code>2</code> here</td></tr>
+</tbody>
+</table>
+
+<p>Same operations, same capacity, different key evicted. That is the entire difference between LRU and LFU compressed into one trace.</p>
+
+<h2>5. Follow-up two: how LFU differs</h2>
+
+<table>
+<thead><tr><th></th><th>LRU (146)</th><th>LFU (460)</th></tr></thead>
+<tbody>
+<tr><td>Dimension remembered</td><td><strong>Time</strong>: was it used recently</td><td><strong>Frequency</strong>: how often was it used</td></tr>
+<tr><td>What a get hit does</td><td>Move the node to the front, changing order</td><td>Increment frequency, changing eviction priority</td></tr>
+<tr><td>Who gets evicted</td><td>The tail, the least recently used</td><td>The lowest frequency, and among equals the least recently used</td></tr>
+<tr><td>Structure</td><td>Hash map plus one doubly linked list</td><td>Hash map plus frequency buckets plus a <code>minFreq</code> pointer</td></tr>
+<tr><td>Difficulty of O(1)</td><td>Low, three operations</td><td>High, bucket churn and <code>minFreq</code> maintenance</td></tr>
+<tr><td>Typical weakness</td><td>A single scan can flush the hot set, which is cache pollution</td><td>Historical hot keys stick around; new keys get killed instantly</td></tr>
+</tbody>
+</table>
+
+<p>LFU reaches O(1) through frequency buckets: each frequency value owns a doubly linked list ordered by recency, and a <code>minFreq</code> pointer tracks the smallest bucket. A hit moves the node from bucket f to bucket f+1. An eviction takes the tail of the <code>minFreq</code> bucket. <strong>The hard part of LC 460 was never the linked list, it is the buckets and the pointer.</strong></p>
+
+<p>Production caches take a fourth route. Caffeine uses W-TinyLFU, an admission window combined with a frequency sketch, which resists scan pollution without maintaining exact buckets. Mentioning that in an interview changes the level of the conversation.</p>
+
+<h2>6. Follow-up one: making it thread-safe</h2>
+
+<p>Start by killing an assumption: <strong><code>get</code> is not a read-only operation</strong>. It calls <code>moveToFront</code>, which mutates the list. "Use a read-write lock because reads dominate" is therefore a non-starter, since every read may write.</p>
+
+<ul>
+<li><strong>One global lock</strong> is the simple, correct answer: <code>synchronized</code> in Java, <code>threading.Lock</code> in Python. Correct, trivial, and fully serialized. Say this first, then talk about optimization.</li>
+<li><strong>Striped locks</strong> are the engineering answer: hash the key into N shards, each with its own LRU and its own lock. Concurrency rises, but capacity stops being exact, since each shard evicts independently and the total can drift.</li>
+<li><strong>Approximate algorithms</strong> are the production answer: CLOCK or W-TinyLFU reduce each access to a constant number of bit operations instead of precise list maintenance, trading eviction accuracy for scalability.</li>
+</ul>
+
+<p>An interview sentence that works: the simplest correct version serializes everything behind one lock, and the bottleneck is that <code>get</code> also writes to the list. In production you step back to striping or approximation, trading eviction precision for concurrency.</p>
+
+<h2>7. Java, also hand-written</h2>
+
+<pre><code>class LRUCache {
+    private static final class Node {
+        int key, value;
+        Node prev, next;
+        Node(int k, int v) { key = k; value = v; }
+    }
+
+    private final int capacity;
+    private final Map&lt;Integer, Node&gt; map = new HashMap&lt;&gt;();
+    private final Node head = new Node(0, 0);   // sentinel
+    private final Node tail = new Node(0, 0);   // sentinel
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        head.next = tail;
+        tail.prev = head;
+    }
+
+    public int get(int key) {
+        Node node = map.get(key);
+        if (node == null) return -1;
+        moveToFront(node);
+        return node.value;
+    }
+
+    public void put(int key, int value) {
+        Node node = map.get(key);
+        if (node != null) {
+            node.value = value;
+            moveToFront(node);
+            return;
+        }
+        if (map.size() == capacity) {
+            Node victim = tail.prev;            // tail is least recently used
+            remove(victim);
+            map.remove(victim.key);             // delete from both
+        }
+        Node fresh = new Node(key, value);
+        map.put(key, fresh);
+        addToFront(fresh);
+    }
+
+    private void addToFront(Node node) {
+        node.prev = head;
+        node.next = head.next;
+        head.next.prev = node;
+        head.next = node;
+    }
+
+    private void remove(Node node) {
+        node.prev.next = node.next;
+        node.next.prev = node.prev;
+    }
+
+    private void moveToFront(Node node) {
+        remove(node);
+        addToFront(node);
+    }
+}
+</code></pre>
+
+<p>One Java detail: the sentinels are never in the map and can never be overwritten by a <code>put</code>. After <code>remove</code> you <strong>must</strong> call <code>map.remove</code>, or the evicted key stays in the hash map and the next <code>get</code> finds a node that is no longer on the list.</p>
+
+<p>If a written test ever allows the standard library, <code>new LinkedHashMap&lt;&gt;(cap, 0.75f, true)</code> with <code>removeEldestEntry</code> overridden, or <code>OrderedDict</code> with <code>move_to_end</code>, solves it in one line. This question exists precisely because it forbids that.</p>
+
+<h2>8. The family: 460, 432, 707, 2296, interview 16.25</h2>
+
+<p>LC 146 is the origin point for the design, linked list and hash map family.</p>
+
+<ul>
+<li><strong>LC 460, LFU cache</strong>: the contrast in section 5. Frequency buckets plus <code>minFreq</code>, the natural next step.</li>
+<li><strong>LC 432, all O(1) data structure</strong>: increment, decrement, get max and get min in O(1), using the same value-to-list bucket idea.</li>
+<li><strong>LC 707, design a linked list</strong>: no cache at all, just raw doubly linked list operations.</li>
+<li><strong>LC 2296, design a text editor</strong>: a doubly linked list with a cursor, the other classic use.</li>
+<li><strong>Interview 16.25</strong>: the same problem under the interview numbering, with comparable frequency.</li>
+<li><strong>LC 588 and 1166</strong>: path-to-node hashing combined with trees and lists, same underlying idea.</li>
+</ul>
+
+<h2>9. Edge cases and traps</h2>
+
+<ul>
+<li><strong>A <code>put</code> on an existing key must move it to the front</strong> and update the value. Forgetting that an overwrite counts as a use is the most common bug in this problem.</li>
+<li><strong>A get miss must not disturb anything</strong>: return -1 and leave the structure alone.</li>
+<li><strong>Eviction is a double delete</strong>: detach from the list <strong>and</strong> delete the map entry. List only gives a ghost node; map only leaks the node.</li>
+<li><strong>Writing the same value still counts as a use.</strong> <code>put(1, 5)</code> when <code>1:5</code> is present still moves the node to the front.</li>
+<li><strong>Capacity one</strong> needs no special case with sentinels, which is exactly what they buy you.</li>
+<li><strong>Pointer order matters.</strong> Four lines in <code>addToFront</code>, two in <code>remove</code>. Get them backwards and a single-node list points at itself.</li>
+<li><strong>Do not use the library.</strong> The prompt forbids <code>LinkedHashMap</code> and <code>OrderedDict</code>. It compiles, and the interviewer counts it as not answering the question.</li>
+<li><strong><code>__slots__</code> in Python</strong> is a nice touch, worth mentioning and worth nothing if you skip it.</li>
+</ul>
+
+<h2>10. Complexity</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>Time</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>get</code></td><td>O(1) amortized</td><td>Hash lookup, then a constant number of pointer writes</td></tr>
+<tr><td><code>put</code></td><td>O(1) amortized</td><td>Lookup, at most one eviction, one insert at the front</td></tr>
+<tr><td>Space</td><td>O(capacity)</td><td>Map and list each hold at most capacity nodes</td></tr>
+</tbody>
+</table>
+
+<p>No traversal, no scan. That is all "O(1) LRU" means. Against LFU: with buckets and <code>minFreq</code> maintained correctly it is also O(1), but with considerably more structure to keep alive.</p>
+
+<h2>11. How to answer in an interview</h2>
+
+<p><strong>First, structure selection.</strong> Two legs: the hash map gives O(1) lookup from key to node, the doubly linked list gives O(1) reordering and eviction. Then why doubly linked, because detaching a middle node needs the predecessor, and why sentinels, because they remove every null check. Most candidates are vague here, and clarity on this part is half the interview.</p>
+
+<p><strong>Second, the hand-written part.</strong> Three operations, <code>addToFront</code>, <code>unlink</code>, <code>moveToFront</code>. Three cases in <code>put</code>. The double delete on eviction.</p>
+
+<p><strong>Third, the follow-ups.</strong> Thread safety, led by the observation that <code>get</code> writes to the list, with the global lock, striped and approximate answers in that order. LFU, which is the time dimension against the frequency dimension, with the same script evicting different keys, and O(1) from buckets plus <code>minFreq</code>.</p>
+
+<p>One sentence to close on: the whole question is <strong>hash map finds, doubly linked list queues</strong>, and when you write it by hand, watch the sentinels, the double delete, and the fact that a <code>put</code> hit still moves the node to the front.</p>
+
+<h2>Closing</h2>
+
+<p>LC 146 contains no algorithm and no math. It tests how well you command a combination of two basic structures: the map gives O(1) access, the list gives O(1) order. Get this one right and LFU's frequency buckets, 432's buckets of buckets, and the striped and approximate thread-safe variants are all the same map with more detail on it. Write it once by hand; reading it ten times will not do the same thing.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">LRU 缓存：手写哈希表与双向链表</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

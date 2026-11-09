@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Three failure modes hide in nine lines of code, and the third check sits outside the loop. Why a counter cannot replace the stack, plus the priority variant and five sibling problems." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/lc-20-valid-parentheses/" />
+    <meta property="og:title" content="Valid Parentheses: the stack is forced by the structure | Stack Frame" />
+    <meta property="og:description" content="Three failure modes hide in nine lines of code, and the third check sits outside the loop. Why a counter cannot replace the stack, plus the priority variant and five sibling problems." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/lc-20-valid-parentheses/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Valid Parentheses: the stack is forced by the structure | Stack Frame" />
+    <meta name="twitter:description" content="Three failure modes hide in nine lines of code, and the third check sits outside the loop. Why a counter cannot replace the stack, plus the priority variant and five sibling problems." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Valid Parentheses: the stack is forced by the structure | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DPG73x7M.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lc-20-valid-parentheses/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Valid Parentheses: the stack is forced by the structure</h1><div class="ns-meta">2026-09-29 · 14 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p>Given a string <code>s</code> containing only <code>'('</code>, <code>')'</code>, <code>'{'</code>, <code>'}'</code>, <code>'['</code> and <code>']'</code>, decide whether it is valid.</p>
+
+<p>Valid means every opening bracket is closed by the <strong>same type</strong>, in the <strong>correct order</strong>, so nesting never crosses. Every closing bracket has a matching opener.</p>
+
+<pre><code>Input:  s = "{[()]}"   Output: true
+Input:  s = "()[]{}"   Output: true
+Input:  s = "(]"       Output: false   (wrong type)
+Input:  s = "([)]"     Output: false   (crossed nesting)
+Input:  s = "(()"      Output: false   (unclosed)
+</code></pre>
+
+<p>It is a fixture in Chinese interview loops and the classic introduction to the stack.</p>
+
+<h2>1. The core insight: the structure forces the stack</h2>
+
+<p>The interesting part is that you never have to think "I should use a stack". The bracket structure hands you one.</p>
+
+<p>Why is <code>"(]"</code> invalid while <code>"{[()]}"</code> is fine? Because every closing bracket matches the <strong>nearest</strong> unclosed opener of its type. Which is to say:</p>
+
+<blockquote>
+<p>The innermost unclosed opener has to close first. Last opened, first closed. That's LIFO.</p>
+<p>"Remember the openers you haven't closed yet, and when a closer arrives look at the most recent one" is a stack, in plain English.</p>
+</blockquote>
+
+<p>So the solution reads like prose. On an opener, push it and record what you're waiting for. On a closer, ask the top of the stack whether it's the one you're waiting for. When the scan ends, the stack must be empty.</p>
+
+<pre><code>def isValid(s: str) -> bool:
+    pairs = {'(': ')', '[': ']', '{': '}'}
+    stack = []
+    for ch in s:
+        if ch in pairs:                 # opener: push
+            stack.append(ch)
+        else:                           # closer: ask the top
+            if not stack:               # failure two: nothing to close
+                return False
+            if pairs[stack.pop()] != ch:  # failure one: wrong type
+                return False
+    return not stack                    # failure three: leftovers
+</code></pre>
+
+<p>Nine lines, but three independent validity checks live in them. Miss one and a whole class of input goes wrong. That's the real test here, and section 2 breaks it down.</p>
+
+<p>There is one implementation choice worth mentioning. The stack can hold the <strong>openers</strong> and look up the mapping on pop, or it can hold the <strong>expected closers</strong> directly: push <code>pairs[ch]</code> on an opener, then a closer only has to compare against <code>pop()</code>. The second version saves a lookup at pop time, and saying so in an interview is a small plus.</p>
+
+<h2>2. Three failure modes, three checks</h2>
+
+<p>"Valid" is not one condition. It is the conjunction of three negations, and each one has its own check. Miss one and you misjudge one family of input.</p>
+
+<table>
+<thead><tr><th>Failure</th><th>Example</th><th>Symptom</th><th>Where the check lives</th></tr></thead>
+<tbody>
+<tr><td><strong>Wrong type</strong></td><td><code>"(]"</code>, <code>"([)]"</code></td><td>The closer and the stack top are not a pair</td><td><code>pairs[stack.pop()] != ch</code></td></tr>
+<tr><td><strong>Nothing to close</strong></td><td>the second <code>)</code> in <code>"())"</code>, or a lone <code>"]"</code></td><td>The stack is empty when a closer arrives</td><td><code>if not stack</code></td></tr>
+<tr><td><strong>Left unclosed</strong></td><td><code>"(()"</code>, <code>"(((("</code></td><td>The scan ends with the stack non-empty</td><td><code>return not stack</code></td></tr>
+</tbody>
+</table>
+
+<p>The first is "paired with the wrong partner", the second is "one too many", the third is "never finished". They are independent. A given input trips exactly one of them, and input is only valid when none of them fires.</p>
+
+<p>Two positive-looking cases that catch people out:</p>
+
+<ul>
+<li><code>"(]"</code>: when <code>)</code> arrives the top is <code>(</code>. The count is right, one opener and one closer, but the <strong>type</strong> is wrong. Some people think "every opener got a closer" is enough. It isn't.</li>
+<li><code>"([)]"</code>: right count, right types, wrong <strong>nesting order</strong>. <code>[</code> closes <code>]</code> while <code>(</code> is still open. The stack catches exactly this: when <code>)</code> arrives the top is <code>[</code>, not <code>(</code>.</li>
+</ul>
+
+<h2>3. The frames, step by step</h2>
+
+<p>Walking <code>"{[()]}"</code> takes six steps: three pushes, three matched pops, and the stack ends empty. Read the stack from bottom to top and keep an eye on the top, because that's the only cell the algorithm ever looks at.</p>
+
+<ul>
+<li><strong>push frame</strong>: an opener enters the stack and records what it is waiting for.</li>
+<li><strong>match frame</strong>: the current closer matches the top, and the top pops. The pair is settled.</li>
+<li><strong>mismatch frame</strong>: the top and the current character disagree. The stack top was waiting for <code>"]"</code> and got <code>")"</code>.</li>
+<li><strong>unmatched frame</strong>: the stack is empty and a closer has nowhere to go.</li>
+<li><strong>done frame</strong>: valid means the whole string is consumed and the stack is empty. Leftovers mean the remaining openers are marked as failures.</li>
+</ul>
+
+<p>The main example uses eight frames: three pushes, three matched pops, and the stack happens to empty out.</p>
+
+<h2>4. The full walkthrough</h2>
+
+<p>Take <code>"{[()]}"</code> as the main example, six characters.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>i</th><th>ch</th><th>Action</th><th>Stack (bottom to top)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>-</td><td>-</td><td>-</td><td>[]</td><td></td></tr>
+<tr><td>1</td><td>0</td><td><code>{</code></td><td>push</td><td>[<code>{</code>]</td><td>waiting for <code>"}"</code></td></tr>
+<tr><td>2</td><td>1</td><td><code>[</code></td><td>push</td><td>[<code>{</code>, <code>[</code>]</td><td><code>[</code> becomes the innermost</td></tr>
+<tr><td>3</td><td>2</td><td><code>(</code></td><td>push</td><td>[<code>{</code>, <code>[</code>, <code>(</code>]</td><td>three levels deep</td></tr>
+<tr><td>4</td><td>3</td><td><code>)</code></td><td>pop, match</td><td>[<code>{</code>, <code>[</code>]</td><td>the top <code>(</code> was waiting for exactly this</td></tr>
+<tr><td>5</td><td>4</td><td><code>]</code></td><td>pop, match</td><td>[<code>{</code>]</td><td>the top <code>[</code> was waiting for exactly this</td></tr>
+<tr><td>6</td><td>5</td><td><code>}</code></td><td>pop, match</td><td>[]</td><td>stack empties exactly</td></tr>
+<tr><td>done</td><td></td><td></td><td></td><td>[]</td><td><strong>valid</strong></td></tr>
+</tbody>
+</table>
+
+<p>Compare the three failures on the same walkthrough:</p>
+
+<ul>
+<li><code>"(]"</code>: at frame 2, the top <code>(</code> is waiting for <code>")"</code> and <code>]</code> arrives. Mismatch, false immediately.</li>
+<li><code>"())"</code>: at frame 3, the second <code>)</code> finds an empty stack. Unmatched, false immediately.</li>
+<li><code>"(()"</code>: the scan finishes with <code>(</code> still on the stack. Leftover, false.</li>
+</ul>
+
+<h2>5. The priority variant, and sibling problems</h2>
+
+<h3>5.1 Adding a priority constraint</h3>
+
+<p>One common interview twist assigns priorities: <code>(</code> is 1, <code>[</code> is 2, <code>{</code> is 3. Beyond correct pairing, an <strong>inner bracket may not have lower priority than the one containing it</strong>. Priority can only rise as you go inward, never fall.</p>
+
+<table>
+<thead><tr><th>Input</th><th>Plain rules</th><th>With priority</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>([{}])</code></td><td>true</td><td><strong>true</strong></td><td>1, then 2, then 3, rising</td></tr>
+<tr><td><code>{(})</code></td><td>true</td><td><strong>false</strong></td><td><code>(</code> at 1 sits inside <code>{</code> at 3, priority inverts</td></tr>
+<tr><td><code>[({})]</code></td><td>true</td><td><strong>false</strong></td><td><code>{</code> at 3 sits inside <code>(</code> at 1</td></tr>
+<tr><td><code>{[()]}</code></td><td>true</td><td>true</td><td>rising throughout</td></tr>
+</tbody>
+</table>
+
+<p>The direction can be reversed: some versions require the outer bracket to be strictly higher, which just flips the comparison. The mechanism does not change. Carry one more field in the stack frame and compare against the top before pushing.</p>
+
+<pre><code>def isValidWithPriority(s: str) -> bool:
+    pairs = {'(': ')', '[': ']', '{': '}'}
+    prio = {'(': 1, '[': 2, '{': 3}
+    stack = []                       # holds (char, priority)
+    for ch in s:
+        if ch in pairs:
+            if stack and prio[ch] &lt; stack[-1][1]:   # inner must not be lower
+                return False
+            stack.append((ch, prio[ch]))
+        else:
+            if not stack or pairs[stack[-1][0]] != ch:
+                return False
+            stack.pop()
+    return not stack
+</code></pre>
+
+<p>This is where the stack approach earns its keep: <strong>any extra constraint becomes one more field in the frame</strong>. That is what the interviewer is usually probing when they keep twisting a familiar problem.</p>
+
+<h3>5.2 The family</h3>
+
+<table>
+<thead><tr><th>Problem</th><th>How the stack is used</th></tr></thead>
+<tbody>
+<tr><td>LC 22, generate parentheses</td><td>Generation rather than validation: counters act as a simplified stack during backtracking</td></tr>
+<tr><td>LC 32, longest valid parentheses</td><td>The stack holds <strong>indices</strong>, with -1 as a sentinel floor; the length comes from index differences</td></tr>
+<tr><td>LC 921, minimum add to make valid</td><td>Counter version: <code>need</code> counts unclosed openers, negative <code>bal</code> counts stray closers</td></tr>
+<tr><td>LC 1541, minimum insertions for balanced string</td><td>Same idea with one-to-many pairing</td></tr>
+<tr><td>LC 1047, remove adjacent duplicates</td><td>The same stack: if the top matches, pop it</td></tr>
+</tbody>
+</table>
+
+<p>The family rule: when the most recently handled thing must be handled first, reach for a stack. Pairing problems store <em>what I am waiting for</em>, counting problems store only the balance, and index problems store the position too.</p>
+
+<h2>6. Java</h2>
+
+<pre><code>public boolean isValid(String s) {
+    Map&lt;Character, Character&gt; pairs = Map.of('(', ')', '[', ']', '{', '}');
+    Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+    for (char ch : s.toCharArray()) {
+        if (pairs.containsKey(ch)) {
+            stack.push(ch);
+        } else {
+            if (stack.isEmpty() || pairs.get(stack.pop()) != ch) {
+                return false;      // failure two and failure one, merged
+            }
+        }
+    }
+    return stack.isEmpty();        // failure three
+}
+</code></pre>
+
+<p>Java convention prefers <code>ArrayDeque</code> over <code>Stack</code>, which extends <code>Vector</code>, carries locks and mixes in index access. Note also that the merged condition relies on short-circuit evaluation: <code>stack.isEmpty()</code> runs first, so <code>pop()</code> never touches an empty stack.</p>
+
+<h2>7. Edge cases</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>What it tests</th></tr></thead>
+<tbody>
+<tr><td><code>""</code></td><td>true</td><td>Empty input: the loop never runs, the stack is empty by default</td></tr>
+<tr><td><code>"("</code></td><td>false</td><td>One opener, leftover</td></tr>
+<tr><td><code>"]"</code></td><td>false</td><td>A closer as the first character, unmatched</td></tr>
+<tr><td><code>"([)]"</code></td><td>false</td><td>Crossed nesting with correct counts and types</td></tr>
+<tr><td><code>"(){}}{"</code></td><td>false</td><td>Early return on the first failure</td></tr>
+<tr><td>length 10<sup>4</sup></td><td>n/a</td><td>Linear scan, no pressure</td></tr>
+</tbody>
+</table>
+
+<h2>8. Complexity</h2>
+
+<ul>
+<li><strong>Time O(n)</strong>: each character is pushed and popped at most once.</li>
+<li><strong>Space O(n)</strong>: the worst case is all openers, <code>"(((("</code>, with a stack depth of n.</li>
+</ul>
+
+<h2>9. Common traps</h2>
+
+<h3>9.1 Checking pairing but forgetting the final emptiness check</h3>
+
+<p>In <code>"(()"</code> every closer finds its opener, but openers are left over. The stack has to be checked after the loop. This is the failure mode people miss most often, because its check lives <strong>outside</strong> the loop.</p>
+
+<h3>9.2 Popping before checking for an empty stack</h3>
+
+<p>For the second <code>)</code> in <code>"())"</code> or a lone <code>"]"</code>, <code>pop()</code> on an empty stack raises <code>IndexError</code> in Python and an exception in Java. Plenty of people write <code>pairs[stack.pop()]</code> first and add the empty check afterwards. The empty check has to come <strong>before</strong> the pop.</p>
+
+<h3>9.3 Replacing the stack with two counters</h3>
+
+<p>Do <code>count(</code> and <code>count)</code> matching make a string valid? <code>"(]"</code> defeats it immediately: <code>(</code> and <code>]</code> are not the same type and counters do not know types. Even with one counter per type, <code>"([)]"</code> slips through, because every count is correct. <strong>Counters can check the balance. They cannot check the order</strong>, and order is the whole point.</p>
+
+<h3>9.4 Assuming crossed nesting is fine</h3>
+
+<p><code>"([)]"</code> has the right counts and the right set of types, so intuition says true. What saves you is the top-of-stack comparison: when <code>)</code> arrives the innermost bracket is <code>[</code>, not <code>(</code>. Keep this case as a self-test.</p>
+
+<h3>9.5 Mishandling the empty string</h3>
+
+<p><code>""</code> should return true: there is nothing to pair. The loop does not run, the stack is empty, and <code>return not stack</code> gives the right answer. Adding <code>if not s: return False</code> at the top, on the assumption that empty means invalid, breaks it.</p>
+
+<h3>9.6 Using java.util.Stack</h3>
+
+<p>It runs, but <code>Stack</code> extends <code>Vector</code>: synchronized, with an index interface it should not expose. Modern Java uses <code>Deque</code> or <code>ArrayDeque</code>. Small engineering point, easy to earn.</p>
+
+<h2>10. How to answer in an interview</h2>
+
+<ol>
+<li><strong>State the insight in one sentence.</strong> The innermost unclosed bracket has to close first, which is last-in-first-out, which is a stack. The structure chose the data structure for you.</li>
+<li><strong>List the three failure modes before writing code.</strong> Wrong type, nothing to close, left unclosed. Three checks, none optional, and the last one sits outside the loop.</li>
+<li><strong>Offer <code>"([)]"</code> yourself.</strong> Correct counts, correct types, crossed nesting. It proves you understand that the top-of-stack comparison is checking order.</li>
+<li><strong>Complexity.</strong> O(n) time, O(n) space, worst case all openers.</li>
+<li><strong>Extend.</strong> The expected-closer variant, the priority variant that adds a field to the frame, the counter version (LC 921) and the index version (LC 32). It shows you know where this problem sits in the family.</li>
+</ol>
+
+<h2>Closing</h2>
+
+<p>Valid parentheses is the cleanest way to explain a stack, because it needs no tricks. One observation carries the whole solution: nested brackets are inherently last-in-first-out. Nine lines hold three checks for three failure modes, and none of them is optional. Every variant in the family, whether counting, index-based or priority-constrained, is a change to what the frame stores. Next time something has to handle the most recent unhandled item first, start here.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/">有效的括号：栈是被结构逼出来的</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
