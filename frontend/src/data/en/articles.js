@@ -7733,6 +7733,1098 @@ self.style.usage(1, turn.usage.prompt_tokens, turn.usage.completion_tokens);
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a>.</p>
 `,
   },
+  {
+    slug: 'agent-memory-without-vector-db',
+    zhSlug: 'agent-memory-without-vector-db',
+    topicSlug: 'aiagent',
+    title: 'Agent memory without a vector database',
+    excerpt:
+      'A memory.json file, four categories, a 500 entry cap, BM25 over bigrams, and four memories injected per turn. No embeddings, no index, no daemon, and no illusions about what it cannot do.',
+    date: '2026-10-23',
+    readingTime: 32,
+    html: `
+<blockquote>
+<p>Who this is for: people whose agent already works across sessions and greets them like a stranger every time; people weighing a vector store and unsure it pays for itself; people who want eviction, dedupe and budgets without adopting a new service.</p>
+<p><strong>TL;DR:</strong> the hard part of long-term memory is not storing it, it is being useful next time. NanoHermes does the whole job in under 500 lines of <code>memory.rs</code>: one <code>memory.json</code>, four categories, a 500 entry ceiling, BM25 retrieval, and four memories injected per turn inside 2,400 characters. No embeddings, no vector database, no background process.</p>
+<p>Reading time around 32 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Memory is an index, not a warehouse</li>
+<li>Four numbers to remember</li>
+<li>Context, session and memory are three different things</li>
+<li>Four practical reasons not to use a vector store</li>
+<li>The four actions in one conversation</li>
+<li>Storage: one JSON file, four fields</li>
+<li>Four kinds, so eviction has something to sort on</li>
+<li>Write path one: the model calls <code>memory_save</code></li>
+<li>Write path two: distillation at the end of a turn</li>
+<li>The distillation gate</li>
+<li>The distillation prompt: four hard rules</li>
+<li>How the excerpt is assembled</li>
+<li>The blind spot: only the first 6,000 characters</li>
+<li>Parsing: four fallbacks for a disobedient model</li>
+<li>Dedupe: normalize, then compare, but 12 means bytes</li>
+<li>Limits and eviction</li>
+<li>A real defect: the comment says oldest, the code drops newest</li>
+<li>Retrieval: why BM25 and not cosine similarity</li>
+<li>Tokenization: words in English, bigrams in Chinese</li>
+<li>Bigram false positives</li>
+<li>Category labels go into the index too</li>
+<li>The BM25 formula</li>
+<li>Top-K and the character budget</li>
+<li>Injection: a marker pair and wholesale replacement</li>
+<li>Re-retrieval on every turn</li>
+<li>How memory coexists with compaction</li>
+<li>Failure semantics</li>
+<li>Concurrent writes without a lock</li>
+<li>Sub-agents and multiple sessions</li>
+<li>What happens when memory is switched off</li>
+<li>What the nine unit tests guard</li>
+<li>Eight memory traps</li>
+<li>How to check that your memory actually works</li>
+<li>Closing: an index, not a warehouse</li>
+</ul>
+
+<h2>Memory is an index, not a warehouse</h2>
+
+<p>People remember something not because it was stored, but because the right situation brought it back. Agents work the same way. Writing every sentence the user ever said into a database does not make an agent understand them better. What matters is whether, at the start of the next task, it can pull three genuinely relevant items out of a few hundred and put them into this request.</p>
+
+<p>That sounds like a job for semantic search. Last time the user said "the release script should dry-run first", this time they ask "how do I publish a post". The two sentences share no words, so vector similarity connects them and BM25 does not. Plenty of projects therefore reach for a vector store on reflex. But a vector store solves only half of recall, and none of the other half: what to write, how long, when to drop, how much to inject. It also turns a single binary that works offline and is easy to test into a system that needs a model service, an index file and a rebuild pipeline.</p>
+
+<p>NanoHermes takes the other road: no vector store, local BM25, and bigram splitting for Chinese and Japanese as an approximation of semantic matching. The whole memory module, <code>agent/src/memory.rs</code>, is under 500 lines, and with three call sites in <code>agent.rs</code> it covers "remember preferences and lessons across sessions". This post follows the data flow: how a memory is written, deduplicated, evicted, retrieved and injected, and where the approach breaks.</p>
+
+<h2>Four numbers to remember</h2>
+
+<table>
+<thead><tr><th>Constant</th><th>Value</th><th>Governs</th><th>Symptom when missing</th></tr></thead>
+<tbody>
+<tr><td><code>MAX_ENTRIES</code></td><td>500</td><td>Total entries</td><td>The file grows without bound, retrieval slows, old noise buries new conclusions</td></tr>
+<tr><td><code>MAX_TEXT</code></td><td>400</td><td>Characters per entry</td><td>One memory eats half the injection budget and the summary turns into a diary</td></tr>
+<tr><td><code>INJECT_TOP_K</code></td><td>4</td><td>Entries injected per turn</td><td>Too much injected, old memories crowd the system prompt</td></tr>
+<tr><td><code>INJECT_CHAR_BUDGET</code></td><td>2,400</td><td>Characters injected per turn</td><td>Memory itself blows up the context window</td></tr>
+</tbody>
+</table>
+
+<p>Three more sit behind those: the distillation excerpt is capped at 6,000 characters, a single message is clipped to 1,200 characters, and the containment threshold for dedupe is 12 bytes. They govern how much is read, how long a write may be, and when two memories count as the same one.</p>
+
+<p>These limits interlock rather than being four independent round numbers. Four entries at 400 characters is 1,600, and with a prefix like <code>- [lesson] </code> plus the header line it lands inside 2,400. So under normal conditions <code>INJECT_TOP_K</code> binds first and the character budget is a backstop. The budget only fires when log lines get long or labels multiply.</p>
+
+<p>Total size is computable too: 500 times 400 is 200,000 characters worst case, roughly 600 KB of UTF-8 Chinese, usually 300 to 400 KB for mixed text. For a local agent that whole file can be read into memory and scanned linearly, which is why no index is needed.</p>
+
+<h2>Context, session and memory are three different things</h2>
+
+<table>
+<thead><tr><th></th><th>Context</th><th>Session</th><th>Memory</th></tr></thead>
+<tbody>
+<tr><td>Lives in</td><td>The <code>messages</code> array of this request</td><td>The JSON file named by <code>--session</code></td><td><code>~/.nanohermes/memory.json</code></td></tr>
+<tr><td>Lifetime</td><td>One request, one turn</td><td>Resumable across processes</td><td>Across sessions and projects</td></tr>
+<tr><td>Managed by</td><td><code>compact_with</code></td><td><code>persist</code>, <code>load_session_file</code></td><td><code>memory.rs</code></td></tr>
+<tr><td>Clearing it costs</td><td>Continuity in this conversation</td><td>History, though memory survives</td><td>Every session loses its long-term preferences</td></tr>
+</tbody>
+</table>
+
+<p>The three evolve independently. Compaction touches only <code>messages</code> and never <code>memory.json</code>. <code>reset</code> rebuilds the message array and leaves the memory store untouched. Turning memory off has no effect on session resume.</p>
+
+<p>That boundary matters because a lot of people conflate memory with history and build the thing that stuffs all history into context and summarizes when it overflows. That is not long-term memory, that is a longer context. The test for memory is simple: open a new session, start a new task, and it is still there and retrievable.</p>
+
+<p>One more layer: by default the memory directory is global, under <code>~/.nanohermes</code>, not per project. So "run the tests before deploying", learned in project A, shows up in project B's system prompt. For general preferences that is a feature. For project-specific path conventions it is noise. Isolation requires pointing <code>memory_dir</code> somewhere else; the code does not partition by workspace on its own.</p>
+
+<h2>Four practical reasons not to use a vector store</h2>
+
+<p>Vector retrieval is not bad. The part of the problem it solves simply does not rank in the top three here.</p>
+
+<table>
+<thead><tr><th></th><th>Vector store</th><th>Local BM25</th></tr></thead>
+<tbody>
+<tr><td>Dependencies</td><td>An embedding model, hundreds of MB locally or an API call</td><td>The Rust standard library and one JSON file</td></tr>
+<tr><td>Operations</td><td>Index files, rebuilds, version migrations</td><td>Read the file, scan it</td></tr>
+<tr><td>Privacy</td><td>Memory text goes to an embedding service</td><td>Everything stays on the machine</td></tr>
+<tr><td>Explainability</td><td>A similarity score</td><td>Which terms matched and what each contributed</td></tr>
+<tr><td>Update cost</td><td>Recompute vectors on write</td><td>A write takes effect immediately</td></tr>
+<tr><td>Synonym recall</td><td>Strong: "release" reaches "deploy"</td><td>Weak: no shared term, zero score</td></tr>
+<tr><td>Cold start</td><td>Model load</td><td>Milliseconds</td></tr>
+<tr><td>Testability</td><td>Depends on model output, unstable</td><td>Pure functions, stable assertions</td></tr>
+</tbody>
+</table>
+
+<p>The four practical constraints:</p>
+
+<ol>
+<li>The project targets a small binary, low memory and no async runtime. An embedding model pushes binary size and memory up by an order of magnitude, which is a direct conflict with the design goal.</li>
+<li>Memory is on by default and the user may be entirely offline. A network embedding step makes "works offline" a slogan.</li>
+<li>Memories contain file paths, internal interface names and fragments of code. Sending those to a third-party embedding API is an extra privacy surface.</li>
+<li>There are only a few hundred entries. Linear BM25 over a few hundred texts costs nothing per turn, and a vector index at this scale is textbook over-engineering.</li>
+</ol>
+
+<p>The cost deserves stating. BM25 is a bag of words and does not understand paraphrase. If the user said "ship it" last week and asks about "deploy" today, and the memory only says "ship it", retrieval misses. The fix is not a vector store, it is writing the memory with both phrasings, or writing it more concretely, such as "ship it, meaning deploy to GitHub Pages", so future queries are more likely to land. That is a writing problem, not a retriever problem.</p>
+
+<h2>The four actions in one conversation</h2>
+
+<pre><code>write (end of turn)
+  user_text --&gt; worth_distilling? --&gt; excerpt_from(6000)
+            --&gt; llm::distill --&gt; parse_distill
+            --&gt; normalize --&gt; dedupe --&gt; trim(500) --&gt; memory.json
+
+write (during a turn, model-initiated)
+  memory_save(kind, text) --&gt; remember --&gt; same chain
+
+read (start of the next turn)
+  user_text --&gt; tokenize --&gt; BM25(search) --&gt; top 4
+            --&gt; render_block(2400 max) --&gt; set_block(system)
+</code></pre>
+
+<p>Four actions, four entry points: <code>distill_memories</code> for automatic writes, <code>save_tool</code> for model-initiated ones, <code>retrieve_block</code> to read, <code>set_block</code> to inject. They share one <code>memory.json</code>, with no cache and no daemon.</p>
+
+<p>The ordering is worth noticing. Reads happen before the user message is queued, at the top of <code>Agent::run</code>. Writes happen after the turn completes. A memory distilled at the end of this turn therefore does not affect this turn, only the next one or the next session. The delay is deliberate: distillation costs an extra model call, and putting it mid-turn would add that latency to the user's wait.</p>
+
+<h2>Storage: one JSON file, four fields</h2>
+
+<pre><code>pub struct Entry {
+    pub kind: Kind,
+    pub text: String,
+    /// Origin: \`auto\` for distillation, \`tool\` for a model-initiated write.
+    pub source: String,
+    /// Write time, in Unix seconds.
+    pub ts: u64,
+}
+</code></pre>
+
+<pre><code>{
+  "entries": [
+    {
+      "kind": "correction",
+      "text": "The deploy script dry-runs by default; confirm before it actually runs",
+      "source": "auto",
+      "ts": 1761200000
+    }
+  ]
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Field</th><th>Purpose</th><th>When missing or malformed</th></tr></thead>
+<tbody>
+<tr><td><code>kind</code></td><td>Drives the injection label and the eviction rank</td><td>A parse failure drops the entry</td></tr>
+<tr><td><code>text</code></td><td>The only body used for retrieval and injection</td><td>An empty string drops the entry</td></tr>
+<tr><td><code>source</code></td><td>Separates automatic from model-initiated writes when debugging</td><td>Defaults to empty</td></tr>
+<tr><td><code>ts</code></td><td>Refreshed on dedupe, ordered on eviction</td><td>Defaults to 0, which reads as oldest</td></tr>
+</tbody>
+</table>
+
+<p>The default location is <code>~/.nanohermes/memory.json</code>, derived by <code>default_dir()</code> from <code>HOME</code> or <code>USERPROFILE</code>, and overridable through <code>memory_dir</code>. Loading is deliberately forgiving:</p>
+
+<pre><code>pub fn load(dir: &amp;Path) -&gt; Vec&lt;Entry&gt; {
+    let Ok(data) = std::fs::read_to_string(store_path(dir)) else {
+        return Vec::new();
+    };
+    let Ok(v) = serde_json::from_str::&lt;Value&gt;(&amp;data) else {
+        return Vec::new();
+    };
+    // ...
+}
+</code></pre>
+
+<p>A missing file, a permission error, corrupted JSON: all return an empty list. The upside is that memory never blocks a conversation. The downside is that "empty list" and "genuinely no memories" are indistinguishable, which the failure semantics section comes back to.</p>
+
+<p>One more detail: <code>save</code> uses <code>std::fs::write</code>, creating the directory and overwriting the whole file, with no temp file and no atomic rename. Kill the process mid-write and half a JSON file remains. The next <code>load</code> returns empty, and the next <code>save</code> overwrites the fragment with fresh content. So the consequence of corruption is not "cannot read", it is "silently resets to zero".</p>
+
+<h2>Four kinds, so eviction has something to sort on</h2>
+
+<p><code>Kind</code> has four values. Each has a meaning and takes part in two things: the label shown on injection, and the rank used when something has to be dropped.</p>
+
+<table>
+<thead><tr><th>Kind</th><th>Meaning</th><th>Example</th><th>Label</th><th>Eviction rank</th></tr></thead>
+<tbody>
+<tr><td><code>Preference</code></td><td>A stable user preference</td><td>Answer in Chinese, no emoji, keep the UI plain</td><td>preference</td><td>0, dropped last</td></tr>
+<tr><td><code>Correction</code></td><td>A rejected approach plus the right one</td><td>Don't open a dialog, dock it on the right side</td><td>correction</td><td>1</td></tr>
+<tr><td><code>Lesson</code></td><td>A pitfall hit, or an approach that proved out</td><td>git push inside WSL loses the credential manager</td><td>lesson</td><td>2</td></tr>
+<tr><td><code>Fact</code></td><td>A durable project or environment fact</td><td>Vite and React on the front end, Django on the back</td><td>fact</td><td>3, dropped first</td></tr>
+</tbody>
+</table>
+
+<p>A higher rank means dropped sooner. The reasoning is direct: preferences and corrections represent stable user intent and are the most expensive to get wrong twice, while facts and specific lessons expire and can usually be rediscovered from the code.</p>
+
+<p><code>Kind::parse</code> accepts aliases so the model and external scripts can write loosely.</p>
+
+<table>
+<thead><tr><th>Input</th><th>Parsed as</th></tr></thead>
+<tbody>
+<tr><td><code>lesson</code>, <code>lesson-learned</code>, <code>experience</code>, <code>lesson_learned</code></td><td><code>Lesson</code></td></tr>
+<tr><td><code>preference</code>, <code>pref</code></td><td><code>Preference</code></td></tr>
+<tr><td><code>correction</code>, <code>feedback</code></td><td><code>Correction</code></td></tr>
+<tr><td><code>fact</code>, <code>project</code></td><td><code>Fact</code></td></tr>
+<tr><td>Anything else</td><td><code>None</code>: the tool errors, distillation falls back to <code>Fact</code></td></tr>
+</tbody>
+</table>
+
+<p>That last row is a deliberate asymmetry. A model-initiated write with a bad kind fails; a distillation with a bad kind degrades to a fact. Distillation output is not under your control, and losing an entire memory because the model misspelled an enum value would be a bad trade.</p>
+
+<h2>Write path one: the model calls memory_save</h2>
+
+<p>The tool declaration is plain: let the model record what is worth carrying across tasks, with a kind and one self-contained sentence.</p>
+
+<pre><code>pub fn save_tool(args: &amp;Value, dir: &amp;Path) -&gt; Result&lt;String, String&gt; {
+    let kind = args
+        .get("kind")
+        .and_then(|k| k.as_str())
+        .and_then(Kind::parse)
+        .ok_or("kind must be one of lesson / preference / correction / fact")?;
+    let text = args
+        .get("text")
+        .and_then(|t| t.as_str())
+        .ok_or("missing text")?;
+    let added = remember(dir, kind, text, "tool")?;
+    let n = load(dir).len();
+    Ok(if added {
+        format!("Saved ({kind:?}). {n} memories stored.")
+    } else {
+        format!("Duplicate of an existing memory, nothing added. {n} memories stored.")
+    })
+}
+</code></pre>
+
+<p>The reply carries the total so the model knows how large the store is. A duplicate explicitly says nothing was added, which stops the model from assuming success and retrying. <code>source</code> is fixed to <code>tool</code>, so afterwards you can tell a model-initiated memory from a distilled one.</p>
+
+<p>When should the model write? The prompt lists four cases: user preferences, corrections to its own behavior, lessons that cost something to learn, and durable project facts. What not to write matters as much: one-off file states, temporary decisions in the current task, and anything readable straight from the code. Those only dilute retrieval.</p>
+
+<p>The tool layer has a switch. <code>memory_dir</code> in <code>Ctx</code> is an <code>Option&lt;PathBuf&gt;</code>.</p>
+
+<pre><code>"memory_save" =&gt; match &amp;ctx.memory_dir {
+    Some(dir) =&gt; crate::memory::save_tool(args, dir),
+    None =&gt; Err("long-term memory is disabled (settings)".to_string()),
+},
+</code></pre>
+
+<p>When memory is off the tool still appears in the list and the call returns an error. That asymmetry gets its own section later.</p>
+
+<h2>Write path two: distillation at the end of a turn</h2>
+
+<p>Model-initiated writes depend on the model remembering to write, and coverage is uneven. So there is a fallback: at the end of every completed turn, ask the model to distill the conversation.</p>
+
+<pre><code>if completed &amp;&amp; self.cfg.memory {
+    self.distill_memories(&amp;user_text, had_tools);
+}
+</code></pre>
+
+<p><code>completed</code> is the important part. A turn interrupted by Ctrl-C, or one that hit the iteration cap, is not distilled. Interrupted turns usually stop mid-tool with no conclusion yet, and what comes out is mostly process noise.</p>
+
+<pre><code>fn distill_memories(&amp;mut self, user_text: &amp;str, had_tools: bool) {
+    let dir = match self.ctx.memory_dir.clone() {
+        Some(d) =&gt; d,
+        None =&gt; return,
+    };
+    if !memory::worth_distilling(user_text, had_tools) {
+        return;
+    }
+    let excerpt = memory::excerpt_from(&amp;self.messages, 6000);
+    let items = match memory::distill(&amp;self.cfg, &amp;excerpt) {
+        Ok(items) =&gt; items,
+        Err(_) =&gt; return,
+    };
+    let mut saved = 0usize;
+    for (kind, text) in items {
+        if memory::remember(&amp;dir, kind, &amp;text, "auto").unwrap_or(false) {
+            saved += 1;
+        }
+    }
+    if saved &gt; 0 {
+        self.style
+            .note(&amp;format!("distilled {saved} long-term memories from this conversation"));
+    }
+}
+</code></pre>
+
+<p>All three failure points are silent: no directory, failed gate, failed model call. Memory is a bonus, and it must not turn a successful conversation into an error. On success a single line tells the user something was remembered, rather than leaving it entirely invisible.</p>
+
+<h2>The distillation gate</h2>
+
+<p>Distillation costs one extra model request per turn. If the user said "continue" or "ok", that request is pure waste, so there is a cheap pre-check.</p>
+
+<pre><code>pub fn worth_distilling(user_text: &amp;str, had_tools: bool) -&gt; bool {
+    if had_tools {
+        return true;
+    }
+    const MARKERS: [&amp;str; 8] = ["no", "wrong", "don't", "should", "instead", "again", "next time", "not quite"];
+    let text = user_text.trim().to_lowercase();
+    if MARKERS.iter().any(|m| text.contains(m)) {
+        return true;
+    }
+    text.chars().count() &gt;= 24
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Condition</th><th>Result</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Tools ran this turn</td><td>Always distill</td><td>A tool round trip usually means reusable operational knowledge</td></tr>
+<tr><td>Contains a correction marker</td><td>Always distill</td><td>Corrections and preferences are exactly what should persist, even in four words</td></tr>
+<tr><td>User message is 24 characters or more</td><td>Distill</td><td>Longer messages usually carry a goal, a constraint or context</td></tr>
+<tr><td>Everything else, such as short pleasantries</td><td>Skip</td><td>"continue" and "ok" carry nothing that survives a session</td></tr>
+</tbody>
+</table>
+
+<p>The gate is crude in one way: markers use <code>contains</code> with no word boundaries, so "no" fires inside "notion" and "should" fires inside "shoulder". The cost of getting this exactly right is a tokenizer, which is more than the benefit, so false positives are accepted. An extra distillation is one extra model call; a missed correction is real loss.</p>
+
+<p>Letting every tool turn through has the same shape. A turn that only read a file may produce nothing worth keeping, and it still gets distilled. That is why the distillation prompt includes a rule saying return an empty array when nothing is durable. The judgment goes back to the model.</p>
+
+<h2>The distillation prompt: four hard rules</h2>
+
+<p>Distillation uses its own prompt, fully isolated from the main conversation.</p>
+
+<pre><code>const DISTILL_SYSTEM: &amp;str = "\
+You extract durable long-term memories for a coding assistant from a finished conversation turn.
+Return ONLY a JSON array (no prose, no markdown fences). Each item is
+{\"kind\": \"lesson|preference|correction|fact\", \"text\": \"...\"} where:
+- lesson:     an experience or lesson learned (a pitfall to avoid, or an approach that worked);
+- preference: a stable user preference (style, workflow, deliverable format);
+- correction: something the user rejected and the right way they gave instead;
+- fact:       a durable project/environment convention.
+Rules: each text is ONE self-contained sentence in the conversation's language, at most 200 characters;
+it must hold up in future unrelated sessions (no task-local details like dates or one-off file states);
+dedupe near-identical items; if nothing is durable, return [].";
+</code></pre>
+
+<table>
+<thead><tr><th>Rule</th><th>Purpose</th><th>Cost of breaking it</th></tr></thead>
+<tbody>
+<tr><td>One self-contained sentence</td><td>Readable outside the original conversation</td><td>A memory like "change that one" is never retrieved and never useful</td></tr>
+<tr><td>At most 200 characters</td><td>Bounds the injection budget</td><td>One memory fills the entire 2,400 character budget</td></tr>
+<tr><td>Must hold in future unrelated sessions</td><td>Filters one-off state</td><td>"The current branch is fix-123" is garbage next week</td></tr>
+<tr><td>Merge near-duplicates</td><td>Bounds the total</td><td>The same preference written ten times squeezes out everything else</td></tr>
+</tbody>
+</table>
+
+<p>There is an inconsistency here. The prompt says 200 characters, and <code>MAX_TEXT</code> in the code is 400. When the model obeys, nothing goes wrong. When it writes long, <code>remember</code> silently truncates at 400 and can cut a sentence in half. The looser cap leaves room for model-initiated <code>memory_save</code> calls, but for distillation the space between 200 and 400 is really a risk zone.</p>
+
+<p>The prompt also allows an empty array, which is the most overlooked sentence in the design. Having nothing to record is more correct than manufacturing an entry. A memory store that only ever says "the user asked me to change code" has zero retrieval value.</p>
+
+<h2>How the excerpt is assembled</h2>
+
+<p>Distillation does not send the whole conversation. It builds an excerpt first.</p>
+
+<pre><code>pub fn excerpt_from(messages: &amp;[Value], max_chars: usize) -&gt; String {
+    let mut out = String::new();
+    for m in messages {
+        let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("");
+        let body = match role {
+            "system" =&gt; continue,
+            "tool" =&gt; format!("[tool result] {}", content_text(m.get("content").unwrap_or(&amp;Value::Null))),
+            "assistant" =&gt; {
+                if m.get("tool_calls").is_some() &amp;&amp; m.get("content").and_then(|c| c.as_str()).unwrap_or("").trim().is_empty() {
+                    continue;
+                }
+                content_text(m.get("content").unwrap_or(&amp;Value::Null))
+            }
+            _ =&gt; content_text(m.get("content").unwrap_or(&amp;Value::Null)),
+        };
+        let body = body.trim();
+        if body.is_empty() {
+            continue;
+        }
+        let body: String = body.chars().take(1200).collect();
+        out.push_str(&amp;format!("[{role}] {body}\n"));
+        if out.chars().count() &gt;= max_chars {
+            break;
+        }
+    }
+    out
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Message type</th><th>Handling</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>system</code></td><td>Skipped entirely</td><td>The system prompt is configuration, not conversation</td></tr>
+<tr><td><code>tool</code></td><td>Prefixed with <code>[tool result]</code>, body clipped to 1,200 characters</td><td>Tool output is often tens of kilobytes and would crowd out the actual conclusion</td></tr>
+<tr><td><code>assistant</code> with only tool calls</td><td>Skipped entirely</td><td>Function names and arguments help distillation very little</td></tr>
+<tr><td><code>assistant</code> with text</td><td>Kept, clipped to 1,200</td><td>Conclusions, plans and explanations live here</td></tr>
+<tr><td><code>user</code></td><td>Kept, clipped to 1,200</td><td>Goals, constraints and corrections live here</td></tr>
+<tr><td>Multimodal arrays</td><td>Only the text parts</td><td>Images do not help text distillation and base64 would blow the length</td></tr>
+</tbody>
+</table>
+
+<p>Note that clipping happens per message, not on the total: each message contributes at most 1,200 characters and the loop stops appending once it reaches 6,000. One distillation therefore sees at most five full-length messages, or more short ones.</p>
+
+<p>Tool results are kept rather than dropped, which is the opposite of what compaction does. Compaction drops tool results first because they are long. Distillation keeps them because they are the evidence for which command worked and what error came back. Same history, two consumers, two different trades.</p>
+
+<h2>The blind spot: only the first 6,000 characters</h2>
+
+<p><code>excerpt_from</code> walks <code>messages</code> from index 0 forward, so the excerpt is the <strong>beginning</strong> of the conversation, not the end.</p>
+
+<p>For a short turn that is fine. For a long one, where the user asked it to read ten files, run five commands and finish with a conclusion, the budget is spent on the first five or six messages. The conclusion, the final correction and the agreed approach all sit past 6,000 characters. The distilled memories then skew toward "what was said when the task began" rather than "what was established when it ended".</p>
+
+<p>Worse, the blind spot is invisible. The model has no idea it saw only the first half, and it distills confidently from it. The store gains one memory about an early idea and loses one about the final decision.</p>
+
+<table>
+<thead><tr><th>Fix</th><th>Approach</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Take the tail</td><td>Iterate backwards, or compute the total and collect from the end</td><td>Loses the task goal, may distill conclusions without context</td></tr>
+<tr><td>Half head, half tail</td><td>First 3,000 characters plus last 3,000, with a gap marker</td><td>A dozen extra lines, keeps both goal and conclusion</td></tr>
+</tbody>
+</table>
+
+<p>If history has already been compacted things get a little better: <code>messages[1]</code> is a summary covering the dropped middle, and an excerpt starting at index 1 will include it early. That is luck, not a fix.</p>
+
+<h2>Parsing: four fallbacks for a disobedient model</h2>
+
+<p>Distillation asks for a bare JSON array. Models add fences, add a preamble, or wrap the array in an object. The parser has four layers of tolerance.</p>
+
+<pre><code>pub fn parse_distill(text: &amp;str) -&gt; Vec&lt;(Kind, String)&gt; {
+    let trimmed = text.trim();
+    let json_part = if let (Some(a), Some(b)) = (trimmed.find('['), trimmed.rfind(']')) {
+        trimmed[a..=b].to_string()
+    } else if let (Some(a), Some(b)) = (trimmed.find('{'), trimmed.rfind('}')) {
+        trimmed[a..=b].to_string()
+    } else {
+        trimmed.to_string()
+    };
+    let Ok(v) = serde_json::from_str::&lt;Value&gt;(&amp;json_part) else {
+        return Vec::new();
+    };
+    let arr = match v {
+        Value::Array(a) =&gt; a,
+        Value::Object(_) =&gt; v
+            .get("memories")
+            .or_else(|| v.get("entries"))
+            .and_then(|x| x.as_array())
+            .cloned()
+            .unwrap_or_default(),
+        _ =&gt; Vec::new(),
+    };
+    // ...
+}
+</code></pre>
+
+<table>
+<thead><tr><th>Model output</th><th>Parse result</th></tr></thead>
+<tbody>
+<tr><td>A bare array</td><td>Parsed normally</td></tr>
+<tr><td>Preamble, then the array</td><td>Slice from the first <code>[</code> to the last <code>]</code></td></tr>
+<tr><td>Wrapped in a JSON code fence</td><td>The slice skips the fence</td></tr>
+<tr><td><code>{"memories":[...]}</code> or <code>{"entries":[...]}</code></td><td>Take the inner array</td></tr>
+<tr><td><code>{"foo":[...]}</code> or plain prose</td><td>Empty list</td></tr>
+<tr><td><code>kind</code> set to something odd</td><td>Falls back to <code>Fact</code></td></tr>
+<tr><td><code>text</code> empty or missing</td><td>That item is dropped</td></tr>
+</tbody>
+</table>
+
+<p>One test pins the first three rows and the last two. Lenient parsing is not laziness, it is keeping the model's unpredictability outside the store. The worst case is no new memories this turn, never half a bad record.</p>
+
+<h2>Dedupe: normalize, then compare, but 12 means bytes</h2>
+
+<p>Models repeat themselves. The same "answer in Chinese" can be distilled ten times across ten turns, and without dedupe the 500 entry ceiling fills with one sentence. <code>remember</code> normalizes first, then compares for equality or containment.</p>
+
+<pre><code>fn normalize(text: &amp;str) -&gt; String {
+    text.to_lowercase()
+        .chars()
+        .filter(|c| !c.is_whitespace() &amp;&amp; !"，。！？；：、,.!?;:()（）\"\"'‘’【】…-·*#>~".contains(*c))
+        .collect()
+}
+</code></pre>
+
+<pre><code>let key = normalize(&amp;text);
+for e in entries.iter_mut() {
+    let old = normalize(&amp;e.text);
+    if old == key || (key.len() &gt;= 12 &amp;&amp; old.contains(&amp;key)) || (old.len() &gt;= 12 &amp;&amp; key.contains(&amp;old)) {
+        e.ts = now();
+        e.source = source.to_string();
+        save(dir, &amp;entries)?;
+        return Ok(false);
+    }
+}
+</code></pre>
+
+<table>
+<thead><tr><th>New</th><th>Existing</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Identical text</td><td>Identical text</td><td>Nothing added, timestamp refreshed</td></tr>
+<tr><td>Same text plus punctuation</td><td>Same text</td><td>Nothing added</td></tr>
+<tr><td>"run cargo test first"</td><td>"run cargo test first to avoid regressions"</td><td>The short one is contained and at least 12 bytes, nothing added</td></tr>
+<tr><td>"use Chinese"</td><td>"always answer in Chinese"</td><td>The new text is under the threshold, so it is added and may duplicate</td></tr>
+<tr><td>Same text, different kind</td><td>Same text</td><td>Nothing added, kind unchanged</td></tr>
+</tbody>
+</table>
+
+<p>The number people misread is 12. <code>String::len()</code> returns UTF-8 bytes, not characters. For Chinese, 12 bytes is four characters. For English it is twelve characters. So "use Chinese", three characters and nine bytes, never triggers containment, while a four-character Chinese phrase does. The threshold effectively favors English and long sentences, and short Chinese preferences pile up.</p>
+
+<p>When dedupe hits, only <code>ts</code> and <code>source</code> change. <code>kind</code> and <code>text</code> stay. That has a side effect: write a fact, later write the same sentence as a preference, and it remains a fact with the same eviction rank. Changing the kind requires deleting the old entry, and there is no tool for deleting a single memory.</p>
+
+<h2>Limits and eviction</h2>
+
+<p>Before writing, text is clipped to 400 characters, appended, then trimmed.</p>
+
+<pre><code>let text: String = text.chars().take(MAX_TEXT).collect();
+// ...
+entries.push(Entry { kind, text, source: source.to_string(), ts: now() });
+trim(&amp;mut entries);
+save(dir, &amp;entries)?;
+</code></pre>
+
+<pre><code>fn trim(entries: &amp;mut Vec&lt;Entry&gt;) {
+    while entries.len() &gt; MAX_ENTRIES {
+        let victim = entries
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, e)| (e.kind.eviction_rank(), e.ts))
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        entries.remove(victim);
+    }
+}
+</code></pre>
+
+<ol>
+<li>Sort by eviction rank: <code>Fact</code> 3, <code>Lesson</code> 2, <code>Correction</code> 1, <code>Preference</code> 0.</li>
+<li>Break ties by the largest <code>ts</code>.</li>
+<li>Remove that entry until the count is back to 500.</li>
+</ol>
+
+<p>The intent is in the comment: drop lessons and facts first, touch preferences and corrections last, because stable user intent is worth more than a one-off fact.</p>
+
+<p>But <code>max_by_key</code> with the largest <code>ts</code> picks the <strong>newest</strong> entry, which is the opposite of that intent.</p>
+
+<h2>A real defect: the comment says oldest, the code drops newest</h2>
+
+<p>The comment above <code>trim</code> says eviction drops the oldest lessons and facts. The code, on a tie in rank, picks the entry with the largest <code>ts</code>, which is the most recent one. So when the store is full and the evictable category has several entries, the one deleted is the one just written.</p>
+
+<p>The observable effect is counterintuitive. The user corrects something, and a fresh <code>Lesson</code> is distilled; if the store already holds 500 entries mostly in <code>Fact</code> and <code>Lesson</code>, that new memory can be evicted moments after being written. Preferences and corrections survive only because their rank is lower.</p>
+
+<p>The fix is to reverse the time comparison.</p>
+
+<pre><code>let victim = entries
+    .iter()
+    .enumerate()
+    .max_by_key(|(_, e)| (e.kind.eviction_rank(), std::cmp::Reverse(e.ts)))
+    .map(|(i, _)| i)
+    .unwrap_or(0);
+</code></pre>
+
+<p><code>Reverse</code> turns "largest" into "smallest" on the time axis, so the sort is by rank first and age second. The alternative is two steps: filter to the highest rank, then take <code>min_by_key(|e| e.ts)</code>.</p>
+
+<p>Why did nobody notice? Because the test only asserts that preferences survive.</p>
+
+<pre><code>#[test]
+fn trims_oldest_lessons_before_touching_preferences() {
+    let mut entries = vec![entry(Kind::Preference, "prefers concise replies")];
+    for i in 0..MAX_ENTRIES {
+        entries.push(entry(Kind::Lesson, &amp;format!("lesson {i}: a detail that only mattered once")));
+    }
+    trim(&amp;mut entries);
+    assert_eq!(entries.len(), MAX_ENTRIES);
+    assert!(entries.iter().any(|e| e.kind == Kind::Preference));
+}
+</code></pre>
+
+<p>The test name says <code>oldest</code>; the assertion only checks that the preference is still there. A classic blind spot: the name describes the intent, the assertion verifies half of it. One extra line asserting the last lesson is still present would have caught it immediately.</p>
+
+<p>This is not about point-scoring. It illustrates a real pattern: when comments, test names and implementation disagree, a low-frequency, hard-to-observe module like memory is where the debt accumulates. Nobody gets an error when eviction is wrong. They just think "why did it forget that again".</p>
+
+<h2>Retrieval: why BM25 and not cosine similarity</h2>
+
+<p>BM25 is the classic scoring function in information retrieval: term frequency times inverse document frequency times length normalization. It produces no vectors and only asks whether terms overlap, how often, and how rare they are.</p>
+
+<table>
+<thead><tr><th>Property</th><th>What it means for memory retrieval</th></tr></thead>
+<tbody>
+<tr><td>Bag of words</td><td>Query and memory must share terms, and the result is explainable</td></tr>
+<tr><td>IDF weighting</td><td>"the" and "is" barely count, rare terms weigh more</td></tr>
+<tr><td>Length normalization</td><td>A long memory does not win just by having more words</td></tr>
+<tr><td>No training</td><td>A new memory takes effect immediately, no index rebuild</td></tr>
+<tr><td>Deterministic</td><td>The same store and query give identical scores, which makes tests easy</td></tr>
+</tbody>
+</table>
+
+<p>The weakness is just as clear: no shared term means zero, so paraphrase, cross-language and pronoun references all fail. <code>search</code> therefore filters zero scores outright, preferring an empty result to a list of irrelevant ones.</p>
+
+<p>Two behaviors are implicit. First, there is no time decay: a preference from three years ago scores the same as one written yesterday given equal term counts. <code>ts</code> is used for dedupe refresh and eviction order, never for ranking. Second, there is no category weight: <code>Preference</code> does not score higher for being more important. The category only enters the index as a label term.</p>
+
+<p>At a few hundred entries both are acceptable. Most of the store is recent, so decay buys little, and category weights would add a tuning burden.</p>
+
+<h2>Tokenization: words in English, bigrams in Chinese</h2>
+
+<p>BM25 assumes terms. English has spaces and Chinese does not, so <code>tokenize</code> uses two rules.</p>
+
+<pre><code>let flush_word = |buf: &amp;mut String, out: &amp;mut Vec&lt;String&gt;| {
+    if buf.chars().count() &gt;= 2 {
+        out.push(buf.to_lowercase());
+    }
+    buf.clear();
+};
+let flush_cjk = |cjk: &amp;mut String, out: &amp;mut Vec&lt;String&gt;| {
+    let chars: Vec&lt;char&gt; = cjk.chars().collect();
+    if chars.len() == 1 {
+        out.push(chars[0].to_string());
+    } else {
+        for w in chars.windows(2) {
+            out.push(w.iter().collect());
+        }
+    }
+    cjk.clear();
+};
+</code></pre>
+
+<table>
+<thead><tr><th>Input fragment</th><th>Tokens</th></tr></thead>
+<tbody>
+<tr><td><code>NanoHermes</code></td><td><code>nanohermes</code></td></tr>
+<tr><td><code>Vite</code></td><td><code>vite</code></td></tr>
+<tr><td><code>a</code></td><td>Dropped, ASCII runs under two characters are discarded</td></tr>
+<tr><td><code>120_000</code></td><td><code>120</code>, <code>000</code>, since the underscore separates</td></tr>
+<tr><td>A three-character Chinese phrase</td><td>Two overlapping bigrams</td></tr>
+<tr><td>A single Chinese character</td><td>That character, kept as a unigram</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Runs of ASCII alphanumerics become lowercase words; anything under two characters is dropped.</li>
+<li>Runs of CJK characters become overlapping bigrams: n characters produce n-1 tokens, and a single character stays as itself.</li>
+<li>Spaces, punctuation, underscores and symbols are separators that flush both buffers.</li>
+</ol>
+
+<p>The benefit of bigram splitting is that it needs no dictionary. Any Chinese string can be split, including rare words, proper nouns and Chinese comments inside code. The cost is cross-word pseudo-tokens and very weak single-character queries.</p>
+
+<h2>Bigram false positives</h2>
+
+<p>Take the phrase "front end uses Vite". The CJK run splits into two overlapping pairs, and the second pair is not a word at all, yet it enters both the index and any query. The consequences fall into four kinds.</p>
+
+<table>
+<thead><tr><th>Phenomenon</th><th>Example</th><th>Impact</th></tr></thead>
+<tbody>
+<tr><td>Cross-word pseudo-token</td><td>A meaningless pair spanning two words</td><td>A query for that pair would falsely match, but nobody searches for it</td></tr>
+<tr><td>Single-character noise</td><td>A lone character kept as a unigram</td><td>Any memory containing it scores</td></tr>
+<tr><td>Synonym mismatch</td><td>Memory says "ship", query says "deploy"</td><td>Zero score, no retrieval</td></tr>
+<tr><td>Word order ignored</td><td>"A calls B" and "B calls A" tokenize identically</td><td>Direction is lost, possibly the wrong lesson is recalled</td></tr>
+</tbody>
+</table>
+
+<p>The last two actually hurt. Pseudo-tokens are mostly harmless because no one searches for them.</p>
+
+<p>The mitigation lives on the writing side, not in the retriever.</p>
+
+<ol>
+<li>Write key synonyms into the memory: "before shipping (deploying), run a dry-run".</li>
+<li>Prefer concrete nouns and paths over pronouns: "the deploy script", not "that script".</li>
+<li>One memory, one statement, so a long sentence with several subjects does not create order ambiguity.</li>
+</ol>
+
+<p>Which explains a design choice that looks odd at first: <code>MAX_TEXT</code> is 400 characters but the prompt asks for 200. Short sentences are easier to retrieve and less likely to crowd the budget.</p>
+
+<h2>Category labels go into the index too</h2>
+
+<p>When document frequencies are built, the category label and the English kind name are added to the body tokens.</p>
+
+<pre><code>let docs: Vec&lt;Vec&lt;String&gt;&gt; = entries
+    .iter()
+    .map(|e| {
+        let mut t = tokenize(&amp;e.text);
+        // Label terms participate in matching, so a query like "preference"
+        // hits the right bucket directly.
+        t.extend(tokenize(e.kind.label()));
+        t.push(e.kind.as_str().to_string());
+        t
+    })
+    .collect();
+</code></pre>
+
+<p>Now three kinds of query work.</p>
+
+<table>
+<thead><tr><th>Query</th><th>What matches</th></tr></thead>
+<tbody>
+<tr><td>A term from the body</td><td>Memories containing that term</td></tr>
+<tr><td>The label word</td><td>Every entry of that kind, via the label term</td></tr>
+<tr><td><code>preference</code></td><td>Every <code>Preference</code> entry, via the English kind name</td></tr>
+</tbody>
+</table>
+
+<p>That is a free type filter. Neither the user nor the model has to remember a slug; the category word itself pulls up a bucket.</p>
+
+<p>The side effect is that label terms inflate the length and term counts of their category. Since document frequency is computed over documents that include labels, the frequency of the label word equals the number of entries in that category, so its IDF drops. That is reasonable: a category word should be more common and worth less than a specific noun.</p>
+
+<h2>The BM25 formula</h2>
+
+<pre><code>let idf = (1.0 + (n - n_q + 0.5) / (n_q + 0.5)).ln();
+score += idf * (f * (k1 + 1.0)) / (f + k1 * (1.0 - b + b * len / avg_len.max(1.0)));
+</code></pre>
+
+<table>
+<thead><tr><th>Symbol</th><th>Meaning</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td><code>n</code></td><td>Total entries</td><td><code>docs.len()</code></td></tr>
+<tr><td><code>n_q</code></td><td>Entries containing the term</td><td>Counted across docs</td></tr>
+<tr><td><code>f</code></td><td>Term frequency in this entry</td><td>Counted per entry</td></tr>
+<tr><td><code>len</code></td><td>Token count of this entry, labels included</td><td><code>d.len()</code></td></tr>
+<tr><td><code>avg_len</code></td><td>Average tokens per entry</td><td>Sum divided by n</td></tr>
+<tr><td><code>k1</code></td><td>Term frequency saturation</td><td>1.2</td></tr>
+<tr><td><code>b</code></td><td>Length normalization strength</td><td>0.75</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li><strong>IDF.</strong> The rarer a term, the more a hit on it distinguishes. "deploy" is worth more than "the".</li>
+<li><strong>Saturation.</strong> Going from 1 to 10 occurrences raises the score quickly, from 10 to 100 barely at all, so no memory wins by repeating its own keywords.</li>
+<li><strong>Normalization.</strong> With b at 0.75, length carries most of the penalty, so a long document needs a higher term frequency to score the same.</li>
+</ol>
+
+<pre><code>let mut ranked: Vec&lt;(f64, usize)&gt; = scores
+    .into_iter()
+    .enumerate()
+    .filter(|(_, s)| *s &gt; 0.0)
+    .map(|(i, s)| (s, i))
+    .collect();
+ranked.sort_by(|a, b| b.0.partial_cmp(&amp;a.0).unwrap_or(std::cmp::Ordering::Equal));
+ranked.truncate(top_k);
+</code></pre>
+
+<p>The complexity is entries times query terms. Five hundred entries is a few thousand hash lookups once per turn, which needs no inverted index at all. That is the engineering reason "no vector store" holds up: the scale is small enough to brute-force.</p>
+
+<h2>Top-K and the character budget</h2>
+
+<p>Injection has two limits, count and characters. <code>retrieve_block</code> takes the top four and hands them to <code>render_block</code>.</p>
+
+<pre><code>pub fn retrieve_block(dir: &amp;Path, query: &amp;str) -&gt; String {
+    let entries = load(dir);
+    let hits = search(&amp;entries, query, INJECT_TOP_K);
+    let picked: Vec&lt;&amp;Entry&gt; = hits.iter().map(|(_, i)| &amp;entries[*i]).collect();
+    render_block(&amp;picked)
+}
+</code></pre>
+
+<pre><code>let line = format!("\n- [{}] {}", e.kind.label(), e.text);
+if used + line.chars().count() &gt; INJECT_CHAR_BUDGET {
+    break;
+}
+used += line.chars().count();
+out.push_str(&amp;line);
+</code></pre>
+
+<table>
+<thead><tr><th>Entry</th><th>Max length</th><th>Running total</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>400 characters plus a short prefix</td><td>About 410</td></tr>
+<tr><td>2</td><td>Same</td><td>About 820</td></tr>
+<tr><td>3</td><td>Same</td><td>About 1,230</td></tr>
+<tr><td>4</td><td>Same</td><td>About 1,640</td></tr>
+</tbody>
+</table>
+
+<p>Four maximum-length memories still come to 1,640 characters, leaving 760 of headroom. The budget rarely fires first; <code>top_k = 4</code> is the binding constraint. The budget matters when labels get longer, categories are renamed, or extra explanatory lines are added to <code>render_block</code>.</p>
+
+<p>Order matters here too. Hits are sorted by descending score, so if the budget runs out, what gets dropped is the lowest-scoring entry rather than an arbitrary one. The most relevant memories are always injected first.</p>
+
+<h2>Injection: a marker pair and wholesale replacement</h2>
+
+<pre><code>pub const BLOCK_START: &amp;str = "=== Long-term memory (retrieved from past sessions) ===";
+pub const BLOCK_END: &amp;str = "=== End long-term memory ===";
+</code></pre>
+
+<pre><code>=== Long-term memory (retrieved from past sessions) ===
+Relevant memories retrieved from earlier sessions (extracted automatically, for reference only; the user's current instruction takes precedence):
+
+- [preference] Answer in Chinese, code comments too
+- [correction] The deploy script dry-runs by default; confirm before it runs
+- [lesson] git push inside WSL loses the credential manager; use PowerShell
+- [fact] Vite and React on the front end, Django on the back
+
+=== End long-term memory ===
+</code></pre>
+
+<pre><code>pub fn set_block(system: &amp;str, block: &amp;str) -&gt; String {
+    let mut base = system.to_string();
+    if let Some(start) = base.find(BLOCK_START) {
+        let end = base[start..]
+            .find(BLOCK_END)
+            .map(|i| start + i + BLOCK_END.len())
+            .unwrap_or(base.len());
+        base.replace_range(start..end, "");
+    }
+    let base = base.trim_end().to_string();
+    if block.is_empty() {
+        base
+    } else if base.is_empty() {
+        block.to_string()
+    } else {
+        format!("{base}\n\n{block}")
+    }
+}
+</code></pre>
+
+<p>Two things matter.</p>
+
+<ol>
+<li><strong>Replace, never append.</strong> The old block is removed first, so the block does not grow linearly with turns.</li>
+<li><strong>An empty new block deletes the old one.</strong> That part is easy to miss: if this turn's query hits nothing, the previous injection is cleared rather than left in the system prompt.</li>
+</ol>
+
+<p>The second is intentional. Memory should follow the current task, not hold a permanent slot. The side effect is that if the user says only "continue", nothing is retrieved and the block disappears.</p>
+
+<p>The block sits at the end of the system prompt, the tail of the stable prefix. As the context post explains, prefix caching matches from the front, so putting the volatile part last means the change only affects the tail and the long stable prefix still hits. It is an important cooperation between two modules that no comment records.</p>
+
+<h2>Re-retrieval on every turn</h2>
+
+<p>At the top of <code>Agent::run</code>, the plain text of the current user message becomes the query.</p>
+
+<pre><code>let user_text = memory::content_text(&amp;content);
+if let Some(dir) = self.ctx.memory_dir.clone() {
+    let block = memory::retrieve_block(&amp;dir, &amp;user_text);
+    self.set_memory_block(&amp;block);
+}
+self.messages
+    .push(json!({ "role": "user", "content": content }));
+</code></pre>
+
+<p>Retrieval happens before the message is queued, so the query contains neither this message nor any earlier dialogue. The query is that one sentence.</p>
+
+<p>The benefit is intent alignment. Ask about the deploy script and you get deployment memories. Ask about front-end styles next and the front-end preferences appear.</p>
+
+<p>The cost is short-command amnesia.</p>
+
+<table>
+<thead><tr><th>User message</th><th>Likely outcome</th></tr></thead>
+<tbody>
+<tr><td>A sentence about the deploy script</td><td>Deployment memories retrieved</td></tr>
+<tr><td>A sentence about front-end styles</td><td>Front-end preferences retrieved</td></tr>
+<tr><td>"continue"</td><td>Very likely zero hits, block cleared</td></tr>
+<tr><td>"ok, go with that"</td><td>Very likely zero hits</td></tr>
+</tbody>
+</table>
+
+<p>So there is an experience gap: describe the task carefully and the agent remembers your preferences, say "continue" and it forgets them. That is not a bug, it is a direct consequence of querying with the current message.</p>
+
+<table>
+<thead><tr><th>Fix</th><th>Approach</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Concatenate recent user messages into the query</td><td>Query over the last few turns</td><td>Relevance gets diluted, old topics contaminate new ones</td></tr>
+<tr><td>Keep the previous block on short messages</td><td>Under eight characters, do not replace</td><td>Extra state, and stale memories can linger</td></tr>
+</tbody>
+</table>
+
+<p>NanoHermes takes the simplest version: retrieve independently every turn, clear on zero hits. For a habit of stating the requirement once, that trade holds.</p>
+
+<h2>How memory coexists with compaction</h2>
+
+<p>Compaction keeps the last ten messages and replaces the rest with a summary at <code>messages[1]</code>. The memory block lives inside the system message at <code>messages[0]</code>. The two never touch.</p>
+
+<table>
+<thead><tr><th>Action</th><th>Touches</th><th>Affects the memory block</th></tr></thead>
+<tbody>
+<tr><td><code>compact_with</code></td><td><code>messages[1..start]</code></td><td>No, index 0 is always kept</td></tr>
+<tr><td><code>set_memory_block</code></td><td><code>messages[0].content</code></td><td>Replaces the block itself</td></tr>
+<tr><td><code>refresh_system</code></td><td>Rebuilds <code>messages[0]</code></td><td>Drops the old block, re-retrieves next turn</td></tr>
+<tr><td><code>reset</code></td><td>Rebuilds all of <code>messages</code></td><td>Drops the block, <code>memory.json</code> unchanged</td></tr>
+<tr><td><code>persist</code></td><td>Writes the session file</td><td>Writes whatever block is current</td></tr>
+</tbody>
+</table>
+
+<p>Two details. The compaction summary sits at index 1 while the memory block sits inside index 0's body, so they cannot overwrite each other, because <code>set_block</code> only cares about the text between the two markers. And on session resume, <code>refresh_system</code> rebuilds the system prompt from current configuration, discarding the old block and re-retrieving at the first turn, so a restored session never carries memories from a different environment.</p>
+
+<p>Put differently: memory is external material fetched again every turn, compaction is internal tidying of this turn's history. One lives in the system message, the other in the middle of the array, and their lifetimes have nothing in common.</p>
+
+<h2>Failure semantics</h2>
+
+<table>
+<thead><tr><th>Failure</th><th>Handling</th><th>Visible to the user</th></tr></thead>
+<tbody>
+<tr><td><code>memory.json</code> missing</td><td>Empty list</td><td>No, it looks like having no memories</td></tr>
+<tr><td><code>memory.json</code> corrupted</td><td>Empty list</td><td>No, every old memory disappears silently</td></tr>
+<tr><td>Disk write fails</td><td>The tool returns an error, distillation ignores it</td><td>Model-initiated writes yes, distillation no</td></tr>
+<tr><td>Distillation call fails</td><td>Return without writing</td><td>No</td></tr>
+<tr><td>Distillation output is not JSON</td><td>Parsed as empty</td><td>No</td></tr>
+<tr><td>No hits on injection</td><td>Delete the old block</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>The governing principle, that memory never blocks the main flow, is right. But "corrupted means empty" leaves a hazard.</p>
+
+<ol>
+<li><code>load</code> sees broken JSON and returns an empty list.</li>
+<li>The next distillation succeeds and appends one entry to that empty list.</li>
+<li><code>save</code> overwrites the whole file, replacing the corrupted content.</li>
+<li>The user has lost every old memory and was never told.</li>
+</ol>
+
+<p>A safer version renames the file to <code>memory.json.broken</code> before returning empty, or writes through a temp file plus rename so a partial file never exists. Neither changes the normal path; both turn "silent reset" into "keep the evidence".</p>
+
+<p>Model-initiated write failures are visible: <code>save_tool</code> returns the error from <code>remember</code> and the model sees it, so it can retry or tell the user. Distillation swallows errors with <code>unwrap_or(false)</code>, because it runs after the turn with no chance to interact.</p>
+
+<h2>Concurrent writes without a lock</h2>
+
+<p>The storage layer has no file lock. Every write is read everything, modify in memory, write everything.</p>
+
+<pre><code>let mut entries = load(dir);
+// ... dedupe or append ...
+save(dir, &amp;entries)?;
+</code></pre>
+
+<p>Single-threaded, that is fine. But <code>Agent::run</code> executes the tool calls of one turn concurrently, each on its own thread.</p>
+
+<pre><code>let this: &amp;Agent = self;
+std::thread::scope(|s| {
+    let handles: Vec&lt;_&gt; = turn
+        .tool_calls
+        .iter()
+        .map(|call| s.spawn(move || this.execute(call)))
+        .collect();
+    // ...
+});
+</code></pre>
+
+<p>If the model calls <code>memory_save</code> twice in one turn, both threads load the same old list, each appends one entry, and they save in some order. The later write overwrites the earlier one and only one memory survives.</p>
+
+<p>The same problem appears in daemon mode: several sessions share one <code>memory_dir</code>, each distills at the end of its turn, and overlapping writes lose updates.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>Concurrent writes</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>One tool call in a turn</td><td>No</td><td>Safe</td></tr>
+<tr><td>Several <code>memory_save</code> calls in a turn</td><td>Yes</td><td>Later write wins, one entry lost</td></tr>
+<tr><td>Several sessions finishing at once</td><td>Yes</td><td>Same</td></tr>
+<tr><td>Model write overlapping distillation</td><td>Yes</td><td>Same</td></tr>
+</tbody>
+</table>
+
+<p>A complete fix needs a cross-process file lock, which is not cheap. A lighter one is an append-only log: each write appends one JSON line and reads merge and dedupe in order, avoiding whole-file overwrites. NanoHermes keeps the simplest whole-file scheme, which is acceptable under the assumption that models rarely write memories in parallel, an assumption the code does not enforce.</p>
+
+<h2>Sub-agents and multiple sessions</h2>
+
+<p>A sub-agent runs its own loop with a system prompt taken from <code>def.prompt</code>, bypassing <code>Agent::run</code>.</p>
+
+<pre><code>let mut messages: Vec&lt;Value&gt; = vec![
+    json!({ "role": "system", "content": def.prompt }),
+    json!({ "role": "user", "content": task }),
+];
+</code></pre>
+
+<p>So a sub-agent never retrieves memories and never distills at the end. Its tool calls still go through the parent's <code>self.execute</code> and share the same <code>Ctx</code>, which means <code>memory_save</code> and <code>memory_search</code> work and write to the same store.</p>
+
+<table>
+<thead><tr><th>Capability</th><th>Main agent</th><th>Sub-agent</th></tr></thead>
+<tbody>
+<tr><td>Retrieve and inject every turn</td><td>Yes</td><td>No, the system prompt is fixed</td></tr>
+<tr><td>Distill at the end of a turn</td><td>Yes</td><td>No, it runs its own loop</td></tr>
+<tr><td>Call <code>memory_save</code> and <code>memory_search</code></td><td>Yes</td><td>Yes, through the shared <code>Ctx</code></td></tr>
+<tr><td>Write the same <code>memory.json</code></td><td>Yes</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<p>The upside is that a sub-agent can look things up and record them without having the memory block stuffed into its limited context. The downside is that a sub-agent does not know the user's long-term preferences unless the parent puts them in the task description.</p>
+
+<p>Daemon mode isolates differently: each session id gets its own message array, swapped through <code>replace_messages</code>. The memory store is shared across sessions, which matches the intuition that long-term memory belongs to the user rather than the conversation, but it also means a temporary lesson written in one session shows up in another session's retrieval.</p>
+
+<h2>What happens when memory is switched off</h2>
+
+<p><code>memory</code> defaults to true. Turn it off and <code>Ctx.memory_dir</code> becomes <code>None</code>.</p>
+
+<pre><code>memory_dir: if cfg.memory {
+    cfg.memory_dir.clone().or_else(memory::default_dir)
+} else {
+    None
+},
+</code></pre>
+
+<table>
+<thead><tr><th>Behavior</th><th>With memory off</th></tr></thead>
+<tbody>
+<tr><td>Retrieval and injection</td><td>The <code>if let Some(dir)</code> in <code>Agent::run</code> fails, skipped</td></tr>
+<tr><td>End-of-turn distillation</td><td><code>completed &amp;&amp; self.cfg.memory</code> fails, skipped</td></tr>
+<tr><td>Memory tools</td><td>Still listed, calls return <code>long-term memory is disabled (settings)</code></td></tr>
+</tbody>
+</table>
+
+<p>The third row is an asymmetry: tool declarations are not filtered by <code>memory_dir</code>, only by permission mode. The model can see an available tool, call it, and get an error. Filtering the two tools out when memory is off would be more consistent and would save the model a wasted call.</p>
+
+<p>That asymmetry also explains why turning memory off deletes nothing. <code>memory.json</code> is untouched and old memories come back the moment it is re-enabled. The switch controls read and write behavior, not the lifetime of the data.</p>
+
+<h2>What the nine unit tests guard</h2>
+
+<p><code>memory.rs</code> ships nine tests, all pure functions or temporary directories, with no network and no model.</p>
+
+<table>
+<thead><tr><th>Test</th><th>Constraint</th></tr></thead>
+<tbody>
+<tr><td><code>tokenize_handles_cjk_bigrams_and_ascii_words</code></td><td>Lowercased English words, CJK bigrams</td></tr>
+<tr><td><code>round_trips_through_the_store_and_dedupes</code></td><td>Write, read back, punctuation-insensitive dedupe, containment dedupe</td></tr>
+<tr><td><code>trims_oldest_lessons_before_touching_preferences</code></td><td>Preferences survive at the 500 entry ceiling</td></tr>
+<tr><td><code>bm25_ranks_relevant_entries_first</code></td><td>Relevant first, irrelevant absent</td></tr>
+<tr><td><code>block_round_trip_replaces_instead_of_accumulating</code></td><td>Replacement rather than accumulation, empty block deletes</td></tr>
+<tr><td><code>parses_distill_output_tolerantly</code></td><td>Fences, prose, object wrappers, unknown kinds, empty output</td></tr>
+<tr><td><code>distill_gate_skips_small_talk_but_keeps_corrections</code></td><td>Pleasantries skipped, corrections and tool turns pass</td></tr>
+<tr><td><code>tools_save_and_search_work_against_a_store</code></td><td>Model writes, duplicate replies, hits, empty results</td></tr>
+<tr><td><code>excerpt_skips_system_and_images</code></td><td>System messages and images skipped, text kept</td></tr>
+</tbody>
+</table>
+
+<p>The gaps are just as clear.</p>
+
+<ol>
+<li>No test of eviction order, which is exactly why the defect above went unnoticed.</li>
+<li>No test of concurrent writes.</li>
+<li>No test of the corrupted-file path.</li>
+<li>No test of the excerpt blind spot on long conversations.</li>
+</ol>
+
+<p>None of these is hard to write. Nobody thought they would break. For a low-frequency, silent, cross-session module, those are the four tests most worth having.</p>
+
+<p>One testability benefit is worth stating: because retrieval is a pure function, a test can build three memories, query one term and assert the first hit. A vector store would make the same assertion depend on model version and floating-point error, with far worse stability and readability. That is an invisible dividend of skipping the vector store.</p>
+
+<h2>Eight memory traps</h2>
+
+<table>
+<thead><tr><th>Trap</th><th>Symptom</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Treating memory as a chat log</td><td>Every user message gets written, the store is all process</td><td>Write only conclusions that survive a session, filter one-off state</td></tr>
+<tr><td>Writing "that file"</td><td>Never retrieved, useless when injected</td><td>Write concrete paths, commands and interface names</td></tr>
+<tr><td>Conclusion without a trigger</td><td>"Be careful" cannot be executed</td><td>Write "before doing X, do Y"</td></tr>
+<tr><td>Depending on synonym recall</td><td>"ship" written, "deploy" queried, zero hits</td><td>Write both phrasings</td></tr>
+<tr><td>Following up with "continue"</td><td>No hits, block cleared</td><td>Put important preferences in the task description</td></tr>
+<tr><td>Assuming a write means injection</td><td>Top four, zero-score filter, budget truncation</td><td>Write the most important preferences short and specific</td></tr>
+<tr><td>Concurrent memory writes</td><td>Later write overwrites earlier, entries lost</td><td>Avoid several <code>memory_save</code> calls in one turn, or move to an append log</td></tr>
+<tr><td>Writing after corruption</td><td>Old memories silently reset</td><td>Keep the broken file, write atomically</td></tr>
+</tbody>
+</table>
+
+<p>Three of these cannot be fixed by the retriever, only by writing better. That is why this post spends so much space on prompts and excerpts rather than only on BM25: the quality of a memory system is about seventy percent what you write and thirty percent how you search.</p>
+
+<h2>How to check that your memory actually works</h2>
+
+<table>
+<thead><tr><th>Step</th><th>Action</th><th>Expected</th></tr></thead>
+<tbody>
+<tr><td>Inspect the store</td><td>Open <code>~/.nanohermes/memory.json</code></td><td>An <code>entries</code> array, four fields each</td></tr>
+<tr><td>Count</td><td>Length of the array</td><td>500 or fewer</td></tr>
+<tr><td>Lengths</td><td>Check each <code>text</code></td><td>400 characters or fewer</td></tr>
+<tr><td>Write</td><td>Ask the agent to remember a preference</td><td>The tool reports it saved, the file gains an entry</td></tr>
+<tr><td>Write again</td><td>Same sentence once more</td><td>Reports a duplicate, count unchanged</td></tr>
+<tr><td>Search</td><td><code>memory_search</code> on a keyword</td><td>Relevant entries with scores</td></tr>
+<tr><td>Inject</td><td>New session, related request</td><td><code>BLOCK_START</code> appears in the session's system message</td></tr>
+<tr><td>Zero hits</td><td>Say "continue"</td><td>The block is deleted, not kept from last time</td></tr>
+<tr><td>Eviction</td><td>Temporarily lower <code>MAX_ENTRIES</code> in a test</td><td>Preferences survive, count equals the cap</td></tr>
+<tr><td>Corruption</td><td>Make the file invalid JSON, then chat</td><td>No error, memories empty; that is a hazard, not a feature</td></tr>
+</tbody>
+</table>
+
+<p>That last row deserves emphasis. It verifies tolerance and simultaneously exposes the silent reset. If your project cannot accept that, fix the failure path in <code>load</code> before optimizing anything else.</p>
+
+<h2>Closing: an index, not a warehouse</h2>
+
+<ol>
+<li><strong>Memory earns its keep through retrieval, not storage.</strong> Five hundred entries none of which are ever used are worse than twenty that all hit.</li>
+<li><strong>Write quality sets the ceiling.</strong> Kind, length, self-containment and cross-session validity matter more than any ranking algorithm.</li>
+<li><strong>The limits have to exist.</strong> Entry count, entry length, injection count and injection characters interlock; drop one and something runs away in some scenario.</li>
+<li><strong>The simple version has explicit edges.</strong> BM25 misses synonyms, whole-file writes lose concurrent updates, corruption resets to empty. Knowing where the edges are beats pretending there are none.</li>
+</ol>
+
+<p>NanoHermes' memory module is a few hundred lines and it does cover remembering preferences and lessons across sessions. It is not perfect: the excerpt takes the head, eviction order is inverted, concurrency loses updates, corruption resets. But those defects are concrete, locatable and individually fixable. The complexity a vector store brings, by contrast, is diffuse: model version, index rebuilds, privacy boundaries, offline availability, each needing permanent maintenance.</p>
+
+<p>For a personal project or a small team, running the loop with one JSON file and BM25 first, and reaching for vector retrieval only once the store is genuinely thousands of entries and synonyms genuinely bind, is usually the cheaper order.</p>
+
+<p>The next post moves to tool design: why every output needs a cap. Memory answers "what crosses sessions", tools answer "how much comes back in one turn", and both land on the same budget.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/">Agent 记忆：不接向量库也能长期记忆</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
