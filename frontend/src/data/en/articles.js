@@ -18965,6 +18965,265 @@ class QueryPlanTests(TestCase):
 `,
   },
 
+  {
+    slug: 'database-connection-pool-deep-dive',
+    zhSlug: 'database-connection-pool-deep-dive',
+    topicSlug: 'backend',
+    title: 'Connection pools: why a hundred connections are slower than twenty',
+    excerpt:
+      'A pool is a throttle, not a capacity dial. Little\'s Law says how much concurrency the work needs, the database says how much it can serve, and the pool takes the smaller number.',
+    date: '2026-11-04',
+    readingTime: 20,
+    html: `
+<blockquote>
+<p>Who this is for: engineers whose first response to a slow database is to raise the pool size; people sizing gunicorn workers and pooler connections; anyone tired of too many connections and server has gone away.</p>
+<p><strong>TL;DR:</strong> the ceiling on database throughput comes from cores, query time and lock contention, not from the number of web threads. Past the concurrency the database can serve efficiently, extra connections only queue inside it, which lengthens each query, which holds each connection longer. Compute demand with Little's Law, compute capacity from the database, take the smaller number.</p>
+<p>Reading time around 20 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>Twenty to a hundred, and the tail got worse</h2>
+
+<p>The story usually starts with a rising tail latency and a database CPU that is high but not saturated. Someone reads the config, sees a pool of twenty, and raises it to a hundred. After the deploy the tail is worse, the CPU is pinned, the logs show too many connections, and a share of requests start timing out.</p>
+
+<p>The conclusion is not that pools should stay small. The pool size does not change how much work the system can do; it changes how many requests arrive at the database at once. If the database is already near saturation at twenty, connections twenty-one through a hundred do not make queries faster, they queue inside the database for CPU, for row locks, for buffer pages. Each query takes longer, a request holds its connection for the duration of its query, and so connections are held longer. Bigger pool, more concurrent queries, slower queries, longer holds: a feedback loop.</p>
+
+<p>Three things rise together: active connections on the database, mean query time, and the wait for a connection in the application. The real bottleneck may be a missing index, lock contention, or simply more connections than physical cores, with context switching eating the CPU. Raising the pool only moves the queue from one side to the other.</p>
+
+<p>So this post is not about one number. It is about what determines the number: why a connection is expensive, how to compute demand, what each pool setting protects, how the application and database counts reconcile, and how to spot a leak.</p>
+
+<h2>Why a connection is expensive</h2>
+
+<p>The intuition is that if HTTP connections are cheap to reuse, database connections should be too. The difference is that a database connection is not a passive pipe. There is a live execution unit behind it.</p>
+
+<p>PostgreSQL forks a backend process per connection, which parses, executes and returns results until the client disconnects. MySQL replaces the process with a thread. Each carries a stack, file handles, scheduling cost, and in PostgreSQL a memory context, catalog cache and executor state. Authentication costs a key exchange and several challenge rounds, and a new connection repeats all of it. Session state is per connection: search path, time zone, isolation level, temporary tables, prepared statements, advisory locks, subscriptions. None of that disappears because the connection is pooled; it means the pool has to clean up on return. And max_connections is a hard limit, past which new clients are refused outright rather than queued, while every slot costs reserved memory that is no longer available for caching and sorting.</p>
+
+<p>So more connections is not free parallelism. It is more execution units competing for the same cores, the same locks and the same shared buffer. Past the core count the OS context switches, when transactions touch the same row they wait, and when everyone runs a large query the buffer churns. None of that shows up in a connection count. It shows up in latency and in system CPU time.</p>
+
+<p>Which is why the first job of a pool is not raising concurrency but reusing the cost of creating connections. That saving is real, and it has a ceiling: creation cost only dominates when connections are opened and closed constantly. Once they are reused, the pool size decides pressure, not cost.</p>
+
+<h2>Sizing with Little's Law</h2>
+
+<pre><code>L = λ × W
+</code></pre>
+
+<p>The number of requests in the system equals the arrival rate times the time each spends there. For a database, if the application issues five hundred queries per second and each takes eight milliseconds, the average concurrency is four, so four connections would suffice and twenty is generous.</p>
+
+<p>The usual misuse is putting the HTTP latency into the formula. A request that takes two hundred milliseconds but spends eight of them in the database occupies a connection for eight. Using the request duration computes a much larger number, which then looks like a shortage when it is really a connection held while something else happens.</p>
+
+<p>The other misuse is averaging. A tail query can be many times the mean, and arrival bursts exceed it too. Capacity planning uses peak query rate times tail query time for an upper bound, plus margin. At a thousand queries per second with a fifty millisecond tail that is fifty concurrent, against five by the mean. Which number you size for depends on whether you fear wasted capacity or queues at peak.</p>
+
+<p>Little's Law answers how much is needed, not how much the database can take. Service time per query sets the per-connection ceiling, and the utilisation that follows is arrival rate times service time over connections. As utilisation approaches one, waiting grows far faster than linearly: the queueing approximation divides service time by one minus utilisation, so going from half to ninety percent multiplies waits several times over.</p>
+
+<pre><code>needed concurrency        = peak QPS × tail query time
+serviceable concurrency  ≈ cores × (1 / service time) × target utilisation
+pool_size = min(needed + margin, serviceable)
+</code></pre>
+
+<p>Cores are not the whole story: queries that wait on disk or on locks effectively parallelise less, while fully cached queries approach the core count. Target utilisation usually sits below seventy or eighty percent to leave room for bursts and background work, and the exact figure comes from observation rather than intuition.</p>
+
+<p>Above all, the pool size should not be derived from the web thread count. Thirty-two threads do not mean thirty-two concurrent queries; most are parsing input, hitting caches or waiting on a downstream. Sizing by threads assumes every request queries the database for its whole duration, which is usually false and inflates connection counts badly.</p>
+
+<h2>What each pool setting protects</h2>
+
+<p><strong>Maximum size</strong> is the upper bound and the admission control for concurrent queries. It comes from the formula above, not from "the database limit minus a bit". Too large crushes the database; too small queues in the application. It is the only setting that decides how many queries run at once.</p>
+
+<p><strong>Minimum idle</strong> avoids cold starts, where a quiet period drains the pool and the next burst pays connection setup. The cost is holding database slots while idle. Latency-sensitive services can keep a modest floor; constrained environments should let it shrink.</p>
+
+<p><strong>Acquire timeout</strong> must exist and must be shorter than the upstream request timeout. Without it, requests hang on the pool, threads fill, and the service dies. Waiting thirty seconds for a connection usually means the answer arrives too late anyway.</p>
+
+<p><strong>Idle timeout</strong> must be shorter than the database's idle disconnect and shorter than any middlebox idle timeout, or the pool hands out connections the server has already killed.</p>
+
+<p><strong>Max lifetime</strong> rotates connections so session state, fragmentation and stale endpoints do not accumulate, and it should carry jitter so they do not all rotate in the same second.</p>
+
+<p><strong>Validation</strong> is the check before lending. It costs a round trip and prevents handing out dead connections. A quick check on checkout plus a periodic check on idle connections beats running a full query every time.</p>
+
+<p><strong>Leak detection</strong> is the only tool that tells you who borrowed a connection and never returned it, through a stack trace or a recorded checkout site.</p>
+
+<p>The ordering principle is: first keep the database alive, then keep requests from waiting forever, then optimise cold starts and reclamation. Most misconfigurations invert it: a large minimum idle to protect cold-start latency, a long acquire timeout to avoid errors, and the database fills with idle connections with nothing left at peak.</p>
+
+<h2>Django: persistent connections and the multiplication</h2>
+
+<p>Django's connection handling and a pool are two different things.</p>
+
+<p>By default the connection age is zero and Django closes at the end of each request, which is not "no pool" but connection creation charged to every request. Setting a positive age keeps the connection for reuse by the same thread. Django calls this persistent connections: it reuses one connection per thread, not a shared pool.</p>
+
+<p>That is the key detail. Synchronous ORM connections are thread-local, so a worker with one thread holds one connection and a worker with four holds four. Multiply by instance count to get the service's total, or max_connections will be computed wrong.</p>
+
+<pre><code>DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "shop",
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {
+            "connect_timeout": 5,
+        },
+    }
+}
+</code></pre>
+
+<p>Health checks, available since 4.1, verify a persistent connection before reuse and rebuild it if the check fails. That solves connections killed between requests at the cost of one extra round trip, and for any age above a few minutes it is usually worth it.</p>
+
+<p>Django 6 can use a real pool through psycopg 3, but only with the connection age at zero, since the two mechanisms are mutually exclusive.</p>
+
+<pre><code>DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "shop",
+        "CONN_MAX_AGE": 0,
+        "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {
+            "pool": {
+                "min_size": 2,
+                "max_size": 10,
+                "timeout": 5,
+                "max_lifetime": 1800,
+                "max_idle": 300,
+            },
+        },
+    }
+}
+</code></pre>
+
+<p>That maximum is per process, so eight workers with ten each is eighty against the pooler, which is not the same as eighty against the database. The distinction matters later.</p>
+
+<p>One more hidden holder: wrapping every request in a transaction. The connection is held from the start of the request to the end, so a slow external call inside the request idles a connection the whole time, and demand becomes request duration times rate rather than query time times rate.</p>
+
+<h2>PostgreSQL: max_connections and three pooler modes</h2>
+
+<p>PostgreSQL defaults to a hundred connections with three reserved for superusers, so ordinary clients get ninety-seven. The reservation exists so a saturated database still admits a DBA.</p>
+
+<p>Divide that budget deliberately: each application, scheduled jobs, migrations, monitoring, replication slots, backup tools, and your own psql. Not "the database has a hundred, I will take ninety". When the limit is hit the error is a refusal, not a slow query.</p>
+
+<p>Each connection is a backend process, which is the main difference from MySQL. More connections means more processes and more contention on shared memory, lock tables and snapshots. The project's own guidance is that fewer connections give better throughput, and that concurrency should come from a pooler rather than from raising the limit.</p>
+
+<p>A pooler sits between application and server with three modes. In session mode a client holds one server connection for the whole session, which is closest to direct and least efficient. In transaction mode the server connection is bound only for a transaction and returned afterwards, so many clients share the same set, which is the best trade and the usual default. In statement mode it returns after every statement, which suits only pure SQL with no transactions and breaks most ORMs.</p>
+
+<p>The pitfalls of transaction mode all involve session state. Server-side prepared statements are bound to a connection, so a name may not exist or may point at the wrong statement when the connection is reassigned; newer pooler versions support them with limits at a memory cost. Session-level settings do not survive, so use transaction-local settings instead. Temporary tables, notifications, advisory locks and holdable cursors all bind to the connection. And server-side cursors should be disabled, because they outlive the transaction that the connection was returned after.</p>
+
+<pre><code>[databases]
+shop = host=127.0.0.1 port=5432 dbname=shop
+
+[pgbouncer]
+listen_port = 6432
+pool_mode = transaction
+max_client_conn = 200
+default_pool_size = 20
+min_pool_size = 5
+reserve_pool_size = 5
+server_idle_timeout = 300
+server_lifetime = 1800
+server_check_query = select 1
+server_check_delay = 30
+</code></pre>
+
+<p>The pool size of twenty is the real database concurrency; two hundred client connections is what the application sees. That decoupling is the point of the pooler, and the price is that the application may queue, so the wait timeout has to be configured rather than left infinite.</p>
+
+<h2>MySQL: limits, idle timeouts and thread caching</h2>
+
+<p>MySQL defaults to 151 connections, another hard limit, with an extra one reserved for accounts holding the admin privilege. It uses a thread per connection, with its own stack, session state, sort buffers and temporary tables, so more connections adds scheduling and memory pressure.</p>
+
+<p>The thread cache keeps disconnected threads around for reuse, which reduces creation cost and does nothing about too many connections. Raising it does not make five hundred concurrent connections faster, it only makes reconnect cheaper.</p>
+
+<p>Idle timeouts decide when the server disconnects an idle client, with separate values for interactive and non-interactive sessions, both defaulting to eight hours. A pool idle timeout far below that reclaims connections in the pool and never meets the server's disconnect. Inverted, the pool holds connections the server has already killed, and the symptom is exactly the errors you would expect after a quiet period.</p>
+
+<p>There is also a per-account limit, which in a shared or multi-tenant setup will be hit before the global one, so check both when connections are refused while the global count looks fine.</p>
+
+<p>The process list shows what connections are doing. Comparing connected against running threads is the useful ratio: two of a hundred running means the pool is mostly idle, eighty of a hundred means genuine load. The historical peak tells you whether the server has ever been saturated.</p>
+
+<h2>HikariCP: how ten connections serve thousands of requests</h2>
+
+<p>The Java defaults are worth stating, since many teams are either saved or bitten by them: a maximum of ten, a minimum equal to it, a thirty second acquire timeout, ten minute idle and thirty minute lifetime, and leak detection off.</p>
+
+<p>Ten connections serving thousands of requests per second is arithmetic, not folklore. At one millisecond per query a connection theoretically does a thousand per second, so ten do ten thousand; real utilisation is lower because of transactions, locks, round trips and application work, but the order of magnitude holds. At a hundred milliseconds per query a connection does ten per second and ten connections cap you at a hundred, at which point the fix is the query, not the pool.</p>
+
+<pre><code>connections = ((core_count × 2) + effective_spindle_count)
+</code></pre>
+
+<p>On a four-core machine without a disk array that gives about nine, close to the default. The point is not that ten is magic, but that the pool should be sized in the same order as the database's parallel capacity rather than the application's thread count.</p>
+
+<p>The acquire timeout of thirty seconds is often shortened to two or five, since a thirty second wait already exceeds most upstream timeouts. Lifetime rotates all connections and needs jitter. Leak detection is worth enabling at somewhere above the slowest healthy request, thirty or sixty seconds, because it does not stop leaks but names them. A keepalive probe helps where NAT, load balancers or short server idle timeouts would otherwise kill connections silently.</p>
+
+<h2>Leaks: four common shapes</h2>
+
+<p>A leak is not "a connection that was not closed" but "a connection that is not returned on every path", and it shows up as an active count that only rises until acquisitions start timing out, often while the database still has room.</p>
+
+<p>No cleanup on the exceptional path. Work throws after acquiring, control jumps out, and the close never runs. Context managers, try-with-resources and defer exist for this, but only if they are used; hand-rolled acquire and release will eventually miss a branch.</p>
+
+<p>Streaming responses. A cursor feeds an HTTP response and the connection cannot be returned until the response ends, so a client disconnect with an unclosed generator strands it. Put the cursor inside a managed block and make sure the generator is consumed or explicitly closed.</p>
+
+<p>Lazy loading inside a transaction. Related objects load during rendering, and if a transaction is still open the connection is held until rendering finishes. An N+1 inside a transaction looks like a connection shortage and is really a query count problem.</p>
+
+<p>Transactions left open. An exception after an explicit begin without a rollback returns a connection still inside a transaction, and the next borrower inherits the locks and uncommitted state. In PostgreSQL these appear as idle in transaction, holding locks and blocking vacuum, and a caught exception inside an atomic block can leave the transaction needing rollback, so later queries fail.</p>
+
+<pre><code>SELECT pid, usename, application_name, state,
+       now() - state_change AS state_age,
+       left(query, 80) AS query
+FROM pg_stat_activity
+WHERE datname = 'shop'
+ORDER BY state_change;
+</code></pre>
+
+<p>A long idle in transaction is an unclosed transaction. An active state running the same slow query is a query problem. Handle them differently.</p>
+
+<h2>Async pools: one connection, one task</h2>
+
+<pre><code>import asyncpg
+
+pool = await asyncpg.create_pool(
+    dsn="postgresql://app@db/shop",
+    min_size=2,
+    max_size=10,
+    timeout=5,
+    max_inactive_connection_lifetime=300,
+)
+
+async def fetch_orders(user_id):
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            return await conn.fetch(
+                "SELECT id, amount FROM orders WHERE user_id = $1", user_id
+            )
+</code></pre>
+
+<p>The managed acquisition is what makes this safe: the connection belongs to one task for the duration of the block. Never store it globally or pass it between tasks; the same applies to a session object, where sharing one across tasks interleaves statements and transaction boundaries.</p>
+
+<p>Async does not change the size. Waiting for a connection without holding a thread lets more requests queue, which concentrates pressure rather than relieving it. A thousand tasks waiting on ten connections still presents ten to the database. The genuine danger is a connection per task.</p>
+
+<p>Two timeouts are needed, not one: a wait for the connection and a limit on the query. Without the first, requests wait forever; without the second, a slow query holds a slot indefinitely.</p>
+
+<h2>Stale connections after a failover</h2>
+
+<p>After a failover, a restart or a middlebox dropping idle connections, the pool holds sockets that look open and are not. The first query on such a connection fails, and in bad cases the service returns errors for a while after the switch.</p>
+
+<p>The root cause is that the pool does not know. A quiet TCP connection does not notice the peer disappearing, especially through NAT with an expired mapping.</p>
+
+<p>Three layers help. Validate on checkout with a health check or a ping, accepting one round trip in exchange for catching most staleness. Cap the lifetime so no connection survives two switches, with jitter so rebuilds do not synchronise. And retry in the application, once, for idempotent reads, and only with an idempotency key for writes.</p>
+
+<p>Distinguish connection errors from business errors. Operational, interface and reset errors are usually retryable; integrity and data errors are not, and retrying them multiplies side effects.</p>
+
+<h2>What to watch</h2>
+
+<p>Active is borrowed connections. Near the maximum and not falling means the pool is too small or connections are held too long. Idle long matching the maximum means the pool is too large, occupying database slots for nothing. Pending is the number of requests waiting, and it is the direct evidence that the pool is short. A high active count with pending at zero is not a sizing problem, it is a holding-time problem.</p>
+
+<p>Acquire wait should be a histogram, not an average, since a rising tail exposes trouble earlier than a full pool does. Count acquisition timeouts separately: they mean requests gave up, not that they failed normally.</p>
+
+<p>On the database side, look at the state distribution: many idle in transaction means unclosed transactions, many active running the same slow statement means a query problem, many idle means the pool is spinning. A pooler exposes per-pool client and server counts plus wait statistics.</p>
+
+<p>Alert on shapes rather than absolutes. A hundred connections is a disaster on one service and normal on another. Useful rules are active above eighty percent for five minutes, pending above zero for a minute, a rising acquisition timeout rate, and more than ten transactions idle. Each maps to a specific failure rather than a bare number.</p>
+
+<h2>Summary</h2>
+
+<p>Why is a hundred slower than twenty? Because at twenty the database still has headroom, each query is quick, and connections turn over fast. At a hundred the cores, locks and buffers are contested, each query slows, each connection is held longer, and the queue moves from the application into the database. A larger pool does not create capacity; it relocates the queue.</p>
+
+<p>Four sentences. Connections are expensive because of the server-side execution unit, authentication, session state and slots, not the socket. Demand comes from peak rate times query time; capacity comes from the database; take the smaller. Settings first protect the database, then protect requests from waiting forever, and only then tune cold starts and reclamation. Application connections and database connections are separate budgets, and worker count times thread count, pooler client limits and per-user limits each have to be reconciled.</p>
+
+<p>Before raising the pool, check whether pending is actually rising and whether individual queries are actually slowing. If pending is zero, the pool is not the bottleneck. If queries are slowing, more connections will make it worse. Fix the query first.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
