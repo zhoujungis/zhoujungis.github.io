@@ -15294,6 +15294,350 @@ for (i = 0; i &lt; k; i++) {
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a>.</p>
 `,
   },
+  {
+    slug: 'btree-delete-merge-redistribute',
+    zhSlug: 'btree-delete-merge-redistribute',
+    topicSlug: 'database',
+    title: 'B+ tree deletion: merging, borrowing and a shrinking root',
+    excerpt:
+      'You deleted half the table and the file did not shrink. Deleting a key is the easy part. What happens when a page runs nearly empty, and why InnoDB leaves the space alone, is the interesting half.',
+    date: '2026-11-04',
+    readingTime: 12,
+    html: `
+<blockquote>
+<p>Who this is for: people who deleted half their data and found the file unchanged; people wondering why B+ tree deletion is more involved than insertion; people choosing between InnoDB and SQLite and needing to understand how each reclaims space.</p>
+<p><strong>TL;DR:</strong> the first action of a B+ tree delete is always to remove a key from a leaf page. The hard part is what happens when that page is nearly empty. There are only two options: borrow a few keys from a sibling, or merge two pages into one. A merge removes a child from the parent, which may then underflow itself, so the process can recurse to the root. InnoDB also separates marking a record from physically removing it, which is why space often does not come back after a delete.</p>
+<p>Reading time around 12 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why a table does not shrink after deleting half of it</h2>
+
+<p>A ten gigabyte table, half the rows deleted, and the file size barely moves. The first instinct is that the delete did not take effect, but a count confirms it did.</p>
+
+<p>Two layers explain it. The first is MVCC: a delete only marks the record, because older versions may still be needed by a snapshot read. The second is the tree: even once a record is physically removed, pages do not necessarily merge, and empty pages are not necessarily returned to the operating system. This post is about the second layer.</p>
+
+<h2>The first action: remove a key from a leaf</h2>
+
+<ol>
+<li>Start at the root, compare keys, descend to the target leaf.</li>
+<li>Locate the key in that leaf.</li>
+<li>Remove the key and its record.</li>
+<li>Check whether the page still satisfies the minimum fill requirement.</li>
+<li>If not, enter the rebalancing flow.</li>
+<li>Rebalancing may affect the parent, so recurse upward.</li>
+<li>If the root is left with a single child, reduce the tree height.</li>
+</ol>
+
+<p>Steps one to three are the local delete. Steps four to seven are rebalancing, and almost all of the engineering detail in B+ tree deletion lives there.</p>
+
+<h2>InnoDB: mark first, purge later</h2>
+
+<p>An InnoDB delete does not wipe the record from the page immediately. It marks the record header and leaves the record and its version chain in place. A background purge thread later scans the undo log, confirms no older read view needs that version, and only then removes the record. Step two is what invokes the B+ tree deletion logic, which may in turn merge pages.</p>
+
+<p>So the time spent by a delete statement and the time spent merging pages are not the same moment. Two consequences follow: the table size usually does not change right after the delete, and if purge is blocked by a long transaction, the freed space stays outstanding. A steadily rising history list length in the engine status output usually means purge is behind and physical reclamation is stuck with it.</p>
+
+<h2>When a page counts as underflowing</h2>
+
+<p>Every non-root node has a minimum fill: an interior node keeps at least half the maximum children, a leaf keeps at least half the maximum keys minus one. Less formally, a non-root page stays about half full. Dropping below that is called underflow, which is not an error, since the page remains readable; it only wastes space. The tree rebalances to keep the height from inflating after deletions.</p>
+
+<p>Two different kinds of waste are worth separating. In-page fragmentation is space inside a page that has been deleted but not compacted. Inter-page fragmentation is adjacent pages that are both short and were never merged. Compaction fixes the first; borrowing or merging fixes the second.</p>
+
+<h2>Borrowing a few keys from a sibling</h2>
+
+<ol>
+<li>Find the underflowing page's left or right sibling.</li>
+<li>If that sibling holds more than the minimum, move one or a few keys across.</li>
+<li>Update the divider key in the parent.</li>
+<li>The page is back above the minimum, and the parent's child count is unchanged.</li>
+</ol>
+
+<p>The advantage is that the tree structure does not change: the parent only rewrites one divider key. The requirement is that a sibling has surplus. If both neighbours are exactly half full, there is nothing to borrow and the only option is to merge.</p>
+
+<h2>Merging two pages into one</h2>
+
+<ol>
+<li>Merge the underflowing page with a left or right sibling.</li>
+<li>Remove the entry pointing at the merged page from the parent.</li>
+<li>Return the merged page to the freelist.</li>
+<li>The parent now has one fewer child and may underflow itself.</li>
+<li>Repeat for the parent until some level holds, or the root is reached.</li>
+</ol>
+
+<p>A merge costs more than a borrow: it moves records, edits the parent, may recurse, and may release a page. It also actually reduces the page count.</p>
+
+<p>One easily missed point: the trigger is not "the page is below half full", it is "the two pages fit into one". If both are near half full, their combined content exceeds a page, so even a page slightly below the minimum can only borrow. That condition is stricter than half full, and it is one reason InnoDB's page count barely drops after deletions.</p>
+
+<h2>Rewriting the parent's divider key</h2>
+
+<p>An interior page stores the smallest key of each child plus that child's page number. Deletion disturbs that divider. If the deleted key was not the first in the child, the divider is unchanged. If it was, the divider becomes the child's new first key. A borrow updates the divider to match what moved. A merge removes one key and page number pair entirely.</p>
+
+<p>This is where implementations trip: a divider is not an arbitrary key, it must be a legitimate lower bound for the child. Get it wrong and later lookups take the wrong branch.</p>
+
+<h2>How the root shrinks</h2>
+
+<p>The root is the only node allowed to sit below the minimum. When rebalancing reaches it, two outcomes exist. If it still has at least two children, the height is unchanged. If it has exactly one, that child becomes the new root and the height drops by one.</p>
+
+<p>That height reduction is the only way a delete improves read performance: three levels become two, and every lookup saves a page access. The height cannot drop forever, since a root with enough keys always keeps at least two children.</p>
+
+<h2>SQLite: repack several siblings at once</h2>
+
+<p>SQLite takes a different route. Deletion removes the cell and then calls the balancer, whose core flattens the underflowing page together with up to two siblings, re-sorts every cell from those pages, repacks them as evenly as the byte budget allows, allocates or frees pages as needed, and updates the parents' divider keys.</p>
+
+<p>Whereas InnoDB borrows or merges with one sibling at a time, SQLite handles up to three pages in one pass, which resolves several pages' fragmentation together and produces more even fill.</p>
+
+<p>For the root, one routine creates a new root when it overflows, and another moves a child's contents back into the root and lowers the height when the root has a single child. The page header carries the three counters that matter: cell count, free bytes and fragment bytes, and the fragment counter is the direct measure of in-page waste that the balancer clears.</p>
+
+<h2>The two implementations side by side</h2>
+
+<table>
+<thead><tr><th></th><th>InnoDB</th><th>SQLite</th></tr></thead>
+<tbody>
+<tr><td>When the record goes</td><td>Marked at delete time, removed at purge</td><td>Removed by the delete statement</td></tr>
+<tr><td>Rebalance scope</td><td>Usually one sibling, borrow or merge</td><td>Up to three siblings repacked together</td></tr>
+<tr><td>Merge condition</td><td>Two pages fit into one</td><td>Redistribution by capacity after the repack</td></tr>
+<tr><td>Parent update</td><td>Rewrite a divider or drop an entry</td><td>Same</td></tr>
+<tr><td>Root shrink</td><td>Promote the only child</td><td>A dedicated routine moves the child up</td></tr>
+<tr><td>Space reclamation</td><td>Purge plus table rebuild</td><td><code>VACUUM</code></td></tr>
+<tr><td>In-page waste</td><td>Deleted byte counters</td><td>The fragment counter</td></tr>
+</tbody>
+</table>
+
+<p>Both share one property: the local delete is trivial and rebalancing is where the complexity is. They differ in how many pages are handled at once and when space is genuinely reclaimed.</p>
+
+<h2>Why InnoDB does not rush to merge</h2>
+
+<ul>
+<li>Merging costs something: moving records, editing the parent, possible recursion, and concurrency locks.</li>
+<li>A merge may immediately be undone, since delete-then-insert workloads can split the freshly merged page straight away.</li>
+<li>MVCC may still need the old versions, so records cannot be physically removed until purge clears them.</li>
+<li>Half-full pages give later sequential inserts room, which reduces splitting.</li>
+</ul>
+
+<p>So the strategy is closer to deferred tidying: touch structure as little as possible on delete and leave reclamation to purge and rebuilds. That pays off in write-heavy read-light OLTP, and it is exactly wrong after a bulk delete in a table that will never grow again, where a manual rebuild is the answer.</p>
+
+<h2>Rebuilding a table, fill factor and fragmentation</h2>
+
+<pre><code>OPTIMIZE TABLE events;
+</code></pre>
+
+<p>For InnoDB this is a table rebuild: create a new table, insert the data in primary key order, rebuild every index, and swap. It removes in-page fragmentation, redistributes pages for better fill, may reduce the height, and reclaims unused space. It also needs extra disk, may lock or slow writes depending on the algorithm and version, and takes a long time on a large table.</p>
+
+<p>The fill factor setting controls how full each page is when an index is built, defaulting to full. It applies to index construction and rebuilds, not to runtime splits. Lowering it leaves room for later inserts at the cost of a larger index. Page size determines how many keys fit per page: larger pages mean a shorter tree, at the cost of more in-page waste and heavier single-page IO.</p>
+
+<h2>Observing page utilisation</h2>
+
+<pre><code>SELECT table_name, data_length, index_length, data_free
+FROM information_schema.TABLES
+WHERE table_schema = 'your_db';
+</code></pre>
+
+<p><code>data_free</code> is allocated but unused space, and it is not the same as in-page fragmentation. A large value may mean whole free pages or an unreclaimed tablespace. A table whose size did not drop but whose <code>data_free</code> is small is more likely suffering in-page fragmentation or unmerged pages.</p>
+
+<p>For page-level detail, tools that decode index pages show record counts, bytes held by deleted records, the free list and per-page fill. SQLite is easier: its page header exposes cells, free bytes and fragments directly, and pragmas report page count and freelist count.</p>
+
+<h2>Five common misconceptions</h2>
+
+<p><strong>Space is reclaimed immediately after a delete.</strong> InnoDB waits for purge, and merging is not guaranteed.</p>
+
+<p><strong>A page below half full always merges.</strong> Merging requires the two pages to fit into one. If they do not, the only option is borrowing.</p>
+
+<p><strong><code>OPTIMIZE TABLE</code> just tidies fragments and does not affect traffic.</strong> It rewrites the table, needs extra disk, may lock, and large tables need a maintenance window.</p>
+
+<p><strong>The tree height only grows on insert.</strong> Deletes change it too, in the opposite direction, when the root shrinks.</p>
+
+<p><strong><code>data_free</code> is in-page fragmentation.</strong> It is tablespace-level free space. In-page waste is a separate counter.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>What is the first step of a delete</td><td>Remove a key from a leaf page</td></tr>
+<tr><td>What happens when a page runs empty</td><td>Borrow or merge, and a merge can recurse to the root</td></tr>
+<tr><td>What does the parent change</td><td>A divider key, or one child entry</td></tr>
+<tr><td>When does the height drop</td><td>When the root has a single child</td></tr>
+<tr><td>Why does InnoDB not reclaim immediately</td><td>Mark-then-purge, plus conservative merging</td></tr>
+<tr><td>How to reclaim for real</td><td>Rebuild the table, or <code>VACUUM</code> in SQLite</td></tr>
+</tbody>
+</table>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a>.</p>
+`,
+  },
+  {
+    slug: 'mysql-mvcc-version-chain-read-view',
+    zhSlug: 'mysql-mvcc-version-chain-read-view',
+    topicSlug: 'database',
+    title: 'MySQL MVCC: version chains and how a read view decides visibility',
+    excerpt:
+      'Not multiple copies per row. One current record, old values in the undo log, linked by a pointer in the record header. Read committed and repeatable read differ only in when that view is taken.',
+    date: '2026-11-04',
+    readingTime: 14,
+    html: `
+<blockquote>
+<p>Who this is for: people who can recite "read committed sees the latest, repeatable read sees a snapshot" but cannot say where the snapshot lives; people whose disk filled up because a long transaction held purge back; people wondering why a locking read returns a different value from a plain select.</p>
+<p><strong>TL;DR:</strong> InnoDB's MVCC does not store multiple copies of a row. There is one current record, the old values live in the undo log, and a pointer in the record header chains them together. A read takes a read view, walks the chain backwards, and stops at the first version visible to it. The only difference between read committed and repeatable read is how often that view is created.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The same row, two different values</h2>
+
+<pre><code>CREATE TABLE account (
+    id      BIGINT PRIMARY KEY,
+    balance INT NOT NULL
+) ENGINE=InnoDB;
+
+INSERT INTO account VALUES (1, 100);
+</code></pre>
+
+<p>Two sessions open transactions at repeatable read. Session A reads a balance of 100. Session B updates it to 200 and commits. Session A reads again and still sees 100.</p>
+
+<p>A read after B's commit, showing the old value. People explain it as "A read a snapshot", but what the snapshot is, where it lives and when it is taken is usually left vague. The answer has three parts: hidden columns, the undo log, and the read view.</p>
+
+<h2>Hidden columns: the skeleton of the version chain</h2>
+
+<table>
+<thead><tr><th>Hidden column</th><th>Bytes</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>transaction id</td><td>6</td><td>The transaction that last modified this row</td></tr>
+<tr><td>roll pointer</td><td>7</td><td>The previous version of this record in the undo log</td></tr>
+<tr><td>row id</td><td>6</td><td>A generated id when there is no primary key</td></tr>
+</tbody>
+</table>
+
+<p>The transaction id says who changed it, the roll pointer says where the previous version is. Together they are the entire metadata of the version chain. Note that the transaction id records only the <strong>last</strong> modifier; history is not in the clustered index, it is in the undo log.</p>
+
+<h2>The undo log: where old versions actually live</h2>
+
+<p>Every update or delete writes an undo record holding the value before the change and a pointer to the previous undo record. There are two kinds: insert undo, produced by inserts, used only for rollback and discardable soon after commit; and update undo, produced by updates and deletes, used both for rollback and for MVCC reads, so it must survive until no transaction needs it.</p>
+
+<p>An update undo record holds roughly the old primary key, the old values of the changed columns, a pointer to the previous undo record, and header information such as the transaction id and undo type. All historical versions of one key therefore form a singly linked list: the newest in the clustered index, the oldest at the tail of the undo log.</p>
+
+<h2>How the chain is strung together</h2>
+
+<pre><code>trx 10: balance = 100   (the original insert)
+trx 20: balance = 150
+trx 30: balance = 200
+</code></pre>
+
+<p>The cluster index holds balance 200 with transaction 30 and a pointer to undo 30, whose old value is 150 with a pointer to undo 20, whose old value is 100 with a pointer to the insert undo. Reading walks that chain: if transaction 30 is not visible, step back to 20, then to 10, until a visible version appears or the chain ends, which means the row did not exist when the view was taken. The chain is not on the data pages; it hops between data pages and undo pages.</p>
+
+<h2>The four fields of a read view</h2>
+
+<table>
+<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>active ids</td><td>Transactions still running when the view was created</td></tr>
+<tr><td>minimum active id</td><td>The smallest id in that list</td></tr>
+<tr><td>next transaction id</td><td>The next id the system had not yet assigned</td></tr>
+<tr><td>creator id</td><td>The transaction that created this view</td></tr>
+</tbody>
+</table>
+
+<p>The active list is what decides whether a row was touched by something uncommitted. The two boundaries say that anything below the minimum has certainly finished, and anything at or above the next id started after the view existed.</p>
+
+<h2>The full visibility rule</h2>
+
+<ol>
+<li>If the record's transaction id equals the creator id, it is visible. Your own change is always yours to see.</li>
+<li>If it is below the minimum active id, it is visible, because that transaction finished before any of the active ones.</li>
+<li>If it is at or above the next id, it is not visible, because it started after the view.</li>
+<li>If it is in the active list, it is not visible, because it was still running when the view was created.</li>
+<li>Otherwise, visible.</li>
+</ol>
+
+<p>The intuition: committed before the view was taken, visible; uncommitted when the view was taken, invisible; started after the view, invisible. When the current version is not visible, follow the roll pointer to the previous version and repeat.</p>
+
+<h2>The only difference between the two levels</h2>
+
+<table>
+<thead><tr><th>Level</th><th>When the view is created</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>Read committed</td><td>At the start of every snapshot read statement</td><td>Each statement sees the latest committed data</td></tr>
+<tr><td>Repeatable read</td><td>At the first snapshot read in the transaction</td><td>The whole transaction reuses one view</td></tr>
+</tbody>
+</table>
+
+<p>A frequent misconception: the repeatable read view is not created at <code>BEGIN</code>, it is created at the first real read. Write first and read later, and the view is taken at that read. To fix it at transaction start, use <code>START TRANSACTION WITH CONSISTENT SNAPSHOT</code>, which matters at repeatable read; at read committed the view is still per statement.</p>
+
+<h2>Snapshot reads and current reads</h2>
+
+<p>MVCC applies only to snapshot reads, meaning ordinary selects. A current read reads the newest version and locks it: <code>SELECT ... FOR UPDATE</code>, <code>SELECT ... FOR SHARE</code>, and the write statements themselves. A current read bypasses the read view entirely, and if the newest record is locked elsewhere it waits, governed by the lock wait timeout.</p>
+
+<p>Which explains a common observation: in one transaction, a plain select shows the old value while a locking read shows the new one. That is not inconsistency, it is two different read semantics.</p>
+
+<h2>What happens on an update</h2>
+
+<ol>
+<li>Locate the newest record for the key with a current read and take an exclusive lock.</li>
+<li>Write the old value into a new update undo record.</li>
+<li>Modify the clustered index record: new value, new transaction id, roll pointer to the new undo.</li>
+<li>Maintain any secondary indexes over changed columns.</li>
+<li>After commit, the undo record is not removed; purge decides later whether any older view still needs it.</li>
+</ol>
+
+<p>Step five is the root of the long transaction problem. A transaction that runs for ten minutes prevents cleanup of every undo record produced after it started.</p>
+
+<h2>Delete marks and purge</h2>
+
+<p>A delete usually marks the record rather than removing it. The record and its version chain remain, invisible to new views. Physical removal is the purge thread's job: it scans the undo log for useless update undo, and if the corresponding record is delete-marked and no older view needs it, removes the record from the page. Removing records can trigger page merges, and emptied pages can return to the freelist.</p>
+
+<p>So a table that does not shrink after deletion is normal. The delete only marked, and space only becomes reclaimable after purge catches up, while in-page fragmentation and unmerged pages need a rebuild to tidy.</p>
+
+<h2>Why long transactions are dangerous</h2>
+
+<ul>
+<li>Undo cannot be cleaned, so the history list grows and the undo tablespace swells.</li>
+<li>Purge falls behind, and once the purge lag threshold is reached new transactions are delayed and write throughput drops.</li>
+<li>Version chains get longer, so every read walks more nodes and burns CPU.</li>
+<li>Replication lags, because a large transaction generates a burst of binlog that the replica has to replay.</li>
+</ul>
+
+<pre><code>SELECT trx_id, trx_state, trx_started, trx_isolation_level
+FROM information_schema.INNODB_TRX
+ORDER BY trx_started;
+</code></pre>
+
+<p>The older the start time, the more suspicious. Then check the history list length in the transactions section of the engine status output. A value that keeps climbing usually means a long transaction or purge that cannot keep up.</p>
+
+<h2>Observing the chain and the history list</h2>
+
+<pre><code>SELECT * FROM performance_schema.data_locks;
+SELECT * FROM performance_schema.data_lock_waits;
+SELECT * FROM performance_schema.events_transactions_current;
+</code></pre>
+
+<p>The lock tables show what a current read has locked, and the transaction events show state and isolation level. Page-level detail needs a tool that decodes index pages, which shows the hidden transaction id, the roll pointer and the deleted-byte counter. Do not run that against production; a replica or a test copy is safer.</p>
+
+<h2>Five common misconceptions</h2>
+
+<p><strong>MVCC stores several copies per row.</strong> It does not. One current record, old versions in the undo log.</p>
+
+<p><strong>The repeatable read view is created at <code>BEGIN</code>.</strong> It is created at the first snapshot read, unless you ask for a consistent snapshot explicitly.</p>
+
+<p><strong>Repeatable read eliminates phantoms entirely.</strong> A snapshot read does not see newly inserted rows, but a current read does, and gap locks are what block the inserts. Mixing the two kinds of read still produces surprising results.</p>
+
+<p><strong>A locking read is also a snapshot read.</strong> It is a current read: newest version, plus locks.</p>
+
+<p><strong>Undo is released at commit.</strong> It waits for purge to confirm no older view needs it, and long transactions stretch that interval.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Where does the version chain live</td><td>Newest in the clustered index, older versions in undo, linked by the roll pointer</td></tr>
+<tr><td>What decides visibility</td><td>The record's transaction id plus the four fields of the read view</td></tr>
+<tr><td>How the isolation levels differ</td><td>One view per statement, or one per transaction</td></tr>
+<tr><td>Snapshot versus current read</td><td>Plain selects are snapshots; locking reads and writes are current</td></tr>
+<tr><td>Why long transactions hurt</td><td>Undo cannot be cleaned, purge falls behind, chains grow</td></tr>
+<tr><td>Why space is not reclaimed</td><td>Delete only marks; removal is purge; tidying needs a rebuild</td></tr>
+</tbody>
+</table>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

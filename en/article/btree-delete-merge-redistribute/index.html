@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="You deleted half the table and the file did not shrink. Deleting a key is the easy part. What happens when a page runs nearly empty, and why InnoDB leaves the space alone, is the interesting half." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/btree-delete-merge-redistribute/" />
+    <meta property="og:title" content="B+ tree deletion: merging, borrowing and a shrinking root | Stack Frame" />
+    <meta property="og:description" content="You deleted half the table and the file did not shrink. Deleting a key is the easy part. What happens when a page runs nearly empty, and why InnoDB leaves the space alone, is the interesting half." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/btree-delete-merge-redistribute/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="B+ tree deletion: merging, borrowing and a shrinking root | Stack Frame" />
+    <meta name="twitter:description" content="You deleted half the table and the file did not shrink. Deleting a key is the easy part. What happens when a page runs nearly empty, and why InnoDB leaves the space alone, is the interesting half." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>B+ tree deletion: merging, borrowing and a shrinking root | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CbHtkHCG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/btree-delete-merge-redistribute/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>B+ tree deletion: merging, borrowing and a shrinking root</h1><div class="ns-meta">2026-11-04 · 12 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who deleted half their data and found the file unchanged; people wondering why B+ tree deletion is more involved than insertion; people choosing between InnoDB and SQLite and needing to understand how each reclaims space.</p>
+<p><strong>TL;DR:</strong> the first action of a B+ tree delete is always to remove a key from a leaf page. The hard part is what happens when that page is nearly empty. There are only two options: borrow a few keys from a sibling, or merge two pages into one. A merge removes a child from the parent, which may then underflow itself, so the process can recurse to the root. InnoDB also separates marking a record from physically removing it, which is why space often does not come back after a delete.</p>
+<p>Reading time around 12 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why a table does not shrink after deleting half of it</h2>
+
+<p>A ten gigabyte table, half the rows deleted, and the file size barely moves. The first instinct is that the delete did not take effect, but a count confirms it did.</p>
+
+<p>Two layers explain it. The first is MVCC: a delete only marks the record, because older versions may still be needed by a snapshot read. The second is the tree: even once a record is physically removed, pages do not necessarily merge, and empty pages are not necessarily returned to the operating system. This post is about the second layer.</p>
+
+<h2>The first action: remove a key from a leaf</h2>
+
+<ol>
+<li>Start at the root, compare keys, descend to the target leaf.</li>
+<li>Locate the key in that leaf.</li>
+<li>Remove the key and its record.</li>
+<li>Check whether the page still satisfies the minimum fill requirement.</li>
+<li>If not, enter the rebalancing flow.</li>
+<li>Rebalancing may affect the parent, so recurse upward.</li>
+<li>If the root is left with a single child, reduce the tree height.</li>
+</ol>
+
+<p>Steps one to three are the local delete. Steps four to seven are rebalancing, and almost all of the engineering detail in B+ tree deletion lives there.</p>
+
+<h2>InnoDB: mark first, purge later</h2>
+
+<p>An InnoDB delete does not wipe the record from the page immediately. It marks the record header and leaves the record and its version chain in place. A background purge thread later scans the undo log, confirms no older read view needs that version, and only then removes the record. Step two is what invokes the B+ tree deletion logic, which may in turn merge pages.</p>
+
+<p>So the time spent by a delete statement and the time spent merging pages are not the same moment. Two consequences follow: the table size usually does not change right after the delete, and if purge is blocked by a long transaction, the freed space stays outstanding. A steadily rising history list length in the engine status output usually means purge is behind and physical reclamation is stuck with it.</p>
+
+<h2>When a page counts as underflowing</h2>
+
+<p>Every non-root node has a minimum fill: an interior node keeps at least half the maximum children, a leaf keeps at least half the maximum keys minus one. Less formally, a non-root page stays about half full. Dropping below that is called underflow, which is not an error, since the page remains readable; it only wastes space. The tree rebalances to keep the height from inflating after deletions.</p>
+
+<p>Two different kinds of waste are worth separating. In-page fragmentation is space inside a page that has been deleted but not compacted. Inter-page fragmentation is adjacent pages that are both short and were never merged. Compaction fixes the first; borrowing or merging fixes the second.</p>
+
+<h2>Borrowing a few keys from a sibling</h2>
+
+<ol>
+<li>Find the underflowing page's left or right sibling.</li>
+<li>If that sibling holds more than the minimum, move one or a few keys across.</li>
+<li>Update the divider key in the parent.</li>
+<li>The page is back above the minimum, and the parent's child count is unchanged.</li>
+</ol>
+
+<p>The advantage is that the tree structure does not change: the parent only rewrites one divider key. The requirement is that a sibling has surplus. If both neighbours are exactly half full, there is nothing to borrow and the only option is to merge.</p>
+
+<h2>Merging two pages into one</h2>
+
+<ol>
+<li>Merge the underflowing page with a left or right sibling.</li>
+<li>Remove the entry pointing at the merged page from the parent.</li>
+<li>Return the merged page to the freelist.</li>
+<li>The parent now has one fewer child and may underflow itself.</li>
+<li>Repeat for the parent until some level holds, or the root is reached.</li>
+</ol>
+
+<p>A merge costs more than a borrow: it moves records, edits the parent, may recurse, and may release a page. It also actually reduces the page count.</p>
+
+<p>One easily missed point: the trigger is not "the page is below half full", it is "the two pages fit into one". If both are near half full, their combined content exceeds a page, so even a page slightly below the minimum can only borrow. That condition is stricter than half full, and it is one reason InnoDB's page count barely drops after deletions.</p>
+
+<h2>Rewriting the parent's divider key</h2>
+
+<p>An interior page stores the smallest key of each child plus that child's page number. Deletion disturbs that divider. If the deleted key was not the first in the child, the divider is unchanged. If it was, the divider becomes the child's new first key. A borrow updates the divider to match what moved. A merge removes one key and page number pair entirely.</p>
+
+<p>This is where implementations trip: a divider is not an arbitrary key, it must be a legitimate lower bound for the child. Get it wrong and later lookups take the wrong branch.</p>
+
+<h2>How the root shrinks</h2>
+
+<p>The root is the only node allowed to sit below the minimum. When rebalancing reaches it, two outcomes exist. If it still has at least two children, the height is unchanged. If it has exactly one, that child becomes the new root and the height drops by one.</p>
+
+<p>That height reduction is the only way a delete improves read performance: three levels become two, and every lookup saves a page access. The height cannot drop forever, since a root with enough keys always keeps at least two children.</p>
+
+<h2>SQLite: repack several siblings at once</h2>
+
+<p>SQLite takes a different route. Deletion removes the cell and then calls the balancer, whose core flattens the underflowing page together with up to two siblings, re-sorts every cell from those pages, repacks them as evenly as the byte budget allows, allocates or frees pages as needed, and updates the parents' divider keys.</p>
+
+<p>Whereas InnoDB borrows or merges with one sibling at a time, SQLite handles up to three pages in one pass, which resolves several pages' fragmentation together and produces more even fill.</p>
+
+<p>For the root, one routine creates a new root when it overflows, and another moves a child's contents back into the root and lowers the height when the root has a single child. The page header carries the three counters that matter: cell count, free bytes and fragment bytes, and the fragment counter is the direct measure of in-page waste that the balancer clears.</p>
+
+<h2>The two implementations side by side</h2>
+
+<table>
+<thead><tr><th></th><th>InnoDB</th><th>SQLite</th></tr></thead>
+<tbody>
+<tr><td>When the record goes</td><td>Marked at delete time, removed at purge</td><td>Removed by the delete statement</td></tr>
+<tr><td>Rebalance scope</td><td>Usually one sibling, borrow or merge</td><td>Up to three siblings repacked together</td></tr>
+<tr><td>Merge condition</td><td>Two pages fit into one</td><td>Redistribution by capacity after the repack</td></tr>
+<tr><td>Parent update</td><td>Rewrite a divider or drop an entry</td><td>Same</td></tr>
+<tr><td>Root shrink</td><td>Promote the only child</td><td>A dedicated routine moves the child up</td></tr>
+<tr><td>Space reclamation</td><td>Purge plus table rebuild</td><td><code>VACUUM</code></td></tr>
+<tr><td>In-page waste</td><td>Deleted byte counters</td><td>The fragment counter</td></tr>
+</tbody>
+</table>
+
+<p>Both share one property: the local delete is trivial and rebalancing is where the complexity is. They differ in how many pages are handled at once and when space is genuinely reclaimed.</p>
+
+<h2>Why InnoDB does not rush to merge</h2>
+
+<ul>
+<li>Merging costs something: moving records, editing the parent, possible recursion, and concurrency locks.</li>
+<li>A merge may immediately be undone, since delete-then-insert workloads can split the freshly merged page straight away.</li>
+<li>MVCC may still need the old versions, so records cannot be physically removed until purge clears them.</li>
+<li>Half-full pages give later sequential inserts room, which reduces splitting.</li>
+</ul>
+
+<p>So the strategy is closer to deferred tidying: touch structure as little as possible on delete and leave reclamation to purge and rebuilds. That pays off in write-heavy read-light OLTP, and it is exactly wrong after a bulk delete in a table that will never grow again, where a manual rebuild is the answer.</p>
+
+<h2>Rebuilding a table, fill factor and fragmentation</h2>
+
+<pre><code>OPTIMIZE TABLE events;
+</code></pre>
+
+<p>For InnoDB this is a table rebuild: create a new table, insert the data in primary key order, rebuild every index, and swap. It removes in-page fragmentation, redistributes pages for better fill, may reduce the height, and reclaims unused space. It also needs extra disk, may lock or slow writes depending on the algorithm and version, and takes a long time on a large table.</p>
+
+<p>The fill factor setting controls how full each page is when an index is built, defaulting to full. It applies to index construction and rebuilds, not to runtime splits. Lowering it leaves room for later inserts at the cost of a larger index. Page size determines how many keys fit per page: larger pages mean a shorter tree, at the cost of more in-page waste and heavier single-page IO.</p>
+
+<h2>Observing page utilisation</h2>
+
+<pre><code>SELECT table_name, data_length, index_length, data_free
+FROM information_schema.TABLES
+WHERE table_schema = 'your_db';
+</code></pre>
+
+<p><code>data_free</code> is allocated but unused space, and it is not the same as in-page fragmentation. A large value may mean whole free pages or an unreclaimed tablespace. A table whose size did not drop but whose <code>data_free</code> is small is more likely suffering in-page fragmentation or unmerged pages.</p>
+
+<p>For page-level detail, tools that decode index pages show record counts, bytes held by deleted records, the free list and per-page fill. SQLite is easier: its page header exposes cells, free bytes and fragments directly, and pragmas report page count and freelist count.</p>
+
+<h2>Five common misconceptions</h2>
+
+<p><strong>Space is reclaimed immediately after a delete.</strong> InnoDB waits for purge, and merging is not guaranteed.</p>
+
+<p><strong>A page below half full always merges.</strong> Merging requires the two pages to fit into one. If they do not, the only option is borrowing.</p>
+
+<p><strong><code>OPTIMIZE TABLE</code> just tidies fragments and does not affect traffic.</strong> It rewrites the table, needs extra disk, may lock, and large tables need a maintenance window.</p>
+
+<p><strong>The tree height only grows on insert.</strong> Deletes change it too, in the opposite direction, when the root shrinks.</p>
+
+<p><strong><code>data_free</code> is in-page fragmentation.</strong> It is tablespace-level free space. In-page waste is a separate counter.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>What is the first step of a delete</td><td>Remove a key from a leaf page</td></tr>
+<tr><td>What happens when a page runs empty</td><td>Borrow or merge, and a merge can recurse to the root</td></tr>
+<tr><td>What does the parent change</td><td>A divider key, or one child entry</td></tr>
+<tr><td>When does the height drop</td><td>When the root has a single child</td></tr>
+<tr><td>Why does InnoDB not reclaim immediately</td><td>Mark-then-purge, plus conservative merging</td></tr>
+<tr><td>How to reclaim for real</td><td>Rebuild the table, or <code>VACUUM</code> in SQLite</td></tr>
+</tbody>
+</table>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>

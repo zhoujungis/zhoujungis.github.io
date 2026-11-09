@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Not multiple copies per row. One current record, old values in the undo log, linked by a pointer in the record header. Read committed and repeatable read differ only in when that view is taken." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/mysql-mvcc-version-chain-read-view/" />
+    <meta property="og:title" content="MySQL MVCC: version chains and how a read view decides visibility | Stack Frame" />
+    <meta property="og:description" content="Not multiple copies per row. One current record, old values in the undo log, linked by a pointer in the record header. Read committed and repeatable read differ only in when that view is taken." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/mysql-mvcc-version-chain-read-view/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MySQL MVCC: version chains and how a read view decides visibility | Stack Frame" />
+    <meta name="twitter:description" content="Not multiple copies per row. One current record, old values in the undo log, linked by a pointer in the record header. Read committed and repeatable read differ only in when that view is taken." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>MySQL MVCC: version chains and how a read view decides visibility | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CbHtkHCG.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/mysql-mvcc-version-chain-read-view/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>MySQL MVCC: version chains and how a read view decides visibility</h1><div class="ns-meta">2026-11-04 · 14 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who can recite "read committed sees the latest, repeatable read sees a snapshot" but cannot say where the snapshot lives; people whose disk filled up because a long transaction held purge back; people wondering why a locking read returns a different value from a plain select.</p>
+<p><strong>TL;DR:</strong> InnoDB's MVCC does not store multiple copies of a row. There is one current record, the old values live in the undo log, and a pointer in the record header chains them together. A read takes a read view, walks the chain backwards, and stops at the first version visible to it. The only difference between read committed and repeatable read is how often that view is created.</p>
+<p>Reading time around 14 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The same row, two different values</h2>
+
+<pre><code>CREATE TABLE account (
+    id      BIGINT PRIMARY KEY,
+    balance INT NOT NULL
+) ENGINE=InnoDB;
+
+INSERT INTO account VALUES (1, 100);
+</code></pre>
+
+<p>Two sessions open transactions at repeatable read. Session A reads a balance of 100. Session B updates it to 200 and commits. Session A reads again and still sees 100.</p>
+
+<p>A read after B's commit, showing the old value. People explain it as "A read a snapshot", but what the snapshot is, where it lives and when it is taken is usually left vague. The answer has three parts: hidden columns, the undo log, and the read view.</p>
+
+<h2>Hidden columns: the skeleton of the version chain</h2>
+
+<table>
+<thead><tr><th>Hidden column</th><th>Bytes</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>transaction id</td><td>6</td><td>The transaction that last modified this row</td></tr>
+<tr><td>roll pointer</td><td>7</td><td>The previous version of this record in the undo log</td></tr>
+<tr><td>row id</td><td>6</td><td>A generated id when there is no primary key</td></tr>
+</tbody>
+</table>
+
+<p>The transaction id says who changed it, the roll pointer says where the previous version is. Together they are the entire metadata of the version chain. Note that the transaction id records only the <strong>last</strong> modifier; history is not in the clustered index, it is in the undo log.</p>
+
+<h2>The undo log: where old versions actually live</h2>
+
+<p>Every update or delete writes an undo record holding the value before the change and a pointer to the previous undo record. There are two kinds: insert undo, produced by inserts, used only for rollback and discardable soon after commit; and update undo, produced by updates and deletes, used both for rollback and for MVCC reads, so it must survive until no transaction needs it.</p>
+
+<p>An update undo record holds roughly the old primary key, the old values of the changed columns, a pointer to the previous undo record, and header information such as the transaction id and undo type. All historical versions of one key therefore form a singly linked list: the newest in the clustered index, the oldest at the tail of the undo log.</p>
+
+<h2>How the chain is strung together</h2>
+
+<pre><code>trx 10: balance = 100   (the original insert)
+trx 20: balance = 150
+trx 30: balance = 200
+</code></pre>
+
+<p>The cluster index holds balance 200 with transaction 30 and a pointer to undo 30, whose old value is 150 with a pointer to undo 20, whose old value is 100 with a pointer to the insert undo. Reading walks that chain: if transaction 30 is not visible, step back to 20, then to 10, until a visible version appears or the chain ends, which means the row did not exist when the view was taken. The chain is not on the data pages; it hops between data pages and undo pages.</p>
+
+<h2>The four fields of a read view</h2>
+
+<table>
+<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>active ids</td><td>Transactions still running when the view was created</td></tr>
+<tr><td>minimum active id</td><td>The smallest id in that list</td></tr>
+<tr><td>next transaction id</td><td>The next id the system had not yet assigned</td></tr>
+<tr><td>creator id</td><td>The transaction that created this view</td></tr>
+</tbody>
+</table>
+
+<p>The active list is what decides whether a row was touched by something uncommitted. The two boundaries say that anything below the minimum has certainly finished, and anything at or above the next id started after the view existed.</p>
+
+<h2>The full visibility rule</h2>
+
+<ol>
+<li>If the record's transaction id equals the creator id, it is visible. Your own change is always yours to see.</li>
+<li>If it is below the minimum active id, it is visible, because that transaction finished before any of the active ones.</li>
+<li>If it is at or above the next id, it is not visible, because it started after the view.</li>
+<li>If it is in the active list, it is not visible, because it was still running when the view was created.</li>
+<li>Otherwise, visible.</li>
+</ol>
+
+<p>The intuition: committed before the view was taken, visible; uncommitted when the view was taken, invisible; started after the view, invisible. When the current version is not visible, follow the roll pointer to the previous version and repeat.</p>
+
+<h2>The only difference between the two levels</h2>
+
+<table>
+<thead><tr><th>Level</th><th>When the view is created</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>Read committed</td><td>At the start of every snapshot read statement</td><td>Each statement sees the latest committed data</td></tr>
+<tr><td>Repeatable read</td><td>At the first snapshot read in the transaction</td><td>The whole transaction reuses one view</td></tr>
+</tbody>
+</table>
+
+<p>A frequent misconception: the repeatable read view is not created at <code>BEGIN</code>, it is created at the first real read. Write first and read later, and the view is taken at that read. To fix it at transaction start, use <code>START TRANSACTION WITH CONSISTENT SNAPSHOT</code>, which matters at repeatable read; at read committed the view is still per statement.</p>
+
+<h2>Snapshot reads and current reads</h2>
+
+<p>MVCC applies only to snapshot reads, meaning ordinary selects. A current read reads the newest version and locks it: <code>SELECT ... FOR UPDATE</code>, <code>SELECT ... FOR SHARE</code>, and the write statements themselves. A current read bypasses the read view entirely, and if the newest record is locked elsewhere it waits, governed by the lock wait timeout.</p>
+
+<p>Which explains a common observation: in one transaction, a plain select shows the old value while a locking read shows the new one. That is not inconsistency, it is two different read semantics.</p>
+
+<h2>What happens on an update</h2>
+
+<ol>
+<li>Locate the newest record for the key with a current read and take an exclusive lock.</li>
+<li>Write the old value into a new update undo record.</li>
+<li>Modify the clustered index record: new value, new transaction id, roll pointer to the new undo.</li>
+<li>Maintain any secondary indexes over changed columns.</li>
+<li>After commit, the undo record is not removed; purge decides later whether any older view still needs it.</li>
+</ol>
+
+<p>Step five is the root of the long transaction problem. A transaction that runs for ten minutes prevents cleanup of every undo record produced after it started.</p>
+
+<h2>Delete marks and purge</h2>
+
+<p>A delete usually marks the record rather than removing it. The record and its version chain remain, invisible to new views. Physical removal is the purge thread's job: it scans the undo log for useless update undo, and if the corresponding record is delete-marked and no older view needs it, removes the record from the page. Removing records can trigger page merges, and emptied pages can return to the freelist.</p>
+
+<p>So a table that does not shrink after deletion is normal. The delete only marked, and space only becomes reclaimable after purge catches up, while in-page fragmentation and unmerged pages need a rebuild to tidy.</p>
+
+<h2>Why long transactions are dangerous</h2>
+
+<ul>
+<li>Undo cannot be cleaned, so the history list grows and the undo tablespace swells.</li>
+<li>Purge falls behind, and once the purge lag threshold is reached new transactions are delayed and write throughput drops.</li>
+<li>Version chains get longer, so every read walks more nodes and burns CPU.</li>
+<li>Replication lags, because a large transaction generates a burst of binlog that the replica has to replay.</li>
+</ul>
+
+<pre><code>SELECT trx_id, trx_state, trx_started, trx_isolation_level
+FROM information_schema.INNODB_TRX
+ORDER BY trx_started;
+</code></pre>
+
+<p>The older the start time, the more suspicious. Then check the history list length in the transactions section of the engine status output. A value that keeps climbing usually means a long transaction or purge that cannot keep up.</p>
+
+<h2>Observing the chain and the history list</h2>
+
+<pre><code>SELECT * FROM performance_schema.data_locks;
+SELECT * FROM performance_schema.data_lock_waits;
+SELECT * FROM performance_schema.events_transactions_current;
+</code></pre>
+
+<p>The lock tables show what a current read has locked, and the transaction events show state and isolation level. Page-level detail needs a tool that decodes index pages, which shows the hidden transaction id, the roll pointer and the deleted-byte counter. Do not run that against production; a replica or a test copy is safer.</p>
+
+<h2>Five common misconceptions</h2>
+
+<p><strong>MVCC stores several copies per row.</strong> It does not. One current record, old versions in the undo log.</p>
+
+<p><strong>The repeatable read view is created at <code>BEGIN</code>.</strong> It is created at the first snapshot read, unless you ask for a consistent snapshot explicitly.</p>
+
+<p><strong>Repeatable read eliminates phantoms entirely.</strong> A snapshot read does not see newly inserted rows, but a current read does, and gap locks are what block the inserts. Mixing the two kinds of read still produces surprising results.</p>
+
+<p><strong>A locking read is also a snapshot read.</strong> It is a current read: newest version, plus locks.</p>
+
+<p><strong>Undo is released at commit.</strong> It waits for purge to confirm no older view needs it, and long transactions stretch that interval.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Where does the version chain live</td><td>Newest in the clustered index, older versions in undo, linked by the roll pointer</td></tr>
+<tr><td>What decides visibility</td><td>The record's transaction id plus the four fields of the read view</td></tr>
+<tr><td>How the isolation levels differ</td><td>One view per statement, or one per transaction</td></tr>
+<tr><td>Snapshot versus current read</td><td>Plain selects are snapshots; locking reads and writes are current</td></tr>
+<tr><td>Why long transactions hurt</td><td>Undo cannot be cleaned, purge falls behind, chains grow</td></tr>
+<tr><td>Why space is not reclaimed</td><td>Delete only marks; removal is purge; tidying needs a rebuild</td></tr>
+</tbody>
+</table>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
