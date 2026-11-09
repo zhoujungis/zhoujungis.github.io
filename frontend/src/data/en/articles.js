@@ -21343,6 +21343,406 @@ def set_sqlite_pragmas(sender, connection, **kwargs):
 `,
   },
 
+  {
+    slug: 'websocket-production-deep-dive',
+    zhSlug: 'websocket-production-deep-dive',
+    topicSlug: 'backend',
+    title: 'WebSocket in production: heartbeats, reconnects and horizontal scaling',
+    excerpt:
+      'The protocol is rarely the problem. Proxies with sixty second idle timeouts, load balancers that assign per connection, and in-process broadcast channels are. Each one shows up as a dropped connection or a lost message.',
+    date: '2026-11-04',
+    readingTime: 24,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who tested happily against a local socket and met disconnects and missing messages on the first deploy, and anyone about to run more than one instance of a realtime service.</p>
+<p><strong>TL;DR:</strong> WebSocket trouble lives in the infrastructure, which was designed for short requests. A proxy closes idle connections after sixty seconds, a load balancer assigns per connection, and separate instances share no broadcast channel.</p>
+<p>Reading time around 24 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Perfect locally, dropped every sixty seconds in production</h2>
+
+<p>Against a local address, a chat session runs all day. Deployed, the connection drops roughly once a minute and the console fills with reconnects. The timing is so regular it looks like a stopwatch.</p>
+
+<p>The first failure class has a boring cause: the proxy read timeout defaults to sixty seconds, and its meaning is the longest gap between two reads from upstream, not the total lifetime of the connection. An idle socket for a minute looks dead, and a local setup has no proxy to demonstrate it.</p>
+
+<p>Raising the timeout hides it until the next problem. With two instances, half the users stop receiving other people's messages, and refreshing makes it better or worse at random. The cause is a process boundary: the default channel layer is in-process, so a group send reaches only the connections attached to that process.</p>
+
+<p>Both failures share a shape. <strong>The code is right and the assumptions baked into it are wrong</strong>: no proxy, one process. Production violates both.</p>
+
+<table>
+<thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td>Drops every sixty seconds</td><td>A proxy idle timeout, not connection lifetime; heartbeat must be shorter than the smallest idle timeout on the path</td></tr>
+<tr><td>Lost messages after scaling</td><td>Broadcast never crosses the process; use shared pub/sub or stay single</td></tr>
+<tr><td>How to heartbeat</td><td>Browsers cannot send protocol pings, so the client needs an application heartbeat; the server can send protocol pings</td></tr>
+<tr><td>Reconnect without a storm</td><td>Exponential backoff with jitter, decide by close code, resume from a cursor</td></tr>
+<tr><td>A slow client</td><td>A bounded per-connection queue; drop or disconnect rather than buffer forever</td></tr>
+</tbody>
+</table>
+
+<h2>The handshake</h2>
+
+<p>A WebSocket begins as an HTTP request asking to be upgraded.</p>
+
+<pre><code>GET /ws/chat HTTP/1.1
+Host: example.com
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+Sec-WebSocket-Version: 13
+Origin: https://example.com
+</code></pre>
+
+<pre><code>HTTP/1.1 101 Switching Protocols
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+</code></pre>
+
+<p>The headers do different jobs. The upgrade header names the protocol; the connection header is a hop-by-hop marker telling each hop not to swallow it; the version header lets the server answer 426 with what it does support.</p>
+
+<p>The key is not a credential but a nonce. The server concatenates it with a fixed GUID, hashes it and base64 encodes the result. The point is not security but proof that the server actually parsed a WebSocket handshake, which a cache or a proxy cannot fake, so the client can tell a real upgrade from a proxy returning a 200 page.</p>
+
+<p>After the 101 the socket is no longer HTTP. There is no request line, no headers, no content length, only frames, which is why middleware built around HTTP semantics misbehaves here: it may wait for a body that never arrives, or keep applying request timeouts to a connection that outlives them.</p>
+
+<p>Four details worth keeping. The origin header is sent by browsers automatically and should be checked, not for replay protection but to stop another site borrowing a user's browser. The subprotocol header negotiates a format, and people smuggle tokens through it to keep them out of URL logs, at the cost of non-standard semantics that proxies and frameworks may not preserve. The handshake itself is an abusable entry point, so rate limits, connection caps and an unauthenticated timeout belong at connect time. And while HTTP/2 supports WebSocket through extended connect, most production deployments still use a version 1.1 handshake because that is what the middleboxes handle best.</p>
+
+<h2>Frames, opcodes and masking</h2>
+
+<pre><code>FIN(1) | RSV1-3(3) | opcode(4) | MASK(1) | payload_len(7) | [extended] | [mask key(4)] | payload
+</code></pre>
+
+<table>
+<thead><tr><th>Opcode</th><th>Name</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>0x0</td><td>continuation</td><td>A later fragment of the same message</td></tr>
+<tr><td>0x1</td><td>text</td><td>UTF-8 text</td></tr>
+<tr><td>0x2</td><td>binary</td><td>Binary</td></tr>
+<tr><td>0x8</td><td>close</td><td>Closing handshake</td></tr>
+<tr><td>0x9</td><td>ping</td><td>Protocol heartbeat request</td></tr>
+<tr><td>0xA</td><td>pong</td><td>Protocol heartbeat reply</td></tr>
+</tbody>
+</table>
+
+<p><strong>Client frames must be masked and server frames must not be.</strong> The mask is a four byte key XORed with the payload, not encryption: it stops a caching intermediary from storing WebSocket traffic as HTTP and raises the cost of forged data. An unmasked client frame should close with a protocol error, and a masked server frame should be rejected by the client.</p>
+
+<p><strong>Control frames cannot be fragmented and cannot exceed 125 bytes.</strong> A heartbeat that needed assembling would defeat the point. They also cannot use the continuation opcode.</p>
+
+<p><strong>A message may be fragmented but must reassemble in order</strong>, which means <strong>a size limit must count the whole message, not each frame</strong>: an attacker can send a thousand small frames. Enforce the limit on the accumulated size and close with the too-big code.</p>
+
+<p>Closing is a two-way courtesy: one side sends a close frame with a code and reason, the other answers, and only then does the TCP connection end. A server that sends close and immediately resets leaves the client with an abnormal closure, unable to distinguish a planned shutdown from a broken network. The codes are defined in the specification and worth knowing by number: 1000 normal, 1001 going away after a deploy, 1002 protocol error, 1007 bad payload data, 1008 policy violation, 1009 message too big, 1011 internal error, 1013 try again later. The four thousands are reserved for applications, so 4001 for an expired token is a legitimate use.</p>
+
+<h2>Why the proxy cuts the connection</h2>
+
+<pre><code>map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    location /ws/ {
+        proxy_pass http://ws_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}
+</code></pre>
+
+<p>The version directive is mandatory, because the proxy otherwise speaks version 1.0 to upstream, which has no upgrade mechanism, and the backend answers 200 or 400 to something that should have become a tunnel.</p>
+
+<p>The upgrade header carries the client's intent, and the connection header is mapped so ordinary requests get close instead of upgrade. Hardcoding upgrade breaks the same location when it also serves plain HTTP.</p>
+
+<p>Both timeouts measure gaps, not lifetimes, and both directions need raising. Raising them defers the problem rather than solving it; a heartbeat is what keeps data moving.</p>
+
+<p>Disabling buffering is not strictly needed for a socket, since after the upgrade the proxy is shuttling bytes, but it matters for streaming responses in the same location, where buffering batches pushes into bursts.</p>
+
+<p>And there is more than one proxy. Browser to CDN, CDN to load balancer, balancer to Nginx, Nginx to application, each with its own idle timeout, and sixty seconds is a common default. <strong>The heartbeat interval must be below the smallest idle timeout on the path</strong>, or fixing one layer leaves another cutting the connection. Other proxies follow the same principle with different knobs: an explicit upgrade allowance and a tunnel timeout. Application servers have their own timeouts too, so work from the outside in and find the setting that matches the observed period.</p>
+
+<h2>Heartbeats</h2>
+
+<p>A heartbeat answers two questions: is this connection alive, and who notices first if it is not.</p>
+
+<p>The protocol provides ping and pong, and a server may send a ping that the client must answer, entirely inside the protocol stack.</p>
+
+<p>Browsers, however, do not expose pinging. The API gives you send and close, and no visibility into pong. A page timer calling send with the word ping is an ordinary text message, and the server will treat it as business data unless told otherwise.</p>
+
+<ul>
+<li><strong>The server can probe with protocol pings</strong>, closing connections that miss several replies, with no involvement from business code.</li>
+<li><strong>The client must use an application heartbeat</strong>, sending a message the server answers, so the page can tell that the round trip works and can close and reconnect when it stops.</li>
+<li><strong>Do both, or at minimum the client side.</strong> With only server pings, a client behind a dead NAT or a switched network believes it is connected and sends into the void.</li>
+</ul>
+
+<p>The interval is bounded by the smallest idle timeout, so twenty to thirty seconds against a sixty second path leaves margin. Too frequent has its own cost: ten seconds across a hundred thousand connections is ten thousand messages per second.</p>
+
+<p>Deciding a connection is dead should not be trigger-happy. One missed reply is jitter; two or three periods of silence is a verdict, delivered with an abnormal code so the client knows.</p>
+
+<pre><code>HEARTBEAT_INTERVAL = 25
+DEAD_AFTER = 70
+
+async def heartbeat_loop(conn):
+    while not conn.closed:
+        await asyncio.sleep(HEARTBEAT_INTERVAL)
+        if conn.closed:
+            break
+        if time.monotonic() - conn.last_seen &gt; DEAD_AFTER:
+            await conn.close(code=1011, reason="heartbeat timeout")
+            break
+        await conn.send_json({"type": "ping", "ts": int(time.time() * 1000)})
+</code></pre>
+
+<p>Update the last-seen stamp on any inbound frame, never on a successful send. A send that returns only means the bytes reached a local buffer. Liveness is always about what arrived. Scan in a single periodic sweep rather than creating a timer per connection; a hundred thousand timers cost more than one loop.</p>
+
+<p>And keep two facts apart: a live connection does not mean a valid identity. A heartbeat proves the link works, not that the token has not expired.</p>
+
+<h2>Reconnecting</h2>
+
+<pre><code>delay = random.uniform(0, min(cap, base * pow(2, attempt)))
+</code></pre>
+
+<p>Disconnection is normal. Networks switch, proxies restart, deploys happen. Reconnecting is a feature, not an on-close handler that immediately constructs a new socket, which produces a spike sharper than ordinary traffic and can knock over a server that has just come back.</p>
+
+<table>
+<thead><tr><th>Close code</th><th>Meaning</th><th>Client action</th></tr></thead>
+<tbody>
+<tr><td>1000</td><td>Normal closure</td><td>Do not reconnect if the user closed it, otherwise follow policy</td></tr>
+<tr><td>1001</td><td>Server going away</td><td>Reconnect, preferably after refetching endpoints</td></tr>
+<tr><td>1006</td><td>Abnormal, no close frame</td><td>Reconnect; usually the network or a proxy</td></tr>
+<tr><td>1008</td><td>Policy violation</td><td>Do not reconnect; check authorisation</td></tr>
+<tr><td>1011</td><td>Server error</td><td>Back off before reconnecting</td></tr>
+<tr><td>1013</td><td>Try again later</td><td>Wait as instructed</td></tr>
+<tr><td>4001 and up</td><td>Application defined, such as an expired token</td><td>Refresh the credential first</td></tr>
+</tbody>
+</table>
+
+<p>Reset the attempt counter only after the connection has been stable for a while, not on open, since a server can accept and immediately close.</p>
+
+<p>Then the harder question: where did the messages go while you were away.</p>
+
+<p>If losing them is acceptable, presence and cursor position for instance, just resume. Otherwise each event needs a monotonically increasing id, the client keeps the last one, and the server replays from there. Replay needs somewhere to store history, a stream, a table or a ring buffer per room, and it needs a limit: being offline for three days should return a too-old response asking for a snapshot rather than replaying three days.</p>
+
+<p>Replay overlaps with live traffic, so <strong>deduplication is mandatory</strong>, by event id on the client. The server side must also avoid gaps: subscribe to the live channel first, then read history, merge by id, then switch to live only. Reverse that order and messages arriving during the backfill are lost.</p>
+
+<p>Non-message state, unread counts, presence, typing indicators, is better served by a snapshot after reconnect than by replay. Splitting snapshot from delta is simpler than forcing one event stream to do everything.</p>
+
+<p>Multiple tabs multiply reconnects: five tabs means five sockets racing to come back. A shared worker or a broadcast channel electing one leader connection reduces the peak noticeably. And do not retry while the browser reports offline; listen for the online event instead.</p>
+
+<h2>Horizontal scaling</h2>
+
+<p>With one instance everything is local: the connection lives in memory and broadcast walks a dictionary. Two layers break when you add a second.</p>
+
+<p>The first is where connections land. A load balancer assigns per connection, so a message from one instance reaches only its own socket set.</p>
+
+<p>The second is where state lives. Connections, subscriptions and presence are known only to one machine, and when it fails somebody has to adopt them.</p>
+
+<p>Sticky sessions fix only the same-user case, break scale-out because new machines get only new users, and on deploy drop everyone on the instance that leaves. The real answer is moving broadcast out of the process into a shared publish and subscribe layer, which is what a Redis channel layer is.</p>
+
+<p>Each instance subscribes to the same logical group; a message goes to the group, the layer fans it out to subscribers, and each instance pushes to its local members. <strong>The network copies per group message equal the instance count, not the connection count</strong>: ten instances and a hundred thousand connections means ten copies out of the broker, then local fan-out. A direct message to one user, by contrast, is one publish per user.</p>
+
+<p>Redis pub/sub also forgets: no persistence, no acknowledgement, nothing for an offline subscriber. That is fine for live updates and not fine for guaranteed delivery, which needs a stream or a queue plus the cursor design above.</p>
+
+<p>Ordering is the other reality. Messages from different instances arrive in whatever order the broker interleaves them, so a chat can tolerate near order while an order state machine cannot. Pin a room to one publisher or attach sequence numbers and sort on the client.</p>
+
+<p>And you need a registry to answer whether a user is online, how many tabs they have, and how to reach all of their connections:</p>
+
+<pre><code>ws:conn:{conn_id}  -&gt; {user_id, node, last_seen}   (TTL 60s)
+ws:user:{user_id}  -&gt; set(conn_id, conn_id, ...)    (TTL matches the connection)
+</code></pre>
+
+<p>Write on connect, delete on disconnect, refresh the TTL on heartbeat, and let expiry clean up after a crash. Derive presence from whether the set is empty rather than storing a boolean, or you will accumulate ghosts that are always online. Count users rather than connections when reporting active people, or the number inflates by tab count.</p>
+
+<h2>Backpressure</h2>
+
+<p>The neglected failure is being unable to write. A send usually means the bytes reached the operating system's buffer, and delivery depends on the network and on the client reading. A phone on a weak link, a frozen tab or a client that deliberately stops reading will fill the buffer and block.</p>
+
+<p>A broadcast loop that walks connections and awaits each send therefore moves at the speed of the slowest client, and queueing at the head blocks everyone behind it.</p>
+
+<pre><code>MAX_QUEUE = 200
+
+async def sender(conn):
+    while True:
+        item = await conn.queue.get()
+        try:
+            await asyncio.wait_for(conn.send_json(item), timeout=5)
+        except asyncio.TimeoutError:
+            conn.queue.task_done()
+            await conn.close(code=1013, reason="send timeout")
+            return
+</code></pre>
+
+<p>Broadcast only enqueues, never awaits a send, so a slow client lengthens only its own queue.</p>
+
+<p>The queue must be bounded, because an unbounded one is just memory used as a buffer until the process dies. Then pick an overflow policy by semantics: drop oldest for cursor positions and prices, where slightly stale beats disconnected; drop newest for state that only cares about the latest value; disconnect for messages that must not be lost, since a client that far behind should resume from a cursor rather than accumulate.</p>
+
+<p>The most common incident here is putting order state changes and typing indicators in the same unbounded queue, after which the important messages starve behind the trivial ones.</p>
+
+<p>Cap the message size too, measured after reassembly, closing with the too-big code rather than truncating, since a truncated message is wrong rather than short.</p>
+
+<p>Be careful with compression. Per-message deflate saves bandwidth and turns a small payload into a memory bomb, because a few kilobytes can inflate to hundreds of megabytes inside your process. Either disable it, cap the decompressed size, or cap the ratio. Unless bandwidth is genuinely the constraint, leaving it off is the calmer choice.</p>
+
+<p>Watch queue length per connection. A growing queue means a consumer that cannot keep up or a producer that is too fast, and the tail of that distribution is a better early warning than average connection count.</p>
+
+<h2>Authentication</h2>
+
+<p>Four ways to carry a credential, none free.</p>
+
+<p><strong>A query parameter</strong> is simplest and leaks into every proxy and CDN log, so use a single-use ticket valid for seconds if you use it at all.</p>
+
+<p><strong>A subprotocol</strong> keeps the token out of the URL, at the cost of semantics that mean negotiation, spotty framework support, and proxies that still log headers.</p>
+
+<p><strong>A first-frame authentication</strong> message is cleanest: nothing in the URL, nothing in headers, at the cost of treating an accepted connection as unauthenticated until the frame arrives, so the server needs that state and needs a timer to reap connections that never authenticate.</p>
+
+<p><strong>A cookie</strong> is the least work and opens cross-site hijacking, since another site can make the browser connect and the cookie rides along. SameSite helps inconsistently, and if you use cookies you must validate the origin.</p>
+
+<p>Then there is time. A token typically expires in fifteen minutes while the connection lives for hours, and passing the handshake does not make the connection trustworthy an hour later. Three options: close on expiry with an application code so the client refreshes and reconnects; exchange reauthentication frames; or check the token per sensitive operation, which only suits low-frequency actions. Closing on expiry with a silent refresh keeps the two lifetimes decoupled and avoids connections that are alive but no longer authorised.</p>
+
+<p>Origin checking deserves its own paragraph. Browsers send it, so allow only your own host and explicit partners. Non-browser clients may omit it entirely, which needs an explicit policy rather than treating absence as same-origin, a very common mistake.</p>
+
+<p>Finally, separate authentication from authorisation. Being logged in does not mean you may subscribe to someone else's private room, so check room ownership before adding a connection to a group rather than relying on an unguessable name.</p>
+
+<h2>Security</h2>
+
+<p>Half of this overlaps HTTP and half does not.</p>
+
+<p><strong>Message size</strong> must be measured on the reassembled message, since a hundred and twenty-five byte frames make a hundred and twenty-five kilobytes when a thousand of them arrive. Sixty-four kilobytes is a reasonable ceiling for text, and exceeding it should close with the too-big code rather than truncating.</p>
+
+<p><strong>Frequency</strong> needs a per-connection token bucket, because one client can otherwise send thousands of messages a second, occupy a core and amplify its traffic into everyone's push. Rate-limit connection establishment as well, since each handshake costs work. The idea is the same as limiting HTTP endpoints, with the unit changed from requests to messages and connections.</p>
+
+<p><strong>Compression</strong> is an attack surface. A few kilobytes of deflate can expand to hundreds of megabytes inside your process, so either leave it off, cap the decompressed size, or cap the ratio, ideally all three. Never enable it because the bandwidth number looked nice; the memory is yours to pay for.</p>
+
+<p><strong>Cross-site hijacking</strong> works exactly like request forgery with a longer channel: an attacker's page constructs a socket to your host, the browser attaches the victim's cookies, the handshake succeeds and the attacker's script reads the pushes. The defence is an origin allowlist; cookie flags help and do not replace it. Requiring a login is not enough, because the browser supplies the login automatically.</p>
+
+<p><strong>Input and output</strong> filtering still applies, because the payload is still user content. Validate before storing and escape by context before rendering; injection does not care that the transport is a socket rather than a form post.</p>
+
+<p><strong>Transport</strong> should be TLS in production, terminated at the proxy if you like, and the internal hop deserves its own thought in a multi-tenant deployment.</p>
+
+<p><strong>Connection counts</strong> need caps per user or per address, because descriptors and per-connection structures are finite and a single script should not be able to exhaust the table and lock real users out. This is a different dimension from message rate, and both need limits.</p>
+
+<p>All of it answers one question: <strong>when an attacker controls a client, how much damage can they do</strong>. The answer should stop at their own connection, not the process.</p>
+
+<h2>Django</h2>
+
+<pre><code># routing.py
+websocket_urlpatterns = [
+    re_path(r"ws/chat/(?P&lt;room&gt;\w+)/$", ChatConsumer.as_asgi()),
+]
+</code></pre>
+
+<pre><code>class ChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.room = self.scope["url_route"]["kwargs"]["room"]
+        self.group_name = f"chat_{self.room}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        payload = json.loads(text_data)
+        await self.channel_layer.group_send(
+            self.group_name,
+            {"type": "chat.message", "payload": payload},
+        )
+
+    async def chat_message(self, event):
+        await self.send(text_data=json.dumps(event["payload"]))
+</code></pre>
+
+<p>Whether to join the group before or after accepting depends on the authentication scheme; with first-frame authentication you must accept first and join only after the frame verifies, or the room contents leak to an unauthenticated socket.</p>
+
+<p>The type field is method dispatch: dots become underscores, and getting the name wrong drops the message silently.</p>
+
+<p>Group sends cross processes only if the layer does, and the default in-memory layer does not:</p>
+
+<pre><code>CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("redis.internal", 6379)],
+            "capacity": 1500,
+            "expiry": 10,
+        },
+    },
+}
+</code></pre>
+
+<p>Capacity is the per-channel queue and expiry is how long a message survives in it, which together decide whether a slow consumer queues or loses. Tune both for throughput, but not without bound, since that only postpones the memory problem.</p>
+
+<pre><code>from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
+channel_layer = get_channel_layer()
+async_to_sync(channel_layer.group_send)(
+    "chat_lobby",
+    {"type": "chat.message", "payload": {"text": "hello"}},
+)
+</code></pre>
+
+<p>Database access inside a consumer needs care, because a synchronous ORM call blocks the event loop. Wrap it, or use an async driver. One direct query in a receive handler looks harmless with one connection and ruins the process with a few hundred.</p>
+
+<p>Deployment needs an ASGI server: a WSGI server cannot turn an upgrade request into an ASGI scope, so a synchronous worker is the wrong tool no matter how it is configured. Size processes by connection memory rather than cores, test the connection ceiling deliberately, and treat the Redis layer as a core dependency, since when it dies broadcast dies with it.</p>
+
+<h2>Observability</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>Type</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Active connections</td><td>Gauge</td><td>Per instance and per room; a sudden drop means a deploy or a proxy fault</td></tr>
+<tr><td>Connection rate</td><td>Counter</td><td>A spike often means a reconnect storm</td></tr>
+<tr><td>Close code distribution</td><td>Counter</td><td>Many abnormal closures mean the network or a proxy; many internal errors mean the server</td></tr>
+<tr><td>Handshake failures</td><td>Counter</td><td>Authorisation or origin configuration</td></tr>
+<tr><td>Message rate</td><td>Counter</td><td>Inbound and outbound separately; outbound far higher means broadcast amplification</td></tr>
+<tr><td>Delivery latency</td><td>Histogram</td><td>Enqueue to send completion; the tail defines how realtime it feels</td></tr>
+<tr><td>Queue length per connection</td><td>Gauge</td><td>A long tail means slow consumers</td></tr>
+<tr><td>Heartbeat timeouts</td><td>Counter</td><td>Dead connection reaping; persistently high means a link problem</td></tr>
+<tr><td>Reconnect rate</td><td>Counter</td><td>Client reported; without it you cannot separate tab closes from flapping</td></tr>
+</tbody>
+</table>
+
+<p>Only the client can report reconnects, because the server sees new connections and cannot tell a new user from a returning one. Have clients send a stable anonymous id and an attempt counter, or a storm looks like growth.</p>
+
+<p>Define delivery latency explicitly: produced to enqueued, enqueued to written, or acknowledged by the client. The server can measure the first two, and the third needs receipts. At minimum measure enqueue to send, which is what exposes backpressure.</p>
+
+<p>For half the messages going missing, check in order: the connection distribution across instances, then whether the group send reached a consumer elsewhere, then whether the layer is still in-memory or the Redis link is healthy, then whether group membership leaks because disconnects skip the removal.</p>
+
+<p>For a fixed-period disconnect: record the close code, list every idle timeout on the path and find the one matching the period, confirm the heartbeat is running and shorter than the smallest timeout, and check whether it reproduces only on one network. And chart connection age: everything dying at sixty seconds is a timeout, a scattered distribution is client behaviour or network jitter.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Drops every sixty seconds</td><td>A proxy read timeout default; heartbeat below the smallest idle timeout on the path</td></tr>
+<tr><td>Handshake essentials</td><td>Pass the upgrade headers through; after 101 it is no longer HTTP</td></tr>
+<tr><td>Frame essentials</td><td>Client masks, control frames under 125 bytes, size limits after reassembly</td></tr>
+<tr><td>Can a browser send protocol pings</td><td>No; client uses an application heartbeat, server may probe with protocol pings</td></tr>
+<tr><td>Reconnect policy</td><td>Backoff with jitter, decide by close code, reset only after stability</td></tr>
+<tr><td>No message loss</td><td>Cursor replay plus deduplication plus snapshots; pub/sub alone guarantees nothing</td></tr>
+<tr><td>Multi-instance broadcast</td><td>A shared channel layer, not sticky sessions</td></tr>
+<tr><td>Slow clients</td><td>Bounded per-connection queues, dropping or disconnecting when full</td></tr>
+<tr><td>Authentication</td><td>First-frame auth is cleanest; close on expiry and reconnect; validate origin</td></tr>
+<tr><td>Django</td><td>Channels, an ASGI server and a Redis layer; WSGI cannot do this</td></tr>
+</tbody>
+</table>
+
+<p>Everything here reduces to one sentence: <strong>a WebSocket looks like an HTTP request and lives like a TCP connection</strong>, while the infrastructure and the frameworks around it were designed for requests.</p>
+
+<p>Think through each stage of the connection's life, and the mystery disconnects turn into configuration settings and code paths you can point at.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
