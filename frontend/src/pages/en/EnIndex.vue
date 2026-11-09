@@ -10,7 +10,7 @@
         </p>
       </div>
       <p class="hero__meta">
-        {{ EN_ARTICLES.length }} English post(s) · the full archive is in Chinese
+        {{ postCountLabel }} · the full archive is in Chinese
       </p>
     </section>
 
@@ -78,6 +78,7 @@ const contact = EN_CONTACT
 const topics = EN_TOPICS
 const path = enPath
 const latest = EN_ARTICLES.slice(0, 6)
+const postCountLabel = `${EN_ARTICLES.length} English ${EN_ARTICLES.length === 1 ? 'post' : 'posts'}`
 </script>
 
 <style lang="scss" scoped>

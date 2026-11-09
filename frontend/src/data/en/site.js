@@ -25,7 +25,7 @@ export const EN_HOME = {
   summaryTitle: 'What this site covers',
   summary: [
     'Stack Frame is a personal engineering blog by ZhouJun. Five threads run through it: algorithms and data structures, Django and backend architecture, database internals (B+ trees, WAL, MVCC), AI agent engineering, and open-source projects built from scratch.',
-    'Most posts come from work actually done and bugs actually hit. Each one tries to state the context, the trade-off and the conclusion instead of restating documentation. Start from a topic below, or open the full post list.',
+    'Most posts come out of work I have actually done and bugs I have actually hit. Each one tries to set out the context, the trade-off and the conclusion instead of restating documentation. Start from a topic below, or open the full post list.',
   ],
   projectsTitle: 'Projects',
   projectsNote: 'Every project below is open source, and each one has a full teardown on this site.',
@@ -59,7 +59,7 @@ export const EN_UI = {
     sub: 'Writing, code, and the everyday.',
     lede: [
       'Code is black and white. Life is not.',
-      'Most of my working hours go into projects: reading the source, arguing with the compiler, deleting the abstraction I was proud of last month. The rest go into the ordinary things — a cup going cold, the light at seven in the evening, a walk with no destination.',
+      'Most of my working hours go into projects: reading source code, arguing with the compiler, deleting the abstraction I was proud of last month. The rest goes into ordinary things. A cup going cold. The light at seven in the evening. A walk with no destination.',
       'This is where I keep both. No grand narrative, just lines of code growing and notes from an ordinary life.',
     ],
     topicsTitle: 'Topics',

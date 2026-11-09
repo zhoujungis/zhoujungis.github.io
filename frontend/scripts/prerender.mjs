@@ -909,7 +909,7 @@ function renderEnIndexPage(template) {
     `<h1>${escapeHtml(EN_UI.home.title)}</h1>` +
     `<p class="ns-sub">${escapeHtml(EN_UI.home.sub)}</p>\n` +
     EN_UI.home.lede.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n') +
-    `\n<p class="ns-meta">${EN_ARTICLES.length} English post(s) · full archive in Chinese</p>` +
+    `\n<p class="ns-meta">${EN_ARTICLES.length} English ${EN_ARTICLES.length === 1 ? 'post' : 'posts'} · full archive in Chinese</p>` +
     `<section><h2>${escapeHtml(EN_HOME.summaryTitle)}</h2>\n` +
     EN_HOME.summary.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n') +
     `</section>` +
