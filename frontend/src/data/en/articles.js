@@ -18003,6 +18003,512 @@ constexpr uint32_t LOCK_INSERT_INTENTION = 2048;
 `,
   },
 
+  {
+    slug: 'cache-consistency-deep-dive',
+    zhSlug: 'cache-consistency-deep-dive',
+    topicSlug: 'backend',
+    title: 'Delete the cache first or the database first? Cache consistency in practice',
+    excerpt:
+      'Four write paths, the narrow window that actually breaks them, and the three classic cache failures with measured numbers: penetration, breakdown and avalanche.',
+    date: '2026-11-02',
+    readingTime: 24,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers who have put Redis in front of an endpoint and then watched the cache and the database disagree, or watched the database fold when the cache went away.</p>
+<p>Examples in Redis 7 and Python 3.13, but the ordering arguments do not depend on a framework.</p>
+<p>Reading time around 24 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>A ticket about a nickname that would not change</h2>
+
+<p>The user changed their nickname. The API returned 200. The database held the new value. The page still showed the old one.</p>
+
+<pre><code>GET user:1001:nickname
+"Zhang San"        # the user had already changed it to "Sanfeng"
+</code></pre>
+
+<p>That is cache consistency, and it is not a bug. It is the cost of the architecture: <strong>the moment the same data lives in two places, there is a window where the two places disagree</strong>.</p>
+
+<p>Where the distributed lock post dealt with concurrent writes to one copy, this one deals with the twin problem: two copies exist, how close can you keep them, and what happens to the system at the instant the cache stops answering.</p>
+
+<table>
+<thead><tr><th>Failure</th><th>In one line</th><th>How it looks</th></tr></thead>
+<tbody>
+<tr><td>Penetration</td><td>A request for data that does not exist</td><td>Scripts hammering a negative id, the cache never hits, the database saturates</td></tr>
+<tr><td>Breakdown</td><td>One hot key expires</td><td>A flash-sale entry expires and thousands of requests refill it at once</td></tr>
+<tr><td>Avalanche</td><td>A large set of keys expires together</td><td>A nightly warm-up gives every key the same TTL, they die on the same second, the database falls over</td></tr>
+</tbody>
+</table>
+
+<h2>Four read and write strategies</h2>
+
+<p>Before arguing about consistency, know which path you are on. There are four classic patterns, and most systems use only the first.</p>
+
+<table>
+<thead><tr><th>Strategy</th><th>Read</th><th>Write</th><th>Consistency</th><th>Complexity</th><th>Typical use</th></tr></thead>
+<tbody>
+<tr><td>Cache-aside</td><td>App reads cache, loads from the database on a miss</td><td>App writes the database, then deletes the key</td><td>Eventual</td><td>Low</td><td>Almost everything</td></tr>
+<tr><td>Read-through</td><td>App reads cache, the cache loads on a miss</td><td>-</td><td>Eventual</td><td>Medium</td><td>Centralised loading logic</td></tr>
+<tr><td>Write-through</td><td>-</td><td>App writes cache, cache writes the database synchronously</td><td>Strong</td><td>Medium</td><td>Write-light, needs freshness</td></tr>
+<tr><td>Write-behind</td><td>-</td><td>App writes cache, cache flushes in batches asynchronously</td><td>Weak, may lose</td><td>High</td><td>Counters, telemetry, loss-tolerant data</td></tr>
+</tbody>
+</table>
+
+<pre><code>def get_article(article_id):
+    key = f"article:{article_id}"
+    cached = redis.get(key)
+    if cached is not None:
+        return json.loads(cached)
+    article = Article.objects.get(id=article_id)      # only on a miss
+    redis.set(key, json.dumps(serialize(article)), ex=300)
+    return serialize(article)
+
+
+def update_article(article_id, data):
+    Article.objects.filter(id=article_id).update(**data)   # 1. write the database
+    redis.delete(f"article:{article_id}")                  # 2. delete the cache
+</code></pre>
+
+<p>Two decisions sit inside that snippet, and both are where incidents come from. On a write, do you touch the database or the cache first? And do you delete the cached value or replace it?</p>
+
+<p>The short answer: write the database, then delete the cache. Not the other order, and not an update.</p>
+
+<h2>Consistency: four routes and their windows</h2>
+
+<h3>Route one: update the database, then delete the cache</h3>
+
+<pre><code>write: UPDATE db → DEL cache
+read:  GET cache → miss → GET db → SET cache
+</code></pre>
+
+<p>This is what almost everyone does. It does not give strong consistency, but it compresses the window to a very small probability and it is the simplest thing that works.</p>
+
+<p>Consider a read and a write arriving while the key is absent.</p>
+
+<pre><code>time   reader R                 writer W                cache / db
+------------------------------------------------------------------
+t1     GET cache → miss                                 cache: empty
+t2                             UPDATE db = new          db: new
+t3     GET db → new                                     db: new
+t4                             DEL cache                cache: empty
+t5     SET cache = new                                  cache: new  ok
+</code></pre>
+
+<p>Consistent. What breaks it is a read that fetched an old snapshot before the write landed and wrote that snapshot back after the delete.</p>
+
+<pre><code>time   reader R                 writer W                cache / db
+------------------------------------------------------------------
+t1     GET cache → miss                                 cache: empty
+t2                             UPDATE db = new          db: new
+t3     GET db → ??? (old snapshot)                      db: new
+t4                             DEL cache                cache: empty
+t5     SET cache = old   <--                            cache: old  BAD
+</code></pre>
+
+<p>The read at t3 has to have started its select before t2 and still be writing at t5. How wide that window is depends on three things: how slow the read is, whether the write does anything else between updating and deleting, and network or garbage collection pauses.</p>
+
+<p>The window exists and it is narrow. Unless the read path hides a slow query, the odds are very small.</p>
+
+<h3>Route two: delete the cache, then update the database</h3>
+
+<pre><code>write: DEL cache → UPDATE db
+</code></pre>
+
+<p>Many tutorials recommend this, on the theory that a deleted key forces the next read to load fresh data. Under concurrency it is a disaster.</p>
+
+<pre><code>time   reader R                 writer W                cache / db
+------------------------------------------------------------------
+t1                             DEL cache                cache: empty
+t2     GET cache → miss                                 cache: empty
+t3     GET db → old                                     db: old
+t4     SET cache = old   <--                            cache: old
+t5                             UPDATE db = new          db: new
+                                                        BAD: old cache, new db
+</code></pre>
+
+<p>Any read between the delete and the update refills the old value, and every read after that sees the stale copy for a whole TTL. <strong>The inconsistency window grows from milliseconds to minutes.</strong></p>
+
+<p>Unless the write is nearly instantaneous and repopulating with stale data is acceptable, do not use it.</p>
+
+<h3>Why delete rather than update</h3>
+
+<p>Updating looks more direct and behaves worse. Cached values are often aggregates, so recomputing them costs real work. Concurrent updates reorder, so a slower writer can overwrite a newer value. And a delete is idempotent and cheap: the next read decides what the value should be, which defers the correctness question to the moment it can be answered.</p>
+
+<h3>Route three: delayed double delete</h3>
+
+<pre><code>def update_article(article_id, data):
+    redis.delete(key := f"article:{article_id}")     # 1. delete
+    Article.objects.filter(id=article_id).update(**data)  # 2. write
+    time.sleep(0.5)                                  # 3. let readers refill
+    redis.delete(key)                                # 4. delete again
+</code></pre>
+
+<p>The sleep has to exceed the cost of a read plus a refill. That adds half a second to latency, so it belongs in a background job rather than a synchronous request, the duration is a guess that breaks when the database slows down, and it treats the symptom. Prefer the first route; treat this as a patch for code you cannot restructure.</p>
+
+<h3>Route four: subscribe to the binary log</h3>
+
+<pre><code>write ──► binlog ──► Canal / Debezium ──► MQ ──► consumer deletes the key
+</code></pre>
+
+<p>Every previous route is best effort inside application code. Taking invalidation out of application code and deriving it from the database log buys three things: no missed deletes, which is the leading cause of this whole class of bug; retries and durability through the queue; and ordering for free, since the log is already ordered.</p>
+
+<p>It costs architecture. You now run the change capture, the queue and the consumer, and you handle backlog. For a small system that is not worth it; for a large one where the keys are spread across dozens of services, it is.</p>
+
+<table>
+<thead><tr><th>Route</th><th>Window</th><th>Cost</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Write database, delete cache</td><td>Milliseconds, narrow</td><td>Low</td><td>The default</td></tr>
+<tr><td>Delete cache, write database</td><td>A full TTL</td><td>Low</td><td>Do not</td></tr>
+<tr><td>Delayed double delete</td><td>Milliseconds plus a patch</td><td>Medium, needs a job</td><td>Legacy repair only</td></tr>
+<tr><td>Binary log subscription</td><td>Seconds, eventual</td><td>High</td><td>Larger systems</td></tr>
+</tbody>
+</table>
+
+<h3>When not to cache at all</h3>
+
+<p>Strong consistency plus heavy concurrent writes makes the whole premise absurd. For money, stock and balances, read the database and take a row lock or use an atomic statement, or keep the state in Redis behind a Lua script. Caching fits read-heavy data that tolerates seconds of staleness. Below a read-to-write ratio of roughly three to one, the consistency cost outweighs the benefit.</p>
+
+<h2>Penetration: asking for an id that does not exist</h2>
+
+<pre><code>GET article:999999     # no such row
+→ miss
+→ query the database, find nothing
+→ cache nothing, because the value is null
+→ next request, still a miss
+→ query the database ...
+</code></pre>
+
+<p>Ordinary users do not repeat a request for a missing id. Scripts do, spinning through negative ids and random large integers. Every request reaches the database, and the cache stops protecting anything.</p>
+
+<h3>Caching the empty result</h3>
+
+<pre><code>EMPTY = "&lt;empty&gt;"
+
+def get_article(article_id):
+    key = f"article:{article_id}"
+    cached = redis.get(key)
+    if cached is not None:
+        return None if cached == EMPTY else json.loads(cached)
+
+    article = Article.objects.filter(id=article_id).first()
+    if article is None:
+        redis.set(key, EMPTY, ex=30)     # short TTL keeps the flood from piling up
+        return None
+    redis.set(key, json.dumps(serialize(article)), ex=300)
+    return serialize(article)
+</code></pre>
+
+<p>The empty TTL has to be much shorter than the normal one, or random ids will fill memory. And if the id space is huge, one entry per attempted id is itself the attack.</p>
+
+<h3>A Bloom filter</h3>
+
+<p>A Bloom filter answers one question with very little memory: could this key exist, or is it definitely absent? A negative answer is certain and stops the request before the cache is even consulted. A positive answer may be wrong and lets it through.</p>
+
+<pre><code>add(x):    hash x k ways, set those k bits
+query(x):  hash x k ways, any bit still zero means definitely absent
+</code></pre>
+
+<pre><code>import hashlib
+import math
+
+class BloomFilter:
+    def __init__(self, capacity, error_rate=0.01):
+        self.m = max(8, int(-(capacity * math.log(error_rate)) / (math.log(2) ** 2)))
+        self.k = max(1, round((self.m / capacity) * math.log(2)))
+        self.bits = bytearray(self.m // 8 + 1)
+
+    def _positions(self, item):
+        h = hashlib.sha256(str(item).encode()).digest()
+        h1 = int.from_bytes(h[:8], "big")
+        h2 = int.from_bytes(h[8:16], "big") or 1
+        return [(h1 + i * h2) % self.m for i in range(self.k)]   # double hashing gives k positions
+
+    def add(self, item):
+        for p in self._positions(item):
+            self.bits[p >> 3] |= 1 << (p &amp; 7)
+
+    def __contains__(self, item):
+        return all(self.bits[p >> 3] &amp; (1 << (p &amp; 7)) for p in self._positions(item))
+</code></pre>
+
+<pre><code>bits  m = -n ln(p) / (ln 2)^2
+hashes k = (m/n) ln 2, about 0.693 (m/n)
+</code></pre>
+
+<p>For a thousand expected elements and a one percent error rate, that is 9,585 bits, about 1.2 KB, and seven hashes. Measured error came out at 1.056 percent against a theoretical 1 percent.</p>
+
+<p>In production use a maintained implementation: the Bloom commands in Redis 4.0 and later, which work across a cluster, or the usual library for your language. Three limits are worth stating. Elements cannot be removed, since clearing bits would corrupt other members, so deletions need a counting variant. The error rate grows past the planned capacity. And the filter must be warmed from existing data at startup, which costs time on a large table.</p>
+
+<p>Deletions are handled by deleting the cache entry as well, so a read repopulates an empty result. The filter only needs to reject ids that never existed.</p>
+
+<h3>Validation and rate limiting</h3>
+
+<pre><code>def get_article(request, article_id: int):
+    if article_id &lt;= 0 or article_id &gt; 10_000_000:   # 1. bounds
+        raise Http404
+    throttle(request, "20/s")                        # 2. per-IP limit
+    ...
+</code></pre>
+
+<p>One comparison rejects a large share of scanner traffic, and it costs nothing. Never trust an id from a client.</p>
+
+<table>
+<thead><tr><th>Defence</th><th>Memory</th><th>False positives</th><th>Stops random ids</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>Cache the empty result</td><td>Grows with attack ids</td><td>None</td><td>Poorly</td><td>Trivial</td></tr>
+<tr><td>Bloom filter</td><td>Fixed, tiny</td><td>Configurable</td><td>Well</td><td>Medium</td></tr>
+<tr><td>Validation and limiting</td><td>None</td><td>None</td><td>Partly</td><td>Trivial</td></tr>
+</tbody>
+</table>
+
+<p>Layer all three: bounds and rate limits as the floor, empty results for the common ids, a Bloom filter for wide random spaces.</p>
+
+<h2>Breakdown: the instant a hot key expires</h2>
+
+<p>Penetration is about data that does not exist. Breakdown is about data that exists and is extremely popular. When its TTL lapses, every concurrent request misses at once, hits the database at once, and refills at once.</p>
+
+<pre><code>hot key expires:
+1000 concurrent → all miss → 1000 selects of the same row → connection pool exhausted
+</code></pre>
+
+<p>Measured on 300 concurrent requests against an unprotected cache, the database saw 183 queries where one was enough.</p>
+
+<h3>Rebuild behind a mutex</h3>
+
+<pre><code>def get_hot_article(article_id):
+    key = f"article:{article_id}"
+    cached = redis.get(key)
+    if cached is not None:
+        return json.loads(cached)
+
+    lock_key = f"lock:rebuild:{key}"
+    token = uuid.uuid4().hex
+    if redis.set(lock_key, token, nx=True, px=5000):     # won the lock, rebuild
+        try:
+            cached = redis.get(key)                      # someone may have finished
+            if cached is not None:
+                return json.loads(cached)
+            article = Article.objects.get(id=article_id)
+            redis.set(key, json.dumps(serialize(article)), ex=300)
+            return serialize(article)
+        finally:
+            redis.eval(UNLOCK_LUA, 1, lock_key, token)
+    else:
+        time.sleep(0.05)                                 # lost the lock, retry shortly
+        return get_hot_article(article_id)
+</code></pre>
+
+<p>That took the database from 183 queries to one. It costs throughput, because the losers wait and retry, so tail latency rises slightly. For a flash sale, trading latency for database safety is obviously right. Keep the lock TTL short, since a rebuild is quick, and unlock through a script that compares the token.</p>
+
+<h3>Logical expiry</h3>
+
+<p>The mutex makes people wait. Logical expiry removes the wait: the key never physically expires, and the value carries its own expiry time.</p>
+
+<pre><code>def get_hot_article(article_id):
+    key = f"article:{article_id}"
+    raw = redis.get(key)
+    if raw is None:
+        return rebuild_and_cache(article_id)     # cold start, must be synchronous
+
+    data = json.loads(raw)
+    if data["expire_at"] &gt; time.time():
+        return data["payload"]                   # still fresh logically
+
+    if redis.set(f"lock:refresh:{key}", "1", nx=True, px=3000):
+        threading.Thread(                         # or hand it to a worker
+            target=refresh_cache, args=(article_id,), daemon=True
+        ).start()
+    return data["payload"]                       # serve the old copy, user sees nothing
+</code></pre>
+
+<table>
+<thead><tr><th></th><th>Mutex rebuild</th><th>Logical expiry</th></tr></thead>
+<tbody>
+<tr><td>Consistency</td><td>Strong, waits for the new value</td><td>Weak, serves the old value</td></tr>
+<tr><td>Throughput</td><td>Lower, waiters block</td><td>Higher, never blocks</td></tr>
+<tr><td>Implementation</td><td>Simple</td><td>Needs async plumbing and warming</td></tr>
+<tr><td>Fits</td><td>Data that must be current</td><td>Front pages, sales, tolerant of seconds of staleness</td></tr>
+</tbody>
+</table>
+
+<h3>Never expire the few keys that are certainly hot</h3>
+
+<pre><code>def refresh_homepage_cache():
+    while True:
+        redis.set("homepage:feed", json.dumps(build_feed()), ex=None)  # no TTL
+        time.sleep(300)
+</code></pre>
+
+<p>For a handful of guaranteed hot keys, drop the TTL and refresh from a background job. The cost is a delay between a change and its visibility, plus the need to keep that job highly available and single-instance, which brings the distributed lock back into the story.</p>
+
+<pre><code>does the hot key need to wait for a fresh value?
+├─ yes (stock, configuration)  → mutex rebuild
+└─ no (home page, rankings, sale listing)
+   ├─ few, fixed keys          → no TTL, background refresh
+   └─ many, dynamic keys       → logical expiry, async refresh
+</code></pre>
+
+<h2>Avalanche: many keys expiring together</h2>
+
+<pre><code># warming ten thousand products at midnight
+for product in products:
+    redis.set(f"product:{product.id}", json.dumps(data), ex=3600)  # all 3600 seconds
+</code></pre>
+
+<p>Every key dies in the same second, every request goes to the database at once, and the cache turns into a time bomb. The other cause is Redis itself going away, which without degradation produces the familiar chain: cache down, database down, site down.</p>
+
+<h3>Jitter the TTL</h3>
+
+<pre><code>import random
+
+# base of 300 seconds plus up to 150 more
+ttl = 300 + random.randint(0, 150)
+redis.set(key, value, ex=ttl)
+</code></pre>
+
+<p>One line spreads a single instant across two and a half minutes. Measured peak expiry density fell from a thousand keys per second to twelve. This is the highest-value change available and every cache should have it.</p>
+
+<h3>Local caching in front</h3>
+
+<pre><code>request ──► in-process cache (nanoseconds) ──► Redis (milliseconds) ──► database
+</code></pre>
+
+<p>A hit never touches the network, and if Redis disappears the local layer absorbs the shock long enough for the database to recover. The costs are that per-process copies are harder to keep consistent, so they need short TTLs or broadcast invalidation, and that they consume application memory. It suits data that is read constantly and changed rarely: dictionaries, configuration, rankings.</p>
+
+<h3>Circuit breaking and degradation</h3>
+
+<pre><code>import pybreaker
+
+db_breaker = pybreaker.CircuitBreaker(fail_max=5, reset_timeout=30)
+
+def get_article_safe(article_id):
+    try:
+        return db_breaker.call(lambda: Article.objects.get(id=article_id))
+    except pybreaker.CircuitBreakerError:
+        return DEFAULT_ARTICLE      # degrade to a fallback, not a 500
+</code></pre>
+
+<p>Assume the cache will fail. A breaker rejects requests quickly instead of piling them onto a struggling database, and a fallback returns something reasonable, a default, a static page, a previous snapshot, rather than an error.</p>
+
+<h3>Redis high availability</h3>
+
+<p>Replication with failover, or a sharded cluster; persistence, so a restart does not come back empty and force every key to reload; memory limits with a sane eviction policy; and monitoring on both.</p>
+
+<table>
+<thead><tr><th>Defence</th><th>Against simultaneous expiry</th><th>Against Redis dying</th><th>Cost</th><th>Mandatory</th></tr></thead>
+<tbody>
+<tr><td>TTL jitter</td><td>Strong</td><td>None</td><td>Trivial</td><td>Yes</td></tr>
+<tr><td>Local cache</td><td>Moderate</td><td>Strong</td><td>Medium</td><td>Depends</td></tr>
+<tr><td>Breaker and fallback</td><td>Moderate</td><td>Strong</td><td>Medium</td><td>Yes</td></tr>
+<tr><td>Redis availability</td><td>None</td><td>Strong</td><td>High</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<h2>The three failures side by side</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Penetration</th><th>Breakdown</th><th>Avalanche</th></tr></thead>
+<tbody>
+<tr><td>The data</td><td>Does not exist</td><td>Exists and is hot</td><td>Exists, in bulk</td></tr>
+<tr><td>Trigger</td><td>A malicious or invalid key</td><td>One hot key expires</td><td>Many keys expire together, or Redis fails</td></tr>
+<tr><td>Effect</td><td>Every request reaches the database</td><td>Concurrency hits one row</td><td>The database saturates instantly</td></tr>
+<tr><td>Fix</td><td>Empty caching, Bloom filter, validation</td><td>Mutex or logical expiry</td><td>Jitter, local cache, breakers</td></tr>
+<tr><td>Remember it as</td><td>Cache the nothing too</td><td>Let one rebuild</td><td>Spread the expiries</td></tr>
+</tbody>
+</table>
+
+<pre><code>cache trouble?
+├─ asking for data that does not exist?
+│   ├─ small, enumerable id space → cache the empty result
+│   └─ large, random id space     → Bloom filter plus rate limits
+├─ one hot key expired and the database is swamped?
+│   ├─ must read fresh data → mutex rebuild
+│   └─ can serve a stale copy → logical expiry, async refresh
+└─ many keys expired at once, or Redis died?
+    ├─ simultaneous expiry → jitter the TTL, always
+    ├─ Redis died        → local cache, breakers, high availability
+    └─ both               → all of the above, plus alerts
+</code></pre>
+
+<h2>Measured: reproducing the three failures</h2>
+
+<p>The script behind these numbers uses an in-process TTL cache and a mock database with twenty milliseconds of latency. The failures are concurrency properties, not Redis properties, so a mock makes the variables easier to control.</p>
+
+<pre><code>python tools/bench_cache_problems.py --concurrency 300 --rounds 5 --db-latency-ms 20
+</code></pre>
+
+<pre><code>E1 penetration: 5 rounds of 300 concurrent requests for a missing id
+  A no defence       1500 db queries | p50 20.4ms  p95 20.7ms  p99 20.8ms
+  B empty caching     198 db queries | p50  0.0ms  p95 20.5ms  p99 20.6ms
+  C bloom filter        0 db queries | p50  0.0ms  p95  0.0ms  p99  0.0ms
+</code></pre>
+
+<p>Without a defence the ratio is one to one and the cache does nothing. Empty caching cuts it by eighty-seven percent rather than eliminating it, because the first wave of each round misses before the empty marker is written, which shows that it stops a sustained attack but not a burst. A Bloom filter reaches zero, since the request is rejected before the cache is consulted at all.</p>
+
+<pre><code>E2 breakdown: one hot key just expired, 300 concurrent rebuilds
+  A no mutex         183 db queries | p50 20.2ms  p95 20.7ms  p99 20.8ms
+  B mutex rebuild      1 db query   | p50 10.5ms  p95 20.0ms  p99 20.4ms
+</code></pre>
+
+<p>One hundred eighty-three queries for data that needed one is amplification, not a few extra reads, and it scales with concurrency: a thousand concurrent requests means a thousand selects of the same row.</p>
+
+<pre><code>E3 avalanche: expiry density for 1000 keys in one 1000ms window
+  A fixed TTL        peak 1000 keys per window → about 600x normal load
+  B jitter plus/minus 50%  peak 12 keys per window → about 7.2x normal load
+</code></pre>
+
+<pre><code>E4 bloom filter: measured error against theory
+  m=9585 bits  k=7 hashes  n=1000
+  theory 1.000%  |  measured 1.056%  (2111 of 200000)
+</code></pre>
+
+<p>Twelve hundred bytes reject every request that is certainly absent, leaving one percent of false positives to the empty-result cache. That is the whole value of the structure.</p>
+
+<h2>Checklist and common questions</h2>
+
+<ul>
+<li>Writes update the database and then delete the cache, never the other way and never an update.</li>
+<li>Keys carry a prefix and a version, so a redesign can move to a new namespace.</li>
+<li>Every TTL has jitter.</li>
+<li>Hot keys are protected by a mutex rebuild or logical expiry.</li>
+<li>Missing ids are cached as empty with a short TTL, or blocked by a filter.</li>
+<li>Endpoints validate their parameters and are rate limited.</li>
+<li>Redis has replication or clustering, persistence and an eviction policy.</li>
+<li>The database path has a breaker and a fallback, so a cache outage is not a 500.</li>
+<li>A failed cache delete has a backstop: a retry, a log-based compensation, or a short TTL to heal.</li>
+<li>Hit rate, database query rate and Redis memory and connections are monitored.</li>
+<li>The three failures have been load tested deliberately.</li>
+<li>Money and stock are not held together by cache-aside.</li>
+</ul>
+
+<p><strong>Is write-then-delete airtight?</strong> No. The narrow window exists where a reader holds an old snapshot and writes it back after the delete. Short TTLs heal it and log-based invalidation removes it.</p>
+
+<p><strong>Why delete instead of update?</strong> Updating costs a recomputation and suffers ordering races that leave a stale value. Deleting is cheap and idempotent and defers the decision.</p>
+
+<p><strong>How long should a TTL be?</strong> As long as you can tolerate stale data, plus jitter. Five minutes for an article, a minute for a profile, an hour for a dictionary are all fine; the jitter is the part that matters.</p>
+
+<p><strong>Do Bloom filters support deletion?</strong> Not the standard ones. Use a counting variant, or delete the cache entry alongside the row so reads repopulate an empty result.</p>
+
+<p><strong>What about local caches drifting from Redis?</strong> Short local TTLs, or broadcast invalidation over a queue. Local caching suits data that is read constantly and changed rarely.</p>
+
+<p><strong>How do you keep the database alive when Redis dies?</strong> Local caching to absorb the first wave, breakers to fail fast, and rate limits to shape the peak. The point is to keep requests from piling onto the database.</p>
+
+<p><strong>Can cache and database be strongly consistent?</strong> Yes, through distributed transactions, at a cost that is rarely worth paying. The right target for a cache is eventual consistency with a short window.</p>
+
+<p><strong>How should this look in Django?</strong> The cache framework already offers get-or-set, pattern deletion on a Redis backend, and a page decorator. Do not cache authenticated pages that way, or users will see each other's content.</p>
+
+<h2>Closing</h2>
+
+<p>Three sentences. The write path updates the database then deletes the cache, and short TTLs heal the remainder. Penetration needs empty results, a filter and validation, stacked rather than chosen. Breakdown and avalanche need a mutex or logical expiry for hot keys, jitter on every TTL, and a system that degrades rather than fails when the cache disappears.</p>
+
+<p>Back to that ticket: had the code deleted instead of updated, had the TTL carried jitter, had the endpoint validated the id, it would never have been filed.</p>
+
+<p>Caching is not adding Redis. It is an architecture that has to be designed, load tested and monitored. Next time someone suggests adding a cache, ask four questions: does every TTL carry jitter, are hot keys protected from a stampede, is there a filter in front, and can the database survive the cache disappearing.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/cache-consistency-deep-dive/">先删缓存还是先删库？——缓存一致性实战</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
