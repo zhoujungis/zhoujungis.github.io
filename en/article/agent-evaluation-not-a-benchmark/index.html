@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Two hundred and ninety-three tests, a green CI badge, and the user breaks it on the first prompt. Four layers of assertion, the arithmetic of pass rates, and seven provable gaps in one real repository." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/agent-evaluation-not-a-benchmark/" />
+    <meta property="og:title" content="Agent evaluation: a single passing run is a sample, not a result | Stack Frame" />
+    <meta property="og:description" content="Two hundred and ninety-three tests, a green CI badge, and the user breaks it on the first prompt. Four layers of assertion, the arithmetic of pass rates, and seven provable gaps in one real repository." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/agent-evaluation-not-a-benchmark/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Agent evaluation: a single passing run is a sample, not a result | Stack Frame" />
+    <meta name="twitter:description" content="Two hundred and ninety-three tests, a green CI badge, and the user breaks it on the first prompt. Four layers of assertion, the arithmetic of pass rates, and seven provable gaps in one real repository." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Agent evaluation: a single passing run is a sample, not a result | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-B-AeDpuD.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.CXpDnQUw.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/agent-evaluation-not-a-benchmark/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/" />
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><h1>Agent evaluation: a single passing run is a sample, not a result</h1><div class="ns-meta">2026-11-11 · 36 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who treat "the demo worked once" as a conclusion; people whose CI is green and who keep getting hit by the first prompt a user types; people about to add evaluation to an agent and unsure where to start.</p>
+<p><strong>TL;DR:</strong> one passing run is a sample, not a result. An agent's output is a joint distribution over model, tools and environment, and a single run samples one point. Evaluation needs a denominator, a definition of success, and assertions about the process. NanoHermes has ninety unit tests and five end-to-end cases, and its mock reads each request and throws it away. Make the tool list return an empty array and all five end-to-end cases still pass.</p>
+<p>Reading time around 36 minutes. Level: advanced.</p>
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>Green CI, broken on the first prompt</li>
+<li>One passing run is a sample</li>
+<li>Tests, evaluation and benchmarks are not the same thing</li>
+<li>What a single run hides</li>
+<li>Compound success: 0.95 across twenty steps leaves 0.36</li>
+<li>A pass rate needs a denominator</li>
+<li>What ten clean runs actually prove</li>
+<li>Zero failures only bound the rate from above</li>
+<li>pass@1 and pass@k are different numbers</li>
+<li>Flakiness can only be found by repetition</li>
+<li>The minimum loop of an evaluation</li>
+<li>Define success first</li>
+<li>Four layers of assertion</li>
+<li>A checkup on NanoHermes</li>
+<li>Test inventory: 293 cases</li>
+<li>How the end-to-end mock is built</li>
+<li>Four things it gets right</li>
+<li>Gap one: the request is read and dropped</li>
+<li>Gap two: the test config disables production paths</li>
+<li>Gap three: approval and sandbox are short-circuited</li>
+<li>Gap four: <code>Ok</code> does not mean done</li>
+<li>Gap five: conditional skips posing as passes</li>
+<li>Gap six: assertions the name promises and the code skips</li>
+<li>Gap seven: no cases for compaction or batching</li>
+<li>How an always-true assertion gets written</li>
+<li>Fix one: turn the mock into a recorder</li>
+<li>Fix two: three golden request assertions</li>
+<li>Fix three: replace the fixed script with a state machine</li>
+<li>Fix four: a fault injection matrix</li>
+<li>Fix five: give completion a type</li>
+<li>Fix six: grow the eval set from incidents</li>
+<li>Five fields per case</li>
+<li>Grading is not boolean</li>
+<li>How to repeat: counts, seeds, parallelism</li>
+<li>Six ways to isolate flakiness</li>
+<li>Retries find problems, they do not hide them</li>
+<li>Cost is an evaluation metric</li>
+<li>Attribution: five failure classes and two bisections</li>
+<li>Offline evaluation and online observation</li>
+<li>Sample structure online, never content</li>
+<li>Regression gates: CI, nightly, human</li>
+<li>A directory layout to copy</li>
+<li>Three experiments you can finish in a day</li>
+<li>Five common evaluation traps</li>
+</ul>
+
+<h2>Green CI, broken on the first prompt</h2>
+
+<p>Ninety-five Rust tests pass, the badge is bright, and the release notes mention tool call round trips, streaming and non-streaming replies, transient 5xx retries and hard errors. A user installs it, tells it to read a file, which works. Tells it to make a change, which lands in the wrong place. Tells it to try again, and it starts repeating the first request. Three turns later the task is unfinished and the bill has arrived.</p>
+
+<p>The tests are not useless. They answer a different question from the user's. A test asks whether this path can crash. The user asks what the probability is that this thing finishes a job on their inputs. The distance between those two questions is what evaluation fills.</p>
+
+<h2>One passing run is a sample</h2>
+
+<p><strong>An agent run is one sample from a joint distribution.</strong> Temperature, tool returns, file state, network timing, traversal order, any of them changes the path. A single run tells you that one path works, not that this class of task gets done.</p>
+
+<p><strong>A pass rate without a denominator is not a pass rate.</strong> Ten of ten and seven of ten are completely different systems, and "I ran it and it passed" flattens both into one conclusion.</p>
+
+<p><strong>Tests that only look at the final answer cannot see how agents typically fail:</strong> one extra tool call, a skipped confirmation, the whole history resent, a failed turn missing from the ledger. All of that happens during the run, and the run is in the request bodies.</p>
+
+<h2>Tests, evaluation and benchmarks are not the same thing</h2>
+
+<table>
+<thead><tr><th>Form</th><th>Question</th><th>Samples</th><th>Definition</th><th>Repetition</th><th>Output</th></tr></thead>
+<tbody>
+<tr><td>Unit test</td><td>Is this function right at the edges</td><td>Hand-written inputs</td><td>Assert equality</td><td>Once</td><td>A green check</td></tr>
+<tr><td>Integration test</td><td>Do these modules connect</td><td>Fixed script</td><td>Assert side effects</td><td>Once</td><td>A green check</td></tr>
+<tr><td>Evaluation</td><td>What is the chance this task class succeeds</td><td>A batch of real tasks</td><td>Pass rate plus process metrics</td><td>N times</td><td>Scores with intervals</td></tr>
+<tr><td>Benchmark</td><td>Which version is better</td><td>Fixed problem set</td><td>Relative difference</td><td>Many times</td><td>Ranking and deltas</td></tr>
+<tr><td>Online observation</td><td>What do real users hit</td><td>All traffic</td><td>Distributions and quantiles</td><td>Continuous</td><td>Dashboards and alerts</td></tr>
+</tbody>
+</table>
+
+<p>The column that matters most is repetition, and only evaluation and benchmarks have it, because only they care about a distribution rather than about this run. The second most important column is the definition: unit tests inherit it from the compiler, while an evaluation has to decide what counts as success, whether partial counts, whether a timeout counts, whether going over budget counts. Undefined, the score means nothing.</p>
+
+<h2>What a single run hides</h2>
+
+<table>
+<thead><tr><th>Hidden</th><th>Mechanism</th><th>Consequence</th><th>Only repetition catches it</th></tr></thead>
+<tbody>
+<tr><td>Passes by luck</td><td>The model happened to take the right path</td><td>The failure rate appears in production</td><td>Yes</td></tr>
+<tr><td>Fails by luck</td><td>Environment jitter, port conflicts, timing</td><td>Engineers learn to just re-run</td><td>Yes</td></tr>
+<tr><td>Never runs at all</td><td>Conditional skips, tautologies, a mock that is too ideal</td><td>Green and covering nothing</td><td>No, that needs auditing</td></tr>
+</tbody>
+</table>
+
+<p>The third is the most dangerous because it does not even give you occasional failures. It is always green. The second trains a bad habit: see red, re-run, take the majority of three. That is manual retrying, and it erases the signal, since flakiness is information.</p>
+
+<h2>Compound success: 0.95 across twenty steps leaves 0.36</h2>
+
+<table>
+<thead><tr><th>Steps</th><th>0.99 each</th><th>0.98</th><th>0.95</th><th>0.90</th></tr></thead>
+<tbody>
+<tr><td>10</td><td>0.904</td><td>0.817</td><td>0.599</td><td>0.349</td></tr>
+<tr><td>20</td><td>0.818</td><td>0.668</td><td>0.358</td><td>0.122</td></tr>
+<tr><td>30</td><td>0.740</td><td>0.545</td><td>0.215</td><td>0.042</td></tr>
+<tr><td>40</td><td>0.669</td><td>0.446</td><td>0.129</td><td>0.015</td></tr>
+</tbody>
+</table>
+
+<p>Taking a single step from 0.90 to 0.95 moves a twenty step task from 12% to 36%, a threefold improvement. Moving 0.95 to 0.98 takes it from 36% to 67%. A few points per step is a multiple at the task level.</p>
+
+<p>It also explains why one success proves almost nothing: on a system with 0.95 per step, a twenty step success happens 36% of the time anyway. What you observed may simply be that 36%.</p>
+
+<p>So the first act of evaluation is not adding samples, it is <strong>counting the steps in the task</strong>. Step count decides the per-step reliability you need and where to spend repetitions.</p>
+
+<h2>A pass rate needs a denominator</h2>
+
+<pre><code>pass_rate   = passing runs / total runs
+tasks       = 12 real tasks
+runs each   = 5
+total runs  = 60
+criteria    = file contents match + exit code 0 + turns &lt;= 8
+</code></pre>
+
+<p>What is the numerator, what is the denominator, what is the criterion, how many runs. Any of those missing and the number can be explained to any conclusion.</p>
+
+<p>Three common denials of the denominator. "I ran three cases and they all passed," which has a denominator of three, no statistical meaning and total validity as a smoke test. "Our eval score is 87," where neither part is clear: 87 could be a weighted hundred cases or ten subjective ones. And "it went from 80% to 85% after the change," where if each was ten runs, five points is entirely inside the noise.</p>
+
+<h2>What ten clean runs actually prove</h2>
+
+<table>
+<thead><tr><th>Runs, all passing</th><th>95% lower bound</th><th>In words</th></tr></thead>
+<tbody>
+<tr><td>10</td><td>72.2%</td><td>The true rate might be seventy percent</td></tr>
+<tr><td>20</td><td>83.9%</td><td>Still possibly under ninety</td></tr>
+<tr><td>50</td><td>92.9%</td><td>Starting to look like "above ninety"</td></tr>
+<tr><td>100</td><td>96.3%</td><td>Can say "very likely above ninety-five"</td></tr>
+</tbody>
+</table>
+
+<p>Those come from a Wilson interval with z of 1.96, where the all-pass lower bound reduces to 1/(1 + z squared over n). The useful mnemonic: the term in the denominator is the penalty for not having enough samples.</p>
+
+<p>So "ten runs, all passed" concludes that the failure rate is probably under 26%, not that the thing is stable. That distinction matters for a decision, because a 26% failure rate means one user in four hits it.</p>
+
+<h2>Zero failures only bound the rate from above</h2>
+
+<table>
+<thead><tr><th>Zero-failure runs</th><th>Upper bound</th><th>What you may conclude</th></tr></thead>
+<tbody>
+<tr><td>10</td><td>26%</td><td>Only that it does not always fail</td></tr>
+<tr><td>30</td><td>9.5%</td><td>Acceptable for an internal tool</td></tr>
+<tr><td>60</td><td>4.9%</td><td>Acceptable to open to a small group</td></tr>
+<tr><td>300</td><td>1.0%</td><td>Enough to talk about stability</td></tr>
+</tbody>
+</table>
+
+<p>The rule of three: no failures in n runs gives a 95% upper bound near 3/n. Going the other way, to estimate a 95% rate within five points you need about 73 runs. Both numbers answer a practical question: does your evaluation budget support the sentence you want to write? With ten runs, do not put "95% pass rate" in the weekly report.</p>
+
+<h2>pass@1 and pass@k are different numbers</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>Definition</th><th>Denominator</th><th>Question</th></tr></thead>
+<tbody>
+<tr><td>pass@1</td><td>Success on a single run</td><td>Runs</td><td>What the first attempt looks like</td></tr>
+<tr><td>pass@k</td><td>At least one success in k runs</td><td>Tasks</td><td>What k attempts allow</td></tr>
+<tr><td>flaky rate</td><td>Tasks that both pass and fail on one version</td><td>Repeated tasks</td><td>Whether the system is stable</td></tr>
+<tr><td>completion rate</td><td>Runs explicitly marked complete</td><td>Runs</td><td>Whether it finished the job</td></tr>
+<tr><td>mean turns</td><td>Model requests per task</td><td>Runs</td><td>Efficiency and cost</td></tr>
+</tbody>
+</table>
+
+<p>For an agent the most useful number is often not pass@1 but the gap between pass@1 and completion rate, because agents have a characteristic failure: they answered without finishing. The run function returns success even at the iteration cap, so from the return value alone you cannot tell "done" from "ran out of turns".</p>
+
+<p>And pass@k is not a product metric. A task that succeeds once in five attempts is still unusable to a user, because users do not run it five times. pass@k answers whether the model has the capability; it does not answer whether the product can ship.</p>
+
+<h2>Flakiness can only be found by repetition</h2>
+
+<p>Flaky means the same code, the same task, different results across runs. That definition alone rules out finding it in a single run.</p>
+
+<pre><code>for each case, run N = 5 times
+  5/5 passing   -&gt; stable pass
+  0/5 passing   -&gt; stable fail, a real bug
+  1..4/5        -&gt; flaky, the class most worth fixing
+</code></pre>
+
+<p>The third class is the most valuable data in an evaluation. It is neither broken nor working, it depends on luck, and luck is random locally and load-dependent in production, so it flares up exactly when things are busy.</p>
+
+<h2>The minimum loop of an evaluation</h2>
+
+<table>
+<thead><tr><th>Stage</th><th>Input</th><th>Output</th><th>Common omission</th></tr></thead>
+<tbody>
+<tr><td>Sample</td><td>Real tasks or incidents</td><td>A batch of cases</td><td>Only self-invented toy tasks</td></tr>
+<tr><td>Execute</td><td>Case plus build</td><td>A trace per run</td><td>Only the final answer</td></tr>
+<tr><td>Assert</td><td>Trace plus expectation</td><td>Pass, degraded or fail</td><td>Only string equality</td></tr>
+<tr><td>Account</td><td>Metrics per run</td><td>Numerator, denominator, cost</td><td>No turns, no bytes</td></tr>
+<tr><td>Attribute</td><td>Failing traces</td><td>Failure classes</td><td>Everything is "the model"</td></tr>
+<tr><td>Regress</td><td>Baseline versus build</td><td>A gate decision</td><td>Manual comparison</td></tr>
+</tbody>
+</table>
+
+<p>Execution is the stage people thin out. Storing one final string loses request bodies, tool call sequences, per-call usage, retry counts and timings, and attribution has nothing to work with.</p>
+
+<h2>Define success first</h2>
+
+<p>Four questions. Is the result right, in file contents, exit codes or key conclusions. Is the process right, no forbidden tool, no skipped confirmation, calls inside budget. Did it finish, normally rather than at the cap or interrupted. And what did it cost in turns, bytes and wall clock.</p>
+
+<p>The third is the easiest to miss, because most APIs return a single result type and "did not finish" produces neither an error nor a distinctive string. It slips quietly inside success.</p>
+
+<h2>Four layers of assertion</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Asserts</th><th>Example</th><th>Catches</th><th>Stability</th></tr></thead>
+<tbody>
+<tr><td>L1, bytes</td><td>The request body itself</td><td>Request count, system prefix hash, tool list</td><td>Context bloat, prefix drift, missing tools</td><td>Highest</td></tr>
+<tr><td>L2, process</td><td>The tool call sequence</td><td>Read before write, no extra retries</td><td>Wrong order, duplicate work, skipped confirmation</td><td>High</td></tr>
+<tr><td>L3, result</td><td>Side effects and answer</td><td>File contents, exit code, key sentence</td><td>Wrong, missing, off-target</td><td>Medium</td></tr>
+<tr><td>L4, cost</td><td>Resource use</td><td>Turns, total bytes, elapsed</td><td>Efficiency regression</td><td>High</td></tr>
+</tbody>
+</table>
+
+<p>Why four layers rather than just L3? Because L3 failures are hard to attribute. A wrong file could mean the model chose the wrong tool, the tool has a bug, the previous read was wrong, or compaction dropped the key detail. L1 and L2 narrow it to one layer immediately.</p>
+
+<h2>A checkup on NanoHermes</h2>
+
+<p>The mock uses only the standard library, binds port zero so the kernel assigns one, names scratch directories with pid, nanoseconds and an atomic counter, and splits tool arguments across two SSE frames to exercise incremental assembly. All of that is well done.</p>
+
+<p>And then one line: the full request is read into a byte vector and dropped.</p>
+
+<h2>Test inventory: 293 cases</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Count</th><th>Where</th><th>Asserts</th></tr></thead>
+<tbody>
+<tr><td>Rust unit</td><td>90</td><td>Module test blocks</td><td>Function-level input and output</td></tr>
+<tr><td>Rust end-to-end</td><td>5</td><td>The e2e test file</td><td>Final answer, files, usage</td></tr>
+<tr><td>Frontend</td><td>198</td><td>Component tests</td><td>Behaviour and rendering</td></tr>
+</tbody>
+</table>
+
+<p>The distribution is uneven. The twenty-three tools each have two to eight unit tests, and the module that routes a model-supplied name to an implementation has none. Two more behaviours have no tests: compaction, and message replacement for the daemon. Both sit on the main run path.</p>
+
+<p>293 cases is not a small number. The problem is that almost all of them sit at the function layer, below L3, while agent failures mostly happen at L1 and L2.</p>
+
+<h2>How the end-to-end mock is built</h2>
+
+<p>Five cases: a tool call round trip, plain text streaming, non-streaming JSON, a transient 500 with retry, and hard error propagation. All share one structure: given a fixed list of responses, assert the final answer.</p>
+
+<p>The assertions are better than average. The tool call case verifies that the SSE fragments assemble into valid arguments, that the tool really wrote to disk, and that usage accumulated across two requests. That is far more than asserting a non-empty string.</p>
+
+<p>And every case stops there. Not one line checks whether the first request actually advertised the write tool.</p>
+
+<h2>Four things it gets right</h2>
+
+<table>
+<thead><tr><th>Practice</th><th>Why it matters</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Standard library only</td><td>No dependency can turn the suite red by upgrading</td><td>Hand-written HTTP parsing</td></tr>
+<tr><td>Bind to port zero</td><td>The kernel assigns, parallel tests do not fight</td><td>None</td></tr>
+<tr><td>Scratch dirs with pid, nanos, counter</td><td>Parallel tests do not overwrite each other</td><td>None</td></tr>
+<tr><td>Inject a silent UI sink</td><td>Test output contains only assertion failures</td><td>Needs an injectable UI layer</td></tr>
+</tbody>
+</table>
+
+<p>The fourth is the one to copy. Routing all streaming text and banners to an empty sink leaves only failures in the output. Plenty of projects have unreadable test output because the code under test prints hundreds of lines.</p>
+
+<p>One more silent virtue: the mock speaks HTTP, not an SDK, so it validates the protocol layer and still works against a different compatible provider.</p>
+
+<h2>Gap one: the request is read and dropped</h2>
+
+<pre><code>read_full_request(&amp;mut stream);   // the returned bytes are discarded
+let _ = stream.write_all(responses[served].as_bytes());
+</code></pre>
+
+<p>So none of the five cases can detect a corrupted request body. Make the tool builder always return an empty array, telling the model it has no tools, and what happens?</p>
+
+<ul>
+<li>The tools field disappears from the request, so the model could call nothing in production.</li>
+<li>The mock does not look at requests; it reads its script and answers "call the write tool".</li>
+<li>Execution routes by name and never checks whether the tool was advertised.</li>
+<li>So the file is still written, usage still says two requests, and all five cases stay green.</li>
+</ul>
+
+<p>Blank the system prompt, set the token limit to one, remove the usage frame option: the same. The assertions land on the answer and on usage, and usage comes from the mock's response, not from the request.</p>
+
+<p>This is the canonical shape of a single-run test. It did run. It ran a path that passes without the code under test being correct.</p>
+
+<h2>Gap two: the test config disables production paths</h2>
+
+<p>The test config sets auto-approve to avoid interactive hangs, disables memory to stay out of the real user directory, and disables project docs to avoid reading the repository's own conventions. Each line has a reason, and together they mean the end-to-end suite does not run the production configuration.</p>
+
+<p>In production the first message is the base prompt plus persona plus project guidance plus a memory block. In the tests it is the base prompt alone. So prefix drift caused by rewriting the memory block every turn, a real problem documented at length in the ledger post, cannot be observed here at all.</p>
+
+<p>Not a wrong test, a test of a different system. Evaluation exists to catch exactly this divergence: what you test has to be what you ship.</p>
+
+<h2>Gap three: approval and sandbox are short-circuited</h2>
+
+<p>Auto-approve skips the entire approval path, and the sandbox is off by default, so commands in the suite run unconstrained. The approval policy has its own unit test, which proves the decision function is correct and proves nothing about whether the decision is wired into execution. That is L3 versus L2, and the missing middle is where agents break: the policy is right and one branch never calls it.</p>
+
+<p>What evaluation should add is not ten more policy assertions but one process assertion: under the untrusted policy, a command request must stop and wait, rather than execute. That needs the mock to see how many requests arrived and whether the second one contains a tool result, which is L1.</p>
+
+<h2>Gap four: Ok does not mean done</h2>
+
+<p>All three exits, normal completion, interruption and hitting the iteration cap, return success. The only difference is a warning printed to the UI.</p>
+
+<p>So the end-to-end line that expects a turn to complete asserts only that no error was returned, not that the task finished. If the model is still calling tools at the fortieth round, the test takes the last text, possibly half an answer, and goes green.</p>
+
+<h2>Gap five: conditional skips posing as passes</h2>
+
+<pre><code>#[test]
+fn landlock_enforces_workspace_boundaries() {
+    if !is_supported() {
+        eprintln!("skipping: Landlock unavailable in this environment");
+        return;
+    }
+    // ...
+}
+</code></pre>
+
+<p>Support is always false off Linux, and CI runs on Windows, so this test skips forever, never fails, and never verifies anything. A second one skips when git is missing, which on GitHub's Windows image usually is not, so it mostly runs and would silently become a false pass if the environment changed.</p>
+
+<p>There is a subtler variant: whole tests excluded by a Unix-only compilation attribute. The four hook behaviour tests carry that attribute, and CI only runs Windows, so "the hook sees the tool name", "the exit code propagates" and "writing before reading stdin does not deadlock" have never executed in CI. Not skipped, never compiled.</p>
+
+<p>The fix is not deleting them, it is making skips visible: mark them ignored with a reason, or add a Linux job that runs platform-specific cases. <strong>A skip has to be a different colour from green.</strong></p>
+
+<h2>Gap six: assertions the name promises and the code skips</h2>
+
+<p>One test is named for surfacing a hard API error without hanging, and nothing asserts anything about time. If the code did hang, the job would time out, which is a different signal from this test failing. Honour the name with an elapsed-time assertion.</p>
+
+<p>The other asserts that a transient error recovers, and never asserts that exactly two requests were made. Add a third attempt and the mock, having run out of scripted responses, closes the connection, so the test does fail, but by accident. Prepare three responses for another case and the bug hides.</p>
+
+<p>Names are for the next reader. A name that promises more than the assertions is worse than no name, because it makes people believe coverage exists.</p>
+
+<h2>Gap seven: no cases for compaction or batching</h2>
+
+<p>Compaction runs at the end of every turn and does something dangerous: it removes messages, inserts one, and changes order. Remove the wrong slice and history is left with tool calls and no results, which the provider rejects outright. It has no test.</p>
+
+<p>The same goes for the batching of parallel tool calls. A model returning twelve calls gets chunks of eight and four, and ordering has to survive. The existing concurrency test calls execution directly with thirty calls and never exercises the chunking.</p>
+
+<p>And the streaming assembler caps tool call indices at 64 to stop a malicious endpoint from forcing a huge allocation. Nothing sends a frame with a huge index to prove it is dropped.</p>
+
+<h2>How an always-true assertion gets written</h2>
+
+<pre><code>assert!(
+    start.elapsed() &lt; Duration::from_secs(2),
+    "polling a running task must not block: {out}"
+);
+assert!(out.contains("no output yet") || !out.is_empty());
+</code></pre>
+
+<p>The first is meaningful. The second is always true, since the output contains at least a status header, so the alternation can never fail. It was probably meant to check that a freshly started task has no output yet, and writing it as an or-branch swallowed that meaning.</p>
+
+<p>Such assertions do not hide bugs, they inflate the sense of coverage. Two lines look like two checks and only one works. A self-check while writing: make the function always return an empty string; does the assertion go red? If not, it is decoration.</p>
+
+<h2>Fix one: turn the mock into a recorder</h2>
+
+<pre><code>use std::sync::{Arc, Mutex};
+
+struct MockLlm {
+    port: u16,
+    seen: Arc&lt;Mutex&lt;Vec&lt;Vec&lt;u8&gt;&gt;&gt;,
+    handle: Option&lt;thread::JoinHandle&lt;()&gt;&gt;,
+}
+</code></pre>
+
+<p>Store each raw request under the mutex, and expose a method that splits the head from the body and parses the body as JSON. Split on the first blank line rather than the last, because a body can contain that sequence too.</p>
+
+<p>After that, every assertion rests on the real request instead of on the belief that the request was correct.</p>
+
+<h2>Fix two: three golden request assertions</h2>
+
+<p><strong>Request count.</strong> A two step task uses exactly two requests. This catches turn inflation, and the failure message can dump the bodies.</p>
+
+<p><strong>Tool sequence.</strong> The advertised tool names must be identical across turns, and sorted. That second half catches "added a tool and forgot to sort", which silently destroys prefix caching, the cost lever from the ledger post.</p>
+
+<p><strong>Prefix hash.</strong> Hash the first message and the tool list, and assert the value is stable across turns. Together these are under forty lines, they live entirely in test code, and they cover the two most expensive regressions: cost drift and capability disappearing.</p>
+
+<h2>Fix three: replace the fixed script with a state machine</h2>
+
+<p>A fixed queue deals responses in order regardless of what was asked, which makes the test a one-act play and rules out repetition and retries.</p>
+
+<pre><code>fn respond(req: &amp;Value) -&gt; String {
+    let messages = req["messages"].as_array().cloned().unwrap_or_default();
+    let has_tool_result = messages.iter().any(|m| m["role"] == "tool");
+    let user_text = messages.iter().rev()
+        .find(|m| m["role"] == "user")
+        .and_then(|m| m["content"].as_str())
+        .unwrap_or("");
+
+    if user_text.contains("write") &amp;&amp; !has_tool_result {
+        sse_tool_call("write_file", r#"{"path":"hello.txt","content":"hi"}"#)
+    } else if user_text.contains("write") {
+        sse_text("done")
+    } else {
+        sse_text("ok")
+    }
+}
+</code></pre>
+
+<p>Now the state is whether a tool result exists and the transition depends on the request. Three benefits: no need to precompute how many responses, faults can be injected at any step, and assertions can target "what the third request looks like" instead of "which scripted response was consumed".</p>
+
+<h2>Fix four: a fault injection matrix</h2>
+
+<table>
+<thead><tr><th>Fault</th><th>Injection</th><th>Expected</th><th>Today</th><th>Tested</th></tr></thead>
+<tbody>
+<tr><td>429</td><td>Return 429</td><td>Back off and retry</td><td>Retries</td><td>Indirectly</td></tr>
+<tr><td>500, 502, 503, 504</td><td>Return the code</td><td>Back off and retry</td><td>Retries</td><td>One case</td></tr>
+<tr><td>Timeout</td><td>Accept, never respond</td><td>Retry or fail clearly</td><td>Fails, no retry</td><td>None</td></tr>
+<tr><td>Connection reset</td><td>Close immediately</td><td>Fail clearly</td><td>Fails, no retry</td><td>None</td></tr>
+<tr><td>Stream cut</td><td>Two frames, no terminator</td><td>Fail clearly</td><td>Treated as success</td><td>None</td></tr>
+<tr><td>Empty stream</td><td>Headers only</td><td>Fail clearly</td><td>Fails</td><td>None</td></tr>
+<tr><td>Bad JSON frame</td><td>A malformed data line</td><td>Skip the frame</td><td>Skips</td><td>None</td></tr>
+<tr><td>Illegal arguments</td><td>Truncated JSON</td><td>Return an error result</td><td>Yes</td><td>None</td></tr>
+<tr><td>Tool panic</td><td>Panic inside a tool</td><td>Error result, turn continues</td><td>Yes</td><td>None</td></tr>
+<tr><td>Error field</td><td>200 with an error object</td><td>Raise</td><td>Yes</td><td>One case</td></tr>
+</tbody>
+</table>
+
+<p>Two rows deserve detail because the behaviour is discoverable in code and invisible in tests. Retryability is decided by matching five HTTP status strings, and a timeout is formatted as a generic request failure with no status, so <strong>a timeout never retries even when retries are configured</strong>. A unit test then froze that behaviour, asserting that a DNS failure is not retryable. Correct in context, and it quietly makes "no transport error ever retries" part of the contract. A green light becomes a lock.</p>
+
+<p>For a cut stream, the reader only errors when no frames arrived at all. One frame followed by a dropped connection returns success with half the tool arguments, which downstream becomes an invalid argument error and one wasted round.</p>
+
+<h2>Fix five: give completion a type</h2>
+
+<pre><code>#[derive(Debug, PartialEq, Eq)]
+pub enum TurnOutcome {
+    Completed(String),
+    Interrupted(String),
+    IterationLimit(String),
+}
+</code></pre>
+
+<p>Keep the string-returning run as a thin wrapper so existing callers do not change, and let the evaluation assert on the enum: the outcome must be completed. That single assertion is worth more than every result-layer assertion combined, because it separates "answered" from "finished", and on agents those are frequently different.</p>
+
+<h2>Fix six: grow the eval set from incidents</h2>
+
+<table>
+<thead><tr><th>Source</th><th>Example</th><th>Shape of the case</th></tr></thead>
+<tbody>
+<tr><td>Production incident</td><td>A user says it edited the wrong place</td><td>Multi-file repo, plus an assertion that only one file changed</td></tr>
+<tr><td>Regression</td><td>Worked last version, not this one</td><td>Same script, two builds compared</td></tr>
+<tr><td>Edge</td><td>Empty file, huge file, invalid UTF-8</td><td>Fixed fixture</td></tr>
+<tr><td>Cost incident</td><td>A task burned forty turns</td><td>Assert turns stay under baseline</td></tr>
+<tr><td>Security event</td><td>A command ran unattended</td><td>Assert approval was triggered</td></tr>
+</tbody>
+</table>
+
+<p>Every case then has a story. When it goes red, nobody has to guess what it was testing, because the title names the incident.</p>
+
+<h2>Five fields per case</h2>
+
+<table>
+<thead><tr><th>Field</th><th>Purpose</th><th>Cost of omission</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>Stable identifier for cross-version comparison</td><td>Reports cannot be aligned</td></tr>
+<tr><td>task</td><td>The user instruction verbatim</td><td>Nobody knows what is being tested</td></tr>
+<tr><td>fixture</td><td>Initial files and environment</td><td>Results are not reproducible</td></tr>
+<tr><td>oracle</td><td>The pass rule</td><td>Only manual review</td></tr>
+<tr><td>severity</td><td>Impact when it fails</td><td>No prioritisation</td></tr>
+</tbody>
+</table>
+
+<p>The oracle field most often forgotten is the list of files that must not change. Asserting the right edit happened is not enough; an agent's characteristic damage is editing too much. Turn limits and completion belong in the oracle too, which is where cost and correctness meet.</p>
+
+<h2>Grading is not boolean</h2>
+
+<table>
+<thead><tr><th>Grade</th><th>Criterion</th><th>Example</th><th>Handling</th></tr></thead>
+<tbody>
+<tr><td>pass</td><td>Result and process both fine</td><td>Right file, turns in budget, completed</td><td>Ship</td></tr>
+<tr><td>degraded</td><td>Right result, cost over budget</td><td>Correct, but eighteen turns or two files touched</td><td>Record and watch the trend</td></tr>
+<tr><td>fail</td><td>Wrong result or unfinished</td><td>Wrong file, hit the cap, error</td><td>Block</td></tr>
+</tbody>
+</table>
+
+<p>The middle grade is the point. Pure boolean grading makes "correct but three times the cost" look identical to "correct", so cost regressions are never noticed, and agent cost regressions are gradual: five percent per feature, never a cliff.</p>
+
+<h2>How to repeat: counts, seeds, parallelism</h2>
+
+<table>
+<thead><tr><th>Scenario</th><th>Runs per case</th><th>Purpose</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td>Local smoke</td><td>1</td><td>Fast feedback</td><td>On save</td></tr>
+<tr><td>PR gate</td><td>3</td><td>Catch obvious instability</td><td>Every commit</td></tr>
+<tr><td>Nightly</td><td>10</td><td>Estimate the flaky rate</td><td>Daily</td></tr>
+<tr><td>Version comparison</td><td>30</td><td>Compare two builds</td><td>Before release</td></tr>
+</tbody>
+</table>
+
+<p>Thirty runs sounds like a lot until you remember the mock is local HTTP: no model spend, only execution time. Only a mock makes thirty repetitions economically possible.</p>
+
+<p>Two parallel concerns: every run needs its own scratch directory, and any configuration read from the environment must be injected explicitly at the harness boundary rather than inherited from the process.</p>
+
+<h2>Six ways to isolate flakiness</h2>
+
+<table>
+<thead><tr><th>Source</th><th>Symptom</th><th>Isolation</th></tr></thead>
+<tbody>
+<tr><td>Port conflict</td><td>Occasional connection failure</td><td>Bind port zero</td></tr>
+<tr><td>Scratch directory clash</td><td>Files overwriting each other</td><td>Directory names with pid and randomness</td></tr>
+<tr><td>Clock and timezone</td><td>Date assertions drifting</td><td>Inject a fixed clock</td></tr>
+<tr><td>Traversal order</td><td>File listings in different order</td><td>Sort explicitly before asserting</td></tr>
+<tr><td>Global state</td><td>One case affecting the next</td><td>A fresh process or instance per case</td></tr>
+<tr><td>Network and proxies</td><td>Traffic going through a corporate proxy</td><td>Explicit no-proxy, loopback only</td></tr>
+</tbody>
+</table>
+
+<p>The suite already handles the first two, and the sixth matters because the HTTP layer reads proxy environment variables and bypasses loopback, without which every local mock test would try to go through the proxy.</p>
+
+<h2>Retries find problems, they do not hide them</h2>
+
+<p>Automatic retry on failure is harmful in evaluation. It turns one failure in five into zero in five, so the flakiness disappears from the report and the problem does not. Flakiness is the most valuable signal there, because it marks the paths that depend on luck, and luck varies with load.</p>
+
+<p>Invert it: let tests run once and let evaluation run N times, and report the difference. A run of five that shows four empty lines and one failure is far more informative than a retry that eventually passed, because it says this case has a twenty percent failure rate and that case covers the tool call round trip.</p>
+
+<p>Retries belong on infrastructure failures, pulling images and installing dependencies. The boundary goes into CI configuration, not into somebody's memory.</p>
+
+<h2>Cost is an evaluation metric</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>Definition</th><th>Source</th><th>Example threshold</th></tr></thead>
+<tbody>
+<tr><td>Turns</td><td>Model requests per task</td><td>Usage or the mock</td><td>8 or fewer</td></tr>
+<tr><td>Request bytes</td><td>Total body bytes per task</td><td>Mock records</td><td>180,000 or less</td></tr>
+<tr><td>Tool calls</td><td>Total calls per run</td><td>Tool messages</td><td>20 or fewer</td></tr>
+<tr><td>Prefix stability</td><td>Hash equality across turns</td><td>The first message</td><td>Identical</td></tr>
+<tr><td>Wall clock</td><td>End-to-end duration</td><td>Harness timer</td><td>60 s or less</td></tr>
+</tbody>
+</table>
+
+<p>These belong in the same table as the pass rate, or you will ship a version that kept the pass rate and doubled the cost, or one that saved money and edited the wrong file. Cost also degrades earlier: a pass rate is a step function, cost is continuous, so a five percent regression is visible long before a threshold is crossed.</p>
+
+<h2>Attribution: five failure classes and two bisections</h2>
+
+<table>
+<thead><tr><th>Class</th><th>Signal</th><th>Handling</th></tr></thead>
+<tbody>
+<tr><td>Model</td><td>Same input varies across runs with no environment difference</td><td>Change model, prompt or temperature</td></tr>
+<tr><td>Prompt</td><td>Wrong tool, wrong format, ignored constraint</td><td>Edit the prompt, add examples</td></tr>
+<tr><td>Tool</td><td>Error text comes from the tool, wrong file state</td><td>Fix the tool, add unit tests</td></tr>
+<tr><td>Orchestration</td><td>Turn count explodes, repeated actions, information lost after compaction</td><td>Change the loop or the compaction policy</td></tr>
+<tr><td>Environment</td><td>Fails on one machine or platform</td><td>Fix isolation, add platform cases</td></tr>
+</tbody>
+</table>
+
+<p>Bisect to get there faster. Record the model responses and replay them: still failing means the model is not the cause; passing means it was sampling. Then pin tool returns to fixtures: still failing means orchestration, passing means the tool.</p>
+
+<p>Two bisections narrow five classes to one, which is faster than staring at logs, and it is the second use of recorded requests beyond assertion.</p>
+
+<h2>Offline evaluation and online observation</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Offline</th><th>Online</th></tr></thead>
+<tbody>
+<tr><td>Samples</td><td>A curated fixed set</td><td>All real traffic</td></tr>
+<tr><td>Definition</td><td>A predefined oracle</td><td>User behaviour: accept, retry, abandon</td></tr>
+<tr><td>Timing</td><td>Before release</td><td>Continuously after</td></tr>
+<tr><td>Cost</td><td>Controlled by mocks</td><td>Real bills</td></tr>
+<tr><td>Finds</td><td>Known failure modes</td><td>Unknown ones</td></tr>
+<tr><td>Cannot find</td><td>Long-tail inputs</td><td>Causes, only symptoms</td></tr>
+</tbody>
+</table>
+
+<p>Offline prevents regressions, online discovers new problems. The healthy loop is: online finds a problem, it becomes an offline case, it gets fixed, and the offline gate prevents the return.</p>
+
+<h2>Sample structure online, never content</h2>
+
+<pre><code>struct TurnTelemetry {
+    turn_id: String,
+    outcome: TurnOutcomeKind,   // completed / interrupted / iteration_limit
+    requests: u32,
+    prompt_bytes: u64,
+    completion_bytes: u64,
+    tool_calls: Vec&lt;ToolStat&gt;,  // name + duration + ok, no arguments
+    elapsed_ms: u64,
+    error_class: Option&lt;String&gt;,// a class, not the original text
+}
+</code></pre>
+
+<p>No user text, no file contents, no command output. Enough to answer success rate, turn distribution, which tool is slowest and which error class dominates. A case that needs content goes through explicit user reporting or an opt-in debug mode. Structure by default, content by consent.</p>
+
+<h2>Regression gates: CI, nightly, human</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Runs</th><th>Duration target</th><th>Gate rule</th></tr></thead>
+<tbody>
+<tr><td>CI</td><td>Unit tests, three end-to-end runs, L1 assertions</td><td>Under ten minutes</td><td>Any new failure blocks</td></tr>
+<tr><td>Nightly</td><td>Ten repetitions, fault matrix, cost baseline</td><td>Under an hour</td><td>Flaky above 2% or cost up 10% alerts</td></tr>
+<tr><td>Human</td><td>Real model against real repositories</td><td>On demand</td><td>Version comparison report</td></tr>
+</tbody>
+</table>
+
+<p>CI has to be fast and deterministic, so no real model: latency and cost rule it out per commit. Nightly can be heavier because it produces trends rather than blocks. And the human layer checks the definitions: if a person sees an obvious regression while the score is flat, the oracle is wrong.</p>
+
+<h2>A directory layout to copy</h2>
+
+<pre><code>evals/
+  cases/
+    edit-wrong-file-001/
+      case.json
+      fixture/
+  harness/
+    mock_llm.rs        # state machine mock that records requests
+    runner.rs          # repetition, isolation, accounting
+    grade.rs           # pass / degraded / fail
+  baselines/
+    2026-11-01.json    # pass rate, turns, bytes
+  report.md
+</code></pre>
+
+<pre><code>cargo test --workspace
+cargo run --bin eval -- --cases evals/cases --repeat 10 --json &gt; report.json
+jq '.cases[] | select(.flaky) | .id' report.json
+</code></pre>
+
+<p>The middle line is the core: a separate binary rather than a test framework plugin, so it works in CI, runs one case alone, and feeds a report. Separate entry points also matter because an evaluation failure need not block compilation while a test failure must, and different semantics should not share an exit code.</p>
+
+<h2>Three experiments you can finish in a day</h2>
+
+<table>
+<thead><tr><th>Experiment</th><th>Method</th><th>Expected</th><th>Proves</th></tr></thead>
+<tbody>
+<tr><td>Repeat five times</td><td>Run one end-to-end case five times</td><td>Probably all green</td><td>The suite is deterministic and repetition is cheap</td></tr>
+<tr><td>Empty tool list</td><td>Make the tool builder return nothing</td><td>All five cases still green</td><td>The assertions never look at the request</td></tr>
+<tr><td>Timeout retry</td><td>Mock accepts and never answers, retries set to two</td><td>One request, then an error</td><td>Transport errors are outside the retry set</td></tr>
+</tbody>
+</table>
+
+<p>The first decides whether repetition is feasible. The second is the executable version of this post's argument: change one line of production code and see whether the light stays green. The third reveals a boundary you can then either fix or document, as long as you know it exists.</p>
+
+<h2>Five common evaluation traps</h2>
+
+<table>
+<thead><tr><th>Trap</th><th>Symptom</th><th>Consequence</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Mock too ideal</td><td>Always valid JSON, always instant</td><td>All real-world bad data is missed</td><td>A fault matrix</td></tr>
+<tr><td>Overfitted assertions</td><td>Asserting exact prose or a full diff</td><td>One punctuation change turns it red</td><td>Assert key fragments and structure</td></tr>
+<tr><td>Only single steps</td><td>Every tool passes its unit test</td><td>The combination does not work</td><td>Scenario cases</td></tr>
+<tr><td>Averages hiding the tail</td><td>Mean two turns, p95 eighteen</td><td>A few tasks blow the budget</td><td>Report quantiles</td></tr>
+<tr><td>Distribution mismatch</td><td>Self-invented tasks</td><td>Scores rise, users notice nothing</td><td>Grow cases from incidents</td></tr>
+</tbody>
+</table>
+
+<p>The second is the sneakiest. Asserting exact prose looks strict and writes implementation details into the contract, so every prompt change requires a test change, and eventually the team learns to edit the assertion when it goes red. Assert structure instead: the right file changed, the tool sequence is correct, turns are in budget, the answer contains the key conclusion. Those survive rephrasing and still fail when behaviour changes.</p>
+
+<h2>Closing</h2>
+
+<p>A single pass is a sample. A twenty step task at 0.95 per step is 36% at the task level, and ten clean runs only prove the failure rate is under 26%.</p>
+
+<p>Evaluation needs a denominator, a definition and process assertions. A pass rate without a denominator is not a pass rate, a score without a definition cannot be compared, and tests without process assertions cannot see how agents actually fail.</p>
+
+<p>NanoHermes writes good tests that stop at the result layer. Ninety unit tests and five end-to-end cases, and the mock reads each request and throws it away. Make the tool list empty and all five stay green. That is not a bug, it is an assertion layer that is not deep enough.</p>
+
+<p>And closing the gap is cheap: record the bodies, add three golden assertions, turn the mock into a state machine, write a fault matrix, add an outcome type. A few days of work. The expensive part is not writing it, it is deciding what success means.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a>.</p>
+</div><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div></div>
+  </body>
+</html>
