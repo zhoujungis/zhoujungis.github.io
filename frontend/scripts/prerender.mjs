@@ -782,8 +782,138 @@ function renderHomePage(template, articles) {
 }
 
 // ── 英文版 ────────────────────────────────────────────────────────────────
-// /en/ 与 /en/article/<slug>/：手写英文稿的静态快照。页面不套中文站的壳，
-// 正文复用中文快照的排版类（ns-article / ns-list），无 JS 时也是可读正文。
+// /en/ 与 /en/article/<slug>/：手写英文稿的静态快照。
+//
+// 这些页面刻意不带 SPA 包。原因有两个：
+//   1. Vue 挂载会先清空 #app，再等路由 chunk 到达后才重新渲染；慢网络下表现为
+//      「先看到正文、然后白屏、再出现」，实测首屏感知超过 3 秒。
+//   2. 英文页是纯静态内容，不需要鉴权、列表接口、Live2D、ECharts 这些东西，
+//      只需要一次 HTTP 读 HTML。少掉 190 KB JS 与几个跨域请求，首屏就只剩
+//      HTML + CSS 两次请求。
+// 代价是站内跳转变成整页加载（每页都是静态文件，缓存后同样很快），以及主题
+// 切换改由下面这段 20 行原生脚本负责，和 ThemeToggle.vue 共用同一个 storage key。
+const EN_STATIC_CSS = `
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+`
+
+const EN_STATIC_JS = `
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+`
+
+function enStaticShell(body) {
+  const nav = [
+    ['/en/', EN_UI.nav.home],
+    ['/en/articles/', EN_UI.nav.articles],
+    ['/en/topics/', EN_UI.nav.topics],
+    ['/en/about/', EN_UI.nav.about],
+    ['/rss.xml', EN_UI.nav.rss],
+  ]
+    .map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`)
+    .join('')
+  const zh = `<a href="/" hreflang="zh-CN">${escapeHtml(EN_UI.nav.zh)}</a>`
+  const toggle =
+    `<button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme">` +
+    `<svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>` +
+    `<svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>` +
+    `</button>`
+  const mail = encodeURIComponent(EN_CONTACT.email)
+  return (
+    `<div class="en-shell">` +
+    `<header class="en-shell__bar">` +
+    `<a class="en-brand" href="/en/"><span class="en-brand__name">${escapeHtml(EN_UI.brand)}</span></a>` +
+    `<nav class="en-nav" aria-label="Primary">${nav}${zh}${toggle}</nav>` +
+    `</header>` +
+    body +
+    `<footer class="en-shell__foot">` +
+    `<span>${escapeHtml(EN_UI.footer.rights)}</span>` +
+    `<nav class="en-shell__legal">` +
+    `<a href="mailto:${mail}">Email</a>` +
+    `<a href="${escapeHtml(EN_CONTACT.github)}">GitHub</a>` +
+    `<a href="/rss.xml">RSS</a>` +
+    `<a href="/en/about/">About</a>` +
+    `<a href="/en/privacy/">Privacy</a>` +
+    `<a href="/en/disclaimer/">Disclaimer</a>` +
+    `</nav>` +
+    `<span class="en-shell__built">${escapeHtml(EN_UI.footer.built)}</span>` +
+    `</footer>` +
+    `</div>`
+  )
+}
+
 function renderEnPage(template, { title, description, url, alternates = '', body }) {
   let html = template
   html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
@@ -800,8 +930,25 @@ function renderEnPage(template, { title, description, url, alternates = '', body
   html = upsertMeta(html, 'name', 'twitter:description', description)
   // 英文页不应被当成中文站的一部分：html lang 与正文语言一致。
   html = html.replace('<html lang="zh-CN">', '<html lang="en">')
-  html = html.replace('</head>', literal(`${NOSCRIPT_STYLE}\n${alternates}  </head>`))
-  return html.replace('<div id="app"></div>', literal(`<div id="app">${body}</div>`))
+
+  // 纯静态页：去掉 SPA 包、广告脚本与后端预热。见文件头关于首屏的说明。
+  html = html
+    .replace(/<!-- Google AdSense 自动广告[\s\S]*?<\/script>\n?/, '')
+    .replace(/<script async src="https:\/\/pagead2\.googlesyndication\.com[^>]*>\s*<\/script>\n?/g, '')
+    .replace(/\s*<link rel="preconnect" href="https:\/\/zhoujun123\.pythonanywhere\.com"[^>]*>\n?/g, '\n')
+    .replace(/\s*<link rel="dns-prefetch" href="https:\/\/images\.unsplash\.com"[^>]*>\n?/g, '\n')
+    .replace(/\s*<link rel="dns-prefetch" href="https:\/\/cdn\.jsdelivr\.net"[^>]*>\n?/g, '\n')
+    .replace(/\s*<link rel="modulepreload"[^>]*>\n?/g, '\n')
+    .replace(/\s*<script type="module"[^>]*><\/script>\n?/g, '\n')
+
+  html = html.replace(
+    '</head>',
+    literal(
+      `${NOSCRIPT_STYLE}<style>${EN_STATIC_CSS}</style>\n` +
+        `<script>${EN_STATIC_JS}</script>\n${alternates}  </head>`,
+    ),
+  )
+  return html.replace('<div id="app"></div>', literal(`<div id="app">${enStaticShell(body)}</div>`))
 }
 
 const EN_HOME_URL = `${SITE_ORIGIN}/en/`
@@ -1010,6 +1157,10 @@ function renderEnArticlePage(template, article) {
     `<h1>${escapeHtml(article.title)}</h1>` +
     `<div class="ns-meta">${escapeHtml(article.date)} · ${article.readingTime} min · Stack Frame</div>` +
     `<div class="markdown-body">${article.html}</div>` +
+    (article.zhSlug
+      ? `<p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. ` +
+        `<a href="${SITE_ORIGIN}/article/${escapeHtml(article.zhSlug)}/">Open the discussion</a>.</p>`
+      : '') +
     `<nav class="ns-site-nav"><a href="${EN_HOME_URL}">All English posts</a>` +
     (article.zhSlug
       ? `<a href="${SITE_ORIGIN}/article/${escapeHtml(article.zhSlug)}/">中文版</a>`

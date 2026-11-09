@@ -16472,6 +16472,384 @@ LIMIT 20;
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/">为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页</a>.</p>
 `,
   },
+  {
+    slug: 'redis-distributed-lock-deep-dive',
+    zhSlug: 'redis-distributed-lock-deep-dive',
+    topicSlug: 'backend',
+    title: 'Redis distributed locks: the right shape, and where they stop working',
+    excerpt:
+      'Five versions of the same idea, from a naive SETNX to Redlock, plus the two situations no TTL-based lock can fix. Most teams are still shipping version one.',
+    date: '2026-11-04',
+    readingTime: 22,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers who have been burned by oversold stock, duplicate orders or a cron job that ran twice.</p>
+<p>Examples in Redis 7 with Python and Java, but nothing here depends on a particular framework.</p>
+<p>Reading time around 22 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>The coupon that sold one too many</h2>
+
+<pre><code>def grab_coupon(user_id):
+    coupon = Coupon.objects.get(id=1)
+    if coupon.stock &gt; 0:
+        coupon.stock -= 1
+        coupon.save()
+        Order.objects.create(user_id=user_id, coupon_id=1)
+        return True
+    return False
+</code></pre>
+
+<p>One process, one machine, no problem. Then you scale to four machines and load test two hundred concurrent requests against a hundred coupons. The stock column ends up at minus thirty-seven, the order table has 137 rows, and someone is asking about it in the team channel.</p>
+
+<p>The instinct is to add a lock. An in-process lock cannot reach across four machines, so what you need is a distributed lock: mutual exclusion over one resource among N processes.</p>
+
+<p>Redis is the most common implementation and also the most misused. This post takes five versions apart, what each one fixes, what each one introduces, and why the good ones look the way they do. Then it says plainly which two problems no Redis lock solves.</p>
+
+<h2>Four rules any distributed lock must satisfy</h2>
+
+<table>
+<thead><tr><th>Property</th><th>Meaning</th><th>Failing example</th></tr></thead>
+<tbody>
+<tr><td>Mutual exclusion</td><td>At most one holder at any moment</td><td>Two machines decrement stock together</td></tr>
+<tr><td>No deadlock</td><td>A crashed holder eventually releases</td><td>A kill signal leaves the lock forever</td></tr>
+<tr><td>Fault tolerance</td><td>Mutual exclusion survives network and failover events</td><td>A failover loses the lock and two holders appear</td></tr>
+<tr><td>Ownership</td><td>Only the holder can release</td><td>A wakes up late and deletes B's lock</td></tr>
+</tbody>
+</table>
+
+<p>Remember the fourth: eighty percent of the incidents come from it. <strong>Deleting someone else's lock is worse than failing to acquire one.</strong> Failure is a retry; deleting another holder's lock is corrupted data.</p>
+
+<h2>Version one: SETNX, and why it fails in production</h2>
+
+<pre><code>def acquire(lock_key):
+    return redis.setnx(lock_key, 1) == 1
+
+def release(lock_key):
+    redis.delete(lock_key)
+</code></pre>
+
+<p>Three fatal problems.</p>
+
+<p><strong>No expiry, so it deadlocks.</strong> A crash in the middle of the critical section, an out-of-memory kill, a container eviction, and the release never runs. The key stays forever, every later acquire fails, and someone has to delete it at two in the morning.</p>
+
+<p>The obvious patch is two commands, setting the key and then expiring it, which deadlocks the same way if the process dies between them. <strong>Acquisition has to be atomic.</strong></p>
+
+<p><strong>Anyone can delete it.</strong> A is slow, the lock expires, B acquires, then A wakes up and runs its release, deleting B's lock. C enters, and now three processes are in the critical section.</p>
+
+<p><strong>No reentrancy.</strong> A nested call in the same thread fails to acquire and the business logic stops for no visible reason.</p>
+
+<h2>Version two: SET with NX and PX, the first usable version</h2>
+
+<pre><code>SET lock:coupon:1 &lt;unique_token&gt; NX PX 30000
+</code></pre>
+
+<p>One command makes acquisition and expiry atomic. <code>NX</code> means only set when absent, <code>PX</code> sets a millisecond expiry, and the token identifies the holder so a release can check ownership.</p>
+
+<pre><code>def acquire(lock_key, ttl_ms=30000):
+    token = uuid.uuid4().hex
+    ok = r.set(lock_key, token, nx=True, px=ttl_ms)
+    return token if ok else None
+
+def release(lock_key, token):
+    if r.get(lock_key) == token:
+        r.delete(lock_key)
+        return True
+    return False
+</code></pre>
+
+<p>That fixes two of the three problems. Acquisition is atomic with an expiry, so no deadlock. Ownership is checked, so a late holder does not blindly delete. Two problems remain.</p>
+
+<p><strong>The check and the delete are not atomic.</strong> Between reading the token and deleting, the lock can expire and someone else can acquire it, and the delete removes theirs. The window is small, and under garbage collection pauses it will happen.</p>
+
+<p><strong>The TTL is a guess.</strong> Thirty seconds is too short if the work takes thirty-one, and ten minutes is too long if the holder crashes. That tension is what version three resolves.</p>
+
+<h2>Version three: Lua unlock plus a watchdog, the production template</h2>
+
+<h3>Unlocking must be a single Lua script</h3>
+
+<pre><code>if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+else
+    return 0
+end
+</code></pre>
+
+<p>Redis executes a script as one unit, so the comparison and the delete cannot interleave with anything else. This line is the dividing line between correct and naive implementations: if the unlock is not a script or an equivalent atomic primitive, treat the whole thing as version one.</p>
+
+<h3>The watchdog: short TTL plus automatic renewal</h3>
+
+<p>The contradiction is that a short TTL evicts slow work, and a long TTL slows recovery after a crash. The watchdog resolves it: acquire with a short TTL, then run a background task that periodically checks the lock is still ours and extends it. When the work finishes or the process dies, renewal stops and the lock expires within one TTL.</p>
+
+<pre><code>class RedisLock:
+    def __init__(self, client, key, ttl_ms=30000):
+        self.r = client
+        self.key = key
+        self.ttl_ms = ttl_ms
+        self.token = None
+        self._stop = threading.Event()
+
+    def acquire(self, timeout_ms=5000):
+        deadline = time.time() + timeout_ms / 1000
+        while time.time() &lt; deadline:
+            token = uuid.uuid4().hex
+            if self.r.set(self.key, token, nx=True, px=self.ttl_ms):
+                self.token = token
+                threading.Thread(target=self._watchdog, daemon=True).start()
+                return True
+            time.sleep(0.05)
+        return False
+
+    def _watchdog(self):
+        while not self._stop.wait(self.ttl_ms / 3000):
+            lua = ("if redis.call('GET',KEYS[1])==ARGV[1] then "
+                   "return redis.call('PEXPIRE',KEYS[1],ARGV[2]) else return 0 end")
+            if self.r.eval(lua, 1, self.key, self.token, self.ttl_ms) == 0:
+                break   # the lock is gone; stop renewing
+
+    def release(self):
+        self._stop.set()
+        if self.token:
+            release_safe(self.key, self.token)
+</code></pre>
+
+<p>In production, use a mature implementation rather than thirty lines of your own. A good client library offers the watchdog, a reentrancy counter and pub/sub wake-ups for waiters, all of which are hard to get right by hand.</p>
+
+<h3>Waiting strategy</h3>
+
+<table>
+<thead><tr><th>Strategy</th><th>Method</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Fixed backoff with a timeout</td><td>Poll every 50 ms, give up after five seconds</td><td>The general default</td></tr>
+<tr><td>Exponential backoff with jitter</td><td>50, 100, 200 ms, plus randomness</td><td>Heavy contention, reduces load on Redis</td></tr>
+<tr><td>Pub/sub wake-up</td><td>Publish on release, waiters subscribe</td><td>Flash sales, avoids spinning</td></tr>
+</tbody>
+</table>
+
+<h2>Version four: Redlock, the most argued algorithm</h2>
+
+<p>Version three assumes a single Redis instance, or a primary that is the only writer. The moment failover exists, the lock can be lost: A acquires on the primary, the primary dies before replicating, a replica is promoted without the key, B acquires, and two holders exist.</p>
+
+<p>Redlock's answer is several independent Redis instances, with acquisition succeeding only if a majority grant it within the TTL, and release deleting from each instance.</p>
+
+<h3>Why it is so contested</h3>
+
+<p>The core objections are two. It depends on system clocks, because validity is decided by elapsed time against a TTL, which assumes clocks roughly agree; a clock jump from an NTP correction or a paused virtual machine breaks that. And it does not solve mutual exclusion under process pauses: a holder that stalls past its TTL after acquiring still writes alongside the next holder, which is the original sin of every TTL-based lock.</p>
+
+<p>The counterargument is that Redlock was never meant to solve process pauses, only to keep mutual exclusion when Redis fails over, and that clock jumps can be managed operationally. Both are right about different layers.</p>
+
+<p>In practice: most teams have not even written the single-instance version correctly, so Redlock is premature. If you use a managed Redis with automatic failover and you need hard mutual exclusion for stock or money, either adopt Redlock or move to a consensus system. For ordinary deduplication, single instance plus version three is enough.</p>
+
+<h2>The two things no TTL lock fixes</h2>
+
+<h3>A pause longer than the TTL</h3>
+
+<p>If the holder stalls past its expiry, the lock provides nothing. The fix is a fencing token: every acquisition returns a monotonically increasing number, writes carry it, and the resource layer rejects anything older than what it has already seen.</p>
+
+<pre><code>UPDATE coupon_stock SET stock = stock - 1, fence = 11
+WHERE id = 1 AND fence &lt; 11;   -- a stale token cannot write
+</code></pre>
+
+<p>This is the same idea as sequential nodes in ZooKeeper and Etcd: the lock elects a leader, and the resource layer's version check is what actually prevents concurrent writes. For money and inventory, add this layer.</p>
+
+<h3>Locks that are too coarse</h3>
+
+<p>Wrapping an entire checkout endpoint in one lock serialises a thousand concurrent requests, and latency goes from fifty milliseconds to two seconds. Three questions: can the key be finer, such as per user and per idempotency key; can the critical section be smaller, moving notifications and logging out of it; and can the lock be avoided entirely?</p>
+
+<pre><code>UPDATE coupon SET stock = stock - 1 WHERE id = 1 AND stock &gt; 0;
+-- one affected row means success, zero means sold out, no lock needed
+</code></pre>
+
+<p>If an atomic operation can solve it, do not use a lock. A lock is the heaviest synchronisation primitive available.</p>
+
+<h2>Choosing between Redis, ZooKeeper, Etcd and the database</h2>
+
+<table>
+<thead><tr><th>Option</th><th>Strength</th><th>Availability</th><th>Performance</th><th>Complexity</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Redis single instance, version three</td><td>Medium, failover can lose it</td><td>High</td><td>Very high</td><td>Low</td><td>Deduplication, cron guards, debouncing</td></tr>
+<tr><td>Redlock</td><td>Medium-high</td><td>High</td><td>High, five round trips</td><td>Medium</td><td>Managed Redis plus stock or orders</td></tr>
+<tr><td>ZooKeeper or Etcd</td><td>High, consensus based</td><td>Medium</td><td>Medium</td><td>High, a cluster to run</td><td>Leader election, configuration, strong coordination</td></tr>
+<tr><td>Database unique constraint or optimistic lock</td><td>High, through transactions</td><td>Depends on the database</td><td>Low</td><td>Low</td><td>Money, order deduplication, the backstop</td></tr>
+</tbody>
+</table>
+
+<p>The order to think in: can this be done without a lock, with an atomic statement or a unique index? If yes, write SQL. If no, single Redis with version three. If failover has already lost a lock, Redlock or a consensus store. Anything involving money gets a lock plus fencing or a unique constraint.</p>
+
+<h2>Checklist and common questions</h2>
+
+<ul>
+<li>Acquisition is one atomic command, not a set followed by an expire.</li>
+<li>The token is random per acquisition, and the unlock compares and deletes atomically.</li>
+<li>The TTL is sized for crash recovery, around thirty seconds, and long work is covered by renewal rather than a bigger TTL.</li>
+<li>The critical section holds only what must be serialised; IO goes outside.</li>
+<li>Lock keys carry a business prefix and a version, so a redesign can move to a new namespace.</li>
+<li>Acquisition has a timeout and backoff rather than spinning.</li>
+<li>Failover behaviour has been evaluated for anything that cannot tolerate a lost lock.</li>
+<li>Money and stock have a database-level backstop, a conditional update, a unique constraint or a fence column.</li>
+<li>Wait time and acquisition failure rate are monitored, not just Redis uptime.</li>
+<li>Both failure modes, holder crash and work exceeding the TTL, have been tested.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>Three sentences. Acquisition atomic, release atomic. Short TTL with renewal, and keep the lock as narrow as possible. Where losing the lock is unacceptable, the lock only elects a leader, and the resource layer's fencing or unique constraint is what actually keeps the data correct.</p>
+
+<p>Next time someone says "just add a Redis lock", ask the five questions: is the naive version still in the code, is the unlock a script, what is the TTL, what happens on failover, and is there a database backstop. All five answered, and the lock is real.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/redis-distributed-lock-deep-dive/">Redis 分布式锁：一次讲透正确姿势与失效边界</a>.</p>
+`,
+  },
+  {
+    slug: 'distributed-id-deep-dive',
+    zhSlug: 'distributed-id-deep-dive',
+    topicSlug: 'backend',
+    title: 'Distributed IDs, measured: page splits, a thousand clock rollbacks, and segments',
+    excerpt:
+      'Four approaches implemented and two controversies actually tested. How much the unordered write pattern costs, and what happens when the clock goes backwards without protection.',
+    date: '2026-11-04',
+    readingTime: 16,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers whose systems moved from one machine to several and who now have to decide what the primary key should be.</p>
+<p>Measurements use plain Python and the standard library; the reasoning applies to any stack and any database.</p>
+<p>Reading time around 16 minutes. Level: intermediate.</p>
+</blockquote>
+
+<h2>Two data centres, each generating its own IDs</h2>
+
+<p>The day the system was split horizontally, two instances of the order service landed in different data centres. Using the database's auto-increment seemed obvious, and both instances connected to the database in their own data centre.</p>
+
+<p><strong>Both started issuing from one.</strong> Replication collided on the primary key and the sync job stayed red all night.</p>
+
+<p>Someone proposed UUIDs and was told they are unordered, so primary key inserts into the storage engine collapse. Someone proposed Snowflake and was asked what happens when the machine clock goes backwards. Three proposals, three objections, and nobody could say whether the objections were real.</p>
+
+<p>So this post implements all four mainstream approaches, and measures the two contested points: how much the unordered write pattern actually costs, and what a clock rollback does without protection.</p>
+
+<h2>First, decide what the ID is for</h2>
+
+<table>
+<thead><tr><th>Requirement</th><th>Hard or soft</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Globally unique</td><td>Hard</td><td>Never repeats across machines or data centres</td></tr>
+<tr><td>Roughly increasing</td><td>Soft</td><td>Friendly to a B+ tree, and it makes ordering by ID equal ordering by time</td></tr>
+<tr><td>Generated without the network</td><td>Soft</td><td>Whether a central issuer going down takes the business with it</td></tr>
+<tr><td>No business meaning</td><td>Soft</td><td>Does not leak that there were only three orders today</td></tr>
+<tr><td>Short enough</td><td>Soft</td><td>Sixty-four bits beats a thirty-six character string in index size, memory and joins</td></tr>
+</tbody>
+</table>
+
+<p>No scheme scores full marks. Auto-increment is ordered but central, UUID is unordered, Snowflake is ordered but fears the clock, segments compromise and cost an extra prefetch. Engineering choice means finding the one hard requirement and picking the scheme that does not break it.</p>
+
+<h2>Database auto-increment: good until it has to be distributed</h2>
+
+<p>On one database it is perfect: ordered, compact, no cognitive load. It dies in two places once the system spreads. Issuing capacity equals database write capacity, so the database becomes the bottleneck at peak. And multiple databases necessarily collide, since two sequences know nothing about each other.</p>
+
+<p>The usual patch, giving each shard a stride so they interleave, works for a while and has two traps. Expanding from two shards to three means re-planning strides and splitting historical ranges, which is miserable. And the ranges are inherently unordered, so the ID cannot serve as a proxy for time.</p>
+
+<p>Its place is clear: single database, moderate write concurrency, and no plan to shard. If sharding is foreseeable, do not start with it.</p>
+
+<h2>UUID: globally unique and a poor match for a B+ tree</h2>
+
+<p>A version four UUID is fully random, 128 bits, with a collision probability that is effectively zero in engineering terms. It solves the multi-data-centre problem by removing the need to coordinate at all.</p>
+
+<p>The price is in the database. A clustered index stores rows physically in primary key order, and a random key distributes insert points across the whole tree: page splits with data movement, a working set far larger than the hot pages so the buffer pool hit rate falls, and a wider key, since thirty-six characters or sixteen bytes against eight makes <strong>every</strong> secondary index leaf bigger.</p>
+
+<p>That last effect is multiplicative and often forgotten. Five secondary indexes each store a copy of the key, so a key four times wider makes five indexes four times wider. Which is why a random UUID as a primary key and the same UUID as an ordinary unique column have completely different performance profiles.</p>
+
+<p>If a UUID is required, generate an ordered one. Version seven puts a timestamp in the front and became an RFC standard in 2024, which restores roughly increasing order and largely fixes the split problem. New systems should prefer version seven over version four.</p>
+
+<h2>Segment allocation: one round trip for ten thousand IDs</h2>
+
+<pre><code>UPDATE alloc SET max_id = max_id + step, updated_at = NOW()
+    WHERE biz_tag = 'order';
+-- read the new max_id back and cache the range in memory
+</code></pre>
+
+<p>Instead of asking the database for each ID, ask for a batch and hand it out locally. Issuing becomes a pure memory operation, and database pressure drops to one round trip per ten thousand IDs. At a hundred thousand issuances per second with a step of ten thousand, the database sees ten updates per second.</p>
+
+<p>The necessary engineering detail is a double buffer. With one buffer, the moment it runs out is the moment you fetch, and requests stall on the database, which shows up as latency spikes. With two, the next range is prefetched when the current one is ten or twenty percent consumed, and the switch is invisible.</p>
+
+<p>Its weaknesses are plain. IDs are not strictly increasing, only within a range, so two instances holding different ranges can issue a smaller number after a larger one. A restart wastes the unused part of a range, which can be mitigated by persisting progress past ninety percent consumption. And it needs an allocation table plus a service to run.</p>
+
+<p>It fits internal identifiers that need no strict ordering but want compact, high-throughput values.</p>
+
+<h2>Snowflake: the art of bit allocation</h2>
+
+<pre><code>| 1 reserved | 41 timestamp | 10 machine | 12 sequence |
+</code></pre>
+
+<ul>
+<li>Forty-one bits of milliseconds is about sixty-nine years from a custom epoch.</li>
+<li>Ten bits of machine identity is 1024 instances, often split into five bits of data centre and five of machine.</li>
+<li>Twelve bits of sequence allows 4096 IDs per millisecond per machine, so 4.096 million per second on one instance.</li>
+</ul>
+
+<p>The strength is decisive: pure in-memory bit arithmetic, roughly increasing, no central dependency. The fatal flaw is in those forty-one bits: the timestamp comes from the local clock, and the local clock is not trustworthy. NTP corrections move it backwards, virtual machine migrations drift it, and people have changed it by hand. Once it goes backwards, a new ID can collide with one already issued.</p>
+
+<h2>Measurement one: rollbacks without protection</h2>
+
+<p>A simulator drives a virtual clock with a fixed seed, generating a hundred thousand IDs while injecting two hundred NTP-style corrections, each moving the clock back fifty milliseconds.</p>
+
+<table>
+<thead><tr><th>Protection</th><th>Collisions</th><th>Explanation</th></tr></thead>
+<tbody>
+<tr><td>None, the standard implementation</td><td><strong>10,000</strong></td><td>Each rollback replays fifty already-used milliseconds, and two hundred times fifty is ten thousand</td></tr>
+<tr><td>Spin until the clock catches up</td><td><strong>0</strong></td><td>Refuses to issue while the timestamp is not greater than the last one</td></tr>
+</tbody>
+</table>
+
+<p>The unprotected number matches the arithmetic exactly: as many milliseconds as you roll back, that many IDs collide. And the collisions cluster in the fifty milliseconds after each correction, which is precisely the window that already issued orders. In business terms, one rollback collides every order created in that window.</p>
+
+<p>The guarded version has costs worth seeing. Issuing pauses for the length of the rollback, so fifty milliseconds of rollback means up to fifty milliseconds of waiting, which is usually fine. And it quietly spends the future: to keep timestamps increasing, the sequence runs ahead of the real clock and does not recover on its own. A large rollback, tens of minutes say, should raise an alarm and refuse rather than spin.</p>
+
+<p>So a production strategy has three levels: spin for small rollbacks under a hundred milliseconds; refuse and alert for large ones, because a visible error beats a silent duplicate; and as a backstop, reserve a few bits as a rollback generation, incrementing it each time the clock goes back so the already-used interval is skipped.</p>
+
+<h2>Measurement two: throughput</h2>
+
+<table>
+<thead><tr><th>Scheme</th><th>Measured</th><th>Cost per ID</th></tr></thead>
+<tbody>
+<tr><td>Version four UUID</td><td>1.16 million per second</td><td>One random generation</td></tr>
+<tr><td>Snowflake</td><td>3.31 million per second</td><td>A few shifts and additions</td></tr>
+<tr><td>Segments</td><td>Local issuing is unbounded; the limit is prefetching</td><td>Twenty round trips for two hundred thousand IDs</td></tr>
+</tbody>
+</table>
+
+<p>Snowflake is three times faster than a random UUID even in Python, and in a compiled language the gap is larger because the random generation dominates. Ordered and faster is the case for avoiding random UUIDs as keys.</p>
+
+<p>For segments, the number to read is the round trip count: two hundred thousand IDs for twenty round trips, so at a millisecond each the ceiling is ten million per second, set by the step you choose. The cost is memory and the wasted tail of a range on restart.</p>
+
+<p>Below about four hundred thousand per second on a single instance, all three are over-provisioned. The bottleneck is usually elsewhere, so do not pay for throughput you cannot use; pay for the constraints that actually bind.</p>
+
+<h2>A decision tree and a checklist</h2>
+
+<ol>
+<li>Is sharding foreseeable? If not, auto-increment and stop.</li>
+<li>Is the ID shown to users, as an order or payment number? Then do not use a sequential value, because it leaks volume and invites enumeration. Use segments or Snowflake plus a business prefix and a check digit, or design a separate business number.</li>
+<li>Internal key, needs ordering, no extra component? Snowflake with the three-level clock protection, or version seven UUID.</li>
+<li>Needs to be short, explainable and rate-controlled, and one more service is acceptable? Segments.</li>
+</ol>
+
+<ul>
+<li>Machine identity assignment is explicit, whether static, allocated by the platform or registered in a lease. Duplicate machine IDs turn Snowflake into a collision generator.</li>
+<li>The three levels of clock protection are all present, with a threshold and an alert.</li>
+<li>The custom epoch is a documented constant shared by the whole team.</li>
+<li>Tables with random UUID keys have their secondary index growth and split behaviour evaluated; new tables prefer version seven.</li>
+<li>Segments use a double buffer and a step sized for ten minutes of peak.</li>
+<li>Externally visible IDs are non-sequential and non-enumerable, or the exposure is deliberate and accepted.</li>
+<li>The availability of the issuing path matches the business: Snowflake needs nothing central, and segment services need a local fallback when they fail.</li>
+</ul>
+
+<h2>Closing</h2>
+
+<p>The two-data-centre incident ended with Snowflake as the primary key, each data centre issuing independently, and a separate short business number generated from segments with a check digit. Three years in production, no collisions, and the clock protection raised two alerts, both handled invisibly.</p>
+
+<p>The lesson is not to pick the most advanced algorithm. It is to identify the one hard constraint and choose the simplest scheme that satisfies it. Most systems land somewhere plain: no sharding means auto-increment, sharding with full control means Snowflake, and everything else can live with segments.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/distributed-id-deep-dive/">分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
