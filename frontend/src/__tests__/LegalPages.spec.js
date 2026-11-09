@@ -83,6 +83,6 @@ describe('合规页', () => {
     const links = wrapper.findAll('.footer-legal__link')
 
     expect(links.map((l) => l.text())).toEqual(['关于本站', '隐私政策', '免责声明'])
-    expect(links.map((l) => l.attributes('href'))).toEqual(['/about', '/privacy', '/disclaimer'])
+    expect(links.map((l) => l.attributes('href'))).toEqual(['/about/', '/privacy/', '/disclaimer/'])
   })
 })

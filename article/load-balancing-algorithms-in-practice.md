@@ -410,4 +410,4 @@ access_log /var/log/nginx/upstream.log upstream_log;
 - [API 网关实战：认证、限流与路由的统一入口](/article/api-gateway-deep-dive/)
 - [限流算法实测：固定窗口 2 倍溢出、令牌桶突刺](/article/rate-limit-algorithms-deep-dive/)
 - [加到 8 台反而更慢：排队论与容量规划](/article/queueing-theory-capacity-planning/)
-- [超时、重试与熔断：把失败控制在边界内](/article/resilience-timeout-retry-circuit-breaker/)
+- [超时、重试与熔断：把失败控制在边界内](/article/resilience-timeout-retry-circuit-breaker-deep-dive/)

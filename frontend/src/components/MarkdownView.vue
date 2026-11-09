@@ -5,7 +5,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import DOMPurify from 'dompurify'
-import { stripLeadingDuplicateTitle } from '@/utils/articleHtml'
+import { stripLeadingDuplicateTitle, canonicalizeInternalLinks } from '@/utils/articleHtml'
 // 82 个算法动效模块一律用动态 import（见下方 VIZ_MOUNTERS）：静态引入会把
 // 全部几何/SVG 逻辑打进 ArticleDetail 主 chunk（实测 1.1 MB / gzip 293 KB），
 // 读者看一篇随笔也要下完整套动画。现在只有正文里真出现占位符才拉对应 chunk。
@@ -26,14 +26,16 @@ const bodyRef = ref(null)
 // Strip the duplicate title AFTER sanitizing — bleach/DOMPurify may rewrite the
 // leading tag, so matching on the raw source would be fragile.
 const sanitizedHtml = computed(() =>
-  stripLeadingDuplicateTitle(
-    DOMPurify.sanitize(props.html, {
-      ADD_ATTR: ['target', 'rel'],
-      FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
-      FORBID_ATTR: ['onerror', 'onload', 'onclick'],
-    }),
-    props.title,
-  )
+  canonicalizeInternalLinks(
+    stripLeadingDuplicateTitle(
+      DOMPurify.sanitize(props.html, {
+        ADD_ATTR: ['target', 'rel'],
+        FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
+        FORBID_ATTR: ['onerror', 'onload', 'onclick'],
+      }),
+      props.title,
+    ),
+  ),
 )
 
 // Copy-button icons were duplicated as raw strings four times; keep one copy.

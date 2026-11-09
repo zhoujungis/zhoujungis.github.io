@@ -92,7 +92,7 @@ function tagLink(tag) {
   const count = typeof tag === 'object' ? tag.article_count ?? tag.count ?? 0 : 0
   return count >= TAG_PAGE_MIN_ARTICLES
     ? tagPath(slug)
-    : { path: '/articles', query: { tag: slug } }
+    : { path: '/articles/', query: { tag: slug } }
 }
 
 async function loadTags() {

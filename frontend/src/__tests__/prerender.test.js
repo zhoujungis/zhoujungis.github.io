@@ -605,9 +605,12 @@ describe('collectionPages / renderCollectionPage', () => {
     make(6, { tags: [{ name: 'Rust', slug: 'rust' }] }),
   ]
 
-  it('groups tags above the thin-content threshold and only non-topic categories', () => {
+  it('groups every tag, flagging the thin ones, and only non-topic categories', () => {
     const pages = collectionPages(articles)
-    expect(pages.tags.map((t) => t.slug)).toEqual(['django'])
+    // 所有标签都建页（薄标签页 200 + noindex），但只有达标的进 sitemap 和内链
+    expect(pages.tags.map((t) => t.slug)).toEqual(['django', 'rust'])
+    expect(pages.tags.filter((t) => !t.thin).map((t) => t.slug)).toEqual(['django'])
+    expect(pages.tags.find((t) => t.slug === 'rust').thin).toBe(true)
     // aiagent 有对应专题，不需要重复的 /categories/aiagent/
     expect(pages.categories.map((c) => c.slug)).toEqual(['notes'])
     // post-1/2/3 与两篇 Rust 文章都在默认分类「随笔」下

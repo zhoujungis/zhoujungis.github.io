@@ -34,7 +34,7 @@
       </svg>
       <h2>{{ httpStatus === 404 ? '文章不存在' : '加载失败' }}</h2>
       <p>{{ error }}</p>
-      <router-link to="/articles" class="back-link">返回首页</router-link>
+      <router-link to="/articles/" class="back-link">返回首页</router-link>
     </div>
 
     <!-- Article content -->
@@ -45,7 +45,7 @@
           <nav class="article-breadcrumb" aria-label="面包屑">
             <router-link to="/">首页</router-link>
             <span class="breadcrumb-sep" aria-hidden="true">/</span>
-            <router-link to="/articles">文章</router-link>
+            <router-link to="/articles/">文章</router-link>
             <span class="breadcrumb-sep" aria-hidden="true">/</span>
             <span aria-current="page">{{ article.title }}</span>
           </nav>
@@ -111,14 +111,18 @@
               </span>
             </div>
 
-            <!-- Tags -->
+            <!-- Tags：只有真正有落地页的标签才是链接。低篇数标签在构建期
+                 没有写出 /tags/<slug>/，链出去就是 404（Search Console 会
+                 直接报「未找到」），所以它们退回纯文本胶囊。 -->
             <div v-if="tagItems.length" class="article-tags">
-              <router-link
-                v-for="tag in tagItems"
-                :key="tag.slug || tag.name"
-                :to="tagPath(tag.slug || tag.name)"
-                class="tag-pill"
-              >{{ tag.name }}</router-link>
+              <template v-for="tag in tagItems" :key="tag.slug || tag.name">
+                <router-link
+                  v-if="tag.link"
+                  :to="tagPath(tag.slug || tag.name)"
+                  class="tag-pill"
+                >{{ tag.name }}</router-link>
+                <span v-else class="tag-pill">{{ tag.name }}</span>
+              </template>
             </div>
           </header>
 
@@ -252,7 +256,7 @@ import { getReadingTime, stripMarkdown } from '@/utils/readingTime'
 import { catLabel, tagLabel, tagSlug, authorName as getAuthorName } from '@/utils/labels'
 import { readPrerenderedArticle } from '@/utils/prerenderPreview'
 import { loadDetailCache } from '@/utils/articleCache'
-import { SITE_ORIGIN, tagPath } from '@/utils/siteConfig'
+import { SITE_ORIGIN, TAG_PAGE_MIN_ARTICLES, tagPath } from '@/utils/siteConfig'
 import { findTopic, topicPath, categoryPath, seriesOrder, SERIES_MIN_MINUTES, TOPICS } from '@/data/topics'
 import { getArticlesByCategory } from '@/api/articles'
 import client from '@/api/client'
@@ -355,9 +359,26 @@ const deepDiveTopics = TOPICS.filter(
   (t) => t.slug === 'aiagent' || t.slug === 'database',
 )
 
+// slug → 篇数。用来判断某个标签在构建期有没有落地页：有才做成链接。
+const tagCounts = computed(() => {
+  const map = new Map()
+  for (const t of articleStore.tags || []) {
+    if (!t) continue
+    const slug = typeof t === 'object' ? t.slug : ''
+    if (!slug) continue
+    const count = (typeof t === 'object' ? t.article_count ?? t.count ?? 0 : 0) || 0
+    map.set(slug, count)
+  }
+  return map
+})
+
 const tagItems = computed(() =>
   (Array.isArray(article.value?.tags) ? article.value.tags : [])
-    .map((tag) => ({ name: tagLabel(tag), slug: tagSlug(tag) }))
+    .map((tag) => {
+      const slug = tagSlug(tag)
+      const count = tagCounts.value.get(slug) || 0
+      return { name: tagLabel(tag), slug, link: count >= TAG_PAGE_MIN_ARTICLES }
+    })
     .filter((tag) => tag.name),
 )
 
@@ -577,7 +598,12 @@ function applySeo() {
   })
 }
 
-onMounted(fetchArticle)
+onMounted(() => {
+  fetchArticle()
+  // 标签链接需要篇数判断（见 tagItems）：store 里没有就先取一次，
+  // 失败也不影响正文，标签退化成纯文本。
+  if (!articleStore.tags?.length) articleStore.fetchTags().catch(() => {})
+})
 
 // Re-fetch when navigating between articles (same component, different slug)
 watch(() => route.params.slug, () => {

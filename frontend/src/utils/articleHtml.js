@@ -28,3 +28,35 @@ export function stripLeadingDuplicateTitle(html, title) {
 
   return src.slice(match[0].length)
 }
+
+/**
+ * Canonicalise internal links in rendered article HTML.
+ *
+ * GitHub Pages answers the slashed form with 200 and 301s the unslashed one, so
+ * every `href="/article/slug"` in a post body is a redirect Google has to spend
+ * a fetch on. Search Console listed dozens of these, plus `?category=` variants
+ * that were reached through a slash-less list URL first.
+ *
+ * Only site-relative hrefs whose first segment is a known page prefix are
+ * rewritten; external links, assets and fragments are left alone. A query
+ * string or hash is preserved and re-attached after the slash.
+ */
+const PAGE_PREFIXES =
+  'article|articles|topics|tags|categories|archives|about|privacy|disclaimer|footprints|search|friends|projects|photos|docs|tools|en'
+
+const INTERNAL_HREF = new RegExp(
+  `href="(/(?:${PAGE_PREFIXES})(?:/[^"?#]*)?)(\\?[^"#]*)?(#[^"]*)?"`,
+  'g',
+)
+
+export function canonicalizeInternalLinks(html) {
+  const src = String(html ?? '')
+  if (!src) return src
+  return src.replace(INTERNAL_HREF, (match, path, query = '', hash = '') => {
+    if (path.endsWith('/')) return match
+    // A last segment containing a dot is a file, not a page route.
+    const last = path.slice(path.lastIndexOf('/') + 1)
+    if (last.includes('.')) return match
+    return `href="${path}/${query}${hash}"`
+  })
+}

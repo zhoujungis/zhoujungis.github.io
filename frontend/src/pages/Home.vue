@@ -31,7 +31,7 @@
         </div>
       </aside>
       <div class="masthead__bar">
-        <router-link to="/articles" class="mast-cta">
+        <router-link to="/articles/" class="mast-cta">
           阅读文章
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </router-link>
@@ -47,7 +47,7 @@
     <section class="front-section topics-feature" aria-label="精选专题">
       <header class="section-head">
         <h2 class="section-title">精选专题</h2>
-        <router-link to="/topics" class="section-more">
+        <router-link to="/topics/" class="section-more">
           全部专题
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </router-link>
@@ -71,7 +71,7 @@
     <section class="front-section" aria-label="最新文章">
       <header class="section-head">
         <h2 class="section-title">最新文章</h2>
-        <router-link to="/articles" class="section-more">
+        <router-link to="/articles/" class="section-more">
           全部文章
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </router-link>

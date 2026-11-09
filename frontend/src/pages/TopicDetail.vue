@@ -2,7 +2,7 @@
   <div class="page page-topic">
     <template v-if="topic">
       <header class="topic-header">
-        <router-link to="/topics" class="back-link">← 全部专题</router-link>
+        <router-link to="/topics/" class="back-link">← 全部专题</router-link>
         <p class="topic-kicker">{{ topic.en }}</p>
         <h1 class="topic-title">{{ topic.name }}</h1>
         <p class="topic-tagline">{{ topic.tagline }}</p>
@@ -34,7 +34,7 @@
 
     <div v-else class="state-message">
       <p>这个专题不存在。</p>
-      <router-link to="/topics" class="retry-btn">返回全部专题</router-link>
+      <router-link to="/topics/" class="retry-btn">返回全部专题</router-link>
     </div>
   </div>
 </template>

@@ -9,84 +9,84 @@ import { listPageMeta } from '../utils/siteConfig'
 // canonical form — the URL GitHub Pages actually answers with 200.
 const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/Home.vue') },
-  { path: '/article/:slug', name: 'ArticleDetail', component: () => import('../pages/ArticleDetail.vue') },
+  { path: '/article/:slug/', name: 'ArticleDetail', component: () => import('../pages/ArticleDetail.vue') },
   // 英文版：独立的 /en 前缀，只收手写英文稿（data/en/articles.js）。
   // 不套中文站的壳，所以 App.vue 在 /en 下不渲染中文页头页脚。
   {
-    path: '/en',
+    path: '/en/',
     name: 'EnIndex',
     meta: { lang: 'en', title: 'Code & Life | Stack Frame' },
     component: () => import('../pages/en/EnIndex.vue'),
   },
   {
-    path: '/en/articles',
+    path: '/en/articles/',
     name: 'EnArticles',
     meta: { lang: 'en', title: 'Articles | Stack Frame' },
     component: () => import('../pages/en/EnArticles.vue'),
   },
   {
-    path: '/en/topics',
+    path: '/en/topics/',
     name: 'EnTopics',
     meta: { lang: 'en', title: 'Topics | Stack Frame' },
     component: () => import('../pages/en/EnTopics.vue'),
   },
   {
-    path: '/en/topics/:slug',
+    path: '/en/topics/:slug/',
     name: 'EnTopic',
     meta: { lang: 'en', title: 'Topic | Stack Frame' },
     component: () => import('../pages/en/EnTopic.vue'),
   },
   {
-    path: '/en/article/:slug',
+    path: '/en/article/:slug/',
     name: 'EnArticle',
     meta: { lang: 'en', title: 'Stack Frame' },
     component: () => import('../pages/en/EnArticle.vue'),
   },
   // 英文版合规页：与中文 /about/ /privacy/ /disclaimer/ 一一对应。
   {
-    path: '/en/about',
+    path: '/en/about/',
     name: 'EnAbout',
     meta: { lang: 'en', enPageKey: 'about', title: 'About | Stack Frame' },
     component: () => import('../pages/en/EnPage.vue'),
   },
   {
-    path: '/en/privacy',
+    path: '/en/privacy/',
     name: 'EnPrivacy',
     meta: { lang: 'en', enPageKey: 'privacy', title: 'Privacy Policy | Stack Frame' },
     component: () => import('../pages/en/EnPage.vue'),
   },
   {
-    path: '/en/disclaimer',
+    path: '/en/disclaimer/',
     name: 'EnDisclaimer',
     meta: { lang: 'en', enPageKey: 'disclaimer', title: 'Disclaimer | Stack Frame' },
     component: () => import('../pages/en/EnPage.vue'),
   },
-  { path: '/articles', name: 'Articles', meta: listPageMeta('/articles/'), component: () => import('../pages/Articles.vue') },
+  { path: '/articles/', name: 'Articles', meta: listPageMeta('/articles/'), component: () => import('../pages/Articles.vue') },
   // 专题聚合页。文章 URL 保持不变（/article/:slug），专题页只做「按主题
   // 聚类 + 正文介绍」的 SEO 入口，不迁移任何已收录的旧链接。
-  { path: '/topics', name: 'Topics', meta: listPageMeta('/topics/'), component: () => import('../pages/Topics.vue') },
-  { path: '/topics/:slug', name: 'TopicDetail', component: () => import('../pages/TopicDetail.vue') },
-  { path: '/categories', name: 'Categories', meta: listPageMeta('/categories/'), component: () => import('../pages/Categories.vue') },
+  { path: '/topics/', name: 'Topics', meta: listPageMeta('/topics/'), component: () => import('../pages/Topics.vue') },
+  { path: '/topics/:slug/', name: 'TopicDetail', component: () => import('../pages/TopicDetail.vue') },
+  { path: '/categories/', name: 'Categories', meta: listPageMeta('/categories/'), component: () => import('../pages/Categories.vue') },
   // 标签 / 分类落地页。抓取友好的静态版本由 prerender.mjs 写出；运行时
   // 只有 slug 不在静态集合里（或 SPA 内部跳转）时才会走到这里。
-  { path: '/tags/:slug', name: 'TagDetail', props: { kind: 'tag' }, component: () => import('../pages/CollectionDetail.vue') },
-  { path: '/categories/:slug', name: 'CategoryDetail', props: { kind: 'category' }, component: () => import('../pages/CollectionDetail.vue') },
-  { path: '/tags', name: 'Tags', meta: listPageMeta('/tags/'), component: () => import('../pages/Tags.vue') },
+  { path: '/tags/:slug/', name: 'TagDetail', props: { kind: 'tag' }, component: () => import('../pages/CollectionDetail.vue') },
+  { path: '/categories/:slug/', name: 'CategoryDetail', props: { kind: 'category' }, component: () => import('../pages/CollectionDetail.vue') },
+  { path: '/tags/', name: 'Tags', meta: listPageMeta('/tags/'), component: () => import('../pages/Tags.vue') },
   {
-    path: '/search',
+    path: '/search/',
     name: 'Search',
     // Prerendered for the 200, but noindex: results only exist in response to
     // a query, so there is nothing for a crawler to index.
     meta: listPageMeta('/search/'),
     component: () => import('../pages/Search.vue'),
   },
-  { path: '/footprints', name: 'Footprints', meta: listPageMeta('/footprints/'), component: () => import('../pages/Footprints.vue') },
-  { path: '/archives', name: 'Archives', meta: listPageMeta('/archives/'), component: () => import('../pages/Archives.vue') },
+  { path: '/footprints/', name: 'Footprints', meta: listPageMeta('/footprints/'), component: () => import('../pages/Footprints.vue') },
+  { path: '/archives/', name: 'Archives', meta: listPageMeta('/archives/'), component: () => import('../pages/Archives.vue') },
   // 合规与介绍页（AdSense 审核必查）：三条路由共用一个页面组件，正文来自
   // data/sitePages.js，路由 meta 通过 listPageMeta 带上 sitePage key。
-  { path: '/about', name: 'About', meta: listPageMeta('/about/'), component: () => import('../pages/SitePage.vue') },
-  { path: '/privacy', name: 'Privacy', meta: listPageMeta('/privacy/'), component: () => import('../pages/SitePage.vue') },
-  { path: '/disclaimer', name: 'Disclaimer', meta: listPageMeta('/disclaimer/'), component: () => import('../pages/SitePage.vue') },
+  { path: '/about/', name: 'About', meta: listPageMeta('/about/'), component: () => import('../pages/SitePage.vue') },
+  { path: '/privacy/', name: 'Privacy', meta: listPageMeta('/privacy/'), component: () => import('../pages/SitePage.vue') },
+  { path: '/disclaimer/', name: 'Disclaimer', meta: listPageMeta('/disclaimer/'), component: () => import('../pages/SitePage.vue') },
   { path: '/admin', name: 'AdminLogin', meta: { title: '管理后台', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/AdminLogin.vue') },
   { path: '/admin/dashboard', name: 'AdminDashboard', meta: { requiresAuth: true, title: '管理后台', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/AdminDashboard.vue') },
   { path: '/admin/editor/:id?', name: 'ArticleEditor', meta: { requiresAuth: true, title: '编辑文章', robots: 'noindex, nofollow' }, component: () => import('../pages/admin/ArticleEditor.vue') },

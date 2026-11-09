@@ -8,9 +8,9 @@
       </div>
       <!-- 合规页入口：隐私政策是 AdSense 审核的硬性要求，必须从全站页脚可达 -->
       <nav class="footer-legal" aria-label="站点信息">
-        <router-link to="/about" class="footer-legal__link">关于本站</router-link>
-        <router-link to="/privacy" class="footer-legal__link">隐私政策</router-link>
-        <router-link to="/disclaimer" class="footer-legal__link">免责声明</router-link>
+        <router-link to="/about/" class="footer-legal__link">关于本站</router-link>
+        <router-link to="/privacy/" class="footer-legal__link">隐私政策</router-link>
+        <router-link to="/disclaimer/" class="footer-legal__link">免责声明</router-link>
       </nav>
       <div class="footer-right">
         <a href="https://github.com/zhoujungis/zhoujungis.github.io" target="_blank" rel="noopener" class="footer-link" title="Source code">

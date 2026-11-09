@@ -95,7 +95,7 @@
             </div>
           </transition>
         </div>
-        <router-link to="/search" class="icon-button search-button" title="搜索" aria-label="搜索">
+        <router-link to="/search/" class="icon-button search-button" title="搜索" aria-label="搜索">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
           </svg>
@@ -220,17 +220,17 @@ const logoIcon = '/icons/icon-192.png'
 
 const primaryLinks = [
   { path: '/', label: '首页' },
-  { path: '/articles', label: '文章' },
-  { path: '/archives', label: '归档' },
-  { path: '/footprints', label: '足迹' },
+  { path: '/articles/', label: '文章' },
+  { path: '/archives/', label: '归档' },
+  { path: '/footprints/', label: '足迹' },
 ]
 
 const exploreLinks = [
-  { path: '/topics', label: '专题', note: '按主题成体系阅读' },
-  { path: '/tags', label: '标签', note: '快速筛选内容' },
+  { path: '/topics/', label: '专题', note: '按主题成体系阅读' },
+  { path: '/tags/', label: '标签', note: '快速筛选内容' },
 ]
 
-const allLinks = [...primaryLinks, ...exploreLinks, { path: '/search', label: '搜索' }]
+const allLinks = [...primaryLinks, ...exploreLinks, { path: '/search/', label: '搜索' }]
 const isExploreRoute = computed(() => exploreLinks.some((link) => route.path.startsWith(link.path)))
 
 function closeMenus() {

@@ -45,7 +45,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // Shared with MarkdownView.vue so the live view and the no-JS snapshot agree.
-import { stripLeadingDuplicateTitle } from '../src/utils/articleHtml.js'
+import { stripLeadingDuplicateTitle, canonicalizeInternalLinks } from '../src/utils/articleHtml.js'
 // Site identity + the list pages this script must emit. Declared once for the
 // SPA and the builder so a crawler and the runtime never disagree.
 import {
@@ -561,9 +561,11 @@ function renderArticlePage(
   // `# <title>` too — strip that duplicate or the snapshot ships two identical
   // headings (same fix as MarkdownView.vue, same helper).
   const safeBody = wrapTables(
-    stripLeadingDuplicateTitle(
-      sanitizeHtml(article.html_content || ''),
-      article.title,
+    canonicalizeInternalLinks(
+      stripLeadingDuplicateTitle(
+        sanitizeHtml(article.html_content || ''),
+        article.title,
+      ),
     ),
   )
   // 系列目录也写进 no-JS 快照：这是爬虫能看到的站内互链，不依赖前端接口。
@@ -953,12 +955,17 @@ function renderEnPage(template, { title, description, url, alternates = '', body
 
 const EN_HOME_URL = `${SITE_ORIGIN}/en/`
 
-function enAlternates(article) {
+// `zhPath` is the Chinese counterpart of a non-article English page. The list
+// pages used to claim the homepage as their zh-CN alternate, which told Google
+// that /en/articles/ and / were translations of each other — an hreflang set
+// that contradicts the canonicals and shows up as "alternate page with proper
+// canonical tag". Each list now points at its real counterpart.
+function enAlternates(article, zhPath = '/') {
   if (!article) {
     return (
-      `    <link rel="alternate" hreflang="zh-CN" href="${SITE_ORIGIN}/" />\n` +
+      `    <link rel="alternate" hreflang="zh-CN" href="${SITE_ORIGIN}${zhPath}" />\n` +
       `    <link rel="alternate" hreflang="en" href="${EN_HOME_URL}" />\n` +
-      `    <link rel="alternate" hreflang="x-default" href="${SITE_ORIGIN}/" />\n`
+      `    <link rel="alternate" hreflang="x-default" href="${SITE_ORIGIN}${zhPath}" />\n`
     )
   }
   const zhUrl = `${SITE_ORIGIN}/article/${article.zhSlug}/`
@@ -1097,7 +1104,7 @@ function renderEnArticlesPage(template) {
     title: 'Articles | Stack Frame',
     description: EN_UI.articles.lead,
     url: `${EN_BASE}/articles/`,
-    alternates: enAlternates(null),
+    alternates: enAlternates(null, '/articles/'),
     body,
   })
 }
@@ -1121,7 +1128,7 @@ function renderEnTopicsPage(template) {
     title: 'Topics | Stack Frame',
     description: EN_UI.topics.lead,
     url: `${EN_BASE}/topics/`,
-    alternates: enAlternates(null),
+    alternates: enAlternates(null, '/topics/'),
     body,
   })
 }
@@ -1345,14 +1352,16 @@ function renderSitemap(articles, { bulkEdits = new Set(), collections } = {}) {
     ),
     // 标签 / 分类落地页：文章页的横向内链终点。标签数量多、单页权重低，
     // 优先级压在 0.4；无专题的分类是真正的导航页，给 0.5。
-    ...pages.tags.map((c) =>
-      entry({
-        loc: `${SITE_ORIGIN}${collectionPath(c)}`,
-        lastmod: lastmodOfCollection(c),
-        changefreq: 'weekly',
-        priority: '0.4',
-      }),
-    ),
+    ...pages.tags
+      .filter((c) => !c.thin)
+      .map((c) =>
+        entry({
+          loc: `${SITE_ORIGIN}${collectionPath(c)}`,
+          lastmod: lastmodOfCollection(c),
+          changefreq: 'weekly',
+          priority: '0.4',
+        }),
+      ),
     ...pages.categories.map((c) =>
       entry({
         loc: `${SITE_ORIGIN}${collectionPath(c)}`,
@@ -1815,8 +1824,14 @@ function collectionPages(articles) {
   const byCount = (a, b) =>
     b.posts.length - a.posts.length || a.name.localeCompare(b.name, 'zh-CN')
   return {
+    // Every tag gets a file, not only the ones above the thin-content
+    // threshold. A tag with two posts used to have no page at all, so the
+    // runtime tag chips (which link every tag) produced 404s that Search
+    // Console reported one by one. Below the threshold the page is emitted
+    // with noindex and a canonical pointing at /tags/, so it answers 200
+    // without joining the index.
     tags: [...tagMap.values()]
-      .filter((t) => t.posts.length >= TAG_PAGE_MIN_ARTICLES)
+      .map((t) => ({ ...t, thin: t.posts.length < TAG_PAGE_MIN_ARTICLES }))
       .sort(byCount),
     categories: [...categoryMap.values()].sort(byCount),
   }
@@ -1841,8 +1856,10 @@ function renderCollectionPage(template, collection, siblings = []) {
   html = html.replace(/<title>.*?<\/title>/, literal(`<title>${escapeHtml(title)}</title>`))
   html = html.replace(
     /<link rel="canonical" href="[^"]*" \/>/,
-    literal(`<link rel="canonical" href="${url}" />`),
+    literal(`<link rel="canonical" href="${collection.thin ? SITE_ORIGIN + indexPath : url}" />`),
   )
+  // 薄标签页：存在（200，不会再报 404），但不进索引，规范指向总览页。
+  if (collection.thin) html = upsertMeta(html, 'name', 'robots', 'noindex, follow')
   html = upsertMeta(html, 'name', 'description', description)
   html = upsertMeta(html, 'property', 'og:title', title)
   html = upsertMeta(html, 'property', 'og:description', description)
@@ -2071,7 +2088,9 @@ async function main() {
   // 标签 / 分类落地页的清单。文章页只给这些标签建链接，低篇数标签保持
   // 纯文本，爬虫不会点到不存在的页面。
   const collections = collectionPages(articles)
-  const tagPageSlugs = new Set(collections.tags.map((t) => t.slug))
+  // 文章页上的标签胶囊只链到「有内容」的标签页；薄标签页虽然也存在（200），
+  // 但不该成为正文里的导航目标。
+  const tagPageSlugs = new Set(collections.tags.filter((t) => !t.thin).map((t) => t.slug))
 
   // 上一篇/下一篇按发布时间推导（静态快照只给爬虫看，JS 用户仍用接口
   // 返回的 prev_article / next_article）。

@@ -69,7 +69,7 @@ describe('Landing (Home.vue)', () => {
     expect(front.find('.section-title').text()).toBe('最新文章')
     const more = front.find('.section-more')
     expect(more.exists()).toBe(true)
-    expect(more.attributes('href')).toBe('/articles')
+    expect(more.attributes('href')).toBe('/articles/')
   })
 
   it('shows featured + list when latest articles are returned', async () => {
@@ -101,7 +101,7 @@ describe('Landing (Home.vue)', () => {
     const wrapper = mount(Home, { global: { plugins: [router, createPinia()] } })
     const cta = wrapper.find('.mast-cta')
     expect(cta.exists()).toBe(true)
-    expect(cta.attributes('href')).toBe('/articles')
+    expect(cta.attributes('href')).toBe('/articles/')
     expect(cta.text()).toMatch(/阅读文章/)
   })
 })

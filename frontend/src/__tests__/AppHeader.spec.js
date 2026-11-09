@@ -34,7 +34,7 @@ describe('AppHeader', () => {
     const wrapper = mount(AppHeader, { global: { plugins: [router, createPinia()] } })
     const articleLink = wrapper.findAll('.nav-link').find(a => a.text() === '文章')
     expect(articleLink).toBeTruthy()
-    expect(articleLink.attributes('href')).toBe('/articles')
+    expect(articleLink.attributes('href')).toBe('/articles/')
   })
 
   it('主导航顺序为 首页 / 文章 / 归档 / 足迹', async () => {
