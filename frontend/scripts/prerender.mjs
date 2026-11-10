@@ -851,6 +851,10 @@ html.theme-dark .en-theme .i-moon{display:none}
 .en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
 .en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
 .en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
 .en-shell .ns-home-list p{margin:.6em 0}
 .en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
 .en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
@@ -977,6 +981,8 @@ function enAlternates(article, zhPath = '/') {
   )
 }
 
+const EN_LIST_PAGE_SIZE = 12
+
 const EN_BASE = `${SITE_ORIGIN}/en`
 
 function enPostItems(articles) {
@@ -1091,19 +1097,53 @@ function renderEnIndexPage(template) {
   })
 }
 
-function renderEnArticlesPage(template) {
+// Static pagination: one file per page, with plain links. The English pages
+// carry no JavaScript, so paging has to exist as HTML rather than as a client
+// side list — 60 posts in one scroll was both unreadable and a heavy page.
+function enArticlesPageUrl(page) {
+  return page <= 1 ? `${EN_BASE}/articles/` : `${EN_BASE}/articles/page/${page}/`
+}
+
+function enPager(current, total) {
+  if (total <= 1) return ''
+  const link = (page, label, rel) =>
+    `<a href="${enArticlesPageUrl(page)}"${rel ? ` rel="${rel}"` : ''}>${label}</a>`
+  const parts = []
+  if (current > 1) parts.push(link(current - 1, '← Newer', 'prev'))
+  for (let p = 1; p <= total; p += 1) {
+    parts.push(
+      p === current
+        ? `<span class="en-pager__current" aria-current="page">${p}</span>`
+        : link(p, String(p)),
+    )
+  }
+  if (current < total) parts.push(link(current + 1, 'Older →', 'next'))
+  return `<nav class="en-pager" aria-label="Pagination">${parts.join('')}</nav>`
+}
+
+function renderEnArticlesPage(template, page = 1) {
+  const total = Math.max(1, Math.ceil(EN_ARTICLES.length / EN_LIST_PAGE_SIZE))
+  const start = (page - 1) * EN_LIST_PAGE_SIZE
+  const posts = EN_ARTICLES.slice(start, start + EN_LIST_PAGE_SIZE)
+  const url = enArticlesPageUrl(page)
+  const heading =
+    page === 1
+      ? escapeHtml(EN_UI.articles.title)
+      : `${escapeHtml(EN_UI.articles.title)} · page ${page}`
+
   const body =
     `<div class="ns-list">` +
-    `<h1>${escapeHtml(EN_UI.articles.title)}</h1>` +
+    `<h1>${heading}</h1>` +
     `<p class="ns-lead">${escapeHtml(EN_UI.articles.lead)}</p>\n` +
-    `${enPostItems(EN_ARTICLES)}\n` +
+    `${enPostItems(posts)}\n` +
+    enPager(page, total) +
     enNav() +
     `</div>`
 
   return renderEnPage(template, {
-    title: 'Articles | Stack Frame',
+    title: page === 1 ? 'Articles | Stack Frame' : `Articles, page ${page} | Stack Frame`,
     description: EN_UI.articles.lead,
-    url: `${EN_BASE}/articles/`,
+    url,
     alternates: enAlternates(null, '/articles/'),
     body,
   })
@@ -1338,6 +1378,23 @@ function renderSitemap(articles, { bulkEdits = new Set(), collections } = {}) {
               changefreq: 'monthly',
               priority: '0.3',
             }),
+          ),
+          // Paginated English list pages, so page 2 onward is discoverable
+          // instead of only reachable by clicking through.
+          ...Array.from(
+            {
+              length: Math.max(
+                0,
+                Math.ceil(EN_ARTICLES.length / EN_LIST_PAGE_SIZE) - 1,
+              ),
+            },
+            (_, i) =>
+              entry({
+                loc: `${EN_BASE}/articles/page/${i + 2}/`,
+                lastmod: isoOrEmpty(EN_ARTICLES[0]?.date),
+                changefreq: 'monthly',
+                priority: '0.3',
+              }),
           ),
         ]
       : []),
@@ -2155,7 +2212,11 @@ async function main() {
         enWritten += 1
       }
       writeEn([], renderEnIndexPage(template))
-      writeEn(['articles'], renderEnArticlesPage(template))
+      const enArticlePages = Math.max(1, Math.ceil(EN_ARTICLES.length / EN_LIST_PAGE_SIZE))
+      writeEn(['articles'], renderEnArticlesPage(template, 1))
+      for (let p = 2; p <= enArticlePages; p += 1) {
+        writeEn(['articles', 'page', String(p)], renderEnArticlesPage(template, p))
+      }
       writeEn(['topics'], renderEnTopicsPage(template))
       for (const topic of EN_TOPICS) {
         writeEn(['topics', topic.slug], renderEnTopicPage(template, topic))

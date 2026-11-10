@@ -27247,6 +27247,196 @@ def read_hot_counter(key: str, n_shards: int = 8):
 `,
   },
 
+  {
+    slug: 'django-bleach-xss-defense',
+    zhSlug: 'django-bleach-xss-defense',
+    topicSlug: 'backend',
+    title: 'Why I dare to render user Markdown: one XSS defence, four layers',
+    excerpt:
+      'Rendering user input is executing user code. Controlled rendering, a three-tier whitelist, hardened outbound links, and an excerpt taken from sanitised HTML, each earned by a real hole.',
+    date: '2026-10-27',
+    readingTime: 15,
+    html: `
+<blockquote>
+<p>The backend is Django and DRF, the front end is Vue. Articles are stored as Markdown and the read endpoint returns rendered HTML for the browser to display. Which means <strong>user Markdown becomes HTML that I serve</strong>.</p>
+<p>If you have only written admin panels, or think of Markdown rendering as reading a column and joining strings, the sentence deserves restating: rendering user input is executing user code.</p>
+</blockquote>
+
+<h2>Why rendering is dangerous</h2>
+
+<pre><code>### Hello, world
+</code></pre>
+
+<pre><code>&lt;h3&gt;Hello, world&lt;/h3&gt;
+</code></pre>
+
+<p>Harmless, until the same text comes from anywhere untrusted, a comment, a submitted note, or an article an administrator pasted from elsewhere. Then rendering hands your execution privileges to the input, because Markdown can express these:</p>
+
+<pre><code>&lt;img src=x onerror="alert(document.cookie)"&gt;
+[click](javascript:alert(1))
+&lt;a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"&gt;click&lt;/a&gt;
+&lt;svg&gt;&lt;a xlink:href="javascript:alert(1)"&gt;&lt;text&gt;click&lt;/text&gt;&lt;/a&gt;&lt;/svg&gt;
+</code></pre>
+
+<p>An image error handler fires when loading fails, a javascript protocol fires on click, a data URL can carry executable markup in some browsers, and an SVG can hide a script behind a link. That is a fraction of the surface, which includes iframes, style blocks, objects, video posters, math, and forged forms.</p>
+
+<p><strong>XSS is not a filtering problem, it is a trust boundary problem.</strong> A blocklist chases attackers forever. The inversion is to allow only the small set you know is safe.</p>
+
+<h2>Layer one: controlled rendering</h2>
+
+<pre><code>class Article(models.Model):
+    content = models.TextField(verbose_name="Content (Markdown)")
+    html_content = models.TextField(blank=True, editable=False)
+
+    def save(self, *args, **kwargs):
+        md = markdown.Markdown(
+            extensions=["fenced_code", "codehilite", "tables", "extra", "toc"]
+        )
+        raw_html = md.convert(self.content)
+        ...
+</code></pre>
+
+<p>Three details. The extensions are listed explicitly rather than everything being enabled, so the renderer produces only known structures and an attacker cannot borrow a tag the renderer never emits. The output is still dirty, because the library converts syntax and does not care about safety, preserving javascript links and inline HTML verbatim. And the derived column is not editable, so it can only come from the save method rather than being written directly.</p>
+
+<p>So rendering is not a defence. It is the input to the whitelist.</p>
+
+<h2>Layer two: the whitelist</h2>
+
+<pre><code>self.html_content = bleach.clean(
+    raw_html,
+    tags=bleach.sanitizer.ALLOWED_TAGS
+    | {
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "img", "pre", "code", "span", "div",
+        "table", "thead", "tbody", "tr", "th", "td",
+        "hr", "br", "sup", "sub",
+        "figure", "figcaption",
+    },
+    attributes={
+        **bleach.sanitizer.ALLOWED_ATTRIBUTES,
+        "img": list(set(["src", "alt", "title", "loading", "decoding"])
+                     | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("img", []))),
+        "a": list(set(["href", "title", "rel", "target"])
+                  | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("a", []))),
+        "code": list(set(["class"])
+                     | set(bleach.sanitizer.ALLOWED_ATTRIBUTES.get("code", []))),
+    },
+    protocols=["http", "https", "mailto"],
+    strip=True,
+)
+</code></pre>
+
+<p>One call applies three whitelists.</p>
+
+<p><strong>Tags.</strong> The library's defaults cover the basics, extended here with the elements the renderer emits. Anything absent, including script, iframe, object, embed, style, svg, math, form and input, is removed entirely, content and all, rather than being left as text.</p>
+
+<p><strong>Attributes.</strong> Allowing a tag does not allow its attributes: an image may carry only source, alt, title and loading hints, a link only href, title, rel and target, and code only a class for highlighting. Every event handler is absent, so an image with an error handler comes out as a plain image.</p>
+
+<p>There is a trap here. Assigning a fresh attribute dictionary for a tag overwrites the library defaults and silently kills things like table spans, which is why each entry unions the defaults with the additions instead of replacing them. Treat the default list as a base package and yours as an increment.</p>
+
+<p><strong>Protocols.</strong> Even a permitted link still has its scheme checked, so a javascript URL loses its href and the link text survives without a target.</p>
+
+<h2>Real hole one: the data protocol</h2>
+
+<p>The first version added data to the protocol list, on the theory that inline images might be useful.</p>
+
+<pre><code>&lt;a href="data:text/html,&lt;script&gt;alert(document.cookie)&lt;/script&gt;"&gt;click&lt;/a&gt;
+</code></pre>
+
+<p>The sanitiser saw a permitted protocol, a permitted tag and a permitted attribute, and passed all three. Clicking it, however, makes some browsers render the payload as a document and run the script, and the attacker only needs one click.</p>
+
+<p>That is the soft spot of any whitelist: every permission you add for convenience is another way around. And one opening is enough for arbitrary script.</p>
+
+<pre><code># C-S2: protocols drop 'data' globally — it was letting
+#   &lt;a href="data:text/html,&lt;script&gt;...&lt;/script&gt;"&gt; through, which Safari /
+#   WebViews still execute. Inline base64 images aren't used here
+#   (covers are URLField elsewhere), so the loss is acceptable.
+</code></pre>
+
+<p>The engineering trade is explicit: dropping data loses the ability to inline base64 images, and since covers already come from ordinary URLs, the capability was never used. An unused capability is pure risk with no benefit, and the smaller the surface the better.</p>
+
+<h2>Layer three: hardening outbound links</h2>
+
+<p>Script execution is not the only surface. A link opened in a new tab can reach back through the opener reference and navigate the original page to a phishing site, which older browsers allow by default.</p>
+
+<pre><code>self.html_content = re.sub(
+    r'&lt;a ([^&gt;]*?)href="(https?://[^"]+)"',
+    r'&lt;a \\1href="\\2" rel="noopener noreferrer" target="_blank"',
+    self.html_content,
+)
+</code></pre>
+
+<p>Every external link gains a noopener relation so the new page cannot touch the opener, a noreferrer relation so the referrer is not leaked, and a new tab so the reader keeps the current page. Internal links are untouched, since they do not need a new window.</p>
+
+<h2>Real hole two: HTML leaking through the excerpt</h2>
+
+<p>The second hole was in the summary used by the article cards. The old code stripped Markdown syntax from the raw source with a regular expression, which assumes Markdown is regular and forgets that it permits inline HTML.</p>
+
+<p>An article containing an SVG with an onload handler kept that markup as text through the stripping, and the card rendered it, executing the script in the listing page. The same approach also mangled autolinks, leaving angle brackets and the URL as visible text or, worse, as a tag.</p>
+
+<pre><code>def make_excerpt(html_content, fallback_text="", word_limit=50):
+    text = html_content or ""
+    text = re.sub(r"&lt;pre\\b[^&gt;]*&gt;.*?&lt;/pre&gt;", " ", text, flags=re.DOTALL)
+    text = re.sub(r"&lt;(style|script)\\b[^&gt;]*&gt;.*?&lt;/\\1&gt;", " ", text, flags=re.DOTALL)
+    text = re.sub(r"&lt;[^&gt;]+&gt;", " ", text)
+    text = unescape(text)
+    text = re.sub(r"\\s+", " ", text).strip()
+</code></pre>
+
+<p>The insight is the source: the summary is no longer derived from untrusted Markdown but from the already-sanitised HTML. Everything dangerous was removed upstream, so even an imperfect regular expression here can only leak harmless text, never executable markup.</p>
+
+<p>That is defence in depth in practice: the same data is cleaned at several stages, and every stage assumes the previous one failed.</p>
+
+<h2>The chain</h2>
+
+<pre><code>user Markdown
+  -> controlled rendering, fixed extensions, no extra tags
+  -> three whitelists: tags, attributes, protocols
+  -> outbound link hardening
+  -> excerpt extracted from the sanitised HTML
+  -> stored, served, rendered
+</code></pre>
+
+<table>
+<thead><tr><th>Layer</th><th>Mechanism</th><th>Stops</th></tr></thead>
+<tbody>
+<tr><td>One</td><td>Explicit Markdown extensions</td><td>Reduces the HTML structures that can exist at all</td></tr>
+<tr><td>Two</td><td>Three whitelists</td><td>Script tags, event handlers, javascript and data URLs, SVG</td></tr>
+<tr><td>Three</td><td>Noopener and noreferrer</td><td>Reverse tabnabbing, referrer leaks</td></tr>
+<tr><td>Four</td><td>Excerpt from sanitised HTML</td><td>Second-order XSS in the listing, Markdown syntax leaks</td></tr>
+</tbody>
+</table>
+
+<p>Why one layer is not enough: a renderer does not do security, a sanitiser cannot stop the browser's own opener mechanism, and a regular expression always has an edge case, as the autolink showed.</p>
+
+<p>The premise is not "I am safe" but "I will have a hole". Each layer assumes the previous one is breached and narrows the surface further.</p>
+
+<h2>If you are not on Django</h2>
+
+<table>
+<thead><tr><th>Language</th><th>Library</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Python</td><td>bleach</td><td>The one used here, from Mozilla</td></tr>
+<tr><td>Python</td><td>nh3</td><td>Bindings to Rust ammonia, faster, same idea</td></tr>
+<tr><td>Java</td><td>OWASP Java HTML Sanitizer</td><td>From OWASP</td></tr>
+<tr><td>Node</td><td>sanitize-html, or DOMPurify in the browser</td><td>Mature ecosystem</td></tr>
+<tr><td>Go</td><td>bluemonday</td><td>The standard whitelist implementation</td></tr>
+<tr><td>Ruby</td><td>rails-html-sanitizer</td><td>Ships with Rails</td></tr>
+</tbody>
+</table>
+
+<p>The principles do not change. Always whitelist and never blocklist. Cover tags, attributes and protocols, because filtering tags alone misses error handlers and scheme abuse. Keep rendering and sanitising separate and chain them in a pipeline. Clean again when deriving a summary, since one more pass costs nothing. Treat unused capabilities as risk and delete them. And write the comments, because the reasoning and the discarded options are the most valuable artefact you leave behind.</p>
+
+<h2>Closing</h2>
+
+<p>Daring to render is not courage, it is the confidence that comes from having designed every layer. That save method was not written in a day, and two real holes paid for it.</p>
+
+<p>Three questions worth asking before rendering anything from a user: do I trust this input, what is the worst case if I am wrong, and does everything I allow actually need to be allowed. Answer those and you are close.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-bleach-xss-defense/">为什么我敢渲染用户的 Markdown：一条 XSS 防线</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
