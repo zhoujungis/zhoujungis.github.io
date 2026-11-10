@@ -32958,6 +32958,439 @@ def minWindow(s, t):
 `,
   },
 
+  {
+    slug: 'lc-15-3sum',
+    zhSlug: 'lc-15-3sum',
+    topicSlug: 'leetcode',
+    title: 'LC 15, three sum: the difficulty is the two dedup checks, not the pointers',
+    excerpt:
+      'Sort, fix one value, squeeze with two pointers. Ten minutes to memorise the skeleton, and the two places that remove duplicates have different shapes, timings, and traps.',
+    date: '2026-10-10',
+    readingTime: 20,
+    html: `
+<h2>The problem</h2>
+
+<p>Given an integer array, return all unique triples that sum to zero.</p>
+
+<pre><code>[-1, 0, 1, 2, -1, -4]  -&gt;  [[-1, -1, 2], [-1, 0, 1]]
+[0, 1, 1]              -&gt;  []
+[0, 0, 0]              -&gt;  [[0, 0, 0]]
+</code></pre>
+
+<p>One more number than the two-sum problem, one more order of magnitude in complexity, and two more levels of difficulty in deduplication. The typical first attempt reaches for a hash table, passes the samples, and then submits an answer full of duplicates.</p>
+
+<p>The correct route is a single path, and it counterintuitively stops using hashing entirely after sorting.</p>
+
+<h2>What is being tested</h2>
+
+<pre><code>for i in range(n):
+    for j in range(i + 1, n):
+        for k in range(j + 1, n):
+            if nums[i] + nums[j] + nums[k] == 0:
+                res.append([nums[i], nums[j], nums[k]])
+</code></pre>
+
+<p>Cubic, and worse than slow: it cannot deduplicate at all. On the official example it returns three groups where only two are distinct, because it emits permutations of the same triple.</p>
+
+<p>Two constraints that are easy to conflate. The indices must differ, which means no element is reused. And the answer must not repeat a triple, which means an ordering of the same three values counts once. The brute force enforces the first through the loop bounds and ignores the second entirely.</p>
+
+<h2>Fixing one value reduces it to two sum</h2>
+
+<p>Rewrite the equation so the other two terms are on one side: for each index i, find two values in the remainder that sum to the negation of nums at i.</p>
+
+<p>Carrying the hash-table solution over works, and shows why it is a bad fit.</p>
+
+<pre><code>def threeSumHash(nums):
+    n = len(nums)
+    seen_triples = set()
+    for i in range(n):
+        target = -nums[i]
+        seen = {}
+        for j in range(i + 1, n):
+            if target - nums[j] in seen:
+                triple = tuple(sorted([nums[i], nums[j], target - nums[j]]))
+                seen_triples.add(triple)
+            seen[nums[j]] = j
+    return [list(t) for t in seen_triples]
+</code></pre>
+
+<p>Two problems. A hash table cannot answer whether a triple has already been recorded, only whether a value has been seen, so a set of tuples becomes mandatory, and building and hashing quadratic numbers of tuples costs real time. And that tuple must be sorted to make different orderings collide, which means sorting is unavoidable anyway, so why not sort the array once at the start.</p>
+
+<h2>The correct route</h2>
+
+<pre><code>1. sort ascending
+2. for each i, fix the smallest member of the triple
+3. squeeze with l = i + 1 and r = n - 1
+</code></pre>
+
+<p>The inner test has three cases: too small, move the left pointer right to a larger value; too large, move the right pointer left to a smaller value; equal to zero, record the triple.</p>
+
+<p>Why the squeeze cannot skip a solution, which should not be taken as obvious. With i fixed, the target for the pair is fixed. When the right pointer sits at the far end, the pair sum is the largest reachable with the current left pointer, because the right end holds the largest remaining value. If even that maximum falls short of the target, no pairing with that left pointer can work, so the left pointer may safely advance and never needs to return.</p>
+
+<p>Symmetrically, when the left pointer is at its leftmost, the pair sum is the smallest reachable with the current right pointer; if it exceeds the target, the right pointer may retreat.</p>
+
+<p>The same argument proves that both pointers move monotonically, so they total at most n steps, making the inner loop strictly linear rather than quadratic.</p>
+
+<h2>The real benefit of sorting</h2>
+
+<p>Sorting is not there to make lookups faster; there are no lookups. It is there to put equal values next to each other.</p>
+
+<table>
+<thead><tr><th>What needs deduplicating</th><th>Unsorted</th><th>Sorted</th></tr></thead>
+<tbody>
+<tr><td>Repeated starting values</td><td>Remember which minimums were already used</td><td>Compare with the previous element</td></tr>
+<tr><td>Repeated partner pairs</td><td>Normalise and insert triples into a set</td><td>Compare with the neighbouring index</td></tr>
+<tr><td>Ordering within a triple</td><td>Sort each answer</td><td>Ascending by construction</td></tr>
+</tbody>
+</table>
+
+<p>The whole deduplication collapses into two constant-time comparisons.</p>
+
+<h2>The code</h2>
+
+<pre><code>def threeSum(nums):
+    nums.sort()
+    res = []
+    n = len(nums)
+
+    for i in range(n - 2):
+        if nums[i] &gt; 0:
+            break
+        if i &gt; 0 and nums[i] == nums[i - 1]:
+            continue
+
+        l, r = i + 1, n - 1
+        while l &lt; r:
+            total = nums[i] + nums[l] + nums[r]
+            if total &lt; 0:
+                l += 1
+            elif total &gt; 0:
+                r -= 1
+            else:
+                res.append([nums[i], nums[l], nums[r]])
+                while l &lt; r and nums[l] == nums[l + 1]:
+                    l += 1
+                while l &lt; r and nums[r] == nums[r - 1]:
+                    r -= 1
+                l += 1
+                r -= 1
+
+    return res
+</code></pre>
+
+<p>Twenty lines, of which three exist to handle repetition: the positive break, the outer skip, and the inner skip. A third of the code is about duplicates.</p>
+
+<h2>The animation</h2>
+
+<p>The original post has five layers of information. The header shows the array before and after sorting, and every coordinate is in sorted terms. Cells are outlined in orange for the outer anchor, green for the left pointer, and blue for the right. Gold cells with rings mark the triple found in that frame, and grey dashed cells mark positions skipped by deduplication. A banner shows the current sum and the verdict, and the collected triples sit at the bottom.</p>
+
+<p>Two deliberate choices are worth noticing. The pointer labels are drawn on separate rows, because they converge and would overlap when adjacent. And exactly one skip occurs in the whole animation, at the frame where the outer index reaches the second copy of a value, which is the only place the first deduplication becomes visible.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>i</th><th>l</th><th>r</th><th>Sum</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Sorted: -4, -1, -1, 0, 1, 2</td></tr>
+<tr><td>1</td><td>pick</td><td>0</td><td>1</td><td>5</td><td>-</td><td>Fix -4, look for 4 among the rest</td></tr>
+<tr><td>2</td><td>squeeze</td><td>0</td><td>2</td><td>5</td><td>-3</td><td>Too small, advance left</td></tr>
+<tr><td>3</td><td>squeeze</td><td>0</td><td>3</td><td>5</td><td>-3</td><td>Too small, advance left</td></tr>
+<tr><td>4</td><td>squeeze</td><td>0</td><td>4</td><td>5</td><td>-2</td><td>Too small, advance left</td></tr>
+<tr><td>5</td><td>squeeze</td><td>0</td><td>5</td><td>5</td><td>-1</td><td>Pointers meet, round ends</td></tr>
+<tr><td>6</td><td>pick</td><td>1</td><td>2</td><td>5</td><td>-</td><td>Fix -1</td></tr>
+<tr><td>7</td><td><strong>hit</strong></td><td>1</td><td>2</td><td>5</td><td>0</td><td>Record -1, -1, 2</td></tr>
+<tr><td>8</td><td>dedup</td><td>1</td><td>3</td><td>4</td><td>-</td><td>No duplicates, step inward</td></tr>
+<tr><td>9</td><td><strong>hit</strong></td><td>1</td><td>3</td><td>4</td><td>0</td><td>Record -1, 0, 1</td></tr>
+<tr><td>10</td><td>dedup</td><td>1</td><td>4</td><td>3</td><td>-</td><td>Pointers cross, round ends</td></tr>
+<tr><td>11</td><td><strong>skip</strong></td><td>2</td><td>-</td><td>-</td><td>-</td><td>Same value as the previous index, whole round skipped</td></tr>
+<tr><td>12</td><td>pick</td><td>3</td><td>4</td><td>5</td><td>-</td><td>Fix 0</td></tr>
+<tr><td>13</td><td>squeeze</td><td>3</td><td>4</td><td>4</td><td>3</td><td>Too large, pointers meet</td></tr>
+<tr><td>14</td><td>done</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Two triples found</td></tr>
+</tbody>
+</table>
+
+<p>Worth isolating. The first round squeezes four times and finds nothing, because the largest remaining pair sums to three while four is needed, which is a candidate for pruning. The second round hits twice, and both dedup frames report nothing to skip; they still run, they are fixed steps of the algorithm. The eleventh frame is the only real deduplication, and without it both triples would be found again from the same starting value. And the last round runs unnecessarily, since the smallest possible sum is positive, which is the other pruning opportunity.</p>
+
+<h2>Deduplication: two places, different shapes</h2>
+
+<h3>The outer skip, before the work</h3>
+
+<pre><code>if i &gt; 0 and nums[i] == nums[i - 1]:
+    continue
+</code></pre>
+
+<p>The starting value for this round equals the previous round's starting value. Since the array is ascending, the fixed value is the smallest member of any triple this round could produce, and the available partners are the same suffix of the array. Anything findable here was findable last round, so the entire round is skippable without entering the inner loop.</p>
+
+<p>The guard on i is not merely an out-of-range check. In Python, indexing at minus one is legal and wraps to the last element, so without it the first iteration compares the first element with the last, producing a decision that is effectively random and far harder to debug than a crash.</p>
+
+<h3>The inner skip, after a hit</h3>
+
+<pre><code>res.append([nums[i], nums[l], nums[r]])
+while l &lt; r and nums[l] == nums[l + 1]:
+    l += 1
+while l &lt; r and nums[r] == nums[r - 1]:
+    r -= 1
+l += 1
+r -= 1
+</code></pre>
+
+<p>Having recorded a triple, any neighbour holding the same value produces an identical triple. This must be after the fact, because before a hit there is no pair to skip. That is why the shape is a loop rather than a branch.</p>
+
+<p>The extra step after each loop matters: the loops stop on the last copy of the left value and the first copy of the right value, which are the values just used, so both pointers must move once more to leave the pair behind.</p>
+
+<p>The bounds check inside the loops does two jobs, preventing an out-of-range read and preventing a pointer from overrunning the other, which would skip pairings that should be considered.</p>
+
+<table>
+<thead><tr><th></th><th>Outer</th><th>Inner</th></tr></thead>
+<tbody>
+<tr><td>Code</td><td>Skip if equal to the previous</td><td>Loop while equal to the neighbour</td></tr>
+<tr><td>Guards against</td><td>Repeated starting value</td><td>Repeated partner pair</td></tr>
+<tr><td>Timing</td><td><strong>Before</strong> the inner loop runs</td><td><strong>After</strong> a triple is recorded</td></tr>
+<tr><td>Shape</td><td>Continue, skip the round</td><td>Loop, then step inward</td></tr>
+<tr><td>If removed</td><td>Duplicates when the minimum repeats</td><td>Duplicates when partners repeat</td></tr>
+<tr><td>Boundary trap</td><td>The index guard</td><td>The pointer ordering check</td></tr>
+</tbody>
+</table>
+
+<h3>What happens if either is missing</h3>
+
+<p>Both produce duplicate answers, under different conditions, which is why testing with the official samples catches neither.</p>
+
+<pre><code>[-1, -1, 0, 1]
+  with the outer skip:   one triple, -1, 0, 1
+  without it:            the same triple recorded twice
+</code></pre>
+
+<pre><code>[-2, 0, 0, 2, 2]
+  with the inner skip:   one triple, -2, 0, 2
+  without it:            the same triple recorded twice
+</code></pre>
+
+<p>What those two inputs have in common is that a duplicate sits exactly where a pointer will pass. In the official example, after sorting, the two copies of minus one are adjacent but one lands as the anchor and the other as a left pointer, so neither skip condition actually fires.</p>
+
+<p>So passing the official sample proves nothing about deduplication. Those two arrays belong in the self-test set.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Quadratic</td><td>Sorting is dominated by the nested scans</td></tr>
+<tr><td>Space</td><td>Constant, excluding output</td><td>Two pointer variables</td></tr>
+</tbody>
+</table>
+
+<p>The sort is not the bottleneck, which is why sorting up front is free, and is the confidence behind the earlier argument. Strictly, constant space excludes the sort itself: Timsort needs linear auxiliary space and Java primitive sorting needs logarithmic stack. Saying that out loud is a good note.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>How duplicates are handled</th></tr></thead>
+<tbody>
+<tr><td>Triple loop</td><td>Cubic</td><td>Constant</td><td>Not at all</td></tr>
+<tr><td>Hash with a set</td><td>Quadratic</td><td>Linear</td><td>Normalise and insert into a set</td></tr>
+<tr><td><strong>Sort and squeeze</strong></td><td>Quadratic</td><td>Constant</td><td>Two constant comparisons</td></tr>
+</tbody>
+</table>
+
+<p>Note that the hash version and this one share an asymptotic class. The pointers win on constants, space, and clarity of the deduplication, not on order of magnitude. Saying that precisely is better than claiming the pointers are faster.</p>
+
+<h2>Two prunings</h2>
+
+<pre><code>if nums[i] &gt; 0:
+    break
+</code></pre>
+
+<p>If the smallest member is already positive, the other two are larger and the sum cannot reach zero. It is a break rather than a continue because ascending order implies every later anchor is also positive. The official sample never triggers it, but an all-positive array terminates the whole outer loop immediately.</p>
+
+<pre><code>minimum = nums[i] + nums[i + 1] + nums[i + 2]
+if minimum &gt; 0:
+    break
+
+maximum = nums[i] + nums[-1] + nums[-2]
+if maximum &lt; 0:
+    continue
+</code></pre>
+
+<p>These compute the reachable range for the round before entering the inner loop. The third round of the trace is exactly what the second line catches: with zero as the anchor, the largest possible sum is positive and the smallest is positive too, so no zero is reachable.</p>
+
+<p>Both are optional. Get the main logic and both deduplications right first; a pruning that breaks a boundary is a net loss.</p>
+
+<h2>Variant: closest sum, and four sum</h2>
+
+<pre><code>def threeSumClosest(nums, target):
+    nums.sort()
+    best = nums[0] + nums[1] + nums[2]
+    n = len(nums)
+
+    for i in range(n - 2):
+        if i &gt; 0 and nums[i] == nums[i - 1]:
+            continue
+        l, r = i + 1, n - 1
+        while l &lt; r:
+            total = nums[i] + nums[l] + nums[r]
+            if abs(total - target) &lt; abs(best - target):
+                best = total
+            if total &lt; target:
+                l += 1
+            elif total &gt; target:
+                r -= 1
+            else:
+                return target
+
+    return best
+</code></pre>
+
+<p>Three differences. The inner deduplication disappears, because the answer is a single sum and duplicate triples produce the same value. An early return is safe, since a difference of zero cannot be beaten. And the initial best must be a real sum rather than zero, since a difference from zero could look better than the true answer.</p>
+
+<pre><code>def fourSum(nums, target):
+    nums.sort()
+    res = []
+    n = len(nums)
+
+    for a in range(n - 3):
+        if a &gt; 0 and nums[a] == nums[a - 1]:
+            continue
+        for b in range(a + 1, n - 2):
+            if b &gt; a + 1 and nums[b] == nums[b - 1]:
+                continue
+            l, r = b + 1, n - 1
+            while l &lt; r:
+                total = nums[a] + nums[b] + nums[l] + nums[r]
+                if total &lt; target:
+                    l += 1
+                elif total &gt; target:
+                    r -= 1
+                else:
+                    res.append([nums[a], nums[b], nums[l], nums[r]])
+                    while l &lt; r and nums[l] == nums[l + 1]:
+                        l += 1
+                    while l &lt; r and nums[r] == nums[r - 1]:
+                        r -= 1
+                    l += 1
+                    r -= 1
+
+    return res
+</code></pre>
+
+<p>Cubic, with the same deduplication pattern: one extra comparison per added loop, and the innermost skip unchanged.</p>
+
+<p>Note that the second level compares against the start of its own range rather than against zero, because deduplication happens within a fixed outer anchor. The boundary condition of a dedup check depends on where that loop begins, and cannot be copied blindly.</p>
+
+<h2>Variants: from equal to less than</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Condition</th><th>Output</th><th>Key difference</th></tr></thead>
+<tbody>
+<tr><td>LC 15</td><td>Sum equals zero</td><td>All unique triples</td><td>Deduplication is the difficulty</td></tr>
+<tr><td>LC 16</td><td>Closest sum</td><td>The best sum</td><td>No dedup, early return</td></tr>
+<tr><td>LC 18</td><td>Sum equals target</td><td>All unique quads</td><td>One more nested loop</td></tr>
+<tr><td>LC 259</td><td>Sum less than target</td><td>A <strong>count</strong></td><td>Monotonicity allows batch counting</td></tr>
+<tr><td>LC 611</td><td>Triangle inequality</td><td>Number of triples</td><td>Same structure, different condition</td></tr>
+<tr><td>LC 923</td><td>Sum equals target</td><td>Count with multiplicity</td><td>Output is a number, not a set</td></tr>
+</tbody>
+</table>
+
+<pre><code>def threeSumSmaller(nums, target):
+    nums.sort()
+    count = 0
+    n = len(nums)
+
+    for i in range(n - 2):
+        l, r = i + 1, n - 1
+        while l &lt; r:
+            if nums[i] + nums[l] + nums[r] &lt; target:
+                count += r - l
+                l += 1
+            else:
+                r -= 1
+
+    return count
+</code></pre>
+
+<p>When the sum is below the target, every index between the left pointer and the right also works with the current left value, because the array is ascending. So an entire stretch counts at once instead of being enumerated.</p>
+
+<p>That is the real power of ordering: not just that pointers can move, but that whole ranges can be counted in one statement. The single-step jump of the sliding window problem and this batch count are the same idea, using monotonicity to replace a linear enumeration with a constant-time conclusion.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public List&lt;List&lt;Integer&gt;&gt; threeSum(int[] nums) {
+        Arrays.sort(nums);
+        List&lt;List&lt;Integer&gt;&gt; res = new ArrayList&lt;&gt;();
+
+        for (int i = 0; i &lt; nums.length - 2; i++) {
+            if (nums[i] &gt; 0) break;
+            if (i &gt; 0 &amp;&amp; nums[i] == nums[i - 1]) continue;
+
+            int l = i + 1, r = nums.length - 1;
+            while (l &lt; r) {
+                int total = nums[i] + nums[l] + nums[r];
+                if (total &lt; 0) {
+                    l++;
+                } else if (total &gt; 0) {
+                    r--;
+                } else {
+                    res.add(Arrays.asList(nums[i], nums[l], nums[r]));
+                    while (l &lt; r &amp;&amp; nums[l] == nums[l + 1]) l++;
+                    while (l &lt; r &amp;&amp; nums[r] == nums[r - 1]) r--;
+                    l++;
+                    r--;
+                }
+            }
+        }
+        return res;
+    }
+}
+</code></pre>
+
+<p>Passing three primitive integers to the list factory autoboxes them, which is what you want. Passing the whole array instead yields a single-element list containing the array, which is a classic trap. And primitive sorting differs from object sorting in both algorithm and auxiliary space, which matters when someone asks whether the space is truly constant.</p>
+
+<h2>Edges and mistakes</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>shorter than three</td><td>empty</td><td>Guarded by the loop bounds</td></tr>
+<tr><td>three values, no zero</td><td>empty</td><td></td></tr>
+<tr><td>three zeros</td><td>one triple</td><td></td></tr>
+<tr><td>four zeros</td><td>one triple</td><td>The outer skip does the work</td></tr>
+<tr><td>all positive</td><td>empty</td><td>Pruned immediately</td></tr>
+<tr><td>exactly minus one, zero, one</td><td>one triple</td><td></td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Omitting the index guard on the outer skip. Python wraps a negative index to the end of the array, so the first round is skipped or not at random rather than crashing.</li>
+<li>Omitting the pointer ordering check inside the inner skip loops, which reads out of range and can also overrun.</li>
+<li>Forgetting the step inward after the inner skips, which leaves the pointers on the values just used and loops forever.</li>
+<li>Sorting with a default comparator in JavaScript, which converts to strings and breaks monotonicity: minus four sorts after minus one. The code does not crash, it silently returns wrong answers.</li>
+<li>Doing it with a hash table and a set, which works and costs quadratic tuple construction. Sorting first makes deduplication two comparisons.</li>
+<li>Confusing distinct indices with distinct triples. The first is guaranteed by the loop bounds and is not the part to write; the second is what needs the two checks. A result like three zeros is legitimate as long as three distinct indices exist.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Start with the brute force and its two defects: cubic, and unable to deduplicate. Then explain why hashing is not the answer: a table cannot say whether a triple has been recorded, and normalising orderings requires sorting anyway. Then give the pointer correctness argument, which is where preparation shows: at the extreme right the pair sum is maximal for the current left pointer, so a shortfall eliminates that left pointer entirely, and the symmetric argument applies to the right; both pointers move monotonically, so the inner scan is linear.</p>
+
+<p>Then volunteer the two deduplication sites and why their shapes differ, one before the work as a skip and one after a hit as a loop. Then the boundaries: the index guard on the outer and the ordering check on the inner. Then the prunings, and finally the variants, including the batch count that monotonicity makes possible.</p>
+
+<h2>Closing</h2>
+
+<p>The skeleton takes ten minutes to memorise; the deduplication does not, because the two sites differ in shape, timing and boundary trap, and the official sample triggers neither.</p>
+
+<p>The value of sorting is not faster lookup but adjacency, and once equal values are adjacent, deduplication degenerates into comparing with the previous value. Two constant-time comparisons carry most of the difficulty of this problem.</p>
+
+<p>That view extends further: sliding window, two pointers and binary search all replace enumeration with conclusions drawn from order. Ordering produces no answers by itself; it produces space that can be skipped.</p>
+
+<pre><code>assert threeSum([0, 0, 0, 0]) == [[0, 0, 0]]
+assert threeSum([-2, 0, 0, 2, 2]) == [[-2, 0, 2]]
+assert threeSum([-1, -1, 0, 1]) == [[-1, 0, 1]]
+assert threeSum([1, 2, 3]) == []
+</code></pre>
+
+<p>Those four lines are worth more than ten runs of the official sample.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-15-3sum/">【LC 15】三数之和：难点是两处去重，不是双指针</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
