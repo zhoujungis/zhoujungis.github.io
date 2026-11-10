@@ -32575,6 +32575,389 @@ else:
 `,
   },
 
+  {
+    slug: 'lc-3-longest-substring-without-repeating-characters',
+    zhSlug: 'lc-3-longest-substring-without-repeating-characters',
+    topicSlug: 'leetcode',
+    title: 'LC 3, longest substring without repeats: the test is not whether the character was seen',
+    excerpt:
+      'Ten lines of sliding window, and one condition whose absence passes every official sample. The real test is whether the previous position is still inside the window.',
+    date: '2026-10-11',
+    readingTime: 17,
+    html: `
+<h2>The problem</h2>
+
+<p>Return the length of the longest substring of a string with no repeated characters.</p>
+
+<pre><code>"abcabcbb" -&gt; 3   ("abc")
+"bbbbb"    -&gt; 1   ("b")
+"pwwkew"   -&gt; 3   ("wke")
+</code></pre>
+
+<p>Note the last one carefully: "pwke" has length four and is not a substring, because it skips characters. The answer counts contiguous runs only.</p>
+
+<table>
+<thead><tr><th></th><th>Definition</th><th>Example in "pwwkew"</th></tr></thead>
+<tbody>
+<tr><td><strong>Substring</strong></td><td>A contiguous run</td><td>"wke", length 3</td></tr>
+<tr><td>Subsequence</td><td>Order preserved, gaps allowed</td><td>"pwke", not a substring</td></tr>
+</tbody>
+</table>
+
+<h2>What is actually being tested</h2>
+
+<pre><code>def lengthOfLongestSubstring(s):
+    n, best = len(s), 0
+    for i in range(n):
+        for j in range(i, n):
+            if len(set(s[i:j + 1])) == j - i + 1:
+                best = max(best, j - i + 1)
+    return best
+</code></pre>
+
+<p>Enumerating every pair of endpoints and checking each is cubic, and times out at fifty thousand characters. The waste is structural: if a range contains a repeat, extending it on the right cannot fix that, so those endpoints never needed trying.</p>
+
+<p>Instead, maintain a window that is always valid and push it rightward.</p>
+
+<pre><code>              left      right
+               |          |
+    p  w  w  k  e  w  ...
+</code></pre>
+
+<p>Two rules. The right end advances every iteration, taking in a new character. If that character already exists inside the window, the left end jumps past its previous occurrence, pushing it out.</p>
+
+<p>Both pointers only move right, so the total work is at most twice the length, which is linear.</p>
+
+<h2>What to store</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Stores</th><th>In-window test</th><th>Shrinking</th></tr></thead>
+<tbody>
+<tr><td><strong>Last position</strong></td><td>Character to its most recent index</td><td>Index at least the left edge</td><td><strong>Jump straight there</strong></td></tr>
+<tr><td>Set</td><td>Characters currently inside</td><td>Membership</td><td>Move one step at a time</td></tr>
+</tbody>
+</table>
+
+<p>Both are linear, but the indexed version has no inner loop, because the left edge jumps rather than crawls.</p>
+
+<p>The important detail: the table stores a position, not a boolean.</p>
+
+<h2>The two invariants</h2>
+
+<p>Two properties must hold at all times.</p>
+
+<p><strong>The window contains no repeats.</strong> This is what makes it valid, and it is the precondition for every length computed from it.</p>
+
+<p><strong>The left edge never moves backwards.</strong> This is easier to overlook and it is the reason the first holds. Moving left back would re-admit characters that were expelled for being duplicates, and those characters may still exist in the right part of the window, so a duplicate appears immediately.</p>
+
+<pre><code>moving left back from 2 to 1:
+
+   a  b  b  a        window [1,3] = "bba", two b values
+      |-----|
+         ^
+      back here
+</code></pre>
+
+<p>So what must be got right is not the duplicate test but the monotonicity of the left edge.</p>
+
+<h2>The code</h2>
+
+<pre><code>class Solution:
+    def lengthOfLongestSubstring(self, s: str) -&gt; int:
+        last = {}
+        left = 0
+        ans = 0
+        for right, ch in enumerate(s):
+            if ch in last and last[ch] &gt;= left:
+                left = last[ch] + 1
+            last[ch] = right
+            ans = max(ans, right - left + 1)
+        return ans
+</code></pre>
+
+<p>This version states the condition explicitly, which makes the reasoning visible in the source.</p>
+
+<pre><code>class Solution:
+    def lengthOfLongestSubstring(self, s: str) -&gt; int:
+        last = {}
+        left = 0
+        ans = 0
+        for right, ch in enumerate(s):
+            if ch in last:
+                left = max(left, last[ch] + 1)
+            last[ch] = right
+            ans = max(ans, right - left + 1)
+        return ans
+</code></pre>
+
+<p>The second version hides the guard inside a maximum. They are equivalent, and the point is understanding what that maximum is preventing.</p>
+
+<h2>The animation</h2>
+
+<p>The original post breaks "abcabcbb" into ten frames. Characters inside the window are tinted green, expelled ones greyed. A gold underline marks the best window seen so far, and a table below shows the last position of each character, with the previous position of the current character highlighted so it can be compared against the left edge.</p>
+
+<p>Three moments matter. The first 'a' repeat at index three: its previous position is zero, which is still inside the window, so the left edge jumps from zero to one in a single step. The second 'b' repeat at index six: its previous position is four while the left edge is three, so the edge jumps to five, sweeping two positions out at once. And the answer stops growing at frame four and stays at three through four further frames in which the window is shrinking, which shows that the best length is history, not the current window.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Right</th><th>Char</th><th>Left</th><th>Window</th><th>Length</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-</td><td>-</td><td>0</td><td>-</td><td>0</td><td>0</td></tr>
+<tr><td>1</td><td>expand</td><td>0</td><td>a</td><td>0</td><td>a</td><td>1</td><td><strong>1</strong></td></tr>
+<tr><td>2</td><td>expand</td><td>1</td><td>b</td><td>0</td><td>ab</td><td>2</td><td><strong>2</strong></td></tr>
+<tr><td>3</td><td>expand</td><td>2</td><td>c</td><td>0</td><td>abc</td><td>3</td><td><strong>3</strong></td></tr>
+<tr><td>4</td><td><strong>slide</strong></td><td>3</td><td>a</td><td><strong>1</strong></td><td>bca</td><td>3</td><td>3</td></tr>
+<tr><td>5</td><td><strong>slide</strong></td><td>4</td><td>b</td><td><strong>2</strong></td><td>cab</td><td>3</td><td>3</td></tr>
+<tr><td>6</td><td><strong>slide</strong></td><td>5</td><td>c</td><td><strong>3</strong></td><td>abc</td><td>3</td><td>3</td></tr>
+<tr><td>7</td><td><strong>slide</strong></td><td>6</td><td>b</td><td><strong>5</strong></td><td>cb</td><td>2</td><td>3</td></tr>
+<tr><td>8</td><td>slide</td><td>7</td><td>b</td><td><strong>7</strong></td><td>b</td><td>1</td><td>3</td></tr>
+<tr><td>9</td><td>done</td><td>7</td><td>-</td><td>7</td><td>b</td><td>1</td><td><strong>3</strong></td></tr>
+</tbody>
+</table>
+
+<p>Rows four and seven are the interesting ones. At index three the character 'a' was last seen at zero and the left edge is zero, so zero is not less than the edge and the edge moves to one. At index six the character 'b' was last seen at four while the edge is three, so the edge leaps to five, crossing two positions at once.</p>
+
+<p>The last two frames have the window shrinking while the answer holds at three, since it records the best over history.</p>
+
+<h2>The one real difficulty: the test needs the window clause</h2>
+
+<p>Most first attempts look like this:</p>
+
+<pre><code>if ch in last:
+    left = last[ch] + 1        # missing the in-window test
+</code></pre>
+
+<p>This passes all three official samples, which is why people believe it. It is exposed immediately by "abba".</p>
+
+<table>
+<thead><tr><th>Step</th><th>Right</th><th>Char</th><th>Correct</th><th>Without the clause</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>a</td><td>left 0</td><td>left 0</td><td>First sighting</td></tr>
+<tr><td>2</td><td>1</td><td>b</td><td>left 0</td><td>left 0</td><td>First sighting</td></tr>
+<tr><td>3</td><td>2</td><td>b</td><td>left 2</td><td>left 2</td><td>Previous b at one, inside the window</td></tr>
+<tr><td>4</td><td>3</td><td>a</td><td><strong>left 2, unchanged</strong></td><td><strong>left 1, backwards</strong></td><td>Previous a at zero, which is outside</td></tr>
+<tr><td>-</td><td>-</td><td>Result</td><td>window b,a, length <strong>2</strong></td><td>window b,b,a, length <strong>3</strong></td><td>The wrong one has two b values</td></tr>
+</tbody>
+</table>
+
+<p>At the fourth step the character 'a' did appear, at index zero, but that position was already swept out when the edge moved to two at the previous step, so it has no bearing on whether the window contains a duplicate. The edge must stay put.</p>
+
+<p>Without the clause the code computes a new edge of one, moving backwards from two, which creates a window with two b values and an inflated length.</p>
+
+<p>Same shape with "abcba": at the final 'a', the previous position is zero while the edge is two, so the edge must not move; the version without the clause goes back to one and reports four instead of three.</p>
+
+<p>One sentence: the test is not whether the character has been seen, but whether the place it was seen is still inside the window. Both spellings express it; one states it, the other enforces it through a maximum.</p>
+
+<h2>Two alternative spellings and their traps</h2>
+
+<pre><code>def lengthOfLongestSubstring(s):
+    win = set()
+    left = 0
+    ans = 0
+    for right, ch in enumerate(s):
+        while ch in win:
+            win.remove(s[left])
+            left += 1
+        win.add(ch)
+        ans = max(ans, right - left + 1)
+    return ans
+</code></pre>
+
+<p>This is easier to reason about under pressure and cannot move the edge backwards, because the loop only increments it. The cost is that it crawls rather than jumps, so it touches more intermediate states, though the total remains linear because each character enters and leaves once.</p>
+
+<p>With ASCII only, an array replaces the map:</p>
+
+<pre><code>def lengthOfLongestSubstring(s):
+    last = [-1] * 128
+    left, ans = 0, 0
+    for right, ch in enumerate(s):
+        idx = ord(ch)
+        if last[idx] &gt;= left:
+            left = last[idx] + 1
+        last[idx] = right
+        ans = max(ans, right - left + 1)
+    return ans
+</code></pre>
+
+<p>The initial value must be minus one. With zero, the first character appears to have been seen at index zero, so the edge jumps past it and the answer loses one. Zero is a legal index, so it cannot double as "never seen". The same applies to a map default: use a membership test or a default of minus one, never zero.</p>
+
+<p>A third spelling stores where the edge should go rather than where the character was:</p>
+
+<pre><code>def lengthOfLongestSubstring(s):
+    nxt = {}
+    left, ans = 0, 0
+    for right, ch in enumerate(s):
+        left = max(left, nxt.get(ch, 0))
+        nxt[ch] = right + 1
+        ans = max(ans, right - left + 1)
+    return ans
+</code></pre>
+
+<p>Here a default of zero is correct, because zero means "do not move", not "seen at index zero". The two tables have opposite conventions, which is a good reason to be explicit about what a stored number means.</p>
+
+<h2>Variants: same window, different validity</h2>
+
+<p>Sliding window problems split by what makes a window legal.</p>
+
+<pre><code>def lengthOfLongestSubstringKDistinct(s, k):
+    if k == 0:
+        return 0
+    cnt = {}
+    left, ans = 0, 0
+    for right, ch in enumerate(s):
+        cnt[ch] = cnt.get(ch, 0) + 1
+        while len(cnt) &gt; k:
+            cnt[s[left]] -= 1
+            if cnt[s[left]] == 0:
+                del cnt[s[left]]
+            left += 1
+        ans = max(ans, right - left + 1)
+    return ans
+</code></pre>
+
+<p>Two differences from the base problem: the test becomes the number of distinct characters, and the shrink becomes a loop, because there is no single coordinate to jump to.</p>
+
+<p>For replacement with at most k changes, the test is an inequality, and the shrink is a single conditional because the window never contracts:</p>
+
+<pre><code>def characterReplacement(s, k):
+    cnt = {}
+    left, ans, maxCnt = 0, 0, 0
+    for right, ch in enumerate(s):
+        cnt[ch] = cnt.get(ch, 0) + 1
+        maxCnt = max(maxCnt, cnt[ch])
+        if right - left + 1 - maxCnt &gt; k:
+            cnt[s[left]] -= 1
+            left += 1
+        ans = max(ans, right - left + 1)
+    return ans
+</code></pre>
+
+<p>The maximum count only increases, which keeps the window length from ever decreasing.</p>
+
+<p>The minimum window substring inverts the objective entirely:</p>
+
+<table>
+<thead><tr><th></th><th>Longest, this problem</th><th>Shortest covering</th></tr></thead>
+<tbody>
+<tr><td>Goal</td><td>Maximise</td><td>Minimise</td></tr>
+<tr><td>Expand right</td><td>Always</td><td>Always</td></tr>
+<tr><td>Shrink left</td><td>Only on conflict</td><td>While still valid</td></tr>
+<tr><td>Record the answer</td><td>After expanding</td><td>While shrinking, just before validity breaks</td></tr>
+</tbody>
+</table>
+
+<pre><code>from collections import Counter
+
+def minWindow(s, t):
+    need = Counter(t)
+    missing = len(t)
+    left = 0
+    best = (0, 0)
+    bestLen = float('inf')
+    for right, ch in enumerate(s):
+        if need[ch] &gt; 0:
+            missing -= 1
+        need[ch] -= 1
+        while missing == 0:
+            if right - left + 1 &lt; bestLen:
+                bestLen = right - left + 1
+                best = (left, right)
+            need[s[left]] += 1
+            if need[s[left]] &gt; 0:
+                missing += 1
+            left += 1
+    return s[best[0]:best[1] + 1] if bestLen &lt; float('inf') else ''
+</code></pre>
+
+<p>This problem repairs the window as soon as it breaks; that one shrinks as soon as it is satisfied. Same skeleton, opposite targets.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Validity</th><th>How it shrinks</th></tr></thead>
+<tbody>
+<tr><td><strong>LC 3</strong></td><td>No repeats</td><td><strong>Jump to the previous position plus one</strong></td></tr>
+<tr><td>LC 159, 340</td><td>At most k distinct</td><td>Loop, one step at a time</td></tr>
+<tr><td>LC 424</td><td>Length minus max count within k</td><td>Single conditional, window never contracts</td></tr>
+<tr><td>LC 76</td><td>Covers all of a target</td><td>Loop until invalid</td></tr>
+<tr><td>LC 209</td><td>Sum at least a target</td><td>Same as above</td></tr>
+<tr><td>LC 438</td><td>Counts equal a pattern</td><td>Fixed length window</td></tr>
+</tbody>
+</table>
+
+<p>The shared skeleton is expand, check validity, possibly shrink, record. The single fork is whether there is a definite coordinate to shrink to. Here there is, which is what makes the jump possible.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int lengthOfLongestSubstring(String s) {
+        int[] last = new int[128];
+        java.util.Arrays.fill(last, -1);
+        int left = 0, ans = 0;
+        for (int right = 0; right &lt; s.length(); right++) {
+            char ch = s.charAt(right);
+            if (last[ch] &gt;= left) {
+                left = last[ch] + 1;
+            }
+            last[ch] = right;
+            ans = Math.max(ans, right - left + 1);
+        }
+        return ans;
+    }
+}
+</code></pre>
+
+<p>The array must be filled with minus one, since Java zeroes it and zero is a legal index. Characters index the array directly. And if Unicode is allowed, iterating by code point is safer than by char, which can split surrogate pairs.</p>
+
+<h2>Edges and traps</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>0</td><td>The answer may be zero here</td></tr>
+<tr><td>a space</td><td>1</td><td>A space is an ordinary character</td></tr>
+<tr><td>one character</td><td>1</td><td></td></tr>
+<tr><td>two identical</td><td>1</td><td>Not two</td></tr>
+<tr><td>all identical</td><td>1</td><td></td></tr>
+<tr><td>all distinct</td><td>the whole string</td><td></td></tr>
+<tr><td>abba</td><td>2</td><td><strong>The litmus test</strong></td></tr>
+<tr><td>abcba</td><td>3</td><td>Same shape</td></tr>
+<tr><td>dvdf</td><td>3</td><td>The repeat sits at both ends</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Omitting the in-window test, which moves the left edge backwards. All official samples pass; "abba" fails.</li>
+<li>Initialising the array or a map default to zero, which makes the first character look like a repeat.</li>
+<li>Confusing substring with subsequence.</li>
+<li>Forgetting to record the current position even on a repeat, which leaves a stale entry for the next occurrence.</li>
+<li>Computing the answer before adjusting the left edge, which measures a window that has not been repaired.</li>
+<li>Splitting a character such as an emoji into two code units, which makes one character look like two and inflates the answer.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>State the approach and the complexity: a sliding window, the right edge always advances, the left edge jumps past a duplicate. Both move only right, so linear time and space bounded by the alphabet.</p>
+
+<p>Then say what is stored: the last index of each character rather than a set, so the left edge can jump instead of crawl.</p>
+
+<p>Then the condition, which is the key sentence: the test is that the previous position is still inside the window, not that the character has been seen, because a character seen long ago may already have been evicted, and that does not constitute a duplicate.</p>
+
+<p>Then the counterexample: in "abba", the final 'a' was last seen at zero while the edge is two, so the edge must not move; an unconditional jump would move it back to one, producing "bba" and an answer of three.</p>
+
+<p>Asked why the edge may not move back, explain the invariant: moving back re-admits evicted characters and every length afterwards is inflated. Asked about the array version, give it and mention that minus one is required, with the reason. Asked for alternatives, give the set-and-loop version, which is simpler and cannot go backwards.</p>
+
+<p>Close by generalising: the skeleton extends to at most k distinct characters and to the minimum covering window, and the fork is whether the shrink target has a definite coordinate.</p>
+
+<h2>Closing</h2>
+
+<p>The question to ask is not whether the character has been seen but whether it is still in the window. That difference is invisible in every official sample, because all three have the duplicate inside the window, so the wrong version passes. Only strings like "abba" and "abcba", where the old position has been swept out, expose it.</p>
+
+<p>Behind it sits the fundamental constraint of sliding window: the left edge only moves right. Once it turns back, the invariant fails and every conclusion after it is meaningless.</p>
+
+<p>So for any sliding window problem, ask two things first: what property must the window satisfy, and where should the left edge go when it is violated. A definite coordinate permits a jump; otherwise honest crawling.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-3-longest-substring-without-repeating-characters/">【LC 3】无重复字符的最长子串：窗口里才算重复</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
