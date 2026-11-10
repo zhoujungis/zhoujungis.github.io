@@ -22683,6 +22683,367 @@ _request_sampled.set(sampled)
 `,
   },
 
+  {
+    slug: 'file-upload-production-deep-dive',
+    zhSlug: 'file-upload-production-deep-dive',
+    topicSlug: 'backend',
+    title: 'File uploads: chunking, resumption and uploading straight to object storage',
+    excerpt:
+      'The fix for large uploads is not a bigger timeout. It is taking the bytes out of the application process entirely: sign a scoped ticket, record the session, verify the object afterwards.',
+    date: '2026-11-04',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Who this is for: anyone currently proxying upload bytes through an application server, anyone who has fought timeouts and memory growth and corrupt files, and anyone moving uploads to S3-compatible storage and unsure how signing, chunking and verification fit together.</p>
+<p><strong>TL;DR:</strong> the correct shape is not a larger limit and a longer timeout, it is bytes going from the client straight into object storage. The server does three things: sign a ticket with a scope and an expiry, record session state, and verify the object when it lands. Chunking buys recoverability, verification buys trust, and one does not replace the other.</p>
+<p>Reading time around 26 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The incident: one hundred megabytes took down every worker</h2>
+
+<p>Sunday, eleven at night. A reader uploads a hundred megabyte archive of travel photos. The progress bar passes halfway, the browser reports a network error, and he refreshes and tries again. Ten minutes later every endpoint is spinning, health checks time out on all four instances, the balancer removes them one by one, and the last one queues deeper and deeper.</p>
+
+<p>Four things happened at once.</p>
+
+<p>The gateway refused first: the request body limit was one megabyte by default and had been raised to fifty, so a hundred megabyte file was rejected with a 413 at the edge, wrapped by the front end into a generic network error, which is why he kept retrying.</p>
+
+<p>Then the limit was raised to two hundred and the request reached the application, which ran four synchronous workers with a thirty second timeout. A hundred megabytes over a home upstream takes over a minute, so the worker sat on one connection until the master killed it at thirty seconds, the socket dropped, and the reader failed again.</p>
+
+<p>Then the fatal one, in a fallback branch: to avoid "no file received", the code read the entire request body into memory first. A hundred megabyte byte string plus the parser's copies put the memory curve straight up, and after four concurrent retries the out-of-memory killer took the process, which monitoring reported as random restarts.</p>
+
+<p>And finally corruption. One request lost the client at sixty percent, the write loop never checked the final length, the endpoint returned 200 and the database recorded a file. The next day the reader downloaded a zip missing its tail, and extraction said the file ended unexpectedly. That is worse than a failure, because a failure is at least honest.</p>
+
+<p>All four share one root cause: <strong>the application server is proxying bytes</strong>. As long as bytes must pass through a Django process, a slow network becomes a slow process, a client timeout becomes a killed worker, and a half-finished write becomes corrupt data. Bigger memory, longer timeouts and more workers only extend the life of a wrong architecture.</p>
+
+<h2>What plain multipart actually costs</h2>
+
+<p>Django is not the problem by default. The upload handler streams by default: files below a threshold go to memory, larger ones are streamed into a temporary file, and the parser reads the body in blocks rather than buffering everything.</p>
+
+<p>Three things break it.</p>
+
+<p><strong>The code.</strong> Reading the request body as an attribute, calling read with no argument, materialising the chunk iterator into a list, or stuffing file content into a JSON field all defeat streaming. One full read makes the threshold irrelevant and turns memory into concurrency times file size.</p>
+
+<p><strong>Temporary disk.</strong> Large files land in the temporary directory, so a hundred megabyte upload first appears on disk in full, and can exist two or three times over if it is copied and then uploaded onward. Temporary files do not vanish before the request ends, and a killed worker leaves them behind. When that disk fills, the casualties are database connections, logging and session files on the same machine.</p>
+
+<p><strong>The body limit and the timeout</strong>, which people conflate. The data upload limit applies to non-file parts, not to file size. What actually caps a large upload is the gateway body limit, the proxy read timeout, the application server timeout and the client's own timeout, and whichever expires first cuts the request in some intermediate state.</p>
+
+<p>Write the cost as arithmetic. With file size S and upstream bandwidth B, one upload occupies roughly S/B. At an arrival rate of lambda, Little's law puts concurrent uploads at about lambda times S/B over B, and four synchronous workers means exactly four can run while the rest queue. A hundred megabytes at ten megabits takes about eighty seconds, so an arrival rate of 0.06 per second, fewer than four uploads a minute, already saturates four workers. Adding workers does not shorten a request; it just makes more processes wait on the network together.</p>
+
+<p>There is also a quiet bill: the bytes cross the network twice, once to the application and once onward. Object storage ingress is usually free, but application bandwidth, egress and NAT connections are not, and worse, anything slow on that path pushes back into the request process.</p>
+
+<p>So plain multipart is not wrong, it is suited to small files at low concurrency. Avatars, small configuration blobs and admin CSV imports are fine through the application. Once files reach tens of megabytes, or uploads become frequent, the structural cost of proxying overtakes the convenience.</p>
+
+<h2>Direct upload: signing, CORS and key design</h2>
+
+<p>Direct upload splits the roles. The application stops carrying bytes and becomes an issuer: the client asks for a ticket, the application authenticates, checks quota and validates metadata, then signs a URL with a scope and an expiry using the storage credentials. The client uploads straight to storage, then tells the application it is done, and the application confirms the object exists with the expected size and checksum before writing the record.</p>
+
+<p>The application never touches file content, only a few hundred bytes of signature and a couple of metadata queries, which moves worker occupancy from minutes to milliseconds. Storage does what it is good at: absorbing traffic, writing, chunking, retrying and persisting.</p>
+
+<h3>Presigned PUT</h3>
+
+<pre><code>import boto3
+
+s3 = boto3.client("s3", region_name="ap-east-1")
+
+url = s3.generate_presigned_url(
+    ClientMethod="put_object",
+    Params={
+        "Bucket": "blog-uploads",
+        "Key": "raw/u_1024/2026/11/9f3c2f6e/photo.zip",
+        "ContentType": "application/zip",
+    },
+    ExpiresIn=900,
+)
+</code></pre>
+
+<p>The URL carries the algorithm, credential, date, expiry, signed headers and signature. The hard maximum expiry is a week, and nobody should use it: the longer the ticket lives the longer a leak is useful. Five to fifteen minutes is enough, and the client should start immediately.</p>
+
+<p>The boundary people miss is that the signature only covers the headers listed as signed. If the content type is not among them, a client can send something else and storage accepts it. Put the type into the signed parameters to lock it, and check the actual type again in the completion step rather than trusting the declaration.</p>
+
+<h3>Presigned POST</h3>
+
+<pre><code>post = s3.generate_presigned_post(
+    Bucket="blog-uploads",
+    Key="raw/u_1024/2026/11/\${filename}",
+    Fields={"Content-Type": "application/zip"},
+    Conditions=[
+        {"Content-Type": "application/zip"},
+        ["content-length-range", 1, 200 * 1024 * 1024],
+        ["starts-with", "$key", "raw/u_1024/2026/11/"],
+    ],
+    ExpiresIn=900,
+)
+</code></pre>
+
+<p>The advantage of POST is that the constraints are enforced by storage rather than by your code. The length range rejects oversized files server-side, the prefix condition pins the key inside the user's namespace, and a client that edits a form field gets a 403. PUT has no policy layer, so size can only be judged before signing from a declared length, which can lie, or checked afterwards with a head request, which is repair rather than prevention.</p>
+
+<h3>CORS</h3>
+
+<p>Browsers cannot skip CORS. Storage denies cross-origin PUT by default, presigned requests fail, and the console shows a vague CORS error. The bucket policy has to allow the origin, the methods and the necessary headers.</p>
+
+<pre><code>[
+  {
+    "AllowedOrigins": ["https://blog.zhoujun.dev"],
+    "AllowedMethods": ["PUT", "POST"],
+    "AllowedHeaders": ["content-type", "x-amz-*"],
+    "ExposeHeaders": ["ETag", "x-amz-version-id"],
+    "MaxAgeSeconds": 3600
+  }
+]
+</code></pre>
+
+<p>The wildcard header matters for multipart, because an upload part carrying a checksum header is rejected at preflight without it. The exposed ETag matters because the browser cannot read a response header it has not been granted, and without per-part ETags the completion call has nothing to assemble.</p>
+
+<h3>Key design</h3>
+
+<p><strong>Never use a user-supplied filename as the key.</strong> Original names can contain traversal sequences, backslashes, control characters, long Unicode, bidirectional overrides. Even though keys are flat strings, those characters cause trouble in cache invalidation, logs and download headers. A workable shape is the user id for tenancy and quota, year and month for lifecycle prefixes, a random component for unguessability, and a sanitised tail:</p>
+
+<pre><code>raw/{user_id}/{yyyy}/{mm}/{uuid4}/{sanitized_name}
+</code></pre>
+
+<p>Keep the original name in metadata or the database and escape it at display time, never in the path. Do not put email addresses, phone numbers or identity numbers in keys either: keys appear in access logs, CDN logs, browser history and shared links, and they are impossible to recall. A human-readable display name belongs in a column, applied through a disposition header at download time.</p>
+
+<h2>S3 multipart: three calls and a resumable upload</h2>
+
+<p>A single PUT is all or nothing, so a hundred megabytes that fails at ninety-nine starts again from zero. Multipart splits one large write into independently retryable pieces, which is also the server-side basis of resumption.</p>
+
+<p><strong>Create</strong> names the bucket, key and content type and returns an upload id, which every later call needs and which must be persisted or the work is wasted. <strong>Upload a part</strong> carries the id, the part number and the bytes, and returns that part's ETag. <strong>Complete</strong> submits a list sorted by part number with matching ETags, and storage assembles the object; a mismatched ETag returns an invalid part error, and a gap or wrong order returns an invalid part order.</p>
+
+<pre><code>mpu = s3.create_multipart_upload(
+    Bucket="blog-uploads",
+    Key=key,
+    ContentType="application/zip",
+)
+upload_id = mpu["UploadId"]
+
+parts = []
+with open(local_path, "rb") as f:
+    for number in range(1, total_parts + 1):
+        chunk = f.read(part_size)
+        resp = s3.upload_part(
+            Bucket="blog-uploads",
+            Key=key,
+            UploadId=upload_id,
+            PartNumber=number,
+            Body=chunk,
+        )
+        parts.append({"PartNumber": number, "ETag": resp["ETag"]})
+
+s3.complete_multipart_upload(
+    Bucket="blog-uploads",
+    Key=key,
+    UploadId=upload_id,
+    MultipartUpload={"Parts": parts},
+)
+</code></pre>
+
+<p>The service-side rules are worth memorising: part numbers run from one to ten thousand, parts must be at least five mebibytes except the last, a single part caps at five gibibytes, and the object at five tebibytes. Re-uploading a part number overwrites rather than appends, which is what makes an uncertain retry safe.</p>
+
+<p>Resumption uses the list call: after a reconnect the client asks for the parts already stored, compares numbers, sizes and ETags against its own plan, and uploads only the gaps.</p>
+
+<p>The upload id has to live somewhere durable, since a browser refresh loses memory. The client keeps a business-level session id and the server keeps the rest.</p>
+
+<pre><code>CREATE TABLE upload_sessions (
+    id            UUID PRIMARY KEY,
+    user_id       BIGINT NOT NULL,
+    object_key    TEXT NOT NULL,
+    upload_id     TEXT NOT NULL,
+    total_size    BIGINT NOT NULL,
+    part_size     BIGINT NOT NULL,
+    status        TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL,
+    expires_at    TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE upload_parts (
+    session_id    UUID NOT NULL REFERENCES upload_sessions(id),
+    part_number   INT NOT NULL,
+    etag          TEXT NOT NULL,
+    size          BIGINT NOT NULL,
+    uploaded_at   TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (session_id, part_number)
+);
+</code></pre>
+
+<p>Give the status an explicit state machine, uploading, completing, completed, aborted, or a retried completion and a user cancellation will fight each other.</p>
+
+<p>There is an invisible cost too: incomplete uploads keep their stored parts and are billed as storage. A user who walks away leaves bytes behind. Both cleanups are required, aborting on explicit cancel and a lifecycle rule that aborts incomplete multipart uploads after a number of days. With only the first, orphans accumulate; with only the second, cancelled space lingers for days.</p>
+
+<h2>Part size and concurrency</h2>
+
+<p>Three constraints set the size. The part count must stay within ten thousand, so the size has at least the object size divided by ten thousand, which for a five tebibyte object forces the half-gigabyte range. Retry granularity argues for smaller parts, since a failure re-sends less, while request overhead argues for larger ones, since fewer parts means fewer calls and a shorter completion list. Memory argues for smaller parts again, because every in-flight part holds a buffer on the client and on any relaying server: four concurrent parts of sixty-four mebibytes is a quarter of a gigabyte.</p>
+
+<pre><code>total throughput ≈ min(client upstream, per-connection throughput × concurrency, storage limits)
+</code></pre>
+
+<p>More concurrency is not better, since per-connection bandwidth drops as connections multiply and retries and throttling increase. Three to six is a common starting point, and anything beyond that needs validation on real networks rather than a test inside a data centre. Remember too that the completion body grows with the part count: ten thousand parts is a few hundred kilobytes of JSON, close to some gateways' default body limits, so the completion call itself becomes retryable work.</p>
+
+<h2>Integrity: checksums and the ETag trap</h2>
+
+<p>A successful upload is not a correct file. TCP verifies the wire, not that the client read the bytes it thinks it read, and not that assembly dropped nothing. Integrity checking is about end-to-end trust.</p>
+
+<p>The lightest option is a content MD5 header, which storage recomputes and compares, rejecting a mismatch. Nearly every compatible implementation supports it and it is cheap, but MD5 is not a collision-resistant digest any more, so it detects transmission errors and cannot prove the file was not maliciously substituted.</p>
+
+<p>Stronger is SHA-256, supplied as a base64 checksum header, with per-part checksums combined at completion by the service. Support varies between implementations, so test your own storage rather than assuming compatibility means completeness.</p>
+
+<p>Now the misconception worth dismantling: <strong>a multipart ETag is not the MD5 of the object.</strong> A single PUT's ETag is usually the content MD5 in hex, but multipart produces a dash-separated value whose first half is the MD5 of the concatenated part digests, with the part count appended. Comparing a client-side digest of the whole file against it will never match, and the file is not corrupt, you are comparing two different quantities. With server-side encryption the ETag may not be a content digest at all, so code that treats it as a checksum starts reporting false failures the day you switch encryption on.</p>
+
+<pre><code>def sha256_of(path, chunk_size=1024 * 1024):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+</code></pre>
+
+<p>The client hashes while reading, so the file is not read twice. On completion it sends the digest and size, and the server does not trust either: it reads the stored length and checksum and compares size, then the digest if one was supplied, and for high-value files performs a server-side read-back. Ordinary files at minimum get a size and readability check.</p>
+
+<pre><code>head = s3.head_object(Bucket="blog-uploads", Key=key)
+assert head["ContentLength"] == declared_size
+if head.get("ChecksumSHA256"):
+    assert head["ChecksumSHA256"] == declared_sha256_base64
+</code></pre>
+
+<p>Fix the failure order in advance: mark the session failed, delete the object, keep the reason and the part list for a retry, then alert. Do not record the file before verifying, and do not silently retry a failed checksum three times, because a bad file is rarely a transient network problem.</p>
+
+<h2>Security</h2>
+
+<p>Upload is one of the few places where a user writes bytes into your storage, so the boundary has to be harder than an ordinary endpoint.</p>
+
+<p><strong>Names and paths.</strong> Traversal sequences, backslashes, NUL bytes, oversized names and Unicode confusables are all reachable. The defence is not a blacklist but a whitelist plus regeneration: take the basename, normalise, keep letters, digits, dots, underscores and hyphens, collapse repeated dots, truncate, then prefix a UUID. For anything written to local disk, resolve the final path and confirm it sits under the allowed root.</p>
+
+<p><strong>Content type.</strong> A declared type is only a claim, so an HTML file can arrive labelled as an image. If it is later served from your domain with that image type, a browser may sniff the content and turn it into stored cross-site scripting. Three defences: identify the real type from magic bytes; force an attachment disposition with a nosniff header for untrusted content; and serve user content from a separate domain or bucket so it cannot share cookies or same-origin privileges with the site.</p>
+
+<pre><code>import magic
+
+mime = magic.from_buffer(head_bytes, mime=True)
+if mime not in {"image/jpeg", "image/png", "application/pdf", "application/zip"}:
+    raise ValueError("unsupported content type")
+</code></pre>
+
+<p>Magic-byte detection needs a system library in the container and is not infallible against polyglots, so high-risk flows should also open the file with a real parser.</p>
+
+<p><strong>Decompression bombs.</strong> A small PNG can declare twenty thousand pixels on a side, and decoding produces gigabytes of bitmap. Image libraries have a pixel limit that warns and then refuses, but plenty of services disable it or never check dimensions before decoding. Read the header, compute the pixel count times bytes per pixel, reject above a threshold, then decode, and re-encode afterwards to strip GPS and device metadata.</p>
+
+<p><strong>Malware.</strong> Public file sharing needs asynchronous scanning, never a blocking scan inside the upload. Objects land under a quarantine prefix, a scanner fetches and labels them, and only clean items get download links. The scanner needs timeouts, a size cap, and archive limits on recursion depth and total expansion, or it becomes the victim of the bomb.</p>
+
+<p><strong>Fetching from a URL</strong> is server-side request forgery in disguise, because the application dereferences an address chosen by the user with its own network identity. Allow only HTTP and HTTPS, resolve the name and reject loopback, private, link-local and reserved addresses across every record, refuse redirects or re-validate each hop, set connect and read timeouts and a byte cap, and preferably run the fetch in a worker or namespace with no internal network access. A string blacklist does not survive DNS rebinding.</p>
+
+<p><strong>Ticket scope.</strong> One ticket, one method, one key, one short expiry, with content type and size bounds where possible. Never sign write access to a whole prefix, and never let one ticket both upload and read. A ticket is a bearer credential: keep it out of pages that leak referrers and out of logs.</p>
+
+<h2>Access control</h2>
+
+<p>Keep the bucket private and block public access. A publicly writable bucket that accepts one HTML or SVG file is an injection point on your domain, and even harmless content attracts hosting abuse and its bill.</p>
+
+<p>Reads take one of two shapes. At small scale, sign a GET per download after checking the database for ownership, valid for five to fifteen minutes. At larger scale, put a CDN in front and sign URLs or cookies at the edge, with origin access control behind it. Both share one property: <strong>authorisation happens before signing</strong>, never after the client holds a key.</p>
+
+<p>The classic hole here is insecure direct object reference. An endpoint that takes a key and signs it without checking ownership lets anyone who learns a key download the file. A key is an address, not a permission, and an unguessable identifier reduces enumeration without replacing authorisation. The client should send a business id, and the server should look up the record and its owner before deciding.</p>
+
+<p>Two CDN details. A cache key for private content must include the signature, or use signed cookies with a private cache directive, otherwise one user's signed response can be served to another. And the signature lifetime must be shorter than or equal to the cache lifetime, since a revoked permission still leaves issued URLs valid until they expire, which is inherent to signing and is managed by shorter TTLs and key rotation.</p>
+
+<p>Downloads also need care with the disposition header, because a filename containing quotes, newlines or semicolons injects headers. Use the encoded form from the standard, or simply generate an ASCII name on the server and keep the display name elsewhere.</p>
+
+<p>Finally, logs. The signature inside a presigned URL is a credential, so printing whole URLs into access logs publishes tickets. Log the bucket, key, session id and result code instead, and treat error reporting the same way.</p>
+
+<h2>Deduplication and lifecycle</h2>
+
+<p>When the same file is uploaded by many users, the storage bill climbs visibly. Deduplicate on a content hash: compute SHA-256, put a unique constraint on tenant, hash and size, and when the row exists, skip the upload, create a reference and return the existing key.</p>
+
+<p>Reference counting can be a relation table or a counter column. What matters is that deletion is never immediate: decrement, mark deleted at zero, allow a grace period of a week to a month, and let a lifecycle rule or job remove the bytes. That makes mistaken deletions recoverable and prevents one user's delete from removing an object another user still references.</p>
+
+<p>Deduplication has a privacy edge. Sharing objects across tenants creates an existence oracle: upload a known file, and a "already uploaded" response tells you somebody else stored it. For sensitive products, deduplicate within a tenant, or key the hash with a tenant-specific secret so identical content maps to different objects.</p>
+
+<p>Lifecycle rules should cover four classes at least: incomplete multipart uploads, temporary and unreferenced raw objects by age, archives that are rarely read moved to colder tiers, and non-current versions expired. Design them by prefix, which is exactly why the key layout has a year and month segment, so rules match precisely instead of scanning the whole bucket.</p>
+
+<p>Orphans come in two directions. An object with no database row appears when a completion callback is lost or a client uploads and leaves; reconcile with a periodic storage inventory rather than a full listing, since a million objects makes a listing expensive in both money and time. A row with no object appears when something outside deleted it or a rule expired it early; check with a head request when signing a download, and mark the record missing with an alert.</p>
+
+<h2>The Django side</h2>
+
+<p>Even with direct upload as the main path, the framework settings still matter for admin, imports and avatars.</p>
+
+<p>The memory threshold decides whether a file lives in memory or a temporary file, and raising it does not make large uploads faster, it makes every concurrent request larger. The temporary directory should be a separate volume with a capacity cap, away from application logs. The file permission setting should be checked against your umask in multi-user deployments.</p>
+
+<p>The data upload limit covers non-file parts and is not a file size limit; raising it to two hundred megabytes only increases the risk of large JSON bodies being buffered. Enforce size by checking the declared length in middleware and re-checking the parsed file's size afterwards. The field count limit exists so a request with tens of thousands of form fields cannot stall the parser, and bulk import should submit in batches rather than lifting it.</p>
+
+<p>At the model layer there are two styles. A file field with a storage backend hands the file to the backend and inherits its streaming and chunking behaviour, whatever that is. A char field holding only the key, with size, hash, type, owner and status in columns, keeps the object store as an external system and makes the behaviour explicit, which is the usual choice in a direct-upload design.</p>
+
+<pre><code>def upload_to(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in {".jpg", ".png", ".pdf", ".zip"}:
+        raise ValueError("unsupported extension")
+    return f"raw/u_{instance.owner_id}/{timezone.now():%Y/%m}/{uuid4().hex}{ext}"
+</code></pre>
+
+<pre><code>def save_stream(uploaded, dest_path, chunk_size=64 * 1024):
+    with open(dest_path, "xb") as out:
+        for chunk in uploaded.chunks(chunk_size):
+            out.write(chunk)
+</code></pre>
+
+<p>The one thing you must never do is read the upload fully and then write it. Consume in chunks, fsync or rely on the filesystem's durability, then verify the size. If the process is killed mid-write, a temporary file may remain, so a startup task should remove stale temporaries by modification time.</p>
+
+<h2>Resumable protocols and idempotency</h2>
+
+<p>Multipart is resumption on the storage side, but it asks the client to understand the storage API. In browsers, the tus protocol abstracts resumable uploads into plain HTTP semantics: create with a length and optional metadata and receive a location, query progress with a head request that returns an offset, and append with a patch that carries the offset and returns the new one. A mismatched offset returns a conflict, and the client must re-synchronise rather than continue from local state.</p>
+
+<p>The value is uniformity, since create, query, append and terminate all have defined codes and headers, and client libraries implement pause, resume and restore across refreshes. The cost is a server that stores partial state; if the final destination is object storage, that server either stages parts locally and forwards them, or maps tus offsets onto multipart part numbers, and the two state machines have to agree.</p>
+
+<p>Client retry discipline is the same either way: retry network errors, timeouts, server errors and throttling, never an expired signature, a permission failure or a checksum mismatch; use exponential backoff with jitter and a cap; and always trust the server's offset over the local record, querying progress before each attempt.</p>
+
+<p>Idempotency belongs on the server. Create sessions with a client-generated idempotency key and a unique constraint, so a retry cannot produce two upload ids. Protect completion with the state machine: only uploading may move to completing, take a lock or use a conditional update, and a duplicate completion returns the current state. And if completion reports a missing upload, do not immediately fail: head the object first, and if it exists at the right size, treat the operation as successful.</p>
+
+<p>Part uploads are naturally idempotent, since the same number overwrites, which is precisely why an uncertain client can safely resend without querying first.</p>
+
+<h2>Observability</h2>
+
+<p>Split the pipeline into stages rather than watching one success rate. A single upload passes through signing, session creation, part uploads, completion, verification and the database write, and each stage needs its own rate and duration, or an incident only shows "uploads failing" without distinguishing an expired signature, a CORS mistake, a mismatched ETag or a lost callback.</p>
+
+<ul>
+<li>End-to-end success from ticket to record, plus per-stage rates for create, parts, complete and verify.</li>
+<li>Tail latency bucketed by file size, since mixing a hundred megabytes with one megabyte produces a meaningless average.</li>
+<li>Effective throughput, bytes over total duration, measured separately on the client and server sides.</li>
+<li>A breakdown of client errors: expired signature, mismatched signature and preflight failure inside 403; oversized bodies separately; checksum and ordering problems inside 400.</li>
+<li>Orphans: incomplete sessions, their total bytes and the age of the oldest, which maps directly onto the bill.</li>
+<li>Aborts by reason: user cancel, timeout, client crash, server cleanup.</li>
+<li>Deduplication hit rate, remembering the cross-tenant privacy question.</li>
+<li>Scan queue latency and quarantine rate.</li>
+</ul>
+
+<pre><code>monthly storage ≈ Σ object bytes × unit price + incomplete part bytes × unit price
+monthly requests ≈ uploads + parts + completions + downloads
+monthly transfer ≈ downloaded bytes × egress price
+</code></pre>
+
+<p>Part requests approximate the part count plus two. Moving from eight mebibytes to sixty-four for a one gigabyte file takes the request count from about a hundred and thirty to eighteen, while the cost of a failed retry rises from eight mebibytes to sixty-four, which is a decision about network quality rather than about minimising calls.</p>
+
+<p>Alerts worth having: success below a threshold for five minutes, tail latency above twice the objective, orphan bytes growing by more than a threshold in a day, and a sudden rise in expired signatures inside 403, which usually means clock drift or a misconfigured TTL and should never be the user's problem.</p>
+
+<p>Log the session id, key, part number, ETag, error code and duration, never the full signed URL, and carry one trace id from the signing call through to verification, so that "the client says it finished" and "the server says nothing arrived" can be reconciled.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Why upload directly</td><td>Proxying bytes turns network time into process occupancy, and that produces the timeouts, the memory and the corruption</td></tr>
+<tr><td>Presigned PUT or POST</td><td>POST when a policy must enforce size and prefix, PUT for a single object with a size check afterwards</td></tr>
+<tr><td>What multipart solves</td><td>Recoverability and parallel throughput, not correctness of content</td></tr>
+<tr><td>Is the ETag an MD5</td><td>No; it is a digest of part digests with the part count appended</td></tr>
+<tr><td>How integrity is proven</td><td>A streamed client hash plus a server-side size and checksum check</td></tr>
+<tr><td>Ticket boundaries</td><td>One method, one key, a short TTL, and content type and size where possible</td></tr>
+<tr><td>Is a key a permission</td><td>No; authorise before signing</td></tr>
+<tr><td>Orphan parts</td><td>Abort on cancel plus a lifecycle rule, both of them</td></tr>
+<tr><td>Whose offset wins</td><td>The server's; the client record is a hint</td></tr>
+<tr><td>What to watch</td><td>Per-stage rates, size-bucketed tails, orphan bytes, client error breakdown</td></tr>
+</tbody>
+</table>
+
+<p>The hard part was never storing a file. It is turning an untrusted network, an untrusted client and an untrusted filename into an object that can be verified, authorised and cleaned up. Direct upload takes the bytes out of the process, chunking turns failure into resumption, verification turns "finished" into "correct", and access control separates knowing an address from being allowed to use it. Four pieces, four jobs, and skipping any one of them brings the problem back some other night.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
