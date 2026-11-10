@@ -25205,6 +25205,296 @@ COMMIT;
 `,
   },
 
+  {
+    slug: 'api-gateway-deep-dive',
+    zhSlug: 'api-gateway-deep-dive',
+    topicSlug: 'backend',
+    title: 'API gateways: one door for auth, rate limiting and routing',
+    excerpt:
+      'Cross-cutting concerns scattered across services are not a style problem, they are security incidents waiting for a release. What a gateway earns, what it costs, and which one to pick.',
+    date: '2026-10-30',
+    readingTime: 20,
+    html: `
+<blockquote>
+<p>Who this is for: anyone moving from a monolith to several services, or giving several backends one entrance.</p>
+<p>Language agnostic, with a comparison of four common products.</p>
+<p>Reading time around 20 minutes. Level: intermediate.</p>
+</blockquote>
+
+<h2>When every service implemented its own auth</h2>
+
+<p>A project three years ago had four backends, for users, orders, products and payments, and each one had implemented its own JWT check, its own rate limiter and its own request logging. The consequences were predictable. A key rotation meant four edits and four deploys. The order service had its threshold changed and the payment service forgotten, so payments fell over first during a sale. Routing rules lived in four repositories, so answering "which service handled this request" meant reading all four. And a new colleague wrote a fifth service without a limiter and it was scraped flat on its first day.</p>
+
+<p>The common cause is that <strong>cross-cutting concerns were spread across every service</strong>. A gateway collects them into one entrance, so business services only do business.</p>
+
+<pre><code>before:
+client -> users service    (own auth, own limiter, own logs)
+client -> orders service   (own auth, own limiter, own logs)
+client -> products service (own auth, own limiter, own logs)
+
+after:
+client -> gateway (auth, limiting, routing, logs, breakers) -> services (business only)
+</code></pre>
+
+<h2>Why a gateway exists</h2>
+
+<table>
+<thead><tr><th>Concern</th><th>Implemented N times</th><th>At the gateway</th></tr></thead>
+<tbody>
+<tr><td>Authentication</td><td>N copies of token checking</td><td>One</td></tr>
+<tr><td>Rate limiting</td><td>N thresholds that drift apart</td><td>One, managed centrally</td></tr>
+<tr><td>TLS</td><td>N certificates and configs</td><td>One termination point</td></tr>
+<tr><td>Request logs</td><td>N formats, hard to aggregate</td><td>One format into the log store</td></tr>
+<tr><td>CORS</td><td>Configured per service</td><td>Answered once</td></tr>
+<tr><td>Breakers</td><td>N copies of resilience code</td><td>Applied uniformly</td></tr>
+</tbody>
+</table>
+
+<p>This is not about avoiding duplication for its own sake. The real cost is security holes and operational incidents: one service missing a limiter, one leaving debug logging on, one getting token validation subtly wrong, and any of them is a way into the whole system.</p>
+
+<p>A gateway is a reverse proxy plus a pipeline of cross-cutting steps, where each step can reject or rewrite the request.</p>
+
+<pre><code>request -> gateway -+-- auth ----+-- limiting --+-- routing --+-- translation --&gt; backend
+                    |            |              |             |
+                    v            v              v             v
+                 401/403       429          target         protocol
+</code></pre>
+
+<h3>When you do not need one</h3>
+
+<p>Honestly, not every system does. A single service gains nothing but a hop. Two services with no shared concerns are served by a plain reverse proxy. Internal service-to-service traffic belongs to a mesh rather than a gateway.</p>
+
+<p><strong>The value scales with the number of services times the number of shared concerns.</strong> Past three user-facing services, the returns start to be obvious.</p>
+
+<h2>The capabilities</h2>
+
+<table>
+<thead><tr><th>Capability</th><th>Does</th><th>Value</th><th>Complexity</th></tr></thead>
+<tbody>
+<tr><td>Routing</td><td>Send the request to the right backend</td><td>The service discovery entrance</td><td>Low</td></tr>
+<tr><td>Authentication</td><td>Verify who is calling</td><td>A security boundary</td><td>Medium</td></tr>
+<tr><td>Authorisation</td><td>Verify what they may do</td><td>Permission control</td><td>Medium</td></tr>
+<tr><td>Rate limiting</td><td>Control the request rate</td><td>Overload protection</td><td>Medium</td></tr>
+<tr><td>Breaking</td><td>Reject when a backend is down</td><td>Cascade prevention</td><td>Medium</td></tr>
+<tr><td>Protocol translation</td><td>HTTP to gRPC, HTTP to sockets</td><td>Decoupling protocols</td><td>High</td></tr>
+<tr><td>Rewriting</td><td>Headers, paths, bodies</td><td>Compatibility</td><td>Low</td></tr>
+<tr><td>Canary routing</td><td>Split traffic by weight or condition</td><td>Safer releases</td><td>Medium</td></tr>
+<tr><td>Logging and metrics</td><td>One access log and one metric set</td><td>Observability</td><td>Low</td></tr>
+<tr><td>Caching</td><td>Response cache</td><td>Less pressure, more speed</td><td>Medium</td></tr>
+<tr><td>TLS termination</td><td>Central certificate management</td><td>Security and simplicity</td><td>Low</td></tr>
+</tbody>
+</table>
+
+<p>Four of these are where projects get into trouble: authentication, limiting, routing and protocol translation.</p>
+
+<h2>Authentication</h2>
+
+<p>Do it at the gateway for two reasons. The gateway is the only entrance, so nothing slips past it. And the backends should trust nothing, including the gateway, in the sense that they verify an internal credential rather than re-authenticating: the gateway validates the caller and passes identity in a signed header or an internal token.</p>
+
+<table>
+<thead><tr><th>Scheme</th><th>Fits</th><th>Strength</th><th>Weakness</th></tr></thead>
+<tbody>
+<tr><td>JWT</td><td>Web and mobile clients</td><td>Stateless and scalable</td><td>Revocation is hard without a blocklist or short TTLs</td></tr>
+<tr><td>OAuth2 with PKCE</td><td>Third-party access, open platforms</td><td>Standard, fine-grained scopes</td><td>Complex flow</td></tr>
+<tr><td>API keys</td><td>Service-to-service, public APIs</td><td>Simple, easy to rotate</td><td>Key management overhead</td></tr>
+<tr><td>Mutual TLS</td><td>Internal service traffic</td><td>The strongest, both sides verified</td><td>Certificate operations are heavy</td></tr>
+</tbody>
+</table>
+
+<p>The common pattern is to verify the token, extract the subject and inject it as a header that backends trust.</p>
+
+<pre><code>plugins:
+  - name: jwt
+    config:
+      secret_is_base64: false
+      claims_to_verify:
+        - exp
+      key_claim_name: iss
+      strip_claim: false
+</code></pre>
+
+<p>Points worth remembering. The gateway verifies signature and expiry and leaves business authorisation to the backend. It does not forward the raw token, because a backend that receives it may skip validation and use it directly, which is the same as no authentication. Token lifetimes are short, with refresh handled at the gateway if possible. And revocation is a lookup, not local state.</p>
+
+<table>
+<thead><tr><th>Mistake</th><th>Consequence</th></tr></thead>
+<tbody>
+<tr><td>Gateway validates, and the backend validates again</td><td>Wasted work, and keys that drift become a hole</td></tr>
+<tr><td>Backend trusts a client-supplied user id</td><td>One user can act as another</td></tr>
+<tr><td>Day-long token lifetimes</td><td>A leak is exploitable for a day</td></tr>
+<tr><td>Forwarding the raw token</td><td>Backends may bypass verification entirely</td></tr>
+</tbody>
+</table>
+
+<h2>Rate limiting</h2>
+
+<table>
+<thead><tr><th>Granularity</th><th>Typical configuration</th><th>Protects</th></tr></thead>
+<tbody>
+<tr><td>Global</td><td>A ceiling for the whole gateway</td><td>Against floods and denial of service</td></tr>
+<tr><td>Per user or tenant</td><td>A share per identity</td><td>Against one caller saturating</td></tr>
+<tr><td>Per endpoint</td><td>A tighter share for expensive routes</td><td>A fragile endpoint in particular</td></tr>
+</tbody>
+</table>
+
+<p>The three stack: a user's payment request is checked against the global ceiling, their personal share and the endpoint's share, and the strictest wins.</p>
+
+<p>A token bucket adds tokens at a fixed rate and spends one per request, so a full bucket allows a burst. A leaky bucket drains at a fixed rate and rejects when full, so the downstream sees a constant rate. Default to the token bucket, and use the leaky one when the downstream is an external API with a fixed capacity.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Token bucket</th><th>Leaky bucket</th></tr></thead>
+<tbody>
+<tr><td>Bursts</td><td>Allowed, spending the accumulated balance</td><td>Rejected, overflowing the bucket</td></tr>
+<tr><td>Output rate</td><td>Variable</td><td>Constant</td></tr>
+<tr><td>Fits</td><td>Normal traffic that bursts</td><td>A downstream with fixed capacity</td></tr>
+</tbody>
+</table>
+
+<p>Where to limit: the gateway rejects earliest and cannot tell request types apart; the service knows business meaning but only after the request has consumed a connection; the edge is fastest and only sees addresses and paths. The practical split is user and global limits at the gateway, business limits such as five items per customer inside the service.</p>
+
+<pre><code>HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1718700000
+
+{
+  "error": "rate_limit_exceeded",
+  "message": "Too many requests, retry after 30 seconds"
+}
+</code></pre>
+
+<h2>Routing</h2>
+
+<table>
+<thead><tr><th>Kind</th><th>Example</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Path prefix</td><td>Everything under a prefix goes to one service</td><td>The common case</td></tr>
+<tr><td>Exact match</td><td>A health endpoint goes to a probe service</td><td>Operational routes</td></tr>
+<tr><td>Header</td><td>A version header selects a version</td><td>Version routing</td></tr>
+<tr><td>Weight</td><td>Ninety percent to one version, ten to another</td><td>Canary releases</td></tr>
+<tr><td>Parameter</td><td>A tenant parameter selects a cluster</td><td>Tenant isolation</td></tr>
+</tbody>
+</table>
+
+<p>Two schools of path design. Prefixes such as \`/api/v1/users/123\` are clear, RESTful and trivial to configure, at the cost of putting a version in the URL that clients must follow. Subdomains such as \`users.api.example.com\` isolate services completely and route by name, at the cost of DNS management and awkward local development. Use prefixes; past fifty services the DNS approach becomes a burden, and a rewrite rule handles the rest.</p>
+
+<pre><code>routes:
+  - uri: /api/orders/*
+    upstream:
+      nodes:
+        - host: orders-v1.internal
+          port: 8001
+          weight: 90
+        - host: orders-v2.internal
+          port: 8001
+          weight: 10
+</code></pre>
+
+<pre><code># internal staff to the new version, everyone else to the old one
+routes:
+  - uri: /api/orders/*
+    vars:
+      - ["http_x_internal_user", "==", "true"]
+    upstream: orders-v2
+  - uri: /api/orders/*
+    upstream: orders-v1
+</code></pre>
+
+<p>Three rules for canaries. Start at one percent and watch for half an hour before widening. Keep rollback to seconds, which a weight change gives you without a deploy. And choose the dimension carefully: hashing on a user id keeps one user on one version, which is much less confusing than a random split where refreshing the page changes the experience.</p>
+
+<p>Route conflicts need a deterministic rule: longest prefix wins, or first match wins, or an explicit priority field. <strong>Write tests for the ordering.</strong> Traffic that should have gone to one version reaching another is one of the hardest bugs to find, because no metric looks wrong and only the business result does.</p>
+
+<h2>Protocol translation</h2>
+
+<p>Backends increasingly speak gRPC while browsers speak JSON, and the gateway bridges the gap. That involves more than translation: status codes need mapping, JSON needs converting to and from protobuf, unary calls are easy while streaming is not, and metadata maps onto headers.</p>
+
+<p>Do not hand-write those conversions inside the gateway. Use a transcoder that generates the mapping from the schema definitions; the maintenance cost of a manual table is prohibitive.</p>
+
+<p>WebSockets are the awkward case, because a gateway assumes request and response while a socket is a long-lived connection. The default idle timeout cuts it, the default balancing strategy pins new connections to one machine, and per-request rate limiting has no obvious meaning for a thousand messages on one connection. Raise the timeouts in both directions and balance with address affinity so a reconnect lands where it left.</p>
+
+<pre><code>location /ws/ {
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+}
+</code></pre>
+
+<p>Server-sent events are the one-directional cousin and are easier, since the connection stays ordinary HTTP, but buffering turns a stream into batches, so disable it for those routes along with caching.</p>
+
+<h2>Choosing a gateway</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Kong</th><th>APISIX</th><th>Spring Cloud Gateway</th><th>Envoy</th></tr></thead>
+<tbody>
+<tr><td>Language</td><td>Lua on OpenResty</td><td>Lua on OpenResty</td><td>Java</td><td>C++</td></tr>
+<tr><td>Control plane</td><td>Dashboard and database</td><td>Dashboard</td><td>Code as configuration</td><td>xDS API</td></tr>
+<tr><td>Plugins</td><td>Large official set</td><td>Large set</td><td>Smaller, community-driven</td><td>Filters</td></tr>
+<tr><td>Performance</td><td>High</td><td>Highest in most benchmarks</td><td>Moderate, JVM cost</td><td>Highest</td></tr>
+<tr><td>Learning curve</td><td>Low</td><td>Low</td><td>Medium, needs the Spring world</td><td>High</td></tr>
+<tr><td>Scale</td><td>Medium to large</td><td>Large</td><td>Medium Java shops</td><td>Large, and meshes</td></tr>
+<tr><td>Authentication plugins</td><td>Broad</td><td>Broad</td><td>Write your own</td><td>External auth service</td></tr>
+<tr><td>Limiting</td><td>Local plus shared store</td><td>Local plus shared store</td><td>Needs configuration</td><td>With a rate limit service</td></tr>
+<tr><td>gRPC translation</td><td>Plugin</td><td>Plugin</td><td>No</td><td>Native</td></tr>
+<tr><td>Mesh role</td><td>No</td><td>No</td><td>No</td><td>Native to Istio</td></tr>
+</tbody>
+</table>
+
+<p>A Java team with fewer than ten services is best served by the Spring option, which needs no extra deployment. If performance and plugins both matter, the APISIX-class product is a reasonable default. If many authentication protocols must be supported, the most mature plugin ecosystem wins. Large systems that also run a mesh will use a C++ proxy in both roles. And a small team with a single service should use a reverse proxy or a managed gateway.</p>
+
+<h2>Traps</h2>
+
+<p><strong>The gateway becomes the single point.</strong> Every request passes through it, so it failing means everything failing, which is both the most common objection and a real risk. Run at least two instances behind a balancer, keep them stateless with counters and revocation in a shared store, configure health checks so bad instances are removed, and accept that clients cannot fall back to direct connections, because the backends lack the gateway's protections. That is the price of centralising.</p>
+
+<p><strong>Added latency.</strong> A hop costs a millisecond or so in a fast implementation, and several things inflate it: token validation that queries a database, body conversion for large payloads, and crossing availability zones. Keep the gateway in the same network zone as the services.</p>
+
+<p><strong>State.</strong> Counters belong in a shared store so every instance agrees; session affinity is a routing decision rather than stored state; revocation lists are shared with a TTL. <strong>Nothing business-related should live in gateway memory</strong>, because per-instance counters make limiting meaningless.</p>
+
+<p><strong>Configuration is code.</strong> Export it, commit it, review it through pull requests, and apply it with a declarative tool rather than by hand, since a typo in routing is an outage.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>At least two instances behind a balancer.</li>
+<li>Secrets come from the environment or a secrets manager, never from configuration files.</li>
+<li>Rate limiting counts in a shared store, not locally.</li>
+<li>Rejections are 429 with a retry hint, not 500.</li>
+<li>Socket timeouts are raised above an hour and buffering is off for streams.</li>
+<li>Route priorities are ordered and unambiguous, with tests.</li>
+<li>Canaries can roll back in seconds by changing a weight.</li>
+<li>Access logs use one format and land in one store.</li>
+<li>The gateway itself is monitored for CPU, memory, latency and error rate.</li>
+<li>Configuration is versioned and reviewed.</li>
+<li>Certificates renew automatically.</li>
+<li>Backends trust only headers the gateway injected.</li>
+</ul>
+
+<p><strong>Is centralising not concentrating risk?</strong> It is, which is why the gateway itself needs redundancy. But ten services each doing authentication means any gap is a hole, while one gateway is a single availability risk that engineering can manage with replicas, health checks and automatic recovery.</p>
+
+<p><strong>Does a mesh replace this?</strong> No, they address different directions: a gateway handles traffic entering from outside, a mesh handles traffic between services. Large systems run both.</p>
+
+<p><strong>Can a gateway replace a reverse proxy?</strong> Most gateways are built on one, adding plugins and a control plane. Static files and proxying need only the proxy; authentication, limiting and canaries justify the gateway.</p>
+
+<p><strong>Does gateway limiting replace application-level limiting?</strong> No. The gateway rejects earliest and works at the granularity of address, user and path; a global business quota needs a shared counter in the application as well. The gateway is the first line, not the last.</p>
+
+<p><strong>Does a personal project need one?</strong> Usually not. One application behind a reverse proxy is enough, unless there really are several services or the point is to learn the configuration.</p>
+
+<h2>Closing</h2>
+
+<p>One sentence covers the idea: <strong>separate how requests arrive from what the service does</strong>. Business services handle what; the gateway handles who is calling, whether they may, how fast, which version and which protocol.</p>
+
+<p>After the gateway went in, the four services dropped their authentication code, key rotation became one edit, and thresholds changed in one dashboard. A fifth service inherited authentication and limiting for free.</p>
+
+<p>It is not a silver bullet either: it introduces a new single point, a new latency source and a new configuration surface. Whether to adopt one, which one, and with which features depends on scale and on the team.</p>
+
+<p>A system without a gateway is not necessarily wrong. A system with one no longer has cross-cutting concerns scattered through it, and that alone tends to pay for the ticket.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
