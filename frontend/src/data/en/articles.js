@@ -31322,6 +31322,453 @@ q = [15, 7]    snapshot 2
 `,
   },
 
+  {
+    slug: 'lc-104-226-max-depth-and-invert-binary-tree',
+    zhSlug: 'lc-104-226-max-depth-and-invert-binary-tree',
+    topicSlug: 'leetcode',
+    title: 'LC 104 and 226: max depth and invert, each hiding one nail',
+    excerpt:
+      'Two easy tree problems, two modes of recursion. One is forced into post-order by its dependencies; the other is free, except for the one place where the swap cannot go.',
+    date: '2026-10-14',
+    readingTime: 17,
+    html: `
+<h2>The two problems</h2>
+
+<p>They belong together because they are the two modes of tree recursion, and their edge cases illuminate each other.</p>
+
+<p><strong>LC 104:</strong> given a binary tree, return its maximum depth, meaning the number of nodes on the longest path from the root to a leaf.</p>
+
+<pre><code>        3
+       / \\
+      9   20
+         /  \\
+        15   7
+
+input: [3,9,20,null,null,15,7]
+output: 3
+</code></pre>
+
+<p><strong>LC 226:</strong> invert the tree and return its root.</p>
+
+<pre><code>      4                        4
+     / \\                      / \\
+    2   7        -&gt;            7   2
+   / \\ / \\                  / \\ / \\
+  1  3 6  9                9  6 3  1
+</code></pre>
+
+<pre><code>class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+</code></pre>
+
+<p>The array encoding is the usual level-order one, where nulls hold their places.</p>
+
+<h2>Why they belong together</h2>
+
+<table>
+<thead><tr><th></th><th>LC 104</th><th>LC 226</th></tr></thead>
+<tbody>
+<tr><td>Work done in the call</td><td>Ask both subtrees for a height, then compute itself</td><td>Swap its two children</td></tr>
+<tr><td>Can the order change</td><td><strong>No, post-order</strong></td><td><strong>Yes, either works</strong></td></tr>
+<tr><td>Why</td><td>Its own height depends on what the subtrees return</td><td>Each node acts independently</td></tr>
+<tr><td>Return value</td><td>A number</td><td>Not needed, the structure changes in place</td></tr>
+</tbody>
+</table>
+
+<p>In one sentence: depth propagates information upward, inversion walks downward making local edits. The first order is forced, since without the subtrees there is nothing to compute from. The second is free, and that freedom is exactly where the only trap lives.</p>
+
+<h2>LC 104: the one that cannot be dropped</h2>
+
+<pre><code>class Solution:
+    def maxDepth(self, root: TreeNode) -&gt; int:
+        if not root:
+            return 0
+        return 1 + max(self.maxDepth(root.left), self.maxDepth(root.right))
+</code></pre>
+
+<p>Three lines, and the interesting part is the literal one.</p>
+
+<pre><code>       3          maxDepth(9)  = 1
+      / \\         maxDepth(20) = 2
+     9   20       max(1, 2)    = 2
+        /  \\      1 + 2        = 3
+       15   7
+</code></pre>
+
+<p>The inner call gives the height of the subtrees, which is how far down one can go starting from a child. The problem asks from the current node, so the difference is the node itself.</p>
+
+<p>Dropping the one makes everything return zero, which is easy to spot. The subtler family of bug is a return value whose meaning is off by one layer, and the diameter problem is that bug in its evolved form, where the difference between counting edges and counting nodes is one.</p>
+
+<h3>Why post-order is required</h3>
+
+<p>Because the heights come up from below, and a parent has nothing until it asks.</p>
+
+<p>A top-down version also works:</p>
+
+<pre><code>def maxDepth(self, root):
+    self.ans = 0
+    def dfs(node, depth):
+        if not node: return
+        depth += 1
+        self.ans = max(self.ans, depth)
+        dfs(node.left, depth)
+        dfs(node.right, depth)
+    dfs(root, 0)
+    return self.ans
+</code></pre>
+
+<p>It passes, and it walks a longer road, and it never materialises a subtree height. That matters later, since the balanced-tree problem needs to compare the two subtree heights at each node.</p>
+
+<p>So whenever a parent's answer depends on its subtrees, post-order is essentially the only choice. Whenever the answer accumulates a parameter on the way down, pre-order is more natural. That distinction separates the two big families better than any template.</p>
+
+<h3>A BFS alternative</h3>
+
+<pre><code>from collections import deque
+
+class Solution:
+    def maxDepth(self, root: TreeNode) -&gt; int:
+        if not root:
+            return 0
+        q = deque([root])
+        depth = 0
+        while q:
+            depth += 1
+            for _ in range(len(q)):
+                node = q.popleft()
+                if node.left:  q.append(node.left)
+                if node.right: q.append(node.right)
+        return depth
+</code></pre>
+
+<p>Choose this when the tree is deep enough that recursion overflows. Python's default limit is a thousand frames, and a skewed tree of thirty thousand nodes will fail; the queue version will not.</p>
+
+<p>The trade is space: breadth-first holds the widest level, up to half the nodes, while depth-first holds the height, logarithmic for a balanced tree. Each wins somewhere.</p>
+
+<p>Note the snapshot again, from the level-order problem. Without capturing the length, the inner loop drains and refills in the same pass and the levels merge.</p>
+
+<h2>The animation for 104</h2>
+
+<p>The original post has eleven frames. Each node carries a small height value, green once computed and orange in the frame it is computed. The thick orange edge is the current recursion path, the thick ring marks the focused node, and the banner shows the arithmetic of the frame alongside the final answer, which stays a question mark until the root is finished.</p>
+
+<p>Three moments matter. A leaf reports one, showing that heights bubble up from the leaves. The twenty sees a one on each side and computes two. And the root computes the final three, at which point the question mark becomes the answer.</p>
+
+<p>The contrast worth noting: nothing before the last frame can state the answer. Compare the maximum path sum problem, where a running best is updated constantly along the way, which is the opposite rhythm.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Node</th><th>Left</th><th>Right</th><th>Height</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>3</td><td>-</td><td>-</td><td>-</td><td>?</td></tr>
+<tr><td>1</td><td>recurse</td><td>3</td><td>-</td><td>-</td><td>-</td><td>?</td></tr>
+<tr><td>2</td><td><strong>leaf</strong></td><td>9</td><td>0</td><td>0</td><td><strong>1</strong></td><td>?</td></tr>
+<tr><td>3</td><td>recurse</td><td>3</td><td>1</td><td>-</td><td>-</td><td>?</td></tr>
+<tr><td>4</td><td>recurse</td><td>20</td><td>-</td><td>-</td><td>-</td><td>?</td></tr>
+<tr><td>5</td><td><strong>leaf</strong></td><td>15</td><td>0</td><td>0</td><td><strong>1</strong></td><td>?</td></tr>
+<tr><td>6</td><td>recurse</td><td>20</td><td>1</td><td>-</td><td>-</td><td>?</td></tr>
+<tr><td>7</td><td>leaf</td><td>7</td><td>0</td><td>0</td><td>1</td><td>?</td></tr>
+<tr><td>8</td><td><strong>compute</strong></td><td>20</td><td>1</td><td>1</td><td><strong>2</strong></td><td>?</td></tr>
+<tr><td>9</td><td><strong>compute</strong></td><td>3</td><td>1</td><td>2</td><td><strong>3</strong></td><td><strong>3</strong></td></tr>
+<tr><td>10</td><td>done</td><td>3</td><td>-</td><td>-</td><td>3</td><td>3</td></tr>
+</tbody>
+</table>
+
+<p>Frames eight and nine are worth comparing. At twenty both sides report one, so the maximum is trivial. At the root the sides differ, one and two, and only then does taking the larger mean anything. The example was chosen with a leaf on one side and a two-level subtree on the other precisely so the choice is visible.</p>
+
+<h2>The variants of 104</h2>
+
+<h3>Minimum depth: the trap</h3>
+
+<p>This is the most valuable section in the article. Having solved maximum depth, people substitute min.</p>
+
+<pre><code># wrong
+def minDepth(self, root):
+    if not root: return 0
+    return 1 + min(self.minDepth(root.left), self.minDepth(root.right))
+</code></pre>
+
+<p>It passes most cases and fails on any tree with only one child.</p>
+
+<pre><code>    1
+   /
+  2
+</code></pre>
+
+<p>The leaf two reports one, the missing child reports zero, and the minimum of one and zero plus one is one. The correct answer is two, because the path runs through both nodes.</p>
+
+<p>The error is that <strong>an empty subtree is not a leaf</strong>. The question asks for the shortest path to a nearest leaf, and null is the absence of a path, not a path of length zero. Taking it into the minimum fabricates a shorter route.</p>
+
+<p>Maximum depth is immune for a trivial reason: the larger of one and zero is one, so the zero is discarded. The same convention, harmless under max, is fatal under min.</p>
+
+<pre><code>class Solution:
+    def minDepth(self, root: TreeNode) -&gt; int:
+        if not root:
+            return 0
+        if not root.left:
+            return 1 + self.minDepth(root.right)
+        if not root.right:
+            return 1 + self.minDepth(root.left)
+        return 1 + min(self.minDepth(root.left), self.minDepth(root.right))
+</code></pre>
+
+<table>
+<thead><tr><th>Input</th><th>Naive</th><th>Correct</th></tr></thead>
+<tbody>
+<tr><td>one node</td><td>1</td><td>1</td></tr>
+<tr><td>root with left child</td><td><strong>1</strong>, wrong</td><td><strong>2</strong></td></tr>
+<tr><td>root with right child</td><td><strong>1</strong>, wrong</td><td><strong>2</strong></td></tr>
+<tr><td>a left chain of three</td><td><strong>1</strong>, wrong</td><td><strong>3</strong></td></tr>
+<tr><td>the standard example</td><td>2, by luck</td><td>2</td></tr>
+</tbody>
+</table>
+
+<p>If only one of the two is asked in an interview, it is more likely the minimum, because the maximum is hard to get wrong.</p>
+
+<h3>Balanced tree: the return value doubles as a status</h3>
+
+<pre><code>class Solution:
+    def isBalanced(self, root: TreeNode) -&gt; bool:
+        def height(node: TreeNode) -&gt; int:
+            if not node:
+                return 0
+            lh = height(node.left)
+            if lh == -1:
+                return -1
+            rh = height(node.right)
+            if rh == -1:
+                return -1
+            if abs(lh - rh) &gt; 1:
+                return -1
+            return 1 + max(lh, rh)
+
+        return height(root) != -1
+</code></pre>
+
+<p>The design is worth studying: the return value is nominally a non-negative height, and negative one is borrowed to mean "already violated". One value carries both a number and a state, and returning early prunes the rest of the tree.</p>
+
+<p>This is the same family of trick as a return value with three identities in the lowest common ancestor problem, and one that only reports a single arm in the maximum path sum problem. In tree recursion, the difficulty is almost always in what the return value means.</p>
+
+<h3>Diameter</h3>
+
+<p>Covered with the path sum problem: the same two-arm skeleton, counting edges instead of summing values, and no clamping needed because a depth cannot be negative.</p>
+
+<h2>LC 226: inverting the tree</h2>
+
+<p>The famous anecdote first. In June 2015 Max Howell, the author of Homebrew, interviewed at Google for an iOS role and later tweeted that Google told him ninety percent of their engineers use his software but he could not invert a binary tree on a whiteboard.</p>
+
+<p>The tweet went viral. Google engineers asked publicly whether that question had actually been asked, others pointed out that inverting a tree is elementary, and Howell later noted the feedback had included several other weaknesses and the tweet was simplified for effect.</p>
+
+<p>The anecdote is worth including because it captures the awkwardness precisely: five lines, no algorithmic insight, two minutes of work for anyone comfortable with recursion. And yet it does filter, for comfort with recursion is exactly what it measures.</p>
+
+<pre><code>class Solution:
+    def invertTree(self, root: TreeNode) -&gt; TreeNode:
+        if not root:
+            return None
+        root.left, root.right = root.right, root.left
+        self.invertTree(root.left)
+        self.invertTree(root.right)
+        return root
+</code></pre>
+
+<p>The whole problem in one sentence: visit every node and swap its two children once.</p>
+
+<h3>The order is genuinely free, except in one place</h3>
+
+<p>Pre-order, swapping before recursing, and post-order, recursing before swapping, both work, because the operation on each node depends on nothing from its subtrees and changes no membership.</p>
+
+<p>But this is wrong:</p>
+
+<pre><code>self.invertTree(root.left)
+root.left, root.right = root.right, root.left
+self.invertTree(root.right)
+</code></pre>
+
+<p>Walk through what happens. The first call inverts the original left subtree. The swap then moves that inverted subtree to the right. So the third call operates on the already-inverted subtree and inverts it back, while the true right subtree is never touched.</p>
+
+<p>The root cause is that the swap changes what the two name references point at, and the subsequent recursive call reads those same references.</p>
+
+<p><strong>The rule: the swap goes either before both recursive calls or after them, never between.</strong></p>
+
+<h3>An elegant equivalent: flip every path</h3>
+
+<p>Inversion also equals flipping each node's path from the root, left for right.</p>
+
+<pre><code>node   path    flipped
+ 2      [L]  -&gt;  [R]
+ 7      [R]  -&gt;  [L]
+ 1     [L,L] -&gt; [R,R]
+ 3     [L,R] -&gt; [R,L]
+ 6     [R,L] -&gt; [L,R]
+ 9     [R,R] -&gt; [L,L]
+</code></pre>
+
+<p>The original animation is built exactly this way: it stores each node's left-or-right role relative to its parent, and computes position by walking up the parent chain and converting the path to a column. A swap is then a single value change, and the node jumps to its mirrored position.</p>
+
+<p>A corollary: inversion is its own inverse, so applying it twice restores the tree, because flipping a path twice returns the original.</p>
+
+<h2>The animation for 226</h2>
+
+<p>This is the one tree animation in the series where nodes actually change position rather than just colour.</p>
+
+<p>A dashed arc with two arrowheads marks the pair being swapped in that frame. A thin progress bar in the corner counts how many non-leaf nodes have been swapped. And the traversal order looks like it goes right before left, which is an artifact of pre-order: after swapping, the left reference points at what used to be the right child, so recursing into left visits the original right subtree. The underlying order is still left then right; the labels have already been exchanged. That is the same trap as the misplaced swap, seen from the other side.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Node</th><th>Action</th><th>Swaps</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>4</td><td>Start at the root</td><td>0</td></tr>
+<tr><td>1</td><td><strong>swap</strong></td><td>4</td><td>Exchange 2 and 7</td><td>1</td></tr>
+<tr><td>2</td><td><strong>swap</strong></td><td>7</td><td>Exchange 6 and 9</td><td>2</td></tr>
+<tr><td>3</td><td>leaf</td><td>9</td><td>Nothing to swap</td><td>2</td></tr>
+<tr><td>4</td><td>descend</td><td>7</td><td>Move to the other child</td><td>2</td></tr>
+<tr><td>5</td><td>leaf</td><td>6</td><td>Nothing to swap</td><td>2</td></tr>
+<tr><td>6</td><td>descend</td><td>4</td><td>Move to the other subtree</td><td>2</td></tr>
+<tr><td>7</td><td><strong>swap</strong></td><td>2</td><td>Exchange 1 and 3</td><td>3</td></tr>
+<tr><td>8</td><td>leaf</td><td>3</td><td>Nothing to swap</td><td>3</td></tr>
+<tr><td>9</td><td>descend</td><td>2</td><td>Move to the other child</td><td>3</td></tr>
+<tr><td>10</td><td>leaf</td><td>1</td><td>Nothing to swap</td><td>3</td></tr>
+<tr><td>11</td><td>done</td><td>4</td><td>Complete</td><td>3</td></tr>
+</tbody>
+</table>
+
+<p>Leaves are visited too, but swapping two nulls does nothing, which is why the denominator on the progress bar is three rather than seven.</p>
+
+<h2>Variants of 226</h2>
+
+<h3>Symmetric tree (LC 101)</h3>
+
+<p>A tree is symmetric exactly when it equals its own inversion, so the test is a mirrored recursion walking two subtrees in opposite directions.</p>
+
+<pre><code>class Solution:
+    def isSymmetric(self, root: TreeNode) -&gt; bool:
+        def mirror(a: TreeNode, b: TreeNode) -&gt; bool:
+            if not a and not b:
+                return True
+            if not a or not b:
+                return False
+            if a.val != b.val:
+                return False
+            return mirror(a.left, b.right) and mirror(a.right, b.left)
+
+        return mirror(root, root) if root else True
+</code></pre>
+
+<p>The cross pairing is the whole point: comparing like with like instead tests whether two trees are identical, which is a different problem.</p>
+
+<h3>Flip equivalent trees (LC 951)</h3>
+
+<pre><code>class Solution:
+    def flipEquiv(self, root1: TreeNode, root2: TreeNode) -&gt; bool:
+        if not root1 and not root2:
+            return True
+        if not root1 or not root2:
+            return False
+        if root1.val != root2.val:
+            return False
+        return (self.flipEquiv(root1.left,  root2.left)  and self.flipEquiv(root1.right, root2.right)) or \\
+               (self.flipEquiv(root1.left,  root2.right) and self.flipEquiv(root1.right, root2.left))
+</code></pre>
+
+<p>The difference from the symmetric version: there, the cross pairing is mandatory; here, each node may or may not be flipped, so both branches are tried.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Relation</th></tr></thead>
+<tbody>
+<tr><td>LC 111, minimum depth</td><td>The trap version of 104: an empty subtree is not a leaf</td></tr>
+<tr><td>LC 110, balanced</td><td>An extension of 104: the return value carries a status</td></tr>
+<tr><td>LC 543, diameter</td><td>The two-arm version, counting edges</td></tr>
+<tr><td>LC 101, symmetric</td><td>The decision version of 226: compare, do not modify</td></tr>
+<tr><td>LC 100, same tree</td><td>The degenerate version of 101, no cross pairing</td></tr>
+<tr><td>LC 951, flip equivalent</td><td>The search version of 226, both branches tried</td></tr>
+</tbody>
+</table>
+
+<p>Note that 101 and 951 are shaped differently from 226: two pointers descending in step versus one pointer editing in place. Similar-looking problems can share an article; differently shaped ones need separate treatment, and pretending otherwise misleads.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int maxDepth(TreeNode root) {
+        if (root == null) return 0;
+        return 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+    }
+}
+</code></pre>
+
+<pre><code>class Solution {
+    public int minDepth(TreeNode root) {
+        if (root == null) return 0;
+        if (root.left == null)  return 1 + minDepth(root.right);
+        if (root.right == null) return 1 + minDepth(root.left);
+        return 1 + Math.min(minDepth(root.left), minDepth(root.right));
+    }
+}
+</code></pre>
+
+<pre><code>class Solution {
+    public TreeNode invertTree(TreeNode root) {
+        if (root == null) return null;
+        TreeNode tmp = root.left;
+        root.left  = root.right;
+        root.right = tmp;
+        invertTree(root.left);
+        invertTree(root.right);
+        return root;
+    }
+}
+</code></pre>
+
+<p>Java has no tuple unpacking, so the swap needs a temporary; assigning each field to the other without one, which turns both into the same value, is a very common mistake. And the return type is the node, not void.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Case</th><th>Depth result</th><th>Invert result</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>0</td><td>null, returned in place</td></tr>
+<tr><td>single node</td><td>1</td><td>unchanged</td></tr>
+<tr><td>left child only</td><td>2</td><td>child moves right</td></tr>
+<tr><td>right child only</td><td>2</td><td>child moves left</td></tr>
+<tr><td>skewed chain</td><td>chain length</td><td>direction reverses</td></tr>
+<tr><td>negative or zero values</td><td>unaffected</td><td>unaffected</td></tr>
+</tbody>
+</table>
+
+<p>Neither problem looks at values, which is what makes them simpler than the path sum problem where negatives complicate pruning.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Dropping the plus one in depth, which returns zero everywhere.</li>
+<li>Substituting min in the minimum depth problem, which is wrong on any single-child tree.</li>
+<li>Forgetting to prune in the balanced check, which costs comparisons and readability.</li>
+<li>Putting the swap between the two recursive calls, which double-inverts one subtree and skips the other.</li>
+<li>Forgetting to return the root in the inversion, which yields null.</li>
+<li>Writing the symmetric check without cross pairing, which tests equality instead of symmetry.</li>
+<li>Stack overflow on a deeply skewed tree; raise the limit, use BFS for depth, or use an explicit stack for inversion.</li>
+<li>Confusing node counts with edge counts, which is precisely the off-by-one that the diameter problem exists to catch.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>For depth, lead with the conclusion: post-order recursion returning one plus the larger subtree height, where the one accounts for the current node. If asked about other orders, explain the top-down version and why it loses the subtree height that the balanced problem needs. If asked about overflow, explain BFS and the space trade. Then volunteer the minimum depth trap, since that is the part that scores.</p>
+
+<p>For inversion, lead with the one-sentence description, then spend the time on order: either direction works because each node acts independently, but the swap cannot sit between the recursive calls, because the swap changes what those references point at.</p>
+
+<p>Asked why the order is free, say that the swap is a local mutation independent of subtree state, and every node is visited exactly once, so reordering changes only when the swap happens, not whether. Asked what happens if you invert twice, say it restores the tree, since inversion flips every root path and flipping twice is the identity.</p>
+
+<p>And when both are asked together, close with the general rule: whether a parent's answer depends on its subtrees determines whether the order is forced.</p>
+
+<h2>Closing</h2>
+
+<p>Both are easy problems treated as introductions, and each hides one nail. The first nail grows out of the minimum depth variant, where the sentence "an empty subtree is not a leaf" is what most people never separate out, since the maximum happens to hide the error. The second grows out of where the swap goes, where exactly one of the plausible arrangements is wrong, and it is wrong quietly.</p>
+
+<p>The most valuable judgement in tree recursion is one question: <strong>does the parent's answer depend on what the subtrees return?</strong> If it does, post-order. If not, the order is free. Decide that and the skeleton follows in two minutes; only the edges remain.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-104-226-max-depth-and-invert-binary-tree/">【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
