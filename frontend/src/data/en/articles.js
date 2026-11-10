@@ -28288,6 +28288,290 @@ for i = 1 .. n-1:
 `,
   },
 
+  {
+    slug: 'lc-1-two-sum',
+    zhSlug: 'lc-1-two-sum',
+    topicSlug: 'leetcode',
+    title: 'LC 1, two sum: look before you store',
+    excerpt:
+      'Six lines, one hash table, and two statements that cannot be swapped. The first sample happens to be the one input that hides the bug, which is exactly why people ship it.',
+    date: '2026-10-25',
+    readingTime: 18,
+    html: `
+<h2>The problem</h2>
+
+<p>Given an array of integers and a target, return the indices of the two numbers that add up to it. Each input has exactly one answer, and the same element may not be used twice.</p>
+
+<pre><code>nums = [2, 7, 11, 15], target = 9   -&gt; [0, 1]
+nums = [3, 2, 4],       target = 6   -&gt; [1, 2]
+nums = [3, 3],          target = 6   -&gt; [0, 1]
+</code></pre>
+
+<p>It is most people's first LeetCode problem, short and obvious on the samples, which is why most people write two loops, pass, and move on. Three things worth learning are hidden in it.</p>
+
+<table>
+<thead><tr><th>Idea</th><th>The sentence in the statement that carries it</th></tr></thead>
+<tbody>
+<tr><td>Replacing nested loops with a lookup is the entire point of a hash table</td><td>The answer is indices, not values</td></tr>
+<tr><td>The order of two statements cannot be reversed</td><td>The same element may not appear twice in the answer</td></tr>
+<tr><td>Uniqueness is not decoration</td><td>Each input has exactly one answer</td></tr>
+</tbody>
+</table>
+
+<h2>What the question is really testing</h2>
+
+<pre><code>for i in range(n):
+    for j in range(i + 1, n):
+        if nums[i] + nums[j] == target:
+            return [i, j]
+</code></pre>
+
+<p>Quadratic, which at ten thousand elements is a hundred million operations. The plus one in the inner range is where "the same element cannot be reused" lives: the inner loop only looks forward.</p>
+
+<p>Now turn the question around. Instead of asking whether two indices sum to the target, ask <strong>whether the number I need, target minus this value, has already gone past me</strong>. That converts a pair enumeration into a membership test, and membership is constant time with a hash table.</p>
+
+<pre><code>i = 0:  x = 2, need 9 - 2 = 7. What is on my left? Nothing. Record 2.
+i = 1:  x = 7, need 9 - 7 = 2. On my left? Yes, at index 0. Return [0, 1].
+</code></pre>
+
+<p>The table maps value to index, not value to count, because the answer is indices: a set can say whether a value exists and cannot say where.</p>
+
+<pre><code>class Solution:
+    def twoSum(self, nums: List[int], target: int) -&gt; List[int]:
+        seen = {}
+        for i, x in enumerate(nums):
+            need = target - x
+            if need in seen:
+                return [seen[need], i]
+            seen[x] = i
+        return []
+</code></pre>
+
+<p>Six lines, each with a reason. The table starts empty, so at the first index nothing can be found, which matters. The needed value is computed without worrying about which index is smaller, because the table only ever holds earlier elements. The lookup happens first and returns immediately on a hit, and since the stored index is necessarily to the left, the pair comes out ascending. The current element is recorded last.</p>
+
+<h2>The animation, frame by frame</h2>
+
+<p>The original post has an animation; here is what it shows. The array sits in a row, the current element outlined in orange, already-recorded elements tinted green, and the two answer cells gold with a ring. An index marker points at the current position, and a card list underneath shows the table as value to index, freshly stored entries green and the matched entry gold. A banner reports what is needed and what the lookup returned.</p>
+
+<p>Six frames for <code>[2, 7, 11, 15]</code> with target nine.</p>
+
+<table>
+<thead><tr><th>#</th><th>Phase</th><th>i</th><th>x</th><th>need</th><th>Lookup</th><th>Table after</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-</td><td>-</td><td>-</td><td>-</td><td>empty</td><td>-</td></tr>
+<tr><td>1</td><td><strong>miss</strong></td><td>0</td><td>2</td><td>7</td><td>Empty, no seven</td><td>empty</td><td>-</td></tr>
+<tr><td>2</td><td><strong>put</strong></td><td>0</td><td>2</td><td>-</td><td>-</td><td>2 to 0</td><td>-</td></tr>
+<tr><td>3</td><td><strong>hit</strong></td><td>1</td><td>7</td><td>2</td><td>Hit at index 0</td><td>2 to 0</td><td><strong>[0, 1]</strong></td></tr>
+<tr><td>4</td><td>verify</td><td>1</td><td>7</td><td>-</td><td>2 + 7 = 9</td><td>2 to 0</td><td>[0, 1]</td></tr>
+<tr><td>5</td><td>done</td><td>-</td><td>-</td><td>-</td><td>-</td><td>2 to 0</td><td>[0, 1]</td></tr>
+</tbody>
+</table>
+
+<p>Frames one and two are deliberately separate, because lookup and storage are separate actions: the table is empty when the lookup runs, and the value is added afterwards. If the order were reversed, frame one would already contain the pair and the lookup would find it, and in this particular input it would find nothing anyway. That is precisely what makes the bug so quiet.</p>
+
+<p>There is no fourth iteration, because index two is never visited: uniqueness means the answer can be returned the moment it is found.</p>
+
+<h2>The one real difficulty: order</h2>
+
+<pre><code>for i, x in enumerate(nums):
+    seen[x] = i                    # wrong: stored first
+    need = target - x
+    if need in seen:
+        return [seen[need], i]
+</code></pre>
+
+<p>When the target is exactly twice the current value, the number needed is the value itself, and storing first puts it in the table, so the lookup finds the current index and returns the same index twice.</p>
+
+<table>
+<thead><tr><th>Step</th><th>i</th><th>x</th><th>Look, then store</th><th>Store, then look</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>3</td><td>Empty, no three, continue</td><td>Store 3 at 0; lookup three finds index 0</td></tr>
+<tr><td>-</td><td>-</td><td>Result</td><td>Store 3 at 0, next round</td><td><strong>[0, 0]</strong>, the same element twice</td></tr>
+<tr><td>2</td><td>1</td><td>3</td><td>Hit at index 0, return [0, 1]</td><td>Already returned, wrongly</td></tr>
+</tbody>
+</table>
+
+<p>The failure is not a wrong sum, it is an illegal answer, and it triggers on a precise condition: the current value is half the target.</p>
+
+<table>
+<thead><tr><th>Sample</th><th>Target</th><th>Contains target over two</th><th>Wrong version</th></tr></thead>
+<tbody>
+<tr><td>[2, 7, 11, 15]</td><td>9</td><td>No, 4.5 is not an integer</td><td>Returns [0, 1], hiding the bug</td></tr>
+<tr><td>[3, 2, 4]</td><td>6</td><td>Yes, three at index 0</td><td>Returns [0, 0], exposed</td></tr>
+<tr><td>[3, 3]</td><td>6</td><td>Yes</td><td>Returns [0, 0], exposed</td></tr>
+</tbody>
+</table>
+
+<p>The first official sample is the only one that cannot trigger it, which is exactly why a test run convinces people they are right. The lesson: verify with an input you construct, one where the target is twice a value.</p>
+
+<h2>Why looking first satisfies the uniqueness rule for free</h2>
+
+<p>In the brute force version, uniqueness comes from starting the inner loop at the next index. In the hash version it falls out of the order of the statements: at the moment of the lookup the table contains only the elements before the current one, so any hit is at an index below the current one and can never be the element itself.</p>
+
+<p>So the order does two jobs at once. It makes the lookup constant time, which is the hash table's contribution. And it makes the uniqueness constraint hold without an explicit check, which is the order's contribution. Reversing the order loses the second, and then the code needs an explicit comparison against the current index, as the two-pass version must do.</p>
+
+<h2>The two-pass alternative</h2>
+
+<pre><code>class Solution:
+    def twoSum(self, nums: List[int], target: int) -&gt; List[int]:
+        seen = {}
+        for i, x in enumerate(nums):
+            seen[x] = i
+        for i, x in enumerate(nums):
+            need = target - x
+            if need in seen and seen[need] != i:
+                return [i, seen[need]]
+        return []
+</code></pre>
+
+<p>It is correct, at three costs. It scans twice, doubling the constant. It must exclude the current index by hand. And the table keeps the last index for a repeated value, which is harmless for a single answer but loses solutions when every pair is wanted.</p>
+
+<p>The one-pass version is better on all three counts: one scan, the constraint satisfied automatically, and duplicates harmless because the hit happens before anything overwrites the entry.</p>
+
+<h2>Variant one: a sorted array, two pointers, no table</h2>
+
+<pre><code>class Solution:
+    def twoSum(self, numbers: List[int], target: int) -&gt; List[int]:
+        left, right = 0, len(numbers) - 1
+        while left &lt; right:
+            s = numbers[left] + numbers[right]
+            if s == target:
+                return [left + 1, right + 1]
+            if s &lt; target:
+                left += 1
+            else:
+                right -= 1
+        return []
+</code></pre>
+
+<p>Sorting makes the sum monotonic in both pointers: moving the left one right increases it, moving the right one left decreases it. That means each move can be decided from the current sum, with no wasted step, and the space drops from linear to constant.</p>
+
+<table>
+<thead><tr><th></th><th>LC 1, unsorted</th><th>LC 167, sorted</th></tr></thead>
+<tbody>
+<tr><td>Approach</td><td>Hash table</td><td>Two pointers</td></tr>
+<tr><td>Time</td><td>Linear</td><td>Linear</td></tr>
+<tr><td>Space</td><td>Linear</td><td><strong>Constant</strong></td></tr>
+<tr><td>Key action</td><td>Look, then store</td><td>Too large moves the right pointer, too small the left</td></tr>
+<tr><td>Extra constraint check</td><td>Not needed, the order guarantees it</td><td>Not needed, the pointers cannot cross</td></tr>
+</tbody>
+</table>
+
+<p>This table is itself an interview question. The array being sorted is extra information, and extra information buys a cheaper method.</p>
+
+<p>It is the same idea as the sliding window in LC 3: use monotonicity so a pointer only ever moves one way. In LC 3 the left edge never moves back because the characters before it have already been excluded; here the pointers move toward each other because the sum changes monotonically.</p>
+
+<h2>Variant two: the n-sum family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Approach</th><th>Relation to LC 1</th></tr></thead>
+<tbody>
+<tr><td>LC 170, two sum as a data structure</td><td>Store value to count; a find walks the table</td><td>The repeatable version; a duplicated value needs a count of at least two</td></tr>
+<tr><td>LC 653, two sum in a BST</td><td>In-order traversal gives a sorted array, then LC 167</td><td>The same problem in a tree costume</td></tr>
+<tr><td>LC 15, three sum</td><td>Sort, fix one value, two pointers</td><td>LC 167 wrapped in a loop, quadratic</td></tr>
+<tr><td>LC 18, four sum</td><td>Sort, fix two, two pointers</td><td>One more dimension, cubic</td></tr>
+<tr><td>LC 454, four sum count</td><td>Grouped hashing: sums of the first pair, lookups from the second</td><td>Two applications of this problem, one per pair</td></tr>
+</tbody>
+</table>
+
+<p>One rule generates the chain: each additional fixed value adds a dimension, and the remaining pair is always finished with a linear pass.</p>
+
+<pre><code>def threeSum(nums):
+    nums.sort()
+    res = []
+    for i in range(len(nums) - 2):
+        if i &gt; 0 and nums[i] == nums[i - 1]:
+            continue
+        left, right = i + 1, len(nums) - 1
+        while left &lt; right:
+            s = nums[i] + nums[left] + nums[right]
+            if s == 0:
+                res.append([nums[i], nums[left], nums[right]])
+                while left &lt; right and nums[left] == nums[left + 1]:
+                    left += 1
+                while left &lt; right and nums[right] == nums[right - 1]:
+                    right -= 1
+                left += 1
+                right -= 1
+            elif s &lt; 0:
+                left += 1
+            else:
+                right -= 1
+    return res
+</code></pre>
+
+<p>Sorting does two jobs there: it makes the two-pointer scan possible, and it puts equal values next to each other so duplicates can be skipped. That is why three sum sorts instead of hashing, and why the choice of technique differs across the family: unsorted with one answer favours a table, sorted allows constant space, and deduplication forces sorting because a hash table cannot see that two index combinations produce the same values.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        Map&lt;Integer, Integer&gt; seen = new HashMap&lt;&gt;();
+        for (int i = 0; i &lt; nums.length; i++) {
+            int need = target - nums[i];
+            if (seen.containsKey(need)) {
+                return new int[] { seen.get(need), i };
+            }
+            seen.put(nums[i], i);
+        }
+        return new int[] {};
+    }
+}
+</code></pre>
+
+<p>Three notes. The map must be value to index, not a set, because the answer is indices. Use the contains check rather than comparing the retrieved value against null, which is clearer and avoids a zero value being mistaken for absence. And return an empty array rather than null, so callers do not have to check.</p>
+
+<h2>Edge cases and traps</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>[2,7,11,15], 9</td><td>[0,1]</td><td>The sample that cannot expose the ordering bug</td></tr>
+<tr><td>[3,2,4], 6</td><td>[1,2]</td><td>Three is half the target, so it exposes it</td></tr>
+<tr><td>[3,3], 6</td><td>[0,1]</td><td>Two equal values</td></tr>
+<tr><td>[0,0], 0</td><td>[0,1]</td><td>Zero is not a false value; do not test truthiness</td></tr>
+<tr><td>[-1,-2,-3,-4,-5], -8</td><td>[2,4]</td><td>Negatives are ordinary</td></tr>
+<tr><td>[0,4,3,0], 0</td><td>[0,3]</td><td>Two zeroes at opposite ends</td></tr>
+<tr><td>[1,3,4,2], 6</td><td>[2,3]</td><td>The answer is at the end</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Storing before looking. Triggered exactly when the target is twice a value, and hidden by the first sample.</li>
+<li>Using a set instead of a map, which cannot return an index.</li>
+<li>Testing the retrieved value for truthiness, which fails when the needed value is zero and stored at index zero.</li>
+<li>Returning the pair in the wrong order. The stored index is always smaller, so the ascending order matters even where the judge does not care.</li>
+<li>Forgetting uniqueness. It allows an early return; a version that wants every pair must not return early and must store a list of indices per value.</li>
+<li>Overflow in languages with fixed-width integers, where the target minus a value can underflow; the constraints here are safe.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Lead with the conclusion and the complexity: one pass with a hash table mapping value to index, compute the complement at each step, return on a hit, store otherwise, linear time and linear space.</p>
+
+<p>Then explain why it is linear: brute force enumerates pairs, and the table turns pair enumeration into a membership test, which is constant time.</p>
+
+<p>Then the important sentence: lookup happens before storage, so the table only ever holds elements to the left, so any hit is at a smaller index and can never be the current element, which means the uniqueness rule holds without an extra check.</p>
+
+<p>Then give the counterexample proactively: reversing the order lets a value that is half the target match itself, and the first official sample happens not to contain such a value, so that sample cannot catch the error.</p>
+
+<p>If asked about a sorted array, describe the two-pointer scan and the constant space. If asked whether three sum can use a table, explain that deduplication is the obstacle and sorting solves both the scan and the duplicates. If asked for all pairs, describe dropping the early return and storing a list of indices.</p>
+
+<h2>Closing</h2>
+
+<p>Two lessons. Replacing enumeration with lookup is what a hash table is for. And order matters: ask what you are missing before you record yourself.</p>
+
+<p>The second is easy to miss because the first sample hides it: nine is not twice any value in that array, so the bug cannot fire. The wrong version passes, and the code ships.</p>
+
+<pre><code>assert twoSum([3, 3], 6) == [0, 1]      # and not [0, 0]
+</code></pre>
+
+<p>Passing a counterexample you built yourself is what counts as correct.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-1-two-sum/">【LC 1】两数之和：先查再存，反了就匹配自己</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

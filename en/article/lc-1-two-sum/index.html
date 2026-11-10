@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Six lines, one hash table, and two statements that cannot be swapped. The first sample happens to be the one input that hides the bug, which is exactly why people ship it." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/lc-1-two-sum/" />
+    <meta property="og:title" content="LC 1, two sum: look before you store | Stack Frame" />
+    <meta property="og:description" content="Six lines, one hash table, and two statements that cannot be swapped. The first sample happens to be the one input that hides the bug, which is exactly why people ship it." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/lc-1-two-sum/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LC 1, two sum: look before you store | Stack Frame" />
+    <meta name="twitter:description" content="Six lines, one hash table, and two statements that cannot be swapped. The first sample happens to be the one input that hides the bug, which is exactly why people ship it." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>LC 1, two sum: look before you store | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lc-1-two-sum/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lc-1-two-sum/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lc-1-two-sum/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>LC 1, two sum: look before you store</h1><div class="ns-meta">2026-10-25 · 18 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p>Given an array of integers and a target, return the indices of the two numbers that add up to it. Each input has exactly one answer, and the same element may not be used twice.</p>
+
+<pre><code>nums = [2, 7, 11, 15], target = 9   -&gt; [0, 1]
+nums = [3, 2, 4],       target = 6   -&gt; [1, 2]
+nums = [3, 3],          target = 6   -&gt; [0, 1]
+</code></pre>
+
+<p>It is most people's first LeetCode problem, short and obvious on the samples, which is why most people write two loops, pass, and move on. Three things worth learning are hidden in it.</p>
+
+<table>
+<thead><tr><th>Idea</th><th>The sentence in the statement that carries it</th></tr></thead>
+<tbody>
+<tr><td>Replacing nested loops with a lookup is the entire point of a hash table</td><td>The answer is indices, not values</td></tr>
+<tr><td>The order of two statements cannot be reversed</td><td>The same element may not appear twice in the answer</td></tr>
+<tr><td>Uniqueness is not decoration</td><td>Each input has exactly one answer</td></tr>
+</tbody>
+</table>
+
+<h2>What the question is really testing</h2>
+
+<pre><code>for i in range(n):
+    for j in range(i + 1, n):
+        if nums[i] + nums[j] == target:
+            return [i, j]
+</code></pre>
+
+<p>Quadratic, which at ten thousand elements is a hundred million operations. The plus one in the inner range is where "the same element cannot be reused" lives: the inner loop only looks forward.</p>
+
+<p>Now turn the question around. Instead of asking whether two indices sum to the target, ask <strong>whether the number I need, target minus this value, has already gone past me</strong>. That converts a pair enumeration into a membership test, and membership is constant time with a hash table.</p>
+
+<pre><code>i = 0:  x = 2, need 9 - 2 = 7. What is on my left? Nothing. Record 2.
+i = 1:  x = 7, need 9 - 7 = 2. On my left? Yes, at index 0. Return [0, 1].
+</code></pre>
+
+<p>The table maps value to index, not value to count, because the answer is indices: a set can say whether a value exists and cannot say where.</p>
+
+<pre><code>class Solution:
+    def twoSum(self, nums: List[int], target: int) -&gt; List[int]:
+        seen = {}
+        for i, x in enumerate(nums):
+            need = target - x
+            if need in seen:
+                return [seen[need], i]
+            seen[x] = i
+        return []
+</code></pre>
+
+<p>Six lines, each with a reason. The table starts empty, so at the first index nothing can be found, which matters. The needed value is computed without worrying about which index is smaller, because the table only ever holds earlier elements. The lookup happens first and returns immediately on a hit, and since the stored index is necessarily to the left, the pair comes out ascending. The current element is recorded last.</p>
+
+<h2>The animation, frame by frame</h2>
+
+<p>The original post has an animation; here is what it shows. The array sits in a row, the current element outlined in orange, already-recorded elements tinted green, and the two answer cells gold with a ring. An index marker points at the current position, and a card list underneath shows the table as value to index, freshly stored entries green and the matched entry gold. A banner reports what is needed and what the lookup returned.</p>
+
+<p>Six frames for <code>[2, 7, 11, 15]</code> with target nine.</p>
+
+<table>
+<thead><tr><th>#</th><th>Phase</th><th>i</th><th>x</th><th>need</th><th>Lookup</th><th>Table after</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-</td><td>-</td><td>-</td><td>-</td><td>empty</td><td>-</td></tr>
+<tr><td>1</td><td><strong>miss</strong></td><td>0</td><td>2</td><td>7</td><td>Empty, no seven</td><td>empty</td><td>-</td></tr>
+<tr><td>2</td><td><strong>put</strong></td><td>0</td><td>2</td><td>-</td><td>-</td><td>2 to 0</td><td>-</td></tr>
+<tr><td>3</td><td><strong>hit</strong></td><td>1</td><td>7</td><td>2</td><td>Hit at index 0</td><td>2 to 0</td><td><strong>[0, 1]</strong></td></tr>
+<tr><td>4</td><td>verify</td><td>1</td><td>7</td><td>-</td><td>2 + 7 = 9</td><td>2 to 0</td><td>[0, 1]</td></tr>
+<tr><td>5</td><td>done</td><td>-</td><td>-</td><td>-</td><td>-</td><td>2 to 0</td><td>[0, 1]</td></tr>
+</tbody>
+</table>
+
+<p>Frames one and two are deliberately separate, because lookup and storage are separate actions: the table is empty when the lookup runs, and the value is added afterwards. If the order were reversed, frame one would already contain the pair and the lookup would find it, and in this particular input it would find nothing anyway. That is precisely what makes the bug so quiet.</p>
+
+<p>There is no fourth iteration, because index two is never visited: uniqueness means the answer can be returned the moment it is found.</p>
+
+<h2>The one real difficulty: order</h2>
+
+<pre><code>for i, x in enumerate(nums):
+    seen[x] = i                    # wrong: stored first
+    need = target - x
+    if need in seen:
+        return [seen[need], i]
+</code></pre>
+
+<p>When the target is exactly twice the current value, the number needed is the value itself, and storing first puts it in the table, so the lookup finds the current index and returns the same index twice.</p>
+
+<table>
+<thead><tr><th>Step</th><th>i</th><th>x</th><th>Look, then store</th><th>Store, then look</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>3</td><td>Empty, no three, continue</td><td>Store 3 at 0; lookup three finds index 0</td></tr>
+<tr><td>-</td><td>-</td><td>Result</td><td>Store 3 at 0, next round</td><td><strong>[0, 0]</strong>, the same element twice</td></tr>
+<tr><td>2</td><td>1</td><td>3</td><td>Hit at index 0, return [0, 1]</td><td>Already returned, wrongly</td></tr>
+</tbody>
+</table>
+
+<p>The failure is not a wrong sum, it is an illegal answer, and it triggers on a precise condition: the current value is half the target.</p>
+
+<table>
+<thead><tr><th>Sample</th><th>Target</th><th>Contains target over two</th><th>Wrong version</th></tr></thead>
+<tbody>
+<tr><td>[2, 7, 11, 15]</td><td>9</td><td>No, 4.5 is not an integer</td><td>Returns [0, 1], hiding the bug</td></tr>
+<tr><td>[3, 2, 4]</td><td>6</td><td>Yes, three at index 0</td><td>Returns [0, 0], exposed</td></tr>
+<tr><td>[3, 3]</td><td>6</td><td>Yes</td><td>Returns [0, 0], exposed</td></tr>
+</tbody>
+</table>
+
+<p>The first official sample is the only one that cannot trigger it, which is exactly why a test run convinces people they are right. The lesson: verify with an input you construct, one where the target is twice a value.</p>
+
+<h2>Why looking first satisfies the uniqueness rule for free</h2>
+
+<p>In the brute force version, uniqueness comes from starting the inner loop at the next index. In the hash version it falls out of the order of the statements: at the moment of the lookup the table contains only the elements before the current one, so any hit is at an index below the current one and can never be the element itself.</p>
+
+<p>So the order does two jobs at once. It makes the lookup constant time, which is the hash table's contribution. And it makes the uniqueness constraint hold without an explicit check, which is the order's contribution. Reversing the order loses the second, and then the code needs an explicit comparison against the current index, as the two-pass version must do.</p>
+
+<h2>The two-pass alternative</h2>
+
+<pre><code>class Solution:
+    def twoSum(self, nums: List[int], target: int) -&gt; List[int]:
+        seen = {}
+        for i, x in enumerate(nums):
+            seen[x] = i
+        for i, x in enumerate(nums):
+            need = target - x
+            if need in seen and seen[need] != i:
+                return [i, seen[need]]
+        return []
+</code></pre>
+
+<p>It is correct, at three costs. It scans twice, doubling the constant. It must exclude the current index by hand. And the table keeps the last index for a repeated value, which is harmless for a single answer but loses solutions when every pair is wanted.</p>
+
+<p>The one-pass version is better on all three counts: one scan, the constraint satisfied automatically, and duplicates harmless because the hit happens before anything overwrites the entry.</p>
+
+<h2>Variant one: a sorted array, two pointers, no table</h2>
+
+<pre><code>class Solution:
+    def twoSum(self, numbers: List[int], target: int) -&gt; List[int]:
+        left, right = 0, len(numbers) - 1
+        while left &lt; right:
+            s = numbers[left] + numbers[right]
+            if s == target:
+                return [left + 1, right + 1]
+            if s &lt; target:
+                left += 1
+            else:
+                right -= 1
+        return []
+</code></pre>
+
+<p>Sorting makes the sum monotonic in both pointers: moving the left one right increases it, moving the right one left decreases it. That means each move can be decided from the current sum, with no wasted step, and the space drops from linear to constant.</p>
+
+<table>
+<thead><tr><th></th><th>LC 1, unsorted</th><th>LC 167, sorted</th></tr></thead>
+<tbody>
+<tr><td>Approach</td><td>Hash table</td><td>Two pointers</td></tr>
+<tr><td>Time</td><td>Linear</td><td>Linear</td></tr>
+<tr><td>Space</td><td>Linear</td><td><strong>Constant</strong></td></tr>
+<tr><td>Key action</td><td>Look, then store</td><td>Too large moves the right pointer, too small the left</td></tr>
+<tr><td>Extra constraint check</td><td>Not needed, the order guarantees it</td><td>Not needed, the pointers cannot cross</td></tr>
+</tbody>
+</table>
+
+<p>This table is itself an interview question. The array being sorted is extra information, and extra information buys a cheaper method.</p>
+
+<p>It is the same idea as the sliding window in LC 3: use monotonicity so a pointer only ever moves one way. In LC 3 the left edge never moves back because the characters before it have already been excluded; here the pointers move toward each other because the sum changes monotonically.</p>
+
+<h2>Variant two: the n-sum family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Approach</th><th>Relation to LC 1</th></tr></thead>
+<tbody>
+<tr><td>LC 170, two sum as a data structure</td><td>Store value to count; a find walks the table</td><td>The repeatable version; a duplicated value needs a count of at least two</td></tr>
+<tr><td>LC 653, two sum in a BST</td><td>In-order traversal gives a sorted array, then LC 167</td><td>The same problem in a tree costume</td></tr>
+<tr><td>LC 15, three sum</td><td>Sort, fix one value, two pointers</td><td>LC 167 wrapped in a loop, quadratic</td></tr>
+<tr><td>LC 18, four sum</td><td>Sort, fix two, two pointers</td><td>One more dimension, cubic</td></tr>
+<tr><td>LC 454, four sum count</td><td>Grouped hashing: sums of the first pair, lookups from the second</td><td>Two applications of this problem, one per pair</td></tr>
+</tbody>
+</table>
+
+<p>One rule generates the chain: each additional fixed value adds a dimension, and the remaining pair is always finished with a linear pass.</p>
+
+<pre><code>def threeSum(nums):
+    nums.sort()
+    res = []
+    for i in range(len(nums) - 2):
+        if i &gt; 0 and nums[i] == nums[i - 1]:
+            continue
+        left, right = i + 1, len(nums) - 1
+        while left &lt; right:
+            s = nums[i] + nums[left] + nums[right]
+            if s == 0:
+                res.append([nums[i], nums[left], nums[right]])
+                while left &lt; right and nums[left] == nums[left + 1]:
+                    left += 1
+                while left &lt; right and nums[right] == nums[right - 1]:
+                    right -= 1
+                left += 1
+                right -= 1
+            elif s &lt; 0:
+                left += 1
+            else:
+                right -= 1
+    return res
+</code></pre>
+
+<p>Sorting does two jobs there: it makes the two-pointer scan possible, and it puts equal values next to each other so duplicates can be skipped. That is why three sum sorts instead of hashing, and why the choice of technique differs across the family: unsorted with one answer favours a table, sorted allows constant space, and deduplication forces sorting because a hash table cannot see that two index combinations produce the same values.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        Map&lt;Integer, Integer&gt; seen = new HashMap&lt;&gt;();
+        for (int i = 0; i &lt; nums.length; i++) {
+            int need = target - nums[i];
+            if (seen.containsKey(need)) {
+                return new int[] { seen.get(need), i };
+            }
+            seen.put(nums[i], i);
+        }
+        return new int[] {};
+    }
+}
+</code></pre>
+
+<p>Three notes. The map must be value to index, not a set, because the answer is indices. Use the contains check rather than comparing the retrieved value against null, which is clearer and avoids a zero value being mistaken for absence. And return an empty array rather than null, so callers do not have to check.</p>
+
+<h2>Edge cases and traps</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>[2,7,11,15], 9</td><td>[0,1]</td><td>The sample that cannot expose the ordering bug</td></tr>
+<tr><td>[3,2,4], 6</td><td>[1,2]</td><td>Three is half the target, so it exposes it</td></tr>
+<tr><td>[3,3], 6</td><td>[0,1]</td><td>Two equal values</td></tr>
+<tr><td>[0,0], 0</td><td>[0,1]</td><td>Zero is not a false value; do not test truthiness</td></tr>
+<tr><td>[-1,-2,-3,-4,-5], -8</td><td>[2,4]</td><td>Negatives are ordinary</td></tr>
+<tr><td>[0,4,3,0], 0</td><td>[0,3]</td><td>Two zeroes at opposite ends</td></tr>
+<tr><td>[1,3,4,2], 6</td><td>[2,3]</td><td>The answer is at the end</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Storing before looking. Triggered exactly when the target is twice a value, and hidden by the first sample.</li>
+<li>Using a set instead of a map, which cannot return an index.</li>
+<li>Testing the retrieved value for truthiness, which fails when the needed value is zero and stored at index zero.</li>
+<li>Returning the pair in the wrong order. The stored index is always smaller, so the ascending order matters even where the judge does not care.</li>
+<li>Forgetting uniqueness. It allows an early return; a version that wants every pair must not return early and must store a list of indices per value.</li>
+<li>Overflow in languages with fixed-width integers, where the target minus a value can underflow; the constraints here are safe.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Lead with the conclusion and the complexity: one pass with a hash table mapping value to index, compute the complement at each step, return on a hit, store otherwise, linear time and linear space.</p>
+
+<p>Then explain why it is linear: brute force enumerates pairs, and the table turns pair enumeration into a membership test, which is constant time.</p>
+
+<p>Then the important sentence: lookup happens before storage, so the table only ever holds elements to the left, so any hit is at a smaller index and can never be the current element, which means the uniqueness rule holds without an extra check.</p>
+
+<p>Then give the counterexample proactively: reversing the order lets a value that is half the target match itself, and the first official sample happens not to contain such a value, so that sample cannot catch the error.</p>
+
+<p>If asked about a sorted array, describe the two-pointer scan and the constant space. If asked whether three sum can use a table, explain that deduplication is the obstacle and sorting solves both the scan and the duplicates. If asked for all pairs, describe dropping the early return and storing a list of indices.</p>
+
+<h2>Closing</h2>
+
+<p>Two lessons. Replacing enumeration with lookup is what a hash table is for. And order matters: ask what you are missing before you record yourself.</p>
+
+<p>The second is easy to miss because the first sample hides it: nine is not twice any value in that array, so the bug cannot fire. The wrong version passes, and the code ships.</p>
+
+<pre><code>assert twoSum([3, 3], 6) == [0, 1]      # and not [0, 0]
+</code></pre>
+
+<p>Passing a counterexample you built yourself is what counts as correct.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-1-two-sum/">【LC 1】两数之和：先查再存，反了就匹配自己</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/lc-1-two-sum/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/lc-1-two-sum/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
