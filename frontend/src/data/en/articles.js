@@ -25495,6 +25495,334 @@ routes:
 `,
   },
 
+  {
+    slug: 'feature-flag-progressive-delivery',
+    zhSlug: 'feature-flag-progressive-delivery',
+    topicSlug: 'backend',
+    title: 'At twenty percent, half the users lost the feature',
+    excerpt:
+      'A rollout percentage is a threshold line over a fixed bucket space, not a bucket count. Change the count and half your users get reshuffled out. Four rules and the measured numbers.',
+    date: '2026-10-30',
+    readingTime: 22,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who has shipped a backend change and met either an incident on deploy or a rollback that takes ten minutes.</p>
+<p>Measured with plain Python. The bucketing is framework independent.</p>
+<p>Reading time around 22 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>A complaint about a feature reappearing and disappearing</h2>
+
+<p>A new checkout page ships behind a rollout: ten percent of users first, watched for two days, then twenty.</p>
+
+<p>The next day the complaints arrive. "Yesterday I had the new page, today it is gone again."</p>
+
+<p>Nothing was deployed and the configuration changed by one number, and the answer is in a line that looks fine:</p>
+
+<pre><code>def is_enabled(user_id, percent):
+    return (hash(user_id) % 100) &lt; percent
+</code></pre>
+
+<p>The bug is not in this line but in a variant of it that changes the modulus with the percentage. With 20,000 users simulated:</p>
+
+<pre><code>expanding 10 to 20 percent, do existing users stay in?
+  fixed bucket space (correct): 100.0 percent retained
+  dynamic modulus (wrong)     :  48.2 percent retained
+</code></pre>
+
+<p>Half the audience was reshuffled out of a feature they already had.</p>
+
+<h2>What progressive delivery solves</h2>
+
+<p>It is not a way to hide bugs. It is a way to turn the risk of releasing from all-or-nothing into a controllable variable.</p>
+
+<pre><code>write, merge, deploy -> 100 percent immediately
+                          ^ if it breaks here, everyone is affected
+                          and rollback means a redeploy
+
+write, merge, deploy with the flag off -> 1%, 5%, 20%, 50%, 100%
+                          ^ any stage looks wrong: change config, seconds, bounded blast radius
+</code></pre>
+
+<p>Deployment and release become separate decisions. Code reaches the servers several times a day; the decision about who sees it is independent and reversible.</p>
+
+<p>Three benefits follow. The blast radius is bounded, since an incident at one percent leaves ninety-nine untouched. Rollback becomes a configuration change rather than a deploy, and <strong>how quickly you can roll back determines how much control you have during an incident</strong>. And a feature can be switched off as an emergency stop, not only switched on.</p>
+
+<p>The cost is code complexity and technical debt, both covered below.</p>
+
+<h2>Five kinds of flag, and how long each should live</h2>
+
+<p>Treating every flag as the same kind is the root of the debt. The type decides the lifetime.</p>
+
+<table>
+<thead><tr><th>Type</th><th>Purpose</th><th>Lifetime</th><th>Prefix</th></tr></thead>
+<tbody>
+<tr><td>Release</td><td>Hide unfinished work</td><td>Short, one to four weeks</td><td>release-</td></tr>
+<tr><td>Experiment</td><td>A/B tests and comparisons</td><td>Two to six weeks</td><td>exp-</td></tr>
+<tr><td>Ops</td><td>Runtime parameters, degradation</td><td>Long, months or forever</td><td>ops-</td></tr>
+<tr><td>Permission</td><td>Features by plan or role</td><td>Permanent</td><td>perm-</td></tr>
+<tr><td>Kill switch</td><td>Emergency stop for a dependency</td><td>Permanent</td><td>kill-</td></tr>
+</tbody>
+</table>
+
+<p>Release and experiment flags should be deleted, because after full rollout the branch is dead code; a common rule is cleanup within thirty days. Ops, permission and kill switches persist, since you will always want a way to turn off email pushes.</p>
+
+<p>The most common mistake is using a release flag as a permission flag: fully rolled out, kept "just in case", and two years later nobody dares delete it because nobody knows what happens.</p>
+
+<pre><code>bad:  new_feature, test123, flag_a
+good: release-checkout-v2, exp-onboarding-flow-2026q3, kill-stripe-webhook
+</code></pre>
+
+<p>The prefix is not neatness, it is what makes governance possible: one regular expression finds every release flag and every flag past its expiry.</p>
+
+<h2>Bucketing: why the bucket space must be fixed</h2>
+
+<p>A rollout maps a user to a bucket between zero and some ceiling, then compares the bucket against a threshold line.</p>
+
+<pre><code>user u_1001 -> hash -> bucket 5633 -> below 2000? (20 percent) -> no
+user u_1002 -> hash -> bucket 0871 -> below 2000?              -> yes
+</code></pre>
+
+<p>The constraint is stickiness: one user must always land in the same bucket.</p>
+
+<pre><code>def is_enabled_wrong(user_id, percent):
+    buckets = int(percent)                      # the bucket count changes
+    return (hash(user_id) % buckets) &lt; buckets * percent / 100
+</code></pre>
+
+<p>At ten percent the modulus is ten and a user lands in bucket three. At twenty it is twenty and the same user may land in seventeen. The whole space is reordered, which is why only about half keep their previous state.</p>
+
+<pre><code>BUCKET_SPACE = 10_000    # fixed, independent of the percentage
+
+def bucket_of(user_id: str, salt: str) -&gt; int:
+    raw = f"{salt}:{user_id}".encode()
+    h = int(hashlib.blake2b(raw, digest_size=8).hexdigest(), 16)
+    return h % BUCKET_SPACE
+
+def in_rollout(user_id: str, percent: float, salt: str) -&gt; bool:
+    return bucket_of(user_id, salt) &lt; BUCKET_SPACE * percent / 100
+</code></pre>
+
+<pre><code>percent 10  -> threshold at 1000   [0....1000|....................9999]
+percent 20  -> threshold at 2000   [0........2000|................9999]
+                                            ^ only the line moves; nobody inside leaves
+</code></pre>
+
+<p>Measured, ten to twenty percent retains every existing user. There is a second benefit: the line only moves rightward, so being in a rollout is monotonic unless you deliberately shrink it for a rollback.</p>
+
+<table>
+<thead><tr><th>Target</th><th>Measured over 200,000 users</th><th>Deviation</th></tr></thead>
+<tbody>
+<tr><td>1 percent</td><td>0.991</td><td>-0.009</td></tr>
+<tr><td>5 percent</td><td>4.939</td><td>-0.061</td></tr>
+<tr><td>10 percent</td><td>9.941</td><td>-0.059</td></tr>
+<tr><td>25 percent</td><td>25.008</td><td>+0.008</td></tr>
+<tr><td>50 percent</td><td>50.103</td><td>+0.103</td></tr>
+<tr><td>90 percent</td><td>89.967</td><td>-0.033</td></tr>
+</tbody>
+</table>
+
+<p>Worst deviation stays inside a tenth of a percentage point, and ten thousand buckets are enough for most products.</p>
+
+<h2>Six implementation details</h2>
+
+<p><strong>Hash once per request.</strong> Measured over 200,000 calls, the chosen hash costs about one microsecond, md5 and sha256 about two, and a cache read about seventy nanoseconds, which is fifteen to thirty times cheaper. If one request evaluates ten flags, it should hash once and reuse the result for that request.</p>
+
+<pre><code>class RequestContext:
+    def __init__(self, user_id):
+        self.user_id = user_id
+        self._buckets = {}
+
+    def bucket(self, salt):
+        if salt not in self._buckets:
+            self._buckets[salt] = bucket_of(self.user_id, salt)
+        return self._buckets[salt]
+</code></pre>
+
+<p><strong>Every flag needs its own salt.</strong> The same user with the same hash and the same salt lands in the same bucket, so two experiments sharing a salt hit the same population.</p>
+
+<pre><code>shared salt    : 100.0 percent overlap
+independent salt:  20.4 percent overlap
+</code></pre>
+
+<p>Shared salts contaminate experiments: a pricing layout test and a navigation test would measure the same users, and if that group happens to spend differently, both conclusions are wrong. With one salt per flag the overlap matches what two independent twenty percent samples should give.</p>
+
+<p><strong>Every instance must agree.</strong> If bucketing depends on shared state, such as a counter of "the Nth user to enter", instances disagree. Bucketing must be a pure function of the identifier and the salt. Five simulated instances bucketing the same five thousand users produced zero disagreements, which is why a cache counter or a database sequence must never be involved.</p>
+
+<p><strong>The identifier must be stable.</strong> A user id is best, a device id works for anonymous traffic, a session id is wrong because it changes on every login, and a random value is worse because the user sees the feature flicker between requests. An IP address is the most commonly misused: behind network address translation an entire office shares one bucket, so everyone enters or nobody does.</p>
+
+<pre><code>def resolve_bucket_key(request):
+    if request.user.is_authenticated:
+        return f"u_{request.user.id}"
+    if device_id := request.COOKIES.get("device_id"):
+        return f"d_{device_id}"
+    return None
+</code></pre>
+
+<p>With no stable identifier, do not randomise, which would change the answer between requests. Either treat anonymous traffic as one global decision, or issue a device cookie first and then decide.</p>
+
+<p><strong>Overrides come first.</strong> During an investigation you need to force one user in or out without touching anyone else.</p>
+
+<pre><code>def in_rollout(user_id, flag):
+    if user_id in flag.force_on:
+        return True
+    if user_id in flag.force_off:
+        return False
+    if not flag.enabled:
+        return False
+    return bucket_of(user_id, flag.name) &lt; BUCKET_SPACE * flag.percent / 100
+</code></pre>
+
+<p>Priority is force lists, then the master switch, then bucketing. The master switch sits before bucketing so turning a flag off does not require iterating users.</p>
+
+<h2>Pace, and the triggers for rolling back</h2>
+
+<table>
+<thead><tr><th>Stage</th><th>Share</th><th>Observation</th><th>Watch</th></tr></thead>
+<tbody>
+<tr><td>Internal</td><td>Team</td><td>Hours to a day</td><td>Does it work at all</td></tr>
+<tr><td>1 percent</td><td>Minimal traffic</td><td>At least a day</td><td>Error rate</td></tr>
+<tr><td>5 percent</td><td>Small</td><td>One to two days</td><td>Latency and log anomalies</td></tr>
+<tr><td>20 percent</td><td>Partial</td><td>Two to three days</td><td>Business metrics, support tickets</td></tr>
+<tr><td>50 percent</td><td>Half</td><td>Two to three days</td><td>Last check before full</td></tr>
+<tr><td>100 percent</td><td>Full</td><td>Then watch a week</td><td>Before deleting the flag</td></tr>
+</tbody>
+</table>
+
+<p>Each stage has to last long enough for time-dependent problems to appear: a cache expiring, a scheduled job firing, a race appearing only at peak. Ten minutes at one percent is not a rollout.</p>
+
+<pre><code>flag: release-checkout-v2
+rollback_triggers:
+  - error_rate_5xx &gt; 1%         for 5 minutes
+  - p99_latency &gt; 500ms         for 5 minutes
+  - order conversion drop &gt; 10% against control
+  - any P0 or P1 error
+rollback_action: set percent to 0
+</code></pre>
+
+<p>Write the triggers before shipping, because people hesitate during an incident. With the table, the on-call engineer acts without a meeting.</p>
+
+<table>
+<thead><tr><th>Action</th><th>Effect</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Percent to zero</td><td>No new entrants, current ones stay</td><td>Mild problems</td></tr>
+<tr><td>Disable the flag</td><td>Everyone returns to old behaviour immediately</td><td>Serious problems</td></tr>
+<tr><td>Redeploy the old version</td><td>Back to the previous code</td><td>A bug in the code itself</td></tr>
+</tbody>
+</table>
+
+<p>The first two take effect in seconds. And the difference between them matters: setting the percentage to zero leaves already-bucketed users on the new path, so it is not a clean rollback, which is easy to assume at three in the morning.</p>
+
+<h2>The debt</h2>
+
+<p>A flag is a liability rather than an asset, because every one adds a branch: tests must cover both paths, a bug may live in only one, and readers must hold two mental models.</p>
+
+<table>
+<thead><tr><th>Symptom</th><th>Consequence</th></tr></thead>
+<tbody>
+<tr><td>More than fifty flags</td><td>Cognitive load, slow onboarding</td></tr>
+<tr><td>Release flags older than ninety days</td><td>Probably fully rolled out, and nobody dares delete it</td></tr>
+<tr><td>Nested flags</td><td>Combinatorial explosion, untestable</td></tr>
+<tr><td>Orphan flags</td><td>Nobody knows whether it can go</td></tr>
+</tbody>
+</table>
+
+<p>Four countermeasures. Every flag needs an owner and an expiry, because an unowned flag is a time bomb. Cleanup belongs in continuous integration, since automation is the only governance that has been shown to work and memory always fails. Permission requirements should use a permission system rather than a flag, because flags are for temporary human decisions and permissions are for long-lived rules. And flags are not configuration: hosts and timeouts belong in the environment, or the flag system ends up owning something it should not.</p>
+
+<h2>Three layers of caching</h2>
+
+<pre><code>evaluation cost, 200,000 calls
+  hash only            :      1.074 us
+  cache read and compare:     0.073 us
+  remote call at 1ms   :   1000    us
+  remote call at 5ms   :   5000    us
+  remote call at 20ms  :  20000    us
+</code></pre>
+
+<p>A network call per evaluation is tens of thousands of times slower than a local read, and worse, the flag service becomes a dependency whose failure takes your service down.</p>
+
+<pre><code>layer 1: in-process memory      hit rate above 99 percent, nanoseconds
+   ^ periodic refresh, every few seconds
+layer 2: local shared cache     milliseconds, the fallback
+   ^ pushed on change
+layer 3: the flag service       the single source of truth
+</code></pre>
+
+<p>The strategy is to fetch the whole configuration periodically rather than query per key.</p>
+
+<pre><code>class FlagCache:
+    def __init__(self, client, refresh_interval=5):
+        self.client = client
+        self.interval = refresh_interval
+        self._config = {}
+        self._lock = threading.Lock()
+        self._start_refresh_thread()
+
+    def _refresh_loop(self):
+        while True:
+            try:
+                snapshot = self.client.fetch_all()
+                with self._lock:
+                    self._config = snapshot
+            except Exception:
+                pass        # keep the old snapshot, never break the request path
+            time.sleep(self.interval)
+
+    def is_enabled(self, name, user_id, default=False):
+        with self._lock:
+            flag = self._config.get(name)
+        if flag is None:
+            return default
+        ...
+</code></pre>
+
+<p>The refresh interval sets the worst-case time for a kill switch to take effect: one second for critical paths, five as the usual balance, thirty for non-critical features, minutes for plan permissions. Note the word worst: pressing the switch just after a refresh waits almost a full interval, which is why emergency switches deserve their own faster channel rather than sharing a five minute cycle.</p>
+
+<p>And on failure, keep the last known configuration. Clearing it on an error would make every flag fall back to its default at once, either switching every new feature off or, worse, running unvalidated code.</p>
+
+<p>Defaults follow the same logic: release and experiment flags default to off, which is safe, while kill switches default to on, since they exist to be turned off when something breaks.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>Bucketing uses a fixed bucket space with the percentage as a threshold.</li>
+<li>Each flag has its own salt.</li>
+<li>Bucketing is a pure function, identical on every instance.</li>
+<li>The identifier is stable, and never a session id, an IP address or a random value.</li>
+<li>Anonymous traffic has a defined policy that does not change between requests.</li>
+<li>Every flag has an owner, an expiry and a description.</li>
+<li>Release flags are removed within thirty days of full rollout, with a check in continuous integration.</li>
+<li>Evaluation reads an in-process cache refreshed on a timer, never a network call on the hot path.</li>
+<li>A failed refresh keeps the previous configuration.</li>
+<li>Rollback triggers are written down before the rollout starts.</li>
+<li>Kill switches use a faster channel than ordinary flags.</li>
+<li>Each stage of the rollout lasts at least one business cycle.</li>
+</ul>
+
+<p><strong>How does this differ from blue-green or canary?</strong> All three reduce release risk at different granularity: blue-green swaps two complete environments, canary sends a little real traffic to new instances, and a flag decides per user in code, which is the finest and the fastest to reverse. They compose: canary checks instance health while flags decide who sees the feature.</p>
+
+<p><strong>Per user or per request?</strong> Per user, because one user makes many requests and a random per-request split makes the feature flicker within a session. Stateless endpoints behind a cache are the exception.</p>
+
+<p><strong>Do flags break caching?</strong> Yes, if a flag changes the response and the cache key does not include the flag state, so a rolled-out user receives an old cached body. Put the flag state in the key, or disable caching for that endpoint during the rollout.</p>
+
+<p><strong>Do front-end flags count?</strong> Only for presentation. Anything sensitive, permissions or billing, must be decided on the server, because a client-side flag is something the user can change.</p>
+
+<p><strong>How do you test both paths?</strong> Parameterise the flag state and run the test twice, and pay special attention to the off path, which is the one developers never exercise because it is turned on locally.</p>
+
+<p><strong>Where does the configuration live?</strong> A database with polling at small scale, a self-hosted service at medium scale, a managed service at enterprise scale. Not a file in the repository, since that reintroduces the deploy that flags exist to remove.</p>
+
+<p><strong>What if the rollout writes to a new table and you need to roll back?</strong> This is the hard case. Make the new path forward compatible, writing old fields or dual writing, and if that is impossible, confirm the old code can read the data before rolling back, or the rollback becomes corruption. Irreversible data changes need their own rollback plan, decided before the rollout.</p>
+
+<h2>Summary</h2>
+
+<p>Four points. Fixed bucket space, with percentages as a moving line, or users lose features they already had. The flag type decides its lifetime, and an unowned flag with no expiry is a time bomb. Evaluation belongs in process memory, because a remote call is thousands of times slower and makes the flag service a dependency. And rollback triggers are written in advance, because the real value of a flag is turning rollback from a deploy into a configuration change.</p>
+
+<p>Progressive delivery is not an advanced technique. It is the infrastructure that turns shipping from a gamble into a process, at the cost of one branch per flag, and for one benefit that matters: being willing to deploy on a Friday afternoon.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/feature-flag-progressive-delivery/">灰度到 20%，一半用户功能消失了——特性开关实战</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
