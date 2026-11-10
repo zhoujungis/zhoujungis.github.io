@@ -22224,6 +22224,465 @@ WHERE state = 'running'
 `,
   },
 
+  {
+    slug: 'structured-logging-tracing-deep-dive',
+    zhSlug: 'structured-logging-tracing-deep-dive',
+    topicSlug: 'backend',
+    title: 'Six of those three hundred log lines are yours',
+    excerpt:
+      'Measured numbers for logging costs: JSON is 40 percent slower than text, not ten times; the write path is 24.5 times worse than buffered writes; and random sampling throws away 98 percent of your errors.',
+    date: '2026-11-01',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Who this is for: backend engineers who have grepped through logs at two in the morning, and anyone deciding whether logs should be JSON or whether tracing is worth adopting.</p>
+<p>Measured on CPython, but the shapes hold for any runtime. Every number here comes from the benchmark script included with the post.</p>
+<p>Reading time around 26 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>Two in the morning, six lines out of three hundred</h2>
+
+<pre><code>grep "api/articles" app.log | grep "ERROR"
+</code></pre>
+
+<p>Plenty of hits. Narrow the time window, take a line range, land on the moment, and find dozens of interleaved records, because the machine is serving other requests at the same time. Which lines belong to the same request is now a matter of intuition.</p>
+
+<p>I simulated it: three hops, four hundred requests, six log lines each, and then I went looking for one request.</p>
+
+<pre><code>without a request id, only a time window of plus or minus one second:
+  lines retrieved        : 300
+  belonging to the request: 6
+  noise ratio            : 50 to 1
+</code></pre>
+
+<p>Fifty to one. And that is with concurrency artificially held at four hundred requests; a production service an order of magnitude busier makes the ratio an order of magnitude worse.</p>
+
+<p>This post answers three questions with measurements. How much does JSON cost? Forty percent, not an order of magnitude. Where is the real cost? In the write path, where the standard file handler is 24.5 times more expensive than a buffered write. And does a request id actually locate a request? Yes, and it is the only reliable way.</p>
+
+<table>
+<thead><tr><th>Optimisation</th><th>Measured effect</th><th>Worth it</th></tr></thead>
+<tbody>
+<tr><td>Batch flushes instead of per-line</td><td>17.6 times faster writes</td><td>Yes, highest priority</td></tr>
+<tr><td>Replace the standard file handler</td><td>Same, without touching business code</td><td>Yes</td></tr>
+<tr><td>Disable caller lookup</td><td>55 percent of logging cost per line</td><td>Depends, has a cost</td></tr>
+<tr><td>Text to JSON</td><td>40 percent slower, not faster</td><td>For parseability, not speed</td></tr>
+<tr><td>Regex instead of JSON parsing when reading</td><td>2.6 times faster, saves 0.17 seconds</td><td>Not a reason to choose</td></tr>
+<tr><td>Random 1 percent sampling</td><td>Volume to 1 percent, errors kept 1.9 percent</td><td>Do not</td></tr>
+</tbody>
+</table>
+
+<h2>Three separate bills</h2>
+
+<p>Most arguments about logging performance mix three different costs into one number. Formatting turns a record into a string, pure CPU. The write path pushes that string into a file, which involves syscalls, buffers and flush policy. Correlation makes the line findable and joinable, through request ids, trace ids and context.</p>
+
+<p>The magnitudes differ wildly, so the benchmark separates them: formatting, write path, framework overhead, reading back, correlation, id generation and sampling.</p>
+
+<pre><code>{
+    "ts": 1756000000.123,
+    "level": "INFO",
+    "req": "a3f9c1e08b2d4756",
+    "logger": "api.views",
+    "method": "GET",
+    "path": "/api/articles",
+    "status": 200,
+    "duration_ms": 12.34,
+    "user_id": 12345,
+}
+</code></pre>
+
+<pre><code>def as_text(r):
+    ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
+    ms = int((r["ts"] % 1) * 1000)
+    return (
+        f"{ts},{ms:03d} {r['level']} "
+        f"req={r['req']} logger={r['logger']} method={r['method']} "
+        f"path={r['path']} status={r['status']} "
+        f"duration_ms={r['duration_ms']} user_id={r['user_id']}"
+    )
+
+def as_json(r):
+    return json.dumps(r, ensure_ascii=False, separators=(",", ":"))
+</code></pre>
+
+<h2>JSON costs forty percent, not ten times</h2>
+
+<pre><code>variant                          total    ns/rec   vs text   spread
+------------------------------------------------------------------
+as_text  f-string              0.262s      2617     1.00x      48%
+as_json  json.dumps            0.367s      3670     1.40x      43%
+logging TextFormatter           0.264s      2639     1.01x      95%
+logging JsonFormatter           0.402s      4023     1.54x      67%
+</code></pre>
+
+<p>Forty percent, an absolute difference of about a microsecond. That contradicts the common claim that JSON logging costs an order of magnitude, which usually comes from comparing against the most minimal string concatenation, or from a contaminated measurement.</p>
+
+<p>I contaminated one myself. The same code first measured a factor of 2.15, and I nearly published it. Then I noticed the whole run sat inside a load spike, with a calibration task showing the machine 1.68 times slower than normal and spreads between 107 and 181 percent. Rerun in a quiet window, the ratio settled at 1.31 to 1.40.</p>
+
+<p>That is why every experiment here includes a fixed CPU calibration task. It does not enter the conclusion; it answers whether this run is trustworthy at all.</p>
+
+<p>The framework's JSON formatter is slightly more expensive than raw serialisation because it pulls fields off the record first. Call that the framework's toll.</p>
+
+<h3>Field order barely matters</h3>
+
+<p>The encoder is implemented in C, and sorting nine keys by length or frequency produces a saving invisible in the noise. Turning off the separators' spaces helps, and so does avoiding ASCII escaping for non-ASCII text, but those are correctness habits rather than optimisations.</p>
+
+<h2>The expensive part is the timestamp</h2>
+
+<pre><code>time.localtime plus strftime: 1514 ns per record, 58% of the text path
+</code></pre>
+
+<p>Of 2,617 nanoseconds on the text path, 1,514 go into turning a float into something a human reads. The JSON path stores the float and never converts, which is the entire reason for the difference.</p>
+
+<p>So the intuition "JSON logs are slower" is really "text logs quietly format timestamps and JSON logs do not". Two different jobs are being compared.</p>
+
+<ul>
+<li>Does the timestamp need to be human readable in the file? Store the epoch and let the viewer format it, and you remove more than half the formatting cost.</li>
+<li>If it must be readable, cache it: within one second, the formatted prefix is identical for every record.</li>
+</ul>
+
+<pre><code>_last_sec, _last_str = None, None
+
+def fast_ts(ts):
+    global _last_sec, _last_str
+    sec = int(ts)
+    if sec != _last_sec:
+        _last_sec = sec
+        _last_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sec))
+    return f"{_last_str},{int((ts - sec) * 1000):03d}"
+</code></pre>
+
+<p>None of this is clever. It is the direct consequence of knowing where the 58 percent goes, which is the step most performance discussions skip.</p>
+
+<h2>The write path is 24.5 times worse</h2>
+
+<pre><code>write method                       fastest   us/line   vs buffered   spread
+-----------------------------------------------------------------
+raw write, 64KB buffer              1.01ms      0.50        1.00x       13%
+raw write, flush per line           5.44ms      2.72        5.41x        9%
+logging FileHandler                24.67ms     12.33       24.51x        5%
+logging batched flush              17.70ms      8.85       17.59x       10%
+</code></pre>
+
+<p>The floor is half a microsecond per line, because data lands in a memory buffer and the syscall happens once per sixty-four kilobytes. Flushing every line multiplies that by five and does exactly one extra thing. And the standard file handler is twenty-four times the floor.</p>
+
+<p>That is not a configuration option; it is hardcoded in the stream handler's emit method, which every file-based handler inherits: write the message, then flush.</p>
+
+<pre><code>def emit(self, record):
+    try:
+        msg = self.format(record)
+        stream = self.stream
+        stream.write(msg + self.terminator)
+        self.flush()          # called for every single record
+    except RecursionError:
+        raise
+    except Exception:
+        self.handleError(record)
+</code></pre>
+
+<p>The reasoning is defensible: a log line is worth nothing if it is still in a buffer when the process is killed, and the last line before a crash is exactly the one you want. The bill is a write path seventeen times slower than it needs to be.</p>
+
+<pre><code>class BufferedHandler(logging.Handler):
+    """Batch the flush instead of flushing every record."""
+
+    def __init__(self, path, batch=1000):
+        super().__init__()
+        self.stream = open(path, "w", encoding="utf-8", buffering=1 &lt;&lt; 16)
+        self.batch = batch
+        self.n = 0
+
+    def emit(self, record):
+        self.stream.write(self.format(record) + "\n")
+        self.n += 1
+        if self.n >= self.batch:
+            self.stream.flush()
+            self.n = 0
+
+    def close(self):
+        self.stream.flush()
+        super().close()
+</code></pre>
+
+<p>Most services will accept losing a thousand lines in exchange for not being seventeen times slower, provided they know they are making that choice.</p>
+
+<h3>Why the last 17.6 times remain</h3>
+
+<p>The framework itself charges for the rest, which is the next experiment.</p>
+
+<h2>Fifty-five percent of the framework cost is finding out who you are</h2>
+
+<pre><code>variant                                       total      ns/rec
+------------------------------------------------------------
+plain Python loop (baseline)                 0.001s         29
+log.info(msg) default                        0.350s       6993
+log.info(msg) with _srcfile=None             0.158s       3168
+log.info(msg) no thread or process info      0.142s       2843
+bypass Logger, call handler.handle()         0.086s       1717
+
+net logging cost (minus baseline) : 6964 ns
+  findCaller()                    : 3825 ns  (55%)
+  thread, pid, process name       :  325 ns  (5%)
+  the rest of Logger and handler  : 2814 ns
+handler.handle() alone            : 1688 ns, 4.1x faster
+</code></pre>
+
+<p>The caller lookup walks back through frames, skipping the logging module's own, to name the file and line that produced the record. Disabling it short-circuits the first line and halves the cost.</p>
+
+<p>Should you? File and line is one of the most useful fields during an investigation, since a location sends you straight to the code. Saving a few microseconds to lose it usually is not worth it, with one exception: if the records already carry rich structured fields, the line number matters less, because you join by request id first and open the code second.</p>
+
+<p>Bypassing the logger entirely and handing a record to the handler is four times faster, which is a real gain on a path that logs dozens of lines per request, at the cost of building the record yourself.</p>
+
+<h2>Batch size: a hypothesis that did not survive</h2>
+
+<pre><code>    lines   raw us/line   flush us/line      ratio   spread
+----------------------------------------------------------
+      500        1.01           13.96        13.8x     21%
+    2,000        0.52           13.65        26.3x      7%
+   10,000        0.38           13.06        34.4x      4%
+   50,000        0.34           12.94        37.6x      2%
+
+flush cost per line 12.9 to 14.0 us, flat across a 100x range
+</code></pre>
+
+<p>I expected larger batches to measure more reliably, and the data refused. The useful part is the flatness: the per-line flush cost is a syscall and does not care about bytes, so a small-batch measurement extrapolates safely to production.</p>
+
+<p>The ratio rises because the denominator shrinks, since open and close are fixed costs spread over more rows, not because flushing gets worse.</p>
+
+<p>And the instability I expected did appear once, at fifty thousand rows, with a spread of 179 percent, which looked like confirmation. Rerun on a quieter machine, the same code at the same batch size gave 13 percent. The spike had simply landed on the large batch.</p>
+
+<h2>Discounting the numbers on this machine</h2>
+
+<pre><code>us per call, 12 sequential reps:
+  9339 9023 8858 9129 9059 9360 9450 9337 9543 9339 9382 9922
+  min=8858  median=9339  max=9922  spread=12.0%
+</code></pre>
+
+<p>Twelve percent jitter inside one process on the same code. Across sessions, the minimum of twelve repetitions itself varies by seven percent, and one run pushed the noise floor to 56.9 percent.</p>
+
+<p><strong>This machine cannot distinguish differences below about ten percent</strong>, which constrains how the post is written. Only ratios far above the noise are quoted as conclusions. Every timing carries its spread. Every experiment runs a calibration task that measures the machine, not the code. And results come from interleaved rounds taking the minimum, not the average, since the average includes interference.</p>
+
+<p>That last point cost me a wrong result: running one case to completion before the next flipped the ranking, because the process got slower as other work competed for CPU. Interleaving gives every case the same drift.</p>
+
+<pre><code>def interleaved_series(cases, rounds=3):
+    """Run every case once per round, keep all samples."""
+    series = {label: [] for label, _ in cases}
+    gc_was_on = gc.isenabled()
+    gc.disable()
+    try:
+        for _ in range(rounds):
+            for label, fn in cases:
+                t0 = time.perf_counter()
+                fn()
+                series[label].append(time.perf_counter() - t0)
+    finally:
+        if gc_was_on:
+            gc.enable()
+    return series
+</code></pre>
+
+<p>A subtler mistake: one ratio was measured in a separate pass, and on a busy machine reported a nonsensical 91 percent instead of 54, because the two numbers came from different rounds under different load. Inside one interleaved set it stabilises.</p>
+
+<p><strong>If you take one thing from this post, take this: measure your noise floor before you discuss your optimisation.</strong> A performance number without a noise floor is not a number.</p>
+
+<h2>Reading speed is not a reason to choose a format</h2>
+
+<pre><code>approach                       time   us/line   result
+---------------------------------------------   ------
+text plus regex                0.11s      1.08   p99=101.17ms
+JSON plus json.loads           0.28s      2.81   p99=101.17ms
+ground truth                                          p99=101.17ms
+</code></pre>
+
+<p>Both are correct, and the faster one saves 0.17 seconds across a hundred thousand lines, in an offline job. That is not a reason to choose anything.</p>
+
+<pre><code>schema drift: the producer renames duration_ms to dur_ms, replay the first 20,000
+  text plus regex : 0 matches, 0 errors    <- silent
+  JSON access     : 0 matches, 20,000 errors <- loud
+</code></pre>
+
+<p>That is the real difference, and it is correctness rather than performance. With text, a renamed field makes the regex match nothing, the value list comes back empty, and the report shows zero or skips the row. No exception, no alert, no trace: the dashboard says there was no traffic, and you spend three hours on the gateway and the load balancer.</p>
+
+<p>With JSON, the missing key raises twenty thousand times. Ugly, and you know in five minutes.</p>
+
+<p><strong>Failing quietly is far more expensive than failing loudly</strong>, because the log pipeline is the thing you lean on during an incident. One that silently stops producing data is worse than none, since it convinces you the data exists.</p>
+
+<p>That is the case for JSON, and it costs forty percent of formatting time. A compromise if you want readable lines and the same protection: keep text but stamp a schema version on every record and validate it when reading.</p>
+
+<pre><code>2026-09-21 02:14:03,412 INFO schema=v2 req=a3f9... path=/api/articles duration_ms=12.34
+</code></pre>
+
+<h2>Request ids: thirteen times the generation cost, and it does not matter</h2>
+
+<pre><code>method                                    fastest   ns/op   spread
+----------------------------------------------------------------
+uuid.uuid4()          (36 chars)         0.352s     1761     10%
+uuid.uuid4().hex      (32 chars)         0.271s     1357     11%
+secrets.token_hex(8)  (16 chars)         0.043s      216      4%
+os.urandom(8).hex()   (16 chars)         0.026s      132      4%
+process id plus counter (short)          0.049s      243      4%
+</code></pre>
+
+<p>Thirteen times the cost is 1.6 microseconds, once per request, against milliseconds of total latency. Optimising it is pointless for nearly every service. What matters is collision probability.</p>
+
+<pre><code>birthday collisions:
+  16 hex chars,  1M ids/day  -> about 2.71e-08
+  16 hex chars,  1B ids/day  -> about 2.71e-02
+  uuid4,         1M ids/day  -> about 1.47e-27
+  uuid4,         1B ids/day  -> about 1.47e-21
+</code></pre>
+
+<p>Sixty-four bits at a billion ids a day is 2.7 percent per day, which compounds to about 56 percent over a month. And a collision means two unrelated requests share an id, so you read their lines as one story and see an impossible trace: two enters, no exits, or time running backwards. You will suspect the code.</p>
+
+<p>So: use 128 bits when logs are aggregated across machines and kept for a long time; sixty-four bits is cheaper and adequate for single-machine investigation in a short window. The one option that never works across machines is a process id plus a counter, since two processes restart at the same counter.</p>
+
+<p>A practical note: the hex form of a uuid is about a fifth faster than the string form because it skips the hyphen formatting.</p>
+
+<h2>Six lines against three hundred</h2>
+
+<pre><code>total lines across the chain   : 2,400 (400 requests x 6.0)
+one request's full chain       : 6
+    gateway      enter
+    article-svc  enter
+    db-proxy     enter
+    db-proxy     exit   0.002
+    article-svc  exit   0.853
+    gateway      exit   2.223
+</code></pre>
+
+<p>With a request id you get exactly those six lines in chain order, and the durations speak for themselves: the database took two microseconds, the article service took most of a millisecond. Three seconds to conclude that the problem is in the service, not the database.</p>
+
+<p>Without one, you get three hundred lines with no ordering guarantee across three processes writing to three files. You separate by process, sort by time, and guess which enter pairs with which exit.</p>
+
+<p><strong>Adding a request id is the highest-value suggestion in this post.</strong> No format change, no middleware, no tracing system. One header, one context variable, one logging filter.</p>
+
+<pre><code>import contextvars, uuid, logging
+
+_request_id = contextvars.ContextVar("request_id", default="-")
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        record.req = _request_id.get()
+        return True
+
+logging.getLogger().addFilter(RequestIdFilter())
+
+def handle(request):
+    _request_id.set(uuid.uuid4().hex[:16])
+    ...
+</code></pre>
+
+<p>Context variables are correct under asyncio and thread pools; a thread local is not, because coroutines on one thread will overwrite each other and one request's id appears in another's lines.</p>
+
+<h3>Do not measure a header with end-to-end latency</h3>
+
+<pre><code>                                  p50       p99      mean   (ms)
+--------------------------------------------------------
+without id (run 1)                2.80     41.60      9.33
+without id (run 2)                2.66     39.42      8.26
+with X-Request-Id                 7.78     41.49     11.80
+without id (run 3)               19.36     52.76     17.87
+
+variation between the three baseline runs : p50 16.70ms / p99 13.34ms
+offset of the header run from their mean  : p50 -0.50ms / p99 -3.11ms
+</code></pre>
+
+<p>Rows one and four are the same code and differ sevenfold at the median. The header's offset is half a millisecond, far inside that jitter, and in another run it came out positive. When a sign flips, you are measuring the machine's temperature, not the header.</p>
+
+<p>Questions like this belong in a microbenchmark. I have watched teams spend two days on an A/B load test and come back with a graph of their own load curve.</p>
+
+<h2>Sampling: keep one percent randomly and you lose 98 percent of the errors</h2>
+
+<pre><code>strategy                        lines   vs A    size    errors kept
+--------------------------------------------------------------
+A everything                   40,318  100.0%  6.8MB    100.0%
+B random 1%                       418    1.0%  0.1MB      1.9%
+C random 1% plus all errors     1,146    2.8%  0.2MB    100.0%
+D C plus all slow requests      1,190    3.0%  0.2MB    100.0%
+</code></pre>
+
+<p>Random sampling is fair by construction and wrong by purpose: your goal is to have data when something breaks, and breakage is exactly the rare event that uniform sampling discards in proportion.</p>
+
+<pre><code>def should_log(level, sampled_ok):
+    if level &gt;= logging.ERROR:
+        return True          # errors always kept
+    return sampled_ok        # everything else at 1%
+</code></pre>
+
+<p>Volume drops to under three percent with every error retained, and keeping slow requests too costs another fifth of a percentage point, which is the cheapest purchase in the post.</p>
+
+<p>Decide once at the request boundary and keep that decision for the whole request. Rolling dice per line leaves a request with some lines present and some missing, and a partial trace is more confusing than none.</p>
+
+<pre><code>sampled = rng.random() &lt; 0.01
+_request_sampled.set(sampled)
+</code></pre>
+
+<h2>Checklist</h2>
+
+<p><strong>Do immediately, high value and low risk.</strong></p>
+
+<ul>
+<li>Replace per-line flushes with batched ones, either by count or by time. Measured at 17.6 times, at the cost of losing the last batch on a crash.</li>
+<li>Add a request id: one header, one context variable, one filter. The noise ratio falls from fifty to one to one to one, which changes what an investigation feels like.</li>
+<li>Keep every error when sampling: pass errors through and sample the rest.</li>
+<li>Check the timestamp formatting; if it is over half the format cost, store epochs or cache the string per second.</li>
+</ul>
+
+<p><strong>Worth doing, a little change required.</strong></p>
+
+<ul>
+<li>Write JSON for parseability rather than speed, since it is forty percent slower and reports schema drift instead of going quiet.</li>
+<li>Choose the id width by retention and aggregation scope: 128 bits across machines and long retention, 64 bits for a single machine, where a billion ids a day collides about half the time over a month.</li>
+<li>Make the sampling decision once at the request boundary rather than per line.</li>
+</ul>
+
+<p><strong>Situational, with a catch.</strong></p>
+
+<ul>
+<li>Disabling the caller lookup saves more than half the framework cost and loses file and line. Consider it only when records are rich and the path is hot.</li>
+<li>Calling the handler directly is four times faster and means building the record yourself.</li>
+</ul>
+
+<p><strong>Do not.</strong></p>
+
+<ul>
+<li>Swap JSON back to text for performance: forty percent of a microsecond is not worth losing validation.</li>
+<li>Choose a format by reading speed, where the difference is a fifth of a second across a hundred thousand lines.</li>
+<li>Measure a header or a single log field with an end-to-end load test, where noise exceeds signal by three orders of magnitude.</li>
+<li>Believe any performance number without a noise floor, including the ones above. Run the script and see what your machine says.</li>
+</ul>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Why not just adopt a full tracing stack?</strong> Do, if the team is big enough. But every cost measured here still exists underneath: the collectors ultimately call write, and they solve where logs go, not how expensive one line is. Many teams add a request id first, discover that most investigations get easier, and then decide what else they need.</p>
+
+<p><strong>Batched flushes lose data. How do I trade that?</strong> By what you fear. If losing the last thousand lines to a kill signal is unacceptable, flush on a short time window instead, losing at most a window. If slow writes are the worry, flush on a count. And if both worry you, flush synchronously on the critical paths such as errors, payments and authentication, and batch the rest.</p>
+
+<p><strong>JSON is unreadable by eye.</strong> That is a tooling problem. One filter through a JSON processor gives you exactly what you want, and it beats chaining grep, grep and a line range.</p>
+
+<pre><code>tail -f app.log | jq -c 'select(.level=="ERROR")'
+</code></pre>
+
+<p><strong>Context variable or thread local?</strong> A thread local is per thread, and coroutines share threads, so their ids overwrite each other and one request's id shows up in another's logs. Use the context variable.</p>
+
+<p><strong>Can I apply these numbers directly?</strong> The ratios, yes; the absolutes, no. The ratio between the handler and a buffered write comes from the implementation detail of flushing per record, and the same shape appears elsewhere. The absolute microseconds depend on your disk, filesystem, antivirus and load; this machine produced both 12.33 and 20.88 for identical code. Run the script on your own hardware.</p>
+
+<p><strong>Why is the post full of spreads and calibration runs?</strong> Because the noise floor here is twelve percent and reached fifty-seven across sessions. Unlabelled, readers would take noise for conclusions. The calibration task exists because I nearly published a factor of 2.15 from a run where the machine was 1.68 times slower than normal.</p>
+
+<h2>Closing</h2>
+
+<p>The point is not JSON or request ids. It is the order: measure, then optimise, and know how much your measurement can be trusted.</p>
+
+<p>Two of the findings were counterintuitive. JSON costs forty percent, not double, and the doubling I first saw was contaminated. And the standard file handler costs twenty-four times the floor, which almost nobody discusses because it lives in the standard library's emit method rather than its documentation.</p>
+
+<p>If you can change one thing, change the write path: seventeen times the benefit, a few lines, no business logic touched. If you can add one thing, add a request id: no dependencies, and the noise ratio falls from fifty to one.</p>
+
+<p>As for the format argument, let it go. That microsecond is not worth it.</p>
+
+<p>Every number here comes from a benchmark script that ships with the post and runs on a Windows 11 machine with twelve logical cores and CPython. <strong>That machine's noise floor is twelve percent, and reached fifty-seven across sessions</strong>, which is why each timing carries its spread and each experiment runs a calibration task. Ratios travel between machines far better than absolutes: rerun the same experiment twice and the absolutes drift by fifteen percent while the ratios stay inside ten.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/structured-logging-tracing-deep-dive/">300 行日志里，只有 6 行是你的</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
