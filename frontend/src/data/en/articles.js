@@ -23329,6 +23329,362 @@ access_log /var/log/nginx/upstream.log upstream_log;
 `,
   },
 
+  {
+    slug: 'search-inverted-index-to-engine',
+    zhSlug: 'search-inverted-index-to-engine',
+    topicSlug: 'backend',
+    title: 'Search: from the inverted index to PostgreSQL or Elasticsearch',
+    excerpt:
+      'A B+ tree sorts whole strings, so it cannot answer what is in the middle. Search needs the opposite structure, and the choice between engines is about tokenisation control and relevance tuning, not data volume.',
+    date: '2026-11-04',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Who this is for: anyone running site search on a contains operator and watching it degrade, anyone torn between the database's full-text search and a dedicated engine, and anyone who has shipped a search engine and found the results irrelevant and the index out of sync.</p>
+<p><strong>TL;DR:</strong> fuzzy matching is slow because a B+ tree sorts complete strings and cannot answer "contains this in the middle". Search needs an inverted index, which starts from a term and finds the documents. The dividing line is not data size but whether you need tokenisation control, relevance tuning, aggregation and horizontal scale.</p>
+<p>Reading time around 26 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why the contains query kept getting slower</h2>
+
+<p>Site search started as one line: filter articles whose title contains the query. At a few tens of thousands of rows it was fast enough to forget about; at a few hundred thousand the endpoint occasionally passed a second; past a million, every keystroke took three or four seconds and users stopped searching.</p>
+
+<p>The first instinct was to add an index, so a plain tree index went onto the title column, and nothing changed. The plan showed a sequential scan while the index sat there doing nothing.</p>
+
+<p>The second problem was relevance. Searching for "Django deployment" ranked an article that mentioned both words far apart next to the article actually titled that, and a long post that said "cache" a hundred times beat a short one about cache architecture. A contains operator answers included or not included; it has no notion of a term's importance, and none at all of a title mattering more than a body.</p>
+
+<p>Two symptoms, one cause: <strong>answering a set-membership question with a sorted-array lookup</strong>. A tree is good at equality and at ranges beginning at a known prefix, not at arbitrary position, and it cannot express relevance either. A different structure is required.</p>
+
+<h2>Why a B+ tree cannot help with an infix</h2>
+
+<p>Keys are ordered lexicographically, so a tree can locate one key and scan forward from it. That yields exactly two useful queries: exact match, and a range beginning with a fixed prefix.</p>
+
+<p>A prefix pattern works because every string starting with the same characters is contiguous in the tree, so the planner can scan that small span between the prefix and the next possible string.</p>
+
+<p>A pattern with a leading wildcard does not. Strings ending in the term, or containing it in the middle, are scattered across the whole ordering and no contiguous span covers them, so the planner falls back to reading every row and doing a substring test.</p>
+
+<p>That costs rows times average string length: a million rows of thirty characters is tens of millions of comparisons, more with case folding that forces a normalisation per comparison. Latency grows with data, which is the "getting slower" the user feels.</p>
+
+<p>Collation makes it worse. Case- and accent-insensitive collations change what the pattern means, and a database with a different comparison locale than the index was built for may simply refuse to use the index. A large share of "the index exists but is not used" cases end here.</p>
+
+<p>PostgreSQL has one exception: a trigram extension chops strings into three-character pieces and indexes them, which lets infix patterns, case-insensitive patterns and regular expressions use an index. That is not the tree doing the work but a second, inverted-style structure, and it costs index size, write throughput and effectiveness on short or very common terms. There is no equivalent built in elsewhere. The exception matters because it shows infix matching is solvable, just not with an ordinary tree.</p>
+
+<h2>The inverted index</h2>
+
+<p>An inverted index stores the relation backwards: instead of documents listing their terms, terms list the documents containing them, so a query starts at a term and gets a document list without scanning.</p>
+
+<p><strong>The dictionary</strong> holds every term in lexicographic order for fast lookup, implemented as a sorted array with binary search, a prefix tree, or a finite-state transducer that shares prefixes to save memory and support prefix traversal. It stores no postings, only offsets into them.</p>
+
+<p><strong>The postings list</strong> per term holds at least document id and term frequency. Ids ascend, so delta encoding compresses them: storing 1, 3, 7, 12 as 1, 2, 4, 5 costs far fewer bits. Frequency feeds the score.</p>
+
+<p><strong>Positions</strong> are needed once you want phrases, proximity or highlighting, since a boolean "contains" only needs document ids. Positions delta-encode too, and they are why some fields disable them to save space.</p>
+
+<p>Intersecting several postings can be done by advancing one at a time, costing the sum of lengths, or with skip pointers placed every so often so that advancing to the next document at or after a target jumps whole blocks. Lucene also orders the intersection by rarity so the candidate set shrinks fastest.</p>
+
+<p>Document frequency runs through all of this. A term in few documents has a short posting, a fast lookup and high information; a term in nearly every document has a long posting, a slow lookup and almost no discriminating power. That is a performance fact and the origin of the inverse document frequency in the scoring.</p>
+
+<p>Walking one query through the pipeline: tokenise, locate each term, fetch its postings, sort by rarity, intersect skipping impossible documents, score the survivors from frequency, field length and inverse document frequency, and keep a heap of size K rather than sorting every hit. The cost is proportional to the total length of the postings touched, not to the corpus, which is why a million or ten million documents can still answer quickly.</p>
+
+<p>Lucene also splits an index into immutable segments. Writes go to a memory buffer and flush into a new segment, segments are never modified and deletions are recorded as tombstones, and background merges combine small segments so a query opens fewer of them. That design underpins near-real-time search and replication.</p>
+
+<h2>From text to postings: tokenisation sets the ceiling</h2>
+
+<p>The first sentence of an inverted index is "which terms does the document contain", and the tokeniser decides. Get it wrong and the index, the queries and the scores are all wrong, and no amount of query-layer work repairs it.</p>
+
+<p>Chinese has no spaces, which is the first obstacle, and three approaches each cost something.</p>
+
+<p><strong>Dictionary segmentation</strong>, from libraries such as jieba or the database parsers built on SCWS, cuts text into words and produces small indexes with intact semantic units and easy relevance. The cost is the dictionary: new words, product names and slang segment badly, and a phrase can segment two plausible ways depending on the model. Business vocabulary has to be added to a custom dictionary or the core terms get shredded.</p>
+
+<p><strong>Bigrams</strong> treat every adjacent pair of characters as a term. No dictionary, stable recall, and any query can be cut into matchable pairs, at the price of a much larger index and many false matches, since unrelated phrases share pairs. This is what the CJK bigram filters in the Lucene world do, and it suits corpora the dictionary covers poorly.</p>
+
+<p><strong>A hybrid</strong> indexes by dictionary and keeps bigrams or single characters in a fallback field, merging both at query time. It is the most work and often the most stable for Chinese site search. Which one to pick depends on your corpus and your queries; there is no universal ranking.</p>
+
+<p>English looks easy and is not. Standard tokenisers split on whitespace and punctuation, then decide about lowercasing, stop words and stemming. Stemming maps inflections onto a root and raises recall, but it also merges words that should stay apart, since some algorithms reduce different words to the same prefix. Porter and Snowball are the usual algorithms, and most engines ship an English analyzer with stop words and stemming baked in.</p>
+
+<p>Normalisation is the other half: case folding, width folding, Unicode normalisation, accent folding and whitespace collapsing all have to be applied identically at index time and query time. The classic failure is indexing with one analyzer and querying with another, so the terms never match and the result is empty. Do not guess; ask the analyzer what it produced.</p>
+
+<pre><code>POST /articles/_analyze
+{
+  "field": "title",
+  "text": "Django 部署与断点续传"
+}
+</code></pre>
+
+<p>The tokens show each term, position and offset, and index and query analysis must agree. That is a hard constraint, not a preference.</p>
+
+<p>Synonyms have to be placed on one side. Expanding at index time inflates postings and forces a rebuild whenever the list changes; expanding at query time is flexible and immediate at the cost of more terms per query. Most systems should expand at query time and keep the index literal.</p>
+
+<h2>Relevance: from TF-IDF to BM25</h2>
+
+<pre><code>score(q, d) = Σ tf(t, d) × idf(t)
+idf(t) = log(N / df(t))
+</code></pre>
+
+<p>Frequency times inverse document frequency is intuitive: more occurrences means more relevant, rarer terms discriminate more. Two problems follow.</p>
+
+<p>Frequency has no ceiling: going from one occurrence to two doubles the score, and from ten to twenty doubles it again, which rewards padding, so a long post that repeats a term beats the short post that is actually about it. And document length is not normalised, so long documents systematically win because they contain more terms and more occurrences, not because they are more relevant.</p>
+
+<pre><code>score(q, d) = Σ idf(t) × [ tf × (k1 + 1) ] / [ tf + k1 × (1 - b + b × dl / avgdl) ]
+idf(t) = ln(1 + (N - df + 0.5) / (df + 0.5))
+</code></pre>
+
+<p>BM25 fixes both. Document length relative to the average, a saturation parameter and a length-normalisation parameter, with defaults of 1.2 and 0.75 in the Lucene world, which most engines adopt.</p>
+
+<p>Saturation means that at low frequency the denominator is dominated by the count and the score climbs quickly, while at high frequency the denominator is held up by the saturation term and each extra occurrence adds less. Going from one to two matters; going from ten to twenty barely reorders anything.</p>
+
+<p>The length parameter decides the penalty. Zero ignores length and favours long documents, one punishes fully in proportion and can over-reward short ones, and three quarters is a compromise. Title fields vary little in length so it matters less there, and for bodies it matters a great deal.</p>
+
+<p>The inverse document frequency also changed shape. With the smoothed form a term appearing in every document still contributes a small positive weight instead of collapsing to zero or going negative, which under the classic form could make a matching term subtract from the score.</p>
+
+<p>Field weight is the second ranking signal, title above body above comments, implemented by boosting fields or by choosing a multi-field merge strategy. Taking the best field suits "one good match is enough", summing suits "mentioned in several places", and treating several fields as one large field suits when the query words land in different fields.</p>
+
+<p>Phrases and proximity are the third, and they exist because positions were stored. A phrase requires consecutive positions, proximity allows a gap, and a field without positions can only do a boolean contains. Highlighting also needs positions or offsets to know which span to mark.</p>
+
+<p>No formula settles relevance forever. BM25 is a good starting point, and business relevance usually adds recency, author weight, click-through and quality, layered through a scoring function rather than by editing BM25 itself.</p>
+
+<h2>PostgreSQL full-text search</h2>
+
+<p>If the site already runs PostgreSQL, start there rather than with a cluster.</p>
+
+<pre><code>SELECT to_tsvector('english', 'The quick brown foxes are jumping');
+-- 'brown':3 'fox':4 'jump':6 'quick':2
+</code></pre>
+
+<p>The text becomes a sorted list of lexemes with positions, stems applied, stop words removed. Weights can mark fields as A through D so titles outrank bodies.</p>
+
+<pre><code>SELECT to_tsvector('chinese', title) @@ to_tsquery('chinese', 'django &amp; 部署');
+SELECT to_tsvector('chinese', body) @@ to_tsquery('chinese', '缓存 &lt;-&gt; 穿透');
+SELECT to_tsvector('chinese', body) @@ to_tsquery('chinese', '缓存 &lt;3&gt; 雪崩');
+</code></pre>
+
+<p>The arrow operators express adjacency and distance. For raw user input there is a friendlier constructor that treats quoted text as a phrase, the word or as a disjunction, a leading minus as exclusion, and never errors on stray punctuation, which makes it the practical entry point for a search box.</p>
+
+<pre><code>CREATE INDEX articles_title_fts
+ON articles
+USING GIN (to_tsvector('chinese', coalesce(title, '')));
+
+SELECT id, title,
+       ts_rank(to_tsvector('chinese', title), query) AS rank
+FROM articles, websearch_to_tsquery('chinese', 'django 部署') AS query
+WHERE to_tsvector('chinese', title) @@ query
+ORDER BY rank DESC
+LIMIT 20;
+</code></pre>
+
+<p>The inverted-style index is the right choice for containment queries; the other index type works but costs more on update, so it is reserved for dynamic reordering or special data types. An expression index requires the query expression to match the index definition character for character, including the coalesce and the configuration name, or the planner ignores it.</p>
+
+<p>Chinese needs an extra parser, since the built-in one assumes spaces and otherwise treats a whole sentence as one lexeme or splits on punctuation arbitrarily. Parser extensions built on SCWS or jieba are the usual answer, and installation means creating a configuration and mapping parts of speech onto a dictionary.</p>
+
+<pre><code>CREATE EXTENSION zhparser;
+CREATE TEXT SEARCH CONFIGURATION chinese (PARSER = zhparser);
+ALTER TEXT SEARCH CONFIGURATION chinese
+  ADD MAPPING FOR n, v, a, i, e, l WITH simple;
+
+SELECT to_tsvector('chinese', 'Django 部署与断点续传');
+</code></pre>
+
+<p>Know the boundaries in advance: dictionary coverage is limited and terminology has to be added; a wrong part-of-speech mapping silently drops words; and there is no synonym graph or analyzer chain comparable to a dedicated engine. It is adequate, not universal.</p>
+
+<p>Ranking uses the frequency-based or cover-density functions, neither of which is BM25, so ordering quality trails the Lucene world and tuning options are limited. If relevance is the product, that becomes the bottleneck.</p>
+
+<p>On scale: index size tracks lexeme and posting counts, typically a few to a dozen percent of the text, every write updates the index so write-heavy tables amplify, and query time depends heavily on document frequency, since a very common term means a long posting. For a million rows, read-heavy, with uncomplicated queries, the database is entirely sufficient; complex field boosting, aggregation, spelling tolerance and horizontal scale are where an engine starts earning its cost.</p>
+
+<h2>Elasticsearch: mapping, analyzers and the query DSL</h2>
+
+<p>An engine on top of Lucene splits one logical index into shards, each a Lucene index, and wraps them in coordination, replication, a REST interface and aggregation.</p>
+
+<p>Explicit mappings come first. Dynamic mapping guesses strings into text plus keyword, dates into dates and numbers into longs, and changing a guessed type later usually means reindexing. Production indexes should at least pin the core fields.</p>
+
+<pre><code>PUT /articles
+{
+  "mappings": {
+    "properties": {
+      "title":   { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
+      "summary": { "type": "text", "analyzer": "ik_max_word" },
+      "author":  { "type": "keyword" },
+      "tags":    { "type": "keyword" },
+      "published_at": { "type": "date" },
+      "view_count":   { "type": "integer" }
+    }
+  }
+}
+</code></pre>
+
+<p>Text fields are tokenised, posted and scored; keyword fields are not tokenised and serve filtering, sorting and aggregation from a columnar store. Mapping one as the other either slows filtering or destroys full-text search.</p>
+
+<p>Index-time and search-time analyzers can differ, with a fine-grained one for recall at index time and a coarse one for precision at query time, provided the terms still line up. If they do not, results are empty with the data sitting in the index.</p>
+
+<pre><code>GET /articles/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "multi_match": {
+            "query": "Django 部署",
+            "fields": ["title^3", "summary^2", "body"],
+            "type": "best_fields",
+            "tie_breaker": 0.3
+        }}
+      ],
+      "filter": [
+        { "term": { "status": "published" } },
+        { "range": { "published_at": { "gte": "now-2y" } } }
+      ],
+      "must_not": [
+        { "term": { "tags": "spam" } }
+      ]
+    }
+  },
+  "sort": [
+    { "_score": "desc" },
+    { "published_at": "desc" }
+  ],
+  "size": 10
+}
+</code></pre>
+
+<p>Scored clauses go in the scoring context, hard conditions go in the filter context where they can be cached, and exclusions go in the negative clause. Moving status, tenant and time range into the filter is the first performance optimisation and the correct place for permission filtering.</p>
+
+<pre><code>GET /articles/_search
+{
+  "query": {
+    "function_score": {
+      "query": { "multi_match": { "query": "缓存", "fields": ["title^3", "body"] } },
+      "functions": [
+        { "gauss": { "published_at": { "origin": "now", "scale": "30d", "decay": 0.5 } } },
+        { "field_value_factor": { "field": "view_count", "factor": 0.1, "modifier": "log1p" } }
+      ],
+      "score_mode": "sum",
+      "boost_mode": "multiply"
+    }
+  }
+}
+</code></pre>
+
+<p>Aggregations serve filter panels and statistics, bucketing by term or by time and estimating distinct counts. They read the columnar store rather than postings, which is why search plus aggregation is one request here and usually extra SQL in a pure database.</p>
+
+<h2>Near-real-time, replicas and deep paging</h2>
+
+<p>Near-real-time is easily misread as "searchable immediately after the write". Writes land in a buffer and a transaction log, and only a refresh makes them visible in a new segment; with the default interval of one second, visibility lags by up to about that. Forcing a refresh is possible and produces many small segments that the merge has to clean up.</p>
+
+<p>Durability and visibility are separate. The transaction log, flushed on every request by default, provides the first, so a crash recovers. The refresh provides the second and guarantees nothing about disk. Conflating them produces the two familiar puzzles: a write returned 200 and cannot be found, and a refresh is treated as a durability guarantee.</p>
+
+<p>Replicas buy availability and read throughput: each shard has a primary and copies, writes go to the primary and replicate, and searches may hit any copy. More replicas add read capacity, write amplification and storage, and they do not remove the visibility delay since they refresh with the primary.</p>
+
+<p>Deep paging is the other trap. With offset and size, every shard must produce the first offset plus size documents and the coordinating node merges them, so page one hundred at twenty per page has every shard computing and discarding two thousand. The default result window limits exactly this cost.</p>
+
+<pre><code>POST /articles/_search
+{
+  "size": 20,
+  "sort": [ { "published_at": "desc" }, { "_id": "asc" } ],
+  "search_after": [ "2026-10-01T00:00:00Z", "article-123" ],
+  "pit": { "id": "pit_id", "keep_alive": "5m" }
+}
+</code></pre>
+
+<p>The cursor form requires a unique sort key, usually a timestamp plus an id, and a point-in-time view so that changes during paging neither duplicate nor skip documents. It does not support jumping to page N, so a product that needs random access must limit pages or change its presentation, and full exports belong to a scroll or a sliced point-in-time rather than to deep offsets.</p>
+
+<p>Shard counts deserve restraint. Each shard is a Lucene index with segments, file handles and heap, and too many of them enlarges cluster state and multiplies the merging behind one query. Tens of gigabytes per shard is a common target, provisioned for growth rather than for a hypothetical tenfold future.</p>
+
+<h2>Simpler engines: tolerance instead of control</h2>
+
+<p>Not every product needs that complexity. The lighter engines make spelling tolerance, prefix search and instant search the default, trading configurability for a fast start.</p>
+
+<p>One of them behaves the way users expect: typos are tolerated by edit distance with more slack on longer words, prefixes match as you type, ranking is built from term frequency, position and exactness with field weights and synonyms on top, and deployment is a single binary. The other emphasises an explicit schema, tolerance, prefix and geo search, plus vector search and pinned results, with query parameters that feel more deliberate.</p>
+
+<p>The cost is expressive power. Complex boolean combinations, scripted scoring, nested aggregations and cross-index joins are impossible or awkward, horizontal scaling is less mature, and there is little freedom in sharding strategy. They fit medium scale where search is a product experience rather than an analytics platform: documentation sites, storefront search, help centres.</p>
+
+<p>Three questions choose between families. Does relevance need fine manual tuning, in which case the full engine wins? Do you need complex filtering, aggregation and reporting, in which case the full engine or the database wins? How much operational budget does the team have, and if the answer is little and queries are mostly instant search, a lighter engine is the better fit.</p>
+
+<h2>Keeping the index in sync</h2>
+
+<p>The search index is derived data, not the source of truth. The database holds the truth and the index exists to answer faster, which sets the goal for synchronisation: eventually consistent, replayable and rebuildable, not atomic.</p>
+
+<p>Dual writes are the direct approach: after the database commits, call the engine. It is simple and has an irreducible window, since a successful commit with a failed index write leaves the two disagreeing, and writing the engine first can insert documents the database never had. Retries reduce the odds and cannot fuse two systems into one transaction.</p>
+
+<p>The outbox is steadier: write a row in the same transaction carrying document id, operation and version, then let a poller or change capture deliver it. Because the row commits with the business data, "business succeeded and the event vanished" cannot happen, and delivery is at least once with retries.</p>
+
+<pre><code>CREATE TABLE search_outbox (
+    id          BIGSERIAL PRIMARY KEY,
+    doc_id      BIGINT NOT NULL,
+    op          TEXT NOT NULL,
+    version     BIGINT NOT NULL,
+    payload     JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    processed_at TIMESTAMPTZ
+);
+</code></pre>
+
+<p>Delivery must be idempotent, through external versioning or an application-level comparison, so only a higher version overwrites and a late old event cannot restore previous data. Deletes need versions too, or a delete arriving after an update resurrects the document.</p>
+
+<p>The version has to come from somewhere monotonic and comparable: a sequence, an updated timestamp with a counter, or a log position. A bare timestamp is unreliable under concurrent writes because ordering within a millisecond is undefined.</p>
+
+<p>A full rebuild is the backstop. Create a new index, import from the database or a snapshot, verify counts and sample content, then switch atomically with an alias.</p>
+
+<pre><code>POST /_aliases
+{
+  "actions": [
+    { "remove": { "index": "articles_v1", "alias": "articles" } },
+    { "add":    { "index": "articles_v2", "alias": "articles" } }
+  ]
+}
+</code></pre>
+
+<p>The old index stays readable during the import, one alias operation switches it, and users notice nothing. The import must be repeatable, paged by primary key and resumable, and must not hold one long transaction over the database.</p>
+
+<p>Some visibility delay is unavoidable, since a commit must traverse delivery, indexing and refresh. The product should absorb it: publishing and searching immediately may return nothing, and the answer is a locally inserted "just published" result or a redirect to the article, not a millisecond refresh interval.</p>
+
+<h2>Query design and safety</h2>
+
+<p>Separate hard conditions from relevance conditions. Status, tenant, permissions, time range and deletion are hard and belong in the filter context, where they are cached and cannot be inflated by a boost. Query terms, synonyms and fuzzy matching belong in the scoring context. Mixing them is slower and is where permission holes appear.</p>
+
+<p>Cache on a normalised query, so case, spacing and parameter order collapse to one key, and include tenant, permission scope, paging cursor and sort in the key. Caching on the term alone hands one tenant's results to another.</p>
+
+<p>Take zero results seriously. A high zero-result rate usually means mismatched analysis, missing synonyms, typos or an over-narrow filter rather than a missing index. Log the queries that returned nothing, sort by frequency, read the top twenty by hand, then add synonyms, spelling tolerance or wider ranges, and never leave the user staring at an empty page.</p>
+
+<p>Highlighting costs. It needs positions or offsets, a field that keeps them, and on large fields it becomes the slowest part of the query, so enable it only where it is displayed and bound the fragment length and count.</p>
+
+<p>Multi-tenant filtering must be resolved server-side: the tenant in the request is a claim, and the server derives the permitted set from identity before adding it to the filter. Passing the client's parameter straight through delegates isolation to the user, and field-level rules work the same way, filtering at return time or blocking at query time rather than trusting the front end to hide things.</p>
+
+<p>Query injection is easy to overlook. The expressive query syntax supports wildcards, regular expressions, field references and boolean nesting, so a user can send something that brings down a cluster. A search box should use the structured multi-field query and treat input as text; where the expressive syntax is required, escape reserved characters, bound the length and disable leading wildcards and regular expressions. Scripted scoring is worse still and should be disabled or sandboxed for untrusted input.</p>
+
+<h2>Observability</h2>
+
+<p>Watch two lines at once, the system and the quality. Latency alone produces a fast search nobody uses.</p>
+
+<p>On the system side: latency percentiles bucketed by query type and tenant, because averages are diluted by trivial queries; slow query logs, which every engine and database can produce, capturing the text, duration and hit count above a threshold; rejection rates, since a saturated search thread pool refuses requests and a rising rejection count means insufficient capacity or too many slow queries; indexing delay split into delivery backlog, write time and refresh, with alerts on any segment that keeps climbing; and segment counts and merge activity, which slow queries and increase I/O.</p>
+
+<p>On the quality side: zero-result rate over total queries, bucketed by term, tenant and device so a local problem is distinguishable from a general one; click-through and conversion, plus the position clicked, which is imperfect and far better than "looks reasonable"; share of first-result clicks and average click position, which track ranking changes; reformulation rate, where a user searches again without clicking, meaning the first attempt failed; and a fixed evaluation set of queries with expected results, run whenever analyzers, synonyms or boosts change, so one adjustment does not quietly break a dozen others.</p>
+
+<p>Fix the diagnosis order too. Confirm the index has documents, then that index and query analysis agree, then that filters are not removing everything, and only then look at scoring. A large share of relevance complaints are tokenisation, synonyms or filters rather than scoring.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Why a leading wildcard is slow</td><td>A tree sorts whole strings, infix matches have no contiguous span, so it scans</td></tr>
+<tr><td>Why an ordinary index does not help</td><td>The structure cannot answer arbitrary position, and collation mismatches make it worse</td></tr>
+<tr><td>What an inverted index is</td><td>Terms mapping to documents, with a dictionary, postings, positions and skips</td></tr>
+<tr><td>Choosing Chinese tokenisation</td><td>Dictionary segmentation is precise but dictionary-bound, bigrams are stable but bulky, hybrids are steadiest</td></tr>
+<tr><td>TF-IDF's problem</td><td>Unbounded frequency and length bias reward padding</td></tr>
+<tr><td>Why BM25 is steadier</td><td>Saturation and length normalisation, with a smoothed inverse frequency that never collapses</td></tr>
+<tr><td>When the database suffices</td><td>Existing database, millions of rows, simple queries, weaker ranking acceptable</td></tr>
+<tr><td>Where an engine wins</td><td>Analyzer chains, the query DSL, aggregation, horizontal scale, near-real-time</td></tr>
+<tr><td>Deep paging</td><td>A cursor plus a point-in-time view, never deep offsets</td></tr>
+<tr><td>Index synchronisation</td><td>At-least-once delivery, versioned idempotency, alias switching for rebuilds</td></tr>
+<tr><td>Multi-tenant isolation</td><td>Resolve the tenant server-side and filter on it, never trust the parameter</td></tr>
+</tbody>
+</table>
+
+<p>The choice is often reduced to "big data means an engine, small data means the database", which misses the real line: <strong>do you need to control tokenisation and relevance?</strong> For plain containment, a generated lexeme column with an inverted index is enough and operationally simple. Once you need new Chinese words, synonyms, spelling tolerance, field weighting, aggregate panels and horizontal scale, no index inside a database will do, and the engine's complexity is the price of admission.</p>
+
+<p>Whichever you choose, the index is the database's shadow. Making synchronisation replayable, idempotent and rebuildable matters more than making it instant. A shadow that occasionally lags is fine; a shadow that diverges and is never reconciled is not.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

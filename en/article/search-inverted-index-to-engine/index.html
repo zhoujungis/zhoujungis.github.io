@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A B+ tree sorts whole strings, so it cannot answer what is in the middle. Search needs the opposite structure, and the choice between engines is about tokenisation control and relevance tuning, not data volume." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/search-inverted-index-to-engine/" />
+    <meta property="og:title" content="Search: from the inverted index to PostgreSQL or Elasticsearch | Stack Frame" />
+    <meta property="og:description" content="A B+ tree sorts whole strings, so it cannot answer what is in the middle. Search needs the opposite structure, and the choice between engines is about tokenisation control and relevance tuning, not data volume." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/search-inverted-index-to-engine/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Search: from the inverted index to PostgreSQL or Elasticsearch | Stack Frame" />
+    <meta name="twitter:description" content="A B+ tree sorts whole strings, so it cannot answer what is in the middle. Search needs the opposite structure, and the choice between engines is about tokenisation control and relevance tuning, not data volume." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Search: from the inverted index to PostgreSQL or Elasticsearch | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/search-inverted-index-to-engine/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Search: from the inverted index to PostgreSQL or Elasticsearch</h1><div class="ns-meta">2026-11-04 · 26 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: anyone running site search on a contains operator and watching it degrade, anyone torn between the database's full-text search and a dedicated engine, and anyone who has shipped a search engine and found the results irrelevant and the index out of sync.</p>
+<p><strong>TL;DR:</strong> fuzzy matching is slow because a B+ tree sorts complete strings and cannot answer "contains this in the middle". Search needs an inverted index, which starts from a term and finds the documents. The dividing line is not data size but whether you need tokenisation control, relevance tuning, aggregation and horizontal scale.</p>
+<p>Reading time around 26 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why the contains query kept getting slower</h2>
+
+<p>Site search started as one line: filter articles whose title contains the query. At a few tens of thousands of rows it was fast enough to forget about; at a few hundred thousand the endpoint occasionally passed a second; past a million, every keystroke took three or four seconds and users stopped searching.</p>
+
+<p>The first instinct was to add an index, so a plain tree index went onto the title column, and nothing changed. The plan showed a sequential scan while the index sat there doing nothing.</p>
+
+<p>The second problem was relevance. Searching for "Django deployment" ranked an article that mentioned both words far apart next to the article actually titled that, and a long post that said "cache" a hundred times beat a short one about cache architecture. A contains operator answers included or not included; it has no notion of a term's importance, and none at all of a title mattering more than a body.</p>
+
+<p>Two symptoms, one cause: <strong>answering a set-membership question with a sorted-array lookup</strong>. A tree is good at equality and at ranges beginning at a known prefix, not at arbitrary position, and it cannot express relevance either. A different structure is required.</p>
+
+<h2>Why a B+ tree cannot help with an infix</h2>
+
+<p>Keys are ordered lexicographically, so a tree can locate one key and scan forward from it. That yields exactly two useful queries: exact match, and a range beginning with a fixed prefix.</p>
+
+<p>A prefix pattern works because every string starting with the same characters is contiguous in the tree, so the planner can scan that small span between the prefix and the next possible string.</p>
+
+<p>A pattern with a leading wildcard does not. Strings ending in the term, or containing it in the middle, are scattered across the whole ordering and no contiguous span covers them, so the planner falls back to reading every row and doing a substring test.</p>
+
+<p>That costs rows times average string length: a million rows of thirty characters is tens of millions of comparisons, more with case folding that forces a normalisation per comparison. Latency grows with data, which is the "getting slower" the user feels.</p>
+
+<p>Collation makes it worse. Case- and accent-insensitive collations change what the pattern means, and a database with a different comparison locale than the index was built for may simply refuse to use the index. A large share of "the index exists but is not used" cases end here.</p>
+
+<p>PostgreSQL has one exception: a trigram extension chops strings into three-character pieces and indexes them, which lets infix patterns, case-insensitive patterns and regular expressions use an index. That is not the tree doing the work but a second, inverted-style structure, and it costs index size, write throughput and effectiveness on short or very common terms. There is no equivalent built in elsewhere. The exception matters because it shows infix matching is solvable, just not with an ordinary tree.</p>
+
+<h2>The inverted index</h2>
+
+<p>An inverted index stores the relation backwards: instead of documents listing their terms, terms list the documents containing them, so a query starts at a term and gets a document list without scanning.</p>
+
+<p><strong>The dictionary</strong> holds every term in lexicographic order for fast lookup, implemented as a sorted array with binary search, a prefix tree, or a finite-state transducer that shares prefixes to save memory and support prefix traversal. It stores no postings, only offsets into them.</p>
+
+<p><strong>The postings list</strong> per term holds at least document id and term frequency. Ids ascend, so delta encoding compresses them: storing 1, 3, 7, 12 as 1, 2, 4, 5 costs far fewer bits. Frequency feeds the score.</p>
+
+<p><strong>Positions</strong> are needed once you want phrases, proximity or highlighting, since a boolean "contains" only needs document ids. Positions delta-encode too, and they are why some fields disable them to save space.</p>
+
+<p>Intersecting several postings can be done by advancing one at a time, costing the sum of lengths, or with skip pointers placed every so often so that advancing to the next document at or after a target jumps whole blocks. Lucene also orders the intersection by rarity so the candidate set shrinks fastest.</p>
+
+<p>Document frequency runs through all of this. A term in few documents has a short posting, a fast lookup and high information; a term in nearly every document has a long posting, a slow lookup and almost no discriminating power. That is a performance fact and the origin of the inverse document frequency in the scoring.</p>
+
+<p>Walking one query through the pipeline: tokenise, locate each term, fetch its postings, sort by rarity, intersect skipping impossible documents, score the survivors from frequency, field length and inverse document frequency, and keep a heap of size K rather than sorting every hit. The cost is proportional to the total length of the postings touched, not to the corpus, which is why a million or ten million documents can still answer quickly.</p>
+
+<p>Lucene also splits an index into immutable segments. Writes go to a memory buffer and flush into a new segment, segments are never modified and deletions are recorded as tombstones, and background merges combine small segments so a query opens fewer of them. That design underpins near-real-time search and replication.</p>
+
+<h2>From text to postings: tokenisation sets the ceiling</h2>
+
+<p>The first sentence of an inverted index is "which terms does the document contain", and the tokeniser decides. Get it wrong and the index, the queries and the scores are all wrong, and no amount of query-layer work repairs it.</p>
+
+<p>Chinese has no spaces, which is the first obstacle, and three approaches each cost something.</p>
+
+<p><strong>Dictionary segmentation</strong>, from libraries such as jieba or the database parsers built on SCWS, cuts text into words and produces small indexes with intact semantic units and easy relevance. The cost is the dictionary: new words, product names and slang segment badly, and a phrase can segment two plausible ways depending on the model. Business vocabulary has to be added to a custom dictionary or the core terms get shredded.</p>
+
+<p><strong>Bigrams</strong> treat every adjacent pair of characters as a term. No dictionary, stable recall, and any query can be cut into matchable pairs, at the price of a much larger index and many false matches, since unrelated phrases share pairs. This is what the CJK bigram filters in the Lucene world do, and it suits corpora the dictionary covers poorly.</p>
+
+<p><strong>A hybrid</strong> indexes by dictionary and keeps bigrams or single characters in a fallback field, merging both at query time. It is the most work and often the most stable for Chinese site search. Which one to pick depends on your corpus and your queries; there is no universal ranking.</p>
+
+<p>English looks easy and is not. Standard tokenisers split on whitespace and punctuation, then decide about lowercasing, stop words and stemming. Stemming maps inflections onto a root and raises recall, but it also merges words that should stay apart, since some algorithms reduce different words to the same prefix. Porter and Snowball are the usual algorithms, and most engines ship an English analyzer with stop words and stemming baked in.</p>
+
+<p>Normalisation is the other half: case folding, width folding, Unicode normalisation, accent folding and whitespace collapsing all have to be applied identically at index time and query time. The classic failure is indexing with one analyzer and querying with another, so the terms never match and the result is empty. Do not guess; ask the analyzer what it produced.</p>
+
+<pre><code>POST /articles/_analyze
+{
+  "field": "title",
+  "text": "Django 部署与断点续传"
+}
+</code></pre>
+
+<p>The tokens show each term, position and offset, and index and query analysis must agree. That is a hard constraint, not a preference.</p>
+
+<p>Synonyms have to be placed on one side. Expanding at index time inflates postings and forces a rebuild whenever the list changes; expanding at query time is flexible and immediate at the cost of more terms per query. Most systems should expand at query time and keep the index literal.</p>
+
+<h2>Relevance: from TF-IDF to BM25</h2>
+
+<pre><code>score(q, d) = Σ tf(t, d) × idf(t)
+idf(t) = log(N / df(t))
+</code></pre>
+
+<p>Frequency times inverse document frequency is intuitive: more occurrences means more relevant, rarer terms discriminate more. Two problems follow.</p>
+
+<p>Frequency has no ceiling: going from one occurrence to two doubles the score, and from ten to twenty doubles it again, which rewards padding, so a long post that repeats a term beats the short post that is actually about it. And document length is not normalised, so long documents systematically win because they contain more terms and more occurrences, not because they are more relevant.</p>
+
+<pre><code>score(q, d) = Σ idf(t) × [ tf × (k1 + 1) ] / [ tf + k1 × (1 - b + b × dl / avgdl) ]
+idf(t) = ln(1 + (N - df + 0.5) / (df + 0.5))
+</code></pre>
+
+<p>BM25 fixes both. Document length relative to the average, a saturation parameter and a length-normalisation parameter, with defaults of 1.2 and 0.75 in the Lucene world, which most engines adopt.</p>
+
+<p>Saturation means that at low frequency the denominator is dominated by the count and the score climbs quickly, while at high frequency the denominator is held up by the saturation term and each extra occurrence adds less. Going from one to two matters; going from ten to twenty barely reorders anything.</p>
+
+<p>The length parameter decides the penalty. Zero ignores length and favours long documents, one punishes fully in proportion and can over-reward short ones, and three quarters is a compromise. Title fields vary little in length so it matters less there, and for bodies it matters a great deal.</p>
+
+<p>The inverse document frequency also changed shape. With the smoothed form a term appearing in every document still contributes a small positive weight instead of collapsing to zero or going negative, which under the classic form could make a matching term subtract from the score.</p>
+
+<p>Field weight is the second ranking signal, title above body above comments, implemented by boosting fields or by choosing a multi-field merge strategy. Taking the best field suits "one good match is enough", summing suits "mentioned in several places", and treating several fields as one large field suits when the query words land in different fields.</p>
+
+<p>Phrases and proximity are the third, and they exist because positions were stored. A phrase requires consecutive positions, proximity allows a gap, and a field without positions can only do a boolean contains. Highlighting also needs positions or offsets to know which span to mark.</p>
+
+<p>No formula settles relevance forever. BM25 is a good starting point, and business relevance usually adds recency, author weight, click-through and quality, layered through a scoring function rather than by editing BM25 itself.</p>
+
+<h2>PostgreSQL full-text search</h2>
+
+<p>If the site already runs PostgreSQL, start there rather than with a cluster.</p>
+
+<pre><code>SELECT to_tsvector('english', 'The quick brown foxes are jumping');
+-- 'brown':3 'fox':4 'jump':6 'quick':2
+</code></pre>
+
+<p>The text becomes a sorted list of lexemes with positions, stems applied, stop words removed. Weights can mark fields as A through D so titles outrank bodies.</p>
+
+<pre><code>SELECT to_tsvector('chinese', title) @@ to_tsquery('chinese', 'django &amp; 部署');
+SELECT to_tsvector('chinese', body) @@ to_tsquery('chinese', '缓存 &lt;-&gt; 穿透');
+SELECT to_tsvector('chinese', body) @@ to_tsquery('chinese', '缓存 &lt;3&gt; 雪崩');
+</code></pre>
+
+<p>The arrow operators express adjacency and distance. For raw user input there is a friendlier constructor that treats quoted text as a phrase, the word or as a disjunction, a leading minus as exclusion, and never errors on stray punctuation, which makes it the practical entry point for a search box.</p>
+
+<pre><code>CREATE INDEX articles_title_fts
+ON articles
+USING GIN (to_tsvector('chinese', coalesce(title, '')));
+
+SELECT id, title,
+       ts_rank(to_tsvector('chinese', title), query) AS rank
+FROM articles, websearch_to_tsquery('chinese', 'django 部署') AS query
+WHERE to_tsvector('chinese', title) @@ query
+ORDER BY rank DESC
+LIMIT 20;
+</code></pre>
+
+<p>The inverted-style index is the right choice for containment queries; the other index type works but costs more on update, so it is reserved for dynamic reordering or special data types. An expression index requires the query expression to match the index definition character for character, including the coalesce and the configuration name, or the planner ignores it.</p>
+
+<p>Chinese needs an extra parser, since the built-in one assumes spaces and otherwise treats a whole sentence as one lexeme or splits on punctuation arbitrarily. Parser extensions built on SCWS or jieba are the usual answer, and installation means creating a configuration and mapping parts of speech onto a dictionary.</p>
+
+<pre><code>CREATE EXTENSION zhparser;
+CREATE TEXT SEARCH CONFIGURATION chinese (PARSER = zhparser);
+ALTER TEXT SEARCH CONFIGURATION chinese
+  ADD MAPPING FOR n, v, a, i, e, l WITH simple;
+
+SELECT to_tsvector('chinese', 'Django 部署与断点续传');
+</code></pre>
+
+<p>Know the boundaries in advance: dictionary coverage is limited and terminology has to be added; a wrong part-of-speech mapping silently drops words; and there is no synonym graph or analyzer chain comparable to a dedicated engine. It is adequate, not universal.</p>
+
+<p>Ranking uses the frequency-based or cover-density functions, neither of which is BM25, so ordering quality trails the Lucene world and tuning options are limited. If relevance is the product, that becomes the bottleneck.</p>
+
+<p>On scale: index size tracks lexeme and posting counts, typically a few to a dozen percent of the text, every write updates the index so write-heavy tables amplify, and query time depends heavily on document frequency, since a very common term means a long posting. For a million rows, read-heavy, with uncomplicated queries, the database is entirely sufficient; complex field boosting, aggregation, spelling tolerance and horizontal scale are where an engine starts earning its cost.</p>
+
+<h2>Elasticsearch: mapping, analyzers and the query DSL</h2>
+
+<p>An engine on top of Lucene splits one logical index into shards, each a Lucene index, and wraps them in coordination, replication, a REST interface and aggregation.</p>
+
+<p>Explicit mappings come first. Dynamic mapping guesses strings into text plus keyword, dates into dates and numbers into longs, and changing a guessed type later usually means reindexing. Production indexes should at least pin the core fields.</p>
+
+<pre><code>PUT /articles
+{
+  "mappings": {
+    "properties": {
+      "title":   { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
+      "summary": { "type": "text", "analyzer": "ik_max_word" },
+      "author":  { "type": "keyword" },
+      "tags":    { "type": "keyword" },
+      "published_at": { "type": "date" },
+      "view_count":   { "type": "integer" }
+    }
+  }
+}
+</code></pre>
+
+<p>Text fields are tokenised, posted and scored; keyword fields are not tokenised and serve filtering, sorting and aggregation from a columnar store. Mapping one as the other either slows filtering or destroys full-text search.</p>
+
+<p>Index-time and search-time analyzers can differ, with a fine-grained one for recall at index time and a coarse one for precision at query time, provided the terms still line up. If they do not, results are empty with the data sitting in the index.</p>
+
+<pre><code>GET /articles/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "multi_match": {
+            "query": "Django 部署",
+            "fields": ["title^3", "summary^2", "body"],
+            "type": "best_fields",
+            "tie_breaker": 0.3
+        }}
+      ],
+      "filter": [
+        { "term": { "status": "published" } },
+        { "range": { "published_at": { "gte": "now-2y" } } }
+      ],
+      "must_not": [
+        { "term": { "tags": "spam" } }
+      ]
+    }
+  },
+  "sort": [
+    { "_score": "desc" },
+    { "published_at": "desc" }
+  ],
+  "size": 10
+}
+</code></pre>
+
+<p>Scored clauses go in the scoring context, hard conditions go in the filter context where they can be cached, and exclusions go in the negative clause. Moving status, tenant and time range into the filter is the first performance optimisation and the correct place for permission filtering.</p>
+
+<pre><code>GET /articles/_search
+{
+  "query": {
+    "function_score": {
+      "query": { "multi_match": { "query": "缓存", "fields": ["title^3", "body"] } },
+      "functions": [
+        { "gauss": { "published_at": { "origin": "now", "scale": "30d", "decay": 0.5 } } },
+        { "field_value_factor": { "field": "view_count", "factor": 0.1, "modifier": "log1p" } }
+      ],
+      "score_mode": "sum",
+      "boost_mode": "multiply"
+    }
+  }
+}
+</code></pre>
+
+<p>Aggregations serve filter panels and statistics, bucketing by term or by time and estimating distinct counts. They read the columnar store rather than postings, which is why search plus aggregation is one request here and usually extra SQL in a pure database.</p>
+
+<h2>Near-real-time, replicas and deep paging</h2>
+
+<p>Near-real-time is easily misread as "searchable immediately after the write". Writes land in a buffer and a transaction log, and only a refresh makes them visible in a new segment; with the default interval of one second, visibility lags by up to about that. Forcing a refresh is possible and produces many small segments that the merge has to clean up.</p>
+
+<p>Durability and visibility are separate. The transaction log, flushed on every request by default, provides the first, so a crash recovers. The refresh provides the second and guarantees nothing about disk. Conflating them produces the two familiar puzzles: a write returned 200 and cannot be found, and a refresh is treated as a durability guarantee.</p>
+
+<p>Replicas buy availability and read throughput: each shard has a primary and copies, writes go to the primary and replicate, and searches may hit any copy. More replicas add read capacity, write amplification and storage, and they do not remove the visibility delay since they refresh with the primary.</p>
+
+<p>Deep paging is the other trap. With offset and size, every shard must produce the first offset plus size documents and the coordinating node merges them, so page one hundred at twenty per page has every shard computing and discarding two thousand. The default result window limits exactly this cost.</p>
+
+<pre><code>POST /articles/_search
+{
+  "size": 20,
+  "sort": [ { "published_at": "desc" }, { "_id": "asc" } ],
+  "search_after": [ "2026-10-01T00:00:00Z", "article-123" ],
+  "pit": { "id": "pit_id", "keep_alive": "5m" }
+}
+</code></pre>
+
+<p>The cursor form requires a unique sort key, usually a timestamp plus an id, and a point-in-time view so that changes during paging neither duplicate nor skip documents. It does not support jumping to page N, so a product that needs random access must limit pages or change its presentation, and full exports belong to a scroll or a sliced point-in-time rather than to deep offsets.</p>
+
+<p>Shard counts deserve restraint. Each shard is a Lucene index with segments, file handles and heap, and too many of them enlarges cluster state and multiplies the merging behind one query. Tens of gigabytes per shard is a common target, provisioned for growth rather than for a hypothetical tenfold future.</p>
+
+<h2>Simpler engines: tolerance instead of control</h2>
+
+<p>Not every product needs that complexity. The lighter engines make spelling tolerance, prefix search and instant search the default, trading configurability for a fast start.</p>
+
+<p>One of them behaves the way users expect: typos are tolerated by edit distance with more slack on longer words, prefixes match as you type, ranking is built from term frequency, position and exactness with field weights and synonyms on top, and deployment is a single binary. The other emphasises an explicit schema, tolerance, prefix and geo search, plus vector search and pinned results, with query parameters that feel more deliberate.</p>
+
+<p>The cost is expressive power. Complex boolean combinations, scripted scoring, nested aggregations and cross-index joins are impossible or awkward, horizontal scaling is less mature, and there is little freedom in sharding strategy. They fit medium scale where search is a product experience rather than an analytics platform: documentation sites, storefront search, help centres.</p>
+
+<p>Three questions choose between families. Does relevance need fine manual tuning, in which case the full engine wins? Do you need complex filtering, aggregation and reporting, in which case the full engine or the database wins? How much operational budget does the team have, and if the answer is little and queries are mostly instant search, a lighter engine is the better fit.</p>
+
+<h2>Keeping the index in sync</h2>
+
+<p>The search index is derived data, not the source of truth. The database holds the truth and the index exists to answer faster, which sets the goal for synchronisation: eventually consistent, replayable and rebuildable, not atomic.</p>
+
+<p>Dual writes are the direct approach: after the database commits, call the engine. It is simple and has an irreducible window, since a successful commit with a failed index write leaves the two disagreeing, and writing the engine first can insert documents the database never had. Retries reduce the odds and cannot fuse two systems into one transaction.</p>
+
+<p>The outbox is steadier: write a row in the same transaction carrying document id, operation and version, then let a poller or change capture deliver it. Because the row commits with the business data, "business succeeded and the event vanished" cannot happen, and delivery is at least once with retries.</p>
+
+<pre><code>CREATE TABLE search_outbox (
+    id          BIGSERIAL PRIMARY KEY,
+    doc_id      BIGINT NOT NULL,
+    op          TEXT NOT NULL,
+    version     BIGINT NOT NULL,
+    payload     JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    processed_at TIMESTAMPTZ
+);
+</code></pre>
+
+<p>Delivery must be idempotent, through external versioning or an application-level comparison, so only a higher version overwrites and a late old event cannot restore previous data. Deletes need versions too, or a delete arriving after an update resurrects the document.</p>
+
+<p>The version has to come from somewhere monotonic and comparable: a sequence, an updated timestamp with a counter, or a log position. A bare timestamp is unreliable under concurrent writes because ordering within a millisecond is undefined.</p>
+
+<p>A full rebuild is the backstop. Create a new index, import from the database or a snapshot, verify counts and sample content, then switch atomically with an alias.</p>
+
+<pre><code>POST /_aliases
+{
+  "actions": [
+    { "remove": { "index": "articles_v1", "alias": "articles" } },
+    { "add":    { "index": "articles_v2", "alias": "articles" } }
+  ]
+}
+</code></pre>
+
+<p>The old index stays readable during the import, one alias operation switches it, and users notice nothing. The import must be repeatable, paged by primary key and resumable, and must not hold one long transaction over the database.</p>
+
+<p>Some visibility delay is unavoidable, since a commit must traverse delivery, indexing and refresh. The product should absorb it: publishing and searching immediately may return nothing, and the answer is a locally inserted "just published" result or a redirect to the article, not a millisecond refresh interval.</p>
+
+<h2>Query design and safety</h2>
+
+<p>Separate hard conditions from relevance conditions. Status, tenant, permissions, time range and deletion are hard and belong in the filter context, where they are cached and cannot be inflated by a boost. Query terms, synonyms and fuzzy matching belong in the scoring context. Mixing them is slower and is where permission holes appear.</p>
+
+<p>Cache on a normalised query, so case, spacing and parameter order collapse to one key, and include tenant, permission scope, paging cursor and sort in the key. Caching on the term alone hands one tenant's results to another.</p>
+
+<p>Take zero results seriously. A high zero-result rate usually means mismatched analysis, missing synonyms, typos or an over-narrow filter rather than a missing index. Log the queries that returned nothing, sort by frequency, read the top twenty by hand, then add synonyms, spelling tolerance or wider ranges, and never leave the user staring at an empty page.</p>
+
+<p>Highlighting costs. It needs positions or offsets, a field that keeps them, and on large fields it becomes the slowest part of the query, so enable it only where it is displayed and bound the fragment length and count.</p>
+
+<p>Multi-tenant filtering must be resolved server-side: the tenant in the request is a claim, and the server derives the permitted set from identity before adding it to the filter. Passing the client's parameter straight through delegates isolation to the user, and field-level rules work the same way, filtering at return time or blocking at query time rather than trusting the front end to hide things.</p>
+
+<p>Query injection is easy to overlook. The expressive query syntax supports wildcards, regular expressions, field references and boolean nesting, so a user can send something that brings down a cluster. A search box should use the structured multi-field query and treat input as text; where the expressive syntax is required, escape reserved characters, bound the length and disable leading wildcards and regular expressions. Scripted scoring is worse still and should be disabled or sandboxed for untrusted input.</p>
+
+<h2>Observability</h2>
+
+<p>Watch two lines at once, the system and the quality. Latency alone produces a fast search nobody uses.</p>
+
+<p>On the system side: latency percentiles bucketed by query type and tenant, because averages are diluted by trivial queries; slow query logs, which every engine and database can produce, capturing the text, duration and hit count above a threshold; rejection rates, since a saturated search thread pool refuses requests and a rising rejection count means insufficient capacity or too many slow queries; indexing delay split into delivery backlog, write time and refresh, with alerts on any segment that keeps climbing; and segment counts and merge activity, which slow queries and increase I/O.</p>
+
+<p>On the quality side: zero-result rate over total queries, bucketed by term, tenant and device so a local problem is distinguishable from a general one; click-through and conversion, plus the position clicked, which is imperfect and far better than "looks reasonable"; share of first-result clicks and average click position, which track ranking changes; reformulation rate, where a user searches again without clicking, meaning the first attempt failed; and a fixed evaluation set of queries with expected results, run whenever analyzers, synonyms or boosts change, so one adjustment does not quietly break a dozen others.</p>
+
+<p>Fix the diagnosis order too. Confirm the index has documents, then that index and query analysis agree, then that filters are not removing everything, and only then look at scoring. A large share of relevance complaints are tokenisation, synonyms or filters rather than scoring.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Why a leading wildcard is slow</td><td>A tree sorts whole strings, infix matches have no contiguous span, so it scans</td></tr>
+<tr><td>Why an ordinary index does not help</td><td>The structure cannot answer arbitrary position, and collation mismatches make it worse</td></tr>
+<tr><td>What an inverted index is</td><td>Terms mapping to documents, with a dictionary, postings, positions and skips</td></tr>
+<tr><td>Choosing Chinese tokenisation</td><td>Dictionary segmentation is precise but dictionary-bound, bigrams are stable but bulky, hybrids are steadiest</td></tr>
+<tr><td>TF-IDF's problem</td><td>Unbounded frequency and length bias reward padding</td></tr>
+<tr><td>Why BM25 is steadier</td><td>Saturation and length normalisation, with a smoothed inverse frequency that never collapses</td></tr>
+<tr><td>When the database suffices</td><td>Existing database, millions of rows, simple queries, weaker ranking acceptable</td></tr>
+<tr><td>Where an engine wins</td><td>Analyzer chains, the query DSL, aggregation, horizontal scale, near-real-time</td></tr>
+<tr><td>Deep paging</td><td>A cursor plus a point-in-time view, never deep offsets</td></tr>
+<tr><td>Index synchronisation</td><td>At-least-once delivery, versioned idempotency, alias switching for rebuilds</td></tr>
+<tr><td>Multi-tenant isolation</td><td>Resolve the tenant server-side and filter on it, never trust the parameter</td></tr>
+</tbody>
+</table>
+
+<p>The choice is often reduced to "big data means an engine, small data means the database", which misses the real line: <strong>do you need to control tokenisation and relevance?</strong> For plain containment, a generated lexeme column with an inverted index is enough and operationally simple. Once you need new Chinese words, synonyms, spelling tolerance, field weighting, aggregate panels and horizontal scale, no index inside a database will do, and the engine's complexity is the price of admission.</p>
+
+<p>Whichever you choose, the index is the database's shadow. Making synchronisation replayable, idempotent and rebuildable matters more than making it instant. A shadow that occasionally lags is fine; a shadow that diverges and is never reconciled is not.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
