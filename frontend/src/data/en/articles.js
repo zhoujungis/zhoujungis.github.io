@@ -24950,6 +24950,261 @@ python ../tools/bench_transaction.py --threads 4 --increments 25
 `,
   },
 
+  {
+    slug: 'mq-reliable-delivery-deep-dive',
+    zhSlug: 'mq-reliable-delivery-deep-dive',
+    topicSlug: 'backend',
+    title: 'The case of the vanishing messages',
+    excerpt:
+      'Three hops, three default settings that all point away from reliability, and a measured comparison: fire-and-forget lost 615 of 100,000 messages, the full configuration lost none and duplicated 85.',
+    date: '2026-10-30',
+    readingTime: 18,
+    html: `
+<blockquote>
+<p>Who this is for: engineers who have built async decoupling on a queue and cannot say whether messages are lost or where.</p>
+<p>Measured with the Python standard library. The reasoning holds for RabbitMQ, RocketMQ, Kafka and Redis Streams alike.</p>
+<p>Reading time around 18 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>The incident</h2>
+
+<p>Risk reported that over one month, more than six hundred orders had reached "paid" while the points system never awarded anything. Reconciliation put a queue between the two sides.</p>
+
+<p>The logs were miserable to read: the producer logged a successful send and the consumer had no record at all, so the message had vanished in the middle.</p>
+
+<p>Three factors had combined. The producer sent and assumed success, so a network hiccup lost messages silently. The broker had no persistence and restarted once, clearing the in-memory queue. And the consumer acknowledged on receipt, so a process killed mid-work had already removed the message.</p>
+
+<p>Individually none of those is likely. Multiplied, they cost a few hundred orders a month.</p>
+
+<p>What follows takes the journey apart hop by hop, and then runs a simulator to compare three configurations by loss rate.</p>
+
+<h2>Where a message can be lost</h2>
+
+<pre><code>producer --1--&gt; broker --2--&gt; storage --3--&gt; consumer
+</code></pre>
+
+<table>
+<thead><tr><th>Hop</th><th>How it loses</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>Producer to broker</td><td>Packet loss, broker crash before handling, fire-and-forget clients</td><td>Publish confirmation, retries, a local outbox table</td></tr>
+<tr><td>Broker storage</td><td>No persistence, crash after buffering, single-disk failure</td><td>Persistence with synchronous flush, replicas</td></tr>
+<tr><td>Broker to consumer</td><td>Auto-acknowledgement then a crash, unhandled exceptions</td><td>Manual acknowledgement, redelivery, retry topics, dead letters</td></tr>
+</tbody>
+</table>
+
+<p>Reliability is set by the weakest hop. If any of the three is fire-and-forget, the whole pipeline is, which is why the incident lost a slice at each stage and the slices added up to the reconciliation gap.</p>
+
+<p>And reliability is never free: each layer costs throughput, latency or complexity. So the answer is not to switch everything on but to classify messages by what they are worth.</p>
+
+<table>
+<thead><tr><th>Class</th><th>Examples</th><th>Configuration</th></tr></thead>
+<tbody>
+<tr><td>Disposable</td><td>Analytics, metrics</td><td>Fire and forget</td></tr>
+<tr><td>Best effort</td><td>Push notifications, cache invalidation</td><td>Confirmation and retries</td></tr>
+<tr><td>Never lost</td><td>Orders, payments, points</td><td>End-to-end confirmation, persistence, manual acknowledgement, idempotent consumption</td></tr>
+</tbody>
+</table>
+
+<h2>The producer</h2>
+
+<h3>Two meanings of "sent"</h3>
+
+<p>Most message losses start by confusing them. An API call returning means the bytes reached a local buffer. A broker confirmation means the broker received the message and persisted it. Publisher confirms, synchronous sends with an acknowledgement, and Kafka's strongest acknowledgement mode all do the same thing: move the definition of success from the first to the second.</p>
+
+<table>
+<thead><tr><th>Acknowledgement</th><th>Meaning</th><th>Loss window</th></tr></thead>
+<tbody>
+<tr><td>None</td><td>Sent is success</td><td>Any packet loss, any leader crash</td></tr>
+<tr><td>Leader only</td><td>Written to the leader</td><td>A leader crash before replication</td></tr>
+<tr><td>All in-sync replicas</td><td>Written everywhere required</td><td>Nothing, while one replica survives, given a minimum replica count</td></tr>
+</tbody>
+</table>
+
+<h3>What retries cannot fix</h3>
+
+<p>Confirmation plus retry covers transient faults and cannot cover the atomicity between a local write and a publish. An order endpoint writes the order and then publishes; a crash between the two leaves an order with no event. Reversed, the user receives a confirmation while the order does not exist. Retrying cannot help, because the process that would retry is already dead.</p>
+
+<p>Make the two steps one transaction: write the business row and an outbox row in the same database transaction.</p>
+
+<pre><code>BEGIN;
+INSERT INTO orders (...) VALUES (...);
+INSERT INTO outbox (topic, payload, status)
+    VALUES ('order.created', '...', 'pending');
+COMMIT;
+</code></pre>
+
+<pre><code>def deliver_outbox():
+    rows = db.query(
+        "SELECT id, topic, payload FROM outbox "
+        "WHERE status='pending' ORDER BY id LIMIT 100"
+    )
+    for row in rows:
+        try:
+            broker.publish(row.topic, row.payload)   # with confirmation
+            db.execute("UPDATE outbox SET status='sent' WHERE id=%s", row.id)
+        except Exception:
+            continue  # retried next round
+</code></pre>
+
+<p>The pattern is the transactional outbox, and its essence is moving the network operation out of the transaction so the transaction only writes locally. A local write is atomic, so once the message is in the database it exists, at worst delivered later.</p>
+
+<p>The cost is a polling delay, which a locking read or change capture can reduce, plus a cleanup policy for the outbox table. Against losing orders, that is almost always worth paying.</p>
+
+<h2>The broker</h2>
+
+<p>A message in memory is not your message. Two layers, then a third.</p>
+
+<p><strong>Persistence flags.</strong> In a broker that requires marking exchanges, queues and messages durable, missing any one of them means a restart loses the message. Brokers that write to disk by default pass this layer for free.</p>
+
+<p><strong>Flush timing.</strong> Handing bytes to the operating system's page cache is not writing them to disk, and a power cut loses the cache. The choice is explicit: asynchronous flushing returns immediately and loses whatever is in flight during a power failure, while synchronous flushing acknowledges only after the disk write.</p>
+
+<p><strong>Replication.</strong> A failed disk defeats persistence entirely, so replica sets, synchronous replication and leader election all buy immunity to single-machine failure with more machines.</p>
+
+<p>One detail that gets overlooked: confirmation and flushing are separate events with a window between them. A message can be confirmed before it is durable, and the size of that window depends on batching. That is the explanation for "we enabled persistence and still lost a few".</p>
+
+<h2>The consumer</h2>
+
+<p>Most production incidents live in the third hop, and the culprit is almost always automatic acknowledgement.</p>
+
+<p>Its semantics are that the message is removed from the queue as soon as it is delivered, not when it is processed. A crash halfway through processing therefore loses the work permanently, and a swallowed exception does the same, silently.</p>
+
+<pre><code>def on_message(ch, method, properties, body):
+    try:
+        handle(body)
+        ch.basic_ack(method.delivery_tag)
+    except TransientError:
+        ch.basic_nack(method.delivery_tag, requeue=False)
+    except PermanentError:
+        ch.basic_nack(method.delivery_tag, requeue=False)
+</code></pre>
+
+<p>Two details. A crash before the acknowledgement makes the broker redeliver, so the message survives and may be processed twice. And a negative acknowledgement must not requeue blindly: a malformed message returns to the head, is picked up immediately, is rejected again, and spins a core while blocking the queue. Retry a bounded number of times, then route to a dead letter queue.</p>
+
+<h2>Duplicates are acceptable, if consumption is idempotent</h2>
+
+<p>At this point a conclusion is unavoidable: not losing and not duplicating cannot both be guaranteed. To avoid loss you must process before acknowledging, and a crash during processing means redelivery. Acknowledging first avoids duplicates and loses on crash.</p>
+
+<p>The engineering answer is at-least-once delivery plus idempotent consumption, which dissolves the duplicate instead of preventing it. The mechanisms are the same as in the idempotency post: unique constraints, state machines and a deduplication table. For a consumer, the deduplication table is usually enough.</p>
+
+<pre><code>CREATE TABLE consumed_messages (
+    message_key VARCHAR(64) PRIMARY KEY,   -- business key: order number or event id
+    consumed_at DATETIME NOT NULL
+);
+
+BEGIN;
+INSERT IGNORE INTO consumed_messages (message_key, consumed_at)
+    VALUES ('order:20260916:0001', NOW());
+-- zero rows affected means already consumed: acknowledge and skip
+UPDATE points SET balance = balance + 100 WHERE order_id = ...;
+COMMIT;
+</code></pre>
+
+<p>Two practical points. The key must be a business key, because a broker redelivery usually keeps the message id while a producer resend creates a new one, so only something like order number plus event type identifies meaning. And the table needs a cleanup policy tied to the business tolerance window, deleting records older than reconciliation needs.</p>
+
+<h2>Measured: three configurations</h2>
+
+<p>A simulator runs a hundred thousand messages through the full path with three injected faults: a tenth of a percent of packets lost on the producer side, one broker restart at fifty thousand messages, and a half percent chance of a consumer crash per message.</p>
+
+<table>
+<thead><tr><th>Configuration</th><th>Producer</th><th>Broker</th><th>Consumer</th></tr></thead>
+<tbody>
+<tr><td>Fire and forget</td><td>Sends and moves on</td><td>No persistence</td><td>Auto acknowledge</td></tr>
+<tr><td>Partial</td><td>Confirmation and retry</td><td>Persistent</td><td>Auto acknowledge</td></tr>
+<tr><td>Full</td><td>Confirmation and retry</td><td>Persistent</td><td>Manual acknowledge and idempotent</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Configuration</th><th>Delivered</th><th>Lost</th><th>Duplicated</th><th>Extra sends</th></tr></thead>
+<tbody>
+<tr><td>Fire and forget</td><td>99,385</td><td>615</td><td>0</td><td>0</td></tr>
+<tr><td>Partial</td><td>99,512</td><td>488</td><td>0</td><td>90</td></tr>
+<tr><td>Full</td><td>100,000</td><td>0</td><td>85</td><td>85</td></tr>
+</tbody>
+</table>
+
+<p><strong>Confirmation on the producer is the best value layer.</strong> Adding it to the fire-and-forget configuration saved 127 messages, including every network loss and every message caught by the restart window, for one configuration line.</p>
+
+<p><strong>The last mile is the consumer.</strong> The partial configuration had confirmation and persistence and still lost 488, all of them from a crash after automatic acknowledgement. Those are the invisible ones in the opening incident: the log says consumed, and the business never ran.</p>
+
+<p><strong>The full configuration traded eight-five duplicates for zero losses.</strong> That is the exact cost of processing before acknowledging: bounded, deterministic, and completely absorbed by the deduplication table. Losing a message is unbounded and unknown in cost, since it might be points and it might be a refund.</p>
+
+<p>In one line: pay a budgetable small cost to eliminate an unbudgetable large risk.</p>
+
+<h2>Retries, backoff and dead letters</h2>
+
+<table>
+<thead><tr><th>Strategy</th><th>Wasted attempts in a ten second outage</th></tr></thead>
+<tbody>
+<tr><td>Fixed interval of 100 ms</td><td>101</td></tr>
+<tr><td>Exponential from 100 ms, doubling, capped at five seconds</td><td>7</td></tr>
+</tbody>
+</table>
+
+<p>Fourteen times fewer, and the difference grows as the downstream gets more congested: dense retries slow its recovery and extend the outage.</p>
+
+<pre><code>delay = min(base * (2 ** attempt) + random.uniform(0, base), max_delay)
+</code></pre>
+
+<p>The random term is jitter. Without it, a batch that failed together retries together and re-creates the same spike.</p>
+
+<pre><code>main queue --reject--&gt; retry L1 (5s) --reject--&gt; retry L2 (30s)
+                                                    | after three attempts
+                                                    v
+                                            dead letter queue --&gt; alert and triage
+</code></pre>
+
+<p>The delayed queues give the downstream room, and the dead letter queue is where exhausted retries go. The point is not the queue but the alarm and the triage process: messages sitting there unread are simply lost somewhere more visible.</p>
+
+<p>Also classify the failure. Timeouts and gateway errors deserve backoff; validation failures and deserialisation errors will fail identically forever and belong in the dead letter queue immediately.</p>
+
+<h2>Backlogs and delayed messages</h2>
+
+<p><strong>Backlogs</strong> mean consumption is slower than production. First try adding consumers, remembering that the count is capped by partitions, so extra instances idle. When scaling is too slow, the standard manoeuvre is to drain the backlog in bulk into a temporary topic with ten times the partitions, consume it with ten times the workers, and delete the temporary pipeline afterwards. The preventive fix is batching: accumulating single updates into batch upserts usually moves throughput by an order of magnitude.</p>
+
+<p><strong>Delayed messages</strong> cover automatic cancellation after thirty minutes and coupon expiry reminders.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Precision</th><th>Complexity</th></tr></thead>
+<tbody>
+<tr><td>Dead letter queue with a TTL</td><td>Head-of-line blocking: a long TTL delays everything behind it</td><td>Low</td></tr>
+<tr><td>Broker-level delay levels or scheduled messages</td><td>Seconds, or an exact time on newer brokers</td><td>Low</td></tr>
+<tr><td>A time wheel or a delay service</td><td>Arbitrary</td><td>High, needs persistence and recovery</td></tr>
+</tbody>
+</table>
+
+<p>The head-of-line trap is the reason not to use TTL-based delays where the delays vary widely: the queue is first in, first out, so a message with a ten minute TTL blocks a message behind it with thirty seconds until the front leaves.</p>
+
+<h2>Checklist</h2>
+
+<p>On the producer: no fire-and-forget for important messages; bounded retries with alerts; atomicity between the local write and the publish through an outbox; and a business key inside every payload for deduplication and reconciliation.</p>
+
+<p>On the broker: all three of exchange, queue and message durable where the broker requires it; replicas with a minimum in-sync count of two; and an explicit decision about flushing, with the power-failure window known and accepted.</p>
+
+<p>On the consumer: manual acknowledgement after the work succeeds; idempotent handling through a deduplication table or a state machine, keyed on business data; no infinite requeue; and a dead letter queue with monitoring and a triage process.</p>
+
+<p>In operations: alerts on queue depth and consumer lag; a reconciliation job, because the queue is not the most reliable system and reconciliation is the last line; and tiered configuration by message value rather than every topic getting everything.</p>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Which broker?</strong> Small scale with an existing cache, a stream is fine with a length cap and consumer groups. General use, a RabbitMQ-class broker for operational simplicity or a RocketMQ-class one for transactional and delayed messages. High-volume pipelines, Kafka. The differences between products are smaller than the differences between configurations, and a badly configured Kafka loses more dramatically than a well-configured RabbitMQ.</p>
+
+<p><strong>Is a cache reliable as a queue?</strong> Not with defaults, where the persistence interval allows a second of loss and failover can lose more. Stronger settings approximate reliability at a large throughput cost. Acceptable for small volumes where occasional loss is tolerable, not for payments.</p>
+
+<p><strong>Broker transactional messages or an outbox table?</strong> Transactional messages remove the polling table but bind you to one broker and still require a check-back mechanism. An outbox is broker agnostic, easier to inspect and doubles as an audit log, which is why most teams prefer it unless the broker already solves the problem.</p>
+
+<p><strong>Slow consumption: more consumers or better logic?</strong> Find the bottleneck first. CPU-bound work needs batching or faster logic, IO-bound work needs concurrency and a larger prefetch. Batch first when there is any room, then add partitions and consumers, because blind scaling is capped by the partition count and wastes money.</p>
+
+<h2>Closing</h2>
+
+<p>The six hundred missing orders were fixed without a new component: confirmation and an outbox on the producer, persistence on the broker, manual acknowledgement and a deduplication table on the consumer, and alerts on the dead letter queue. The reconciliation gap went to zero, the duplicates were absorbed, and monthly duplication ended up below nine in ten thousand.</p>
+
+<p>The knowledge here is not complicated. What is complicated is that the default configuration at every hop points away from reliability: automatic acknowledgement, asynchronous flushing, fire and forget. The work is knowing what each default is, which business flows can afford it, and how to replace it for the ones that cannot.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mq-reliable-delivery-deep-dive/">消息凭空消失排查记：MQ 可靠投递实测</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
