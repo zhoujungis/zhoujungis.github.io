@@ -26378,6 +26378,255 @@ def test_login_throttled_after_5_fails(api_client):
 `,
   },
 
+  {
+    slug: 'django-comment-system-guide',
+    zhSlug: 'django-comment-system-guide',
+    topicSlug: 'backend',
+    title: 'Daring to allow anonymous comments: seven layers of defence',
+    excerpt:
+      'Anonymous input, invisible by default. A model that defaults to unapproved, a read path that leaks no drafts, a write path with a honeypot, and a nested serializer that cannot be made to recurse.',
+    date: '2026-10-28',
+    readingTime: 18,
+    html: `
+<blockquote>
+<p>Stack: Django 6, DRF, Vue 3, SQLite. The code is the real comments application and its two components, all runnable.</p>
+<p>Reading time around 18 minutes. What you get: a comment system where anyone can post, spam cannot get in, and drafts cannot leak.</p>
+</blockquote>
+
+<h2>Forty spam comments in one night</h2>
+
+<p>The first version was naive: allow anonymous posting, default throttling, show on submit. One morning the queue held forty ads for knock-off goods, loans and casinos, sitting between genuine reader messages, and deleting them took an hour.</p>
+
+<p>After the rebuild, three months produced zero visible spam: a honeypot plus a moderation queue plus three per minute caught ninety-nine percent, and the remaining one percent went into the queue for a single click. Genuine comments appeared within twelve hours on average, with an email arriving immediately.</p>
+
+<p>Seven layers, one job each: <strong>model, read, write, nesting, moderation, notification, front end</strong>.</p>
+
+<pre><code>reader fills in name, email, content -> POST /api/articles/slug/comments/
+  -&gt; rate limit (3 per minute): scripts get 429
+  -&gt; honeypot field: bots get 400
+  -&gt; parent ownership: replying across articles gets 404
+  -&gt; draft guard: unpublished article gets 404
+  -&gt; stored with approved=False -&gt; email to the author -&gt; "pending review"
+  -&gt; approved in the admin -&gt; visible on refresh
+</code></pre>
+
+<p>The philosophy is <strong>anyone may comment, nothing is visible by default</strong>. At a personal blog's volume, pre-moderation costs nothing. At ten thousand daily readers, switch to a whitelist that skips review plus a blocklist that deletes on sight.</p>
+
+<h2>The model</h2>
+
+<pre><code>class Comment(models.Model):
+    article = models.ForeignKey(
+        "articles.Article", on_delete=models.CASCADE,
+        related_name="comments",
+    )
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="replies",
+    )
+    author_name = models.CharField(max_length=64)
+    author_email = models.EmailField()
+    content = models.TextField()
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+</code></pre>
+
+<p>Three decisions. Approval defaults to false at the database level, so even a buggy query cannot leak pending comments to the front end, which filters again. The self-reference supports unlimited depth in the table while the API exposes two levels. And there is no IP column: the anti-spam strategy is throttling, a honeypot and moderation, which keeps the data minimal and avoids compliance work, and the field can be added if someone targets the site.</p>
+
+<p>The foreign key uses a string to avoid a circular import, and the cascade means deleting an article removes its comments, which is right for a blog and wrong for a community site that should keep them.</p>
+
+<h2>Reading</h2>
+
+<pre><code>class ArticleCommentList(generics.ListCreateAPIView):
+    serializer_class = CommentSerializer
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "comment"
+    pagination_class = CommentPageNumberPagination
+
+    def get_queryset(self):
+        article = get_object_or_404(
+            Article, slug=self.kwargs["article_slug"],
+            status=Article.Status.PUBLISHED,
+        )
+        return Comment.objects.filter(
+            article=article, is_approved=True, parent=None
+        ).select_related("article").prefetch_related("replies__article")
+</code></pre>
+
+<table>
+<thead><tr><th>Filter</th><th>Prevents</th><th>What went wrong without it</th></tr></thead>
+<tbody>
+<tr><td>Published only</td><td>Enumerating drafts through the comment endpoint</td><td>A draft slug returned 200, confirming the draft exists</td></tr>
+<tr><td>Approved only</td><td>Pending ads appearing</td><td>The forty comments on the first night</td></tr>
+<tr><td>Top level only</td><td>Replies rendered twice</td><td>A tree and a flat list showed the same comment</td></tr>
+<tr><td>Prefetching</td><td>N+1 queries</td><td>Twenty comments became forty queries</td></tr>
+</tbody>
+</table>
+
+<p>Note the article guard appears again on the write path, because reads and writes are separate chains in the framework and each needs its own check.</p>
+
+<p>Pagination is twenty per page with a ceiling of a hundred, so a large page size parameter cannot pull the table.</p>
+
+<h3>The throttle that was configured and did nothing</h3>
+
+<pre><code># C-S3: actually apply the 'comment' scope (3/min) defined in settings —
+# was previously falling back to the default anon throttle (30/min).
+</code></pre>
+
+<p>The scope was set and the throttle class was left at the default, so the strict limit never applied and a script could post thirty a minute. The scoped throttle and the scope name have to appear together. And any limit should be verified with a loop, not assumed.</p>
+
+<h2>Writing</h2>
+
+<pre><code>def perform_create(self, serializer):
+    article = get_object_or_404(
+        Article, slug=self.kwargs["article_slug"],
+        status=Article.Status.PUBLISHED,
+    )
+    parent_id = self.request.data.get("parent")
+    parent = None
+    if parent_id:
+        parent = get_object_or_404(Comment, pk=parent_id, article=article)
+
+    honeypot = self.request.data.get("website", "")
+    if honeypot:
+        raise ValidationError({"detail": "looks like spam"})
+
+    serializer.save(article=article, parent=parent, is_approved=False)
+</code></pre>
+
+<p><strong>Parent ownership</strong> is checked by querying within the article, so a reply cannot be attached to another article's comment and then bounce readers elsewhere.</p>
+
+<p><strong>The honeypot</strong> uses a field named like a normal website input, hidden with absolute positioning so no human sees it and keyboard focus skips it, with an accessible hidden state. Naming it something obvious would let bots skip it. Ninety percent of bots fill it, at zero cost.</p>
+
+<p><strong>Approval is forced to false</strong> server-side, and the serializer marks it read-only, so a client sending an approval flag changes nothing. Every privileged field must be read-only and written by the server, without exception.</p>
+
+<p>The scope allows three per minute, which a human typing a considered comment never reaches, and the front end translates the rejection into a friendly message rather than the word "throttled".</p>
+
+<h2>Nested serialisation</h2>
+
+<pre><code>class CommentSerializer(serializers.ModelSerializer):
+    replies = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = ["id", "article", "article_slug", "article_title",
+                  "parent", "author_name", "author_email",
+                  "content", "is_approved", "created_at", "replies"]
+        read_only_fields = ["article", "article_slug", "article_title",
+                            "is_approved", "created_at"]
+        extra_kwargs = {"author_email": {"write_only": True}}
+
+    def get_replies(self, obj):
+        depth = self.context.get('depth', 0) if self.context else 0
+        if depth >= 2:
+            return []
+        replies = [r for r in obj.replies.all() if r.is_approved]
+        return CommentSerializer(
+            replies, many=True,
+            context={**(self.context or {}), 'depth': depth + 1},
+        ).data
+</code></pre>
+
+<p>Three safeguards. The email is write-only, accepted for notifications and never returned, because one real address in a response is one leak, and the admin reads it through an authenticated endpoint. The depth limit stops deep recursion, a malicious cycle between parents, and a payload large enough to stall the browser, and the in-memory filter keeps pending replies out of the tree. And the privileged fields are read-only, with the article coming from the URL and the timestamp from the database.</p>
+
+<p>The front end renders content through interpolation, which escapes HTML, and never through a raw HTML directive. Escaping at the rendering layer is the correct defence for comments; a site that allows Markdown has to sanitise on write as well.</p>
+
+<h2>Moderation and notification</h2>
+
+<pre><code>@action(detail=True, methods=["put"])
+def approve(self, request, pk=None):
+    comment.is_approved = True
+    comment.save(update_fields=["is_approved"])
+</code></pre>
+
+<pre><code>@receiver(post_save, sender=Comment)
+def notify_new_comment(sender, instance, created, **kwargs):
+    if not created:
+        return
+    body = (f"Article: {instance.article.title}\nFrom: {instance.author_name}\n"
+            f"Email: {instance.author_email}\nContent:\n{instance.content[:500]}\n")
+    try:
+        send_mail(subject=f"New comment pending - {instance.article.title}",
+                  message=body, from_email=settings.DEFAULT_FROM_EMAIL,
+                  recipient_list=[settings.DEFAULT_FROM_EMAIL],
+                  fail_silently=True)
+    except Exception as exc:
+        logger.warning("Failed to send comment notification: %s", exc)
+</code></pre>
+
+<p>Approval writes a single column, so a concurrent edit to another field is not clobbered. The mail is silent on failure and logged, because a flaky mail server must not turn a comment submission into a 500: the notification is a side path and the database write is the main one. Truncating the body keeps a hundred-kilobyte comment out of the inbox. And the promise to the reader, "submitted, visible after review", is shown immediately so expectations are set once.</p>
+
+<h2>The front end</h2>
+
+<p>Validate locally first, so a name, a plausible address and three characters of content are checked before consuming the throttle budget.</p>
+
+<p>Map field errors back to fields, so an invalid email highlights the input while a general rejection appears as a banner. A human never sees the honeypot error unless they filled a field they could not see, which is the point.</p>
+
+<p>Use skeleton placeholders while loading, relative timestamps, and a colour derived from the first character of the name, which is the most dignified answer for anonymous comments without an avatar system.</p>
+
+<p>Lock the button while submitting, show a success message for a few seconds, and translate a rejection into human language. Replies open an inline form and simply refetch the tree afterwards, which is fine at this volume.</p>
+
+<pre><code># five posts within a minute: the fourth is rejected
+for i in 1 2 3 4 5; do curl -s -X POST http://127.0.0.1:8000/api/articles/slug/comments/ \\
+  -H "Content-Type: application/json" \\
+  -d '{"author_name":"t","author_email":"t@t.com","content":"test '$i'"}'; echo; done
+
+# honeypot: a filled website field must be rejected
+curl -s -X POST ... -d '{"author_name":"b","author_email":"b@b.com","content":"x","website":"http://spam"}'
+
+# draft: an unpublished slug must return 404
+curl -s -o /dev/null -w "%{http_code}\\n" http://127.0.0.1:8000/api/articles/draft-slug/comments/
+</code></pre>
+
+<h2>Gaps, honestly</h2>
+
+<p>Four known weaknesses, in priority order. There is no keyword pre-screening, so ads still need a human click; a word list that flags rather than rejects would rank the queue without false rejections. There is no address-based ban, so a determined script can keep filling the queue with different emails; a per-address limit or the fingerprint used for likes would fix it, at the cost of storing addresses. Readers get no notification when someone replies, which the stored email makes easy to add, with an unsubscribe footer. And readers cannot edit or delete their own comment, which a signed token valid for fifteen minutes would solve, though it is the lowest priority for a personal blog.</p>
+
+<p>On scripting: the current safety comes from escaping, both in the template and in the admin. The day Markdown comments arrive, sanitising with a small whitelist becomes mandatory.</p>
+
+<h2>Checklist</h2>
+
+<p>Backend: approval defaults to false and the read path filters on published, approved and top level; both the read and write chains guard drafts; replies are checked against the same article; the honeypot has a plausible name and rejects when filled; the scope and the scoped throttle appear together, verified by a loop; the serializer marks the email write-only and the privileged fields read-only; replies stop at depth two and only show approved ones; approval writes a single column behind admin authentication; mail is silent on failure, logged and truncated; pagination is bounded and the query count stays at three; and the front end never renders raw HTML.</p>
+
+<p>Frontend: three local validations; field errors mapped to fields and general errors to a banner; skeletons, empty state, relative time and a hashed avatar; a locked submit button with a spinner and a timed success message; a human sentence for throttling; inline replies with a full refresh; no comment section at all on unpublished articles; a proper email input type with autocomplete; and narrower indentation on small screens.</p>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Does pre-moderation discourage comments?</strong> At this scale, a review within a day plus an immediate acknowledgement reads as an active author. At scale, switch to a whitelist.</p>
+
+<p><strong>Can the honeypot catch a human?</strong> Not if it is hidden and removed from the tab order, and marking it hidden for assistive technology keeps the form accessible.</p>
+
+<p><strong>Is three per minute too strict?</strong> A person writing a real comment does not hit it, and the author replies from an authenticated account.</p>
+
+<p><strong>How deep can replies go?</strong> The table is unlimited and the API exposes two levels, truncating the third, which keeps threads readable.</p>
+
+<p><strong>Can scrapers harvest emails?</strong> The field is write-only, so no response contains it.</p>
+
+<p><strong>404 or 403 for a draft?</strong> 404, because pretending it does not exist tells an enumerator nothing.</p>
+
+<p><strong>What if the queue fills with spam?</strong> It is invisible to readers and deducible in bulk in the admin, and with a honeypot and a limit it rarely happens.</p>
+
+<p><strong>Markdown or images in comments?</strong> Neither. Supporting them means sanitising plus object storage for little return on a personal blog.</p>
+
+<p><strong>Can readers edit their comments?</strong> Not today; they contact the author. The token scheme above is the upgrade path.</p>
+
+<p><strong>Are replies notified?</strong> Not yet, though the stored email exists for exactly that.</p>
+
+<p><strong>Do comments survive deleting an article?</strong> No, the cascade removes them; a community site would keep them instead.</p>
+
+<p><strong>Should addresses be stored?</strong> Not yet. Add the field, a migration and a privacy note the day it becomes necessary.</p>
+
+<h2>Closing</h2>
+
+<p>One sentence: anonymous commenting is hospitality, moderation by default is the floor. Among the seven layers, the honeypot and the rate limit stop machines, moderation and read-only fields stop people, and the depth limit and the write-only email prevent accidents.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-comment-system-guide/">敢让匿名用户评论的底气：七层防线实战</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
