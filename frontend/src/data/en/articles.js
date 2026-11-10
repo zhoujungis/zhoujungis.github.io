@@ -28572,6 +28572,328 @@ i = 1:  x = 7, need 9 - 7 = 2. On my left? Yes, at index 0. Return [0, 1].
 `,
   },
 
+  {
+    slug: 'lc-206-reverse-linked-list',
+    zhSlug: 'lc-206-reverse-linked-list',
+    topicSlug: 'leetcode',
+    title: 'LC 206, reverse a linked list: save the link before you cut it',
+    excerpt:
+      'One pointer change and the chain is gone. Three pointers, one order, and the same three steps that answer the interval and k-group variants.',
+    date: '2026-10-24',
+    readingTime: 16,
+    html: `
+<h2>The problem</h2>
+
+<p>Given the head of a singly linked list, reverse it and return the new head.</p>
+
+<pre><code>input:  1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5
+output: 5 -&gt; 4 -&gt; 3 -&gt; 2 -&gt; 1
+</code></pre>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<p>It is labelled easy and asked constantly, usually as the first linked-list question in an interview. It is asked repeatedly not because the answer is hard but because it separates people who understand pointers from people who memorised code. The memorised version falls apart the moment the interviewer asks for the first n nodes, a range, or k at a time; the understood version sees those as the same operation with different boundaries.</p>
+
+<h2>Translating "reverse" into pointer operations</h2>
+
+<p>In an array, reversing is two indices walking toward each other and swapping. Positions are contiguous, so the fifth element is findable.</p>
+
+<p>A linked list is not like that. Nodes can be anywhere in memory, each knows only its successor, nothing knows its predecessor, and nothing knows its position. All you hold is the head, and everything is reached by pulling on that thread.</p>
+
+<pre><code>1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5 -&gt; None
+None &lt;- 1 &lt;- 2 &lt;- 3 &lt;- 4 &lt;- 5
+</code></pre>
+
+<p>So reversing means one thing: <strong>change every node's next from pointing at its successor to pointing at its predecessor</strong>. Five nodes, five pointer changes, and the difficulty is entirely in the timing.</p>
+
+<p>Picture a row of people holding hands blindfolded, each knowing only whose hand is in their right. Now everyone must turn around. The moment you let go to reach behind you, you no longer know who was on your right, because that was your entire memory.</p>
+
+<p>So there is only one correct order. <strong>Remember</strong> who is on the right, <strong>turn</strong> by taking the hand on the left, then <strong>step</strong> forward together. Skip the first and the chain snaps.</p>
+
+<h2>The animation, as a walkthrough</h2>
+
+<p>The original post has a sixteen-step animation. Here is what it shows. Three markers move along the list: <code>prev</code> one node behind <code>curr</code>, and <code>next</code> holding the node that would otherwise be lost. After each node is processed, the arrow between it and its former successor flips. And the end marker moves: it starts after the last node, and finishes before the first one, because the original head becomes the tail.</p>
+
+<p>Watching it, the useful observation is that <strong>there is never an instant where the chain is broken</strong>. The temporary pointer exists precisely so that the road ahead is marked before the road behind is cut.</p>
+
+<p>Running it on paper, five boxes numbered one to five, following the three steps strictly, teaches more than reading the code ten times.</p>
+
+<h2>Iterative: three pointers</h2>
+
+<table>
+<thead><tr><th>Pointer</th><th>Meaning</th><th>Initially</th><th>After the loop</th></tr></thead>
+<tbody>
+<tr><td>prev</td><td>Head of the already-reversed segment</td><td>None</td><td>The new head, which is the answer</td></tr>
+<tr><td>curr</td><td>Node being processed</td><td>head</td><td>None</td></tr>
+<tr><td>next</td><td>Temporary hold on the original successor</td><td>None</td><td>None</td></tr>
+</tbody>
+</table>
+
+<pre><code>        prev          curr
+         |             |
+None &lt;- 4 &lt;- 3      1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5
+     reversed       not yet
+</code></pre>
+
+<p>The boundary between <code>prev</code> and <code>curr</code> separates what is done from what is not, and each iteration moves it one node right until <code>curr</code> falls off the end.</p>
+
+<pre><code>def reverseList(head):
+    prev = None
+    curr = head
+
+    while curr:
+        nxt = curr.next
+        curr.next = prev
+        prev = curr
+        curr = nxt
+
+    return prev
+</code></pre>
+
+<p>Why <code>prev</code> starts as none and not as the head: after reversing, the original head becomes the tail, and a tail points at nothing. Starting at nothing means the first pointer change sets <code>1.next</code> to none automatically.</p>
+
+<p>The temporary save is the heart of it, because the next line overwrites the link to the rest of the list. The pointer change is the actual work. Then the two moves: <code>prev</code> moves only after the pointer change, or it would hold the wrong value, and <code>curr</code> advances using the saved value rather than the field just overwritten.</p>
+
+<p>And return <code>prev</code>, not <code>curr</code>. When the loop ends <code>curr</code> is none while <code>prev</code> rests on the original last node, which is the new head. Returning the wrong one is the most common slip.</p>
+
+<table>
+<thead><tr><th>Round</th><th>curr</th><th>saved next</th><th>curr.next becomes</th><th>prev</th><th>curr after</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>1</td><td>-</td><td>-</td><td>None</td><td>1</td></tr>
+<tr><td>1</td><td>1</td><td>2</td><td>None</td><td>1</td><td>2</td></tr>
+<tr><td>2</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>3</td><td>3</td><td>4</td><td>2</td><td>3</td><td>4</td></tr>
+<tr><td>4</td><td>4</td><td>5</td><td>3</td><td>4</td><td>5</td></tr>
+<tr><td>5</td><td>5</td><td>None</td><td>4</td><td>5</td><td>None</td></tr>
+</tbody>
+</table>
+
+<p>After the fifth round the loop exits and returns 5, with the list now reading five, four, three, two, one.</p>
+
+<table>
+<thead><tr><th>Input</th><th>Behaviour</th><th>Return</th></tr></thead>
+<tbody>
+<tr><td>None</td><td>The loop never runs</td><td>None, correct</td></tr>
+<tr><td>A single node</td><td>One round sets its next to none</td><td>That node, correct</td></tr>
+<tr><td>Two nodes</td><td>Two rounds</td><td>Reversed, correct</td></tr>
+</tbody>
+</table>
+
+<p>None of those need a special case, which is the comfort of the iterative version: recursion needs explicit guards for empty and single-node lists, iteration covers them naturally.</p>
+
+<pre><code>class Solution {
+    public ListNode reverseList(ListNode head) {
+        ListNode prev = null;
+        ListNode curr = head;
+        while (curr != null) {
+            ListNode nxt = curr.next;
+            curr.next = prev;
+            prev = curr;
+            curr = nxt;
+        }
+        return prev;
+    }
+}
+</code></pre>
+
+<p>In Java the temporary must be declared inside the loop, and the four statements cannot be compressed the way Python allows, because the order genuinely matters.</p>
+
+<h2>Recursive</h2>
+
+<p>Iteration walks forward from the head. Recursion can think backwards: assume the call on the rest of the list has already reversed everything after the current node and returned the new head, and all that remains is to attach the current node to the end of that reversed segment.</p>
+
+<p>The subtlety is that the recursive call returns the new head, which is the original tail, while <code>head.next</code> has become the tail of the reversed segment. So the tail must point back at the current node, and the current node must then point at nothing.</p>
+
+<pre><code>reverseList(1)
+  |
+  +- reverseList(2)
+       |
+       +- reverseList(3)
+            head.next is None, so return 3
+            this 3 is the new head and travels back unchanged
+       back in 2: 3.next = 2, 2.next = None, return 3
+  back in 1: 2.next = 1, 1.next = None, return 3
+</code></pre>
+
+<p>Two things are easy to misread. The new head is the same node at every level, carried upward unchanged, while the real work happens in the two pointer assignments. And recursion reaches the bottom first and rewires on the way back, so the order of pointer changes is the reverse of iteration: iteration changes the first link first, recursion changes it last.</p>
+
+<pre><code>def reverseList(head):
+    if not head or not head.next:
+        return head
+
+    new_head = reverseList(head.next)
+    head.next.next = head
+    head.next = None
+    return new_head
+</code></pre>
+
+<p>Both halves of the guard matter. The first handles an empty list, without which the next line dereferences nothing. The second stops at a single node, which is already its own answer. Writing only the second crashes on an empty input; writing only the first recurses one level too far on a single node.</p>
+
+<pre><code>class Solution {
+    public ListNode reverseList(ListNode head) {
+        if (head == null || head.next == null) return head;
+        ListNode newHead = reverseList(head.next);
+        head.next.next = head;
+        head.next = null;
+        return newHead;
+    }
+}
+</code></pre>
+
+<p>The recursion is shorter and reads better, and an interviewer will usually ask about space. The answer is linear, not because of an array but because of the call stack: n nodes means n frames. In practice, Python's default recursion limit fails on a list of a few tens of thousands, and the JVM's stack overflows at a few thousand to ten thousand levels, so long lists need the iterative form.</p>
+
+<p>The standard answer: recursion uses linear space, iteration uses constant space, and unless asked otherwise, write the iterative one.</p>
+
+<h2>Follow-up: k at a time (LC 25)</h2>
+
+<p>With <code>[1,2,3,4,5]</code> and <code>k</code> of two, the answer is <code>[2,1,4,3,5]</code>, with the leftover single node untouched. So the whole thing decomposes into three actions: count k nodes ahead and bail out if the run is short; reverse those k using exactly the LC 206 loop; then reconnect the previous group's tail to this group's new head, and this group's tail to the next group.</p>
+
+<p>Reconnection is where it goes wrong, because reversing swaps head and tail.</p>
+
+<p>The first group also means the original head is no longer the list head, so a dummy node in front gives a stable anchor, and the answer is the dummy's next. That is a general linked-list trick: <strong>if the head can change, add a dummy</strong>, because it makes changing the head and changing the middle the same case.</p>
+
+<pre><code>def reverseKGroup(head, k):
+    dummy = ListNode(0, head)
+    group_prev = dummy
+
+    while True:
+        kth = group_prev
+        for _ in range(k):
+            kth = kth.next
+            if kth is None:
+                return dummy.next
+
+        group_next = kth.next
+
+        prev, curr = group_next, group_prev.next
+        while curr is not group_next:
+            nxt = curr.next
+            curr.next = prev
+            prev = curr
+            curr = nxt
+
+        group_tail = group_prev.next
+        group_prev.next = kth
+        group_prev = group_tail
+</code></pre>
+
+<p>Starting <code>prev</code> at the next group's head is the neat detail: after reversing, the group's original head, now its tail, already points at the next group, so half the reconnection is free.</p>
+
+<table>
+<thead><tr><th>Round</th><th>group_prev</th><th>kth</th><th>group_next</th><th>After reversing</th><th>Whole list</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>dummy</td><td>-</td><td>-</td><td>-</td><td>d,1,2,3,4,5</td></tr>
+<tr><td>1</td><td>dummy</td><td>2</td><td>3</td><td>2,1</td><td>d,2,1,3,4,5</td></tr>
+<tr><td>2</td><td>1</td><td>4</td><td>5</td><td>4,3</td><td>d,2,1,4,3,5</td></tr>
+<tr><td>3</td><td>3</td><td>fewer than two</td><td>-</td><td>return</td><td>2,1,4,3,5</td></tr>
+</tbody>
+</table>
+
+<pre><code>def reverseKGroup(head, k):
+    node = head
+    for _ in range(k):
+        if node is None:
+            return head
+        node = node.next
+
+    prev, curr = None, head
+    for _ in range(k):
+        nxt = curr.next
+        curr.next = prev
+        prev = curr
+        curr = nxt
+
+    head.next = reverseKGroup(curr, k)
+
+    return prev
+</code></pre>
+
+<p>The recursive form is easier to remember and makes the grouping obvious: check the count, reverse k, then let the group's tail point at whatever the rest becomes.</p>
+
+<pre><code>class Solution {
+    public ListNode reverseKGroup(ListNode head, int k) {
+        ListNode dummy = new ListNode(0, head);
+        ListNode groupPrev = dummy;
+
+        while (true) {
+            ListNode kth = groupPrev;
+            for (int i = 0; i &lt; k; i++) {
+                kth = kth.next;
+                if (kth == null) return dummy.next;
+            }
+            ListNode groupNext = kth.next;
+
+            ListNode prev = groupNext;
+            ListNode curr = groupPrev.next;
+            while (curr != groupNext) {
+                ListNode nxt = curr.next;
+                curr.next = prev;
+                prev = curr;
+                curr = nxt;
+            }
+
+            ListNode groupTail = groupPrev.next;
+            groupPrev.next = kth;
+            groupPrev = groupTail;
+        }
+    }
+}
+</code></pre>
+
+<p>The short tail must be handled inside the counting loop: the moment a null appears, return, rather than finishing the count and checking afterwards, which either crashes or reverses a partial group.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>LC 206 iterative</td><td>Linear</td><td><strong>Constant</strong></td><td>First choice, safe at any length</td></tr>
+<tr><td>LC 206 recursive</td><td>Linear</td><td>Linear stack</td><td>Shorter code, overflows on long lists</td></tr>
+<tr><td>LC 25 iterative</td><td>Linear</td><td><strong>Constant</strong></td><td>First choice</td></tr>
+<tr><td>LC 25 recursive</td><td>Linear</td><td>Stack proportional to groups</td><td>Depth is the group count</td></tr>
+</tbody>
+</table>
+
+<p>Linear time is easy to see: each node is visited once and each link is changed once. The space difference is the interview point.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Forgetting to save the successor, so advancing reads the link just overwritten and the rest of the list is lost.</li>
+<li>Returning the loop variable instead of the previous pointer, which hands back an empty list.</li>
+<li>Omitting the final pointer clear in the recursive version, which creates a cycle: the two nodes point at each other and printing loops forever.</li>
+<li>Writing only half the recursive guard, which either crashes on an empty list or recurses once too far on a single node.</li>
+<li>Checking the k-count after the loop rather than inside it, which crashes on a short tail.</li>
+<li>Reconnecting the wrong end in the k-group version. After reversing, the original group head is the group tail and the kth node is the group head.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Do not start typing. Confirm the contract, state the three-pointer idea with the order of operations, mention that empty and single-node lists need no special case, then give the complexity. Then offer the follow-up yourself: the k-group version is this loop repeated, plus a dummy node to manage the joins.</p>
+
+<p>That last step is the one that scores, because it shows you can restate the same operation under a different boundary, which is what the follow-ups are testing.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>What stays</th></tr></thead>
+<tbody>
+<tr><td>LC 206</td><td>Reverse the whole list</td><td>Save, turn, advance</td></tr>
+<tr><td>LC 92</td><td>Reverse a range and reconnect both ends</td><td>The same, plus a dummy</td></tr>
+<tr><td>LC 25</td><td>Reverse in groups and reconnect between them</td><td>The same, plus a dummy and a count</td></tr>
+</tbody>
+</table>
+
+<p>The boundaries change; the three steps do not. Next time a variant appears, ask two questions before writing anything: which segment is being reversed, and what has to be attached on either side of it afterwards.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-206-reverse-linked-list/">【LC 206】反转链表：指针一改就断链，问题到底出在哪</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
