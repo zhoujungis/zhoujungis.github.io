@@ -26862,6 +26862,391 @@ Link: &lt;/docs/migration/v1-to-v2&gt;; rel="migration"
 `,
   },
 
+  {
+    slug: 'cache-trio-deep-dive',
+    zhSlug: 'cache-trio-deep-dive',
+    topicSlug: 'backend',
+    title: 'Three hundred concurrent requests, one database hit',
+    excerpt:
+      'Textbook defences fail in textbook ways: empty-value caching fills memory with one-shot keys, a mutex fills the thread pool, and TTL jitter does nothing when the cache disappears. Measured numbers for what works.',
+    date: '2026-10-27',
+    readingTime: 22,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who already knows the words empty-value caching, mutex and TTL jitter and still does not trust them under real traffic.</p>
+<p>Redis and Python, though the concurrency reasoning is language independent.</p>
+<p>Reading time around 22 minutes. What you get: the bloom filter derivation and its memory bill, request coalescing, hot-key detection, and the three layers that actually hold.</p>
+</blockquote>
+
+<h2>Knowing the textbook answer is not the same as surviving production</h2>
+
+<p>The basics are easy to recite: cache the empty result for penetration, a mutex for the stampede, jitter for the avalanche. Production does not ask the textbook question.</p>
+
+<ul>
+<li>You cached empty results, and the attacker switched to millions of distinct random identifiers, each requested once, so the cache filled with garbage that never hit twice and stopped nothing.</li>
+<li>You added a mutex for the hot key, and three hundred threads queued on it until the worker pool was exhausted and every endpoint timed out.</li>
+<li>You added ten percent jitter, and then the cache failed over for forty seconds, at which point no amount of jitter mattered because the cache layer was gone.</li>
+</ul>
+
+<h2>Three postmortems</h2>
+
+<h3>Empty results blown up by one-shot identifiers</h3>
+
+<pre><code>def get_item(item_id):
+    key = f"item:{item_id}"
+    cached = redis.get(key)
+    if cached is not None:
+        return json.loads(cached)
+    item = Item.objects.filter(id=item_id).first()
+    if item is None:
+        redis.set(key, "NULL", ex=60)
+        return None
+    redis.set(key, json.dumps(serialize(item)), ex=300)
+    return serialize(item)
+</code></pre>
+
+<p>Then a script requested random identifiers, each exactly once. Every key was written and never read again, at two costs: memory, since three million requests at roughly a hundred bytes of key, value and object overhead is three hundred megabytes of garbage, and eviction, because the flood of one-shot keys under an LRU policy pushed the genuinely hot keys out.</p>
+
+<p>Empty-value caching defends against repeatedly asking for the same missing identifier, which is what a crawler paging through a range does. It does nothing against an attacker generating unique ones. Two traffic shapes, two weapons, which is where the bloom filter enters.</p>
+
+<h3>The mutex that ate the thread pool</h3>
+
+<pre><code>def get_product(pid):
+    cached = redis.get(f"product:{pid}")
+    if cached:
+        return json.loads(cached)
+    if redis.set(f"lock:product:{pid}", 1, nx=True, ex=5):
+        try:
+            data = load_product(pid)
+            redis.set(f"product:{pid}", json.dumps(data), ex=300)
+            return data
+        finally:
+            redis.delete(f"lock:product:{pid}")
+    time.sleep(0.05)
+    return get_product(pid)
+</code></pre>
+
+<p>When the key expired, three hundred requests arrived. One reloaded, and two hundred and ninety-nine slept and recursed while still occupying their workers, and the reload itself slowed from eighty milliseconds to eight hundred because the database was now saturated.</p>
+
+<p>The worst case is a request retrying a dozen times with its thread held throughout, so entirely unrelated endpoints queue behind it. A lock used to prevent a stampede turned the stampede into an avalanche. The fix is not a shorter lock timeout but <strong>request coalescing</strong>: the waiters park on the first request's result instead of polling it.</p>
+
+<h3>Jitter done right, cache still gone</h3>
+
+<p>A prewarm job refreshed two hundred thousand keys at three in the morning with a fixed thirty minute lifetime, which meant a collective expiry at half past. Jitter spread it across the hour and the problem looked solved, until a test blocked the cache for thirty seconds. With the whole layer unavailable, every request fell through to the database regardless of how the expiries were distributed.</p>
+
+<p>So there are two shapes. Collective expiry needs jitter. A dead cache needs local caching, breakers and fallbacks.</p>
+
+<h2>Bloom filters properly</h2>
+
+<pre><code>[0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0]
+
+add("alice") with three hashes at 1, 5, 11
+add("bob")   with three hashes at 5, 9, 14
+
+query("carol") hashes to 5, 9, 11, all set  -> might exist
+query("dave")  hashes to 2, 9, 14, 2 is 0   -> definitely absent
+</code></pre>
+
+<p>Two guarantees. A negative answer is certain, which is what makes it a defence. A positive answer may be wrong, and a false positive only costs one unnecessary lookup, never a wrong result.</p>
+
+<p>That is the difference from empty-value caching: <strong>a few megabytes of bits covers the entire identifier space</strong>, so random identifiers are rejected without storing anything per identifier.</p>
+
+<h3>Parameters and the memory bill</h3>
+
+<pre><code>p ≈ (1 - e^(-kn/m))^k
+
+m = -n · ln(p) / (ln 2)²
+k = (m / n) · ln 2
+</code></pre>
+
+<p>At the optimum each element costs about one and a half bits times the log of the inverse error rate, and the array ends up half full regardless of the target.</p>
+
+<table>
+<thead><tr><th>Target rate</th><th>Bits per element</th><th>Hashes</th><th>Array for one million</th><th>False positives per million</th></tr></thead>
+<tbody>
+<tr><td>5 percent</td><td>6.2</td><td>4</td><td>0.78 MB</td><td>50,000</td></tr>
+<tr><td>1 percent</td><td>9.6</td><td>7</td><td>1.20 MB</td><td>10,000</td></tr>
+<tr><td>0.1 percent</td><td>14.4</td><td>10</td><td>1.80 MB</td><td>1,000</td></tr>
+</tbody>
+</table>
+
+<p>A million identifiers cost 1.2 megabytes for ninety-nine percent accuracy, against three hundred megabytes of empty results that stopped nothing. That ratio is the whole argument.</p>
+
+<pre><code>target p   m (bits)   m/n   k   memory    measured FP   theoretical
+  0.050     623,523    6.2   4    0.08MB      5.0270%      5.0269%
+  0.010     958,506    9.6   7    0.12MB      1.0220%      1.0039%
+  0.001   1,437,759   14.4  10    0.18MB      0.1030%      0.1000%
+</code></pre>
+
+<p>Over a hundred thousand elements the measured rates track theory closely enough to size from the formula. Engineering practice still provisions one and a half to two times the expected element count, because the error rate degrades faster than linearly once the array is overfilled, and the number of identifiers is hard to predict in advance.</p>
+
+<h3>Four production questions</h3>
+
+<p><strong>What happens on a false positive?</strong> The request continues to the cache and then the database and comes back empty, exactly as it would without the filter. It downgrades a hundred percent of malicious traffic to a fraction of a percent, and short-TTL empty caching handles the rest.</p>
+
+<p><strong>Can elements be removed?</strong> Not from a standard filter, because one bit may be shared, and clearing it would create a false negative, which is a correctness failure. A counting variant multiplies memory by four, a cuckoo filter is more complex with a lower load factor, and periodic full rebuilds are what most systems actually use. A stale entry for a deleted identifier costs one unnecessary lookup, which is cheaper than the alternatives.</p>
+
+<pre><code>def rebuild_bloom(model, version):
+    bloom = BloomFilter(expected_items=count_rows(model) * 2, fp_rate=0.01)
+    for pk in model.objects.values_list("pk", flat=True).iterator(chunk_size=5000):
+        bloom.add(str(pk))
+    redis.set(f"bloom:{model.__name__}:v{version}", bloom.dumps(), ex=86400)
+    redis.set(f"bloom:{model.__name__}:current", version)
+</code></pre>
+
+<p><strong>How does it stay in step with writes?</strong> Add synchronously with the write, add asynchronously from the change log, or rebuild from scratch. Always write the database first and the filter second: a filter entry with no row costs one wasted lookup, while a row missing from the filter would mark real data as absent.</p>
+
+<p><strong>What if the cache has no bloom module?</strong> Bit operations over a bitmap work, at the cost of one round trip per hash unless a script combines them or a local copy of the filter removes the round trips entirely.</p>
+
+<pre><code>class BloomFilter:
+    """Standard bloom filter with Kirsch-Mitzenmacher double hashing."""
+
+    def __init__(self, expected_items: int, fp_rate: float):
+        self.m = math.ceil(-expected_items * math.log(fp_rate) / (math.log(2) ** 2))
+        self.k = max(1, round(self.m / expected_items * math.log(2)))
+        self.bits = bytearray((self.m + 7) // 8)
+
+    def _indexes(self, item: str) -> list[int]:
+        digest = hashlib.sha256(item.encode()).digest()
+        h1 = int.from_bytes(digest[:8], "big")
+        h2 = int.from_bytes(digest[8:16], "big") | 1
+        return [(h1 + i * h2) % self.m for i in range(self.k)]
+
+    def add(self, item: str) -> None:
+        for idx in self._indexes(item):
+            self.bits[idx >> 3] |= 1 << (idx & 7)
+
+    def might_contain(self, item: str) -> bool:
+        return all(self.bits[idx >> 3] >> (idx & 7) & 1 for idx in self._indexes(item))
+</code></pre>
+
+<h2>Combining empty results with a filter</h2>
+
+<p>The filter covers identifiers that never existed. It cannot cover an identifier that legitimately exists but has no data right now, such as a user who has not checked in today, so empty caching still has a job.</p>
+
+<pre><code>def get_item(item_id: str):
+    if not UUID_RE.match(item_id):
+        return None
+    if not bloom.might_contain(item_id):
+        return None
+    key = f"item:{item_id}"
+    cached = redis.get(key)
+    if cached is not None:
+        return json.loads(cached)
+    item = Item.objects.filter(id=item_id).first()
+    if item is None:
+        redis.set(key, "NULL", ex=30)
+        return None
+    redis.set(key, json.dumps(serialize(item)), ex=300)
+    return serialize(item)
+</code></pre>
+
+<table>
+<thead><tr><th>Layer</th><th>Stops</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Shape validation</td><td>Obviously malformed input</td><td>Nearly free, first</td></tr>
+<tr><td>Bloom filter</td><td>Identifiers that do not exist, including random ones</td><td>Fixed memory</td></tr>
+<tr><td>Empty caching</td><td>Valid identifiers with no data yet</td><td>A short TTL, so real data can appear</td></tr>
+</tbody>
+</table>
+
+<p>Keep the empty keys in their own instance or database when memory is tight, so eviction there cannot push production keys out. The isolation is cheap and prevents a defence from causing the next incident.</p>
+
+<h2>Request coalescing</h2>
+
+<p>Polling a lock wastes CPU and cache queries, holds the request thread, and gets worse as the reload slows down. The waiters could simply receive the first request's result.</p>
+
+<pre><code>class _Flight:
+    __slots__ = ("event", "value", "error")
+
+    def __init__(self):
+        self.event = threading.Event()
+        self.value = None
+        self.error = None
+
+
+class FlightGroup:
+    """Coalesce concurrent loads for the same key."""
+
+    def __init__(self):
+        self._mu = threading.Lock()
+        self._inflight: dict[str, _Flight] = {}
+
+    def run(self, key: str, loader):
+        with self._mu:
+            flight = self._inflight.get(key)
+            leader = flight is None
+            if leader:
+                flight = _Flight()
+                self._inflight[key] = flight
+
+        if not leader:
+            flight.event.wait()
+            if flight.error is not None:
+                raise flight.error
+            return flight.value
+
+        try:
+            flight.value = loader()
+            return flight.value
+        except Exception as e:
+            flight.error = e
+            raise
+        finally:
+            with self._mu:
+                self._inflight.pop(key, None)
+            flight.event.set()
+</code></pre>
+
+<pre><code>flights = FlightGroup()
+
+def get_product(pid):
+    key = f"product:{pid}"
+    cached = redis.get(key)
+    if cached is not None:
+        return json.loads(cached)
+
+    def load():
+        data = load_product(pid)
+        redis.set(key, json.dumps(data), ex=300 + random.randint(0, 60))
+        return data
+
+    return flights.run(key, load)
+</code></pre>
+
+<pre><code>no coalescing   DB calls: 300  wall time: 66.1 ms  amplification: 1.00x
+coalescing      DB calls:   2  wall time: 50.9 ms  amplification: 0.01x
+</code></pre>
+
+<p>Wall time is essentially unchanged, which is the point: the three hundred fold amplification was pure waste, not latency.</p>
+
+<p>Why two calls and not one? The leader removes the entry and then signals, and a request arriving in the microseconds between those two statements sees nothing in flight and leads a second load. That is the inherent boundary of coalescing: it merges what is already waiting at a moment, not everything in a window. A double check inside the loader narrows it further, but for production, thinking of it as "amplification from three hundred to two" is enough.</p>
+
+<p>Coalescing is per process, so ten machines still produce ten loads, which is why production runs both layers: coalescing first for the local burst, then a distributed lock for the cross-machine case, and a waiter that cannot get the lock reads the cache or serves a stale value rather than spinning.</p>
+
+<p>One detail that bites: put a timeout on the wait. If the leader's reload hangs for thirty seconds, every follower hangs with it, so a five hundred millisecond wait followed by a fallback is the safe shape.</p>
+
+<h2>Hot keys</h2>
+
+<p>The trouble is not the cluster being busy but one shard being busy: with hash-based sharding, a viral product's key lands on one shard, so total CPU reads thirty percent while the tail has already collapsed. The single-threaded model compounds it, since fifty thousand operations per second on one key queue everything else behind them.</p>
+
+<table>
+<thead><tr><th>Detection</th><th>Method</th><th>Trade-offs</th></tr></thead>
+<tbody>
+<tr><td>Client instrumentation</td><td>Count per key prefix, report periodically</td><td>Most accurate and key names survive; needs client changes</td></tr>
+<tr><td>CLI hotkeys</td><td>Sampling based on the least-frequently-used counters</td><td>No changes, but requires the right eviction policy and samples</td></tr>
+<tr><td>Proxy-level aggregation</td><td>Count per key at the proxy</td><td>Transparent to the application, one more component</td></tr>
+</tbody>
+</table>
+
+<p>Top-N reporting per prefix, once a minute, into a dashboard, with an alert. Hot keys are the classic case of learning about them afterwards.</p>
+
+<h3>Measure one: a local cache</h3>
+
+<pre><code>no local cache        Redis ops: 10,000  Redis time: 10000 ms  p95: 1.820 ms  L1 hit rate: 0
+L1, ten percent, 1s   Redis ops:  4,770  Redis time:  4770 ms  p95: 1.938 ms  L1 hit rate: 52.3%
+</code></pre>
+
+<p>Ten percent of the key space absorbed fifty-two percent of the traffic, because popularity is long-tailed. The implementation is a time-limited LRU, with a one second lifetime, since shorter is safer.</p>
+
+<p>The cost is consistency: the local copy can lag by up to its lifetime, so keep it far below the cache lifetime and never put balances or stock deductions in it. For flash sales, keep metadata locally and put the authoritative counter behind an atomic cache operation.</p>
+
+<h3>Measure two: shard the key</h3>
+
+<pre><code>def incr_hot_counter(key: str, n_shards: int = 8):
+    redis.incr(f"{key}#{random.randrange(n_shards)}")
+
+def read_hot_counter(key: str, n_shards: int = 8):
+    return sum(int(redis.get(f"{key}#{i}") or 0) for i in range(n_shards))
+</code></pre>
+
+<p>Writes spread across shards, reads must aggregate, and the total is no longer a single consistent value, since a concurrent write can land between the reads. That suits eventually consistent counters read infrequently, not anything that must be exact.</p>
+
+<h3>Measures three and four: logical expiry, and replicas</h3>
+
+<p>Logical expiry keeps the key alive forever with a timestamp inside, returning the old value while a refresh runs in the background. It suits data that may be briefly stale but must never produce a reload storm, such as a homepage ranking.</p>
+
+<p>Replicas send reads to several copies of a hot key, which requires a proxy layer and introduces replication lag.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>First choice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Read hot spot, one second of staleness acceptable</td><td>Local cache</td><td>Biggest gain, least work</td></tr>
+<tr><td>Read hot spot, must be current</td><td>Logical expiry with async refresh</td><td>No reload, no jitter</td></tr>
+<tr><td>Write hot spot counter</td><td>Sharded keys</td><td>Spreads the write across shards</td></tr>
+<tr><td>Extreme hot spot, both directions</td><td>Replicas at the proxy</td><td>Transparent, at the cost of a component</td></tr>
+</tbody>
+</table>
+
+<h2>The avalanche, beyond jitter</h2>
+
+<pre><code>def ttl_with_jitter(base: int) -> int:
+    return base + random.randint(0, max(1, base // 4))
+</code></pre>
+
+<p>The amplitude should follow the reload capacity: if two hundred thousand keys expire over a minute, the reload peak is that count times the per-key cost divided by sixty seconds, and the database must absorb it. Group the jitter so different key families land in different minutes, and write the jittered expiry at prewarm time rather than at read time. The most effective change is staggering the prewarm itself, so the expiry curve is smooth from the start.</p>
+
+<p>A dead cache is a different failure. Local caching becomes the lifeline, since a higher hit rate means less traffic reaching the database during the outage. A breaker with a defined fallback keeps callers from waiting forever. And the client timeout must be short, fifty to a hundred milliseconds, because a multi-second default suspends every request thread while the cache is blocked.</p>
+
+<table>
+<thead><tr><th>Data</th><th>Fallback</th></tr></thead>
+<tbody>
+<tr><td>Product detail</td><td>A long-lived stale copy kept for exactly this</td></tr>
+<tr><td>Homepage ranking</td><td>A static snapshot refreshed every few minutes</td></tr>
+<tr><td>Personalisation</td><td>An impersonal default list</td></tr>
+<tr><td>Stock or balance</td><td>An explicit failure, never a possibly wrong number</td></tr>
+</tbody>
+</table>
+
+<p>That last row is the important one. Returning zero makes orders fail; returning a stale value oversells. Refusing service is the correct answer when the data must be right.</p>
+
+<h2>Three layers, and five metrics</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Penetration</th><th>Stampede</th><th>Avalanche</th></tr></thead>
+<tbody>
+<tr><td>Edge</td><td>Shape validation, limits, allowlists</td><td>Limit hot requests</td><td>Global limits to protect the downstream</td></tr>
+<tr><td>Application</td><td>Bloom filter, short-TTL empty results</td><td>Coalescing, lock with timeout</td><td>Breaker, fallback, local cache</td></tr>
+<tr><td>Cache</td><td>None</td><td>Logical expiry, no eviction of hot keys</td><td>Jitter, staggered prewarm, replicas</td></tr>
+<tr><td>Data</td><td>None</td><td>A timeout on the reload path itself</td><td>Pool limits, read replicas</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Metric</th><th>Why</th><th>Alert</th></tr></thead>
+<tbody>
+<tr><td>Hit rate per prefix</td><td>A sudden drop means penetration or mass expiry</td><td>Twenty percent below baseline</td></tr>
+<tr><td>Reload rate and database queries</td><td>The direct signal that protection failed</td><td>Three times baseline</td></tr>
+<tr><td>Slow commands and per-shard CPU</td><td>The signature of a hot key</td><td>A shard above seventy percent for a minute</td></tr>
+<tr><td>Connection timeouts</td><td>Early sign of a blocked or failing cache</td><td>Any occurrence</td></tr>
+<tr><td>Sampled false-positive rate</td><td>A sign the filter is undersized</td><td>Twice the design value</td></tr>
+</tbody>
+</table>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Does a false positive cause inconsistency?</strong> No. It costs one unnecessary lookup and the answer is unchanged.</p>
+
+<p><strong>Why not replace empty caching with the filter?</strong> They cover different cases: absent identifiers versus existing ones with no data right now. A filter cannot express "temporarily nothing".</p>
+
+<p><strong>Is coalescing redundant with a distributed lock?</strong> No, the scopes differ: one merges a single process, the other merges across machines, and the first removes most of the need for the second.</p>
+
+<p><strong>Does a local cache break consistency?</strong> It introduces a window of at most its lifetime, which is why the lifetime is seconds and why data that must never be stale stays out.</p>
+
+<p><strong>Is there a cheap way to find hot keys?</strong> Start with the CLI sampling, and only build client reporting or a proxy once a hot key has actually been confirmed.</p>
+
+<p><strong>Does jitter lower the hit rate?</strong> Slightly, since some keys are always closer to expiry, and it is small against a collective expiry. Tune the amplitude and grouping rather than removing it.</p>
+
+<h2>Closing</h2>
+
+<p>Three differences separate knowing the terms from practising this. Knowing where each defence stops: empty caching cannot stop random identifiers, jitter cannot survive a dead cache, and a mutex can consume the thread pool. Being able to do the arithmetic: one and a half megabytes for a million identifiers, ten percent of the key space absorbing half the traffic. And having a fallback, because every defence fails eventually and what it returns then is a design decision made before the incident.</p>
+
+<p>If one sentence survives: <strong>each layer trades a small acceptable error for a large amount of throughput</strong>, one percent false positives, one second of staleness, amplification reduced from three hundred to two. Different prices for the same bargain.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/cache-trio-deep-dive/">300 个并发只该打 1 次库：穿透、击穿与雪崩</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
