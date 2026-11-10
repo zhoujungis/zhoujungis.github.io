@@ -24089,6 +24089,486 @@ E3 key plus fingerprint: the same key a hundred times
 `,
   },
 
+  {
+    slug: 'rate-limit-algorithms-deep-dive',
+    zhSlug: 'rate-limit-algorithms-deep-dive',
+    topicSlug: 'backend',
+    title: 'Rate limiting, measured: fixed windows double the burst, token buckets allow it',
+    excerpt:
+      'Four algorithms implemented and benchmarked on a fake clock: a fixed window lets twice the limit through at a boundary, and a leaky bucket is not smoother than a token bucket on the first burst.',
+    date: '2026-11-01',
+    readingTime: 22,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who has added a limiter and could not say why that algorithm.</p>
+<p>Implemented with the Python standard library and benchmarked on a fake clock. The reasoning is language independent.</p>
+<p>Reading time around 22 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>The endpoint that fell over on the hour</h2>
+
+<p>A query endpoint had a limiter set to six hundred requests a minute and ran quietly for weeks, until one morning at nine sharp: CPU saturated, endpoint returning errors.</p>
+
+<p>The logs showed the pattern. A reporting system called it on a schedule, and every client was configured to fire at the exact minute. So six hundred requests arrived in the first two hundred milliseconds, and nothing arrived for the remaining fifty-nine point eight seconds.</p>
+
+<p>The limiter saw six hundred in a minute and concluded nothing was wrong, while the service absorbed six hundred requests in an instant. <strong>The threshold was right and the time distribution was unmanaged.</strong></p>
+
+<p>That is the classic flaw of a fixed window: a double burst across a boundary. It is also the simplest of the four common algorithms, and this post implements all four and measures the difference.</p>
+
+<h2>What a limiter is actually for</h2>
+
+<table>
+<thead><tr><th>Mechanism</th><th>Purpose</th><th>On trigger</th><th>Typical use</th></tr></thead>
+<tbody>
+<tr><td>Rate limiting</td><td>Control the rate</td><td>Reject or queue</td><td>Protect yourself, stop scrapers</td></tr>
+<tr><td>Circuit breaking</td><td>Prevent a cascade</td><td>Fail fast, cut off</td><td>A dependency is unhealthy</td></tr>
+<tr><td>Degradation</td><td>Keep the core working</td><td>Serve a fallback</td><td>Turn features off during a sale</td></tr>
+</tbody>
+</table>
+
+<p>A limiter is admission control: it decides whether a request may consume resources before it does. It earns its place three ways. Self-protection, so one caller or one scraper cannot exhaust the pool, the CPU or the database connections. Cost control, because metered dependencies charge per call. Fairness, because one tenant must not consume every quota.</p>
+
+<pre><code>client -> CDN/WAF -> gateway -> application limiter -> database and dependencies
+          global        per route        per business action
+</code></pre>
+
+<p>The further out the limiter sits, the cheaper rejection is: a request stopped at the proxy costs microseconds, and one stopped after it has taken a thread and queried the database has already been paid for. Layering beats one all-purpose limiter inside the application.</p>
+
+<p>One framing worth carrying: a limiter's units are usually tokens per second plus a bucket capacity, not requests per minute. That sentence means nothing yet and everything after the token bucket section.</p>
+
+<h2>Fixed window: simplest, and easiest to break</h2>
+
+<pre><code>class FixedWindowLimiter:
+    def __init__(self, limit: int, window: float):
+        self.limit = limit          # requests allowed per window
+        self.window = window        # window length in seconds
+        self.count = 0
+        self.window_start = time.time()
+
+    def allow(self) -> bool:
+        now = time.time()
+        if now - self.window_start >= self.window:
+            self.window_start = now
+            self.count = 0
+        if self.count < self.limit:
+            self.count += 1
+            return True
+        return False
+</code></pre>
+
+<pre><code>def allow(user_id, limit=600, window=60):
+    key = f"rl:{user_id}:{int(time.time() // window)}"
+    pipe = redis.pipeline()
+    pipe.incr(key)
+    pipe.expire(key, window)
+    count, _ = pipe.execute()
+    return count <= limit
+</code></pre>
+
+<p>Putting the window number in the key means nothing has to be reset by hand: a new window is a new key and the old one expires. That is how the pattern is usually written in production.</p>
+
+<h3>The measured double burst</h3>
+
+<pre><code>window [0.0s, 1.0s)  ->  10 requests, all allowed
+window [1.0s, 2.0s)  ->  10 requests, all allowed
+
+result: 20 requests in 0.02 seconds, an instantaneous 1000 per second,
+against a configured threshold of 10 per second
+</code></pre>
+
+<p>Ten at the end of one window and ten at the start of the next means twenty in twenty milliseconds, exactly twice the limit. The general bound is twice the limit across a boundary, and the benchmark confirmed the full twice with a fake clock.</p>
+
+<p>That is exactly the opening incident: a client firing on the minute boundary always looks compliant because every window starts with a flood and ends in silence.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Implementation</td><td>Trivial, one cache command</td></tr>
+<tr><td>Memory</td><td>One integer per key</td></tr>
+<tr><td>Accuracy</td><td>Poor, up to twice the limit at a boundary</td></tr>
+<tr><td>Burst control</td><td>None; the start of a window can be saturated</td></tr>
+<tr><td>Fits</td><td>Internal endpoints, log ingestion, coarse protection</td></tr>
+</tbody>
+</table>
+
+<p>So a fixed window guards against mistakes and not against exceeding a quota precisely. If the downstream is metered or the contract names a hard ceiling, do not use it.</p>
+
+<h2>Sliding window log: exact and expensive</h2>
+
+<pre><code>class SlidingWindowLogLimiter:
+    def __init__(self, limit: int, window: float):
+        self.limit = limit
+        self.window = window
+        self.log = deque()          # request timestamps
+
+    def allow(self) -> bool:
+        now = time.time()
+        while self.log and now - self.log[0] >= self.window:
+            self.log.popleft()
+        if len(self.log) < self.limit:
+            self.log.append(now)
+            return True
+        return False
+</code></pre>
+
+<pre><code>0.99s: nothing in the window, so the first 10 pass, log = ten entries at 0.99
+1.01s: the window reaches back to -0.01s, and those ten are still inside
+       the eleventh request is rejected
+</code></pre>
+
+<p>No boundary hole at all: look back one second from any instant and at most ten requests are inside.</p>
+
+<table>
+<thead><tr><th>Rate</th><th>Window</th><th>Timestamps</th><th>Memory</th></tr></thead>
+<tbody>
+<tr><td>1,000 per second</td><td>60 s</td><td>60,000</td><td>About 480 KB</td></tr>
+<tr><td>10,000 per second</td><td>60 s</td><td>600,000</td><td>About 4.8 MB</td></tr>
+<tr><td>10,000 per second</td><td>300 s</td><td>3,000,000</td><td>About 24 MB</td></tr>
+</tbody>
+</table>
+
+<p>That is for one user on one endpoint. Multiply by users and routes and the memory disappears, which is why the exact algorithm is rarely deployed. In a cache it costs three or four commands per request, the sorted set grows to rate times window, and appending a random component to disambiguate same-millisecond timestamps inflates it further.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Implementation</td><td>Simple, though the cache version needs a sorted set</td></tr>
+<tr><td>Memory</td><td>High, proportional to rate times window</td></tr>
+<tr><td>Accuracy</td><td>Perfect, with no boundary overshoot</td></tr>
+<tr><td>Fits</td><td>Low volume where precision is contractual: verification codes, password attempts</td></tr>
+</tbody>
+</table>
+
+<p>Five codes a minute is three hundred entries, and the memory is irrelevant. That is the whole niche.</p>
+
+<h2>Sliding window counter: the compromise</h2>
+
+<p>The log is expensive because it remembers exact instants when only a rough count is needed. Chop the window into buckets and weight each by how much of it still overlaps the current window.</p>
+
+<pre><code>class SlidingWindowCounter:
+    def __init__(self, limit: int, window: float, buckets: int = 6):
+        self.limit = limit
+        self.window = window
+        self.bucket_size = window / buckets
+        self.n = buckets
+        self.counts = {}        # bucket id -> count
+
+    def _bucket(self, ts):
+        return int(ts // self.bucket_size)
+
+    def allow(self) -> bool:
+        now = time.time()
+        current = self._bucket(now)
+        for b in list(self.counts):
+            if b &lt; current - self.n:
+                del self.counts[b]
+
+        elapsed = (now % self.bucket_size) / self.bucket_size
+        estimate = 0.0
+        for b, c in self.counts.items():
+            weight = max(0.0, 1.0 - elapsed) if b == current - self.n else 1.0
+            estimate += c * weight
+
+        if estimate &lt; self.limit:
+            self.counts[current] = self.counts.get(current, 0) + 1
+            return True
+        return False
+</code></pre>
+
+<h3>A trap worth naming</h3>
+
+<p>My first implementation only looked back one bucket and weighted it, which looked plausible and let six hundred through against a limit of a hundred, a five hundred percent error. The reason is simple: a one second window in six buckets, and looking back one bucket turns the window into a sixth of a second.</p>
+
+<pre><code># wrong: only the previous bucket, which shortens the window
+estimate = prev * (1 - elapsed) + curr
+
+# right: every bucket in the window, with only the oldest discounted
+for b, c in self.counts.items():
+    weight = max(0.0, 1.0 - elapsed) if b == current - self.n else 1.0
+    estimate += c * weight
+</code></pre>
+
+<p>Fixed, uniform traffic at a thousand per second released exactly a hundred, zero error.</p>
+
+<h3>Error and verdict</h3>
+
+<p>The approximation assumes requests are spread evenly inside the oldest bucket, which they are not, so a burst at the end of a bucket skews the estimate. With six to ten buckets the error stays in single-digit percent, which against a hundred percent overshoot is a different category.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Implementation</td><td>Several buckets to maintain</td></tr>
+<tr><td>Memory</td><td>Low, one integer per bucket</td></tr>
+<tr><td>Accuracy</td><td>Good, zero to five percent with enough buckets</td></tr>
+<tr><td>Burst control</td><td>No special handling</td></tr>
+<tr><td>Fits</td><td>The best general compromise, and what many gateways default to</td></tr>
+</tbody>
+</table>
+
+<h2>Leaky bucket: a rectifier</h2>
+
+<pre><code>class LeakyBucketLimiter:
+    def __init__(self, capacity: int, leak_rate: float):
+        self.capacity = capacity        # bucket size
+        self.leak_rate = leak_rate      # requests drained per second
+        self.water = 0.0
+        self.last_leak = time.time()
+
+    def allow(self) -> bool:
+        now = time.time()
+        leaked = (now - self.last_leak) * self.leak_rate
+        self.water = max(0.0, self.water - leaked)
+        self.last_leak = now
+
+        if self.water + 1 &lt;= self.capacity:
+            self.water += 1
+            return True
+        return False
+</code></pre>
+
+<p>Water goes in, drains out at a constant rate, and overflow is rejected. The point is constant output: in the steady state the exit rate is the leak rate no matter how violent the input.</p>
+
+<h3>The cold-start burst nobody mentions</h3>
+
+<p>This code, and most teaching implementations, starts with an empty bucket, so after startup or a long idle period the first batch equal to the capacity is admitted immediately.</p>
+
+<pre><code>[0.0s - 0.1s)  100   cold start, equal to capacity
+[0.1s - 0.2s)   19   converging
+[0.2s - 0.3s)   10   steady state, strictly 100 per second
+...
+1 second total 199, and after 0.2s the measured rate is 100.0 per second
+</code></pre>
+
+<p>Two conclusions. Constancy is a steady-state property, not an instantaneous one, so if the downstream cannot absorb that first burst, lower the capacity. And this is mathematically the same transient as a token bucket's, since a full bucket and an empty bucket both admit one capacity-sized batch, except that a leaky bucket only does it once at startup while a token bucket rebuilds after every idle period.</p>
+
+<h3>Leaky versus token, one word apart</h3>
+
+<table>
+<thead><tr><th></th><th>Leaky bucket</th><th>Token bucket</th></tr></thead>
+<tbody>
+<tr><td>Holds</td><td>Requests</td><td>Tokens</td></tr>
+<tr><td>Inflow</td><td>Requests arriving</td><td>Tokens generated</td></tr>
+<tr><td>Outflow</td><td>Constant release</td><td>Requests consume tokens</td></tr>
+<tr><td>When full</td><td>New requests rejected</td><td>Tokens discarded</td></tr>
+<tr><td>When empty</td><td>Nothing to release</td><td>Requests rejected</td></tr>
+<tr><td>Output shape</td><td>Constant, perfectly smooth</td><td>Bursts allowed</td></tr>
+</tbody>
+</table>
+
+<p>A leaky bucket governs the departure rate; a token bucket governs the average rate and allows bursts.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Implementation</td><td>Simple, one water level</td></tr>
+<tr><td>Output</td><td>Constant in the steady state, with a capacity burst at cold start</td></tr>
+<tr><td>Latency</td><td>Introduces queueing delay, by design</td></tr>
+<tr><td>Fits</td><td>Fragile downstreams: old third-party endpoints, single-threaded processors</td></tr>
+</tbody>
+</table>
+
+<p>Lower the capacity to suppress the cold-start burst, and beware the queueing delay: if clients time out, those queued requests are wasted, and rejecting is better than queueing blindly.</p>
+
+<h2>Token bucket: the mainstream choice</h2>
+
+<pre><code>class TokenBucketLimiter:
+    def __init__(self, rate: float, capacity: int):
+        self.rate = rate            # tokens per second
+        self.capacity = capacity    # maximum burst
+        self.tokens = float(capacity)
+        self.last_refill = time.time()
+
+    def allow(self, tokens_needed: int = 1) -&gt; bool:
+        now = time.time()
+        self.tokens = min(
+            self.capacity,
+            self.tokens + (now - self.last_refill) * self.rate
+        )
+        self.last_refill = now
+
+        if self.tokens &gt;= tokens_needed:
+            self.tokens -= tokens_needed
+            return True
+        return False
+</code></pre>
+
+<p>Bursts exist because the bucket accumulates. After ten idle seconds with a rate of ten and a capacity of a hundred, the bucket is full, so a hundred requests pass at once and the rest are held to ten per second.</p>
+
+<p>That is a design decision rather than a defect: real traffic is not uniform, and a user opening an app loads a dozen endpoints at once. The capacity exists to absorb those legitimate bursts.</p>
+
+<p>But a large capacity quietly disables the limiter. With a capacity of ten thousand and a rate of ten, an attacker can send ten thousand requests every thousand seconds forever, averaging the configured rate while destroying the downstream.</p>
+
+<h3>A production implementation in Lua</h3>
+
+<pre><code>-- KEYS[1]: bucket key
+-- ARGV[1]: rate (tokens per second)
+-- ARGV[2]: capacity
+-- ARGV[3]: now in milliseconds
+-- ARGV[4]: requested tokens
+local key = KEYS[1]
+local rate = tonumber(ARGV[1])
+local capacity = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local requested = tonumber(ARGV[4])
+
+local data = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens = tonumber(data[1]) or capacity
+local last_refill = tonumber(data[2]) or now
+
+local delta = math.max(0, now - last_refill)
+tokens = math.min(capacity, tokens + delta * rate / 1000)
+
+local allowed = tokens &gt;= requested
+if allowed then
+    tokens = tokens - requested
+end
+
+redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+redis.call('EXPIRE', key, math.ceil(capacity / rate * 2))
+
+return allowed and 1 or 0
+</code></pre>
+
+<p>The script matters because a read, a computation and a write as three separate calls lets two concurrent requests see the same count and both decrement, which is the check-to-use race again. The expiry is set to twice the time needed to fill an empty bucket so cold keys do not accumulate.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Implementation</td><td>Needs a script for atomicity</td></tr>
+<tr><td>Memory</td><td>Two fields</td></tr>
+<tr><td>Accuracy</td><td>High, with the burst fully controllable</td></tr>
+<tr><td>Burst control</td><td>Configurable through capacity</td></tr>
+<tr><td>Fits</td><td>The de facto standard: proxy limiters, client libraries, payment APIs</td></tr>
+</tbody>
+</table>
+
+<h2>The four compared</h2>
+
+<table>
+<thead><tr><th>Algorithm</th><th>Allowed in one second</th><th>Ideal</th><th>Peak</th><th>Boundary overshoot</th><th>Memory per user</th></tr></thead>
+<tbody>
+<tr><td>Fixed window</td><td>Up to twice the limit at a boundary</td><td>100</td><td>200</td><td>Twice</td><td>About 40 B</td></tr>
+<tr><td>Sliding log</td><td>Exactly the limit</td><td>100</td><td>100</td><td>None</td><td>About 4.8 MB</td></tr>
+<tr><td>Sliding counter, six buckets</td><td>100</td><td>100</td><td>100</td><td>Zero</td><td>About 80 B</td></tr>
+<tr><td>Leaky bucket, capacity 100</td><td>199</td><td>100 steady</td><td>100 at start</td><td>Controllable</td><td>About 48 B</td></tr>
+<tr><td>Token bucket, full</td><td>199</td><td>100 steady</td><td>100 burst</td><td>Controllable</td><td>About 48 B</td></tr>
+<tr><td>Token bucket, drained</td><td>99</td><td>100</td><td>100</td><td>None</td><td>About 48 B</td></tr>
+</tbody>
+</table>
+
+<p>Six readings. The fixed window's double burst is confirmed at exactly twice the limit. The sliding log allowed only ten and rejected the eleventh. The corrected counter hit zero error, while the wrong implementation released six hundred, which is the trap described above. The token bucket's burst measured a hundred with a hundred steady, so a hundred and ninety-nine in the first second. Drained of tokens it allowed ninety-nine and behaved as a pure rate limit, confirming that the burst is entirely a function of capacity. And the leaky bucket showed the same hundred at cold start, then exactly the leak rate, measured at a hundred per second.</p>
+
+<p>Putting the last two together: leaky and token buckets behave identically on the burst question, differing only in how often the burst can recur.</p>
+
+<h3>The same limit, seen over time</h3>
+
+<pre><code>fixed window (limit 100 per second, window does not slide)
+0.0s -------- 100 through -------- 0.99s | 1.0s ---- 100 through ---- 1.99s
+                                        ^
+                              200 through in 20ms at the boundary
+
+token bucket (rate 100 per second, capacity 100)
+0.0s ---- 100 through, drawn from the bucket ---- 0.01s | ---- 100/s ----
+        ^ the burst equals capacity, and refills after any idle period
+
+leaky bucket (rate 100 per second, capacity 100)
+0.0s ---- 100 through, filling the bucket ---- 0.1s | ---- strictly 100/s ----
+        ^ the burst equals capacity, and happens once
+</code></pre>
+
+<h2>Three distributed pitfalls</h2>
+
+<p><strong>Local limiters multiply.</strong> A hundred per second on each of four machines is four hundred per second overall, and a proxy-level limiter has the same problem in a multi-instance deployment. Do it globally at the gateway, or count in one place.</p>
+
+<p><strong>The shared counter becomes the bottleneck.</strong> Every request now hits the counter, so its ceiling becomes the system's ceiling. Two-tier limiting helps: a local bucket sized at the global limit divided by the instance count absorbs most traffic and only consults the shared store when it approaches the threshold, cutting those calls by ninety percent or more. Batching tokens in fixed intervals does the same thing, and the shared store needs its own redundancy.</p>
+
+<p><strong>Key design decides the semantics</strong>: per user to protect the service, per address to stop scrapers, per route to protect a heavy endpoint, per tenant and route to bill, and a global key to protect total downstream capacity.</p>
+
+<p>Two traps in key design. Address-based limiting punishes everyone behind one NAT, which can be thousands of people at a company, so prefer a user key or a combination. And keys that can be minted by the attacker, such as one containing arbitrary query parameters, let them both bypass the limit and fill memory, so the dimensions must come from a whitelist.</p>
+
+<h2>Choosing and sizing</h2>
+
+<pre><code>need strict precision (codes, payments)?
+├─ yes -> sliding window log, low volume
+└─ no
+   downstream fragile, constant rate required?
+   ├─ yes -> leaky bucket
+   └─ no
+      legitimate bursts to allow (app startup)?
+      ├─ yes -> token bucket (default recommendation)
+      └─ no  -> sliding window counter (best value)
+</code></pre>
+
+<p>Sizing has an order. Measure the downstream: increase concurrency until the tail starts to degrade, and that is the ceiling for the rate. Set the rate at seventy to eighty percent of it, leaving room for traffic the limiter does not govern. Set the capacity to the size of one legitimate burst, observed from real clients: if a home screen fires fifteen requests, the capacity is at least fifteen. And decide the rejection shape, which is a 429 with a retry hint and the remaining budget.</p>
+
+<pre><code>HTTP/1.1 429 Too Many Requests
+Retry-After: 3
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1726450000
+</code></pre>
+
+<p>Telling clients about the budget is what separates a limiter from a wall: a good client backs off, a blind one hammers harder.</p>
+
+<pre><code># wrong: reads like six hundred per minute per user
+key = f"rl:{user_id}"          # no time dimension
+INCR key; EXPIRE key 60
+
+# the first expiry is refreshed by traffic, so the key never expires,
+# and the limit becomes a permanent ban after six hundred requests
+</code></pre>
+
+<p>Either put the window in the key or maintain sliding state in a script.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>Thresholds come from load testing, not intuition.</li>
+<li>Key dimensions come from a whitelist, so keys cannot be minted.</li>
+<li>Multi-instance deployments limit globally rather than per instance.</li>
+<li>The shared-store implementation uses a script for atomicity.</li>
+<li>Keys carry a TTL so cold state does not accumulate.</li>
+<li>Rejections return 429 with retry and budget headers.</li>
+<li>Rejections are monitored and alerted, since a sudden flood means the threshold or the traffic changed.</li>
+<li>The limiter has a failure mode: when the shared store dies, most systems fail open rather than rejecting everything, because a limiter outage should not take the product down.</li>
+<li>Internal calls, health checks and probes are whitelisted, or you have limited your own operations channel.</li>
+</ul>
+
+<p><strong>How is this different from a connection limit?</strong> A connection limit is a transport-level cap on concurrency; a rate limit is an application-level cap on requests per unit time. They are complementary, since one prevents pile-up and the other prevents a flood.</p>
+
+<p><strong>Why does my limiter seem to do nothing?</strong> Three usual causes: several instances multiplying the threshold, clients reaching the service through a different path that bypasses the limiter, or key design making every request look like a new user. Log the keys actually used.</p>
+
+<p><strong>How large should the capacity be?</strong> As large as the burst you want to tolerate, observed from real clients, with a margin. Too large and the limiter is decorative.</p>
+
+<p><strong>What happens when the counter store fails?</strong> Fail open by default, because the purpose is protecting the service, not making it unavailable when the protection fails. Alert on it, and consider failing closed for metered, high-value endpoints.</p>
+
+<p><strong>Request limiter or connection limiter?</strong> Both. They are orthogonal: an endpoint can have a low request rate and every request very slow, filling the connection pool.</p>
+
+<p><strong>Which fires first, limiting or degradation?</strong> Limiting. Trim the peak first, and only degrade if the downstream is still overloaded, which means the problem was internal rather than traffic.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>If you want</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td>Least work and can tolerate a double burst</td><td>Fixed window</td></tr>
+<tr><td>Exactness and do not care about memory</td><td>Sliding window log</td></tr>
+<tr><td>Balance, with enough accuracy and bounded memory</td><td>Sliding window counter</td></tr>
+<tr><td>Strictly smooth steady state, cold burst acceptable</td><td>Leaky bucket</td></tr>
+<tr><td>A controlled average with allowed bursts</td><td>Token bucket</td></tr>
+</tbody>
+</table>
+
+<p>In one sentence: default to a token bucket, use a sliding window counter when the parameters are not extreme, and use a log for low-volume high-value checks such as verification codes. A fixed window belongs only where precision does not matter.</p>
+
+<p>And the counterintuitive finding that runs through the whole post: <strong>a leaky bucket is not smoother than a token bucket</strong>. Both release one capacity-sized batch at the start; the difference is that a token bucket rebuilds after every idle period and a leaky bucket only at cold start. What decides the instantaneous peak is your capacity, not the algorithm's name.</p>
+
+<p>A limiter is not a decorator to sprinkle on an endpoint. It is a system capability that needs load testing, monitoring and a defined failure boundary.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/rate-limit-algorithms-deep-dive/">限流算法实测：固定窗口 2 倍溢出、令牌桶突刺</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
