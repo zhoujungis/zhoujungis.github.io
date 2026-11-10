@@ -30381,6 +30381,249 @@ pB: b1 b2 c1 c2 a1 a2 | c1
 `,
   },
 
+  {
+    slug: 'lc-82-remove-duplicates-from-sorted-list-ii',
+    zhSlug: 'lc-82-remove-duplicates-from-sorted-list-ii',
+    topicSlug: 'leetcode',
+    title: 'LC 82, removing every duplicated value: why the dummy is not optional',
+    excerpt:
+      'Because the first node of a duplicate run must also go, and that node may be the head. Plus the one rule that decides everything: prev only advances when curr is confirmed clean.',
+    date: '2026-10-17',
+    readingTime: 14,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a sorted list, remove every node whose value appears more than once, leaving only values that occur exactly once.</p>
+
+<pre><code>1,2,3,3,4,4,5  -&gt;  1,2,5
+1,1,1,2,3      -&gt;  2,3
+</code></pre>
+
+<p>That is a different problem from the easier variant, which keeps one copy of each value. There, the first example would give one through five; here the duplicated values vanish entirely.</p>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<h2>Why this is harder than keeping one copy</h2>
+
+<p>Sorting means duplicates are adjacent, so no hash table is needed: a duplicate is visible by comparing a node with its successor. That is the free part, and it is what makes constant space possible.</p>
+
+<p>The real difficulty is that deletion needs a predecessor. In a singly linked list the only way to remove a node is through the node before it.</p>
+
+<p>In the keep-one version the removed nodes always have a predecessor, namely the copy being kept. Here the first node of a run must also be removed, and that node's predecessor may be the head itself, which has no predecessor at all.</p>
+
+<pre><code>input:  1 -&gt; 1 -&gt; 2
+output: 2
+</code></pre>
+
+<p>The first node must go, and there is nothing in front of it to do the removing.</p>
+
+<h2>A sentinel gives the head an artificial predecessor</h2>
+
+<pre><code>dummy -&gt; 1 -&gt; 1 -&gt; 2
+</code></pre>
+
+<p>With a dummy in front, removing the first node is an ordinary deletion and no node is special. Two details matter: return the dummy's next rather than the original head, since that head may itself have been detached and now points at an orphan; and the dummy's value is arbitrary because it is never compared.</p>
+
+<p>The same motive appears in the remove-nth-from-end problem: any time an operation can land on the head, reach for a dummy. It is the cheapest general fix for the structural defect that a boundary node has no predecessor.</p>
+
+<h2>The pointer rule, which is where people go wrong</h2>
+
+<p>Two pointers: <code>prev</code> is the last node confirmed to be kept, and <code>curr</code> is the node under inspection.</p>
+
+<pre><code>prev, curr = dummy, head
+while curr:
+    if curr.next and curr.val == curr.next.val:
+        ...
+    else:
+        prev = curr
+        curr = curr.next
+</code></pre>
+
+<p>The critical part is the else branch: <strong>prev advances only after curr is confirmed not to belong to a run.</strong></p>
+
+<p>Once a duplicate is found, curr is pushed forward across the whole run, while prev must stay put, because it is the reattachment point. When curr emerges past the run, one assignment drops the entire stretch. If prev advanced along with curr, the removed nodes would sit between the two of them and remain attached to the list as garbage.</p>
+
+<pre><code>if curr.next and curr.val == curr.next.val:
+    dup_val = curr.val
+    while curr and curr.val == dup_val:
+        curr = curr.next
+    prev.next = curr
+</code></pre>
+
+<p>Note there is no assignment to prev here. The inner condition needs its null check: if the run extends to the end of the list, curr becomes null, and dereferencing it would fail.</p>
+
+<p>Also note that the inner comparison is on <strong>values</strong>, not identity, which is the opposite of the intersection problem. There, sharing nodes was a reference relation; here the criterion named in the problem is the duplicate value itself. The test follows the question, not a memorised rule.</p>
+
+<pre><code>class Solution:
+    def deleteDuplicates(self, head: Optional[ListNode]) -&gt; Optional[ListNode]:
+        dummy = ListNode(0, head)
+        prev, curr = dummy, head
+
+        while curr:
+            if curr.next and curr.val == curr.next.val:
+                dup_val = curr.val
+                while curr and curr.val == dup_val:
+                    curr = curr.next
+                prev.next = curr
+            else:
+                prev = curr
+                curr = curr.next
+
+        return dummy.next
+</code></pre>
+
+<h2>The animation</h2>
+
+<p>The original post has fifteen frames. The dashed box at the far left is the dummy, which does not exist in memory and exists only as an invented predecessor. The orange bracket marks the current duplicate run, whose nodes are about to be removed as a block; inside it the upper marker runs right while the lower one does not move, and that offset is the whole difficulty of the problem. Then comes the unlinking frame: a dashed arc reaches from prev across the entire run to curr, which is exactly the assignment, and the removed nodes grey out with a strike through them.</p>
+
+<h2>Full trace</h2>
+
+<p>On one, two, three, three, four, four, five:</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>prev</th><th>curr</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>dummy</td><td>1</td><td>Sentinel placed</td></tr>
+<tr><td>1</td><td>scan</td><td>dummy</td><td>1</td><td>Next is 2, safe</td></tr>
+<tr><td>2</td><td>scan</td><td>1</td><td>2</td><td>prev advances, next is 3, safe</td></tr>
+<tr><td>3</td><td><strong>run starts</strong></td><td>2</td><td>3</td><td>Two equal values, prev freezes</td></tr>
+<tr><td>4</td><td>skip</td><td>2</td><td>3</td><td>Still inside the run</td></tr>
+<tr><td>5</td><td>skip</td><td>2</td><td>4</td><td>Past the run</td></tr>
+<tr><td>6</td><td><strong>unlink</strong></td><td>2</td><td>4</td><td>Both threes removed, prev unmoved</td></tr>
+<tr><td>7</td><td>advance</td><td>3</td><td>4</td><td>prev catches up</td></tr>
+<tr><td>8</td><td><strong>run starts</strong></td><td>3</td><td>4</td><td>A second run</td></tr>
+<tr><td>9</td><td>skip</td><td>3</td><td>4</td><td>Inside</td></tr>
+<tr><td>10</td><td>skip</td><td>3</td><td>5</td><td>Past it</td></tr>
+<tr><td>11</td><td><strong>unlink</strong></td><td>3</td><td>5</td><td>Both fours removed</td></tr>
+<tr><td>12</td><td>advance</td><td>4</td><td>5</td><td>prev on 5</td></tr>
+<tr><td>13</td><td>scan</td><td>4</td><td>5</td><td>No successor, safe</td></tr>
+<tr><td>14</td><td><strong>done</strong></td><td>dummy</td><td>none</td><td>Return one, two, five</td></tr>
+</tbody>
+</table>
+
+<p>Look at prev across frames three to six: it stays on two for four frames. That is the freeze made visible.</p>
+
+<p>Now the case where the head is removed, one, one, one, two, three: the run starts immediately with prev still on the dummy, three frames of skipping walk past all three ones, and then the unlink sets the dummy's next to two. Frame five is the point of the whole problem: the node being removed is the original head, and the removal is performed by the dummy.</p>
+
+<h2>A variant: keep one copy of each duplicated value</h2>
+
+<p>An interview variant asks to keep a single copy of values that repeat, so one, one, one, two, three, three, four becomes one, two, three, four. Note the rule, which differs from keeping one copy of every value; they coincide on some inputs and not others.</p>
+
+<table>
+<thead><tr><th>Rule</th><th>Result for 1,1,1,2,3,3,4</th></tr></thead>
+<tbody>
+<tr><td>Remove all duplicates</td><td>2, 4</td></tr>
+<tr><td>Keep one of each duplicated value</td><td>1, 2, 3, 4</td></tr>
+<tr><td>Keep one of every value</td><td>1, 2, 3, 4</td></tr>
+</tbody>
+</table>
+
+<p>The change is one line: reattach to the last node of the run instead of past it, and let prev land on it.</p>
+
+<pre><code>if curr.next and curr.val == curr.next.val:
+    dup_val = curr.val
+    last = curr
+    while curr and curr.val == dup_val:
+        last = curr
+        curr = curr.next
+    prev.next = last
+    prev = last
+else:
+    prev = curr
+    curr = curr.next
+</code></pre>
+
+<p>In an interview, restate the rule before coding. "Keep one of each duplicate" and "keep one of each value" sound alike and can produce identical output, so test with something like three ones followed by a two to expose the difference.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public ListNode deleteDuplicates(ListNode head) {
+        ListNode dummy = new ListNode(0, head);
+        ListNode prev = dummy, curr = head;
+
+        while (curr != null) {
+            if (curr.next != null &amp;&amp; curr.val == curr.next.val) {
+                int dupVal = curr.val;
+                while (curr != null &amp;&amp; curr.val == dupVal) {
+                    curr = curr.next;
+                }
+                prev.next = curr;
+            } else {
+                prev = curr;
+                curr = curr.next;
+            }
+        }
+        return dummy.next;
+    }
+}
+</code></pre>
+
+<p>With primitive integers the equality test is fine; with boxed integers it would need a value comparison rather than reference identity.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Result</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>empty</td><td>Loop never entered</td></tr>
+<tr><td>one node</td><td>that node</td><td>No successor, kept</td></tr>
+<tr><td>1,1</td><td>empty</td><td>Whole list removed</td></tr>
+<tr><td>1,1,1</td><td>empty</td><td>Same</td></tr>
+<tr><td>1,1,2</td><td>2</td><td>Head removed, the dummy saves it</td></tr>
+<tr><td>1,2,2</td><td>1</td><td>Tail removed, the null check saves it</td></tr>
+<tr><td>1,2,3</td><td>unchanged</td><td>No duplicates</td></tr>
+<tr><td>1,1,2,2</td><td>empty</td><td>Two runs, both removed</td></tr>
+<tr><td>1,2,2,3,3,4</td><td>1,4</td><td>Two runs in the middle</td></tr>
+</tbody>
+</table>
+
+<p>Two of those rows are worth memorising for what they prove. The head-removal case fails immediately without a dummy, when prev starts at the head. And the tail-removal case fails without the null check in the inner loop, because the run walks off the end.</p>
+
+<h2>Complexity</h2>
+
+<p>Linear time. The outer loop walks curr across the list, and the inner loop pushes the same pointer, so each node is visited once; the inner loop is not an independent nested iteration. That question, whether the inner loop makes it quadratic, is a good thing to answer before being asked: check whether the inner loop uses a cursor of its own, and here it does not. Constant space: three variables, no table, no recursion.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>No dummy, or returning the head. When the head is removed the result is an orphan node.</li>
+<li>Advancing prev while skipping. It must stay on the node before the run.</li>
+<li>Dropping the null check in the inner loop, which fails when a run reaches the end.</li>
+<li>Testing duplicates against a global set. On a sorted list, neighbour comparison is sufficient, and the global version costs linear space while inviting confusion with the keep-one version.</li>
+<li>Mixing up the two problems. One removes the current node and keeps a copy; the other skips the whole run.</li>
+<li>Reaching for recursion, which here has to look ahead and reattach correctly, producing more complexity than the iterative version.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Start with why sorting helps: duplicates are adjacent, so neighbour comparison suffices. Then the difficulty: every duplicate goes, including the first of a run, which may be the head with no predecessor, so a dummy provides one. Then the pointer rule, with prev advancing only when curr is confirmed clean, and staying put while the run is skipped. Then the null check in the inner loop, the single unlink, and returning the dummy's next.</p>
+
+<p>For follow-ups: the inner loop does not make it quadratic because it advances the same cursor; the dummy can be avoided by first stripping any duplicate run at the head, at the cost of an extra special case; keeping one copy of each duplicate means reattaching to the run's last node; and the space is constant because sorting guarantees adjacency, so no counting structure is needed.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Core action</th><th>Relation</th></tr></thead>
+<tbody>
+<tr><td>LC 206</td><td>Reverse in place</td><td>Both rely on saving a link before changing it</td></tr>
+<tr><td>LC 19</td><td>Fixed gap</td><td>The same dummy reflex for removing a head</td></tr>
+<tr><td>LC 83</td><td>Keep one of each value</td><td>One condition apart, the mirror image</td></tr>
+<tr><td>LC 82</td><td>Skip the run, then unlink</td><td>This one, where the dummy is most obviously necessary</td></tr>
+<tr><td>LC 160</td><td>Swap cursors</td><td>There the test is identity, here it is value</td></tr>
+</tbody>
+</table>
+
+<p>What to take away is not the fifteen lines but the reflex: when the head might be the thing removed, build a dummy. Many linked-list difficulties are the structural defect that a boundary node lacks a neighbour to do the work, and inventing a node is usually the cheapest general fix.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
