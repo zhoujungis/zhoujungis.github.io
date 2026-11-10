@@ -27970,6 +27970,324 @@ class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
 `,
   },
 
+  {
+    slug: 'kmp-next-array',
+    zhSlug: 'kmp-next-array',
+    topicSlug: 'leetcode',
+    title: 'The KMP next array: matching a string against itself',
+    excerpt:
+      'next[i] is the longest proper prefix of p[0..i] that is also a suffix. One machine, two ways of writing the numbers down, and a scan that never moves i backwards.',
+    date: '2026-10-14',
+    readingTime: 18,
+    html: `
+<h2>The problem</h2>
+
+<p><strong>Find the next array of the pattern <code>p = "abacaba"</code></strong>, using the definition of the longest proper prefix that is also a suffix. The answer is <code>[0,0,1,0,1,2,3]</code>.</p>
+
+<p>One sentence before anything else: <strong>confirm which definition the interviewer is using.</strong> There is a second convention where the first entry is <code>-1</code>, from the classic data structures textbook, and under that convention the same string gives <code>[-1,0,0,1,0,1,2]</code>. The two differ by a single global shift, and the numbers reported are completely different.</p>
+
+<pre><code>p      = a  b  a  c  a  b  a
+next   = 0  0  1  0  1  2  3      longest proper prefix equal to a suffix
+other  = -1 0  0  1  0  1  2      the first-entry-minus-one convention
+</code></pre>
+
+<p>The exercise looks like memorising a template. The actual difficulty sits in a place that gets glossed over: <strong>which substring the value at <code>next[i]</code> describes</strong>. A vague definition, dropping the word proper or confusing inclusive and exclusive, shifts every answer by one; and once the table exists, <code>next[j-1]</code> is the index every fallback reads.</p>
+
+<h2>What next is, and why a string can match itself</h2>
+
+<p>Pin the definition down. <code>next[i]</code> is the length of the longest <strong>proper</strong> prefix of <code>p[0..i]</code> that is also a suffix of it.</p>
+
+<p>Proper is the load-bearing word: neither the prefix nor the suffix may be the whole substring, so the length is strictly below <code>i + 1</code>. Because the trivial "the string equals itself" case is excluded, <code>next[0] = 0</code> always holds, since a one-character string has no proper prefix or suffix.</p>
+
+<ul>
+<li><code>p[0..2] = "aba"</code>: the prefix <code>"a"</code> equals the suffix <code>"a"</code>, length one, so <code>next[2] = 1</code>.</li>
+<li><code>p[0..3] = "abac"</code>: <code>"a"</code> against <code>"c"</code> and <code>"ab"</code> against <code>"ac"</code> both fail, so <code>next[3] = 0</code>.</li>
+<li><code>p[0..6] = "abacaba"</code>: <code>"aba"</code> appears at both ends, so <code>next[6] = 3</code>.</li>
+</ul>
+
+<p>The obvious method enumerates prefix lengths from large to small at every index, which costs quadratic time. KMP is one sentence:</p>
+
+<p><strong>Let the pattern match against itself.</strong> Treat <code>p</code> as both the text and the pattern, walk <code>i</code> along the text, and let <code>j</code> hold the length of the prefix already matched.</p>
+
+<pre><code>next[0] = 0; j = 0
+for i = 1 .. n-1:
+    while j &gt; 0 and p[i] != p[j]:
+        j = next[j-1]        # mismatch: fall back to a shorter candidate prefix
+    if p[i] == p[j]:
+        j = j + 1            # match: the candidate prefix grows by one
+    next[i] = j
+</code></pre>
+
+<p><code>j</code> has two faces, and understanding both removes the need to memorise anything.</p>
+
+<p>First, it is the length of the matched prefix: before each comparison, the invariant <code>p[0..j-1]</code> equals <code>p[i-j..i-1]</code> holds. Second, it is the index of the next character to compare against <code>p[i]</code>, because the first <code>j</code> characters are already aligned with the <code>j</code> characters immediately before <code>i</code>, so <code>p[j]</code> is the natural next candidate.</p>
+
+<pre><code>def prefix_function(p):
+    n = len(p)
+    next = [0] * n
+    j = 0
+    for i in range(1, n):
+        while j &gt; 0 and p[i] != p[j]:
+            j = next[j - 1]
+        if p[i] == p[j]:
+            j += 1
+        next[i] = j
+    return next
+
+# p = "abacaba" -> [0, 0, 1, 0, 1, 2, 3]
+</code></pre>
+
+<p>Three details decide correctness. The first entry is a definition, not a computation, so the loop starts at one. The fallback reads <code>next[j-1]</code> and not <code>next[j]</code>, because the longest proper prefix-suffix of <code>p[0..j-1]</code> is exactly the shorter candidate that still fits. And the fallback is a loop rather than a branch, since one step may not be enough on a longer string.</p>
+
+<p>One sentence captures the machine: <strong><code>j</code> is the matched prefix length, <code>p[0..j-1]</code> stays aligned with <code>p[i-j..i-1]</code>, a mismatch walks back along <code>next[j-1]</code>, a match advances <code>j</code>, and the value is recorded as <code>next[i]</code>.</strong></p>
+
+<h2>The two definitions</h2>
+
+<table>
+<thead><tr><th></th><th>A: prefix function</th><th>B: first entry minus one</th></tr></thead>
+<tbody>
+<tr><td><code>next[0]</code></td><td>0</td><td>-1, a sentinel</td></tr>
+<tr><td>What <code>next[i]</code> means</td><td>Longest proper prefix-suffix of <code>p[0..i]</code></td><td>The same, for <code>p[0..i-1]</code></td></tr>
+<tr><td>Result for "abacaba"</td><td><code>[0,0,1,0,1,2,3]</code></td><td><code>[-1,0,0,1,0,1,2]</code></td></tr>
+</tbody>
+</table>
+
+<pre><code>B = [-1] + A[0 .. n-2]
+</code></pre>
+
+<p>B is A shifted one position right with a sentinel prepended. The reason anyone uses B is that it compiles the fallback into the table: under A the fallback is <code>j = next[j-1]</code>, while under B it is <code>j = next[j]</code>, and the <code>-1</code> at the front expresses "there is nowhere left to go". The cost is one extra layer of indexing, since <code>B[i]</code> describes <code>p[0..i-1]</code> while <code>A[i]</code> describes <code>p[0..i]</code>.</p>
+
+<p>So open with the question and take the initiative back. Say which definition you are using, give the numbers under both, and note the single shift between them, then offer to switch.</p>
+
+<h2>Walking through the two passes</h2>
+
+<p>The original post has two animations, one building the table and one using it. Here is what they show, step by step.</p>
+
+<p><strong>Building the table.</strong> Lay <code>p</code> out as a row of cells, each with its character and index, and put the <code>next</code> row underneath, cells not yet computed drawn as dashed and greyed, computed cells turning green. Two markers track the row: <code>i</code> at the current character and <code>j</code> at the matched prefix length, which is also the index to compare against. Each frame performs one action. A comparison frame outlines <code>p[i]</code> and <code>p[j]</code>, greening them when they match, and greens the whole matched prefix and suffix. A fallback frame draws a dashed line from <code>p[j]</code> to the cell at <code>next[j-1]</code>. A settling frame colours <code>next[i]</code>. A counter panel tracks <code>i</code>, <code>j</code>, comparisons, fallbacks and how many entries are fixed.</p>
+
+<p>Three things to watch. During a comparison frame <code>j</code> does not move; it only moves when a frame settles. A fallback frame is the only place <code>j</code> decreases, and it always reads <code>next[j-1]</code>, which is exactly the cell the dashed line points at. And the first cell is green from the start, because it is a definition rather than a result. Sixteen frames for this string, seven comparisons, one fallback.</p>
+
+<p><strong>Using the table.</strong> The text sits on one row and the pattern on the next, with the pattern row sliding so that <code>p[j]</code> lands directly under <code>text[i]</code>, which makes the aligned prefix visible. Comparison frames outline and green the two characters. A fallback frame draws a dashed arc from the old <code>j</code> to the new one while leaving the outline on <code>text[i]</code> in place, which is the visual proof that <code>i</code> does not move. A hit frame colours the matched window and the whole pattern. A second counter compares the KMP comparisons against the brute-force count for the same input, so the saving is visible.</p>
+
+<h2>The full trace</h2>
+
+<p>With <code>p = "abacaba"</code>:</p>
+
+<table>
+<thead><tr><th>i</th><th>p[i]</th><th>What happens</th><th>j after</th><th>next[i]</th><th>Comparisons / fallbacks</th></tr></thead>
+<tbody>
+<tr><td>-</td><td>-</td><td><code>next[0] = 0</code>, a definition</td><td>0</td><td>0</td><td>0 / 0</td></tr>
+<tr><td>1</td><td>b</td><td>Against <code>p[0] = a</code>, mismatch; <code>j</code> is already zero</td><td>0</td><td><strong>0</strong></td><td>1 / 0</td></tr>
+<tr><td>2</td><td>a</td><td>Matches <code>p[0] = a</code>, so <code>j</code> advances</td><td>1</td><td><strong>1</strong></td><td>2 / 0</td></tr>
+<tr><td>3</td><td>c</td><td>Against <code>p[1] = b</code>, mismatch, so <code>j = next[0] = 0</code>; against <code>p[0]</code>, mismatch again</td><td>0</td><td><strong>0</strong></td><td>4 / 1</td></tr>
+<tr><td>4</td><td>a</td><td>Matches <code>p[0]</code></td><td>1</td><td><strong>1</strong></td><td>5 / 1</td></tr>
+<tr><td>5</td><td>b</td><td>Matches <code>p[1]</code></td><td>2</td><td><strong>2</strong></td><td>6 / 1</td></tr>
+<tr><td>6</td><td>a</td><td>Matches <code>p[2]</code></td><td>3</td><td><strong>3</strong></td><td>7 / 1</td></tr>
+</tbody>
+</table>
+
+<p>Index three holds the only fallback: <code>c</code> against <code>b</code>, <code>j</code> drops from one to zero, and the comparison restarts against a shorter candidate. Only when it cannot fall back further does the entry settle at zero.</p>
+
+<table>
+<thead><tr><th>i</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr></thead>
+<tbody>
+<tr><td>p[i]</td><td>a</td><td>b</td><td>a</td><td>c</td><td>a</td><td>b</td><td>a</td></tr>
+<tr><td>next[i]</td><td><strong>0</strong></td><td><strong>0</strong></td><td><strong>1</strong></td><td><strong>0</strong></td><td><strong>1</strong></td><td><strong>2</strong></td><td><strong>3</strong></td></tr>
+</tbody>
+</table>
+
+<p>Converting to the sentinel convention: prepend minus one and drop the last entry.</p>
+
+<p>Now the search. With <code>text = "abababacaba"</code> and the same pattern:</p>
+
+<table>
+<thead><tr><th>i</th><th>text[i]</th><th>Against p[j]</th><th>j before to after</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>a</td><td>a, match</td><td>0 to 1</td><td>Start</td></tr>
+<tr><td>1</td><td>b</td><td>b, match</td><td>1 to 2</td><td></td></tr>
+<tr><td>2</td><td>a</td><td>a, match</td><td>2 to 3</td><td>"aba" matched</td></tr>
+<tr><td>3</td><td>b</td><td>c, mismatch, so <code>j = next[2] = 1</code>; then b, match</td><td>3 to 2</td><td>First fallback, <code>i</code> unmoved</td></tr>
+<tr><td>4</td><td>a</td><td>a, match</td><td>2 to 3</td><td></td></tr>
+<tr><td>5</td><td>b</td><td>c, mismatch, so <code>j = next[2] = 1</code>; then b, match</td><td>3 to 2</td><td>Second fallback</td></tr>
+<tr><td>6</td><td>a</td><td>a, match</td><td>2 to 3</td><td></td></tr>
+<tr><td>7</td><td>c</td><td>c, match</td><td>3 to 4</td><td></td></tr>
+<tr><td>8</td><td>a</td><td>a, match</td><td>4 to 5</td><td></td></tr>
+<tr><td>9</td><td>b</td><td>b, match</td><td>5 to 6</td><td></td></tr>
+<tr><td>10</td><td>a</td><td>a, match</td><td>6 to 7</td><td>Hit, index 10 minus 7 plus 1 is 4</td></tr>
+</tbody>
+</table>
+
+<p>Both fallbacks happen where a <code>b</code> in the text meets the <code>c</code> in the pattern. After dropping to one, <code>p[1] = b</code> immediately consumes the same character, so nothing is wasted: what was saved is the equal prefix and suffix that already existed inside the matched segment <code>"aba"</code>, namely <code>"a"</code>.</p>
+
+<p>The brute-force ledger for the same input:</p>
+
+<table>
+<thead><tr><th>Start</th><th>Work</th><th>Comparisons</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>a, b, a match, then b against c fails</td><td>4</td></tr>
+<tr><td>1</td><td>b against a fails</td><td>1</td></tr>
+<tr><td>2</td><td>a, b, a match, then b against c fails</td><td>4</td></tr>
+<tr><td>3</td><td>b against a fails</td><td>1</td></tr>
+<tr><td>4</td><td>All seven match</td><td>7</td></tr>
+<tr><td>Total</td><td></td><td><strong>17</strong></td></tr>
+</tbody>
+</table>
+
+<p>KMP reaches the same answer in thirteen. On inputs like a long run of <code>a</code> followed by a <code>b</code> against a pattern of pure <code>a</code>, brute force degrades to quadratic while KMP still finishes in one pass.</p>
+
+<h2>The family of problems</h2>
+
+<p>KMP is one table plus one scan that never looks back, and the same skeleton answers a whole chain of questions.</p>
+
+<ul>
+<li><strong>LC 28, first occurrence of a pattern.</strong> The second pass itself, and the basis of built-in substring search.</li>
+<li><strong>LC 459, repeated substring pattern.</strong> No matching needed: the string is a repetition when the length divides by the period, tested as <code>n % (n - next[n-1]) == 0</code> with <code>next[n-1] &gt; 0</code>.</li>
+<li><strong>LC 214, shortest palindrome.</strong> Build the table for <code>s + '#' + reverse(s)</code> and read the last entry, which is the longest palindromic prefix.</li>
+<li><strong>LC 1392, longest happy prefix.</strong> The definition of <code>next[n-1]</code> exactly.</li>
+<li><strong>LC 686, repeated string match.</strong> The text may be constructed by repeating, and the bound follows from the length ratio.</li>
+</ul>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int[] prefixFunction(String p) {
+        int n = p.length();
+        int[] next = new int[n];
+        int j = 0;
+        for (int i = 1; i &lt; n; i++) {
+            while (j &gt; 0 &amp;&amp; p.charAt(i) != p.charAt(j)) {
+                j = next[j - 1];
+            }
+            if (p.charAt(i) == p.charAt(j)) {
+                j++;
+            }
+            next[i] = j;
+        }
+        return next;
+    }
+}
+</code></pre>
+
+<pre><code>class Solution {
+    public int strStr(String text, String p) {
+        int m = text.length(), n = p.length();
+        if (n == 0) return 0;
+        int[] next = prefixFunction(p);
+        int j = 0;
+        for (int i = 0; i &lt; m; i++) {
+            while (j &gt; 0 &amp;&amp; text.charAt(i) != p.charAt(j)) {
+                j = next[j - 1];
+            }
+            if (text.charAt(i) == p.charAt(j)) {
+                j++;
+            }
+            if (j == n) {
+                return i - n + 1;
+            }
+        }
+        return -1;
+    }
+
+    private int[] prefixFunction(String p) {
+        int n = p.length();
+        int[] next = new int[n];
+        int j = 0;
+        for (int i = 1; i &lt; n; i++) {
+            while (j &gt; 0 &amp;&amp; p.charAt(i) != p.charAt(j)) j = next[j - 1];
+            if (p.charAt(i) == p.charAt(j)) j++;
+            next[i] = j;
+        }
+        return next;
+    }
+}
+</code></pre>
+
+<p>The sentinel convention changes two indices.</p>
+
+<pre><code>class Solution {
+    public int[] prefixFunctionNegOne(String p) {
+        int n = p.length();
+        int[] b = new int[n];
+        b[0] = -1;
+        int j = -1;
+        for (int i = 1; i &lt; n; i++) {
+            while (j &gt;= 0 &amp;&amp; p.charAt(i) != p.charAt(j + 1)) {
+                j = b[j];
+            }
+            if (p.charAt(i) == p.charAt(j + 1)) {
+                j++;
+            }
+            b[i] = j;
+        }
+        return b;
+    }
+}
+</code></pre>
+
+<p>The difference worth remembering: under A the index is a length, so <code>p[j]</code> is the next character to compare, while under B the index is a position, so <code>p[j + 1]</code> is. The tables still differ by one global shift.</p>
+
+<h2>Edge cases</h2>
+
+<ul>
+<li>A single character gives <code>[0]</code>, and no code runs at all.</li>
+<li>A string of identical characters gives <code>[0,1,2,3]</code>, with no fallback.</li>
+<li>A string with no equal prefix and suffix gives all zeroes.</li>
+<li>The value at index i can never exceed i, because proper excludes the whole substring; a result of <code>i + 1</code> means the constraint was dropped.</li>
+<li>A miss returns minus one, not zero and not the last position.</li>
+<li>A pattern longer than the text simply scans out.</li>
+<li>An empty pattern returns zero, since the empty string is a prefix of everything; confirm that convention before answering.</li>
+<li>Non-ASCII characters compare as UTF-16 units; anything outside the basic plane needs code-point iteration.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Building next, matching against itself</td><td>Linear in the pattern</td><td>Linear</td></tr>
+<tr><td>KMP search</td><td>Linear in text plus pattern</td><td>Linear, for the table</td></tr>
+<tr><td>Brute force search</td><td>Product of the two lengths</td><td>Constant</td></tr>
+<tr><td>Brute force next</td><td>Quadratic in the pattern</td><td>Linear</td></tr>
+</tbody>
+</table>
+
+<p>The linear claim is amortised and worth memorising: <code>j</code> increases by at most one per iteration, so total increases are bounded by the pattern length, and every fallback only returns what was previously added, so total fallbacks are bounded the same way. A single iteration can fall all the way to zero, but the sum across the loop is linear.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Dropping the word proper, which makes the value <code>i + 1</code> and turns the fallback into an infinite loop. The single most common failure.</li>
+<li>Reading <code>next[j]</code> instead of <code>next[j-1]</code> under definition A, which lands on the wrong candidate.</li>
+<li>Writing the fallback as a branch rather than a loop.</li>
+<li>Mixing the two conventions, comparing against <code>p[j]</code> while falling back to <code>next[j]</code>.</li>
+<li>Moving <code>i</code> backwards on a mismatch, which collapses the algorithm into brute force.</li>
+<li>Recomputing the table inside the search loop instead of once.</li>
+<li>Reading <code>p[j]</code> before checking whether <code>j</code> has already reached the pattern length.</li>
+<li>Believing <code>next[i]</code> describes <code>p[0..i-1]</code>, which is the other convention.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Start by confirming the definition, and state both answers with the note that they differ by a shift. That demonstrates you know there are two conventions and hands the choice back.</p>
+
+<p>Then describe the machine: the first entry is fixed by definition, the loop from one is a string matching itself, <code>j</code> is both the matched length and the next index to compare, the invariant holds between the aligned prefix and suffix, a mismatch walks back along the previous entry, a match advances, and each value is recorded at the end of its iteration.</p>
+
+<p>Then justify the linear bound with the amortisation argument: increments are capped by the pattern length, fallbacks only undo increments, so the total work is proportional to the input.</p>
+
+<p>Expect follow-ups: first occurrence, which is the search pass; whether a string is a repetition, which is arithmetic on the last entry; the longest palindromic prefix, which needs the reversed concatenation; and the longest prefix that is also a suffix, which is the last entry itself.</p>
+
+<p>Close with the summary: one table and one scan that never looks back, where the table records the boundary information a string carries about itself, and the scan cashes in the equal prefix and suffix that were already inside the matched segment. The two definitions are simply two ways of writing the same table down.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty is not the code, which is six lines, but the definition. Whether the value at an index describes the substring up to and including it, and whether the first entry is zero or minus one, decides whether the answer is one list or the other. Ask first, then write.</p>
+
+<p>And spend the remaining effort on understanding the sentence "a string matching against itself": one counter records how much has matched and simultaneously points at what to compare next; on a mismatch it walks back to a shorter candidate that still fits. Once the table exists, the scan never moves the text pointer back, which is the whole purchase: linear build, linear search.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

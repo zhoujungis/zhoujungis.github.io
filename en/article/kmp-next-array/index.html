@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="next[i] is the longest proper prefix of p[0..i] that is also a suffix. One machine, two ways of writing the numbers down, and a scan that never moves i backwards." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/kmp-next-array/" />
+    <meta property="og:title" content="The KMP next array: matching a string against itself | Stack Frame" />
+    <meta property="og:description" content="next[i] is the longest proper prefix of p[0..i] that is also a suffix. One machine, two ways of writing the numbers down, and a scan that never moves i backwards." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/kmp-next-array/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The KMP next array: matching a string against itself | Stack Frame" />
+    <meta name="twitter:description" content="next[i] is the longest proper prefix of p[0..i] that is also a suffix. One machine, two ways of writing the numbers down, and a scan that never moves i backwards." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>The KMP next array: matching a string against itself | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/kmp-next-array/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/kmp-next-array/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/kmp-next-array/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>The KMP next array: matching a string against itself</h1><div class="ns-meta">2026-10-14 · 18 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p><strong>Find the next array of the pattern <code>p = "abacaba"</code></strong>, using the definition of the longest proper prefix that is also a suffix. The answer is <code>[0,0,1,0,1,2,3]</code>.</p>
+
+<p>One sentence before anything else: <strong>confirm which definition the interviewer is using.</strong> There is a second convention where the first entry is <code>-1</code>, from the classic data structures textbook, and under that convention the same string gives <code>[-1,0,0,1,0,1,2]</code>. The two differ by a single global shift, and the numbers reported are completely different.</p>
+
+<pre><code>p      = a  b  a  c  a  b  a
+next   = 0  0  1  0  1  2  3      longest proper prefix equal to a suffix
+other  = -1 0  0  1  0  1  2      the first-entry-minus-one convention
+</code></pre>
+
+<p>The exercise looks like memorising a template. The actual difficulty sits in a place that gets glossed over: <strong>which substring the value at <code>next[i]</code> describes</strong>. A vague definition, dropping the word proper or confusing inclusive and exclusive, shifts every answer by one; and once the table exists, <code>next[j-1]</code> is the index every fallback reads.</p>
+
+<h2>What next is, and why a string can match itself</h2>
+
+<p>Pin the definition down. <code>next[i]</code> is the length of the longest <strong>proper</strong> prefix of <code>p[0..i]</code> that is also a suffix of it.</p>
+
+<p>Proper is the load-bearing word: neither the prefix nor the suffix may be the whole substring, so the length is strictly below <code>i + 1</code>. Because the trivial "the string equals itself" case is excluded, <code>next[0] = 0</code> always holds, since a one-character string has no proper prefix or suffix.</p>
+
+<ul>
+<li><code>p[0..2] = "aba"</code>: the prefix <code>"a"</code> equals the suffix <code>"a"</code>, length one, so <code>next[2] = 1</code>.</li>
+<li><code>p[0..3] = "abac"</code>: <code>"a"</code> against <code>"c"</code> and <code>"ab"</code> against <code>"ac"</code> both fail, so <code>next[3] = 0</code>.</li>
+<li><code>p[0..6] = "abacaba"</code>: <code>"aba"</code> appears at both ends, so <code>next[6] = 3</code>.</li>
+</ul>
+
+<p>The obvious method enumerates prefix lengths from large to small at every index, which costs quadratic time. KMP is one sentence:</p>
+
+<p><strong>Let the pattern match against itself.</strong> Treat <code>p</code> as both the text and the pattern, walk <code>i</code> along the text, and let <code>j</code> hold the length of the prefix already matched.</p>
+
+<pre><code>next[0] = 0; j = 0
+for i = 1 .. n-1:
+    while j &gt; 0 and p[i] != p[j]:
+        j = next[j-1]        # mismatch: fall back to a shorter candidate prefix
+    if p[i] == p[j]:
+        j = j + 1            # match: the candidate prefix grows by one
+    next[i] = j
+</code></pre>
+
+<p><code>j</code> has two faces, and understanding both removes the need to memorise anything.</p>
+
+<p>First, it is the length of the matched prefix: before each comparison, the invariant <code>p[0..j-1]</code> equals <code>p[i-j..i-1]</code> holds. Second, it is the index of the next character to compare against <code>p[i]</code>, because the first <code>j</code> characters are already aligned with the <code>j</code> characters immediately before <code>i</code>, so <code>p[j]</code> is the natural next candidate.</p>
+
+<pre><code>def prefix_function(p):
+    n = len(p)
+    next = [0] * n
+    j = 0
+    for i in range(1, n):
+        while j &gt; 0 and p[i] != p[j]:
+            j = next[j - 1]
+        if p[i] == p[j]:
+            j += 1
+        next[i] = j
+    return next
+
+# p = "abacaba" -> [0, 0, 1, 0, 1, 2, 3]
+</code></pre>
+
+<p>Three details decide correctness. The first entry is a definition, not a computation, so the loop starts at one. The fallback reads <code>next[j-1]</code> and not <code>next[j]</code>, because the longest proper prefix-suffix of <code>p[0..j-1]</code> is exactly the shorter candidate that still fits. And the fallback is a loop rather than a branch, since one step may not be enough on a longer string.</p>
+
+<p>One sentence captures the machine: <strong><code>j</code> is the matched prefix length, <code>p[0..j-1]</code> stays aligned with <code>p[i-j..i-1]</code>, a mismatch walks back along <code>next[j-1]</code>, a match advances <code>j</code>, and the value is recorded as <code>next[i]</code>.</strong></p>
+
+<h2>The two definitions</h2>
+
+<table>
+<thead><tr><th></th><th>A: prefix function</th><th>B: first entry minus one</th></tr></thead>
+<tbody>
+<tr><td><code>next[0]</code></td><td>0</td><td>-1, a sentinel</td></tr>
+<tr><td>What <code>next[i]</code> means</td><td>Longest proper prefix-suffix of <code>p[0..i]</code></td><td>The same, for <code>p[0..i-1]</code></td></tr>
+<tr><td>Result for "abacaba"</td><td><code>[0,0,1,0,1,2,3]</code></td><td><code>[-1,0,0,1,0,1,2]</code></td></tr>
+</tbody>
+</table>
+
+<pre><code>B = [-1] + A[0 .. n-2]
+</code></pre>
+
+<p>B is A shifted one position right with a sentinel prepended. The reason anyone uses B is that it compiles the fallback into the table: under A the fallback is <code>j = next[j-1]</code>, while under B it is <code>j = next[j]</code>, and the <code>-1</code> at the front expresses "there is nowhere left to go". The cost is one extra layer of indexing, since <code>B[i]</code> describes <code>p[0..i-1]</code> while <code>A[i]</code> describes <code>p[0..i]</code>.</p>
+
+<p>So open with the question and take the initiative back. Say which definition you are using, give the numbers under both, and note the single shift between them, then offer to switch.</p>
+
+<h2>Walking through the two passes</h2>
+
+<p>The original post has two animations, one building the table and one using it. Here is what they show, step by step.</p>
+
+<p><strong>Building the table.</strong> Lay <code>p</code> out as a row of cells, each with its character and index, and put the <code>next</code> row underneath, cells not yet computed drawn as dashed and greyed, computed cells turning green. Two markers track the row: <code>i</code> at the current character and <code>j</code> at the matched prefix length, which is also the index to compare against. Each frame performs one action. A comparison frame outlines <code>p[i]</code> and <code>p[j]</code>, greening them when they match, and greens the whole matched prefix and suffix. A fallback frame draws a dashed line from <code>p[j]</code> to the cell at <code>next[j-1]</code>. A settling frame colours <code>next[i]</code>. A counter panel tracks <code>i</code>, <code>j</code>, comparisons, fallbacks and how many entries are fixed.</p>
+
+<p>Three things to watch. During a comparison frame <code>j</code> does not move; it only moves when a frame settles. A fallback frame is the only place <code>j</code> decreases, and it always reads <code>next[j-1]</code>, which is exactly the cell the dashed line points at. And the first cell is green from the start, because it is a definition rather than a result. Sixteen frames for this string, seven comparisons, one fallback.</p>
+
+<p><strong>Using the table.</strong> The text sits on one row and the pattern on the next, with the pattern row sliding so that <code>p[j]</code> lands directly under <code>text[i]</code>, which makes the aligned prefix visible. Comparison frames outline and green the two characters. A fallback frame draws a dashed arc from the old <code>j</code> to the new one while leaving the outline on <code>text[i]</code> in place, which is the visual proof that <code>i</code> does not move. A hit frame colours the matched window and the whole pattern. A second counter compares the KMP comparisons against the brute-force count for the same input, so the saving is visible.</p>
+
+<h2>The full trace</h2>
+
+<p>With <code>p = "abacaba"</code>:</p>
+
+<table>
+<thead><tr><th>i</th><th>p[i]</th><th>What happens</th><th>j after</th><th>next[i]</th><th>Comparisons / fallbacks</th></tr></thead>
+<tbody>
+<tr><td>-</td><td>-</td><td><code>next[0] = 0</code>, a definition</td><td>0</td><td>0</td><td>0 / 0</td></tr>
+<tr><td>1</td><td>b</td><td>Against <code>p[0] = a</code>, mismatch; <code>j</code> is already zero</td><td>0</td><td><strong>0</strong></td><td>1 / 0</td></tr>
+<tr><td>2</td><td>a</td><td>Matches <code>p[0] = a</code>, so <code>j</code> advances</td><td>1</td><td><strong>1</strong></td><td>2 / 0</td></tr>
+<tr><td>3</td><td>c</td><td>Against <code>p[1] = b</code>, mismatch, so <code>j = next[0] = 0</code>; against <code>p[0]</code>, mismatch again</td><td>0</td><td><strong>0</strong></td><td>4 / 1</td></tr>
+<tr><td>4</td><td>a</td><td>Matches <code>p[0]</code></td><td>1</td><td><strong>1</strong></td><td>5 / 1</td></tr>
+<tr><td>5</td><td>b</td><td>Matches <code>p[1]</code></td><td>2</td><td><strong>2</strong></td><td>6 / 1</td></tr>
+<tr><td>6</td><td>a</td><td>Matches <code>p[2]</code></td><td>3</td><td><strong>3</strong></td><td>7 / 1</td></tr>
+</tbody>
+</table>
+
+<p>Index three holds the only fallback: <code>c</code> against <code>b</code>, <code>j</code> drops from one to zero, and the comparison restarts against a shorter candidate. Only when it cannot fall back further does the entry settle at zero.</p>
+
+<table>
+<thead><tr><th>i</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr></thead>
+<tbody>
+<tr><td>p[i]</td><td>a</td><td>b</td><td>a</td><td>c</td><td>a</td><td>b</td><td>a</td></tr>
+<tr><td>next[i]</td><td><strong>0</strong></td><td><strong>0</strong></td><td><strong>1</strong></td><td><strong>0</strong></td><td><strong>1</strong></td><td><strong>2</strong></td><td><strong>3</strong></td></tr>
+</tbody>
+</table>
+
+<p>Converting to the sentinel convention: prepend minus one and drop the last entry.</p>
+
+<p>Now the search. With <code>text = "abababacaba"</code> and the same pattern:</p>
+
+<table>
+<thead><tr><th>i</th><th>text[i]</th><th>Against p[j]</th><th>j before to after</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>a</td><td>a, match</td><td>0 to 1</td><td>Start</td></tr>
+<tr><td>1</td><td>b</td><td>b, match</td><td>1 to 2</td><td></td></tr>
+<tr><td>2</td><td>a</td><td>a, match</td><td>2 to 3</td><td>"aba" matched</td></tr>
+<tr><td>3</td><td>b</td><td>c, mismatch, so <code>j = next[2] = 1</code>; then b, match</td><td>3 to 2</td><td>First fallback, <code>i</code> unmoved</td></tr>
+<tr><td>4</td><td>a</td><td>a, match</td><td>2 to 3</td><td></td></tr>
+<tr><td>5</td><td>b</td><td>c, mismatch, so <code>j = next[2] = 1</code>; then b, match</td><td>3 to 2</td><td>Second fallback</td></tr>
+<tr><td>6</td><td>a</td><td>a, match</td><td>2 to 3</td><td></td></tr>
+<tr><td>7</td><td>c</td><td>c, match</td><td>3 to 4</td><td></td></tr>
+<tr><td>8</td><td>a</td><td>a, match</td><td>4 to 5</td><td></td></tr>
+<tr><td>9</td><td>b</td><td>b, match</td><td>5 to 6</td><td></td></tr>
+<tr><td>10</td><td>a</td><td>a, match</td><td>6 to 7</td><td>Hit, index 10 minus 7 plus 1 is 4</td></tr>
+</tbody>
+</table>
+
+<p>Both fallbacks happen where a <code>b</code> in the text meets the <code>c</code> in the pattern. After dropping to one, <code>p[1] = b</code> immediately consumes the same character, so nothing is wasted: what was saved is the equal prefix and suffix that already existed inside the matched segment <code>"aba"</code>, namely <code>"a"</code>.</p>
+
+<p>The brute-force ledger for the same input:</p>
+
+<table>
+<thead><tr><th>Start</th><th>Work</th><th>Comparisons</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>a, b, a match, then b against c fails</td><td>4</td></tr>
+<tr><td>1</td><td>b against a fails</td><td>1</td></tr>
+<tr><td>2</td><td>a, b, a match, then b against c fails</td><td>4</td></tr>
+<tr><td>3</td><td>b against a fails</td><td>1</td></tr>
+<tr><td>4</td><td>All seven match</td><td>7</td></tr>
+<tr><td>Total</td><td></td><td><strong>17</strong></td></tr>
+</tbody>
+</table>
+
+<p>KMP reaches the same answer in thirteen. On inputs like a long run of <code>a</code> followed by a <code>b</code> against a pattern of pure <code>a</code>, brute force degrades to quadratic while KMP still finishes in one pass.</p>
+
+<h2>The family of problems</h2>
+
+<p>KMP is one table plus one scan that never looks back, and the same skeleton answers a whole chain of questions.</p>
+
+<ul>
+<li><strong>LC 28, first occurrence of a pattern.</strong> The second pass itself, and the basis of built-in substring search.</li>
+<li><strong>LC 459, repeated substring pattern.</strong> No matching needed: the string is a repetition when the length divides by the period, tested as <code>n % (n - next[n-1]) == 0</code> with <code>next[n-1] &gt; 0</code>.</li>
+<li><strong>LC 214, shortest palindrome.</strong> Build the table for <code>s + '#' + reverse(s)</code> and read the last entry, which is the longest palindromic prefix.</li>
+<li><strong>LC 1392, longest happy prefix.</strong> The definition of <code>next[n-1]</code> exactly.</li>
+<li><strong>LC 686, repeated string match.</strong> The text may be constructed by repeating, and the bound follows from the length ratio.</li>
+</ul>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int[] prefixFunction(String p) {
+        int n = p.length();
+        int[] next = new int[n];
+        int j = 0;
+        for (int i = 1; i &lt; n; i++) {
+            while (j &gt; 0 &amp;&amp; p.charAt(i) != p.charAt(j)) {
+                j = next[j - 1];
+            }
+            if (p.charAt(i) == p.charAt(j)) {
+                j++;
+            }
+            next[i] = j;
+        }
+        return next;
+    }
+}
+</code></pre>
+
+<pre><code>class Solution {
+    public int strStr(String text, String p) {
+        int m = text.length(), n = p.length();
+        if (n == 0) return 0;
+        int[] next = prefixFunction(p);
+        int j = 0;
+        for (int i = 0; i &lt; m; i++) {
+            while (j &gt; 0 &amp;&amp; text.charAt(i) != p.charAt(j)) {
+                j = next[j - 1];
+            }
+            if (text.charAt(i) == p.charAt(j)) {
+                j++;
+            }
+            if (j == n) {
+                return i - n + 1;
+            }
+        }
+        return -1;
+    }
+
+    private int[] prefixFunction(String p) {
+        int n = p.length();
+        int[] next = new int[n];
+        int j = 0;
+        for (int i = 1; i &lt; n; i++) {
+            while (j &gt; 0 &amp;&amp; p.charAt(i) != p.charAt(j)) j = next[j - 1];
+            if (p.charAt(i) == p.charAt(j)) j++;
+            next[i] = j;
+        }
+        return next;
+    }
+}
+</code></pre>
+
+<p>The sentinel convention changes two indices.</p>
+
+<pre><code>class Solution {
+    public int[] prefixFunctionNegOne(String p) {
+        int n = p.length();
+        int[] b = new int[n];
+        b[0] = -1;
+        int j = -1;
+        for (int i = 1; i &lt; n; i++) {
+            while (j &gt;= 0 &amp;&amp; p.charAt(i) != p.charAt(j + 1)) {
+                j = b[j];
+            }
+            if (p.charAt(i) == p.charAt(j + 1)) {
+                j++;
+            }
+            b[i] = j;
+        }
+        return b;
+    }
+}
+</code></pre>
+
+<p>The difference worth remembering: under A the index is a length, so <code>p[j]</code> is the next character to compare, while under B the index is a position, so <code>p[j + 1]</code> is. The tables still differ by one global shift.</p>
+
+<h2>Edge cases</h2>
+
+<ul>
+<li>A single character gives <code>[0]</code>, and no code runs at all.</li>
+<li>A string of identical characters gives <code>[0,1,2,3]</code>, with no fallback.</li>
+<li>A string with no equal prefix and suffix gives all zeroes.</li>
+<li>The value at index i can never exceed i, because proper excludes the whole substring; a result of <code>i + 1</code> means the constraint was dropped.</li>
+<li>A miss returns minus one, not zero and not the last position.</li>
+<li>A pattern longer than the text simply scans out.</li>
+<li>An empty pattern returns zero, since the empty string is a prefix of everything; confirm that convention before answering.</li>
+<li>Non-ASCII characters compare as UTF-16 units; anything outside the basic plane needs code-point iteration.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Building next, matching against itself</td><td>Linear in the pattern</td><td>Linear</td></tr>
+<tr><td>KMP search</td><td>Linear in text plus pattern</td><td>Linear, for the table</td></tr>
+<tr><td>Brute force search</td><td>Product of the two lengths</td><td>Constant</td></tr>
+<tr><td>Brute force next</td><td>Quadratic in the pattern</td><td>Linear</td></tr>
+</tbody>
+</table>
+
+<p>The linear claim is amortised and worth memorising: <code>j</code> increases by at most one per iteration, so total increases are bounded by the pattern length, and every fallback only returns what was previously added, so total fallbacks are bounded the same way. A single iteration can fall all the way to zero, but the sum across the loop is linear.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Dropping the word proper, which makes the value <code>i + 1</code> and turns the fallback into an infinite loop. The single most common failure.</li>
+<li>Reading <code>next[j]</code> instead of <code>next[j-1]</code> under definition A, which lands on the wrong candidate.</li>
+<li>Writing the fallback as a branch rather than a loop.</li>
+<li>Mixing the two conventions, comparing against <code>p[j]</code> while falling back to <code>next[j]</code>.</li>
+<li>Moving <code>i</code> backwards on a mismatch, which collapses the algorithm into brute force.</li>
+<li>Recomputing the table inside the search loop instead of once.</li>
+<li>Reading <code>p[j]</code> before checking whether <code>j</code> has already reached the pattern length.</li>
+<li>Believing <code>next[i]</code> describes <code>p[0..i-1]</code>, which is the other convention.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Start by confirming the definition, and state both answers with the note that they differ by a shift. That demonstrates you know there are two conventions and hands the choice back.</p>
+
+<p>Then describe the machine: the first entry is fixed by definition, the loop from one is a string matching itself, <code>j</code> is both the matched length and the next index to compare, the invariant holds between the aligned prefix and suffix, a mismatch walks back along the previous entry, a match advances, and each value is recorded at the end of its iteration.</p>
+
+<p>Then justify the linear bound with the amortisation argument: increments are capped by the pattern length, fallbacks only undo increments, so the total work is proportional to the input.</p>
+
+<p>Expect follow-ups: first occurrence, which is the search pass; whether a string is a repetition, which is arithmetic on the last entry; the longest palindromic prefix, which needs the reversed concatenation; and the longest prefix that is also a suffix, which is the last entry itself.</p>
+
+<p>Close with the summary: one table and one scan that never looks back, where the table records the boundary information a string carries about itself, and the scan cashes in the equal prefix and suffix that were already inside the matched segment. The two definitions are simply two ways of writing the same table down.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty is not the code, which is six lines, but the definition. Whether the value at an index describes the substring up to and including it, and whether the first entry is zero or minus one, decides whether the answer is one list or the other. Ask first, then write.</p>
+
+<p>And spend the remaining effort on understanding the sentence "a string matching against itself": one counter records how much has matched and simultaneously points at what to compare next; on a mismatch it walks back to a shorter candidate that still fits. Once the table exists, the scan never moves the text pointer back, which is the whole purchase: linear build, linear search.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/kmp-next-array/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/kmp-next-array/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
