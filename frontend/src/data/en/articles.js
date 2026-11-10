@@ -29171,6 +29171,254 @@ input: 1 -&gt; 2, no cycle
 `,
   },
 
+  {
+    slug: 'lc-21-merge-two-sorted-lists',
+    zhSlug: 'lc-21-merge-two-sorted-lists',
+    topicSlug: 'leetcode',
+    title: 'LC 21, merging two sorted lists: what the dummy node carries for you',
+    excerpt:
+      'Easy by the numbers, and the source of two familiar failures: losing the rest of a list while stitching, and writing five branches to work out which head wins.',
+    date: '2026-10-22',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Merge two ascending lists into one ascending list, reusing the original nodes.</p>
+
+<pre><code>input:  1 -&gt; 2 -&gt; 4   and   1 -&gt; 3 -&gt; 4
+output: 1 -&gt; 1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 4
+</code></pre>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<p>The word to notice is stitching: not allocating new nodes and copying values, but re-threading the existing ones. No value changes, only the direction of links.</p>
+
+<p>The problem is easy and the pass rate shows it, and yet two failures recur even among people who have done hundreds of these: dropping half a list while stitching, and writing five branches to decide which node becomes the head, then missing one case. Easy problems rarely hide their difficulty in the algorithm; they hide it in the completeness of the boundaries.</p>
+
+<h2>Translating merge into pointer work</h2>
+
+<p>An array merge copies elements into a new array, because positions are index-based and you cannot attach an element to another array.</p>
+
+<p>In a list the only organisation is the link, so putting a node into the result is one statement: point the tail's next at it. Nothing is copied or moved. That is why the list version needs constant extra space, since the result is made of the original nodes.</p>
+
+<p>Both lists are ascending, so the global minimum can only be at one of the two heads. Compare the heads, take the smaller, advance that list, and repeat until one runs out. Then attach whatever remains of the other in one go, because it is already sorted and every value in it is at least as large as everything already placed.</p>
+
+<h2>The two traps</h2>
+
+<h3>Losing the rest of a list while stitching</h3>
+
+<p>A node has one link, so before you overwrite it you have to know whether you still need what it pointed at. The safe order is to attach and then advance: at the moment of attaching, the pointer still refers to the node, and only afterwards does it move.</p>
+
+<p>The failure people actually write is subtler: attaching without advancing the tail. The next node is then attached to the same tail, overwriting the previous one, and the result silently shrinks to one or two nodes with no error at all. The test before touching any link: after this change, can I still get back?</p>
+
+<h3>The first node is not known in advance</h3>
+
+<pre><code>if l1 is None:
+    return l2
+if l2 is None:
+    return l1
+if l1.val &lt;= l2.val:
+    head = l1
+    l1 = l1.next
+else:
+    head = l2
+    l2 = l2.next
+tail = head
+while l1 and l2:
+    ...  # identical to the real loop
+return head
+</code></pre>
+
+<p>Four branches plus an initialisation that duplicates the loop body. Duplication means two places to keep in sync, and eventually one of them drifts.</p>
+
+<h2>The dummy node</h2>
+
+<pre><code>dummy -&gt; ? -&gt; ? -&gt; ?
+tail -----^
+</code></pre>
+
+<p>A dummy holds no data; its only job is to occupy the head position in advance. With it, every attachment is the same ordinary operation, so the first node and the twentieth follow exactly one code path and there is no "is this the first" question anywhere. The real head is the dummy's next, and the dummy itself never enters the result.</p>
+
+<p>The tail maintains the boundary of what has been stitched. Everything happens behind it, and everything in front of it is complete, ordered and never touched again. That is the same idea as the previous pointer in LC 206, which held the boundary of the reversed segment.</p>
+
+<p>The original post animates the thirteen steps of merging the example, colouring nodes by which list they came from and drawing the dummy as a dashed box. Three moments are worth remembering: during a comparison both candidates are highlighted; when a node is taken it moves into the result row, its colour showing its origin; and at the end the leftover node from the other list lights up as a whole and is attached in one step.</p>
+
+<h2>Iterative</h2>
+
+<pre><code>def mergeTwoLists(l1: ListNode, l2: ListNode) -&gt; ListNode:
+    dummy = ListNode(0)
+    tail = dummy
+    while l1 and l2:
+        if l1.val &lt;= l2.val:
+            tail.next = l1
+            l1 = l1.next
+        else:
+            tail.next = l2
+            l2 = l2.next
+        tail = tail.next
+    tail.next = l1 if l1 else l2
+    return dummy.next
+</code></pre>
+
+<pre><code>public ListNode mergeTwoLists(ListNode l1, ListNode l2) {
+    ListNode dummy = new ListNode(0);
+    ListNode tail = dummy;
+    while (l1 != null &amp;&amp; l2 != null) {
+        if (l1.val &lt;= l2.val) {
+            tail.next = l1;
+            l1 = l1.next;
+        } else {
+            tail.next = l2;
+            l2 = l2.next;
+        }
+        tail = tail.next;
+    }
+    tail.next = (l1 != null) ? l1 : l2;
+    return dummy.next;
+}
+</code></pre>
+
+<p>Attaching then advancing is the safe order for the first trap. Moving the tail is the second half of it, or the next iteration overwrites the node just placed. And the final assignment handles the case the loop exits on, where one list still has a whole chain unattached.</p>
+
+<table>
+<thead><tr><th>Round</th><th>Compare</th><th>Action</th><th>Result so far</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>1 vs 1</td><td>Take the first list's 1</td><td>1</td><td>Its pointer at 2</td></tr>
+<tr><td>2</td><td>2 vs 1</td><td>Take the second list's 1</td><td>1, 1</td><td>Its pointer at 3</td></tr>
+<tr><td>3</td><td>2 vs 3</td><td>Take 2</td><td>1, 1, 2</td><td>First list at 4</td></tr>
+<tr><td>4</td><td>4 vs 3</td><td>Take 3</td><td>1, 1, 2, 3</td><td>Second list at 4</td></tr>
+<tr><td>5</td><td>4 vs 4</td><td>Take the first 4</td><td>1, 1, 2, 3, 4</td><td>First list empty</td></tr>
+<tr><td>Finish</td><td>-</td><td>Attach the remaining 4</td><td>1, 1, 2, 3, 4, 4</td><td>Return the dummy's next</td></tr>
+</tbody>
+</table>
+
+<p>Round five is the one to look at: the loop exits with the second list's four still hanging outside the result. Without the final line the output is missing its last node, which is the single most common wrong answer on this problem.</p>
+
+<p>The edges all fall out of the same code. One empty list means the loop never runs and the other is attached whole, so none of the four branches the dummy-free version needed are required. Both empty returns null. Very different lengths behave like the example. And equal values take the first list, which is a stability habit rather than a requirement here, but the same comparison is what makes merge sort stable, and this loop is the merge step.</p>
+
+<h2>Recursive</h2>
+
+<pre><code>def mergeTwoLists(l1: ListNode, l2: ListNode) -&gt; ListNode:
+    if not l1:
+        return l2
+    if not l2:
+        return l1
+    if l1.val &lt;= l2.val:
+        l1.next = mergeTwoLists(l1.next, l2)
+        return l1
+    else:
+        l2.next = mergeTwoLists(l1, l2.next)
+        return l2
+</code></pre>
+
+<pre><code>public ListNode mergeTwoLists(ListNode l1, ListNode l2) {
+    if (l1 == null) return l2;
+    if (l2 == null) return l1;
+    if (l1.val &lt;= l2.val) {
+        l1.next = mergeTwoLists(l1.next, l2);
+        return l1;
+    } else {
+        l2.next = mergeTwoLists(l1, l2.next);
+        return l2;
+    }
+}
+</code></pre>
+
+<p>Read it as a contract: merge these two ordered lists and return the merged head. With the first list's head no larger, it is the global minimum and therefore the answer's first node; the rest is the merge of the remainder with the whole second list, which is the same problem one node smaller. Attach that result and return the head. The base case is the identity element of the operation: merging anything with an empty list returns it unchanged.</p>
+
+<pre><code>merge(124, 134)   1&lt;=1, head 1   waits for merge(24, 134)
+  merge(24, 134)  2&gt;1, head 1'  waits for merge(24, 34)
+    merge(24, 34) 2&lt;=3, head 2  waits for merge(4, 34)
+      merge(4, 34) 4&gt;3, head 3  waits for merge(4, 4)
+        merge(4, 4) 4&lt;=4       waits for merge(empty, 4)
+          returns 4
+        returns 4, 4
+      returns 3, 4, 4
+    returns 2, 3, 4, 4
+  returns 1, 2, 3, 4, 4
+returns 1, 1, 2, 3, 4, 4
+</code></pre>
+
+<p>The deepest stack is five frames, which equals the node count, because each level consumes one node.</p>
+
+<table>
+<thead><tr><th></th><th>Iterative</th><th>Recursive</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Linear in both lengths</td><td>The same</td></tr>
+<tr><td>Extra space</td><td><strong>Constant</strong></td><td>Stack frames equal to the total</td></tr>
+<tr><td>Readability</td><td>A little verbose</td><td>Very short</td></tr>
+<tr><td>Engineering risk</td><td>None</td><td>Overflow on long lists</td></tr>
+</tbody>
+</table>
+
+<p>Python's default recursion limit is about a thousand, which two lists of six hundred nodes exhaust. In production the iterative version wins; the recursion is worth writing in an interview to show you see the self-similar structure, and it is also a part of the divide-and-conquer solution to LC 23.</p>
+
+<h2>Complexity</h2>
+
+<p>Iterative is linear in time, since each node is touched once and compared once, and constant in space, for two extra pointers. Recursive is the same in time and linear in stack depth. The constant space is worth saying out loud: a list merge needs no auxiliary array, which is why LC 148 demands the list version when it asks for constant space.</p>
+
+<h2>Follow-up: k lists (LC 23)</h2>
+
+<p><strong>Sequential merging</strong> reuses this function repeatedly, combining the first list with the second, then with the third. It works, and the nodes merged early are walked again in every later round, giving quadratic behaviour in the number of lists.</p>
+
+<p><strong>Divide and conquer</strong> pairs them up, halving the count each round like a tournament, so there are a logarithmic number of rounds with linear work in each, which is the familiar linearithmic bound.</p>
+
+<pre><code>import heapq
+
+def mergeKLists(lists):
+    dummy = ListNode(0)
+    tail = dummy
+    heap = []
+    for i, head in enumerate(lists):
+        if head:
+            heapq.heappush(heap, (head.val, i, head))
+    while heap:
+        val, i, node = heapq.heappop(heap)
+        tail.next = node
+        tail = tail.next
+        if node.next:
+            heapq.heappush(heap, (node.next.val, i, node.next))
+    return dummy.next
+</code></pre>
+
+<p><strong>A heap</strong> keeps only the k current heads, since the global minimum can only be one of them, which is the same observation as this problem with k instead of two. Each node enters and leaves the heap once, giving the same complexity as divide and conquer with only k extra space. The index in the tuple breaks ties without ever comparing nodes.</p>
+
+<p>Notice how much carries over: dummy, tail, attach then advance, take the smaller. The skeleton is identical, and only the "pick the smallest head" decision changes from a comparison to a heap. Master this problem and two of the three solutions to LC 23 come free.</p>
+
+<p>The real application is LC 148, sorting a list: find the midpoint with two pointers, sort each half recursively, and merge with exactly this function. Constant-space sorting on a list is only possible with the bottom-up merge, whose core is the eight lines above, which is often why an interviewer starts here.</p>
+
+<h2>Mistakes to check</h2>
+
+<ol>
+<li>Forgetting the final whole-chain attachment, which silently truncates the output on long inputs.</li>
+<li>Forgetting to advance the tail, which overwrites nodes and can even create a cycle.</li>
+<li>Writing the loop condition with a disjunction, then dereferencing an empty list. It must be a conjunction, leaving the leftover to the final line.</li>
+<li>Advancing before attaching, which loses the node.</li>
+<li>Using a strict comparison for equal values: the result is still correct, but the stability is gone, and an interviewer may ask why.</li>
+<li>Using the recursive version on very long lists and hitting the stack limit.</li>
+<li>Allocating new nodes and copying values, which the problem forbids and which costs extra space.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>The short version: iterate with a dummy and a tail, compare the two heads, attach the smaller, advance both the source pointer and the tail; when the loop exits one list is empty, so attach the rest of the other, which is ordered and no smaller than what is placed; linear time, constant space, return the dummy's next.</p>
+
+<p>Expect four follow-ups. Why a dummy: because the first node's origin is unknown, and without it the head needs special cases. Is there another way: recursion, three lines, at the cost of stack depth. Which side wins a tie: either, and taking the first keeps the stability that merge sort depends on. And how would k lists work: sequential, then divide and conquer, then a heap holding only k heads. The last comparison worth making is against an array merge: no copying, no auxiliary array, constant extra space, which is exactly what makes LC 148 possible.</p>
+
+<h2>Closing</h2>
+
+<p>Put this beside LC 206 and the two easy problems teach one thing: pointer work is boundary maintenance. The previous pointer guards the reversed segment, the tail guards the merged segment, and every dangerous operation happens behind the boundary, where nothing already finished can be disturbed.</p>
+
+<p>Writing list problems calmly is not about memorising templates. It is knowing, before each pointer change, which region the pointer belongs to and whether the change closes the road back.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-21-merge-two-sorted-lists/">【LC 21】合并两个有序链表：哑结点到底替你扛了什么</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
