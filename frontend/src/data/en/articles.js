@@ -30624,6 +30624,285 @@ else:
 `,
   },
 
+  {
+    slug: 'lc-23-merge-k-sorted-lists',
+    zhSlug: 'lc-23-merge-k-sorted-lists',
+    topicSlug: 'leetcode',
+    title: 'LC 23, merging k sorted lists: how many nodes belong in the heap',
+    excerpt:
+      'Three approaches, one subroutine. Sequential merging is quadratic, divide and conquer and the heap are not, and for small k the heap is actually the slowest of the three.',
+    date: '2026-10-16',
+    readingTime: 17,
+    html: `
+<h2>The problem</h2>
+
+<p>Given an array of sorted lists, merge them into one sorted list.</p>
+
+<pre><code>input:  [[1,4,5],[1,3,4],[2,6]]
+output: 1 -&gt; 1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5 -&gt; 6
+</code></pre>
+
+<p>The constraints matter more than the statement: k can reach ten thousand, but the total number of nodes across all lists does not exceed ten thousand. Those two numbers together already hint at where the naive approach dies.</p>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<h2>Pricing the work first</h2>
+
+<p>This is the k-ary version of the previous problem, whose merge looks like this:</p>
+
+<pre><code>def mergeTwoLists(l1, l2):
+    dummy = ListNode(0)
+    tail = dummy
+    while l1 and l2:
+        if l1.val &lt;= l2.val:
+            tail.next = l1
+            l1 = l1.next
+        else:
+            tail.next = l2
+            l2 = l2.next
+        tail = tail.next
+    tail.next = l1 if l1 else l2
+    return dummy.next
+</code></pre>
+
+<p>Nothing in those eight lines changes here. The questions are how many times to call it and how to organise the calls.</p>
+
+<h3>Sequential merging</h3>
+
+<pre><code>def mergeKLists(lists):
+    if not lists:
+        return None
+    result = lists[0]
+    for lst in lists[1:]:
+        result = mergeTwoLists(result, lst)
+    return result
+</code></pre>
+
+<p>Correct, and slow. The nodes merged early are walked again in every later round.</p>
+
+<p>With k lists each of length n, the i-th round walks about i times n nodes already merged plus the next list, and summing over the rounds gives a total around N times k over two. That is quadratic in k, not linear: each round costs more than the last, and there are k rounds, so the two multiplications compound.</p>
+
+<p>Concretely, with a thousand lists of ten nodes, sequential merging performs 4,543,137 comparisons, while divide and conquer over the same input performs 97,987. A factor of forty-six.</p>
+
+<h3>Divide and conquer: reduce the rounds to a logarithm</h3>
+
+<pre><code>round 1: k lists    -&gt; k/2 lists
+round 2: k/2 lists  -&gt; k/4 lists
+...
+</code></pre>
+
+<p>Pair them up instead of appending one at a time. The count halves each round, so there are logarithmically many rounds, and in each round every node is touched exactly once. Multiply: linearithmic in the total.</p>
+
+<p>For a thousand lists that is about ten rounds instead of nine hundred and ninety-nine.</p>
+
+<h3>A min-heap: change the selection instead of the order</h3>
+
+<p>The earlier observation still holds with k lists: the global minimum is always among the current heads. So the requirement is a structure that accepts a value and returns the minimum, which is exactly what a heap does.</p>
+
+<p>Each node is pushed once and popped once, so two N heap operations, each logarithmic in the heap size. The heap never holds more than k elements, so it is the logarithm of k, not of N. Total time is N log k, with k extra space.</p>
+
+<h3>The three accounts side by side</h3>
+
+<p>Asymptotics hide constants, and for small k the constants decide. A counting script implements all three and counts actual comparisons using an instrumented key, rather than timing, because counting is deterministic arithmetic: the same input gives the same number regardless of machine load, whereas timing on this machine has a noise floor of twelve percent reaching fifty-seven across sessions.</p>
+
+<table>
+<thead><tr><th>k</th><th>n each</th><th>N</th><th>Sequential</th><th>Divide and conquer</th><th>Min-heap</th></tr></thead>
+<tbody>
+<tr><td>4</td><td>8</td><td>32</td><td>67</td><td><strong>59</strong></td><td>97</td></tr>
+<tr><td>8</td><td>100</td><td>800</td><td>3,476</td><td><strong>2,391</strong></td><td>3,844</td></tr>
+<tr><td>100</td><td>100</td><td>10,000</td><td>500,165</td><td><strong>68,611</strong></td><td>86,005</td></tr>
+<tr><td>1000</td><td>10</td><td>10,000</td><td>4,543,137</td><td><strong>97,987</strong></td><td>116,530</td></tr>
+</tbody>
+</table>
+
+<p>The last two rows have the same N and k differing by a factor of ten. Sequential merging goes from five hundred thousand to four and a half million, a ninefold jump, while divide and conquer moves from sixty-eight thousand to ninety-eight thousand. That is the quadratic term isolated in one column.</p>
+
+<p>Two counterintuitive facts show up in the same table. At four lists, sequential merging is only fourteen percent slower than divide and conquer, while the heap is sixty-four percent slower: a heap is not a silver bullet, and building, sifting up and sifting down are real comparisons that cost more than pairwise merging when k is small. And divide and conquer beats the heap at every size, despite the same asymptotic class, for a reason covered below.</p>
+
+<h2>The heap: the point is not the heap, it is how much goes in it</h2>
+
+<p>Since the requirement is to repeatedly take the minimum, one tempting approach is to push all N nodes and pop them one by one. The result is correct and the time is N log N, which means paying for a full sort of data that is already sorted in k places. That throws away the condition the problem gave you.</p>
+
+<p>The correct version keeps only the k heads:</p>
+
+<pre><code>import heapq
+
+def mergeKLists(lists):
+    dummy = ListNode(0)
+    tail = dummy
+    heap = []
+
+    for i, head in enumerate(lists):
+        if head:
+            heapq.heappush(heap, (head.val, i, head))
+
+    while heap:
+        val, i, node = heapq.heappop(heap)
+        tail.next = node
+        tail = tail.next
+        if node.next:
+            heapq.heappush(heap, (node.next.val, i, node.next))
+
+    return dummy.next
+</code></pre>
+
+<p><strong>The heap never exceeds k elements.</strong> That is the entire source of the k inside the logarithm, and it is worth stating out loud in an interview, because it is the dividing line between memorising and understanding.</p>
+
+<p>Four details, each a trap. The index in the tuple is not decoration: Python compares tuples element by element, so with equal values it would compare the nodes, and a node class without an ordering raises a type error. A distinct integer short-circuits the comparison at the second element, and it also makes the output deterministic, since equal values then arrive in list order. Second, Python heaps are min-heaps, which is what this needs; a max-heap requires negating the values. Java is the same, despite the naming often confusing people. Third, building the heap incrementally is k log k versus linear with heapify, which is a constant factor here. Fourth, empty lists must be skipped before the value is read.</p>
+
+<h2>Watching it run</h2>
+
+<p>The original post animates four lists of two nodes each, one and four, two and five, three and six, zero and seven, producing zero through seven. The tree on the right is the heap, and the thing to watch is its size: never more than four, shrinking as lists are exhausted. The solid boxes on the left are the current heads of each list, which are exactly the k candidates inside the heap.</p>
+
+<p>After a pop, the last element moves to the root and sifts down; after a push, the new head sifts up; the two slots that changed are highlighted.</p>
+
+<table>
+<thead><tr><th>Round</th><th>Popped</th><th>Result</th><th>Pushed</th><th>Heap array</th></tr></thead>
+<tbody>
+<tr><td>build</td><td>-</td><td>empty</td><td>1/A, 2/B, 3/C, 0/D</td><td>0/D, 1/A, 3/C, 2/B</td></tr>
+<tr><td>1</td><td>0/D</td><td>0</td><td>7/D</td><td>1/A, 2/B, 3/C, 7/D</td></tr>
+<tr><td>2</td><td>1/A</td><td>0,1</td><td>4/A</td><td>2/B, 4/A, 3/C, 7/D</td></tr>
+<tr><td>3</td><td>2/B</td><td>0,1,2</td><td>5/B</td><td>3/C, 4/A, 7/D, 5/B</td></tr>
+<tr><td>4</td><td>3/C</td><td>0,1,2,3</td><td>6/C</td><td>4/A, 5/B, 7/D, 6/C</td></tr>
+<tr><td>5</td><td>4/A</td><td>through 4</td><td>A exhausted</td><td>5/B, 6/C, 7/D</td></tr>
+<tr><td>6</td><td>5/B</td><td>through 5</td><td>B exhausted</td><td>6/C, 7/D</td></tr>
+<tr><td>7</td><td>6/C</td><td>through 6</td><td>C exhausted</td><td>7/D</td></tr>
+<tr><td>8</td><td>7/D</td><td>all eight</td><td>D exhausted</td><td>empty</td></tr>
+</tbody>
+</table>
+
+<p>Two things to notice. The array after building is not in sorted order, only in heap order, which guarantees a parent is no larger than its children; do not read the array as a sorted result. And the last four rounds push nothing, because those lists are exhausted, so the heap shrinks from four to zero, showing that its size is dynamic with k as the bound.</p>
+
+<p>Edge cases fall out rather than being handled: an empty array never enters the build loop, an array with one empty list is skipped, empty lists mixed in are ignored, and a single list degenerates to a linear walk. Equal values are ordered by list index, which is deterministic though not stable, and stability is not required here.</p>
+
+<pre><code>public ListNode mergeKLists(ListNode[] lists) {
+    ListNode dummy = new ListNode(0);
+    ListNode tail = dummy;
+    PriorityQueue&lt;ListNode&gt; heap =
+        new PriorityQueue&lt;&gt;((a, b) -&gt; Integer.compare(a.val, b.val));
+
+    for (ListNode head : lists) {
+        if (head != null) heap.offer(head);
+    }
+    while (!heap.isEmpty()) {
+        ListNode node = heap.poll();
+        tail.next = node;
+        tail = tail.next;
+        if (node.next != null) heap.offer(node.next);
+    }
+    return dummy.next;
+}
+</code></pre>
+
+<p>Java puts the nodes in directly and needs no index, because the comparator is explicit, so the comparison never falls through to the node objects. That is the one genuine difference between the two languages here.</p>
+
+<h2>Divide and conquer</h2>
+
+<pre><code>input   [7] [2] [5] [1] [8] [3] [6] [4]        8 lists
+          \/      \/      \/      \/
+round 1 [2 7]  [1 5]  [3 8]  [4 6]             4 lists
+            \---/      \---/
+round 2  [1 2 5 7]   [3 4 6 8]                 2 lists
+              \-------/
+round 3  [1 2 3 4 5 6 7 8]                     1 list
+</code></pre>
+
+<p>That is the merge tree of merge sort, upside down. Every level holds all eight nodes, and only the grouping changes: singletons, then pairs, then quads. The number of rounds is the logarithm of k, which is much clearer from the picture than from the formula.</p>
+
+<pre><code>def mergeKLists(lists):
+    if not lists:
+        return None
+    return merge_range(lists, 0, len(lists) - 1)
+
+def merge_range(lists, lo, hi):
+    if lo == hi:
+        return lists[lo]
+    mid = (lo + hi) // 2
+    left = merge_range(lists, lo, mid)
+    right = merge_range(lists, mid + 1, hi)
+    return mergeTwoLists(left, right)
+</code></pre>
+
+<p>Read it as a contract: merge the slice from lo to hi and return its head. Split the slice, let each half fulfil the contract, then combine with the eight lines from the previous problem. The recursion depth is the logarithm of k, so the stack is small, about fourteen frames even at ten thousand lists, which is actually less space than the heap.</p>
+
+<pre><code>def mergeKLists(lists):
+    if not lists:
+        return None
+    level = lists
+    while len(level) &gt; 1:
+        nxt = []
+        for i in range(0, len(level), 2):
+            if i + 1 &lt; len(level):
+                nxt.append(mergeTwoLists(level[i], level[i + 1]))
+            else:
+                nxt.append(level[i])
+        level = nxt
+    return level[0]
+</code></pre>
+
+<p>The bottom-up version needs no stack. Its trap is the odd list out: when the count is odd, the last list has no partner and must be carried into the next round unchanged. Writing the append only inside the paired branch silently drops it, and only reproduces when k is odd, which is why it survives casual testing.</p>
+
+<p>One subtlety: an unpaired list is not touched at all, so the per-round cost is bounded by N rather than equal to it. The counting script measures nodes actually visited, not an estimate from N.</p>
+
+<h3>Why divide and conquer compares less at the same complexity</h3>
+
+<p>At a thousand lists, divide and conquer makes 97,987 comparisons and the heap 116,530. The difference is how many comparisons each node incurs. In the heap, every node is pushed and popped, and each operation walks about log k levels with one comparison per level, so roughly twice the logarithm. In divide and conquer, each node takes part in one merge per round and is compared at most once per round, so roughly the logarithm. The extra factor is the cost of maintaining the heap structure itself.</p>
+
+<p>The heap has an advantage the other does not, visible as node visits: divide and conquer touches each node once per round, so about log k times in total, while the heap touches each node exactly twice. On a linked list, moving a node is a pointer assignment, so this does not affect the complexity. On an array it would be a real copy, and the heap would win outright. Being able to explain that difference is worth more than reciting two identical bounds.</p>
+
+<h2>The three approaches compared</h2>
+
+<table>
+<thead><tr><th></th><th>Sequential</th><th>Divide and conquer</th><th>Min-heap</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Quadratic in k times N</td><td><strong>N log k</strong></td><td><strong>N log k</strong></td></tr>
+<tr><td>Extra space</td><td>Constant</td><td>Constant iterative, log k recursive</td><td>k</td></tr>
+<tr><td>Comparisons at k of 1000</td><td>4,543,137</td><td>97,987</td><td>116,530</td></tr>
+<tr><td>Comparisons at k of 4</td><td><strong>67</strong></td><td>59</td><td>97</td></tr>
+<tr><td>Code size</td><td>Smallest</td><td>Medium</td><td>Medium</td></tr>
+<tr><td>Stability</td><td>Stable</td><td>Stable</td><td>Depends on the key</td></tr>
+</tbody>
+</table>
+
+<p>For very small k, use sequential merging: the shortest code, comparable comparisons, and no heap to build. Do not reach for a heap to look sophisticated. For large k and large N, either of the other two works; divide and conquer compares less and uses less space, while the heap is a more natural fit for streaming, such as an external merge sort or k sources that cannot all be held in memory, since it holds only k heads where divide and conquer holds everything.</p>
+
+<p>In an interview, offer one of them and then add that sequential merging is better when k is small. That sentence demonstrates judgement rather than recall.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>The tuple type error from pushing value-node pairs without an index, which fires on the first duplicate value. This is the most common failure in the Python version.</li>
+<li>Pushing all N nodes, which is correct and degenerates to a full sort.</li>
+<li>Not skipping empty lists when building, which dereferences nothing.</li>
+<li>Forgetting to push the next node after a pop, which empties the heap early and truncates the output.</li>
+<li>Dropping the odd list in the divide and conquer version, which reproduces only for odd k.</li>
+<li>No guard for an empty array, which indexes out of range in the sequential and divide and conquer versions, though the heap version is protected by its loop condition.</li>
+<li>Forgetting the empty guard in the recursive version, which recurses into an invalid range.</li>
+<li>Assuming the Python heap is a max-heap. It is a min-heap, and so is the Java priority queue by default.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Thirty seconds, heap version: maintain a min-heap of the k current heads, pop the smallest onto the result, push the next node from that same list. The heap never holds more than k elements, each node enters and leaves once at logarithmic cost, giving N log k time and k space. The nodes behind the heads never enter the heap, and that is where the k inside the logarithm comes from.</p>
+
+<p>Expect these follow-ups. Why not N log N: because only the heads are in the heap; putting everything in is a full sort and wastes the given ordering. Which is better: the same class, divide and conquer compares less and uses less space, the heap touches nodes less and suits streaming. Why is sequential quadratic: the i-th round walks everything already merged. What about small k: sequential wins, measured at fourteen percent behind divide and conquer against fifty percent ahead of the heap. Why the index in Python: tuple comparison falls through to the nodes and they are not orderable. And empty lists: skipped at build time, with the empty array handled by the loop condition.</p>
+
+<h2>Closing</h2>
+
+<p>The lesson is that one unchanged subroutine yields an order of magnitude depending on how it is called. Keep the eight lines and append one list at a time and the cost is quadratic in k; pair them up and it becomes linearithmic; keep only the heads in a heap and it is linearithmic with a streaming capability. The hard part was never the eight lines, it is how you choose to invoke them.</p>
+
+<p>And the second lesson is the measurement table: asymptotics describe what happens as k grows, not who wins at four. A better asymptotic class does not mean the heap is faster on every input, and here it is the slowest of the three at four lists. Asked which one to pick, answer with the size of k.</p>
+
+<p>The previous two articles said that pointer work is boundary maintenance and that a dummy turns special cases into ordinary ones. This one says the complexity depends on how you call the subroutine, which closes the linked-list sequence.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-23-merge-k-sorted-lists/">【LC 23】合并 K 个升序链表：堆里到底该放几个节点</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
