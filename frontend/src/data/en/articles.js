@@ -32182,6 +32182,399 @@ else:
 `,
   },
 
+  {
+    slug: 'lc-124-binary-tree-maximum-path-sum',
+    zhSlug: 'lc-124-binary-tree-maximum-path-sum',
+    topicSlug: 'leetcode',
+    title: 'LC 124, maximum path sum: the return value only takes one arm',
+    excerpt:
+      'A path can bend once, so the value reported upward and the value that updates the answer are different things. Ten lines, and both numbers matter.',
+    date: '2026-10-12',
+    readingTime: 17,
+    html: `
+<h2>The problem</h2>
+
+<p>A path is a sequence of nodes where consecutive ones are connected by an edge, no node appears twice, and at least one node is present. It need not pass through the root. Return the maximum sum over all paths.</p>
+
+<pre><code>[-10,9,20,null,null,15,7] -&gt; 42    (15 + 20 + 7)
+[1,2,3]                   -&gt; 6     (2 + 1 + 3)
+[-3]                      -&gt; -3
+</code></pre>
+
+<p>This is the watershed of tree DP. It is not solved by adding a few more conditions; it requires understanding one thing, and the table below maps each requirement to a line in the statement.</p>
+
+<table>
+<thead><tr><th>Idea</th><th>Where the statement implies it</th></tr></thead>
+<tbody>
+<tr><td>The value reported upward and the value that updates the answer are two different quantities</td><td>A node appears at most once, and a path is a chain</td></tr>
+<tr><td>Negative contributions must be clipped, and that is the algorithm, not defensive code</td><td>Values may be negative</td></tr>
+<tr><td>The best must start at negative infinity, not zero</td><td>A path contains at least one node</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Variant</th><th>Problem</th><th>What changes</th></tr></thead>
+<tbody>
+<tr><td>Diameter</td><td>LC 543</td><td>Sum of values becomes a count of edges, and no clipping is needed</td></tr>
+<tr><td>Longest univalue path</td><td>LC 687</td><td>Edge count plus a constraint that both ends hold the same value</td></tr>
+<tr><td>LCA of deepest leaves</td><td>LC 1123</td><td>Quantity becomes height</td></tr>
+<tr><td>Maximum path product</td><td>a variant</td><td>Product, which cannot be blindly clipped because two negatives multiply positive</td></tr>
+</tbody>
+</table>
+
+<pre><code>class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+</code></pre>
+
+<pre><code>        -10
+       /   \\
+      9     20
+           /  \\
+          15    7
+</code></pre>
+
+<h2>Why the obvious approach is not enough</h2>
+
+<pre><code>def maxPathSum(self, root):
+    best = -float('inf')
+
+    def all_paths_from(node):
+        if not node:
+            return [0]
+        lefts = all_paths_from(node.left)
+        rights = all_paths_from(node.right)
+        return [node.val + x for x in lefts] + [node.val + x for x in rights]
+
+    def dfs(node):
+        nonlocal best
+        if not node:
+            return
+        for a in [0] + all_paths_from(node.left):
+            for b in [0] + all_paths_from(node.right):
+                best = max(best, node.val + a + b)
+        dfs(node.left)
+        dfs(node.right)
+
+    dfs(root)
+    return best
+</code></pre>
+
+<p>Enumerating every path is correct and re-walks subtrees repeatedly, which is quadratic or worse and times out at thirty thousand nodes. What it fails to notice is that the needed information is a single number per subtree, and that is where post-order DP enters.</p>
+
+<h2>The shape of a path</h2>
+
+<pre><code>straight                     arch
+   *                        *
+   |                       / \\
+   *                      *   *
+   |                      |   |
+   *                      *   *
+</code></pre>
+
+<p>Because no node repeats, a path in a binary tree has exactly one of these two shapes, and every path has a unique highest node: its endpoint if it is straight, its bend if it is an arch.</p>
+
+<p>So the problem becomes computing, for each node, the best path that peaks there, and taking the maximum. A peak path decomposes into the node value plus the best downward straight chain from each side.</p>
+
+<p>Note the distinction: what comes from a subtree must be a downward chain rooted at that subtree, not the best path inside it. The best path inside a subtree may itself be an arch, and an arch cannot be attached to a parent, because attaching it turns the result into a fork.</p>
+
+<pre><code>def gain(node):
+    if not node:
+        return 0
+    return node.val + max(gain(node.left), gain(node.right))
+</code></pre>
+
+<p>That computes the contribution in linear time, bottom up.</p>
+
+<h2>The one real difficulty: two quantities</h2>
+
+<pre><code>def gain(node):
+    if not node:
+        return 0
+    left  = max(gain(node.left),  0)
+    right = max(gain(node.right), 0)
+
+    best = max(best, node.val + left + right)
+
+    return node.val + max(left, right)
+</code></pre>
+
+<table>
+<thead><tr><th></th><th>Shape</th><th>Purpose</th><th>Formula</th></tr></thead>
+<tbody>
+<tr><td>Return value</td><td>A straight chain, one arm</td><td>Handed to the parent to extend</td><td>value plus the larger side</td></tr>
+<tr><td>Answer candidate</td><td>An arch, both arms</td><td>Peaks here and stops</td><td>value plus both sides</td></tr>
+</tbody>
+</table>
+
+<p>The question an interviewer will ask is why the return value is not the full sum. The answer is that a path cannot bend twice.</p>
+
+<p>Suppose the twenty returned forty-two using both arms. Its parent minus ten would take that and bend again into minus ten plus forty-two, but the path through the twenty already bent once, and attaching it upward makes the whole thing a fork in which the twenty appears twice, once on the way to fifteen and once on the way to seven. That violates the rule that no node repeats.</p>
+
+<pre><code>two bends, not a path          one bend, a path
+      -10                           -10
+     /                             /
+    20                           20
+   /  \                          /
+ 15    7                        7
+</code></pre>
+
+<p>So the upward report keeps one arm in reserve, while the answer candidate spends both because it ends at this node and will never be extended.</p>
+
+<p>One sentence: the return takes an edge, the answer takes a peak.</p>
+
+<h2>The zero in max(gain, 0) is the optimisation</h2>
+
+<p>People often read that zero as a null guard. It is a decision: if an arm sums negative, attaching it only lowers the total, so better not to attach it.</p>
+
+<pre><code>    1
+   / \\
+ -5   3
+</code></pre>
+
+<p>Without clipping the peak is one minus five plus three, which is minus one. With clipping it is one plus zero plus three, which is four. The five reports minus five, the maximum with zero is zero, and the meaning is "do not come this way".</p>
+
+<p>So the clipping is not optional insurance; it is half the algorithm, of equal weight with updating the best.</p>
+
+<h2>Why the best starts at negative infinity</h2>
+
+<p>Because a path contains at least one node, and a zero initial value corresponds to the empty path, which is not legal. A single node holding minus three must return minus three, not zero. Trees that are entirely negative expose this immediately.</p>
+
+<h2>The animation</h2>
+
+<p>The original post has thirteen frames. Each node carries a label showing the contribution it reports upward. Thin gold rings mark nodes on the current best path and a thick one marks its peak. Dashed circles and edges mark arms whose contribution is non-positive and therefore clipped. A banner shows the current best and the path achieving it.</p>
+
+<p>Three moments matter. The nine reports a contribution of nine and the best moves off negative infinity. The twenty receives fifteen and seven, computes a peak of forty-two, updates the best, and reports only thirty-five, leaving one arm behind. And the root computes a peak of thirty-four, which is smaller than forty-two, so the root is not part of the answer, which is exactly what the statement means by saying the path need not pass through the root.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Node</th><th>Left</th><th>Right</th><th>Peak</th><th>Report</th><th>Best</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-10</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-inf</td></tr>
+<tr><td>1</td><td>recurse</td><td>-10</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-inf</td></tr>
+<tr><td>2</td><td><strong>update</strong></td><td>9</td><td>0</td><td>0</td><td><strong>9</strong></td><td><strong>9</strong></td><td><strong>9</strong></td></tr>
+<tr><td>3</td><td>recurse</td><td>-10</td><td>9</td><td>-</td><td>-</td><td>-</td><td>9</td></tr>
+<tr><td>4</td><td>recurse</td><td>20</td><td>-</td><td>-</td><td>-</td><td>-</td><td>9</td></tr>
+<tr><td>5</td><td><strong>update</strong></td><td>15</td><td>0</td><td>0</td><td><strong>15</strong></td><td><strong>15</strong></td><td><strong>15</strong></td></tr>
+<tr><td>6</td><td>recurse</td><td>20</td><td>15</td><td>-</td><td>-</td><td>-</td><td>15</td></tr>
+<tr><td>7</td><td>leaf</td><td>7</td><td>0</td><td>0</td><td>7</td><td>7</td><td>15</td></tr>
+<tr><td>8</td><td>collect</td><td>20</td><td>15</td><td>7</td><td>-</td><td>-</td><td>15</td></tr>
+<tr><td>9</td><td><strong>update</strong></td><td>20</td><td>15</td><td>7</td><td><strong>42</strong></td><td><strong>35</strong></td><td><strong>42</strong></td></tr>
+<tr><td>10</td><td>collect</td><td>-10</td><td>9</td><td>35</td><td>-</td><td>-</td><td>42</td></tr>
+<tr><td>11</td><td>decide</td><td>-10</td><td>9</td><td>35</td><td><strong>34</strong></td><td><strong>25</strong></td><td>42</td></tr>
+<tr><td>12</td><td>done</td><td>20</td><td>-</td><td>-</td><td>42</td><td>35</td><td><strong>42</strong></td></tr>
+</tbody>
+</table>
+
+<p>Frame nine is the whole problem in two lines: the peak uses both arms and equals forty-two, while the report uses one and equals thirty-five. The gap of seven is the arm left behind.</p>
+
+<p>Frame eleven shows why the root is not the answer: the right child reported thirty-five, not forty-two. Notice that if it had wrongly reported forty-two, this particular tree would still produce forty-one for the root, which is still less than forty-two, so this example would look correct. That is why the two quantities cannot be validated by running the sample; they have to be understood.</p>
+
+<h2>The code</h2>
+
+<pre><code>class Solution:
+    def maxPathSum(self, root: TreeNode) -&gt; int:
+        self.best = -float('inf')
+
+        def gain(node: TreeNode) -&gt; int:
+            if not node:
+                return 0
+            left  = max(gain(node.left),  0)
+            right = max(gain(node.right), 0)
+
+            self.best = max(self.best, node.val + left + right)
+
+            return node.val + max(left, right)
+
+        gain(root)
+        return self.best
+</code></pre>
+
+<p>The initial value cannot be zero, for the reason above. The two zeros are the clipping decision, and the base case already handles an empty subtree so no extra guard is needed. The peak candidate only updates the answer and is never returned; the return takes the fatter arm.</p>
+
+<p>The order matters: update the answer before returning, because the peak quantity exists only at this node and is lost once the call returns.</p>
+
+<p>Time is linear, one visit per node. Space is the tree height, linear in the degenerate case.</p>
+
+<h2>Variant one: diameter</h2>
+
+<table>
+<thead><tr><th></th><th>LC 124</th><th>LC 543</th></tr></thead>
+<tbody>
+<tr><td>Return value</td><td>Value plus the larger side</td><td>One plus the larger side, a depth</td></tr>
+<tr><td>Answer candidate</td><td>Value plus both sides</td><td>Both sides, the edge count</td></tr>
+<tr><td>Clipping</td><td><strong>Needed</strong>, values can be negative</td><td><strong>Not needed</strong>, depths are non-negative</td></tr>
+</tbody>
+</table>
+
+<pre><code>class Solution:
+    def diameterOfBinaryTree(self, root: TreeNode) -&gt; int:
+        self.best = 0
+
+        def depth(node: TreeNode) -&gt; int:
+            if not node:
+                return 0
+            left  = depth(node.left)
+            right = depth(node.right)
+
+            self.best = max(self.best, left + right)
+
+            return 1 + max(left, right)
+
+        depth(root)
+        return self.best
+</code></pre>
+
+<p>The absence of clipping here is proof that the zero in the previous problem exists because values can be negative, rather than being a general pattern. The initial best also differs: negative infinity there, zero here, because a diameter cannot be less than zero.</p>
+
+<p>If an interviewer gives you both, say the skeleton is identical and the difference is nodes versus edges, and that the second needs no clipping. That sentence demonstrates understanding rather than recall.</p>
+
+<h2>Variant two: longest univalue path</h2>
+
+<pre><code>class Solution:
+    def longestUnivaluePath(self, root: TreeNode) -&gt; int:
+        self.best = 0
+
+        def arrow(node: TreeNode) -&gt; int:
+            if not node:
+                return 0
+            l = arrow(node.left)
+            r = arrow(node.right)
+
+            left  = l + 1 if node.left  and node.left.val  == node.val else 0
+            right = r + 1 if node.right and node.right.val == node.val else 0
+
+            self.best = max(self.best, left + right)
+            return max(left, right)
+
+        arrow(root)
+        return self.best
+</code></pre>
+
+<p>The extra constraint appears only in deciding whether an arm is valid: a child with a different value breaks that arm, so its contribution becomes zero, which replaces the clipping.</p>
+
+<table>
+<thead><tr><th></th><th>LC 124</th><th>LC 543</th><th>LC 687</th></tr></thead>
+<tbody>
+<tr><td>Return, one arm</td><td>Value plus the larger</td><td>One plus the larger</td><td>The larger valid arm</td></tr>
+<tr><td>Answer, both arms</td><td>Value plus both</td><td>Both</td><td>Both</td></tr>
+<tr><td>Clipping</td><td><strong>Needed</strong></td><td>None</td><td>Replaced by a validity test</td></tr>
+<tr><td>Initial best</td><td>Negative infinity</td><td>0</td><td>0</td></tr>
+<tr><td>Extra constraint</td><td>None</td><td>None</td><td>Values must match</td></tr>
+</tbody>
+</table>
+
+<h2>Two more shapes</h2>
+
+<p>If the quantity becomes a product, clipping is dangerous, because two negatives multiply positive and a negative arm can help. That forces two return values, the maximum and the minimum:</p>
+
+<pre><code>def gain(node):
+    if not node:
+        return (1, 1)
+    lmax, lmin = gain(node.left)
+    rmax, rmin = gain(node.right)
+    cands = [node.val, node.val * lmax, node.val * lmin,
+             node.val * rmax, node.val * rmin]
+    self.best = max(self.best, max(a * b for a in cands for b in cands))
+    return (max(cands), min(cands))
+</code></pre>
+
+<p>The lesson is that the zero is the lower bound appropriate to addition, and changing the operation requires re-deriving the bound rather than copying the template.</p>
+
+<p>For the deepest leaves, the pair becomes height and answer:</p>
+
+<pre><code>def dfs(node):
+    if not node:
+        return (0, None)
+    ld, llca = dfs(node.left)
+    rd, rlca = dfs(node.right)
+    if ld == rd:
+        return (ld + 1, node)
+    if ld &gt; rd:
+        return (ld + 1, llca)
+    return (rd + 1, rlca)
+</code></pre>
+
+<p>Equal depths mean this node is the peak, and unequal means carry only the deeper side, which is structurally identical to the two quantities here.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    private int best = Integer.MIN_VALUE;
+
+    public int maxPathSum(TreeNode root) {
+        gain(root);
+        return best;
+    }
+
+    private int gain(TreeNode node) {
+        if (node == null) return 0;
+        int left  = Math.max(gain(node.left),  0);
+        int right = Math.max(gain(node.right), 0);
+
+        best = Math.max(best, node.val + left + right);
+
+        return node.val + Math.max(left, right);
+    }
+}
+</code></pre>
+
+<p>One caveat: the minimum integer can overflow in extreme cases. The constraints here make it safe, and mentioning that is worth a note.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>one positive node</td><td>the value</td><td>Peak and report coincide</td></tr>
+<tr><td><strong>one negative node</strong></td><td><strong>the value</strong></td><td><strong>The best must start at negative infinity</strong></td></tr>
+<tr><td>one zero node</td><td>0</td><td>Zero is a node, not a null</td></tr>
+<tr><td>root with two children</td><td>their sum plus the root</td><td>Three edges used</td></tr>
+<tr><td>root with a negative child</td><td>root plus the good child</td><td>The bad arm is clipped</td></tr>
+<tr><td>all negative</td><td>the largest single node</td><td>At least one node</td></tr>
+<tr><td>skewed chain</td><td>the chain sum</td><td>Every peak is straight</td></tr>
+</tbody>
+</table>
+
+<p>The three most commonly wrong cases: a single negative node, which exposes a zero initial value; an all-negative tree, which exposes both the initial value and the one-node rule; and a root with a negative child, which exposes missing clipping.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Returning the full two-arm sum. The sample still passes because the root is negative and the inflated value is never selected, so it fails only on other trees. Check with a symmetric tree of one, two, three: the correct report from the root is four, the wrong one is six.</li>
+<li>Starting the best at zero, which fails on all-negative trees.</li>
+<li>Treating the clipping as a null guard. Without it, the one-minus-two-plus-three case returns two instead of four.</li>
+<li>Updating the answer after returning, so the peak candidate is never recorded.</li>
+<li>Returning negative infinity from an empty subtree instead of zero. An empty subtree neither helps nor hurts, and zero means exactly "do not come this way".</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>First define the two quantities, since that is the scoring point: the peak path at this node, using both arms, which only updates the global answer, and the contribution reported upward, which takes one arm.</p>
+
+<p>Then explain why one arm: the parent will bend again, and if both arms were spent here the parent bend would produce a fork, which is not a path.</p>
+
+<p>Then the semantics of clipping: not a null check, but a decision that a negative arm only lowers the sum, so zero means do not come this way.</p>
+
+<p>Then the initial value: negative infinity, because a path holds at least one node and values can be negative; zero would answer zero for a single negative node.</p>
+
+<p>Then complexity and the link to the diameter problem, which is the same skeleton with edges instead of values and no clipping.</p>
+
+<p>Asked to avoid a global variable, return a tuple of contribution and best. Asked about stack overflow, agree, since a skewed tree of thirty thousand nodes exceeds Python's default limit, and offer either a raised limit or an explicit stack.</p>
+
+<h2>Closing</h2>
+
+<p>Ten lines, and they force a realisation that few other problems demand: for a single node, the value reported upward and the value used to update the answer can be different values.</p>
+
+<p>Once that is clear, the clipping is no longer incidental insurance and the initial value is no longer a habit; both are the logic of the problem.</p>
+
+<p>This one-node two-quantities skeleton carries across the diameter, the univalue path, the deepest leaves, and even the product variant. Faced with any longest-path-on-a-tree question, ask two things: what is reported upward, which is one arm, and what updates the answer, which is both.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-124-binary-tree-maximum-path-sum/">【LC 124】二叉树最大路径和：返回值只选一条</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
