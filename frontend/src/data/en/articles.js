@@ -27437,6 +27437,539 @@ def read_hot_counter(key: str, n_shards: int = 8):
 `,
   },
 
+  {
+    slug: 'drf-pagination-cache-throttle',
+    zhSlug: 'drf-pagination-cache-throttle',
+    topicSlug: 'backend',
+    title: 'A list endpoint from 800 milliseconds to 80: pagination, caching and throttling',
+    excerpt:
+      'One page_size=500 request took the site down: 7.5 megabytes, half a second of serialisation, a saturated CPU. What the three settings actually do, read from the DRF source.',
+    date: '2026-10-26',
+    readingTime: 24,
+    html: `
+<blockquote>
+<p>Stack: Django 6, DRF, SQLite, on a free host with no Redis. The code is the real backend settings and views.</p>
+<p>Reading time around 24 minutes. What you get: a performance template you can lift straight into production.</p>
+</blockquote>
+
+<h2>An integration test that took the blog down</h2>
+
+<pre><code>class ArticlePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 1000  # flexible seemed harmless at the time
+</code></pre>
+
+<p>A colleague tried a page size of five hundred. The server scanned five hundred rows of Markdown, serialised seven and a half megabytes of JSON and took 860 milliseconds; the free host's CPU saturated and every later request queued; and Vue choked for three seconds on the payload, so users assumed the site was down.</p>
+
+<p>After the rebuild the list endpoint sits at sixty to a hundred milliseconds, and the first page in ten when it hits the cache.</p>
+
+<pre><code>request -> throttle (may this in?)
+        -> filter and search
+        -> paginate (which slice?)
+        -> serialise (which fields?)
+        -> cache (same request as before?)
+        -> database (only if nothing else worked)
+</code></pre>
+
+<table>
+<thead><tr><th>Component</th><th>Solves</th><th>Does not solve</th></tr></thead>
+<tbody>
+<tr><td>Pagination</td><td>How much comes back at once</td><td>Query count per row</td></tr>
+<tr><td>Caching</td><td>Repeating the same read</td><td>Abuse, or a cache that falls over</td></tr>
+<tr><td>Throttling</td><td>Bots, scrapers, runaway loops</td><td>Making legitimate requests faster</td></tr>
+</tbody>
+</table>
+
+<pre><code>REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '30/minute',
+        'user': '100/minute',
+        'comment': '3/minute',
+        'subscribe': '5/hour',
+        'upload': '100/hour',
+    },
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
+}
+</code></pre>
+
+<pre><code>CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "blog-cache",
+        "TIMEOUT": 300,
+        "OPTIONS": {"MAX_ENTRIES": 1000},
+    }
+}
+</code></pre>
+
+<h2>Pagination</h2>
+
+<p>A global page size only decides the default slice. It leaves three real problems: a client can ask for ten thousand rows, different endpoints need different treatment, and search over large text columns makes a big page far worse.</p>
+
+<p>So the rule is a global default plus a class per view set, and no pagination at all where the table is tiny.</p>
+
+<pre><code>class ArticlePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+    page_size_query_description = "Rows per page, default 10, maximum 50"
+
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Article.objects.filter(status=Article.Status.PUBLISHED)
+    lookup_field = 'slug'
+    pagination_class = ArticlePagination
+
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+
+class TagViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+</code></pre>
+
+<p>With no pagination class the response is a bare array instead of an envelope, which saves the front end a layer of parsing on small dictionary tables.</p>
+
+<pre><code>def paginate_queryset(self, queryset, request, view=None):
+    page_size = self.get_page_size(request)
+    if not page_size:
+        return None
+    paginator = self.django_paginator_class(queryset, page_size)
+    page_number = request.query_params.get(self.page_query_param, 1)
+    try:
+        self.page = paginator.page(page_number)
+    except InvalidPage:
+        raise NotFound("Invalid page.")
+    return list(self.page)
+</code></pre>
+
+<p>The size lookup is where the safety lives: a value above the maximum is silently truncated rather than rejected, and a non-numeric or negative value falls back to the default instead of erroring. So a page size of five hundred against a maximum of fifty returns fifty, which is protection rather than a bug.</p>
+
+<table>
+<thead><tr><th>Style</th><th>Parameters</th><th>SQL</th><th>Strength</th><th>Weakness</th></tr></thead>
+<tbody>
+<tr><td>Page number</td><td>Page and size</td><td>Limit with offset</td><td>Jump to any page, friendly to crawlers</td><td>Deep pages scan; new rows shift pages</td></tr>
+<tr><td>Limit and offset</td><td>Limit and offset</td><td>Limit with offset</td><td>Flexible infinite scroll</td><td>No notion of total pages</td></tr>
+<tr><td>Cursor</td><td>Opaque cursor</td><td>Seek by key</td><td>Fast at any depth, no duplicates</td><td>Next and previous only, needs a stable unique key</td></tr>
+</tbody>
+</table>
+
+<pre><code>class CommentPagination(CursorPagination):
+    page_size = 20
+    ordering = "-created_at,-id"
+</code></pre>
+
+<p>For a blog, page numbers are enough; cursor pagination matters once a table is large and written frequently, as in a comment stream.</p>
+
+<h3>The incident, measured</h3>
+
+<table>
+<thead><tr><th>Request</th><th>SQL</th><th>Serialise and transfer</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td>Ten rows, slim serialiser</td><td>22 ms</td><td>18 ms, 60 KB</td><td>About 60 ms</td></tr>
+<tr><td>Fifty rows, slim serialiser</td><td>45 ms</td><td>40 ms, 280 KB</td><td>About 100 ms</td></tr>
+<tr><td>Five hundred rows with the body field</td><td>310 ms</td><td>550 ms, 7.5 MB</td><td>860 ms and a frozen browser</td></tr>
+</tbody>
+</table>
+
+<p>The fix was two things, not one: cap the page size and split the serialisers.</p>
+
+<pre><code>max_page_size = 50
+
+def get_serializer_class(self):
+    if self.action == "retrieve":
+        return ArticleDetailSerializer
+    return ArticleListSerializer
+</code></pre>
+
+<p>The cap should be computed, not guessed: <strong>maximum page size times the size of one list item stays under half a megabyte</strong>. At five kilobytes per item, fifty rows is a quarter of a megabyte.</p>
+
+<h3>Slim the list, fatten the detail</h3>
+
+<pre><code>class ArticleListSerializer(serializers.ModelSerializer):
+    category = serializers.SlugRelatedField(slug_field="slug", read_only=True)
+    class Meta:
+        model = Article
+        fields = ["slug", "title", "excerpt", "cover_image",
+                  "views_count", "likes_count", "created_at", "category"]
+
+class ArticleDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Article
+        fields = ["slug", "title", "content", "cover_image",
+                  "views_count", "likes_count", "created_at",
+                  "category", "tags"]
+</code></pre>
+
+<pre><code>def get_queryset(self):
+    base = Article.objects.filter(status=Article.Status.PUBLISHED)
+    if self.action == "list":
+        return base.select_related("category").prefetch_related("tags").only(
+            "id", "slug", "title", "excerpt", "cover_image",
+            "views_count", "likes_count", "created_at", "category",
+        )
+    return base.select_related("category").prefetch_related("tags")
+</code></pre>
+
+<p>Restricting the columns is a trap if applied everywhere: touching a field you did not select costs an extra query, so the detail action must use a different queryset or none at all.</p>
+
+<h3>Pagination without fixing N+1 makes small pages slower</h3>
+
+<pre><code>queryset = (
+    Article.objects.filter(status=Article.Status.PUBLISHED)
+    .select_related("category")
+    .prefetch_related("tags")
+)
+</code></pre>
+
+<p>Ten rows with a category and a tag lookup each is twenty-one queries, which is exactly what the earlier post measured. After the fix the list page should run three: the rows, the tags and the count. The count is the paginator's own aggregate, and it is normal; do not optimise it away.</p>
+
+<h3>The front end has to agree</h3>
+
+<pre><code>const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const articles = ref([])
+
+async function fetchArticles() {
+  const { data } = await api.get('/articles/', {
+    params: { page: page.value, page_size: pageSize.value }
+  })
+  articles.value = data.results
+  total.value = data.count
+}
+watch([page, pageSize], fetchArticles, { immediate: true })
+</code></pre>
+
+<p>The selector's largest option must not exceed the server's cap, or a reader choosing a hundred receives fifty and the page arithmetic drifts.</p>
+
+<h3>Five pagination traps</h3>
+
+<ol>
+<li>Paginating a dictionary table with a dozen rows, which just adds an envelope for the client to unwrap.</li>
+<li>Setting the cap to a thousand, which is the same as not having one.</li>
+<li>Leaving search unbounded, where a broad term plus a large page is slow squared; give search its own tighter cap.</li>
+<li>Sending a page number beyond the end, which correctly returns a not-found rather than a server error; the client should compute the last page from the count.</li>
+<li>Unstable ordering, where rows created in the same second repeat or vanish across pages; append the id as a tie-breaker.</li>
+</ol>
+
+<h2>Caching</h2>
+
+<pre><code>from django.core.cache import cache
+cache.get("key")
+cache.set("key", value, 300)
+cache.delete("key")
+cache.get_or_set("key", default_fn, 300)
+</code></pre>
+
+<p>One interface, and swapping the backend is a settings change, which is the whole reason to start on the free in-process cache and move later without touching views.</p>
+
+<table>
+<thead><tr><th>Backend</th><th>Setup</th><th>Shared across workers</th><th>Lost on restart</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Local memory</td><td>None</td><td>No</td><td>Yes</td><td>Free tier, a single-author blog</td></tr>
+<tr><td>Database table</td><td>One management command</td><td>Yes</td><td>No</td><td>Several workers, no Redis budget</td></tr>
+<tr><td>Files</td><td>A writable directory</td><td>Yes, per machine</td><td>No</td><td>Acceptable, though disk IO is worse than memory</td></tr>
+<tr><td>Redis</td><td>A service and a client</td><td>Yes</td><td>No</td><td>Paid tiers, real traffic</td></tr>
+</tbody>
+</table>
+
+<pre><code>CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+    }
+}
+</code></pre>
+
+<p>Not everything deserves caching. Sort by read-to-write ratio and cost, and cache only the top few.</p>
+
+<table>
+<thead><tr><th>Endpoint</th><th>Read to write</th><th>Lifetime</th><th>Invalidated by</th></tr></thead>
+<tbody>
+<tr><td>Categories and tags</td><td>A thousand to one</td><td>An hour</td><td>Any change to either table</td></tr>
+<tr><td>Article detail</td><td>A hundred to one</td><td>Five minutes</td><td>An update to the article</td></tr>
+<tr><td>First page of the list</td><td>Fifty to one</td><td>Two minutes</td><td>A new article</td></tr>
+<tr><td>Search results</td><td>Five to one</td><td>Not cached</td><td>Too many combinations to hit</td></tr>
+<tr><td>Likes, comments, subscriptions</td><td>Write heavy</td><td>Never</td><td>Caching a write endpoint is a bug</td></tr>
+</tbody>
+</table>
+
+<pre><code>class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    @method_decorator(cache_page(60 * 5))
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+</code></pre>
+
+<p>The page decorator keys on the full URL including the query string and returns the stored response body without entering the view at all. Hand-rolled, it is a get, a miss, a render and a set.</p>
+
+<pre><code>class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        data = cache.get("api:categories:v1")
+        if data is None:
+            qs = Category.objects.annotate(
+                article_count=Count(
+                    "article",
+                    filter=Q(article__status=Article.Status.PUBLISHED),
+                )
+            )
+            data = CategorySerializer(qs, many=True).data
+            cache.set("api:categories:v1", data, 3600)
+        return Response(data)
+</code></pre>
+
+<pre><code>@receiver([post_save, post_delete], sender=Category)
+def clear_category_cache(**kwargs):
+    cache.delete("api:categories:v1")
+
+@receiver([post_save, post_delete], sender=Article)
+def clear_article_list_cache(**kwargs):
+    cache.delete("api:articles:page1")
+</code></pre>
+
+<p>Putting a version in the key is a cheap trick: a redesign bumps the version and every stale entry becomes unreachable, which is more reliable than deleting them one by one.</p>
+
+<h3>Views versus caching the detail page</h3>
+
+<table>
+<thead><tr><th>Approach</th><th>Method</th><th>Accuracy</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>No detail cache</td><td>Cache lists only</td><td>Exact</td><td>Lowest</td></tr>
+<tr><td>Cache with a delay</td><td>Five minutes stale on the counter</td><td>Approximate</td><td>Low</td></tr>
+<tr><td>Cache plus a beacon</td><td>The client posts a view separately, rate limited</td><td>Exact</td><td>Medium</td></tr>
+</tbody>
+</table>
+
+<pre><code>@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
+def track_view(request, slug):
+    Article.objects.filter(slug=slug).update(views_count=F("views_count") + 1)
+    return Response({"ok": True})
+</code></pre>
+
+<p>A page cache means the view never runs on a hit, so an inline counter stops moving. Small sites accept the delay; large ones use the beacon. Do not trade a cache for an exact counter.</p>
+
+<h3>The three cache failures, briefly</h3>
+
+<p>Penetration means repeated requests for an identifier that does not exist, fixed by caching the empty result for a minute or a bloom filter. The stampede is one hot key expiring while dozens of requests arrive, fixed by logical expiry or a guarded rebuild, and on a small site by simply not aligning lifetimes. The avalanche is everything expiring at once after a restart, fixed by jitter on the timeout.</p>
+
+<h3>The worker trap on a shared host</h3>
+
+<p>Production runs several worker processes, and the local memory cache is per process, so one worker clearing a key leaves the others stale for up to one lifetime. For a blog that is invisible; for stock it would not be. If it matters, switch to the database backend, which several workers share and which the free tier supports.</p>
+
+<table>
+<thead><tr><th>Endpoint</th><th>Before</th><th>Paged and slimmed</th><th>Cached</th><th>Gain</th></tr></thead>
+<tbody>
+<tr><td>Categories</td><td>45 ms, three queries</td><td>45 ms, one query</td><td>3 ms, none</td><td>15 times</td></tr>
+<tr><td>Article list, page one</td><td>820 ms, twenty-one queries</td><td>85 ms, three queries</td><td>12 ms, none</td><td>68 times</td></tr>
+<tr><td>Article detail</td><td>90 ms, four queries</td><td>60 ms, three queries</td><td>8 ms, none</td><td>11 times</td></tr>
+</tbody>
+</table>
+
+<h2>Throttling</h2>
+
+<p>A global anonymous limit stops a load test but not thirty spam comments a minute, thirty subscription attempts an hour or thirty likes on one article. Reading and writing differ by orders of magnitude and need separate budgets.</p>
+
+<table>
+<thead><tr><th>Scope</th><th>Rate</th><th>Covers</th><th>Reasoning</th></tr></thead>
+<tbody>
+<tr><td>Anonymous</td><td>30 per minute</td><td>All reads by default</td><td>Nobody clicks thirty pages in a minute; scrapers get rejected</td></tr>
+<tr><td>User</td><td>100 per minute</td><td>Reads when logged in</td><td>Room for preloading and type-ahead</td></tr>
+<tr><td>Comment</td><td>3 per minute</td><td>Posting a comment</td><td>Typing and thinking take longer than twenty seconds</td></tr>
+<tr><td>Subscribe</td><td>5 per hour</td><td>Newsletter signup</td><td>A dictionary attack on addresses is locked out</td></tr>
+<tr><td>Upload</td><td>100 per hour</td><td>Image upload, authenticated</td><td>Protects storage; anonymous users cannot upload at all</td></tr>
+</tbody>
+</table>
+
+<pre><code>def allow_request(self, request, view):
+    self.key = self.get_cache_key(request, view)
+    history = self.cache.get(self.key, [])
+    now = self.timer()
+    while history and history[-1] &lt;= now - self.duration:
+        history.pop()
+    if len(history) &gt;= self.num_requests:
+        return self.throttle_failure()
+    return self.throttle_success()
+</code></pre>
+
+<p>Throttles run before permissions, so a rejected request never reaches business logic. And the counter lives in the cache, which means a per-process cache multiplies the effective limit by the worker count, so real traffic needs a shared backend.</p>
+
+<pre><code>class SubscribeThrottle(AnonRateThrottle):
+    scope = "subscribe"
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([SubscribeThrottle])
+def subscribe_newsletter(request):
+    ...
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
+def like_article(request, slug):
+    ...
+</code></pre>
+
+<p>Scoped throttles attach a budget to a view set; a named subclass is the clearest form and the one worth copying.</p>
+
+<h3>The forwarding header trap</h3>
+
+<p>Behind a proxy the remote address is the proxy, so every user looks identical. The framework prefers the forwarded header, which is a comma-separated chain whose left end is whatever the client claimed and whose right end is what the trusted proxy appended.</p>
+
+<pre><code>ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+</code></pre>
+
+<p>Taking the first entry means any client can send any address and evade both the limiter and any per-address deduplication. Take the last one.</p>
+
+<pre><code>xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+if xff:
+    ip = xff.split(",")[-1].strip()
+else:
+    ip = request.META.get("REMOTE_ADDR", "")
+ip = (ip or "")[:64]
+</code></pre>
+
+<p>And the address used for throttling must be the same one used for business deduplication, or the two mechanisms disagree and neither works.</p>
+
+<h3>A rejection is a normal flow</h3>
+
+<pre><code>api.interceptors.response.use(
+  (res) =&gt; res,
+  async (err) =&gt; {
+    const { response, config } = err
+    if (response?.status === 429 &amp;&amp; !config._retried) {
+      config._retried = true
+      if (config.method === 'get') {
+        const wait = Number(response.headers['retry-after'] || 5)
+        await new Promise((r) =&gt; setTimeout(r, wait * 1000))
+        return api.request(config)
+      }
+      const action = config.url.includes('subscribe') ? 'subscription'
+        : config.url.includes('comment') ? 'comment'
+        : 'like'
+      alert(\`Too many \${action}s, try again in a moment\`)
+    }
+    return Promise.reject(err)
+  }
+)
+</code></pre>
+
+<pre><code>const liking = ref(false)
+async function like(slug) {
+  if (liking.value) return
+  liking.value = true
+  try { await api.post(\`/articles/\${slug}/like/\`) }
+  finally { setTimeout(() =&gt; (liking.value = false), 1500) }
+}
+</code></pre>
+
+<p>The button guard matters because repeated clicking is the largest single source of rejections.</p>
+
+<pre><code>for i in $(seq 1 35); do curl -s -o /dev/null -w "%{http_code}\\n" http://127.0.0.1:8000/api/articles/; done
+for i in 1 2 3 4 5; do curl -s -X POST http://127.0.0.1:8000/api/comments/ -H "Content-Type: application/json" -d '{"content":"test"}'; echo; done
+</code></pre>
+
+<p>Tune against a week of logs: a legitimate-user rejection rate above one percent means too tight, any spam comment means too loose. The comment budget here started at ten a minute and was tightened after a night of forty ads.</p>
+
+<h2>The finished view set</h2>
+
+<pre><code>class ArticlePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    lookup_field = "slug"
+    pagination_class = ArticlePagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = {"category__slug": ["exact"], "tags__slug": ["exact"]}
+    search_fields = ["title", "content"]
+
+    def get_queryset(self):
+        base = Article.objects.filter(status=Article.Status.PUBLISHED)
+        if self.action == "list":
+            return (
+                base.select_related("category")
+                .prefetch_related("tags")
+                .only("id", "slug", "title", "excerpt", "cover_image",
+                      "views_count", "likes_count", "created_at", "category")
+                .order_by("-created_at", "-id")
+            )
+        return base.select_related("category").prefetch_related("tags")
+
+    def get_serializer_class(self):
+        return ArticleDetailSerializer if self.action == "retrieve" else ArticleListSerializer
+
+    @method_decorator(cache_page(120))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @method_decorator(cache_page(300))
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+</code></pre>
+
+<table>
+<thead><tr><th>Stage</th><th>List page one</th><th>Categories</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td>Initial</td><td>820 ms, twenty-one queries</td><td>45 ms</td><td>90 ms</td></tr>
+<tr><td>Paged, slimmed, N+1 fixed</td><td>85 ms, three queries</td><td>20 ms, one query</td><td>60 ms</td></tr>
+<tr><td>Cached</td><td>12 ms, none</td><td>3 ms, none</td><td>8 ms</td></tr>
+<tr><td>Throttled</td><td>No change for people, rejections for scripts</td><td>Same</td><td>Same</td></tr>
+</tbody>
+</table>
+
+<h2>Checklist</h2>
+
+<p><strong>Pagination.</strong> Every view set has its own class with a cap of fifty or less. The list serialiser carries no body field. Dictionary tables have no pagination. Ordering has a unique tie-breaker. The client's largest option matches the cap.</p>
+
+<p><strong>Caching.</strong> A backend is configured, starting in memory and moving to Redis with one settings change. Categories, detail and the first list page are cached; search and writes are not. Save and delete signals clear the right keys, and keys carry a version. Lifetimes are staggered and jittered. A decision is recorded about views versus a cache.</p>
+
+<p><strong>Throttling.</strong> Reads and writes have separate budgets. Only the JSON renderer is enabled in production. The forwarded header is read from the right end, and the address used matches the deduplication key. The client retries reads once and shows a human message for writes with a button guard. The thresholds were verified with a loop and are tuned against logs.</p>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Ten or twenty per page?</strong> Ten on desktop, fifteen to twenty for mobile infinite scroll, decided by first-screen render time rather than by making the number bigger.</p>
+
+<p><strong>Will a cap of fifty annoy anyone?</strong> Put a quarter of a megabyte next to seven and a half and nobody complains. Full exports belong in a separate endpoint backed by a background job.</p>
+
+<p><strong>Does losing the cache on restart hurt?</strong> It costs speed, not data, and the free tier recycles daily, so the first few minutes are slower.</p>
+
+<p><strong>Does caching conflict with token auth?</strong> Not for public reads, which are not cached per user. Never cache per-user endpoints such as the current-user or admin routes.</p>
+
+<p><strong>What if a real user gets rejected?</strong> Check for a front-end loop first, which is the usual cause, then the threshold. Thirty a minute is plenty for a person and not for a script, which is the intent.</p>
+
+<p><strong>Is three comments a minute too tight?</strong> Almost nobody posts three in a minute. An author replying should be authenticated and on the higher budget.</p>
+
+<p><strong>Should crawlers be exempted?</strong> Identifying search engines by user agent is unreliable and unnecessary at this size; the requests being rejected are not the ones you want.</p>
+
+<p><strong>Can SQLite carry this?</strong> With read-heavy traffic and these three settings it handles thousands of daily users. Move when writes get heavy or full-text search matters.</p>
+
+<h2>Closing</h2>
+
+<p>Pagination decides how much, caching decides how often, throttling decides who. There is no magic in any of the three; the work is in the thresholds. Ship conservatively, then read the logs and the rejection rate and adjust. Every value here was set by real traffic rather than by taste, which is why copying them will not go far wrong.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

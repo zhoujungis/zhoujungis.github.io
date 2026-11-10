@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="One page_size=500 request took the site down: 7.5 megabytes, half a second of serialisation, a saturated CPU. What the three settings actually do, read from the DRF source." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/drf-pagination-cache-throttle/" />
+    <meta property="og:title" content="A list endpoint from 800 milliseconds to 80: pagination, caching and throttling | Stack Frame" />
+    <meta property="og:description" content="One page_size=500 request took the site down: 7.5 megabytes, half a second of serialisation, a saturated CPU. What the three settings actually do, read from the DRF source." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/drf-pagination-cache-throttle/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="A list endpoint from 800 milliseconds to 80: pagination, caching and throttling | Stack Frame" />
+    <meta name="twitter:description" content="One page_size=500 request took the site down: 7.5 megabytes, half a second of serialisation, a saturated CPU. What the three settings actually do, read from the DRF source." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>A list endpoint from 800 milliseconds to 80: pagination, caching and throttling | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/drf-pagination-cache-throttle/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>A list endpoint from 800 milliseconds to 80: pagination, caching and throttling</h1><div class="ns-meta">2026-10-26 · 24 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Stack: Django 6, DRF, SQLite, on a free host with no Redis. The code is the real backend settings and views.</p>
+<p>Reading time around 24 minutes. What you get: a performance template you can lift straight into production.</p>
+</blockquote>
+
+<h2>An integration test that took the blog down</h2>
+
+<pre><code>class ArticlePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 1000  # flexible seemed harmless at the time
+</code></pre>
+
+<p>A colleague tried a page size of five hundred. The server scanned five hundred rows of Markdown, serialised seven and a half megabytes of JSON and took 860 milliseconds; the free host's CPU saturated and every later request queued; and Vue choked for three seconds on the payload, so users assumed the site was down.</p>
+
+<p>After the rebuild the list endpoint sits at sixty to a hundred milliseconds, and the first page in ten when it hits the cache.</p>
+
+<pre><code>request -> throttle (may this in?)
+        -> filter and search
+        -> paginate (which slice?)
+        -> serialise (which fields?)
+        -> cache (same request as before?)
+        -> database (only if nothing else worked)
+</code></pre>
+
+<table>
+<thead><tr><th>Component</th><th>Solves</th><th>Does not solve</th></tr></thead>
+<tbody>
+<tr><td>Pagination</td><td>How much comes back at once</td><td>Query count per row</td></tr>
+<tr><td>Caching</td><td>Repeating the same read</td><td>Abuse, or a cache that falls over</td></tr>
+<tr><td>Throttling</td><td>Bots, scrapers, runaway loops</td><td>Making legitimate requests faster</td></tr>
+</tbody>
+</table>
+
+<pre><code>REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '30/minute',
+        'user': '100/minute',
+        'comment': '3/minute',
+        'subscribe': '5/hour',
+        'upload': '100/hour',
+    },
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
+}
+</code></pre>
+
+<pre><code>CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "blog-cache",
+        "TIMEOUT": 300,
+        "OPTIONS": {"MAX_ENTRIES": 1000},
+    }
+}
+</code></pre>
+
+<h2>Pagination</h2>
+
+<p>A global page size only decides the default slice. It leaves three real problems: a client can ask for ten thousand rows, different endpoints need different treatment, and search over large text columns makes a big page far worse.</p>
+
+<p>So the rule is a global default plus a class per view set, and no pagination at all where the table is tiny.</p>
+
+<pre><code>class ArticlePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+    page_size_query_description = "Rows per page, default 10, maximum 50"
+
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Article.objects.filter(status=Article.Status.PUBLISHED)
+    lookup_field = 'slug'
+    pagination_class = ArticlePagination
+
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+
+class TagViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+</code></pre>
+
+<p>With no pagination class the response is a bare array instead of an envelope, which saves the front end a layer of parsing on small dictionary tables.</p>
+
+<pre><code>def paginate_queryset(self, queryset, request, view=None):
+    page_size = self.get_page_size(request)
+    if not page_size:
+        return None
+    paginator = self.django_paginator_class(queryset, page_size)
+    page_number = request.query_params.get(self.page_query_param, 1)
+    try:
+        self.page = paginator.page(page_number)
+    except InvalidPage:
+        raise NotFound("Invalid page.")
+    return list(self.page)
+</code></pre>
+
+<p>The size lookup is where the safety lives: a value above the maximum is silently truncated rather than rejected, and a non-numeric or negative value falls back to the default instead of erroring. So a page size of five hundred against a maximum of fifty returns fifty, which is protection rather than a bug.</p>
+
+<table>
+<thead><tr><th>Style</th><th>Parameters</th><th>SQL</th><th>Strength</th><th>Weakness</th></tr></thead>
+<tbody>
+<tr><td>Page number</td><td>Page and size</td><td>Limit with offset</td><td>Jump to any page, friendly to crawlers</td><td>Deep pages scan; new rows shift pages</td></tr>
+<tr><td>Limit and offset</td><td>Limit and offset</td><td>Limit with offset</td><td>Flexible infinite scroll</td><td>No notion of total pages</td></tr>
+<tr><td>Cursor</td><td>Opaque cursor</td><td>Seek by key</td><td>Fast at any depth, no duplicates</td><td>Next and previous only, needs a stable unique key</td></tr>
+</tbody>
+</table>
+
+<pre><code>class CommentPagination(CursorPagination):
+    page_size = 20
+    ordering = "-created_at,-id"
+</code></pre>
+
+<p>For a blog, page numbers are enough; cursor pagination matters once a table is large and written frequently, as in a comment stream.</p>
+
+<h3>The incident, measured</h3>
+
+<table>
+<thead><tr><th>Request</th><th>SQL</th><th>Serialise and transfer</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td>Ten rows, slim serialiser</td><td>22 ms</td><td>18 ms, 60 KB</td><td>About 60 ms</td></tr>
+<tr><td>Fifty rows, slim serialiser</td><td>45 ms</td><td>40 ms, 280 KB</td><td>About 100 ms</td></tr>
+<tr><td>Five hundred rows with the body field</td><td>310 ms</td><td>550 ms, 7.5 MB</td><td>860 ms and a frozen browser</td></tr>
+</tbody>
+</table>
+
+<p>The fix was two things, not one: cap the page size and split the serialisers.</p>
+
+<pre><code>max_page_size = 50
+
+def get_serializer_class(self):
+    if self.action == "retrieve":
+        return ArticleDetailSerializer
+    return ArticleListSerializer
+</code></pre>
+
+<p>The cap should be computed, not guessed: <strong>maximum page size times the size of one list item stays under half a megabyte</strong>. At five kilobytes per item, fifty rows is a quarter of a megabyte.</p>
+
+<h3>Slim the list, fatten the detail</h3>
+
+<pre><code>class ArticleListSerializer(serializers.ModelSerializer):
+    category = serializers.SlugRelatedField(slug_field="slug", read_only=True)
+    class Meta:
+        model = Article
+        fields = ["slug", "title", "excerpt", "cover_image",
+                  "views_count", "likes_count", "created_at", "category"]
+
+class ArticleDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Article
+        fields = ["slug", "title", "content", "cover_image",
+                  "views_count", "likes_count", "created_at",
+                  "category", "tags"]
+</code></pre>
+
+<pre><code>def get_queryset(self):
+    base = Article.objects.filter(status=Article.Status.PUBLISHED)
+    if self.action == "list":
+        return base.select_related("category").prefetch_related("tags").only(
+            "id", "slug", "title", "excerpt", "cover_image",
+            "views_count", "likes_count", "created_at", "category",
+        )
+    return base.select_related("category").prefetch_related("tags")
+</code></pre>
+
+<p>Restricting the columns is a trap if applied everywhere: touching a field you did not select costs an extra query, so the detail action must use a different queryset or none at all.</p>
+
+<h3>Pagination without fixing N+1 makes small pages slower</h3>
+
+<pre><code>queryset = (
+    Article.objects.filter(status=Article.Status.PUBLISHED)
+    .select_related("category")
+    .prefetch_related("tags")
+)
+</code></pre>
+
+<p>Ten rows with a category and a tag lookup each is twenty-one queries, which is exactly what the earlier post measured. After the fix the list page should run three: the rows, the tags and the count. The count is the paginator's own aggregate, and it is normal; do not optimise it away.</p>
+
+<h3>The front end has to agree</h3>
+
+<pre><code>const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const articles = ref([])
+
+async function fetchArticles() {
+  const { data } = await api.get('/articles/', {
+    params: { page: page.value, page_size: pageSize.value }
+  })
+  articles.value = data.results
+  total.value = data.count
+}
+watch([page, pageSize], fetchArticles, { immediate: true })
+</code></pre>
+
+<p>The selector's largest option must not exceed the server's cap, or a reader choosing a hundred receives fifty and the page arithmetic drifts.</p>
+
+<h3>Five pagination traps</h3>
+
+<ol>
+<li>Paginating a dictionary table with a dozen rows, which just adds an envelope for the client to unwrap.</li>
+<li>Setting the cap to a thousand, which is the same as not having one.</li>
+<li>Leaving search unbounded, where a broad term plus a large page is slow squared; give search its own tighter cap.</li>
+<li>Sending a page number beyond the end, which correctly returns a not-found rather than a server error; the client should compute the last page from the count.</li>
+<li>Unstable ordering, where rows created in the same second repeat or vanish across pages; append the id as a tie-breaker.</li>
+</ol>
+
+<h2>Caching</h2>
+
+<pre><code>from django.core.cache import cache
+cache.get("key")
+cache.set("key", value, 300)
+cache.delete("key")
+cache.get_or_set("key", default_fn, 300)
+</code></pre>
+
+<p>One interface, and swapping the backend is a settings change, which is the whole reason to start on the free in-process cache and move later without touching views.</p>
+
+<table>
+<thead><tr><th>Backend</th><th>Setup</th><th>Shared across workers</th><th>Lost on restart</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Local memory</td><td>None</td><td>No</td><td>Yes</td><td>Free tier, a single-author blog</td></tr>
+<tr><td>Database table</td><td>One management command</td><td>Yes</td><td>No</td><td>Several workers, no Redis budget</td></tr>
+<tr><td>Files</td><td>A writable directory</td><td>Yes, per machine</td><td>No</td><td>Acceptable, though disk IO is worse than memory</td></tr>
+<tr><td>Redis</td><td>A service and a client</td><td>Yes</td><td>No</td><td>Paid tiers, real traffic</td></tr>
+</tbody>
+</table>
+
+<pre><code>CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+    }
+}
+</code></pre>
+
+<p>Not everything deserves caching. Sort by read-to-write ratio and cost, and cache only the top few.</p>
+
+<table>
+<thead><tr><th>Endpoint</th><th>Read to write</th><th>Lifetime</th><th>Invalidated by</th></tr></thead>
+<tbody>
+<tr><td>Categories and tags</td><td>A thousand to one</td><td>An hour</td><td>Any change to either table</td></tr>
+<tr><td>Article detail</td><td>A hundred to one</td><td>Five minutes</td><td>An update to the article</td></tr>
+<tr><td>First page of the list</td><td>Fifty to one</td><td>Two minutes</td><td>A new article</td></tr>
+<tr><td>Search results</td><td>Five to one</td><td>Not cached</td><td>Too many combinations to hit</td></tr>
+<tr><td>Likes, comments, subscriptions</td><td>Write heavy</td><td>Never</td><td>Caching a write endpoint is a bug</td></tr>
+</tbody>
+</table>
+
+<pre><code>class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    @method_decorator(cache_page(60 * 5))
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+</code></pre>
+
+<p>The page decorator keys on the full URL including the query string and returns the stored response body without entering the view at all. Hand-rolled, it is a get, a miss, a render and a set.</p>
+
+<pre><code>class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        data = cache.get("api:categories:v1")
+        if data is None:
+            qs = Category.objects.annotate(
+                article_count=Count(
+                    "article",
+                    filter=Q(article__status=Article.Status.PUBLISHED),
+                )
+            )
+            data = CategorySerializer(qs, many=True).data
+            cache.set("api:categories:v1", data, 3600)
+        return Response(data)
+</code></pre>
+
+<pre><code>@receiver([post_save, post_delete], sender=Category)
+def clear_category_cache(**kwargs):
+    cache.delete("api:categories:v1")
+
+@receiver([post_save, post_delete], sender=Article)
+def clear_article_list_cache(**kwargs):
+    cache.delete("api:articles:page1")
+</code></pre>
+
+<p>Putting a version in the key is a cheap trick: a redesign bumps the version and every stale entry becomes unreachable, which is more reliable than deleting them one by one.</p>
+
+<h3>Views versus caching the detail page</h3>
+
+<table>
+<thead><tr><th>Approach</th><th>Method</th><th>Accuracy</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>No detail cache</td><td>Cache lists only</td><td>Exact</td><td>Lowest</td></tr>
+<tr><td>Cache with a delay</td><td>Five minutes stale on the counter</td><td>Approximate</td><td>Low</td></tr>
+<tr><td>Cache plus a beacon</td><td>The client posts a view separately, rate limited</td><td>Exact</td><td>Medium</td></tr>
+</tbody>
+</table>
+
+<pre><code>@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
+def track_view(request, slug):
+    Article.objects.filter(slug=slug).update(views_count=F("views_count") + 1)
+    return Response({"ok": True})
+</code></pre>
+
+<p>A page cache means the view never runs on a hit, so an inline counter stops moving. Small sites accept the delay; large ones use the beacon. Do not trade a cache for an exact counter.</p>
+
+<h3>The three cache failures, briefly</h3>
+
+<p>Penetration means repeated requests for an identifier that does not exist, fixed by caching the empty result for a minute or a bloom filter. The stampede is one hot key expiring while dozens of requests arrive, fixed by logical expiry or a guarded rebuild, and on a small site by simply not aligning lifetimes. The avalanche is everything expiring at once after a restart, fixed by jitter on the timeout.</p>
+
+<h3>The worker trap on a shared host</h3>
+
+<p>Production runs several worker processes, and the local memory cache is per process, so one worker clearing a key leaves the others stale for up to one lifetime. For a blog that is invisible; for stock it would not be. If it matters, switch to the database backend, which several workers share and which the free tier supports.</p>
+
+<table>
+<thead><tr><th>Endpoint</th><th>Before</th><th>Paged and slimmed</th><th>Cached</th><th>Gain</th></tr></thead>
+<tbody>
+<tr><td>Categories</td><td>45 ms, three queries</td><td>45 ms, one query</td><td>3 ms, none</td><td>15 times</td></tr>
+<tr><td>Article list, page one</td><td>820 ms, twenty-one queries</td><td>85 ms, three queries</td><td>12 ms, none</td><td>68 times</td></tr>
+<tr><td>Article detail</td><td>90 ms, four queries</td><td>60 ms, three queries</td><td>8 ms, none</td><td>11 times</td></tr>
+</tbody>
+</table>
+
+<h2>Throttling</h2>
+
+<p>A global anonymous limit stops a load test but not thirty spam comments a minute, thirty subscription attempts an hour or thirty likes on one article. Reading and writing differ by orders of magnitude and need separate budgets.</p>
+
+<table>
+<thead><tr><th>Scope</th><th>Rate</th><th>Covers</th><th>Reasoning</th></tr></thead>
+<tbody>
+<tr><td>Anonymous</td><td>30 per minute</td><td>All reads by default</td><td>Nobody clicks thirty pages in a minute; scrapers get rejected</td></tr>
+<tr><td>User</td><td>100 per minute</td><td>Reads when logged in</td><td>Room for preloading and type-ahead</td></tr>
+<tr><td>Comment</td><td>3 per minute</td><td>Posting a comment</td><td>Typing and thinking take longer than twenty seconds</td></tr>
+<tr><td>Subscribe</td><td>5 per hour</td><td>Newsletter signup</td><td>A dictionary attack on addresses is locked out</td></tr>
+<tr><td>Upload</td><td>100 per hour</td><td>Image upload, authenticated</td><td>Protects storage; anonymous users cannot upload at all</td></tr>
+</tbody>
+</table>
+
+<pre><code>def allow_request(self, request, view):
+    self.key = self.get_cache_key(request, view)
+    history = self.cache.get(self.key, [])
+    now = self.timer()
+    while history and history[-1] &lt;= now - self.duration:
+        history.pop()
+    if len(history) &gt;= self.num_requests:
+        return self.throttle_failure()
+    return self.throttle_success()
+</code></pre>
+
+<p>Throttles run before permissions, so a rejected request never reaches business logic. And the counter lives in the cache, which means a per-process cache multiplies the effective limit by the worker count, so real traffic needs a shared backend.</p>
+
+<pre><code>class SubscribeThrottle(AnonRateThrottle):
+    scope = "subscribe"
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([SubscribeThrottle])
+def subscribe_newsletter(request):
+    ...
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
+def like_article(request, slug):
+    ...
+</code></pre>
+
+<p>Scoped throttles attach a budget to a view set; a named subclass is the clearest form and the one worth copying.</p>
+
+<h3>The forwarding header trap</h3>
+
+<p>Behind a proxy the remote address is the proxy, so every user looks identical. The framework prefers the forwarded header, which is a comma-separated chain whose left end is whatever the client claimed and whose right end is what the trusted proxy appended.</p>
+
+<pre><code>ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+</code></pre>
+
+<p>Taking the first entry means any client can send any address and evade both the limiter and any per-address deduplication. Take the last one.</p>
+
+<pre><code>xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+if xff:
+    ip = xff.split(",")[-1].strip()
+else:
+    ip = request.META.get("REMOTE_ADDR", "")
+ip = (ip or "")[:64]
+</code></pre>
+
+<p>And the address used for throttling must be the same one used for business deduplication, or the two mechanisms disagree and neither works.</p>
+
+<h3>A rejection is a normal flow</h3>
+
+<pre><code>api.interceptors.response.use(
+  (res) =&gt; res,
+  async (err) =&gt; {
+    const { response, config } = err
+    if (response?.status === 429 &amp;&amp; !config._retried) {
+      config._retried = true
+      if (config.method === 'get') {
+        const wait = Number(response.headers['retry-after'] || 5)
+        await new Promise((r) =&gt; setTimeout(r, wait * 1000))
+        return api.request(config)
+      }
+      const action = config.url.includes('subscribe') ? 'subscription'
+        : config.url.includes('comment') ? 'comment'
+        : 'like'
+      alert(`Too many ${action}s, try again in a moment`)
+    }
+    return Promise.reject(err)
+  }
+)
+</code></pre>
+
+<pre><code>const liking = ref(false)
+async function like(slug) {
+  if (liking.value) return
+  liking.value = true
+  try { await api.post(`/articles/${slug}/like/`) }
+  finally { setTimeout(() =&gt; (liking.value = false), 1500) }
+}
+</code></pre>
+
+<p>The button guard matters because repeated clicking is the largest single source of rejections.</p>
+
+<pre><code>for i in $(seq 1 35); do curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/api/articles/; done
+for i in 1 2 3 4 5; do curl -s -X POST http://127.0.0.1:8000/api/comments/ -H "Content-Type: application/json" -d '{"content":"test"}'; echo; done
+</code></pre>
+
+<p>Tune against a week of logs: a legitimate-user rejection rate above one percent means too tight, any spam comment means too loose. The comment budget here started at ten a minute and was tightened after a night of forty ads.</p>
+
+<h2>The finished view set</h2>
+
+<pre><code>class ArticlePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    lookup_field = "slug"
+    pagination_class = ArticlePagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = {"category__slug": ["exact"], "tags__slug": ["exact"]}
+    search_fields = ["title", "content"]
+
+    def get_queryset(self):
+        base = Article.objects.filter(status=Article.Status.PUBLISHED)
+        if self.action == "list":
+            return (
+                base.select_related("category")
+                .prefetch_related("tags")
+                .only("id", "slug", "title", "excerpt", "cover_image",
+                      "views_count", "likes_count", "created_at", "category")
+                .order_by("-created_at", "-id")
+            )
+        return base.select_related("category").prefetch_related("tags")
+
+    def get_serializer_class(self):
+        return ArticleDetailSerializer if self.action == "retrieve" else ArticleListSerializer
+
+    @method_decorator(cache_page(120))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @method_decorator(cache_page(300))
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+</code></pre>
+
+<table>
+<thead><tr><th>Stage</th><th>List page one</th><th>Categories</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td>Initial</td><td>820 ms, twenty-one queries</td><td>45 ms</td><td>90 ms</td></tr>
+<tr><td>Paged, slimmed, N+1 fixed</td><td>85 ms, three queries</td><td>20 ms, one query</td><td>60 ms</td></tr>
+<tr><td>Cached</td><td>12 ms, none</td><td>3 ms, none</td><td>8 ms</td></tr>
+<tr><td>Throttled</td><td>No change for people, rejections for scripts</td><td>Same</td><td>Same</td></tr>
+</tbody>
+</table>
+
+<h2>Checklist</h2>
+
+<p><strong>Pagination.</strong> Every view set has its own class with a cap of fifty or less. The list serialiser carries no body field. Dictionary tables have no pagination. Ordering has a unique tie-breaker. The client's largest option matches the cap.</p>
+
+<p><strong>Caching.</strong> A backend is configured, starting in memory and moving to Redis with one settings change. Categories, detail and the first list page are cached; search and writes are not. Save and delete signals clear the right keys, and keys carry a version. Lifetimes are staggered and jittered. A decision is recorded about views versus a cache.</p>
+
+<p><strong>Throttling.</strong> Reads and writes have separate budgets. Only the JSON renderer is enabled in production. The forwarded header is read from the right end, and the address used matches the deduplication key. The client retries reads once and shows a human message for writes with a button guard. The thresholds were verified with a loop and are tuned against logs.</p>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Ten or twenty per page?</strong> Ten on desktop, fifteen to twenty for mobile infinite scroll, decided by first-screen render time rather than by making the number bigger.</p>
+
+<p><strong>Will a cap of fifty annoy anyone?</strong> Put a quarter of a megabyte next to seven and a half and nobody complains. Full exports belong in a separate endpoint backed by a background job.</p>
+
+<p><strong>Does losing the cache on restart hurt?</strong> It costs speed, not data, and the free tier recycles daily, so the first few minutes are slower.</p>
+
+<p><strong>Does caching conflict with token auth?</strong> Not for public reads, which are not cached per user. Never cache per-user endpoints such as the current-user or admin routes.</p>
+
+<p><strong>What if a real user gets rejected?</strong> Check for a front-end loop first, which is the usual cause, then the threshold. Thirty a minute is plenty for a person and not for a script, which is the intent.</p>
+
+<p><strong>Is three comments a minute too tight?</strong> Almost nobody posts three in a minute. An author replying should be authenticated and on the higher budget.</p>
+
+<p><strong>Should crawlers be exempted?</strong> Identifying search engines by user agent is unreliable and unnecessary at this size; the requests being rejected are not the ones you want.</p>
+
+<p><strong>Can SQLite carry this?</strong> With read-heavy traffic and these three settings it handles thousands of daily users. Move when writes get heavy or full-text search matters.</p>
+
+<h2>Closing</h2>
+
+<p>Pagination decides how much, caching decides how often, throttling decides who. There is no magic in any of the three; the work is in the thresholds. Ship conservatively, then read the logs and the rejection rate and adjust. Every value here was set by real traffic rather than by taste, which is why copying them will not go far wrong.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
