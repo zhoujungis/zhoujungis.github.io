@@ -24569,6 +24569,387 @@ INCR key; EXPIRE key 60
 `,
   },
 
+  {
+    slug: 'django-transaction-atomic-on-commit',
+    zhSlug: 'django-transaction-atomic-on-commit',
+    topicSlug: 'backend',
+    title: 'The transaction rolled back and the email went out anyway',
+    excerpt:
+      'Lost updates, a save that costs a hundred milliseconds, and a post-save hook that sends mail before the commit. Four measured experiments and three rules that avoid most of it.',
+    date: '2026-11-02',
+    readingTime: 24,
+    html: `
+<blockquote>
+<p>Follows the distributed lock post and the slow query post. The last of three on concurrency.</p>
+<p>Django with SQLite, matching this site, with the differences for MySQL and PostgreSQL called out.</p>
+<p>Reading time around 24 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>An email incident</h2>
+
+<p>Rereading this site's own code turned up this signal handler, trimmed for length:</p>
+
+<pre><code>@receiver(post_save, sender=Article)
+def notify_subscribers_on_publish(sender, instance, created, **kwargs):
+    if instance.status != Article.Status.PUBLISHED:
+        return
+    if instance.notification_sent:
+        return
+
+    for sub in subscribers_qs.iterator(chunk_size=200):
+        batch.append((subject, plain_body, from_email, [sub.email]))
+        if len(batch) &gt;= batch_size:
+            send_mass_mail(batch, ...)
+            Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+</code></pre>
+
+<p>It does one thing right, using a column as an idempotency switch, and two things wrong in structure. It sends mail synchronously inside a save hook, so a few hundred milliseconds per message and fifty per batch holds an HTTP request open for tens of seconds with a thousand subscribers. And it fires before the transaction commits: if an outer transaction rolls back, the mail has already gone, the flag update is rolled back with it, and the next save sends everything again.</p>
+
+<p>That second point is the dangerous one, because <strong>a rollback undoes the database and nothing else</strong>. It does not recall an HTTP request or an email.</p>
+
+<p>Both problems have the same fix, and before writing it down I want the transaction model itself straight, because Django hosts more misconceptions about transactions than about locks.</p>
+
+<h2>Know your transaction boundary first</h2>
+
+<pre><code>ENGINE                : django.db.backends.sqlite3
+ATOMIC_REQUESTS       : False
+CONN_MAX_AGE          : 0
+has_select_for_update : False
+</code></pre>
+
+<h3>Atomic requests off by default</h3>
+
+<p>Django does not wrap a request in a transaction. Each save and update is its own small transaction, and on SQLite each statement commits on its own.</p>
+
+<pre><code>def grant_points(user_id, delta):
+    User.objects.filter(pk=user_id).update(points=F("points") + delta)  # transaction 1
+    PointLog.objects.create(user_id=user_id, delta=delta)              # transaction 2
+</code></pre>
+
+<p>Two independent transactions, so a crash between them leaves points granted and no record of why. Either wrap it yourself or turn the setting on, which gives the whole request all-or-nothing semantics.</p>
+
+<p>Whether to enable it is a trade rather than a truth. On, you get request-level atomicity for free but every view must be written assuming it can be rolled back at any point. Off, you decide where the boundaries are but every save has to be considered. This site keeps it off because some views do things that cannot live inside a transaction, such as sending notifications or calling a third party.</p>
+
+<h3>Connection reuse</h3>
+
+<p>The default reuse window is zero, which closes the connection at the end of each request. For SQLite that is nearly free, since a connection is just a file handle, but for a network database the handshake and authentication cost tens of milliseconds, which becomes a real bottleneck under load. Production settings usually reuse for a minute and check health before reuse.</p>
+
+<h3>Row locks that silently do nothing</h3>
+
+<p>The framework probes the backend and records that locking reads are unsupported, because SQLite locks the database for writing and has no row locks. The consequence is that <strong>a locking read is accepted and ignored</strong>.</p>
+
+<pre><code>with transaction.atomic():
+    a = Article.objects.select_for_update().get(pk=1)   # no lock on SQLite
+    a.views_count += 1
+    a.save()
+</code></pre>
+
+<p>You believe the row is locked and no concurrent writer can touch it. There is no lock. The experiment below shows it.</p>
+
+<h3>Autocommit and implicit transactions</h3>
+
+<p>By default each ORM call commits on its own, and you enter a transaction explicitly. One save may turn into a dozen committed statements once signals, cascades and many-to-many writes are counted, so <strong>"a save is one statement" is a wrong model</strong>.</p>
+
+<h2>Experiment one: 87.5 percent of the updates vanished</h2>
+
+<pre><code>a = Article.objects.get(pk=1)        # SELECT
+a.views_count = a.views_count + 1    # increment in Python
+a.save(update_fields=["views_count"])  # UPDATE
+</code></pre>
+
+<p>Eight threads, fifty increments each, so the expected final count is four hundred.</p>
+
+<table>
+<thead><tr><th>Variant</th><th>Final value</th><th>Lost</th><th>Duration</th></tr></thead>
+<tbody>
+<tr><td>Read-modify-write, autocommit</td><td>50</td><td>350, 87.5 percent</td><td>4819 ms</td></tr>
+<tr><td>Read-modify-write inside a transaction</td><td>50</td><td>350, 87.5 percent</td><td>571 ms</td></tr>
+<tr><td>Expression update, one statement</td><td>400</td><td>0</td><td>3302 ms</td></tr>
+<tr><td>Transaction plus locking read</td><td>50</td><td>350, 87.5 percent</td><td>573 ms</td></tr>
+</tbody>
+</table>
+
+<p>Rows two and four are faster than the first, but not because they are better: seven of eight threads exited with a lock error, one finished its fifty increments, and the count is fifty.</p>
+
+<p>The first variant is the most dangerous because it never complains. Two threads read five, both add one, both write six, and the net effect is one increment instead of two. In production there is no log line, no metric and no exception, only a number that is wrong.</p>
+
+<p>Wrapping it in a transaction does not help under read-committed isolation, because the guarantee is about reading committed data, not about what happens between your read and your write. Both writes are legal.</p>
+
+<p>On SQLite the transaction adds a database-wide write lock, so most write threads fail loudly with a lock error, one finishes, and the count is fifty. Failing loudly is better than losing silently, and on a network database even that consolation disappears.</p>
+
+<p>The only correct variant is the expression update, which becomes a single statement where the database computes the new value without reading it into the application. Four hundred increments, four hundred in the column, not one lost.</p>
+
+<p>This site already does it:</p>
+
+<pre><code>Article.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
+</code></pre>
+
+<p><strong>Rule one: if an expression update can do the job, never read, modify and save.</strong> One statement buys atomicity, concurrency safety and speed together.</p>
+
+<p>Note that the locking read is identical to the plain transaction here, for the reason in the previous section: the clause is dropped. That is the standard illusion, believing a lock was taken when none exists. The only reliable defence on SQLite is the expression update, or moving to a database that actually locks rows.</p>
+
+<h3>What a transaction is actually for</h3>
+
+<pre><code>def transfer_money(from_id, to_id, amount):
+    with transaction.atomic():
+        Account.objects.filter(pk=from_id).update(balance=F("balance") - amount)
+        Account.objects.filter(pk=to_id).update(balance=F("balance") + amount)
+        TransferLog.objects.create(...)
+</code></pre>
+
+<p>These three statements succeed or fail together, and a failed check constraint on the first undoes the debit that already ran. That is the job: turning several steps into one. A single expression update is already atomic and does not need wrapping.</p>
+
+<h3>Making multithreaded writes on SQLite less fragile</h3>
+
+<pre><code>DATABASES["default"].update({
+    "OPTIONS": {
+        "timeout": 20,
+        "init_command": "PRAGMA journal_mode=WAL;",
+    },
+})
+</code></pre>
+
+<p>Write-ahead logging lets readers and the writer proceed together, and a longer timeout stops a brief contention from raising a lock error. The fundamental ceiling is still one writer at a time; real concurrency needs a proper server database.</p>
+
+<h2>Experiment two: saving one counter costs 14.7 times an update</h2>
+
+<table>
+<thead><tr><th>Variant</th><th>Median of twenty runs</th></tr></thead>
+<tbody>
+<tr><td>Save with an update-field list</td><td>109.04 ms</td></tr>
+<tr><td>Expression update</td><td>7.40 ms</td></tr>
+<tr><td>Ratio</td><td>14.7 times</td></tr>
+</tbody>
+</table>
+
+<p>The field list only controls which columns the parent save writes. It cannot skip the code the overridden save method already ran, which on this model parses the whole body as Markdown, sanitises the resulting HTML and recomputes the excerpt. On a nineteen kilobyte body that is a hundred milliseconds, every time, even to change a counter.</p>
+
+<p><strong>Rule two: a save is not free.</strong> Whatever the custom save does is the true cost of changing one field. Counters, flags and ordering positions belong in an expression update; only writes that genuinely need rendering, signals or cascades should save the whole object.</p>
+
+<p>Worth adding: with request-level atomicity on, that render happens inside the transaction for every POST, and the latency is real to the user. Moving rendering to a background job, or short-circuiting the save when nothing that needs rendering changed, is the other half of the fix.</p>
+
+<h2>Experiment three: mail sent inside a save hook cannot be recalled</h2>
+
+<pre><code>log = []
+
+def side_effect(sender, instance, **kwargs):
+    log.append("post_save: mail sent")
+
+post_save.connect(side_effect, sender=Article)
+
+# rollback
+try:
+    with transaction.atomic():
+        a = Article.objects.get(pk=1)
+        a.save(update_fields=["title"])
+        transaction.on_commit(lambda: log.append("on_commit: mail sent"))
+        raise RuntimeError("validation failed, roll back")
+except RuntimeError:
+    pass
+print(log)
+# ['post_save: mail sent']  -- sent, rolled back
+
+# commit
+log.clear()
+with transaction.atomic():
+    a = Article.objects.get(pk=1)
+    a.save(update_fields=["title"])
+    transaction.on_commit(lambda: log.append("on_commit: mail sent"))
+print(log)
+# ['post_save: mail sent', 'on_commit: mail sent']
+</code></pre>
+
+<p>The hook runs inside the save, before the outer block commits, so in the rollback case the mail has gone and the post-commit callback never runs.</p>
+
+<pre><code>request -> BEGIN -> save -> INSERT or UPDATE -> post_save signal
+        -> exception here means ROLLBACK
+        -> the post-commit queue is empty, so nothing fires
+</code></pre>
+
+<p>Only the database rolled back. The SMTP conversation did not.</p>
+
+<p>Which makes the opening handler not merely slow but wrong: the flag update travels with the transaction, so a rollback restores the flag while the mail is out, and the next save sends it all again.</p>
+
+<h3>The fix</h3>
+
+<pre><code>@receiver(post_save, sender=Article)
+def notify_subscribers_on_publish(sender, instance, created, **kwargs):
+    if instance.status != Article.Status.PUBLISHED:
+        return
+    if instance.notification_sent:
+        return
+
+    blog_url = getattr(settings, "SITE_URL", "https://zhoujungis.github.io")
+    article_url = f"{blog_url}/article/{instance.slug}"
+    subject = f"New post: {instance.title}"
+    plain_body = render_to_string("articles/email/new_article.txt", {...})
+
+    from_email = settings.DEFAULT_FROM_EMAIL
+    batch_size = 50
+    subscribers_qs = Subscriber.objects.filter(is_active=True).order_by("id")
+
+    def send_all_batches():
+        """Closure that only runs after the transaction commits."""
+        if not subscribers_qs.exists():
+            Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+            return
+        sent_count = 0
+        batch = []
+        failed = False
+        for sub in subscribers_qs.iterator(chunk_size=200):
+            batch.append((subject, plain_body, from_email, [sub.email]))
+            if len(batch) &gt;= batch_size:
+                try:
+                    send_mass_mail(batch, fail_silently=False)
+                except Exception as exc:
+                    logger.error("Failed to send batch: %s", exc)
+                    failed = True
+                    break
+                sent_count += len(batch)
+                Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+                batch = []
+        if batch and not failed:
+            try:
+                send_mass_mail(batch, fail_silently=False)
+                sent_count += len(batch)
+                Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+            except Exception as exc:
+                logger.error("Failed to send final batch: %s", exc)
+        if sent_count and not failed:
+            logger.info("Sent notification to %d subscribers.", sent_count)
+
+    transaction.on_commit(send_all_batches)
+</code></pre>
+
+<p>Three gains. A rollback means the callback never runs, so there is no mail and a later save can try again. The request returns immediately because the hook only registers a callback now. And the boundary is explicit: the signal runs inside the transaction and the side effect runs outside it.</p>
+
+<p><strong>Rule three: anything that must not be undone by a rollback, meaning mail, push notifications, external calls and non-transactional resources, goes through the post-commit hook.</strong> Signals are for preparation that belongs inside the transaction, such as flags and audit rows.</p>
+
+<p>There is a quieter benefit: it removes a whole class of compensation logic. A side effect inside the save hook has already happened when the transaction rolls back, and you cannot recall it. A side effect after commit only runs if the transaction succeeded, so a rollback needs no compensation because nothing happened.</p>
+
+<h2>Experiment four: catching an exception inside a transaction</h2>
+
+<pre><code>with transaction.atomic():
+    try:
+        Article.objects.create(title="dup", slug=base_slug, content="x")
+    except IntegrityError:
+        pass
+    n = Article.objects.count()
+</code></pre>
+
+<pre><code>caught UNIQUE constraint failed: articles_article.slug
+TransactionManagementError: An error occurred in the current transaction.
+You can't execute queries until the end of the 'atomic' block.
+</code></pre>
+
+<p>The framework is deliberately conservative: after an error the connection is in a polluted state, and further queries could return wrong results, so it forbids them outright.</p>
+
+<pre><code>with transaction.atomic():                                # outer
+    try:
+        with transaction.atomic():                        # inner = savepoint
+            Article.objects.create(title="dup", slug=base_slug, content="x")
+    except IntegrityError:
+        pass
+    n = Article.objects.count()                           # fine
+</code></pre>
+
+<p>An inner block creates a savepoint on every backend that supports one, and a failure rolls back only to that point.</p>
+
+<p>The cost is one savepoint and its release or rollback, which is negligible on SQLite and tens of microseconds elsewhere, in exchange for an error that does not poison what follows.</p>
+
+<p><strong>Rule four: any operation inside a transaction that may fail should be wrapped in a nested block, not a bare try.</strong> The depth of nesting does not matter, since a savepoint is what a nested block compiles to.</p>
+
+<h2>The post-commit hook and its three traps</h2>
+
+<pre><code>transaction.on_commit(func, *, using=None, robust=False)
+</code></pre>
+
+<p>The callable takes no arguments, so capture what you need in a closure. The database can be named when there are several. And robustness defaults to off, which means an exception inside the callback propagates and interrupts whatever follows the commit; in production, turn it on so a failed email cannot break the rest of the flow.</p>
+
+<p><strong>No transaction, no commit.</strong> Called outside a transaction, the hook runs immediately, because there is no boundary to wait for. Many people believe it always defers, and outside a transaction there is no after.</p>
+
+<p><strong>The test case never commits.</strong> Django's test case wraps each test in a transaction and rolls it back, so the callback never fires. That is the single most common reason a mail-sending test fails. Either use a test case that does not wrap, or capture the callbacks explicitly.</p>
+
+<pre><code>def test_email_callback_registered(self):
+    with self.captureOnCommitCallbacks(execute=True) as callbacks:
+        article = Article.objects.create(
+            title="t", slug="t", content="x", status=Article.Status.PUBLISHED
+        )
+    self.assertEqual(len(callbacks), 1)
+</code></pre>
+
+<p><strong>Callbacks run in registration order</strong>, one after another. Do not assume any scheduling, and put genuinely parallel work behind a queue.</p>
+
+<h3>Queueing a task after commit</h3>
+
+<pre><code>@api_view(["POST"])
+def create_order(request):
+    with transaction.atomic():
+        order = Order.objects.create(user=request.user, ...)
+        transaction.on_commit(lambda: send_confirmation_email.delay(order.id))
+    return JsonResponse({"id": order.id})
+</code></pre>
+
+<p>Enqueueing is usually a synchronous write to a broker, so doing it after commit costs almost nothing, and a rollback means the broker never hears about it.</p>
+
+<h2>Three rules of thumb</h2>
+
+<p><strong>Rule one: prefer an expression update over read, modify, save.</strong> Counters, flags, ordering positions and incremental statistics all belong in one statement. Changing one field does not make a save cheap, because the custom logic inside it is paid on every call.</p>
+
+<p><strong>Rule two: a transaction covers several steps, it does not prevent lost updates.</strong> Under read-committed isolation, reading and writing back loses increments even inside a block. What prevents that is an atomic operation at the statement level, meaning an expression, a conditional update, or a real row lock.</p>
+
+<p><strong>Rule three: side effects outside the transaction cannot be rolled back.</strong> Mail, push, external APIs and non-transactional resources either go through the post-commit hook, or through a queue enqueued after commit. Writing side effects inside a signal is an anti-pattern, even if it is only a print statement.</p>
+
+<p>If you remember only the compressed version, remember this: change with an expression, group with a transaction, defer side effects until after commit. That covers most concurrency and transaction incidents in production.</p>
+
+<h2>How the databases differ</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>SQLite</th><th>MySQL 8 with InnoDB</th><th>PostgreSQL 15</th></tr></thead>
+<tbody>
+<tr><td>Default isolation</td><td>Serializable</td><td>Repeatable read</td><td>Read committed</td></tr>
+<tr><td>Request-level atomicity</td><td>Off by default</td><td>Off by default</td><td>Off by default</td></tr>
+<tr><td>Locking read</td><td>Silently ignored</td><td>Supported</td><td>Supported</td></tr>
+<tr><td>Skip locked</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Lock granularity</td><td>Database, one writer at a time</td><td>Row</td><td>Row</td></tr>
+<tr><td>Concurrent writers</td><td>One, queued</td><td>Thousands of row locks</td><td>Thousands of row locks</td></tr>
+<tr><td>Typical contention failure</td><td>A locked error</td><td>Lock wait timeout</td><td>Lock wait timeout</td></tr>
+<tr><td>What to configure</td><td>A longer timeout and write-ahead logging</td><td>Connection reuse</td><td>Connection reuse</td></tr>
+</tbody>
+</table>
+
+<p>The line that matters: running comfortably on SQLite does not mean production is safe. Eight threads manage here only because seven fail loudly; on a server database they would all succeed and the lost-update bug would stay silent. Every read-compute-write pattern needs the expression form or a real row lock before you migrate.</p>
+
+<p>And on migration, the locking read stops being a no-op, so start using it, remove the SQLite timeouts and add connection reuse.</p>
+
+<h2>Checklist</h2>
+
+<p>In the code: replace every read-modify-write with an expression update or an explicit transaction plus a proven row lock; keep unrelated logic out of save methods, or document its cost; never call external side effects synchronously from save or delete hooks; route mail, push and third-party calls through the post-commit hook or a queue; and enable robustness on the hook for non-critical work so one failed message cannot break the rest of the commit path.</p>
+
+<p>In the tests: assert that callbacks are registered using the capture helper; write race tests with a non-wrapping test case and a thread pool; and for every read-compute-write path, run a thousand concurrent executions and assert the final value.</p>
+
+<p>In the configuration: write-ahead logging and a longer timeout on SQLite; connection reuse and health checks on a server database; a deliberate decision about request-level atomicity; and monitoring of lock waits and rollback rates.</p>
+
+<h2>Closing</h2>
+
+<p>Where the lock post was about exclusion between processes and the query post was about the cost of a query, this one is about the boundary of an operation: what must be tied together, what must be kept apart, and what must never share a block of code.</p>
+
+<p>Three things to remember. Change data with an expression. Tie steps together with a transaction. Keep side effects until after commit. Everything else is a combination.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a>.</p>
+
+<h2>Appendix: the benchmark script</h2>
+
+<pre><code># every experiment: worst-case save versus update, eight threads, post-commit behaviour
+cd backend
+DJANGO_SECRET_KEY=dev-only python ../tools/bench_transaction.py
+python ../tools/bench_transaction.py --threads 4 --increments 25
+</code></pre>
+
+<p>Django 6, SQLite 3.5, Python 3.13, medians over eight threads of fifty increments. The script copies the database to a temporary directory, deletes it afterwards and disconnects the notification signal, so <strong>no real rows are touched and no email is sent</strong>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

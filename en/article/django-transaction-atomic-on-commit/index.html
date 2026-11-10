@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Lost updates, a save that costs a hundred milliseconds, and a post-save hook that sends mail before the commit. Four measured experiments and three rules that avoid most of it." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/django-transaction-atomic-on-commit/" />
+    <meta property="og:title" content="The transaction rolled back and the email went out anyway | Stack Frame" />
+    <meta property="og:description" content="Lost updates, a save that costs a hundred milliseconds, and a post-save hook that sends mail before the commit. Four measured experiments and three rules that avoid most of it." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/django-transaction-atomic-on-commit/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The transaction rolled back and the email went out anyway | Stack Frame" />
+    <meta name="twitter:description" content="Lost updates, a save that costs a hundred milliseconds, and a post-save hook that sends mail before the commit. Four measured experiments and three rules that avoid most of it." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>The transaction rolled back and the email went out anyway | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/django-transaction-atomic-on-commit/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>The transaction rolled back and the email went out anyway</h1><div class="ns-meta">2026-11-02 · 24 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Follows the distributed lock post and the slow query post. The last of three on concurrency.</p>
+<p>Django with SQLite, matching this site, with the differences for MySQL and PostgreSQL called out.</p>
+<p>Reading time around 24 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>An email incident</h2>
+
+<p>Rereading this site's own code turned up this signal handler, trimmed for length:</p>
+
+<pre><code>@receiver(post_save, sender=Article)
+def notify_subscribers_on_publish(sender, instance, created, **kwargs):
+    if instance.status != Article.Status.PUBLISHED:
+        return
+    if instance.notification_sent:
+        return
+
+    for sub in subscribers_qs.iterator(chunk_size=200):
+        batch.append((subject, plain_body, from_email, [sub.email]))
+        if len(batch) &gt;= batch_size:
+            send_mass_mail(batch, ...)
+            Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+</code></pre>
+
+<p>It does one thing right, using a column as an idempotency switch, and two things wrong in structure. It sends mail synchronously inside a save hook, so a few hundred milliseconds per message and fifty per batch holds an HTTP request open for tens of seconds with a thousand subscribers. And it fires before the transaction commits: if an outer transaction rolls back, the mail has already gone, the flag update is rolled back with it, and the next save sends everything again.</p>
+
+<p>That second point is the dangerous one, because <strong>a rollback undoes the database and nothing else</strong>. It does not recall an HTTP request or an email.</p>
+
+<p>Both problems have the same fix, and before writing it down I want the transaction model itself straight, because Django hosts more misconceptions about transactions than about locks.</p>
+
+<h2>Know your transaction boundary first</h2>
+
+<pre><code>ENGINE                : django.db.backends.sqlite3
+ATOMIC_REQUESTS       : False
+CONN_MAX_AGE          : 0
+has_select_for_update : False
+</code></pre>
+
+<h3>Atomic requests off by default</h3>
+
+<p>Django does not wrap a request in a transaction. Each save and update is its own small transaction, and on SQLite each statement commits on its own.</p>
+
+<pre><code>def grant_points(user_id, delta):
+    User.objects.filter(pk=user_id).update(points=F("points") + delta)  # transaction 1
+    PointLog.objects.create(user_id=user_id, delta=delta)              # transaction 2
+</code></pre>
+
+<p>Two independent transactions, so a crash between them leaves points granted and no record of why. Either wrap it yourself or turn the setting on, which gives the whole request all-or-nothing semantics.</p>
+
+<p>Whether to enable it is a trade rather than a truth. On, you get request-level atomicity for free but every view must be written assuming it can be rolled back at any point. Off, you decide where the boundaries are but every save has to be considered. This site keeps it off because some views do things that cannot live inside a transaction, such as sending notifications or calling a third party.</p>
+
+<h3>Connection reuse</h3>
+
+<p>The default reuse window is zero, which closes the connection at the end of each request. For SQLite that is nearly free, since a connection is just a file handle, but for a network database the handshake and authentication cost tens of milliseconds, which becomes a real bottleneck under load. Production settings usually reuse for a minute and check health before reuse.</p>
+
+<h3>Row locks that silently do nothing</h3>
+
+<p>The framework probes the backend and records that locking reads are unsupported, because SQLite locks the database for writing and has no row locks. The consequence is that <strong>a locking read is accepted and ignored</strong>.</p>
+
+<pre><code>with transaction.atomic():
+    a = Article.objects.select_for_update().get(pk=1)   # no lock on SQLite
+    a.views_count += 1
+    a.save()
+</code></pre>
+
+<p>You believe the row is locked and no concurrent writer can touch it. There is no lock. The experiment below shows it.</p>
+
+<h3>Autocommit and implicit transactions</h3>
+
+<p>By default each ORM call commits on its own, and you enter a transaction explicitly. One save may turn into a dozen committed statements once signals, cascades and many-to-many writes are counted, so <strong>"a save is one statement" is a wrong model</strong>.</p>
+
+<h2>Experiment one: 87.5 percent of the updates vanished</h2>
+
+<pre><code>a = Article.objects.get(pk=1)        # SELECT
+a.views_count = a.views_count + 1    # increment in Python
+a.save(update_fields=["views_count"])  # UPDATE
+</code></pre>
+
+<p>Eight threads, fifty increments each, so the expected final count is four hundred.</p>
+
+<table>
+<thead><tr><th>Variant</th><th>Final value</th><th>Lost</th><th>Duration</th></tr></thead>
+<tbody>
+<tr><td>Read-modify-write, autocommit</td><td>50</td><td>350, 87.5 percent</td><td>4819 ms</td></tr>
+<tr><td>Read-modify-write inside a transaction</td><td>50</td><td>350, 87.5 percent</td><td>571 ms</td></tr>
+<tr><td>Expression update, one statement</td><td>400</td><td>0</td><td>3302 ms</td></tr>
+<tr><td>Transaction plus locking read</td><td>50</td><td>350, 87.5 percent</td><td>573 ms</td></tr>
+</tbody>
+</table>
+
+<p>Rows two and four are faster than the first, but not because they are better: seven of eight threads exited with a lock error, one finished its fifty increments, and the count is fifty.</p>
+
+<p>The first variant is the most dangerous because it never complains. Two threads read five, both add one, both write six, and the net effect is one increment instead of two. In production there is no log line, no metric and no exception, only a number that is wrong.</p>
+
+<p>Wrapping it in a transaction does not help under read-committed isolation, because the guarantee is about reading committed data, not about what happens between your read and your write. Both writes are legal.</p>
+
+<p>On SQLite the transaction adds a database-wide write lock, so most write threads fail loudly with a lock error, one finishes, and the count is fifty. Failing loudly is better than losing silently, and on a network database even that consolation disappears.</p>
+
+<p>The only correct variant is the expression update, which becomes a single statement where the database computes the new value without reading it into the application. Four hundred increments, four hundred in the column, not one lost.</p>
+
+<p>This site already does it:</p>
+
+<pre><code>Article.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
+</code></pre>
+
+<p><strong>Rule one: if an expression update can do the job, never read, modify and save.</strong> One statement buys atomicity, concurrency safety and speed together.</p>
+
+<p>Note that the locking read is identical to the plain transaction here, for the reason in the previous section: the clause is dropped. That is the standard illusion, believing a lock was taken when none exists. The only reliable defence on SQLite is the expression update, or moving to a database that actually locks rows.</p>
+
+<h3>What a transaction is actually for</h3>
+
+<pre><code>def transfer_money(from_id, to_id, amount):
+    with transaction.atomic():
+        Account.objects.filter(pk=from_id).update(balance=F("balance") - amount)
+        Account.objects.filter(pk=to_id).update(balance=F("balance") + amount)
+        TransferLog.objects.create(...)
+</code></pre>
+
+<p>These three statements succeed or fail together, and a failed check constraint on the first undoes the debit that already ran. That is the job: turning several steps into one. A single expression update is already atomic and does not need wrapping.</p>
+
+<h3>Making multithreaded writes on SQLite less fragile</h3>
+
+<pre><code>DATABASES["default"].update({
+    "OPTIONS": {
+        "timeout": 20,
+        "init_command": "PRAGMA journal_mode=WAL;",
+    },
+})
+</code></pre>
+
+<p>Write-ahead logging lets readers and the writer proceed together, and a longer timeout stops a brief contention from raising a lock error. The fundamental ceiling is still one writer at a time; real concurrency needs a proper server database.</p>
+
+<h2>Experiment two: saving one counter costs 14.7 times an update</h2>
+
+<table>
+<thead><tr><th>Variant</th><th>Median of twenty runs</th></tr></thead>
+<tbody>
+<tr><td>Save with an update-field list</td><td>109.04 ms</td></tr>
+<tr><td>Expression update</td><td>7.40 ms</td></tr>
+<tr><td>Ratio</td><td>14.7 times</td></tr>
+</tbody>
+</table>
+
+<p>The field list only controls which columns the parent save writes. It cannot skip the code the overridden save method already ran, which on this model parses the whole body as Markdown, sanitises the resulting HTML and recomputes the excerpt. On a nineteen kilobyte body that is a hundred milliseconds, every time, even to change a counter.</p>
+
+<p><strong>Rule two: a save is not free.</strong> Whatever the custom save does is the true cost of changing one field. Counters, flags and ordering positions belong in an expression update; only writes that genuinely need rendering, signals or cascades should save the whole object.</p>
+
+<p>Worth adding: with request-level atomicity on, that render happens inside the transaction for every POST, and the latency is real to the user. Moving rendering to a background job, or short-circuiting the save when nothing that needs rendering changed, is the other half of the fix.</p>
+
+<h2>Experiment three: mail sent inside a save hook cannot be recalled</h2>
+
+<pre><code>log = []
+
+def side_effect(sender, instance, **kwargs):
+    log.append("post_save: mail sent")
+
+post_save.connect(side_effect, sender=Article)
+
+# rollback
+try:
+    with transaction.atomic():
+        a = Article.objects.get(pk=1)
+        a.save(update_fields=["title"])
+        transaction.on_commit(lambda: log.append("on_commit: mail sent"))
+        raise RuntimeError("validation failed, roll back")
+except RuntimeError:
+    pass
+print(log)
+# ['post_save: mail sent']  -- sent, rolled back
+
+# commit
+log.clear()
+with transaction.atomic():
+    a = Article.objects.get(pk=1)
+    a.save(update_fields=["title"])
+    transaction.on_commit(lambda: log.append("on_commit: mail sent"))
+print(log)
+# ['post_save: mail sent', 'on_commit: mail sent']
+</code></pre>
+
+<p>The hook runs inside the save, before the outer block commits, so in the rollback case the mail has gone and the post-commit callback never runs.</p>
+
+<pre><code>request -> BEGIN -> save -> INSERT or UPDATE -> post_save signal
+        -> exception here means ROLLBACK
+        -> the post-commit queue is empty, so nothing fires
+</code></pre>
+
+<p>Only the database rolled back. The SMTP conversation did not.</p>
+
+<p>Which makes the opening handler not merely slow but wrong: the flag update travels with the transaction, so a rollback restores the flag while the mail is out, and the next save sends it all again.</p>
+
+<h3>The fix</h3>
+
+<pre><code>@receiver(post_save, sender=Article)
+def notify_subscribers_on_publish(sender, instance, created, **kwargs):
+    if instance.status != Article.Status.PUBLISHED:
+        return
+    if instance.notification_sent:
+        return
+
+    blog_url = getattr(settings, "SITE_URL", "https://zhoujungis.github.io")
+    article_url = f"{blog_url}/article/{instance.slug}"
+    subject = f"New post: {instance.title}"
+    plain_body = render_to_string("articles/email/new_article.txt", {...})
+
+    from_email = settings.DEFAULT_FROM_EMAIL
+    batch_size = 50
+    subscribers_qs = Subscriber.objects.filter(is_active=True).order_by("id")
+
+    def send_all_batches():
+        """Closure that only runs after the transaction commits."""
+        if not subscribers_qs.exists():
+            Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+            return
+        sent_count = 0
+        batch = []
+        failed = False
+        for sub in subscribers_qs.iterator(chunk_size=200):
+            batch.append((subject, plain_body, from_email, [sub.email]))
+            if len(batch) &gt;= batch_size:
+                try:
+                    send_mass_mail(batch, fail_silently=False)
+                except Exception as exc:
+                    logger.error("Failed to send batch: %s", exc)
+                    failed = True
+                    break
+                sent_count += len(batch)
+                Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+                batch = []
+        if batch and not failed:
+            try:
+                send_mass_mail(batch, fail_silently=False)
+                sent_count += len(batch)
+                Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+            except Exception as exc:
+                logger.error("Failed to send final batch: %s", exc)
+        if sent_count and not failed:
+            logger.info("Sent notification to %d subscribers.", sent_count)
+
+    transaction.on_commit(send_all_batches)
+</code></pre>
+
+<p>Three gains. A rollback means the callback never runs, so there is no mail and a later save can try again. The request returns immediately because the hook only registers a callback now. And the boundary is explicit: the signal runs inside the transaction and the side effect runs outside it.</p>
+
+<p><strong>Rule three: anything that must not be undone by a rollback, meaning mail, push notifications, external calls and non-transactional resources, goes through the post-commit hook.</strong> Signals are for preparation that belongs inside the transaction, such as flags and audit rows.</p>
+
+<p>There is a quieter benefit: it removes a whole class of compensation logic. A side effect inside the save hook has already happened when the transaction rolls back, and you cannot recall it. A side effect after commit only runs if the transaction succeeded, so a rollback needs no compensation because nothing happened.</p>
+
+<h2>Experiment four: catching an exception inside a transaction</h2>
+
+<pre><code>with transaction.atomic():
+    try:
+        Article.objects.create(title="dup", slug=base_slug, content="x")
+    except IntegrityError:
+        pass
+    n = Article.objects.count()
+</code></pre>
+
+<pre><code>caught UNIQUE constraint failed: articles_article.slug
+TransactionManagementError: An error occurred in the current transaction.
+You can't execute queries until the end of the 'atomic' block.
+</code></pre>
+
+<p>The framework is deliberately conservative: after an error the connection is in a polluted state, and further queries could return wrong results, so it forbids them outright.</p>
+
+<pre><code>with transaction.atomic():                                # outer
+    try:
+        with transaction.atomic():                        # inner = savepoint
+            Article.objects.create(title="dup", slug=base_slug, content="x")
+    except IntegrityError:
+        pass
+    n = Article.objects.count()                           # fine
+</code></pre>
+
+<p>An inner block creates a savepoint on every backend that supports one, and a failure rolls back only to that point.</p>
+
+<p>The cost is one savepoint and its release or rollback, which is negligible on SQLite and tens of microseconds elsewhere, in exchange for an error that does not poison what follows.</p>
+
+<p><strong>Rule four: any operation inside a transaction that may fail should be wrapped in a nested block, not a bare try.</strong> The depth of nesting does not matter, since a savepoint is what a nested block compiles to.</p>
+
+<h2>The post-commit hook and its three traps</h2>
+
+<pre><code>transaction.on_commit(func, *, using=None, robust=False)
+</code></pre>
+
+<p>The callable takes no arguments, so capture what you need in a closure. The database can be named when there are several. And robustness defaults to off, which means an exception inside the callback propagates and interrupts whatever follows the commit; in production, turn it on so a failed email cannot break the rest of the flow.</p>
+
+<p><strong>No transaction, no commit.</strong> Called outside a transaction, the hook runs immediately, because there is no boundary to wait for. Many people believe it always defers, and outside a transaction there is no after.</p>
+
+<p><strong>The test case never commits.</strong> Django's test case wraps each test in a transaction and rolls it back, so the callback never fires. That is the single most common reason a mail-sending test fails. Either use a test case that does not wrap, or capture the callbacks explicitly.</p>
+
+<pre><code>def test_email_callback_registered(self):
+    with self.captureOnCommitCallbacks(execute=True) as callbacks:
+        article = Article.objects.create(
+            title="t", slug="t", content="x", status=Article.Status.PUBLISHED
+        )
+    self.assertEqual(len(callbacks), 1)
+</code></pre>
+
+<p><strong>Callbacks run in registration order</strong>, one after another. Do not assume any scheduling, and put genuinely parallel work behind a queue.</p>
+
+<h3>Queueing a task after commit</h3>
+
+<pre><code>@api_view(["POST"])
+def create_order(request):
+    with transaction.atomic():
+        order = Order.objects.create(user=request.user, ...)
+        transaction.on_commit(lambda: send_confirmation_email.delay(order.id))
+    return JsonResponse({"id": order.id})
+</code></pre>
+
+<p>Enqueueing is usually a synchronous write to a broker, so doing it after commit costs almost nothing, and a rollback means the broker never hears about it.</p>
+
+<h2>Three rules of thumb</h2>
+
+<p><strong>Rule one: prefer an expression update over read, modify, save.</strong> Counters, flags, ordering positions and incremental statistics all belong in one statement. Changing one field does not make a save cheap, because the custom logic inside it is paid on every call.</p>
+
+<p><strong>Rule two: a transaction covers several steps, it does not prevent lost updates.</strong> Under read-committed isolation, reading and writing back loses increments even inside a block. What prevents that is an atomic operation at the statement level, meaning an expression, a conditional update, or a real row lock.</p>
+
+<p><strong>Rule three: side effects outside the transaction cannot be rolled back.</strong> Mail, push, external APIs and non-transactional resources either go through the post-commit hook, or through a queue enqueued after commit. Writing side effects inside a signal is an anti-pattern, even if it is only a print statement.</p>
+
+<p>If you remember only the compressed version, remember this: change with an expression, group with a transaction, defer side effects until after commit. That covers most concurrency and transaction incidents in production.</p>
+
+<h2>How the databases differ</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>SQLite</th><th>MySQL 8 with InnoDB</th><th>PostgreSQL 15</th></tr></thead>
+<tbody>
+<tr><td>Default isolation</td><td>Serializable</td><td>Repeatable read</td><td>Read committed</td></tr>
+<tr><td>Request-level atomicity</td><td>Off by default</td><td>Off by default</td><td>Off by default</td></tr>
+<tr><td>Locking read</td><td>Silently ignored</td><td>Supported</td><td>Supported</td></tr>
+<tr><td>Skip locked</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Lock granularity</td><td>Database, one writer at a time</td><td>Row</td><td>Row</td></tr>
+<tr><td>Concurrent writers</td><td>One, queued</td><td>Thousands of row locks</td><td>Thousands of row locks</td></tr>
+<tr><td>Typical contention failure</td><td>A locked error</td><td>Lock wait timeout</td><td>Lock wait timeout</td></tr>
+<tr><td>What to configure</td><td>A longer timeout and write-ahead logging</td><td>Connection reuse</td><td>Connection reuse</td></tr>
+</tbody>
+</table>
+
+<p>The line that matters: running comfortably on SQLite does not mean production is safe. Eight threads manage here only because seven fail loudly; on a server database they would all succeed and the lost-update bug would stay silent. Every read-compute-write pattern needs the expression form or a real row lock before you migrate.</p>
+
+<p>And on migration, the locking read stops being a no-op, so start using it, remove the SQLite timeouts and add connection reuse.</p>
+
+<h2>Checklist</h2>
+
+<p>In the code: replace every read-modify-write with an expression update or an explicit transaction plus a proven row lock; keep unrelated logic out of save methods, or document its cost; never call external side effects synchronously from save or delete hooks; route mail, push and third-party calls through the post-commit hook or a queue; and enable robustness on the hook for non-critical work so one failed message cannot break the rest of the commit path.</p>
+
+<p>In the tests: assert that callbacks are registered using the capture helper; write race tests with a non-wrapping test case and a thread pool; and for every read-compute-write path, run a thousand concurrent executions and assert the final value.</p>
+
+<p>In the configuration: write-ahead logging and a longer timeout on SQLite; connection reuse and health checks on a server database; a deliberate decision about request-level atomicity; and monitoring of lock waits and rollback rates.</p>
+
+<h2>Closing</h2>
+
+<p>Where the lock post was about exclusion between processes and the query post was about the cost of a query, this one is about the boundary of an operation: what must be tied together, what must be kept apart, and what must never share a block of code.</p>
+
+<p>Three things to remember. Change data with an expression. Tie steps together with a transaction. Keep side effects until after commit. Everything else is a combination.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a>.</p>
+
+<h2>Appendix: the benchmark script</h2>
+
+<pre><code># every experiment: worst-case save versus update, eight threads, post-commit behaviour
+cd backend
+DJANGO_SECRET_KEY=dev-only python ../tools/bench_transaction.py
+python ../tools/bench_transaction.py --threads 4 --increments 25
+</code></pre>
+
+<p>Django 6, SQLite 3.5, Python 3.13, medians over eight threads of fifty increments. The script copies the database to a temporary directory, deletes it afterwards and disconnects the notification signal, so <strong>no real rows are touched and no email is sent</strong>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
