@@ -29419,6 +29419,239 @@ def mergeKLists(lists):
 `,
   },
 
+  {
+    slug: 'lc-19-remove-nth-from-end',
+    zhSlug: 'lc-19-remove-nth-from-end',
+    topicSlug: 'leetcode',
+    title: 'LC 19, removing the Nth node from the end: lock the gap and walk together',
+    excerpt:
+      'One scan, two pointers, a fixed distance. Why the fast pointer starts n plus one ahead, why the dummy makes deleting the head ordinary, and why returning the head is a bug.',
+    date: '2026-10-21',
+    readingTime: 14,
+    html: `
+<h2>The problem</h2>
+
+<p>Remove the n-th node from the end of a list and return the head, in one pass.</p>
+
+<pre><code>input:  1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5, n = 2
+output: 1 -&gt; 2 -&gt; 3 -&gt; 5
+</code></pre>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<p>This is the second building block of two-pointer list problems, after reversing. It is labelled medium, and the difficulty is not in the code, which is three core lines. It is in getting three things right at once: why the fast pointer leads by n plus one rather than n, why a dummy is needed, and why deleting the head does not crash. Each of those maps to a typical wrong submission.</p>
+
+<h2>Where the difficulty actually is</h2>
+
+<p>In an array, removing the second from the end is trivial: compute the index and shift the rest. An array knows its length, so "n-th from the end" converts into "this index" in one step.</p>
+
+<p>A list does not. A node knows only its successor, and the length is known only by walking. Deleting is also not shifting elements but changing the predecessor's link.</p>
+
+<pre><code>before:  3 -&gt; 4 -&gt; 5
+after:   3 --------&gt; 5
+</code></pre>
+
+<p>So the problem splits into locating the node before the target, and then one line to unlink. All the difficulty is in locating, in a single pass.</p>
+
+<h2>The two-pass reference</h2>
+
+<pre><code>def removeNthFromEnd(head, n):
+    length, node = 0, head
+    while node:
+        length += 1
+        node = node.next
+
+    dummy = ListNode(0, head)
+    node = dummy
+    for _ in range(length - n):
+        node = node.next
+    node.next = node.next.next
+    return dummy.next
+</code></pre>
+
+<p>Count, then walk to the predecessor. Correct, linear, and it does the locating in two traversals. The point of the one-pass version is to make both actions happen at once, and it keeps two elements from this version: deletion works through the predecessor, and the dummy removes the need to special-case the head.</p>
+
+<h2>One pass: fixing the gap</h2>
+
+<p>To find the point that has five people between it and the end of a queue, you do not count the queue. You send two people forward keeping a five-person gap, and when the leader reaches the back, the follower is standing on the answer.</p>
+
+<ol>
+<li>Both pointers start at the dummy.</li>
+<li>The fast one moves n plus one steps first, establishing a gap of n plus one.</li>
+<li>Then both advance one step at a time.</li>
+<li>The moment fast leaves the list, slow is on the n-plus-first node from the end, which is the predecessor of the target.</li>
+</ol>
+
+<p>Why n plus one rather than n: the target is the node before the one being deleted. Since fast leads by n plus one and the gap never changes, when fast falls off the end slow is n plus one back, which is exactly the predecessor.</p>
+
+<p>The one-sentence version: the leader explores, the follower locates, and the gap you fix is the accuracy you get.</p>
+
+<h3>Why it lands exactly right</h3>
+
+<p>Count with indices from the dummy, nodes numbered one through L. Fast moves n plus one steps and stops at node n plus one. The gap is n plus one and stays constant during the synchronous phase, which is the loop invariant. Fast needs L minus n more steps to reach null, and when n equals L that count is zero, which is the delete-the-head case where slow never moves. After those L minus n steps slow sits at node L minus n, which has exactly n nodes behind it, so it is the n-plus-first from the end, and its successor is the node to remove.</p>
+
+<p>Checking the example: five nodes, n of two. Fast stops at node three, the synchronous phase runs three steps, slow stops at node three, with four and five behind it. That is the predecessor of four, which is removed, leaving the expected list.</p>
+
+<p>"The gap never changes" is the only invariant in the algorithm, and stating it out loud is worth more in an interview than ten more lines of code.</p>
+
+<h2>The dummy turns deleting the head into an ordinary case</h2>
+
+<pre><code>def removeNthFromEnd(head, n):
+    fast = head
+    for _ in range(n):
+        fast = fast.next
+
+    if fast is None:
+        return head.next
+
+    slow = head
+    while fast.next:
+        fast = fast.next
+        slow = slow.next
+    slow.next = slow.next.next
+    return head
+</code></pre>
+
+<p>That version needs a special case. With two nodes and n of two, fast runs off the list immediately, and the node to delete is the head, which has no predecessor, so it returns the second node directly.</p>
+
+<pre><code>dummy -&gt; 1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5
+</code></pre>
+
+<p>With a dummy in front, the original head gains a predecessor, so deleting the head and deleting the middle become the same operation. And since fast starts at the dummy and moves n plus one steps, even when n equals the length it lands exactly on null rather than overrunning, the synchronous phase does nothing, slow stays on the dummy, and the unlink changes the dummy's next from the first node to the second. The special case disappears entirely.</p>
+
+<p>This is the second classic reason for a dummy in list problems, the first being a fixed anchor when the head itself may be replaced: <strong>if an operation can land on the head, put a dummy in front of it</strong>.</p>
+
+<h2>The animation</h2>
+
+<p>The original post breaks the example into nine steps. Three things to watch. The three-step head start, where fast moves alone and opens the gap while slow does not move. The gap marker during the synchronous phase, which never changes, since that is the invariant. And the last step, where the link from three no longer points at four but at five, and the removed node greys out while still existing in memory: deletion in a list is never destruction, only the loss of the last reference.</p>
+
+<p>One detail worth noticing: the nodes fast visits in its head start plus the steps of the synchronous phase equal the full path from the dummy to null. <strong>No node is visited twice, and that is what one pass means.</strong></p>
+
+<h2>Line by line</h2>
+
+<pre><code>def removeNthFromEnd(head, n):
+    dummy = ListNode(0, head)
+    fast = dummy
+    for _ in range(n + 1):
+        fast = fast.next
+
+    slow = dummy
+    while fast:
+        fast = fast.next
+        slow = slow.next
+
+    slow.next = slow.next.next
+    return dummy.next
+</code></pre>
+
+<p>The head start must be n plus one, so that slow ends on the predecessor. Writing n here while keeping the loop below unchanged is the most common error on this problem.</p>
+
+<p>Slow starts at the dummy rather than the head, because its starting position is the virtual predecessor of the first node, which is what fixes the gap.</p>
+
+<p>The loop condition is fast itself, not its next, because the head start has already absorbed the off-by-one. If you instead use a head start of n, the loop must test the next field; either convention works, mixing them does not.</p>
+
+<p>The unlink is the deletion. Python and Java reclaim the node automatically; C and C++ would need to free it, and strictly speaking the removed node's next should be cleared so it does not keep the rest of the list alive.</p>
+
+<p>Return the dummy's next, not the head. When the head is the node removed, the original head variable points at something no longer in the list.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>fast</th><th>slow</th><th>Gap</th><th>List</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>dummy</td><td>dummy</td><td>-</td><td>d,1,2,3,4,5</td></tr>
+<tr><td>head start 1</td><td>1</td><td>dummy</td><td>1</td><td></td></tr>
+<tr><td>head start 2</td><td>2</td><td>dummy</td><td>2</td><td></td></tr>
+<tr><td>head start 3</td><td>3</td><td>dummy</td><td><strong>3</strong></td><td>gap fixed</td></tr>
+<tr><td>sync 1</td><td>4</td><td>1</td><td>3</td><td></td></tr>
+<tr><td>sync 2</td><td>5</td><td>2</td><td>3</td><td></td></tr>
+<tr><td>sync 3</td><td>None</td><td>3</td><td>-</td><td>fast falls off</td></tr>
+<tr><td>unlink</td><td>-</td><td>-</td><td>-</td><td>3 points at 5</td></tr>
+<tr><td>return</td><td>-</td><td>-</td><td>-</td><td>1,2,3,5</td></tr>
+</tbody>
+</table>
+
+<pre><code>class Solution {
+    public ListNode removeNthFromEnd(ListNode head, int n) {
+        ListNode dummy = new ListNode(0, head);
+        ListNode fast = dummy;
+        for (int i = 0; i &lt; n + 1; i++) {
+            fast = fast.next;
+        }
+        ListNode slow = dummy;
+        while (fast != null) {
+            fast = fast.next;
+            slow = slow.next;
+        }
+        slow.next = slow.next.next;
+        return dummy.next;
+    }
+}
+</code></pre>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Behaviour</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>One node, n of one</td><td>Fast moves two steps to null, slow stays on the dummy, the dummy's next becomes null</td><td>null</td></tr>
+<tr><td>Two nodes, n of two</td><td>Fast lands on null, no synchronous steps, slow stays on the dummy, its next skips to the second node</td><td>the second node</td></tr>
+<tr><td>Two nodes, n of one</td><td>Slow stops on the first node and its next becomes null</td><td>one node</td></tr>
+</tbody>
+</table>
+
+<p>None of them needs a branch, because the dummy plus the n-plus-one convention absorbs all three. If you find yourself adding a special case, one of those two conventions is probably wrong, and fixing it is cheaper than patching it.</p>
+
+<p>The problem guarantees n is at most the length, so the head start lands on null at worst. If the interviewer lifts that constraint, the head-start loop must check for null and return the list unchanged.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Passes</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Two pass</td><td>2</td><td>Linear</td><td><strong>Constant</strong></td></tr>
+<tr><td>One pass</td><td><strong>1</strong></td><td>Linear</td><td><strong>Constant</strong></td></tr>
+</tbody>
+</table>
+
+<p>Both are linear, since even two passes visit each node a constant number of times. The value of one pass is that the data is streamed once, which is the only option when the total length is unknown and unmeasurable: a log file read sequentially, or the k-th record from the end of a stream.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using a head start of n while keeping the loop condition for n plus one, which leaves slow one position short and removes the wrong node.</li>
+<li>Returning the head instead of the dummy's next, which breaks whenever the head is the node removed.</li>
+<li>No dummy and no null check, which dereferences nothing on a single node.</li>
+<li>Treating deletion as destruction. The removed node still points into the list; in C or C++ that is a leak, and some judges detect it as a cycle.</li>
+<li>Not defending the head start when the guaranteed bound on n no longer holds. Skipping a check the problem makes unnecessary is fine, as long as you can say why.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Start from the structure: deletion works through the predecessor, so the target is the n-plus-first node from the end. Then the technique: fix the gap at n plus one, move fast first, advance together, and fast reaching null puts slow on the predecessor. Then the dummy: it makes deleting the head an ordinary case and unifies the return value. Then the complexity: one pass, linear time, constant space.</p>
+
+<p>And then offer the family yourself: the same gap trick finds the middle (fast two steps, slow one), rotates a list by locating the k-th from the end and joining the tail to the head, and returns the k-th from the end (fast leads by k, no plus one).</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Fast</th><th>Slow</th><th>Where they end up</th></tr></thead>
+<tbody>
+<tr><td>LC 19</td><td>Leads n plus one, then together</td><td>One step</td><td>The predecessor of the target</td></tr>
+<tr><td>k-th from the end</td><td>Leads k, then together</td><td>One step</td><td>The k-th node from the end</td></tr>
+<tr><td>LC 876, middle</td><td>Two steps</td><td>One step</td><td>The middle, the later one if even</td></tr>
+<tr><td>LC 141 and 142</td><td>Two steps</td><td>One step</td><td>Meeting point, then the cycle entry</td></tr>
+</tbody>
+</table>
+
+<p>What varies is the step rate and the head start; what stays is producing controlled relative motion, with one pointer probing and the other locating.</p>
+
+<p>So for any k-th-from-the-end problem, do not count the length. Ask which position you need, remembering that a deletion needs one extra step back, and then choose the gap and the step rate so that the probing pointer stops exactly there. Fix the gap once as an initial condition and the rest is walking together, which is more robust than any arithmetic.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
