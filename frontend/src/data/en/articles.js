@@ -33391,6 +33391,292 @@ assert threeSum([1, 2, 3]) == []
 `,
   },
 
+  {
+    slug: 'lc-200-number-of-islands',
+    zhSlug: 'lc-200-number-of-islands',
+    topicSlug: 'leetcode',
+    title: 'LC 200, number of islands: one flood fill, and three ways to avoid the stack',
+    excerpt:
+      'Counting islands is counting connected components. The interesting question is not the skeleton, which is a single line, but what happens when a snake-shaped island makes the recursion depth ninety thousand.',
+    date: '2026-10-08',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a grid of land and water cells, count the islands. An island is land connected horizontally or vertically, surrounded by water.</p>
+
+<pre><code>1 1 1 1 0
+1 1 0 1 0         -&gt; 1
+1 1 0 0 0
+0 0 0 0 0
+
+1 1 0 0 0
+1 1 0 0 0         -&gt; 3
+0 0 1 0 0
+0 0 0 1 1
+</code></pre>
+
+<p>The cells hold characters, and only the four orthogonal directions connect. Diagonals do not count, so a fully land three by three grid is one island, not nine.</p>
+
+<p>The skeleton fits in a sentence: scan the grid, and every time you meet land that has not been visited, add one to the answer and drown the whole island at once.</p>
+
+<p>All the variation lies in how drowning is implemented, recursion, an explicit stack, a queue, or union-find. And the question worth the most in an interview hides right there: recursive flooding uses one stack frame per node along the longest connected path, and a single snake-shaped island is enough to exhaust the call stack.</p>
+
+<h2>Number of islands is number of components</h2>
+
+<p>Treat each land cell as a vertex with edges to its orthogonal neighbours. The island count is the number of connected components over the land vertices, and that admits two mirror approaches.</p>
+
+<ul>
+<li><strong>Flood fill.</strong> On reaching unvisited land, mark the entire component and increment the count.</li>
+<li><strong>Union-find.</strong> Start each cell as its own set and merge adjacent land, and the number of remaining sets is the answer.</li>
+</ul>
+
+<pre><code>def numIslands(grid):
+    if not grid:
+        return 0
+    m, n = len(grid), len(grid[0])
+    seen = [[False] * n for _ in range(m)]
+    count = 0
+    for r in range(m):
+        for c in range(n):
+            if grid[r][c] == "1" and not seen[r][c]:
+                count += 1
+                flood(grid, r, c, seen)
+    return count
+</code></pre>
+
+<p>Three details decide success. Count only unvisited land, so that a component is counted exactly once, at the moment it is first touched. Mark visited at the moment a cell is pushed, not when it is popped, or the same cell enters the queue from several neighbours and the container explodes. And the visited state can be a separate array or an in-place rewrite of land to water, where the rewrite saves space and destroys the input, so ask whether mutating is allowed.</p>
+
+<h2>Why the recursive version overflows</h2>
+
+<pre><code>def flood(grid, r, c, seen):
+    if r &lt; 0 or r &gt;= len(grid) or c &lt; 0 or c &gt;= len(grid[0]):
+        return
+    if grid[r][c] != "1" or seen[r][c]:
+        return
+    seen[r][c] = True
+    flood(grid, r - 1, c, seen)
+    flood(grid, r + 1, c, seen)
+    flood(grid, r, c - 1, seen)
+    flood(grid, r, c + 1, seen)
+</code></pre>
+
+<p>Short and pleasant, with a hidden cost of one stack frame per node along the connected path. The recursion depth equals the longest simple path from the entry.
+
+<p>That depth can be enormous. A snake-shaped island, such as a single long row or a corridor that wraps around, can make the depth equal to the total land count. The constraints allow three hundred by three hundred, so ninety thousand cells, and if all of them connect, the depth is ninety thousand. Python's default limit is a thousand, so the result is an immediate error; the JVM stack is a few hundred kilobytes at most, so the result is an overflow.</p>
+
+<p>So the recursive version passes only if the test data has no long connected run, which is a gamble on any realistic grid. Two ways out: move the call stack to the heap with an explicit stack, or change the data structure entirely with a queue or union-find.</p>
+
+<p>In one line: the space of depth-first search is the visited array plus the recursion depth, and what breaks is not memory but the hard limit on stack depth.</p>
+
+<h2>The first animation, and its trace</h2>
+
+<p>The original post has two animations. The first shows flood fill. The grid is on the left with land dark, water light, and visited land grey. An explicit stack of coordinates sits at the upper right, and the island counter at the lower right. A seed frame is where the scan finds new land, increments the counter and pushes it, with the counter cell outlined in gold. A pop frame removes the top, marks the four neighbours that are unvisited land, and pushes them. Two things to watch: the counter only moves on seed frames, and the stack depth rises and falls with the size of the component, which is exactly the call-stack depth made visible.</p>
+
+<p>The second animation shows union-find on the same grid. Each land cell starts as its own set, so the counter begins at zero and increments per cell added. Merging with the already-processed neighbours above and to the left decrements it. Every cell is labelled with its current root, and equal roots share a colour. Watch the counter: plus one for a new cell, minus one for a successful merge, and after one pass the remainder is the island count. There is no recursion and no stack at all.</p>
+
+<p>Both animations view the same grid and the same answer of three: one spreads outward from a cell, the other fuses adjacent cells.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>Action</th><th>Stack, bottom to top</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td>seed</td><td>Scan finds (0,0)</td><td>(0,0)</td><td>1</td></tr>
+<tr><td>pop</td><td>Push right and down</td><td>(0,1), (1,0)</td><td>1</td></tr>
+<tr><td>pop</td><td>Pop (1,0), push right</td><td>(0,1), (1,1)</td><td>1</td></tr>
+<tr><td>pop</td><td>Pop (1,1), all neighbours done</td><td>(0,1)</td><td>1</td></tr>
+<tr><td>pop</td><td>Pop (0,1), nothing new</td><td>empty</td><td>1</td></tr>
+<tr><td>seed</td><td>Scan finds (2,2), isolated</td><td>empty</td><td>2</td></tr>
+<tr><td>seed</td><td>Scan finds (3,3)</td><td>(3,3)</td><td>3</td></tr>
+<tr><td>pop</td><td>Pop (3,3), push right</td><td>(3,4)</td><td>3</td></tr>
+<tr><td>pop</td><td>Pop (3,4), nothing new</td><td>empty</td><td>3</td></tr>
+</tbody>
+</table>
+
+<p>When the scan later reaches cells that are already marked, they are skipped without counting, which is the guarantee that each island contributes exactly one.</p>
+
+<p>Union-find on the same grid, row-major, merging with the cell above and the cell to the left: the first cell becomes a set, the next merges with its left neighbour, the one below merges with the cell above, and the fourth finds both neighbours already in its root, so both merges are no-ops. The isolated cell and the pair at the bottom each contribute one increment. The end state is three, matching the other method, and note that no visited array was needed, because comparing roots performs the deduplication.</p>
+
+<h2>Three alternatives</h2>
+
+<pre><code>from collections import deque
+
+def numIslands_bfs(grid):
+    if not grid:
+        return 0
+    m, n = len(grid), len(grid[0])
+    count = 0
+    for r in range(m):
+        for c in range(n):
+            if grid[r][c] != "1":
+                continue
+            count += 1
+            grid[r][c] = "0"
+            q = deque([(r, c)])
+            while q:
+                x, y = q.popleft()
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if 0 &lt;= nx &lt; m and 0 &lt;= ny &lt; n and grid[nx][ny] == "1":
+                        grid[nx][ny] = "0"
+                        q.append((nx, ny))
+    return count
+</code></pre>
+
+<p>Breadth-first replaces the call stack with a queue, and the only difference from the recursive version is the order of visitation. An explicit stack is the same with a list instead, keeping the depth-first shape while the stack lives on the heap.</p>
+
+<pre><code>def numIslands_uf(grid):
+    if not grid:
+        return 0
+    m, n = len(grid), len(grid[0])
+    parent = {}
+
+    def find(x):
+        root = x
+        while parent[root] != root:
+            root = parent[root]
+        while parent[x] != root:
+            parent[x], x = root, parent[x]
+        return root
+
+    count = 0
+    for r in range(m):
+        for c in range(n):
+            if grid[r][c] != "1":
+                continue
+            parent[(r, c)] = (r, c)
+            count += 1
+            for pr, pc in ((r - 1, c), (r, c - 1)):
+                if 0 &lt;= pr &lt; m and 0 &lt;= pc &lt; n and grid[pr][pc] == "1":
+                    a, b = find((r, c)), find((pr, pc))
+                    if a != b:
+                        parent[a] = b
+                        count -= 1
+    return count
+</code></pre>
+
+<p>Union-find has no recursion, no stack, and no need for the push-time marking discipline. Its real advantage appears when land arrives incrementally, as in the follow-up where cells are added one at a time and the answer must be maintained, which is why interviewers raise it.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Depth risk</th><th>Space</th><th>When to pick it</th></tr></thead>
+<tbody>
+<tr><td>Recursive flood</td><td><strong>Yes</strong>, up to the grid size</td><td>Grid size</td><td>Small grids, fastest to write</td></tr>
+<tr><td>Explicit stack</td><td>No, heap-allocated</td><td>Grid size</td><td>Keep the depth-first shape safely</td></tr>
+<tr><td>Breadth-first queue</td><td>No</td><td>Frontier width plus visited</td><td>Often the most robust</td></tr>
+<tr><td>Union-find</td><td>No</td><td>Grid size</td><td>Incremental additions</td></tr>
+</tbody>
+</table>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    private static final int[][] DIRS = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+
+    public int numIslands(char[][] grid) {
+        if (grid == null || grid.length == 0) return 0;
+        int m = grid.length, n = grid[0].length, count = 0;
+        for (int r = 0; r &lt; m; r++) {
+            for (int c = 0; c &lt; n; c++) {
+                if (grid[r][c] != '1') continue;
+                count++;
+                grid[r][c] = '0';
+                Deque&lt;int[]&gt; stack = new ArrayDeque&lt;&gt;();
+                stack.push(new int[]{r, c});
+                while (!stack.isEmpty()) {
+                    int[] cur = stack.pop();
+                    for (int[] d : DIRS) {
+                        int nx = cur[0] + d[0], ny = cur[1] + d[1];
+                        if (nx &gt;= 0 &amp;&amp; nx &lt; m &amp;&amp; ny &gt;= 0 &amp;&amp; ny &lt; n &amp;&amp; grid[nx][ny] == '1') {
+                            grid[nx][ny] = '0';
+                            stack.push(new int[]{nx, ny});
+                        }
+                    }
+                }
+            }
+        }
+        return count;
+    }
+}
+</code></pre>
+
+<p>The union-find version flattens coordinates to a single index and uses arrays for parent and rank, with the union returning whether a merge actually happened, which drives the decrement. Path halving is enough to keep the structure effectively constant.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Maximum area of an island.</strong> The same flooding, with the increment replaced by accumulating the size of this component and taking a maximum.</li>
+<li><strong>Surrounded regions.</strong> Flood from the open cells on the four borders first, since those components escape, then flip every remaining open cell. The border components are the only trap.</li>
+<li><strong>Island perimeter.</strong> No flooding needed: each land cell contributes four, and each shared edge cancels two.</li>
+<li><strong>Count closed islands.</strong> Drown the border-touching land first, then count what remains.</li>
+<li><strong>Flood fill on an image.</strong> The purest form, where adjacency is defined by equal colour.</li>
+<li><strong>Distinct island shapes.</strong> The same flood, recording a shape signature such as a sequence of relative coordinates or turns, then deduplicating.</li>
+<li><strong>Counting sub-islands, and number of enclaves.</strong> Grid intersection followed by component counting, and counting land that cannot reach the border.</li>
+<li><strong>Number of islands, part two.</strong> Cells arrive one at a time, which is union-find territory, merging each new cell with existing neighbours and reporting the running count.</li>
+</ul>
+
+<p>Line them up and the skeleton never changes: scan, and dispose of one whole component. What differs is what gets recorded while disposing, area or shape or border contact, and which container holds the work in progress.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>An empty grid, or one with zero-width rows, returns zero, so guard before reading the first row.</li>
+<li>All water returns zero; all land returns one for any non-trivial grid.</li>
+<li>A single cell is one or zero depending on its content.</li>
+<li>A single row or column degenerates to a chain, and the recursion depth equals its length, which is the most likely shape to overflow.</li>
+<li>In-place modification destroys the input, which matters when a judge reuses a grid across cases.</li>
+<li>Diagonal neighbours never connect, so do not use eight directions.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>Extra container</th></tr></thead>
+<tbody>
+<tr><td>Recursive flood</td><td>Grid size</td><td>Grid size</td><td>Call stack up to the grid size</td></tr>
+<tr><td>Explicit stack</td><td>Grid size</td><td>Grid size</td><td>Heap stack</td></tr>
+<tr><td>Breadth-first</td><td>Grid size</td><td>Grid size</td><td>Queue</td></tr>
+<tr><td>Union-find</td><td>Grid size times inverse Ackermann</td><td>Grid size</td><td>None</td></tr>
+</tbody>
+</table>
+
+<p>All four are the same order in time, since each cell is visited a constant number of times and each adjacency checked a constant number of times. What separates them is where the space lives: the recursive version puts it on the call stack, which has a hard limit, while the others put it on the heap.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Marking when popping instead of when pushing, which floods the queue with duplicates.</li>
+<li>No protection against deep recursion, which fails on snake-shaped grids.</li>
+<li>Comparing with an integer instead of a character, which is always false.</li>
+<li>Using eight directions instead of four.</li>
+<li>Missing or inverted bounds checks, which read out of range.</li>
+<li>Forgetting the decrement in union-find, which overcounts islands. Drive it from the union return value.</li>
+<li>Merging in all four directions instead of only the already-processed ones, which is correct and wasteful.</li>
+<li>Rewriting the grid in place and then needing the original.</li>
+<li>Reading the first row without a guard for an empty grid.</li>
+<li>Confusing water with visited land: both are skipped, for different reasons.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the skeleton: islands are components, scan the grid, and on unvisited land increment and flood. Recursive flooding is the shortest and is linear.</p>
+
+<p>Then volunteer the stack problem, which is where candidates separate. The depth equals that of the longest connected path, up to the grid area; a snake-shaped island raises the default Python limit and the JVM stack. The fixes are an explicit stack or a queue, moving the work to the heap, or union-find, which has no recursion at all.</p>
+
+<p>Then union-find, each cell a set, merges for adjacency, and the remainder is the answer, with the killer feature being incremental maintenance when cells arrive over time.</p>
+
+<p>Then the follow-up chain: maximum area accumulates instead of counting, closed islands drown the border first, surrounded regions flood from the border, distinct shapes record signatures, and dynamic additions need union-find.</p>
+
+<p>Close with one sentence: there is a single machine, scan and dispose of one whole component, and the four implementations differ only in where the work-in-progress lives.</p>
+
+<h2>Closing</h2>
+
+<p>The whole difficulty of this problem compresses into one line, and what stratifies answers in interviews is the follow-up about how the flooding is written. Recursive depth-first search is the simplest and carries a stack depth proportional to the component size, which a long snake guarantees to exceed. Moving the stack to the heap, or switching to union-find, removes depth from the algorithm entirely.</p>
+
+<p>Keep the criterion: every cell counted once, every island incremented once.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
