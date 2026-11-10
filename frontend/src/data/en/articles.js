@@ -30170,6 +30170,217 @@ return True
 `,
   },
 
+  {
+    slug: 'lc-160-intersection-of-two-linked-lists',
+    zhSlug: 'lc-160-intersection-of-two-linked-lists',
+    topicSlug: 'leetcode',
+    title: 'LC 160, intersection of two lists: swap cursors and the paths become equal',
+    excerpt:
+      'Five lines, no branches, no length arithmetic. The whole trick is that a plus c plus b equals b plus c plus a, which is just commutativity doing the work.',
+    date: '2026-10-18',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given two list heads, return the node where they first share nodes, or null if they never do. The input is guaranteed acyclic, and the lists must keep their original structure.</p>
+
+<pre><code>A:        a1 -&gt; a2
+                   \\
+                    c1 -&gt; c2 -&gt; c3
+                   /
+B:   b1 -&gt; b2 -&gt; b3
+</code></pre>
+
+<p><strong>Follow-up:</strong> linear time in the combined length and constant space.</p>
+
+<pre><code>class ListNode:
+    def __init__(self, x):
+        self.val = x
+        self.next = None
+</code></pre>
+
+<h2>What intersection means</h2>
+
+<p>The first trap is values versus nodes.</p>
+
+<pre><code>A:  1 -&gt; 2 -&gt; 3
+B:  5 -&gt; 3 -&gt; 6
+</code></pre>
+
+<p>Both contain a three, and they do not intersect: those are two distinct nodes that happen to hold the same value. Intersection means sharing nodes, with the links pointing at the same objects.</p>
+
+<pre><code>A: 1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5
+              ^
+B:      6 -&gt; 7
+</code></pre>
+
+<p>Note the shape: a Y, never an X. Once two singly linked lists intersect, the remainder is necessarily identical, because each node has exactly one successor. So the intersection node is the start of the shared suffix.</p>
+
+<h2>Why the obvious approaches fall short</h2>
+
+<pre><code>def getIntersectionNode(headA, headB):
+    seen = set()
+    cur = headA
+    while cur:
+        seen.add(cur)
+        cur = cur.next
+    cur = headB
+    while cur:
+        if cur in seen:
+            return cur
+        cur = cur.next
+    return None
+</code></pre>
+
+<p>A hash set gets the time right and the space wrong, so it fails the follow-up.</p>
+
+<p>Measuring both lengths and advancing the longer list by the difference is correct, constant space, and entirely standard. It just needs a branch to decide which is longer, plus two nearly identical walk loops, which comes to about twenty lines.</p>
+
+<h2>The idea: give both pointers the same distance to walk</h2>
+
+<p>For two pointers to arrive at the intersection together, they must be equally far from the end. The length-difference method forces that. The method below does not even need to know which list is longer.</p>
+
+<pre><code>A:  a1 -&gt; a2 -&gt; ...   (a nodes)
+                 \\
+                  c1 -&gt; c2 -&gt; ...   (c nodes)
+                 /
+B:  b1 -&gt; b2 -&gt; ...   (b nodes)
+</code></pre>
+
+<p>Send one pointer through A then B, and the other through B then A, one node per step. Then the first walks a plus c plus b, and the second walks b plus c plus a. The two totals are the same number, by commutativity of addition, and with equal speed and a simultaneous start they must arrive at the same place at the same time.</p>
+
+<pre><code>pA: a1 a2 c1 c2 b1 b2 | c1
+pB: b1 b2 c1 c2 a1 a2 | c1
+</code></pre>
+
+<p>Both cover a plus b plus c steps and land on the first shared node. If the lists do not intersect, the shared length is zero and both pointers reach null after a plus b steps, at the same time, which returns null without any special case.</p>
+
+<p>So aligning two unequal sequences becomes two paths that were always equal. No branch, no comparison of lengths, no duplicated loop.</p>
+
+<h2>The code</h2>
+
+<pre><code>class Solution:
+    def getIntersectionNode(self, headA: ListNode, headB: ListNode) -&gt; Optional[ListNode]:
+        pA, pB = headA, headB
+        while pA is not pB:
+            pA = pA.next if pA else headB
+            pB = pB.next if pB else headA
+        return pA
+</code></pre>
+
+<p>The loop condition compares identity, not values, because the two pointers being equal means one of exactly two things: they are both on the intersection node, which is the answer, or they are both null, which means there is no intersection. The second case needs no special handling, which is the most elegant part: the pointers fall off the ends together and the comparison succeeds on null.</p>
+
+<p>Comparing values would be wrong, as the first example shows.</p>
+
+<p>Jumping from one list to the other is legal because nothing is being modified. The problem requires the structure to be preserved, and no link is ever written; only a cursor variable changes target. That is a read, so unlike the reorder problem there is no need to cut anything or worry about cycles, because two independent lists stay independent when a variable hops between them. It also explains the constant space: two extra pointers.</p>
+
+<p>A geometric way to remember it is to imagine joining each tail to the other head, producing two rings of equal length starting at the same place. That is a mental model only: actually splicing the tails would break the structure and create cycles. The code changes targets, not links.</p>
+
+<h2>The animation</h2>
+
+<p>The original post has eleven frames. The lists are drawn as a Y, A above and B below, both converging on the same nodes, and the shared segment is drawn only once because it is literally the same objects in memory. The two cursors advance one node per frame and never coincide until the last. And one frame is devoted to the swap: a dashed arrow from the tail of one list to the head of the other, which is the only counterintuitive action in the whole solution and deserves a pause of its own.</p>
+
+<h2>Full trace</h2>
+
+<p>Using the animated example, with a of three, b of two and c of two: A is one, two, three, four, five and B is six, seven, then the same four and five.</p>
+
+<table>
+<thead><tr><th>Step</th><th>Phase</th><th>pA</th><th>pB</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>1</td><td>6</td><td>Cursors placed</td></tr>
+<tr><td>1</td><td>walk</td><td>2</td><td>7</td><td>Different, continue</td></tr>
+<tr><td>2</td><td>walk</td><td>3</td><td>4</td><td>Different</td></tr>
+<tr><td>3</td><td>walk</td><td>4</td><td>5</td><td>Different</td></tr>
+<tr><td>4</td><td>walk</td><td>5</td><td>none</td><td>Different</td></tr>
+<tr><td>5</td><td><strong>jump</strong></td><td>5</td><td>1</td><td>Second pointer wrapped to the other list</td></tr>
+<tr><td>6</td><td>walk</td><td>none</td><td>2</td><td>Different</td></tr>
+<tr><td>7</td><td><strong>jump</strong></td><td>6</td><td>2</td><td>First pointer wrapped</td></tr>
+<tr><td>8</td><td>walk</td><td>7</td><td>3</td><td>Different</td></tr>
+<tr><td>9</td><td>walk</td><td>4</td><td>4</td><td><strong>The same node</strong></td></tr>
+<tr><td>10</td><td><strong>found</strong></td><td>4</td><td>4</td><td>Return it</td></tr>
+</tbody>
+</table>
+
+<p>Both cursors walked seven steps, which is a plus b plus c. The equal totals are why they arrive together.</p>
+
+<p>For the non-intersecting case with A of three nodes and B of two, the walk goes one, four, two, five, three, then both wrap, then two and three, and finally both reach null on the same step, at which point the identity comparison succeeds and null is returned.</p>
+
+<h2>Java</h2>
+
+<pre><code>public class Solution {
+    public ListNode getIntersectionNode(ListNode headA, ListNode headB) {
+        if (headA == null || headB == null) return null;
+
+        ListNode pA = headA, pB = headB;
+        while (pA != pB) {
+            pA = (pA == null) ? headB : pA.next;
+            pB = (pB == null) ? headA : pB.next;
+        }
+        return pA;
+    }
+}
+</code></pre>
+
+<p>In Java the identity comparison is the default for references, and it is what this problem needs. The null guard is defensive and can be omitted.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Result</th><th>Loop rounds</th></tr></thead>
+<tbody>
+<tr><td>Both empty</td><td>null</td><td>0</td></tr>
+<tr><td>A one node, B empty</td><td>null</td><td>2</td></tr>
+<tr><td>A one node, B one different node, same value</td><td>null</td><td>2</td></tr>
+<tr><td>A one node, B the same node</td><td>That node</td><td>0</td></tr>
+<tr><td>A and B the same list</td><td>Its head</td><td>0</td></tr>
+<tr><td>The animated example</td><td>Node four</td><td>7</td></tr>
+<tr><td>One, two, three against four, five</td><td>null</td><td>5</td></tr>
+</tbody>
+</table>
+
+<p>Empty inputs are safe with no extra check. Equal values are not intersection, which is worth stating out loud in an interview. And identical lists are the fastest case, since the heads already match.</p>
+
+<h2>Complexity</h2>
+
+<p>Linear time in the combined length, since each pointer walks a plus b plus c steps and each round is constant work. Constant space, two pointer variables and nothing else. The hash set would match the time and fail the space, which is exactly what the follow-up is designed to rule out.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Comparing values instead of references, which misjudges distinct nodes with equal values.</li>
+<li>Writing the advance as a check on the next field rather than the pointer itself, which swaps one node early and destroys the equal-length property.</li>
+<li>Using a conjunction of both pointers as the loop condition. It appears to work, but it drops the intersection test itself: comparing the pointers expresses both "not yet met" and "not both off the end".</li>
+<li>Thinking the swap requires splicing the lists. It does not, and splicing would break the guarantee and create cycles.</li>
+<li>Adding a special case for equal lengths. Lengths being equal is merely the easy subcase; the argument already covers all lengths.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>State the goal, then the trick: to have both pointers arrive together, walk each through its own list and then through the other, so both cover a plus c plus b and must arrive simultaneously. If they do not intersect they reach null together.</p>
+
+<p>Then volunteer the two key points. The comparison is on identity, because equal values do not mean the same node. And swapping does not modify the list, since only a variable changes target, so no link is touched and no cycle can form.</p>
+
+<p>For follow-ups: no special case is needed for the non-intersecting case because both pointers become null at the same moment. The length-difference method is also correct and also constant space, at the cost of a branch and a duplicated loop. And if cycles were possible, the premise breaks, since the intersection node is not well defined in a graph with cycles without first doing the cycle-entry work.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Core action</th><th>Relation</th></tr></thead>
+<tbody>
+<tr><td>LC 141 and 142</td><td>Two pointers, congruence argument</td><td>Also about equalising paths, but through modular arithmetic</td></tr>
+<tr><td>LC 206</td><td>Reverse in place</td><td>Not used at all here, no link is touched</td></tr>
+<tr><td>LC 19</td><td>Fixed gap</td><td>Also positional alignment, via a head start</td></tr>
+<tr><td>LC 143</td><td>Middle, reverse, interleave</td><td>There, care is needed about cycles; here, hopping is harmless</td></tr>
+<tr><td>LC 160</td><td>Swap cursors</td><td>This one, shortest code and neatest argument</td></tr>
+</tbody>
+</table>
+
+<p>The elegance is in turning the awkward problem of aligning two unequal sequences into two paths that were equal from the start. Next time two pointers need to travel the same distance, ask whether each can borrow a stretch of the other's. If so, commutativity finishes the proof.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
